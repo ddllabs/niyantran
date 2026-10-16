@@ -7,10 +7,11 @@ export const RECORD_BRIEF_POLL_MS = 2_000;
 export const RECORD_BRIEF_WAIT_MS = 60_000;
 /**
  * F211 (owner 2026-10-16): the client's writing animation runs 2.5 s; a brief written faster waits
- * for it to finish rather than cutting it off. A stored brief never waits.
+ * for it to finish rather than cutting it off. F214 (owner 2026-10-16): it plays every time a record's
+ * brief is shown, so a stored brief, or one seen earlier this session, also waits for it.
  */
 export const RECORD_BRIEF_ANIMATION_MS = 2_500;
-/** Briefs kept for the session, so a record opened again shows its brief at once. */
+/** Briefs kept for the session, so a record opened again is not asked for again. */
 const CACHE_MAX = 300;
 const cache = new Map();
 
@@ -48,22 +49,28 @@ function sleep(ms, signal) {
  * later one. Opening a record first only reads (mode 'read', which never writes): a stored brief is
  * shown as it arrives, never as "writing". Only when nothing is stored does the panel say it is
  * writing and ask for the write; while another request writes it, this reads again every two seconds
- * for about a minute. A brief seen this session is shown at once without asking again.
+ * for about a minute. A brief seen this session is not asked for again. Whatever the answer, it is
+ * shown once the animation has run for this record (F214).
  *
- * Returns {state}: 'none' (nothing to brief), 'loading' (reading), 'writing' (a brief is being
- * written), 'unavailable', 'error', or 'ready' with the brief as getRecordBrief gives it (format 2:
- * brief, why, watch, tags; format 1: headline, points), model and writtenAt. A new record or an
- * unmount aborts the request and stops the polling.
+ * Returns {state, record}: 'none' (nothing to brief, no record), 'loading' (reading), 'writing' (a
+ * brief is being written), 'unavailable', 'error', or 'ready' with the brief as getRecordBrief gives
+ * it (format 2: brief, why, watch, tags; format 1: headline, points), model and writtenAt. A new
+ * record or an unmount aborts the request and stops the polling.
  */
 export function useRecordBrief({ feed, selected, loading }) {
   const [result, setResult] = useState({ key: '', brief: null });
+  // The record whose animation has run; cleared when the record changes, so a reopened one replays it.
+  const [revealed, setRevealed] = useState('');
   const feature = feed?.feature || '';
   const tier = feed?.tier || '';
   const enabled = Boolean(!loading && feature && selected && typeof selected === 'object' && selected.status !== 'source_status');
   const key = enabled ? JSON.stringify([feature, tier, entryFingerprintFnv(selected, feature, tier)]) : '';
 
   useEffect(() => {
-    if (!key || cache.has(key)) return undefined;
+    if (!key) return undefined;
+    const reveal = setTimeout(() => setRevealed(key), RECORD_BRIEF_ANIMATION_MS);
+    const unreveal = () => { clearTimeout(reveal); setRevealed(''); };
+    if (cache.has(key)) return unreveal;
     const ac = new AbortController();
     const started = Date.now();
     let writingSince = 0;
@@ -110,14 +117,16 @@ export function useRecordBrief({ feed, selected, loading }) {
     })().catch((err) => {
       if (err?.name !== 'AbortError') show({ state: 'error' });
     });
-    return () => ac.abort();
+    return () => { ac.abort(); unreveal(); };
     // The key carries the record's fingerprint; an equivalent re-created row does not refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   if (!key) return { state: 'none' };
-  if (cache.has(key)) return cache.get(key);
   // Effects run after render: fence the visible result now, before the new lookup starts.
-  if (result.key !== key || !result.brief) return { state: 'loading' };
-  return result.brief;
+  const brief = cache.has(key) ? cache.get(key) : result.key === key && result.brief ? result.brief : { state: 'loading' };
+  // Until the animation has run, only the writing state shows through (it names a real write). `record`
+  // names the record the state belongs to, so the card restarts the animation when it changes.
+  if (revealed !== key && brief.state !== 'writing') return { state: 'loading', record: key };
+  return { ...brief, record: key };
 }

@@ -61,17 +61,17 @@ function BriefBody({ brief }) {
  * a record-panel adapter.
  */
 /**
- * F205 (owner 2026-10-16): reading the stored brief is a plain skeleton; a brief being written (the
- * server says 'pending', or the answer is slower than a stored read) shows the Niyantran mark with a
- * shimmer, so the reader can tell a model call from a database read.
+ * F205 (owner 2026-10-16): the card tells reading the stored brief from writing a new one. Since F214
+ * both play the animation below, and the fallback's words say which.
  */
 /**
  * F211 (owner 2026-10-16): while a brief is written, the client's approved animation plays in the
  * card (public/animation, loaded on first use). The card's own writing look is its light-DOM content,
  * shown until the component is defined and if it never loads; once it runs, the look sits in the
- * component's hidden result slot. Unmounting cancels it.
+ * component's hidden result slot. Unmounting cancels it. F214 (owner 2026-10-16): it plays every time,
+ * while a stored brief is read too; only the fallback's words say which.
  */
-function BriefAnimation() {
+function BriefAnimation({ writing }) {
   const host = useRef(null);
   useEffect(() => {
     let live = true;
@@ -80,25 +80,18 @@ function BriefAnimation() {
       if (!ok || !live || typeof el?.load !== 'function') return;
       // The brief arrives through the hook, not through the component: its task only ends on cancel.
       const waitForCancel = (signal) => new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true }));
-      el.load(waitForCancel, () => document.createTextNode(''), { label: 'Writing the AI brief for this record.', duration: RECORD_BRIEF_ANIMATION_MS }).catch(() => {});
+      el.load(waitForCancel, () => document.createTextNode(''), { label: 'Opening the AI brief for this record.', duration: RECORD_BRIEF_ANIMATION_MS }).catch(() => {});
     });
     return () => { live = false; el?.cancel?.(); };
   }, []);
   return (
     <div className="rp-brief-anim">
       <nter-record-loader ref={host} logo-src={RECORD_ANIMATION_LOGO}>
-        <div className="rp-brief-writing" role="status"><span className="rp-brief-mark"><img src="/brand/logo-128.webp" alt="" width="20" height="20" /></span><span>Writing the AI brief…</span></div>
+        <div className="rp-brief-writing" role="status"><span className="rp-brief-mark"><img src="/brand/logo-128.webp" alt="" width="20" height="20" /></span><span>{writing ? 'Writing the AI brief…' : 'Loading the AI brief…'}</span></div>
         <div className="rp-brief-skel is-writing" aria-hidden="true"><i /><i /><i /></div>
       </nter-record-loader>
     </div>
   );
-}
-
-function BriefWaiting({ writing }) {
-  if (!writing) {
-    return <div className="rp-brief-skel" role="status"><span className="rp-sr">Loading the AI brief…</span><i /><i /></div>;
-  }
-  return <BriefAnimation />;
 }
 
 export function BriefCard({ brief }) {
@@ -109,7 +102,7 @@ export function BriefCard({ brief }) {
   return (
     <div className="rd-ai rp-brief" aria-live="polite">
       <div className="rd-sec-label">✦ Niyantran analysis{ready ? <small>{date ? ` · AI brief · written ${date}` : ' · AI brief'}</small> : null}</div>
-      {ready ? <BriefBody brief={brief} /> : waiting ? <BriefWaiting writing={brief.state !== 'loading'} /> : (
+      {ready ? <BriefBody brief={brief} /> : waiting ? <BriefAnimation key={brief.record} writing={brief.state !== 'loading'} /> : (
         <div className="rd-ai-brief rp-brief-empty">{BRIEF_STATUS[brief.state] || BRIEF_STATUS.error}</div>
       )}
     </div>

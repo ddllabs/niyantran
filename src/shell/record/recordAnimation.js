@@ -1,7 +1,8 @@
 /**
  * The client's record animation (F211, owner 2026-10-16): the approved `nter-record-loader` web
  * component, copied unchanged into public/animation with its logo. It is loaded once, on the first
- * brief that is really being written, so a visit that only reads stored briefs never downloads it.
+ * brief shown (F214: the animation plays for stored briefs too), so a visit that opens no record never
+ * downloads it.
  */
 export const RECORD_ANIMATION_SRC = '/animation/nter-record-loader.js';
 export const RECORD_ANIMATION_LOGO = '/animation/logo.svg';

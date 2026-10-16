@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import RecordPanel from './RecordPanel.jsx';
@@ -202,22 +203,24 @@ describe('RecordPanel AI brief', () => {
     expect(html({ ...READY, writtenAt: '2026-10-15T20:00:00Z' })).toContain('AI brief · written 16 Oct 2026');
   });
 
-  // F205 (owner 2026-10-16): reading a stored brief and writing a new one look different. A quick read
-  // is a plain skeleton; a brief being written (the server says so, or the answer is slow) shows the
-  // Niyantran mark with a shimmer.
-  it('shows a plain skeleton while it reads, and the mark with a shimmer while a brief is written', () => {
-    const reading = html({ state: 'loading' });
-    expect(reading).toContain('<div class="rp-brief-skel" role="status"><span class="rp-sr">Loading the AI brief…</span><i></i><i></i></div>');
-    expect(reading).not.toContain('logo');
-    // F211 (owner 2026-10-16): the client's animation plays while a brief is written; the card's own
-    // writing look sits inside it as the fallback until the component loads.
-    for (const state of ['writing', 'pending']) {
-      const writing = html({ state });
-      expect(writing).toMatch(/<div class="rp-brief-anim"><nter-record-loader logo-src="\/animation\/logo\.svg">/);
-      expect(writing).toContain('<div class="rp-brief-writing" role="status"><span class="rp-brief-mark"><img src="/brand/logo-128.webp" alt="" width="20" height="20"/></span><span>Writing the AI brief…</span></div>');
-      expect(writing).toContain('<div class="rp-brief-skel is-writing" aria-hidden="true"><i></i><i></i><i></i></div></nter-record-loader></div>');
+  // F211 (owner 2026-10-16): the client's animation plays in the card, the card's own look inside it as
+  // the fallback until the component loads. F214 (owner 2026-10-16): it plays every time, while a stored
+  // brief is read as well as while one is written (F205's plain reading skeleton is retired); only the
+  // fallback's words tell reading from writing.
+  it('plays the animation while a brief is read and while one is written', () => {
+    const fallback = (words) => `<div class="rp-brief-writing" role="status"><span class="rp-brief-mark"><img src="/brand/logo-128.webp" alt="" width="20" height="20"/></span><span>${words}</span></div>`;
+    for (const [state, words] of [['loading', 'Loading the AI brief…'], ['writing', 'Writing the AI brief…'], ['pending', 'Writing the AI brief…']]) {
+      const out = html({ state });
+      expect(out, state).toMatch(/<div class="rp-brief-anim"><nter-record-loader logo-src="\/animation\/logo\.svg">/);
+      expect(out, state).toContain(fallback(words));
+      expect(out, state).toContain('<div class="rp-brief-skel is-writing" aria-hidden="true"><i></i><i></i><i></i></div></nter-record-loader></div>');
     }
-    expect(reading).not.toContain('nter-record-loader');
+    expect(html({ state: 'loading' })).not.toContain('<div class="rp-brief-skel" role="status">');
+  });
+
+  it('restarts the animation when the record changes while it plays', () => {
+    const source = readFileSync(new URL('./RecordPanel.jsx', import.meta.url), 'utf8');
+    expect(source).toContain('<BriefAnimation key={brief.record} ');
   });
 
   it('says when it is not available, and when it failed', () => {

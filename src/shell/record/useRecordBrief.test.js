@@ -23,7 +23,9 @@ import { clearRecordBriefCache, RECORD_BRIEF_ANIMATION_MS, RECORD_BRIEF_POLL_MS,
 
 const feed = { feature: 'Open Fronts', tier: 'geopolitics' };
 const READY = { state: 'ready', headline: 'H', points: ['a'], model: 'm/x', writtenAt: '2026-10-15T06:00:00Z' };
-function Render(selected, loading = false) { hooks.index = 0; return useRecordBrief({ feed, selected, loading }); }
+// `record` is checked on its own below; the other tests compare the state.
+function Render(selected, loading = false) { hooks.index = 0; const { record, ...state } = useRecordBrief({ feed, selected, loading }); return state; }
+function RecordOf(selected) { hooks.index = 0; return useRecordBrief({ feed, selected, loading: false }).record; }
 function effects() { if (hooks.effect) { const fn = hooks.effect; hooks.effect = null; hooks.cleanup = fn(); } }
 const settle = async () => { for (let i = 0; i < 6; i += 1) await Promise.resolve(); };
 
@@ -36,10 +38,18 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-it('starts in loading, then shows the stored brief from one request', async () => {
+// F214 (owner 2026-10-16): the animation plays every time a record's brief is shown, whether it is
+// stored, written now or seen earlier this session; the brief appears when the 2.5 s have run.
+const reveal = () => vi.advanceTimersByTimeAsync(RECORD_BRIEF_ANIMATION_MS);
+
+it('starts in loading, then shows the stored brief from one request once the animation has run', async () => {
   getRecordBrief.mockResolvedValueOnce(READY);
   expect(Render({ id: 'a' })).toEqual({ state: 'loading' });
   effects(); await settle();
+  expect(Render({ id: 'a' })).toEqual({ state: 'loading' });
+  await vi.advanceTimersByTimeAsync(RECORD_BRIEF_ANIMATION_MS - 1);
+  expect(Render({ id: 'a' })).toEqual({ state: 'loading' });
+  await vi.advanceTimersByTimeAsync(1);
   expect(Render({ id: 'a' })).toEqual(READY);
   expect(getRecordBrief).toHaveBeenCalledTimes(1);
   expect(getRecordBrief.mock.calls[0][0]).toMatchObject({ tier: 'geopolitics', feature: 'Open Fronts', row: { id: 'a' }, mode: 'read' });
@@ -75,6 +85,15 @@ it('shows a write that took longer than the animation as soon as it lands', asyn
   expect(Render({ id: 'a' })).toEqual(READY);
 });
 
+it('waits for the animation even when the stored brief arrives at once', async () => {
+  getRecordBrief.mockResolvedValueOnce(READY);
+  Render({ id: 'a' }); effects(); await settle();
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(Render({ id: 'a' })).toEqual({ state: 'loading' });
+  await vi.advanceTimersByTimeAsync(1500);
+  expect(Render({ id: 'a' })).toEqual(READY);
+});
+
 it('never says it is writing for a stored brief, however slowly it arrives', async () => {
   let read;
   getRecordBrief.mockReturnValueOnce(new Promise((r) => { read = r; }));
@@ -85,14 +104,40 @@ it('never says it is writing for a stored brief, however slowly it arrives', asy
   expect(Render({ id: 'a' })).toEqual(READY);
 });
 
-it('shows a brief already seen this session at once, without asking again', async () => {
+it('plays the animation again for a brief seen this session, without asking again', async () => {
   getRecordBrief.mockResolvedValueOnce(READY);
-  Render({ id: 'a' }); effects(); await settle();
-  getRecordBrief.mockResolvedValueOnce({ ...READY, headline: 'B' });
-  Render({ id: 'b' }); effects(); await settle();
+  Render({ id: 'a' }); effects(); await settle(); await reveal();
   expect(Render({ id: 'a' })).toEqual(READY);
+  getRecordBrief.mockResolvedValueOnce({ ...READY, headline: 'B' });
+  Render({ id: 'b' }); effects(); await settle(); await reveal();
+  expect(Render({ id: 'a' })).toEqual({ state: 'loading' });
   effects(); await settle();
+  expect(Render({ id: 'a' })).toEqual({ state: 'loading' });
+  await reveal();
+  expect(Render({ id: 'a' })).toEqual(READY);
   expect(getRecordBrief).toHaveBeenCalledTimes(2);
+});
+
+it('replays the animation for a record reopened before the next one finished its animation', async () => {
+  getRecordBrief.mockResolvedValue(READY);
+  Render({ id: 'a' }); effects(); await settle(); await reveal();
+  Render({ id: 'b' }); effects(); await settle();
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(Render({ id: 'a' })).toEqual({ state: 'loading' });
+  effects(); await settle();
+  await vi.advanceTimersByTimeAsync(RECORD_BRIEF_ANIMATION_MS - 1);
+  expect(Render({ id: 'a' })).toEqual({ state: 'loading' });
+  await vi.advanceTimersByTimeAsync(1);
+  expect(Render({ id: 'a' })).toEqual(READY);
+});
+
+it('names the record each state belongs to, so the card can restart the animation for a new one', async () => {
+  getRecordBrief.mockResolvedValue(READY);
+  const a = RecordOf({ id: 'a' }); effects(); await settle();
+  expect(a).toBeTruthy();
+  expect(RecordOf({ id: 'b' })).not.toBe(a);
+  expect(RecordOf({ id: 'a' })).toBe(a);
+  expect(RecordOf(null)).toBeUndefined();
 });
 
 it('a write that loses the race to another request reads until that brief lands', async () => {
@@ -112,7 +157,7 @@ it('remembers only a ready brief: a record that failed is asked again next time'
   Render({ id: 'b' }); effects(); await settle();
   getRecordBrief.mockResolvedValueOnce(READY);
   expect(Render({ id: 'a' })).toEqual({ state: 'loading' });
-  effects(); await settle();
+  effects(); await settle(); await reveal();
   expect(Render({ id: 'a' })).toEqual(READY);
   expect(getRecordBrief).toHaveBeenCalledTimes(3);
 });
@@ -146,10 +191,10 @@ it('gives up after about a minute of pending, as an error', async () => {
 
 it('shows unavailable and error states, and a thrown lookup as an error', async () => {
   getRecordBrief.mockResolvedValueOnce({ state: 'unavailable' });
-  Render({ id: 'a' }); effects(); await settle();
+  Render({ id: 'a' }); effects(); await settle(); await reveal();
   expect(Render({ id: 'a' })).toEqual({ state: 'unavailable' });
   getRecordBrief.mockRejectedValueOnce(new Error('offline'));
-  Render({ id: 'b' }); effects(); await settle();
+  Render({ id: 'b' }); effects(); await settle(); await reveal();
   expect(Render({ id: 'b' })).toEqual({ state: 'error' });
 });
 
@@ -161,7 +206,7 @@ it('aborts and stops polling when the record changes or the panel closes; never 
   expect(Render({ id: 'b' })).toEqual({ state: 'loading' });
   effects();
   expect(signalA.aborted).toBe(true);
-  await settle();
+  await settle(); await reveal();
   expect(Render({ id: 'b' })).toEqual(READY);
   await vi.advanceTimersByTimeAsync(10_000);
   expect(getRecordBrief).toHaveBeenCalledTimes(2);
