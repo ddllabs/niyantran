@@ -32,3 +32,9 @@ Vitest: the loader (one script, already-defined, failure, no document), the card
 Browser (local page, component mounted as the card mounts it): fallback 23 px before definition; once
 defined the stage plays at 468 x 337 px, its logo loaded, phases advancing, the fallback hidden. Full
 suite, lint, build (the files ship in `dist/animation`), bundle check (+9 B).
+
+## Later change (F214, owner 2026-10-16)
+
+The animation now plays for every record's brief, stored or seen this session as well as written, and
+holds the brief for its 2.5 s; the script loads on the first brief shown. See
+`docs/specs/2026-10-16-globe-and-brief-animation.md`.
