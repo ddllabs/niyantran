@@ -549,7 +549,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
 - [ ] **F212. Homepage hero: persona column and coverage box from the client reference.** Owner
-  2026-10-16, built on `task/F212-hero-persona-column`, not yet committed. The "Curated for" strip
+  2026-10-16, committed on `task/F212-hero-persona-column` (`813f061`), not yet merged or live. The "Curated for" strip
   became the hero's third column: six cards with the reference's names and subtitles; hovering or
   focusing a card previews a popover with the reference's text, a click keeps it open, and "Explore this
   perspective" opens that persona in the personas section. The three figures under the copy became a
