@@ -548,11 +548,13 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
-- [ ] **F213. The persona column's smallest text, a step larger.** Owner 2026-10-16 ("make it a bit
-  larger"), on `task/F213-persona-text-size`. Card subtitles and the hint 8.5/8 px → 10 px (10.5 px on
-  phones), the popover kicker 7 → 9 px, the column's overline and line and the coverage box heading one
-  step up. Colours unchanged. Checked: subtitles stay on one line from 1101 px, the box still fits at
-  1280 × 720, no sideways scroll at 375 px.
+- [x] **F213. The persona column's smallest text, a step larger.** Done 2026-10-16 (`8bb0ca9`; owner:
+  "Push everything, deploy everything"). CI passed on the first attempt (run 38829697824, both jobs);
+  Vercel production READY on `8bb0ca9`. Live check on the deployment: the persona column with subtitles
+  and hint at 10 px, the seven coverage figures, the hover popover, no sideways scroll; the production
+  domain serves the same entry bundle. Card subtitles and the hint 8.5/8 px → 10 px (10.5 px on phones),
+  the popover kicker 7 → 9 px, the column's overline and line and the coverage box heading one step up;
+  colours unchanged.
 - [x] **F212. Homepage hero: persona column and coverage box from the client reference.** Done 2026-10-16
   (`813f061`, owner: "Push, merge, and tidy up"). Live: production serves the `05cc82d` build, whose entry
   bundle holds the persona column, the reference's wording and the coverage box. The "Curated for" strip
