@@ -128,14 +128,15 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   separate state-landing 502s were found in its bounded log scan (F223).
   Zero sources above three failures; no new actionable failure or full closure.
   [Observation evidence](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1248-utc).
-  Latest read-only observation 2026-10-17 13:52 UTC: fixtures and both charts
-  completed a fourth ordinary hourly opportunity at 13:50, all ok. Daily
+  Latest read-only observation 2026-10-17 14:48 UTC: fixtures and both charts
+  remain at their fourth ordinary hourly opportunity at 13:50, all ok; next due
+  just after 14:50, so no new expected opportunity was missed. Daily
   reference opportunities remain unchanged/pending; 188 constitution keys retain
   the inventory fingerprint, MLA reference remains 400 profiles + 100 coverage.
   The final three genuine release CI runs 39034204827, 39034521190 and
   39035656870 passed first attempt; READY production source matches main
   `5302dc3`. F223 is diagnosed below, with no backend-change approval yet.
-  [Latest observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1352-utc).
+  [Latest observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1448-utc).
 
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving

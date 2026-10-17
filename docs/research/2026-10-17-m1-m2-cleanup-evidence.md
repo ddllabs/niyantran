@@ -513,3 +513,48 @@ T15 remains open for actual daily reference opportunities. Follow-up ACTIVE;
 no new actionable failure or overall completion, so no notification. No forced
 refreshes, production writes/config/timer changes, deployments, corpus operations,
 payment work, dotenv/credential-file reads or provider calls.
+
+## Scheduled closure observation — 2026-10-17 14:48 UTC
+
+Read-only checks at approximately 14:48–14:50 UTC. Checkout began clean on
+`task/m1-m2-closure-observations` at `1107bff` (local documentation only).
+Fetch confirms main equals origin/main at `5302dc3`; no source changes.
+
+- Feed-refresh cron job 5 remains active every five minutes with the expected
+  production Vercel refresh URL (boolean-only check, no command/secret readback).
+  Six last-30-minute cron executions succeeded, latest 14:45 UTC; feed runs
+  were 19 ok / 22 unchanged, no failed outcomes.
+- Seventy distinct modules / 257 variants serving, no state above three
+  consecutive failures. Monitored references, fixtures and charts all healthy.
+- No new monitored-source run since the prior check. Fixtures and both charts
+  remain at their fourth ordinary opportunity at 13:50 UTC; next due just after
+  14:50 UTC, so no opportunity was missed at the 14:48 query. Do not force it or
+  count another request as an opportunity. Both charts retain 25 items each.
+- Fixtures still has seven current-run events: Premier League 2, NBA 2, La Liga
+  2, IPL 1; 14 retained items include history. All eight windows are checked:
+  IPL-next explicitly empty, the other seven ok. Zero failures.
+- MLA Profiles reference unchanged: 400 profiles with stable profile keys plus
+  100 coverage records, fetched October 17 10:45 UTC, next due October 18 10:45
+  UTC. No new daily interval has elapsed.
+- Constitutions unchanged: 188 distinct `constitute:` keys, MD5
+  `c14635ffbc17cef3a5ace4fc74273578`, identical to the approved inventory. Last
+  refresh October 16 15:40 UTC; first post-rollout opportunity still due
+  October 17 15:40 UTC. No extra stability credit from repeated reads.
+- No live whole-feed `meta.availability=empty`; no new production empty outcome
+  claimed. Existing empty-contract evidence and explicit IPL-next metadata stand.
+- Exact-scope Vercel CLI API readback: production
+  `dpl_9x4jNNLXBW1iNySGQ6WADtji4JNs` remains READY at
+  `5302dc302a21cd8571c1ad8ca6226e6fc75cd86b`, matching origin/main.
+- Latest three genuine CI runs are unchanged and successful: 39034204827,
+  39034521190, 39035656870. Their attempt-1 app/SQL outcomes were already
+  individually verified; the listing has no intervening/new run. CI gate remains
+  satisfied, no retry/empty commit counted.
+- Approved behavioral evaluation remains executed as documented, no new paid
+  calls. F221 remains open; F223's diagnosed store-bypass proposal still awaits
+  owner approval. No new diagnostic probe or backend changes in this follow-up.
+
+T15 remains open for real daily reference observations. Automation remains
+ACTIVE. No new actionable failure or completion; no notification. Only these
+local evidence/tracker records changed; no push/deploy, production writes,
+timer/serve changes, forced refresh, corpus operation, payment work, provider
+call or dotenv/credential-file read.
