@@ -89,7 +89,7 @@ chain() {
     corpus_revision_integrity)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)" "$(m 20260921000003_corpus_and_desk.sql)" "$(m 20260921000009_rag_rpcs.sql)" "$(m 20260921000014_corpus_revision_integrity.sql)") ;;
-    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|admin_model_plan|feed_records|feed_admin|feed_register_page|feed_nothing_new|unscoped_ef_search|rls_initplan_fk_indexes|desk_rows_date_range|record_briefs|record_brief_format)
+    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|admin_model_plan|feed_records|feed_admin|feed_register_page|feed_nothing_new|feed_empty_outcome|feed_latest_run_page|unscoped_ef_search|rls_initplan_fk_indexes|desk_rows_date_range|handbook_period_ranges|record_briefs|record_brief_format)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql
              "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)"
@@ -149,8 +149,9 @@ chain() {
         site_figures) FILES+=("$(as_non_superuser 20261014120000_site_figures.sql)") ;;
         # Desk-row date ranges and fields (F197): search_desk_rows as 082308 left it, then the
         # migration, as a non-superuser. The vacuity check drops the last.
-        desk_rows_date_range)
-          FILES+=("$(m 20260922082308_desk_rows_search_optional_predicates.sql)" "$(as_non_superuser 20261015210000_desk_rows_date_range.sql)") ;;
+        desk_rows_date_range|handbook_period_ranges)
+          FILES+=("$(m 20260922082308_desk_rows_search_optional_predicates.sql)" "$(as_non_superuser 20261015210000_desk_rows_date_range.sql)")
+          [ "$1" = handbook_period_ranges ] && FILES+=("$(as_non_superuser 20261017100644_handbook_period_ranges.sql)") ;;
         # Scheduled module records (F169 phase 4), applied as a non-superuser; they need only
         # is_platform_admin() and user_profiles (auth_schema.sql) for db_size().
         feed_records) FILES+=("$(as_non_superuser 20261015150000_feed_records.sql)") ;;
@@ -164,9 +165,11 @@ chain() {
                                     "$(as_non_superuser 20261015170000_feed_register_page.sql)") ;;
         # A kept module whose source listed nothing new is a success (F196 review R2): feed_register_page's
         # chain plus feed_nothing_new, applied as a non-superuser. The vacuity check drops the last.
-        feed_nothing_new) FILES+=("$(as_non_superuser 20261015150000_feed_records.sql)" "$(as_non_superuser 20261015160000_feed_admin.sql)"
+        feed_nothing_new|feed_empty_outcome|feed_latest_run_page) FILES+=("$(as_non_superuser 20261015150000_feed_records.sql)" "$(as_non_superuser 20261015160000_feed_admin.sql)"
                                   "$(as_non_superuser 20261015170000_feed_register_page.sql)"
-                                  "$(as_non_superuser 20261015230000_feed_nothing_new.sql)") ;;
+                                  "$(as_non_superuser 20261015230000_feed_nothing_new.sql)")
+          [ "$1" != feed_nothing_new ] && FILES+=("$(as_non_superuser 20261017094845_feed_empty_outcome.sql)")
+          [ "$1" = feed_latest_run_page ] && FILES+=("$(as_non_superuser 20261017095859_feed_latest_run_page.sql)") ;;
         # P12: the twelve policies wrapped as (select auth.uid()) and eight foreign-key indexes. Every
         # table the policies and indexes name: the AI credits chain (conversations, traces, invoices,
         # plan grants, ingest jobs), applied as a non-superuser. The vacuity check drops the last.
@@ -519,6 +522,111 @@ feed_nothing_new_checks() {
   return $rc
 }
 
+# Empty outcomes: execute the self-contained Down, compare schema, reapply and retest.
+feed_empty_outcome_checks() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f rc=0
+  local base=niyantran_feed_empty_outcome_base_test up=niyantran_feed_empty_outcome_up_test
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  q "create database $base" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $base < "$f" >/dev/null 2>&1 || { echo "  CHECKS: bootstrap broke at $(basename "$f")"; return 1; }
+  done
+  q "create database $up template $base" >/dev/null
+  local mig="$MIG/20261017094845_feed_empty_outcome.sql"
+  { echo 'SET ROLE nter_migrator;'; sed -n '/^-- Down/,$p' "$mig" | sed '1d; s/^-- //'; } > "$WORK/fnn_down.sql"
+  if ! psql_in $up < "$guard" >/dev/null 2>&1; then
+    echo "  DOWN FAIL - the migration did not apply"; rc=1
+  elif ! psql_in $up < "$WORK/fnn_down.sql" > "$WORK/fnn_down.txt" 2>&1; then
+    echo "  DOWN FAIL - the Down section did not run:"; grep ERROR "$WORK/fnn_down.txt" | head -2 | sed 's/^/    /'; rc=1
+  else
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $base | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/fnn_base.dump"
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $up | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/fnn_up.dump"
+    if ! diff -q "$WORK/fnn_base.dump" "$WORK/fnn_up.dump" >/dev/null; then
+      echo "  DOWN FAIL - the schema differs after the Down section:"; diff "$WORK/fnn_base.dump" "$WORK/fnn_up.dump" | head -8 | sed 's/^/    /'; rc=1
+    elif ! psql_in $up < "$guard" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the migration did not apply again after the Down section"; rc=1
+    elif ! psql_in $up < "$TESTS/feed_empty_outcome.sql" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the fixture fails after Down and re-apply"; rc=1
+    else
+      echo "  down ok - the Down section restores the schema exactly; the migration re-applies and the fixture passes again"
+    fi
+  fi
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  return $rc
+}
+
+# Latest-run reader: the same executable Down/schema/reapply contract.
+feed_latest_run_page_checks() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f rc=0
+  local base=niyantran_feed_latest_run_page_base_test up=niyantran_feed_latest_run_page_up_test
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  q "create database $base" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $base < "$f" >/dev/null 2>&1 || { echo "  CHECKS: bootstrap broke at $(basename "$f")"; return 1; }
+  done
+  q "create database $up template $base" >/dev/null
+  local mig="$MIG/20261017095859_feed_latest_run_page.sql"
+  { echo 'SET ROLE nter_migrator;'; sed -n '/^-- Down/,$p' "$mig" | sed '1d; s/^-- //'; } > "$WORK/fnn_down.sql"
+  if ! psql_in $up < "$guard" >/dev/null 2>&1; then
+    echo "  DOWN FAIL - the migration did not apply"; rc=1
+  elif ! psql_in $up < "$WORK/fnn_down.sql" > "$WORK/fnn_down.txt" 2>&1; then
+    echo "  DOWN FAIL - the Down section did not run:"; grep ERROR "$WORK/fnn_down.txt" | head -2 | sed 's/^/    /'; rc=1
+  else
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $base | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/fnn_base.dump"
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $up | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/fnn_up.dump"
+    if ! diff -q "$WORK/fnn_base.dump" "$WORK/fnn_up.dump" >/dev/null; then
+      echo "  DOWN FAIL - the schema differs after the Down section:"; diff "$WORK/fnn_base.dump" "$WORK/fnn_up.dump" | head -8 | sed 's/^/    /'; rc=1
+    elif ! psql_in $up < "$guard" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the migration did not apply again after the Down section"; rc=1
+    elif ! psql_in $up < "$TESTS/feed_latest_run_page.sql" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the fixture fails after Down and re-apply"; rc=1
+    else
+      echo "  down ok - the Down section restores the schema exactly; the migration re-applies and the fixture passes again"
+    fi
+  fi
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  return $rc
+}
+
+# Handbook period filtering: executable Down/schema/reapply contract.
+handbook_period_ranges_checks() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f rc=0
+  local base=niyantran_handbook_period_ranges_base_test up=niyantran_handbook_period_ranges_up_test
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  q "create database $base" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $base < "$f" >/dev/null 2>&1 || { echo "  CHECKS: bootstrap broke at $(basename "$f")"; return 1; }
+  done
+  q "create database $up template $base" >/dev/null
+  local mig="$MIG/20261017100644_handbook_period_ranges.sql"
+  { echo 'SET ROLE nter_migrator;'; sed -n '/^-- Down/,$p' "$mig" | sed '1d; s/^-- //'; } > "$WORK/fnn_down.sql"
+  if ! psql_in $up < "$guard" >/dev/null 2>&1; then
+    echo "  DOWN FAIL - the migration did not apply"; rc=1
+  elif ! psql_in $up < "$WORK/fnn_down.sql" > "$WORK/fnn_down.txt" 2>&1; then
+    echo "  DOWN FAIL - the Down section did not run:"; grep ERROR "$WORK/fnn_down.txt" | head -2 | sed 's/^/    /'; rc=1
+  else
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $base | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/fnn_base.dump"
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $up | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/fnn_up.dump"
+    if ! diff -q "$WORK/fnn_base.dump" "$WORK/fnn_up.dump" >/dev/null; then
+      echo "  DOWN FAIL - the schema differs after the Down section:"; diff "$WORK/fnn_base.dump" "$WORK/fnn_up.dump" | head -8 | sed 's/^/    /'; rc=1
+    elif ! psql_in $up < "$guard" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the migration did not apply again after the Down section"; rc=1
+    elif ! psql_in $up < "$TESTS/handbook_period_ranges.sql" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the fixture fails after Down and re-apply"; rc=1
+    else
+      echo "  down ok - the Down section restores the schema exactly; the migration re-applies and the fixture passes again"
+    fi
+  fi
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  return $rc
+}
+
 # record_briefs only: the migration's Down section, executed (as feed_admin_checks does). "base" is
 # the chain without the migration; "up" has the migration and then its Down block as written. The
 # schemas must dump identically, the kill-switch row must be gone, and the migration must re-apply
@@ -641,6 +749,9 @@ run_fixture() {
     [ "$name" = feed_admin ] && { feed_admin_checks || rc=1; }
     [ "$name" = feed_register_page ] && { feed_register_page_checks || rc=1; }
     [ "$name" = feed_nothing_new ] && { feed_nothing_new_checks || rc=1; }
+    [ "$name" = feed_empty_outcome ] && { feed_empty_outcome_checks || rc=1; }
+    [ "$name" = feed_latest_run_page ] && { feed_latest_run_page_checks || rc=1; }
+    [ "$name" = handbook_period_ranges ] && { handbook_period_ranges_checks || rc=1; }
     [ "$name" = record_briefs ] && { record_briefs_checks || rc=1; }
     [ "$name" = record_brief_format ] && { record_brief_format_checks || rc=1; }
   else
