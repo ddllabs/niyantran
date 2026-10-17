@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F217 is next) and goes in the
+- A new finding gets the next free `F` number (F218 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-17 (milestone check)
@@ -46,22 +46,31 @@ written to production. Record: [live module status](../research/2026-10-17-live-
 
 ## Milestones: what is left, in order
 
-Recommended order (owner's sequencing 2026-10-14: data and bugs first, then corpus R7; Razorpay and
-chunking/OCR at the end). Each milestone ends with a checkpoint; the owner confirms before the next.
-The items themselves are below in this file; this section only orders them.
+Owner's updated sequence, 2026-10-17: **close M1 and the two M2 leftovers, then payment gateway
+integration (M5)**. Corpus acquisition/ingestion, OCR, chunking and retrieval expansion (M4) stay
+parked; source-dependent M3 work is separate and is not a prerequisite for payments. This supersedes
+the 2026-10-14 ordering that put corpus R7 before payments. Milestone IDs are retained for continuity.
+Each milestone ends with a checkpoint. The items below track the work; this section orders it.
 
-**M1. Data-serving clean-up** (small, backend only, no owner input).
+**M1. Data-serving clean-up** (backend, research tests and data-configuration repair).
 - F215 Fixtures & Results source; F160 leftovers (nothing-new with no items, Music Charts timer,
   World Constitutions key churn, latest-run variants over 2,000 items); F216 research answers
   asserting what the rows do not say; F210 flaky research-thread test; F202 leftover (unread stored
-  searches in the data files, a data-migration task with an inventory); F201 optional review items.
-- *Checkpoint:* the module probe shows no `archive` answer except NSE/BSE; the feed store has no
-  source with more than 3 consecutive failures; three CI runs in a row green.
+  searches in the data files, a data-migration task with an inventory); all F201 optional review
+  items now included. F160 also includes reliable reference serving for MLA Profiles & Coverage;
+  a true scorecard remains M3. Approved behavior and exact task contracts:
+  [spec](../specs/2026-10-17-m1-m2-cleanup.md), [plan](2026-10-17-m1-m2-cleanup.md).
+- *Checkpoint:* correct coverage, dates and empty states; no `archive` answer except NSE/BSE;
+  no scheduled source above 3 consecutive failures across at least three expected refresh
+  opportunities; three consecutive completed CI runs green on first attempt. Verified empty
+  sources are distinguished from outages. Production closure requires separately authorized rollout.
 
-**M2. Front-end leftovers** (on or after the owner's UI branch).
+**M2. Front-end leftovers** (after M1, on the current integrated UI).
 - F208 desk catalogue out of the first-load bundle (then lower the bundle baseline); the Heads of
   State panel shows its Wikidata links (F202).
-- *Checkpoint:* bundle baseline re-recorded lower; panel checked in a browser.
+- *Checkpoint:* entry gzip and total initial JavaScript measured lower before ratcheting the
+  current 224,190-byte gzip baseline; catalogue search/navigation preserved; panel checked in a
+  browser. Then move to M5 payments, not corpus ingestion.
 
 **M3. Modules waiting on sources or methods** (owner decisions first).
 - MLA Report Card from a real source (ADR/MyNeta, assembly records); District Performance,
@@ -70,12 +79,12 @@ The items themselves are below in this file; this section only orders them.
   then the homepage source count (F191).
 - *Checkpoint:* each module live from the store with a probe; F191 shows the true count.
 
-**M4. Corpus and retrieval** (owner go-ahead per step; section 3).
+**M4. Corpus and retrieval** (parked by owner 2026-10-17; owner go-ahead per step; section 3).
 - R5 pilot, R7 acquisition (5,327 linked PDFs), L1, L2; F170 rules 4–9 with F37 and F38; F40, P8, P9;
   then P6, F34, F42, F33.
 - *Checkpoint:* the frozen retrieval eval no worse after each load; cost recorded per batch.
 
-**M5. Payments** (section 4).
+**M5. Payments** (next after M1/M2 closure, owner 2026-10-17; section 4).
 - F107 legal pages (registered address, lawyer review); F110 a Razorpay test-mode run on a preview;
   O6 live keys, top-up packs, downgrade and renewal rules; P2 organisations later.
 - *Checkpoint:* one real payment end to end, credits granted, invoice issued.
@@ -85,6 +94,70 @@ The items themselves are below in this file; this section only orders them.
   deleted; P11; P12 dependency majors and the RLS advisor items; P1 home feeds and O9 when the owner
   has the inputs.
 - *Checkpoint:* signed-in smoke test on nter.pro.
+
+## Active M1/M2 cleanup programme — 2026-10-17
+
+Owner: "Create the spec and implementation plan for all M1 items and the two M2 leftovers,
+keeping corpus ingestion out of scope. Once those are closed, we'll move to payment gateway
+integration." Local implementation was authorized subsequently on 2026-10-17 and is
+verified locally on `task/m1-m2-cleanup` from `b8d9e51` (main and origin/main matched after fetch).
+The orientation snapshot above predates this branch. Scope decisions from the preceding
+recommendations are approved. Pushes, deployments, production migrations/loads and paid
+evaluation remain separately gated; local disposable SQL verification is authorized.
+
+[Spec](../specs/2026-10-17-m1-m2-cleanup.md) · [implementation plan](2026-10-17-m1-m2-cleanup.md).
+The task IDs below reference that plan's ordered contracts. Existing F numbers remain the parent
+items; this index makes every task visible in the sole tracker, without creating duplicate findings.
+
+- [ ] **T0 (M1/M2):** safe baseline, reproducible defects and measured initial assets.
+- [ ] **T1 (F210):** deterministic research-thread integration tests, preserving ownership checks.
+- [ ] **T2 (F160):** retained-item guard and truthful verified-empty source outcomes.
+- [ ] **T3 (F160):** caller cancellation while queued, including Music Charts fallback.
+- [ ] **T4 (F160):** stable constitution identity, with exact stored-key inventory.
+- [ ] **T5 (F160):** bounded, complete latest-run pagination beyond 2,000 accumulated items.
+- [ ] **T6 (F215):** diagnose/repair World Leagues fixtures and preserve four-league coverage.
+- [ ] **T7 (F160):** reliable MLA Profiles reference serving; no scorecard/source expansion.
+- [ ] **T8 (F201):** exact selected-year comparisons and immediate comparable previous period.
+- [ ] **T9 (F201):** whole-variant reads request only necessary handbook pages.
+- [ ] **T10 (F201):** exact-period and overlapping-range handbook filtering; inventory any required
+  handbook-only repair separately. Corpus ingestion remains excluded.
+- [ ] **T11 (F216):** grounded qualifications, focused guards and behavioral evaluation evidence.
+- [ ] **T12 (F202):** inventory and remove only proven unused stored searches.
+- [ ] **T13a (F208):** lightweight public catalogue identity/counts, separate terminal schema.
+- [ ] **T13b (F208):** preserve deferred search/navigation and lower measured bundle baseline.
+- [ ] **T14 (F202/M2):** show the selected leader's real Wikidata item link.
+- [ ] **T15 (M1/M2):** separately authorized rollout, production/CI closure evidence and handoff
+  to payment gateway integration. Vercel DDL Labs access returned 403 during orientation;
+  release inspection needs restored access or an authorized release operator.
+
+Local implementation checkpoint (2026-10-17): T1–T14 code is committed and verified;
+parent findings stay open until integration/release evidence is complete. No task below
+is marked production-closed by local tests. Detailed commands, red/green evidence and
+release sequence: [execution evidence](../research/2026-10-17-m1-m2-cleanup-evidence.md).
+
+| Local scope | Commits | Remaining closure evidence |
+| --- | --- | --- |
+| T0 baseline, T1 + F217 tests | `8d6dec5` | Historical CI flake was not reproduced; three first-attempt green CI runs remain T15 |
+| T2–T7 source/store fixes | `8cd624c`, `acadaa2` | Approved migrations/release; actual constitution stored-key inventory and any exact repair; MLA reference refresh; three source refresh opportunities |
+| T8–T10 handbook | `8cd624c`, `81912bd` | Approved migration/function/client release and production verification; no reload required |
+| T11 grounding | `73cfd87` | Five actual-model behavioral evaluations with approved budget/environment; affected deployed-source diff/release |
+| T12 duplicate searches | `6657958` | Release verification; 57-field inventory and offline parity already pass |
+| T13a/T13b public bundle | `e5f45c2` | Release verification; browser/asset checks already pass |
+| T14 leader link | `d4c0054` | Release verification; browser/safety checks already pass |
+
+T15 remains unexecuted. Local result: 6,110 Vitest tests, 1,149 Deno tests,
+41 SQL fixtures with non-vacuity and rollback checks, lint/build/router/bundle guards
+and isolated desktop/mobile browser checks pass. Payment gateway integration follows
+M1/M2 closure. Corpus ingestion remains excluded.
+
+## Additional implementation finding
+
+- [ ] **F217. Morning Brief fixture clock ages out.** Found 2026-10-17 during M1/M2
+  verification: the fixed 14 October RSS date crossed the three-day retention window.
+  Owner authorized the test-only fix on 2026-10-17. `src/lib/briefFeeds.test.js`
+  now freezes Date at 15 October and restores real timers after each test;
+  runtime retention rules are unchanged. Focused 3/3 pass; final integration evidence
+  is recorded with T1. Committed locally as `8d6dec5`; final full suite passes. Integration/release closure remains T15.
 
 ## UI follow-ups
 
