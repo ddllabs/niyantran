@@ -20,7 +20,7 @@ const OWNER_ID = '00000000-0000-4000-8000-0000000000f1';
 const UNKNOWN_ID = '00000000-0000-4000-8000-0000000000ff';
 
 const FREE = { planStatus: 'free', planEnd: null, planSource: null, planLapsed: false };
-const NO_CREDITS = { creditBalance: 0, creditDebt: 0 };
+const NO_CREDITS = { creditBalance: 0, creditDebt: 0, creditUnitVersion: 'credit-paise-v2' };
 const ALICE_PLAN = { planStatus: 'active', planEnd: '2099-01-01T00:00:00Z', planSource: 'payment', planLapsed: false };
 const OWNER_PLAN = { planStatus: 'active', planEnd: null, planSource: 'manual', planLapsed: false };
 
@@ -115,7 +115,11 @@ function profilesAdmin(rows = profileRows()) {
       state.calls.push({ op: 'rpc', name, args });
       if (state.fail === 'rpc' || state.fail === 'all') return { data: null, error: { message: 'private-provider-detail', code: 'XX000' } };
       if (state.rpcError) return { data: null, error: state.rpcError };
-      if (name === 'admin_adjust_credits') {
+      if (name === 'credit_unit') {
+        const unit = state.unitReads?.shift() ?? 'credit-paise-v2';
+        return { data: { unit_version: unit, inr_per_credit: unit === 'credit-paise-v2' ? 0.01 : 0.1 }, error: null };
+      }
+      if (name === 'admin_adjust_credits_v2') {
         // The function's result shape (migration 20261014200000).
         return { data: state.adjust || { ok: true, repeated: false, request_id: args.p_request_id, kind: args.p_kind, credits: args.p_credits, lot_id: 'lot-1', expires_at: '2027-10-14T00:00:00Z', balance: 1250.5 }, error: null };
       }
@@ -203,7 +207,7 @@ function profilesAdmin(rows = profileRows()) {
     state,
     writes: () => state.calls.filter((call) => call.op === 'update'),
     grants: () => state.calls.filter((call) => call.op === 'rpc' && call.name === 'grant_manual_plan'),
-    adjustments: () => state.calls.filter((call) => call.op === 'rpc' && call.name === 'admin_adjust_credits'),
+    adjustments: () => state.calls.filter((call) => call.op === 'rpc' && call.name === 'admin_adjust_credits_v2'),
     walletReads: () => state.calls.filter((call) => call.op === 'wallets'),
   };
 }
@@ -838,9 +842,21 @@ describe('GET /api/users search', () => {
   });
 });
 
+describe('credit denomination of directory balances', () => {
+  it('does not label a balance with an epoch read across the conversion boundary', async () => {
+    const ctx = setup();
+    ctx.admin.state.unitReads = ['credit-ten-paise-v1', 'credit-paise-v2'];
+    const response = await invoke(request('GET', '/api/users'), ctx.deps);
+    expect(response.status).toBe(200);
+    for (const row of response.body.users) {
+      expect(row).toMatchObject({ creditBalance: null, creditDebt: null, creditUnitVersion: null });
+    }
+  });
+});
+
 describe('POST /api/users/:userId/credits', () => {
   const REQUEST_ID = '11111111-1111-4111-8111-111111111111';
-  const good = (over = {}) => ({ credits: 500, kind: 'adjustment', reason: 'Goodwill after the outage', requestId: REQUEST_ID, ...over });
+  const good = (over = {}) => ({ credits: 500, kind: 'adjustment', reason: 'Goodwill after the outage', requestId: REQUEST_ID, unitVersion: 'credit-paise-v2', ...over });
   const post = (userId, body, caller, authorization) => {
     const ctx = setup(caller);
     return invoke(request('POST', `/api/users/${userId}/credits`, body, authorization), ctx.deps).then((response) => ({ ...ctx, response }));
@@ -849,11 +865,34 @@ describe('POST /api/users/:userId/credits', () => {
   it('adds credits through admin_adjust_credits as the verified caller, and returns the new balance', async () => {
     const { admin, response } = await post(ALICE_ID, good());
     expect(response.status).toBe(200);
-    expect(admin.adjustments()).toEqual([{ op: 'rpc', name: 'admin_adjust_credits', args: {
-      p_user: ALICE_ID, p_credits: 500, p_kind: 'adjustment', p_reason: 'Goodwill after the outage', p_admin: ADMIN_ID, p_request_id: REQUEST_ID,
+    expect(admin.adjustments()).toEqual([{ op: 'rpc', name: 'admin_adjust_credits_v2', args: {
+      p_user: ALICE_ID, p_credits: 500, p_kind: 'adjustment', p_reason: 'Goodwill after the outage', p_admin: ADMIN_ID, p_request_id: REQUEST_ID, p_unit_version: 'credit-paise-v2',
     } }]);
     expect(response.body).toEqual({ ok: true, repeated: false, kind: 'adjustment', credits: 500, expiresAt: '2027-10-14T00:00:00Z', balance: 1250.5 });
     expect(admin.writes()).toEqual([]);
+  });
+
+  it('passes missing legacy denomination to the database for once-only replay, never stamps it as current', async () => {
+    const { admin, response } = await post(ALICE_ID, good({ unitVersion: undefined }));
+    expect(response.status).toBe(200);
+    expect(admin.adjustments()[0].args.p_unit_version).toBeNull();
+  });
+
+  it('accepts valid four-decimal amounts near the expanded ceiling', async () => {
+    const { admin, response } = await post(ALICE_ID, good({ credits: 9999999.0005 }));
+    expect(response.status).toBe(200);
+    expect(admin.adjustments()[0].args.p_credits).toBe(9999999.0005);
+  });
+
+  it('accepts the value-preserving ten-million credit ceiling', async () => {
+    const { response } = await post(ALICE_ID, good({ credits: 10000000 }));
+    expect(response.status).toBe(200);
+  });
+
+  it.each(['credit-ten-paise-v1', undefined])('keeps the old economic ceiling for legacy unit %s', async (unitVersion) => {
+    const { admin, response } = await post(ALICE_ID, good({ credits: 1000001, unitVersion }));
+    expect(response.status).toBe(400);
+    expect(admin.adjustments()).toEqual([]);
   });
 
   it('removes credits as a negative adjustment', async () => {
@@ -926,12 +965,13 @@ describe('POST /api/users/:userId/credits', () => {
     ['a null amount', { credits: null }, 'credits'],
     ['a boolean amount', { credits: true }, 'credits'],
     ['more than four decimals', { credits: 1.00001 }, 'credits'],
-    ['an amount beyond the limit', { credits: 1000001 }, 'credits'],
+    ['an amount beyond the limit', { credits: 10000001 }, 'credits'],
     ['a negative top-up', { kind: 'topup', credits: -10 }, 'top-up'],
     ['an unknown kind', { kind: 'grant' }, 'kind'],
     ['a missing kind', { kind: undefined }, 'kind'],
     ['a missing request id', { requestId: undefined }, 'request id'],
     ['a request id that is not a uuid', { requestId: 'abc' }, 'request id'],
+    ['an invalid unit version', { unitVersion: 'invented' }, 'unit'],
     ['an extra field', { userId: ALICE_ID }, 'only'],
     ['a different admin named in the body', { admin: OWNER_ID }, 'only'],
   ])('rejects %s with 400 and a plain message, adjusting nothing', async (_label, over, hint) => {

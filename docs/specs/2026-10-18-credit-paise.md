@@ -1,8 +1,8 @@
 # One-paisa credits and payment prerequisites
 
-> **Status: Living (draft).** Owner requested 2026-10-18. The new credit value
-> and top-up eligibility are decided; migration design and payment prices below
-> are proposals. No production conversion has run.
+> **Status: Living.** Owner approved local implementation 2026-10-18.
+> Credit conversion is implemented locally; production release/backfill still
+> requires approval. Suggested payment prices remain unapproved.
 
 ## Objective and decisions
 
@@ -74,23 +74,25 @@ The wallet remains the raw ledger sum including those bridge entries; only
 usage/estimate charge projections normalize old units. Do not normalize every
 ledger entry and sum it again as a wallet, which would double-convert the bridge.
 
-Recommended prototype, subject to fixture proof:
+Implemented conversion, verified on disposable local databases:
 
 1. Refresh due accounting at the old rate under exclusive credit-write control;
    reconcile and snapshot the inventoried amounts.
-2. For every open old lot with positive remainder R (including future-start
+2. For old debt D, first append an explicit conversion debit -9D and set debt
+   to 10D. Debt is converted before positive lots to avoid an intermediate
+   wallet overflow for valid offsetting debt and future lots.
+3. For every open old lot with positive remainder R (including future-start
    lots), append an explicit conversion debit -R,
    close that lot without natural-expiry rollover, and create a replacement
    of the same kind/start/expiry/plan holding 10R with an auditable grant.
    Retain original lot, source key, historical draws and ledger entries.
-3. For old debt D, append an explicit conversion debit -9D and set debt to 10D.
 4. Change rate, allowances and reservation settings in the same transaction;
    persist a deterministic conversion identity and old/new lot mapping.
 5. Assert new balance = 10 * old balance, new debt = 10 * old debt,
    balance = ledger sum, and balance = all open lot remainders minus debt. Check numeric
    overflow before modifying anything. Any failed assertion aborts everything.
 
-The prototype must prove per-lot conservation and debt conservation as well as
+The fixtures prove per-lot conservation and debt conservation as well as
 the wallet equations; extending a ledger kind must update all kind constraints
 and reconciliation queries, not bypass them. Do not disguise conversion debits
 as natural expiry or trigger a rollover. Do not silently discard zero-remainder
@@ -127,7 +129,7 @@ instruction. Browser memory caches and already-open tabs must refresh unit
 metadata before another amount-bearing action; avoid mixed cached balance and
 new charge displays.
 
-Use a stable unit version such as credit-paise-v2 at the API boundary. Inspect
+Use credit-ten-paise-v1 and credit-paise-v2 as the API unit versions. Inspect
 an administrator requestId before enforcing a new version: an identical
 previously completed legacy request is compared in its original amount/kind/
 reason, never reapplied, and its response amount is normalized to the current
@@ -151,9 +153,11 @@ requests. Never reinterpret a stale 100-credit submission as 100 new credits.
 | private.credit_launch_grants / credit_turn_messages | Preserve identity and dates; no denomination amount columns |
 | plan_grants / user_profiles / invoices / invoice_counters | No amount, period or entitlement conversion |
 
-Denomination metadata and conversion mapping tables must remain private with
-explicit owner-only access, stable identities, constraints and rollback rules.
-The local prototype must name final schemas and validate privilege changes.
+Denomination metadata and conversion mappings remain in the private schema.
+The compatibility migration adds credit_unit(), version-aware adjustment RPCs,
+current-unit report projections, hold rate metadata and a shared epoch gate.
+The separate conversion migration is one atomic DO statement; it preserves
+the operator’s prior pause state on success and transaction failure.
 
 ## Cutover and recovery
 
@@ -170,7 +174,9 @@ feed reads/refreshes and corpus jobs are not part of the pause. Do not kill a
 user's answer or settle it against a half-converted wallet. Recheck actual
 activity immediately before the transaction. Resume only after reconciliation
 and read-only smoke checks. Specify this operational pause in the release
-packet; this draft does not silently alter production flags.
+packet; local implementation does not alter production flags. Existing tabs
+running the earlier production bundle must reload after release; they cannot
+acquire the new client guards without downloading the compatible bundle.
 
 Transactional failure rolls back. After new-unit writes resume, a blind divide
 by ten is unsafe: four-decimal new charges may require five decimals in old
@@ -217,6 +223,8 @@ decisions and should be reconciled in living documents, not reopened.
   verification and applicable release authorization. M1/M2 T15 is not marked
   complete by this work, and payment implementation waits for its closure.
 
-No migration or application code was executed for this draft. Local SQL tests
-will require disposable Docker Postgres containers; remote Razorpay MCP does
-not require Docker.
+Implementation and local execution evidence are recorded in the
+[verification and release record](../research/2026-10-18-credit-paise-evidence.md).
+SQL tests use the two disposable local Docker Postgres containers. No
+production conversion, push, deployment or Razorpay operation is authorized
+by this local implementation approval.

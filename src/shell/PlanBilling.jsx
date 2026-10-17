@@ -151,7 +151,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
         <p className="plan-up-lead">
           {active
             ? `${planLabel(current)} is active ${end ? `until ${day(end)}` : 'with no end date'}.`
-            : 'You are on Free: every desk at no cost, with 1,000 AI credits to start.'}
+            : 'You are on Free: every desk at no cost, with 10,000 AI credits to start.'}
         </p>
         {renewDue ? (
           <p className="plan-up-renew">Your {planLabel(current)} month ends on {day(end)}. Renew to keep it.</p>

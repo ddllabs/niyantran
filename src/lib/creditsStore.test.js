@@ -2,17 +2,19 @@
 // my_conversation_credits(). Shapes, formatting and the session guard.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const state = vi.hoisted(() => ({ userId: 'u1', rpc: null, afterUserId: null, sessionOf: null }));
+const state = vi.hoisted(() => ({ userId: 'u1', rpc: null, unit: null, unitRpc: null, afterUserId: null, sessionOf: null }));
 vi.mock('./supabaseClient.js', () => ({
   supabase: {
     auth: {
       getSession: async () => {
-        if (state.sessionOf) { const who = state.sessionOf(); return { data: { session: who ? { user: { id: who } } : null }, error: null }; }
+        if (state.sessionOf) { const who = await state.sessionOf(); return { data: { session: who ? { user: { id: who } } : null }, error: null }; }
         const id = state.afterUserId && state.reads++ > 0 ? state.afterUserId : state.userId;
         return { data: { session: id ? { user: { id } } : null }, error: null };
       },
     },
-    rpc: (...args) => state.rpc(...args),
+    rpc: (...args) => args[0] === 'credit_unit'
+      ? state.unitRpc ? state.unitRpc() : Promise.resolve({ data: state.unit, error: null })
+      : state.rpc(...args),
   },
 }));
 
@@ -22,7 +24,7 @@ import {
 } from './creditsStore.js';
 
 const SERVER = {
-  balance: 1520.4567, held: 300, debt: 0, plan: 'plus', inr_per_credit: 0.1,
+  balance: 1520.4567, held: 300, debt: 0, plan: 'plus', inr_per_credit: 0.1, unit_version: 'credit-ten-paise-v1',
   cycle: { allowance: 2000, starts_at: '2026-10-14T00:00:00Z', ends_at: '2026-11-14T00:00:00Z' }, used_this_cycle: 479.5433,
   lots: [{ kind: 'monthly', remaining: 1520.4567, expires_at: '2026-11-14T00:00:00Z' }],
   recent: [{ conversation_id: 'c1', title: 'Budget scrutiny', credits: 38.25, created_at: '2026-10-14T10:00:00Z' }],
@@ -33,6 +35,8 @@ beforeEach(() => {
   state.afterUserId = null;
   state.sessionOf = null;
   state.reads = 0;
+  state.unit = { unit_version: 'credit-ten-paise-v1', inr_per_credit: 0.1 };
+  state.unitRpc = null;
   state.rpc = vi.fn(async () => ({ data: SERVER, error: null }));
   clearCredits();
 });
@@ -43,6 +47,7 @@ describe('shapeCredits', () => {
     const c = shapeCredits('u1', SERVER);
     expect(c).toEqual({
       userId: 'u1', balance: 1520.4567, held: 300, available: 1220.4567, debt: 0, plan: 'plus',
+      unitVersion: 'credit-ten-paise-v1',
       allowance: 2000, cycleStartsAt: '2026-10-14T00:00:00Z', cycleEndsAt: '2026-11-14T00:00:00Z', usedThisCycle: 479.5433,
       lots: [{ kind: 'monthly', remaining: 1520.4567, expiresAt: '2026-11-14T00:00:00Z' }],
       recent: [{ conversationId: 'c1', title: 'Budget scrutiny', credits: 38.25, createdAt: '2026-10-14T10:00:00Z' }],
@@ -66,10 +71,63 @@ describe('shapeCredits', () => {
   it('returns null without a user or a usable answer', () => {
     expect(shapeCredits('', SERVER)).toBeNull();
     expect(shapeCredits('u1', null)).toBeNull();
+    expect(shapeCredits('u1', { ...SERVER, unit_version: 'credit-paise-v2' })).toBeNull();
+    expect(shapeCredits('u1', { ...SERVER, unit_version: '', inr_per_credit: 0.1 })).toBeNull();
   });
 });
 
 describe('refreshCredits', () => {
+  it('does not publish a wallet when another unit read advances during the final read handoff', async () => {
+    const pending = [];
+    state.unitRpc = vi.fn()
+      .mockResolvedValueOnce({ data: { unit_version: 'credit-ten-paise-v1', inr_per_credit: 0.1 }, error: null })
+      .mockImplementation(() => new Promise((resolve) => { pending.push(resolve); }));
+    const old = refreshCredits();
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    const concurrent = loadCreditEstimates();
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    pending[0]({ data: { unit_version: 'credit-ten-paise-v1', inr_per_credit: 0.1 }, error: null });
+    pending[1]({ data: { unit_version: 'credit-paise-v2', inr_per_credit: 0.01 }, error: null });
+    expect(await old).toBeNull();
+    expect(serverCredits('u1')).toBeNull();
+    // The estimate call's missing rows are immaterial; its unit read advanced the epoch.
+    expect(await concurrent).toEqual({});
+  });
+  it('does not regress to a late ten-paise unit read after observing paisa', async () => {
+    let releaseOld;
+    state.unitRpc = vi.fn()
+      .mockImplementationOnce(() => new Promise((resolve) => { releaseOld = resolve; }))
+      .mockResolvedValue({ data: { unit_version: 'credit-paise-v2', inr_per_credit: 0.01 }, error: null });
+    const old = refreshCredits();
+    await vi.waitFor(() => expect(releaseOld).toBeTypeOf('function'));
+    // A separate amount read observes v2 while the old credit_unit HTTP response waits.
+    expect((await loadCreditEstimates()).constructor).toBe(Object);
+    releaseOld({ data: { unit_version: 'credit-ten-paise-v1', inr_per_credit: 0.1 }, error: null });
+    expect(await old).toBeNull();
+    expect(state.rpc).not.toHaveBeenCalledWith('my_credits');
+  });
+  it('drops an old cached wallet when the authoritative unit changes', async () => {
+    await refreshCredits();
+    state.unit = { unit_version: 'credit-paise-v2', inr_per_credit: 0.01 };
+    state.rpc = vi.fn(async () => ({ data: { ...SERVER, unit_version: 'credit-paise-v2', inr_per_credit: 0.01, balance: 15204.567 }, error: null }));
+    const next = await refreshCredits();
+    expect(next.unitVersion).toBe('credit-paise-v2');
+    expect(serverCredits('u1')).toBe(next);
+    expect(next.balance).toBe(15204.567);
+  });
+
+  it('does not publish a wallet from an older unit even if the RPC finishes after cutover', async () => {
+    state.unit = { unit_version: 'credit-paise-v2', inr_per_credit: 0.01 };
+    expect(await refreshCredits()).toBeNull();
+    expect(serverCredits('u1')).toBeNull();
+  });
+
+  it('accepts an unversioned legacy wallet only when its exact rate matches the authoritative unit', async () => {
+    state.rpc = vi.fn(async () => ({ data: { ...SERVER, unit_version: undefined }, error: null }));
+    expect((await refreshCredits()).unitVersion).toBe('credit-ten-paise-v1');
+    state.unit = { unit_version: 'credit-paise-v2', inr_per_credit: 0.01 };
+    expect(await refreshCredits()).toBeNull();
+  });
   it('reads my_credits for the session user and keeps it in memory', async () => {
     const c = await refreshCredits();
     expect(state.rpc).toHaveBeenCalledWith('my_credits');
@@ -94,6 +152,14 @@ describe('refreshCredits', () => {
     const first = await refreshCredits();
     state.rpc = vi.fn(async () => ({ data: null, error: { message: 'down' } }));
     expect(await refreshCredits()).toBe(first);
+  });
+
+  it('does not return the previous account’s balance when a failed read overlaps a session change', async () => {
+    await refreshCredits();
+    state.reads = 0;
+    state.afterUserId = 'u2';
+    state.rpc = vi.fn(async () => ({ data: null, error: { message: 'down' } }));
+    expect(await refreshCredits()).toBeNull();
   });
 });
 
@@ -208,12 +274,19 @@ describe('conversationCredits', () => {
     expect(m.get('m1')).toBe(12.5);
     expect(m.get('m2')).toBe(0.04);
     expect(m.has('m3')).toBe(false);
+    expect(m.unitVersion).toBe('credit-ten-paise-v1');
   });
 
   it('is empty on an error or without a conversation', async () => {
     state.rpc = vi.fn(async () => ({ data: null, error: { message: 'x' } }));
     expect((await conversationCredits('c1')).size).toBe(0);
     expect((await conversationCredits('')).size).toBe(0);
+  });
+
+  it('discards charges when the account changes while they are being read', async () => {
+    state.afterUserId = 'u2';
+    state.rpc = vi.fn(async () => ({ data: [{ message_id: 'm1', credits: 5 }], error: null }));
+    expect((await conversationCredits('c1')).size).toBe(0);
   });
 });
 
@@ -245,13 +318,19 @@ describe('lowBalance', () => {
   });
 
   // F162: an account with no allowance (top-ups only) was never warned.
-  it('without an allowance, is low at 200 credits or fewer', () => {
-    expect(LOW_BALANCE_WITHOUT_ALLOWANCE).toBe(200);
+  it('without an allowance, is low at 2,000 credits or fewer', () => {
+    expect(LOW_BALANCE_WITHOUT_ALLOWANCE).toBe(2000);
     expect(lowBalance({ balance: 5, allowance: null })).toBe(true);
-    expect(lowBalance({ balance: 200, allowance: 0 })).toBe(true);
-    expect(lowBalance({ balance: 201, allowance: null })).toBe(false);
+    expect(lowBalance({ balance: 2000, allowance: 0 })).toBe(true);
+    expect(lowBalance({ balance: 2001, allowance: null })).toBe(false);
     expect(lowBalance({ balance: 0, allowance: null })).toBe(false);
     expect(lowBalance(null)).toBe(false);
+  });
+  it('uses the old economic threshold while a compatible client reads ten-paise credits', () => {
+    expect(lowBalance({ balance: 700, allowance: null, unitVersion: 'credit-ten-paise-v1' })).toBe(false);
+    expect(lowBalance({ balance: 7000, allowance: null, unitVersion: 'credit-paise-v2' })).toBe(false);
+    expect(lowBalance({ balance: 200, allowance: null, unitVersion: 'credit-ten-paise-v1' })).toBe(true);
+    expect(lowBalance({ balance: 2000, allowance: null, unitVersion: 'credit-paise-v2' })).toBe(true);
   });
 });
 
@@ -297,7 +376,9 @@ describe('loadCreditEstimates (F151)', () => {
   beforeEach(() => { state.rpc = vi.fn(async () => ({ data: ROWS, error: null })); });
 
   it('reads model_credit_estimates and keys whole credits by model id', async () => {
-    expect(await loadCreditEstimates()).toEqual({ 'google/gemini-3.5-flash-lite': 4, 'anthropic/claude-sonnet-5': 170.4 });
+    const found = await loadCreditEstimates();
+    expect(found).toEqual({ 'google/gemini-3.5-flash-lite': 4, 'anthropic/claude-sonnet-5': 170.4 });
+    expect(found.unitVersion).toBe('credit-ten-paise-v1');
     expect(state.rpc).toHaveBeenCalledWith('model_credit_estimates');
   });
 
@@ -306,6 +387,51 @@ describe('loadCreditEstimates (F151)', () => {
     await loadCreditEstimates();
     expect(a).toBe(b);
     expect(state.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('invalidates estimates when the authoritative unit changes in an open tab', async () => {
+    expect((await loadCreditEstimates())['anthropic/claude-sonnet-5']).toBe(170.4);
+    state.unit = { unit_version: 'credit-paise-v2', inr_per_credit: 0.01 };
+    state.rpc = vi.fn(async () => ({ data: [{ model_id: 'anthropic/claude-sonnet-5', credits: 1704 }], error: null }));
+    expect((await loadCreditEstimates())['anthropic/claude-sonnet-5']).toBe(1704);
+    expect(state.rpc).toHaveBeenCalledWith('model_credit_estimates');
+  });
+
+  it('discards an old estimate read that completes after cutover', async () => {
+    const pending = [];
+    state.rpc = vi.fn(() => new Promise((resolve) => { pending.push(resolve); }));
+    const old = loadCreditEstimates();
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    state.unit = { unit_version: 'credit-paise-v2', inr_per_credit: 0.01 };
+    const newRead = loadCreditEstimates();
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    pending[0]({ data: ROWS, error: null });
+    pending[1]({ data: [{ model_id: 'anthropic/claude-sonnet-5', credits: 1704 }], error: null });
+    expect(await old).toEqual({});
+    expect(await newRead).toEqual({ 'anthropic/claude-sonnet-5': 1704 });
+  });
+
+  it('cannot cache an old estimate after its final session check resumes behind a new-unit read', async () => {
+    let releaseSession;
+    let enteredSession;
+    const entered = new Promise((resolve) => { enteredSession = resolve; });
+    let sessions = 0;
+    state.sessionOf = () => {
+      sessions += 1;
+      if (sessions === 2) { enteredSession(); return new Promise((resolve) => { releaseSession = resolve; }); }
+      return 'u1';
+    };
+    state.rpc = vi.fn(async (name) => name === 'model_credit_estimates' ? { data: ROWS, error: null } : { data: SERVER, error: null });
+    const old = loadCreditEstimates();
+    await entered;
+    state.unit = { unit_version: 'credit-paise-v2', inr_per_credit: 0.01 };
+    state.rpc = vi.fn(async (name) => name === 'my_credits'
+      ? { data: { ...SERVER, unit_version: 'credit-paise-v2', inr_per_credit: 0.01 }, error: null }
+      : { data: [{ model_id: 'anthropic/claude-sonnet-5', credits: 1704 }], error: null });
+    expect((await refreshCredits()).unitVersion).toBe('credit-paise-v2');
+    releaseSession('u1');
+    expect(await old).toEqual({});
+    expect(await loadCreditEstimates()).toEqual({ 'anthropic/claude-sonnet-5': 1704 });
   });
 
   it('keeps nothing for a row without a usable number, and no dollars or basis', async () => {

@@ -20,6 +20,10 @@ const FILES = [
 describe('credits are never shown in rupees', () => {
   it.each(FILES)('%s has no rupee conversion', (rel) => {
     const source = readFileSync(new URL(rel, import.meta.url), 'utf8');
-    expect(source).not.toMatch(/rupeeHint|inrPerCredit|inr_per_credit|₹|Rupees/);
+    // F225 validates the server's denomination metadata; it never converts a
+    // displayed credit balance into money. Permit that single read only.
+    const displaySource = rel === '../../lib/creditsStore.js'
+      ? source.replace('const rate = num(data?.inr_per_credit);', '') : source;
+    expect(displaySource).not.toMatch(/rupeeHint|inrPerCredit|inr_per_credit|₹|Rupees/);
   });
 });

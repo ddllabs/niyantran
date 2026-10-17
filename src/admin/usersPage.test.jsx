@@ -51,9 +51,9 @@ import { loadUsersPage, setUserActive, setUserPlan, setUserType, usersPaging } f
 import { adjustUserCredits } from './userCredits.js';
 
 const USERS = [
-  { id: 'u-owner', name: 'Olu Owner', email: 'owner@example.test', type: 'analyst', plan: 'max', planStatus: 'active', planEnd: null, active: true, role: 'owner', creditBalance: 0, creditDebt: 0 },
-  { id: 'u-alice', name: 'alice', email: 'alice@example.test', type: 'student', plan: 'pro', planStatus: 'active', planEnd: '2026-10-13T10:00:00Z', active: true, role: 'user', creditBalance: 1250.5, creditDebt: 0 },
-  { id: 'u-bob', name: 'bob', email: 'bob@example.test', type: 'lawyer', plan: 'free', planStatus: 'free', planEnd: '2026-09-01T00:00:00Z', planLapsed: true, active: false, role: 'user', creditBalance: 0, creditDebt: 30.25 },
+  { id: 'u-owner', name: 'Olu Owner', email: 'owner@example.test', type: 'analyst', plan: 'max', planStatus: 'active', planEnd: null, active: true, role: 'owner', creditBalance: 0, creditDebt: 0, creditUnitVersion: 'credit-paise-v2' },
+  { id: 'u-alice', name: 'alice', email: 'alice@example.test', type: 'student', plan: 'pro', planStatus: 'active', planEnd: '2026-10-13T10:00:00Z', active: true, role: 'user', creditBalance: 1250.5, creditDebt: 0, creditUnitVersion: 'credit-paise-v2' },
+  { id: 'u-bob', name: 'bob', email: 'bob@example.test', type: 'lawyer', plan: 'free', planStatus: 'free', planEnd: '2026-09-01T00:00:00Z', planLapsed: true, active: false, role: 'user', creditBalance: 0, creditDebt: 30.25, creditUnitVersion: 'credit-paise-v2' },
 ];
 
 function find(node, predicate) {
@@ -265,7 +265,7 @@ describe('UsersPage credits', () => {
     const { tree, onChange } = renderWith({ 'u-alice': { kind: 'remove', amount: '25', reason: ' Duplicate charge ', requestId: null } });
     applyButton(tree, 'alice@example.test').props.onClick();
     await vi.waitFor(() => expect(onChange).toHaveBeenCalledOnce());
-    expect(adjustUserCredits).toHaveBeenCalledWith('u-alice', { credits: -25, kind: 'adjustment', reason: 'Duplicate charge' }, 'new-request-id');
+    expect(adjustUserCredits).toHaveBeenCalledWith('u-alice', { credits: -25, kind: 'adjustment', reason: 'Duplicate charge', unitVersion: 'credit-paise-v2' }, 'new-request-id');
     expect(hooks.setters[setBusyId].mock.calls).toEqual([['u-alice'], [null]]);
     expect(hooks.setters[setErr].mock.calls).toEqual([['']]);
     expect(hooks.setters[setCreditNote].mock.calls.at(-1)[0]).toMatch(/alice@example\.test.*1,225\.5/);
@@ -284,8 +284,24 @@ describe('UsersPage credits', () => {
     applyButton(tree, 'alice@example.test').props.onClick();
     applyButton(tree, 'bob@example.test').props.onClick();
     await vi.waitFor(() => expect(onChange).toHaveBeenCalledTimes(2));
-    expect(adjustUserCredits).toHaveBeenCalledWith('u-alice', { credits: 100.5, kind: 'adjustment', reason: 'Goodwill' }, 'new-request-id');
-    expect(adjustUserCredits).toHaveBeenCalledWith('u-bob', { credits: 2000, kind: 'topup', reason: 'Paid by invoice' }, 'new-request-id');
+    expect(adjustUserCredits).toHaveBeenCalledWith('u-alice', { credits: 100.5, kind: 'adjustment', reason: 'Goodwill', unitVersion: 'credit-paise-v2' }, 'new-request-id');
+    expect(adjustUserCredits).toHaveBeenCalledWith('u-bob', { credits: 2000, kind: 'topup', reason: 'Paid by invoice', unitVersion: 'credit-paise-v2' }, 'new-request-id');
+  });
+
+  it('keeps a legacy draft unit when a refreshed directory reports the new unit', async () => {
+    adjustUserCredits.mockResolvedValue({ ok: false, reason: 'Reload balances.' });
+    const { tree, onChange } = renderWith({ 'u-alice': { kind: 'add', amount: '10', reason: 'Goodwill', requestId: 'old', unitVersion: 'credit-ten-paise-v1' } });
+    applyButton(tree, 'alice@example.test').props.onClick();
+    await vi.waitFor(() => expect(onChange).toHaveBeenCalledOnce());
+    expect(adjustUserCredits).toHaveBeenCalledWith('u-alice', expect.objectContaining({ credits: 10, unitVersion: 'credit-ten-paise-v1' }), 'old');
+  });
+
+  it('disables amount-bearing controls when the balance denomination is unknown', () => {
+    const users = USERS.map(u => ({ ...u, creditUnitVersion: null }));
+    hooks.capture = true;
+    const tree = UsersPage({ users, onChange: () => {} });
+    expect(find(tree, n => n.props?.['aria-label'] === 'Credit amount for alice@example.test').props.disabled).toBe(true);
+    expect(applyButton(tree, 'alice@example.test').props.disabled).toBe(true);
   });
 
   it('keeps the request id of an adjustment across a retry, so it cannot apply twice', async () => {
@@ -379,7 +395,7 @@ describe('UsersPage credits', () => {
 // F147: the directory is shown 100 users at a time, with a search.
 describe('UsersPage paging and search', () => {
   const [setErr, , , , , setSearchText, setLoading] = [0, 1, 2, 3, 4, 5, 6];
-  const MANY = (n, from = 0) => Array.from({ length: n }, (_, i) => ({ id: `m-${from + i}`, name: `m${from + i}`, email: `m${from + i}@example.test`, type: 'analyst', plan: 'free', planStatus: 'free', planEnd: null, active: true, role: 'user', creditBalance: 0, creditDebt: 0 }));
+  const MANY = (n, from = 0) => Array.from({ length: n }, (_, i) => ({ id: `m-${from + i}`, name: `m${from + i}`, email: `m${from + i}@example.test`, type: 'analyst', plan: 'free', planStatus: 'free', planEnd: null, active: true, role: 'user', creditBalance: 0, creditDebt: 0, creditUnitVersion: 'credit-paise-v2' }));
   const paging = (page, total, query = '') => ({ page, pageSize: 100, total, query });
   const button = (tree, name) => find(tree, (n) => n.type === 'button' && String(n.props.className).includes(name));
   const searchBox = (tree) => find(tree, (n) => n.type === 'input' && n.props.type === 'search');

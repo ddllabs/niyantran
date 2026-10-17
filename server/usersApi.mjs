@@ -9,7 +9,7 @@
  *                              or { plan: free|plus|pro|max, planEnd?: date|null }
  *   POST  /api/users/:userId/credits
  *                              internal admin: { credits, kind: adjustment|topup,
- *                              reason, requestId } (F111 spec section 9)
+ *                              reason, requestId, unitVersion } (F225)
  *
  * Accounts are created only through Supabase sign-up; this route never
  * creates, deletes or sets a password for anyone. Reads and writes use the
@@ -31,11 +31,11 @@ const PLAN_FIELDS = new Set(['plan', 'planEnd']);
 const GRANTABLE_PLANS = new Set(['free', 'plus', 'pro', 'max']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_BODY_BYTES = 16 * 1024;
-const CREDIT_FIELDS = new Set(['credits', 'kind', 'reason', 'requestId']);
+const CREDIT_FIELDS = new Set(['credits', 'kind', 'reason', 'requestId', 'unitVersion']);
+const CREDIT_UNITS = new Set(['credit-ten-paise-v1', 'credit-paise-v2']);
 const CREDIT_KINDS = new Set(['adjustment', 'topup']);
-const CREDIT_DECIMALS = 1e4;
-// A typo guard, not a business rule: the largest plan grants 75,000 a month.
-const MAX_CREDIT_AMOUNT = 1_000_000;
+// Same economic typo guard after the tenfold denomination change.
+const CREDIT_LIMITS = { 'credit-ten-paise-v1': 1_000_000, 'credit-paise-v2': 10_000_000 };
 const MAX_REASON_LENGTH = 500;
 // F147: the directory is read one page at a time, never whole.
 export const USERS_PAGE_SIZE = 100;
@@ -129,7 +129,7 @@ function directoryUser(row, credits) {
     status: row.status,
     role: row.role,
     createdAt: row.created_at,
-    ...(credits ? { creditBalance: credits.balance, creditDebt: credits.debt } : {}),
+    ...(credits ? { creditBalance: credits.balance, creditDebt: credits.debt, creditUnitVersion: credits.unitVersion } : {}),
   };
 }
 
@@ -149,17 +149,27 @@ function creditAmount(value) {
  * request cap allows.
  */
 async function walletsFor(client, ids) {
-  const unknown = { balance: null, debt: null };
+  const unknown = { balance: null, debt: null, unitVersion: null };
   if (!ids.length) return () => unknown;
   try {
+    const readUnit = async () => {
+      const { data, error } = await client.rpc('credit_unit');
+      const expected = { 'credit-ten-paise-v1': 0.1, 'credit-paise-v2': 0.01 };
+      return !error && expected[data?.unit_version] === Number(data?.inr_per_credit) ? data.unit_version : null;
+    };
+    const before = await readUnit();
+    if (!before) return () => unknown;
     const { data, error } = await client
       .from('credit_wallets')
       .select('user_id, balance, debt')
       .in('user_id', ids);
     if (error || !Array.isArray(data)) return () => unknown;
+    // A cutover between statements must never label a new wallet with an old
+    // denomination. The one-time unit transition is monotonic.
+    if (await readUnit() !== before) return () => unknown;
     const byUser = new Map();
-    for (const w of data) byUser.set(w.user_id, { balance: creditAmount(w.balance) ?? 0, debt: creditAmount(w.debt) ?? 0 });
-    return (id) => byUser.get(id) || { balance: 0, debt: 0 };
+    for (const w of data) byUser.set(w.user_id, { balance: creditAmount(w.balance) ?? 0, debt: creditAmount(w.debt) ?? 0, unitVersion: before });
+    return (id) => byUser.get(id) || { balance: 0, debt: 0, unitVersion: before };
   } catch {
     return () => unknown;
   }
@@ -366,20 +376,23 @@ function creditAdjustment(body) {
     return { error: 'Send credits, kind, reason and requestId' };
   }
   if (Object.keys(body).some((key) => !CREDIT_FIELDS.has(key))) {
-    return { error: 'Send only credits, kind, reason and requestId' };
+    return { error: 'Send only credits, kind, reason, requestId and unitVersion' };
+  }
+  if (body.unitVersion != null && !CREDIT_UNITS.has(body.unitVersion)) {
+    return { error: 'Unknown credit unit version. Reload before adjusting credits.' };
   }
   if (typeof body.kind !== 'string' || !CREDIT_KINDS.has(body.kind)) {
     return { error: 'The kind must be adjustment or topup' };
   }
   const raw = body.credits;
-  const scaled = typeof raw === 'number' && Number.isFinite(raw) ? Math.round(raw * CREDIT_DECIMALS) : NaN;
-  if (!Number.isFinite(scaled) || Math.abs(raw * CREDIT_DECIMALS - scaled) > 1e-6) {
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || Number(raw.toFixed(4)) !== raw) {
     return { error: 'Credits must be a number with at most four decimals' };
   }
-  const credits = scaled / CREDIT_DECIMALS;
+  const credits = raw;
   if (credits === 0) return { error: 'Credits must not be zero' };
-  if (Math.abs(credits) > MAX_CREDIT_AMOUNT) {
-    return { error: `Credits must be no more than ${MAX_CREDIT_AMOUNT.toLocaleString('en-US')} either way` };
+  const limit = CREDIT_LIMITS[body.unitVersion ?? 'credit-ten-paise-v1'];
+  if (Math.abs(credits) > limit) {
+    return { error: `Credits must be no more than ${limit.toLocaleString('en-US')} either way` };
   }
   if (body.kind === 'topup' && credits < 0) return { error: 'A top-up must be a positive number of credits' };
   const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
@@ -391,7 +404,7 @@ function creditAdjustment(body) {
   if (typeof body.requestId !== 'string' || !UUID.test(body.requestId)) {
     return { error: 'Send a request id (a UUID) so a retry cannot apply twice' };
   }
-  return { credits, kind: body.kind, reason, requestId: body.requestId.toLowerCase() };
+  return { credits, kind: body.kind, reason, requestId: body.requestId.toLowerCase(), unitVersion: body.unitVersion ?? null };
 }
 
 async function adjustCredits(req, res, caller, userId, deps) {
@@ -410,13 +423,16 @@ async function adjustCredits(req, res, caller, userId, deps) {
     if (target.error) throw new Error('Directory read failed');
     if (!target.data) return json(res, { ok: false, error: 'User not found' }, 404);
     if (target.data.role === 'owner') return json(res, { ok: false, error: 'Owner accounts cannot be changed here' }, 403);
-    const adjusted = await client.rpc('admin_adjust_credits', {
+    // The RPC checks the request id before denomination: exact legacy retries
+    // still succeed once, while new unversioned/stale requests fail closed.
+    const adjusted = await client.rpc('admin_adjust_credits_v2', {
       p_user: userId,
       p_credits: adjustment.credits,
       p_kind: adjustment.kind,
       p_reason: adjustment.reason,
       p_admin: caller.id,
       p_request_id: adjustment.requestId,
+      p_unit_version: adjustment.unitVersion,
     });
     // 22023 carries the function's own argument message (no provider detail).
     if (adjusted.error?.code === '22023') return json(res, { ok: false, error: String(adjusted.error.message) }, 400);

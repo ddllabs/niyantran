@@ -5,7 +5,7 @@ import * as identity from '../lib/userStore.js';
 import * as registry from '../lib/aiRegistry.js';
 import { partitionAttachments } from '../lib/aiDrop.js';
 import { setChatWebSearch } from '../lib/aiConversations.js';
-import { OPEN_CONVERSATION_EVENT, conversationCredits, loadCreditEstimates, refreshCredits, takeWantedConversation } from '../lib/creditsStore.js';
+import { OPEN_CONVERSATION_EVENT, conversationCredits, creditUnitVersion, loadCreditEstimates, refreshCredits, subscribeCredits, takeWantedConversation } from '../lib/creditsStore.js';
 import { defaultEffortFor, effortsFor } from './ModelPicker.jsx';
 
 export function normalizeResearchChoice(models, value = {}) {
@@ -45,7 +45,7 @@ function saveChoice(storage, choice) {
 // the same B4 identity and D7/D8 store interfaces as the production defaults.
 export function createResearchThread(overrides = {}) {
   // setChatWebSearch is imported from the store itself: lib/aiThreads.js is outside F130 T4a's scope.
-  const deps = { setChatWebSearch, conversationCredits, loadCreditEstimates, refreshCredits, ...threads, ...streaming, ...identity, ...registry, ...overrides };
+  const deps = { setChatWebSearch, conversationCredits, creditUnitVersion, loadCreditEstimates, refreshCredits, subscribeCredits, ...threads, ...streaming, ...identity, ...registry, ...overrides };
   const storage = 'choiceStorage' in overrides ? overrides.choiceStorage
     : (() => { try { return typeof localStorage === 'undefined' ? null : localStorage; } catch { return null; } })();
   const emptyStore = () => ({ chats: [], activeId: '', loaded: false, persistenceError: '' });
@@ -69,6 +69,7 @@ export function createResearchThread(overrides = {}) {
     // not (yet) charged has no entry, so nothing is ever shown as 0 by guess.
     answerCredits: {} };
   let view = data;
+  let seenCreditUnit = null;
   let owner = null, generation = 0, sequence = 0, active = false, operation = null;
   // F149: a conversation asked for before the thread was ready to show it.
   let wanted = '';
@@ -159,6 +160,7 @@ export function createResearchThread(overrides = {}) {
   }
   function invalidate(id, event) {
     generation++; sequence++; owner = null; operation = null; wanted = ''; stale = true;
+    seenCreditUnit = null;
     emit({ ready: false, loading: Boolean(id), error: id ? '' : 'Sign in to use AI research.', store: emptyStore(),
       draft: '', viewer: null, submitting: false, attaching: false, attachNotice: '', cancelRequested: false, cancelPending: false, cancelError: '',
       creditBlock: '', creditError: '', creditHeld: false, planBlock: '', estimates: {}, answerCredits: {}, identityVersion: data.identityVersion + 1 });
@@ -221,11 +223,19 @@ export function createResearchThread(overrides = {}) {
     }
   }
   // The charges the server holds for a saved conversation (my_conversation_credits). Never blocks or fails a load.
+  function syncCreditUnit() {
+    const version = deps.creditUnitVersion();
+    if (version !== seenCreditUnit) {
+      seenCreditUnit = version;
+      emit({ estimates: {}, answerCredits: {} });
+    }
+    return Boolean(version);
+  }
   async function loadAnswerCredits(chatId, t) {
     if (!chatId) return;
     try {
       const found = await deps.conversationCredits(chatId);
-      if (!found?.size || !await current(t)) return;
+      if (!await current(t) || !syncCreditUnit() || found?.unitVersion !== deps.creditUnitVersion() || !found.size) return;
       emit({ answerCredits: { ...data.answerCredits, ...Object.fromEntries(found) } });
     } catch { /* an unread charge simply shows nothing */ }
   }
@@ -233,13 +243,13 @@ export function createResearchThread(overrides = {}) {
   async function loadEstimates(t) {
     try {
       const found = await deps.loadCreditEstimates();
-      if (!found || !await current(t)) return;
+      if (!await current(t) || !syncCreditUnit() || found?.unitVersion !== deps.creditUnitVersion()) return;
       emit({ estimates: found });
     } catch { /* the picker simply shows no estimate */ }
   }
   // The balance is read by the credits store; a failed read changes nothing and never fails a turn.
   async function refreshWallet() {
-    try { await deps.refreshCredits(); } catch { /* the chip keeps its last balance */ }
+    try { await deps.refreshCredits(); syncCreditUnit(); } catch { /* the chip keeps its last balance */ }
   }
   // F178: one re-check loop per conversation. A new loop, a new turn in the conversation or a dispose
   // cancels the one that is there, so no earlier loop keeps polling beside it.
@@ -349,11 +359,12 @@ export function createResearchThread(overrides = {}) {
           emit({ store: deps.adoptConversation(conversation, context) });
         },
         // F111 §3: the settled credits, after the answer was shown as finished. `null` means not settled yet.
-        onCredits: async ({ conversationId, messageId, credits }) => {
+        onCredits: async ({ conversationId }) => {
           if (!valid(t)) return;
-          void refreshWallet();
-          if (typeof credits === 'number' && messageId) emit({ answerCredits: { ...data.answerCredits, [messageId]: credits } });
-          else await loadAnswerCredits(conversationId, t);
+          await refreshWallet();
+          if (!valid(t) || !syncCreditUnit()) return;
+          // Stream frames have no unit tag; the saved report normalizes mixed-era charges.
+          await loadAnswerCredits(conversationId, t);
         },
       };
       // F178: a new turn replaces the conversation's re-check, only once the turn is really sent.
@@ -381,6 +392,7 @@ export function createResearchThread(overrides = {}) {
       if (active) return;
       active = true;
       subscriptions = [deps.subscribeLocalIdentity(identityEvent),
+        deps.subscribeCredits(() => { if (owner) syncCreditUnit(); }),
         deps.subscribeAiChats(store => { if (owner) emit({ store }); }),
         deps.subscribeStream(() => { if (owner) emit(); }),
         deps.subscribeRegistry(choices => { if (owner) emit({ registry: choices }); })];

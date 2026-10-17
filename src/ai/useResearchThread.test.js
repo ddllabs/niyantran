@@ -2,8 +2,9 @@ import {describe,expect,it,vi} from 'vitest';
 import {bindOpenConversation,createResearchThread,normalizeResearchChoice} from './useResearchThread.js';
 import {OPEN_CONVERSATION_EVENT} from '../lib/creditsStore.js';
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return{promise,resolve}};
+const tagged=(value,unitVersion='credit-ten-paise-v1')=>Object.defineProperty(value,'unitVersion',{value:unitVersion});
 function fixture(){
- let owner={id:'a',epoch:1,token:'a',expiresAt:Date.now()+60000};let listener;let state={chats:[],activeId:'',loaded:false};let callback;let streamListener;let streams={};let sent=[];let append=[];let reconciled=[];let adopted=[];
+ let owner={id:'a',epoch:1,token:'a',expiresAt:Date.now()+60000};let listener;let state={chats:[],activeId:'',loaded:false};let callback;let streamListener;let creditListener;let streams={};let sent=[];let append=[];let reconciled=[];let adopted=[];let creditVersion='credit-ten-paise-v1';
  const context=()=>({ownerId:owner.id,generation:owner.epoch,chatId:state.activeId,draftId:state.chats.find(c=>c.id===state.activeId)?.draftId});
  const deps={
  verifiedLocalIdentity:vi.fn(async()=>owner),localIdentityIsCurrent:vi.fn(async i=>i===owner),subscribeLocalIdentity:fn=>{listener=fn;return()=>{}},
@@ -19,10 +20,10 @@ function fixture(){
  loadRegistry:async()=>({models:[{model_id:'model/default',is_default:true,efforts:['low']}],roles:[]}),subscribeRegistry:()=>()=>{},
  setActiveAiChat:id=>{state.activeId=id;callback?.(state);return state},loadMessages:async()=>state,deleteAiChat:vi.fn(),addChatAttachments:vi.fn(),
  // F111: the credits store reads the network; a test that does not care gets quiet stand-ins.
- refreshCredits:vi.fn(async()=>null),conversationCredits:vi.fn(async()=>new Map()),loadCreditEstimates:vi.fn(async()=>({})),
+ refreshCredits:vi.fn(async()=>null),conversationCredits:vi.fn(async()=>tagged(new Map(),creditVersion)),loadCreditEstimates:vi.fn(async()=>tagged({},creditVersion)),creditUnitVersion:()=>creditVersion,subscribeCredits:fn=>{creditListener=fn;return()=>{}},
  };
  const controller=createResearchThread(deps);
- return{controller,deps,sent,append,reconciled,adopted,setStreams:v=>{streams=v;streamListener?.()},changeOwner(id='b'){owner={id,epoch:owner.epoch+1,token:id,expiresAt:Date.now()+60000};state={chats:[],activeId:'',loaded:false};listener?.(id,'TOKEN_REFRESHED')},
+ return{controller,deps,sent,append,reconciled,adopted,setCreditVersion:v=>{creditVersion=v;creditListener?.()},setStreams:v=>{streams=v;streamListener?.()},changeOwner(id='b'){owner={id,epoch:owner.epoch+1,token:id,expiresAt:Date.now()+60000};state={chats:[],activeId:'',loaded:false};listener?.(id,'TOKEN_REFRESHED')},
  // F43: supabase-js re-announces the same account on every tab refocus; userStore bumps the epoch, so the held identity goes stale.
  refocus(event='SIGNED_IN'){owner={...owner,epoch:owner.epoch+1};listener?.(owner.id,event)},signOut(){owner=null;listener?.(null,'SIGNED_OUT')},getState:()=>state,setState:s=>{state=s;callback?.(state)}};
 }
@@ -484,14 +485,58 @@ describe('credits on each answer',()=>{
   const f=fixture();await f.controller.start();const opts=withCallback(f);
   await f.controller.send({message:'Q',turn_key:'k'});expect(f.deps.refreshCredits).not.toHaveBeenCalled();
   expect(f.controller.getSnapshot().answerCredits).toEqual({});
+  f.deps.conversationCredits.mockResolvedValue(tagged(new Map([['m',38.25]])));
   await opts().onCredits({conversationId:'server-c',messageId:'m',credits:38.25});
   expect(f.controller.getSnapshot().answerCredits).toEqual({m:38.25});expect(f.deps.refreshCredits).toHaveBeenCalledTimes(1);
+ });
+ it('uses the current-unit saved charge when an old unversioned frame arrives after cutover',async()=>{
+  const f=fixture();await f.controller.start();const opts=withCallback(f);
+  await f.controller.send({message:'Q',turn_key:'k'});
+  f.deps.refreshCredits.mockImplementation(async()=>{f.setCreditVersion('credit-paise-v2')});
+  f.deps.conversationCredits.mockResolvedValue(tagged(new Map([['m',20]]),'credit-paise-v2'));
+  await opts().onCredits({conversationId:'server-c',messageId:'m',credits:2});
+  expect(f.controller.getSnapshot().answerCredits).toEqual({m:20});
+ });
+ it('clears old answer charges and estimates before showing a charge after a unit change',async()=>{
+  const f=fixture();f.deps.hydrateConversations.mockImplementation(async()=>savedState());
+  f.deps.conversationCredits.mockResolvedValue(tagged(new Map([['m1',5]])));
+  f.deps.loadCreditEstimates.mockResolvedValue(tagged({'model/default':4}));
+  await f.controller.start();
+  await vi.waitFor(()=>expect(f.controller.getSnapshot()).toMatchObject({answerCredits:{m1:5},estimates:{'model/default':4}}));
+  f.setCreditVersion('credit-paise-v2');
+  expect(f.controller.getSnapshot()).toMatchObject({ answerCredits: {}, estimates: {} });
+  f.deps.conversationCredits.mockResolvedValue(tagged(new Map([['m1',50]]),'credit-paise-v2'));
+  await f.controller.reload();
+  await vi.waitFor(()=>expect(f.controller.getSnapshot().answerCredits).toEqual({m1:50}));
+  expect(f.controller.getSnapshot().estimates).toEqual({});
+ });
+ it('does not publish an old charge after identity verification waits across a unit change',async()=>{
+  const f=fixture();let release;let entered;
+  const waiting=new Promise(resolve=>{entered=resolve});
+  let hold=false;
+  f.deps.localIdentityIsCurrent.mockImplementation(async()=>hold?new Promise(resolve=>{release=resolve;entered()}):true);
+  f.deps.hydrateConversations.mockImplementation(async()=>savedState());
+  f.deps.conversationCredits.mockImplementation(async()=>{hold=true;return tagged(new Map([['m1',5]]))});
+  await f.controller.start();await waiting;
+  f.setCreditVersion('credit-paise-v2');hold=false;release(true);
+  await new Promise(resolve=>setTimeout(resolve,0));
+  expect(f.controller.getSnapshot().answerCredits).toEqual({});
+ });
+ it('does not publish an old charge when cutover runs before the result consumer resumes',async()=>{
+  const f=fixture();f.deps.hydrateConversations.mockImplementation(async()=>savedState());
+  f.deps.conversationCredits.mockImplementation(async()=>{
+    queueMicrotask(()=>f.setCreditVersion('credit-paise-v2'));
+    return tagged(new Map([['m1',5]]));
+  });
+  await f.controller.start();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  expect(f.controller.getSnapshot().answerCredits).toEqual({});
  });
  it('with no credits in the frame, asks the record once and shows nothing for what it does not hold',async()=>{
   const f=fixture();await f.controller.start();const opts=withCallback(f);await f.controller.send({message:'Q',turn_key:'k'});
   await opts().onCredits({conversationId:'server-c',messageId:'m',credits:null});
   expect(f.deps.conversationCredits).toHaveBeenCalledWith('server-c');expect(f.controller.getSnapshot().answerCredits).toEqual({});
-  f.deps.conversationCredits.mockResolvedValueOnce(new Map([['m',12]]));
+  f.deps.conversationCredits.mockResolvedValueOnce(tagged(new Map([['m',12]])));
   await opts().onCredits({conversationId:'server-c',messageId:'m',credits:null});
   await vi.waitFor(()=>expect(f.controller.getSnapshot().answerCredits).toEqual({m:12}));
  });
@@ -502,16 +547,16 @@ describe('credits on each answer',()=>{
   expect(f.controller.getSnapshot().answerCredits).toEqual({});
  });
  it('loads the saved credits of the open conversation after a reload, but asks nothing for a new draft',async()=>{
-  const f=fixture();f.deps.hydrateConversations.mockImplementation(async()=>savedState());f.deps.conversationCredits.mockResolvedValue(new Map([['m1',5]]));
+  const f=fixture();f.deps.hydrateConversations.mockImplementation(async()=>savedState());f.deps.conversationCredits.mockResolvedValue(tagged(new Map([['m1',5]])));
   await f.controller.start();await vi.waitFor(()=>expect(f.controller.getSnapshot().answerCredits).toEqual({m1:5}));
   expect(f.deps.conversationCredits).toHaveBeenCalledWith('saved');
   const g=fixture();await g.controller.start();expect(g.deps.conversationCredits).not.toHaveBeenCalled();
  });
  it('loads them again when a conversation is opened or reloaded, and drops them with the account',async()=>{
   const f=fixture();await f.controller.start();f.setState(savedState());
-  f.deps.conversationCredits.mockResolvedValue(new Map([['m1',7]]));
+  f.deps.conversationCredits.mockResolvedValue(tagged(new Map([['m1',7]])));
   await f.controller.selectChat('saved');await vi.waitFor(()=>expect(f.controller.getSnapshot().answerCredits).toEqual({m1:7}));
-  f.deps.conversationCredits.mockResolvedValue(new Map([['m1',8]]));
+  f.deps.conversationCredits.mockResolvedValue(tagged(new Map([['m1',8]])));
   await f.controller.reload();await vi.waitFor(()=>expect(f.controller.getSnapshot().answerCredits).toEqual({m1:8}));
   f.changeOwner();expect(f.controller.getSnapshot().answerCredits).toEqual({});
  });
@@ -590,8 +635,28 @@ describe('a model that needs a paid plan (F150)',()=>{
 // F151: what a typical answer costs, per model, read once the thread is ready.
 describe('credit estimates for the picker (F151)',()=>{
  it('loads them after the thread is ready',async()=>{
-  const f=fixture();f.deps.loadCreditEstimates.mockResolvedValue({'model/default':4});
+  const f=fixture();f.deps.loadCreditEstimates.mockResolvedValue(tagged({'model/default':4}));
   await f.controller.start();await vi.waitFor(()=>expect(f.controller.getSnapshot().estimates).toEqual({'model/default':4}));
+ });
+ it('does not publish an old estimate after identity verification waits across a unit change',async()=>{
+  const f=fixture();let release;let entered;
+  const waiting=new Promise(resolve=>{entered=resolve});let hold=false;
+  f.deps.localIdentityIsCurrent.mockImplementation(async()=>hold?new Promise(resolve=>{release=resolve;entered()}):true);
+  f.deps.loadCreditEstimates.mockImplementation(async()=>{hold=true;return tagged({'model/default':4})});
+  await f.controller.start();await waiting;
+  f.setCreditVersion('credit-paise-v2');hold=false;release(true);
+  await new Promise(resolve=>setTimeout(resolve,0));
+  expect(f.controller.getSnapshot().estimates).toEqual({});
+ });
+ it('does not publish an old estimate when cutover runs before the result consumer resumes',async()=>{
+  const f=fixture();
+  f.deps.loadCreditEstimates.mockImplementation(async()=>{
+    queueMicrotask(()=>f.setCreditVersion('credit-paise-v2'));
+    return tagged({'model/default':4});
+  });
+  await f.controller.start();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  expect(f.controller.getSnapshot().estimates).toEqual({});
  });
  it('a failed or empty read leaves none and never stops the thread',async()=>{
   const f=fixture();f.deps.loadCreditEstimates.mockRejectedValue(new Error('offline'));
@@ -599,7 +664,7 @@ describe('credit estimates for the picker (F151)',()=>{
   expect(f.controller.getSnapshot()).toMatchObject({ready:true,error:'',estimates:{}});
  });
  it('drops them on sign-out',async()=>{
-  const f=fixture();f.deps.loadCreditEstimates.mockResolvedValue({'model/default':4});
+  const f=fixture();f.deps.loadCreditEstimates.mockResolvedValue(tagged({'model/default':4}));
   await f.controller.start();await vi.waitFor(()=>expect(f.controller.getSnapshot().estimates).toEqual({'model/default':4}));
   f.signOut();expect(f.controller.getSnapshot().estimates).toEqual({});
  });

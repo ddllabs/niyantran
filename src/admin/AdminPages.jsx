@@ -452,19 +452,21 @@ export function UsersPage({ users, onChange, paging = usersPaging() }) {
 
   // Any edit makes it a different adjustment, so it gets a new request id.
   function editCredit(u, patch) {
-    setCreditDrafts((all) => ({ ...all, [u.id]: { ...(all[u.id] || NO_CREDIT_DRAFT), ...patch, requestId: null } }));
+    // Keep a draft's denomination even when the directory refreshes beneath it.
+    // A stale draft is rejected by the server; an edit never relabels its amount.
+    setCreditDrafts((all) => ({ ...all, [u.id]: { ...(all[u.id] || NO_CREDIT_DRAFT), unitVersion: all[u.id] && Object.hasOwn(all[u.id], 'unitVersion') ? all[u.id].unitVersion : (u.creditUnitVersion ?? null), ...patch, requestId: null } }));
   }
 
   async function applyCredits(u) {
     setCreditNote('');
     const draft = creditDraftFor(u);
-    const checked = creditRequest(draft);
+    const checked = creditRequest({ ...draft, unitVersion: Object.hasOwn(draft, 'unitVersion') ? draft.unitVersion : u.creditUnitVersion });
     if (!checked.ok) {
       setErr(checked.reason);
       return;
     }
-    const { credits, kind, reason } = checked;
-    const request = { credits, kind, reason };
+    const { credits, kind, reason, unitVersion } = checked;
+    const request = { credits, kind, reason, unitVersion };
     const requestId = draft.requestId || newRequestId();
     // Keep the id with the form until the credits are applied.
     setCreditDrafts((all) => ({ ...all, [u.id]: { ...(all[u.id] || draft), requestId } }));
@@ -646,7 +648,7 @@ export function UsersPage({ users, onChange, paging = usersPaging() }) {
                           className="adm-inline-select admin-credits-field"
                           aria-label={`Credit action for ${u.email}`}
                           value={creditDraftFor(u).kind}
-                          disabled={locked || busy}
+                          disabled={locked || busy || !u.creditUnitVersion}
                           onChange={(e) => editCredit(u, { kind: e.target.value })}
                         >
                           {CREDIT_ACTIONS.map((a) => (
@@ -664,7 +666,7 @@ export function UsersPage({ users, onChange, paging = usersPaging() }) {
                           aria-label={`Credit amount for ${u.email}`}
                           placeholder="Credits"
                           value={creditDraftFor(u).amount}
-                          disabled={locked || busy}
+                          disabled={locked || busy || !u.creditUnitVersion}
                           onChange={(e) => editCredit(u, { amount: e.target.value })}
                         />
                         <input
@@ -675,13 +677,13 @@ export function UsersPage({ users, onChange, paging = usersPaging() }) {
                           aria-required="true"
                           placeholder="Reason (required)"
                           value={creditDraftFor(u).reason}
-                          disabled={locked || busy}
+                          disabled={locked || busy || !u.creditUnitVersion}
                           onChange={(e) => editCredit(u, { reason: e.target.value })}
                         />
                         <button
                           type="button"
                           className="adm-btn ghost admin-credits-apply"
-                          disabled={locked || busy}
+                          disabled={locked || busy || !u.creditUnitVersion}
                           onClick={() => { void applyCredits(u); }}
                         >
                           {busyId === u.id ? 'Saving…' : 'Apply'}

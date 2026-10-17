@@ -1,8 +1,9 @@
 # One-paisa credit conversion: implementation plan
 
-> **Status: Living (draft).** Owner direction 2026-10-18. Specification:
+> **Status: Living.** Owner direction 2026-10-18. Specification:
 > [one-paisa credits](../specs/2026-10-18-credit-paise.md). This document is an
-> ordered execution proposal, not evidence that a backfill occurred.
+> ordered execution record. Local implementation and verification are complete; production
+> backfill has not occurred.
 
 ## Scope and authority
 
@@ -37,8 +38,7 @@ unapproved. Review the spec before implementation.
 ### P1 — Auditable accounting prototype and cutover barrier (M, sequential)
 
 Write scope: newly CLI-created migration file(s), new SQL fixture(s), and
-scripts/test-sql.mjs only if required to register them (verify actual runner
-path before dispatch). No old applied migration edits. Prototype the ledger
+supabase/tests/run.sh for fixture registration and atomic-cutover verification. No old applied migration edits. Prototype the ledger
 and lot conversion described in the spec on disposable local databases.
 Include all credit writers in a barrier before settings are read. Prove lock
 ordering, bounds, no privilege widening, no destructive history updates,
@@ -154,8 +154,12 @@ test-mode acceptance gate activation, not local specification work.
 
 ## Current evidence and limits
 
-Read-only inventories and independent accounting/presentation review completed;
-no application/SQL implementation or tests yet. Hosted Razorpay MCP registration
+P0–P5 are implemented locally. P6 verification, independent review and the
+release packet are recorded in the [execution evidence](../research/2026-10-18-credit-paise-evidence.md).
+P6 passes: 6,224 app tests, 1,155 Deno tests, 44 SQL fixtures with vacuity,
+lint/build/router import/bundle gate, and desktop/mobile browser checks.
+SQL and client review findings were fixed with red-before-green regressions.
+P7 has not run and requires explicit production approval. Hosted Razorpay MCP registration
 is a separate local configuration operation; authentication and callable access
 must be confirmed, not inferred from registration. M1/M2 T15 remains open and
 the last observed follow-up configuration was PAUSED, not silently resumed.

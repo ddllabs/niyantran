@@ -209,10 +209,14 @@ orientation list is compared item by item in the
   balances, debt, allowances and credit thresholds, unchanged INR prices and
   validity. Preserve historical ledger/rates; explicit auditable conversion,
   normalized mixed-era reports/estimates, request-id/stale-browser protection,
-  settings/write barrier and reconciliation are required. Draft
+  settings/write barrier and reconciliation are implemented locally. Current
   [spec](../specs/2026-10-18-credit-paise.md) and
-  [ordered plan](2026-10-18-credit-paise.md) prepared; no runtime code, tests or
-  production backfill executed. Read-only inventory: 3 wallets / 3 lots / 20
+  [ordered plan](2026-10-18-credit-paise.md), additive ADR 0013 and
+  [local verification/release record](../research/2026-10-18-credit-paise-evidence.md)
+  cover the implementation. Production backfill, push and deployment remain
+  unapproved and unexecuted; F225 stays open until release reconciliation.
+  Local verification: 6,224 app / 1,155 Deno tests, 44 SQL fixtures with vacuity,
+  lint/build/router/bundle and desktop/mobile checks pass. Read-only inventory: 3 wallets / 3 lots / 20
   ledger entries, no active holds at 19:30 UTC October 17. Counts must be
   refreshed at execution. Credit migration precedes payment implementation;
   M1/M2 T15 remains independent/open and corpus excluded.

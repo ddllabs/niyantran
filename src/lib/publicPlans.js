@@ -7,30 +7,30 @@ export const PUBLIC_PLANS = [
   {
     id: 'free', tone: 'explorer', name: 'FREE', monthly: 0, unit: '/month',
     who: 'For everyone getting started',
-    tag: 'Every desk at no cost, plus 1,000 AI credits to try the research assistant.',
+    tag: 'Every desk at no cost, plus 10,000 AI credits to try the research assistant.',
     cta: 'Get started free', ctaKind: 'ghost-blue',
-    items: ['All 8 desks and 120 modules', 'AI research assistant', '1,000 AI credits to start, valid 30 days', 'Fast AI models: Gemini Flash, DeepSeek, GPT Luna, Claude Haiku', 'Cited answers with the source document', 'Copy and export'],
+    items: ['All 8 desks and 120 modules', 'AI research assistant', '10,000 AI credits to start, valid 30 days', 'Fast AI models: Gemini Flash, DeepSeek, GPT Luna, Claude Haiku', 'Cited answers with the source document', 'Copy and export'],
   },
   {
     id: 'plus', tone: 'pro', name: 'PLUS', monthly: 399, unit: '/month',
     who: 'For regular research',
     tag: 'More AI credits for everyday questions.',
     cta: 'Get started', ctaKind: 'fill-purple', plus: 'Everything in Free, plus',
-    items: ['2,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', '10% of unused credits roll over for a month'],
+    items: ['20,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', '10% of unused credits roll over for a month'],
   },
   {
     id: 'pro', tone: 'enterprise', name: 'PRO', monthly: 999, unit: '/month', popular: true,
     who: 'For analysts and professionals',
     tag: 'Higher AI credits and our own research model.',
     cta: 'Get started', ctaKind: 'fill-blue', plus: 'Everything in Plus, plus',
-    items: ['6,500 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', 'Niyantran AI is coming soon', '10% of unused credits roll over for a month'],
+    items: ['65,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', 'Niyantran AI is coming soon', '10% of unused credits roll over for a month'],
   },
   {
     id: 'max', tone: 'gov', name: 'MAX', monthly: 9999, unit: '/month',
     who: 'For heavy research use',
     tag: 'The largest AI credit allowance.',
     cta: 'Get started', ctaKind: 'ghost-red', plus: 'Everything in Pro, plus',
-    items: ['75,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', 'Niyantran AI is coming soon', '10% of unused credits roll over for a month'],
+    items: ['750,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', 'Niyantran AI is coming soon', '10% of unused credits roll over for a month'],
   },
 ];
 
@@ -65,7 +65,7 @@ export const PRICING_COMPARE = [
   ['AI research assistant', true, true, true, true],
   ['Cited answers and source viewer', true, true, true, true],
   ['Copy and export', true, true, true, true],
-  ['Monthly AI credits', '1,000 to start', '2,000', '6,500', '75,000'],
+  ['Monthly AI credits', '10,000 to start', '20,000', '65,000', '750,000'],
   ['Unused credits roll over', '—', '10% for a month', '10% for a month', '10% for a month'],
   ['Niyantran AI model', false, false, 'Coming soon', 'Coming soon'],
   ['Personal file storage', 'Coming later', 'Coming later', 'Coming later', 'Coming later'],
@@ -76,5 +76,5 @@ export const PRICING_COMPARE = [
 export const PRICING_NOTES = [
   { title: 'Billed monthly in ₹', text: 'cancel any time', tone: 'navy', icon: 'M4 5h16v15H4zM8 3v4M16 3v4M4 10h16' },
   { title: 'No GST added', text: 'we are not registered under GST', tone: 'sand', icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3zM9 12l2 2 4-4' },
-  { title: 'AI credits', text: 'a typical answer uses about 20 credits; larger models use more', tone: 'purple', icon: 'M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6' },
+  { title: 'AI credits', text: 'a typical answer uses about 200 credits; larger models use more', tone: 'purple', icon: 'M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6' },
 ];

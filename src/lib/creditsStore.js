@@ -17,6 +17,10 @@ let epoch = 0;
 // What a typical answer costs per model (F151): read once, kept until sign-out. Never a failure.
 let estimates = null;
 let estimatesInflight = null;
+let estimatesUserId = null;
+let unitVersion = null;
+let unitGeneration = 0;
+let observedPaise = false;
 
 function publish(next) {
   current = next;
@@ -29,13 +33,61 @@ function num(value) {
   return value === null || value === undefined || !Number.isFinite(n) ? null : n;
 }
 
+function withUnit(value, version) {
+  Object.defineProperty(value, 'unitVersion', { value: version });
+  return value;
+}
+
+const UNIT_RATES = { 'credit-ten-paise-v1': 0.1, 'credit-paise-v2': 0.01 };
+
+function versionOf(data) {
+  const rate = num(data?.inr_per_credit);
+  const version = data?.unit_version == null
+    ? Object.keys(UNIT_RATES).find((key) => UNIT_RATES[key] === rate)
+    : data.unit_version;
+  return Object.hasOwn(UNIT_RATES, version) && UNIT_RATES[version] === rate ? version : null;
+}
+
+function setUnit(version) {
+  if (unitVersion === version) return;
+  unitVersion = version;
+  unitGeneration += 1;
+  estimates = null;
+  estimatesInflight = null;
+  estimatesUserId = null;
+  publish(null);
+}
+
+async function readUnit() {
+  const started = epoch;
+  try {
+    const { data, error } = await supabase.rpc('credit_unit');
+    if (started !== epoch) return null;
+    const version = error ? null : versionOf(data);
+    // A late response from before cutover cannot restore the old denomination.
+    if (version === 'credit-ten-paise-v1' && observedPaise) return null;
+    if (version === 'credit-paise-v2') observedPaise = true;
+    setUnit(version);
+    return version;
+  } catch {
+    if (started === epoch) setUnit(null);
+    return null;
+  }
+}
+
+/** Last authoritative denomination observed by this tab, or null when unavailable. */
+export function creditUnitVersion() { return unitVersion; }
+
 /** Shape one my_credits() answer for the account it belongs to. */
 export function shapeCredits(userId, data) {
   if (!userId || !data || typeof data !== 'object') return null;
+  const unitVersion = versionOf(data);
+  if (!unitVersion) return null;
   const balance = num(data.balance) ?? 0;
   const held = num(data.held) ?? 0;
   return {
     userId,
+    unitVersion,
     balance,
     held,
     available: balance - held,
@@ -73,13 +125,24 @@ async function readOnce() {
     const { data } = await supabase.auth.getSession();
     const userId = data?.session?.user?.id;
     if (!userId) return publish(null);
+    const version = await readUnit();
+    if (!version || started !== epoch) return null;
+    const generation = unitGeneration;
     const result = await supabase.rpc('my_credits');
     if (started !== epoch) return null;
-    if (result.error) return current && current.userId === userId ? current : null;
+    if (result.error) {
+      const after = await supabase.auth.getSession();
+      return after.data?.session?.user?.id === userId && started === epoch
+        && current?.userId === userId && current.unitVersion === version
+        && generation === unitGeneration && unitVersion === version ? current : null;
+    }
+    const shaped = shapeCredits(userId, result.data);
+    if (!shaped || shaped.unitVersion !== version) return publish(null);
     // A session that changed while the read was in flight is not this answer's owner.
     const after = await supabase.auth.getSession();
     if (after.data?.session?.user?.id !== userId || started !== epoch) return null;
-    return publish(shapeCredits(userId, result.data));
+    if (await readUnit() !== version || started !== epoch || generation !== unitGeneration || unitVersion !== version) return null;
+    return publish(shaped);
   } catch {
     return null;
   }
@@ -117,6 +180,10 @@ export function clearCredits() {
   epoch += 1;
   estimates = null;
   estimatesInflight = null;
+  estimatesUserId = null;
+  unitVersion = null;
+  unitGeneration += 1;
+  observedPaise = false;
   wantedConversation = '';
   publish(null);
 }
@@ -132,12 +199,23 @@ export async function conversationCredits(conversationId) {
   const out = new Map();
   if (!conversationId) return out;
   try {
+    const started = epoch;
+    const { data: session } = await supabase.auth.getSession();
+    const userId = session?.session?.user?.id;
+    if (!userId || started !== epoch) return out;
+    const version = await readUnit();
+    if (!version || started !== epoch) return out;
+    const generation = unitGeneration;
     const { data, error } = await supabase.rpc('my_conversation_credits', { p_conversation: conversationId });
     if (error || !Array.isArray(data)) return out;
+    if (await readUnit() !== version || started !== epoch) return out;
+    const after = await supabase.auth.getSession();
+    if (after.data?.session?.user?.id !== userId || started !== epoch || generation !== unitGeneration || unitVersion !== version) return out;
     for (const row of data) {
       const credits = num(row?.credits);
       if (row?.message_id && credits !== null) out.set(row.message_id, credits);
     }
+    return withUnit(out, version);
   } catch {
     /* an unread charge simply shows nothing */
   }
@@ -152,32 +230,45 @@ export async function conversationCredits(conversationId) {
  * without an estimate is simply absent. The server's `basis` (measured or list-based) is not kept:
  * both are shown as an estimate.
  */
-export function loadCreditEstimates() {
-  if (estimates) return Promise.resolve(estimates);
-  if (estimatesInflight) return estimatesInflight;
+export async function loadCreditEstimates() {
   const started = epoch;
-  const read = (async () => {
-    try {
-      const { data } = await supabase.auth.getSession();
-      if (!data?.session?.user?.id) return {};
-      const result = await supabase.rpc('model_credit_estimates');
-      if (result.error || !Array.isArray(result.data)) return {};
-      const found = {};
-      for (const row of result.data) {
-        const credits = num(row?.credits);
-        if (typeof row?.model_id === 'string' && row.model_id && credits !== null && credits > 0) found[row.model_id] = credits;
-      }
-      if (started !== epoch) return {};
-      estimates = found;
-      return found;
-    } catch {
-      return {};
-    } finally {
-      if (estimatesInflight === read) estimatesInflight = null;
+  try {
+    const { data } = await supabase.auth.getSession();
+    const userId = data?.session?.user?.id;
+    if (!userId) return {};
+    const version = await readUnit();
+    if (!version || started !== epoch) return {};
+    const generation = unitGeneration;
+    if (estimates && estimatesUserId === userId) {
+      const after = await supabase.auth.getSession();
+      return after.data?.session?.user?.id === userId && started === epoch
+        && generation === unitGeneration && unitVersion === version ? estimates : {};
     }
-  })();
-  estimatesInflight = read;
-  return read;
+    if (estimatesInflight) return estimatesInflight;
+    const read = (async () => {
+      try {
+        const result = await supabase.rpc('model_credit_estimates');
+        if (result.error || !Array.isArray(result.data)) return {};
+        const found = {};
+        for (const row of result.data) {
+          const credits = num(row?.credits);
+          if (typeof row?.model_id === 'string' && row.model_id && credits !== null && credits > 0) found[row.model_id] = credits;
+        }
+        if (await readUnit() !== version || started !== epoch || generation !== unitGeneration) return {};
+        const after = await supabase.auth.getSession();
+        if (after.data?.session?.user?.id !== userId || started !== epoch || generation !== unitGeneration || unitVersion !== version) return {};
+        estimates = withUnit(found, version);
+        estimatesUserId = userId;
+        return estimates;
+      } catch {
+        return {};
+      } finally {
+        if (estimatesInflight === read) estimatesInflight = null;
+      }
+    })();
+    estimatesInflight = read;
+    return read;
+  } catch { return {}; }
 }
 
 /** "≈ 170 credits" for one model's estimate; empty when there is no usable number. */
@@ -230,8 +321,8 @@ export function creditsText(value) {
 }
 
 // F162: an account with no allowance (top-ups only, or between cycles) is low at 10% of the
-// smallest monthly allowance (Plus, 2,000 credits).
-export const LOW_BALANCE_WITHOUT_ALLOWANCE = 200;
+// smallest monthly allowance (Plus, 20,000 credits).
+export const LOW_BALANCE_WITHOUT_ALLOWANCE = 2000;
 
 /**
  * True when credits are running low but not yet gone: at most 10% of the cycle allowance, or
@@ -241,6 +332,7 @@ export function lowBalance(credits) {
   const balance = num(credits?.balance);
   if (balance === null || balance <= 0) return false;
   const allowance = num(credits?.allowance);
-  const limit = allowance !== null && allowance > 0 ? allowance * 0.1 : LOW_BALANCE_WITHOUT_ALLOWANCE;
+  const limit = allowance !== null && allowance > 0 ? allowance * 0.1
+    : credits?.unitVersion === 'credit-ten-paise-v1' ? 200 : LOW_BALANCE_WITHOUT_ALLOWANCE;
   return balance <= limit;
 }

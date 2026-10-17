@@ -120,9 +120,9 @@ it('lists invoices and opens one as the printable invoice', () => {
 
 const lot = (kind, remaining, expiresAt) => ({ kind, remaining, expiresAt });
 const credits = (over = {}) => ({
-  userId: 'u1', balance: 2000, held: 0, available: 2000, debt: 0, plan: 'pro',
-  allowance: 2000, cycleEndsAt: '2026-11-12T12:00:00Z',
-  lots: [lot('monthly', 2000, '2026-11-12T12:00:00Z')], recent: [], ...over,
+  userId: 'u1', balance: 20000, held: 0, available: 20000, debt: 0, plan: 'pro',
+  allowance: 20000, cycleEndsAt: '2026-11-12T12:00:00Z',
+  lots: [lot('monthly', 20000, '2026-11-12T12:00:00Z')], recent: [], ...over,
 });
 const section = tree => all(tree, n => String(n.props?.className || '').split(' ').includes('plan-credits'))[0];
 const rows = (tree, name) => all(tree, n => n.type === 'li' && String(n.props?.className || '').split(' ').includes(name));
@@ -130,7 +130,7 @@ const rows = (tree, name) => all(tree, n => n.type === 'li' && String(n.props?.c
 it('shows the balance in credits only, never rupees (F184)', () => {
   const t = text(section(render(PRO, { credits: credits() })));
   expect(t).toContain('AI credits');
-  expect(t).toContain('2,000 credits');
+  expect(t).toContain('20,000 credits');
   expect(t).not.toContain('₹');
 });
 
@@ -143,7 +143,7 @@ it('shows a negative balance as such and says it is taken from the next credits'
 it('shows this cycle as the allowance and the cycle end date', () => {
   const t = text(section(render(PRO, { credits: credits() })));
   expect(t).toMatch(/Monthly allowance/);
-  expect(t).toContain('2,000 credits');
+  expect(t).toContain('20,000 credits');
   expect(t).toContain('12 Nov 2026');
 });
 
@@ -167,9 +167,9 @@ it('leaves the used line out when the server counted no cycle', () => {
 });
 
 it('describes the Free allowance as the sign-up credits and when they end', () => {
-  const t = text(section(render(FREE, { credits: credits({ plan: 'free', balance: 700, available: 700, allowance: 1000, cycleEndsAt: '2026-11-13T12:00:00Z', lots: [lot('signup', 700, '2026-11-13T12:00:00Z')] }) })));
+  const t = text(section(render(FREE, { credits: credits({ plan: 'free', balance: 7000, available: 7000, allowance: 10000, cycleEndsAt: '2026-11-13T12:00:00Z', lots: [lot('signup', 7000, '2026-11-13T12:00:00Z')] }) })));
   expect(t).toMatch(/Sign-up credits/);
-  expect(t).toContain('1,000 credits');
+  expect(t).toContain('10,000 credits');
   expect(t).toContain('13 Nov 2026');
 });
 

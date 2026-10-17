@@ -8,14 +8,24 @@ vi.mock('../lib/userStore.js', () => store);
 import { adjustUserCredits, creditRequest, formatBalance, newRequestId } from './userCredits.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const draft = (over = {}) => ({ kind: 'add', amount: '250', reason: 'Goodwill', ...over });
+const draft = (over = {}) => ({ kind: 'add', amount: '250', reason: 'Goodwill', unitVersion: 'credit-paise-v2', ...over });
 
 describe('creditRequest', () => {
   it('reads the three actions as the signed amount and kind the server takes', () => {
-    expect(creditRequest(draft())).toEqual({ ok: true, credits: 250, kind: 'adjustment', reason: 'Goodwill' });
-    expect(creditRequest(draft({ kind: 'remove', amount: '12.5' }))).toEqual({ ok: true, credits: -12.5, kind: 'adjustment', reason: 'Goodwill' });
+    expect(creditRequest(draft())).toEqual({ ok: true, credits: 250, kind: 'adjustment', reason: 'Goodwill', unitVersion: 'credit-paise-v2' });
+    expect(creditRequest(draft({ kind: 'remove', amount: '12.5' }))).toEqual({ ok: true, credits: -12.5, kind: 'adjustment', reason: 'Goodwill', unitVersion: 'credit-paise-v2' });
     expect(creditRequest(draft({ kind: 'topup', amount: '2000' }))).toMatchObject({ ok: true, credits: 2000, kind: 'topup' });
     expect(creditRequest(draft({ amount: ' 0.0001 ', reason: '  spaced  ' }))).toMatchObject({ ok: true, credits: 0.0001, reason: 'spaced' });
+  });
+
+  it('captures the actual legacy unit rather than relabelling it', () => {
+    expect(creditRequest(draft({ unitVersion: 'credit-ten-paise-v1' }))).toMatchObject({ ok: true, unitVersion: 'credit-ten-paise-v1' });
+    expect(creditRequest(draft({ unitVersion: 'credit-ten-paise-v1', amount: '1000001' }))).toMatchObject({ ok: false });
+    expect(creditRequest(draft({ unitVersion: undefined }))).toMatchObject({ ok: false, reason: expect.stringMatching(/reload/i) });
+  });
+
+  it('allows the same economic administrator ceiling in one-paisa credits', () => {
+    expect(creditRequest(draft({ amount: '10000000' }))).toMatchObject({ ok: true, credits: 10000000 });
   });
 
   it.each([
@@ -25,7 +35,7 @@ describe('creditRequest', () => {
     ['a thousands separator', { amount: '2,000' }, /amount/i],
     ['a minus sign', { amount: '-5' }, /minus/i],
     ['five decimals', { amount: '1.00001' }, /four decimals/i],
-    ['too many credits', { amount: '1000001' }, /1,000,000/],
+    ['too many credits', { amount: '10000001' }, /10,000,000/],
     ['no reason', { reason: '' }, /reason/i],
     ['a blank reason', { reason: '   ' }, /reason/i],
     ['a reason over 500 characters', { reason: 'x'.repeat(501) }, /500/],
@@ -54,7 +64,7 @@ it('newRequestId makes a fresh uuid each time', () => {
 });
 
 describe('adjustUserCredits', () => {
-  const request = { credits: -25, kind: 'adjustment', reason: 'Refund' };
+  const request = { credits: -25, kind: 'adjustment', reason: 'Refund', unitVersion: 'credit-paise-v2' };
   const respond = (status, body) => vi.fn(async () => ({ ok: status < 400, status, json: async () => body }));
 
   beforeEach(() => {
@@ -73,8 +83,16 @@ describe('adjustUserCredits', () => {
     expect(url).toBe('/api/users/u-1%20x/credits');
     expect(init.method).toBe('POST');
     expect(init.headers).toMatchObject({ Authorization: 'Bearer admin-token', 'Content-Type': 'application/json' });
-    expect(JSON.parse(init.body)).toEqual({ credits: -25, kind: 'adjustment', reason: 'Refund', requestId: 'req-1' });
+    expect(JSON.parse(init.body)).toEqual({ credits: -25, kind: 'adjustment', reason: 'Refund', requestId: 'req-1', unitVersion: 'credit-paise-v2' });
     expect(store.hydrateUsersFromServer).toHaveBeenCalledOnce();
+  });
+
+  it('does not stamp a legacy retry with a new denomination', async () => {
+    const fetch = respond(200, { ok: true, repeated: true, balance: 975.5 });
+    vi.stubGlobal('fetch', fetch);
+    const legacy = { credits: request.credits, kind: request.kind, reason: request.reason };
+    await adjustUserCredits('u-1', legacy, 'old-request');
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).not.toHaveProperty('unitVersion');
   });
 
   it('reports a repeated request as repeated', async () => {

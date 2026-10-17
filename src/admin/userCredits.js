@@ -11,7 +11,7 @@ export const CREDIT_ACTIONS = [
 ];
 
 // The same limits the server enforces; it stays the authority.
-const MAX_AMOUNT = 1_000_000;
+const UNIT_LIMITS = { 'credit-ten-paise-v1': 1_000_000, 'credit-paise-v2': 10_000_000 };
 const MAX_REASON = 500;
 const AMOUNT = /^\d+(\.\d{1,4})?$/;
 const SHOWN = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 4 });
@@ -33,6 +33,8 @@ export function newRequestId() {
  * amount; the action decides whether it is added or removed.
  */
 export function creditRequest(draft) {
+  const limit = UNIT_LIMITS[draft?.unitVersion];
+  if (!limit) return { ok: false, reason: 'Reload the credit balances before entering an adjustment.' };
   const action = CREDIT_ACTIONS.find((a) => a.id === draft?.kind);
   if (!action) return { ok: false, reason: 'Choose an action.' };
   const text = String(draft.amount ?? '').trim();
@@ -43,7 +45,7 @@ export function creditRequest(draft) {
   }
   const amount = Number(text);
   if (amount === 0) return { ok: false, reason: 'The amount must be above zero.' };
-  if (amount > MAX_AMOUNT) return { ok: false, reason: 'The amount can be at most 1,000,000 credits.' };
+  if (amount > limit) return { ok: false, reason: `The amount can be at most ${limit.toLocaleString('en-US')} credits.` };
   const reason = String(draft.reason ?? '').trim();
   if (!reason) return { ok: false, reason: 'Give a reason; it is kept with the adjustment.' };
   if (reason.length > MAX_REASON) return { ok: false, reason: `The reason can be at most ${MAX_REASON} characters.` };
@@ -52,6 +54,7 @@ export function creditRequest(draft) {
     credits: action.id === 'remove' ? -amount : amount,
     kind: action.id === 'topup' ? 'topup' : 'adjustment',
     reason,
+    unitVersion: draft.unitVersion,
   };
 }
 

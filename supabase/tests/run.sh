@@ -89,7 +89,7 @@ chain() {
     corpus_revision_integrity)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)" "$(m 20260921000003_corpus_and_desk.sql)" "$(m 20260921000009_rag_rpcs.sql)" "$(m 20260921000014_corpus_revision_integrity.sql)") ;;
-    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|admin_model_plan|feed_records|feed_admin|feed_register_page|feed_nothing_new|feed_empty_outcome|feed_latest_run_page|unscoped_ef_search|rls_initplan_fk_indexes|desk_rows_date_range|handbook_period_ranges|record_briefs|record_brief_format)
+    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|credit_paise_contract|credit_paise_convert|credit_paise_empty|admin_model_plan|feed_records|feed_admin|feed_register_page|feed_nothing_new|feed_empty_outcome|feed_latest_run_page|unscoped_ef_search|rls_initplan_fk_indexes|desk_rows_date_range|handbook_period_ranges|record_briefs|record_brief_format)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql
              "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)"
@@ -210,6 +210,17 @@ chain() {
                   "$(as_non_superuser 20261014200000_ai_credits.sql)" "$TESTS/bootstrap_credit_estimates_seed.sql"
                   "$(as_non_superuser 20261014230000_credit_estimates_and_effort.sql)"
                   "$(as_non_superuser 20261014233000_credit_usage_reports.sql)") ;;
+        credit_paise_contract|credit_paise_convert|credit_paise_empty)
+          FILES+=("$(m 20260922121946_reasoning_efforts_from_catalogue.sql)" "$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)" "$(as_non_superuser 20261012120000_inr_plans.sql)"
+                  "$(as_non_superuser 20261013140000_web_search.sql)" "$TESTS/bootstrap_ai_credits_seed.sql"
+                  "$(as_non_superuser 20261014200000_ai_credits.sql)" "$TESTS/bootstrap_credit_estimates_seed.sql"
+                  "$(as_non_superuser 20261014230000_credit_estimates_and_effort.sql)"
+                  "$(as_non_superuser 20261014233000_credit_usage_reports.sql)"
+                  "$(as_non_superuser 20261017194626_credit_paise_contract.sql)")
+          [ "$1" = credit_paise_convert ] && FILES+=("$TESTS/credit_paise_seed.sql")
+          if [ "$1" = credit_paise_convert ] || [ "$1" = credit_paise_empty ]; then
+            FILES+=("$(as_non_superuser 20261017194628_credit_paise_convert.sql)")
+          fi ;;
         # The admin sets a model's plan (F155): credit_estimates_and_effort's chain (ai_models.min_plan
         # and its seeded plans), then admin_models_upsert with min_plan, as a non-superuser.
         admin_model_plan)
@@ -725,6 +736,25 @@ record_brief_format_checks() {
   return $rc
 }
 
+credit_paise_atomic_check() {
+  local db="$1" line
+  : > "$WORK/credit_paise_atomic.expanded.sql"
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ "$line" = '-- @cutover-migration' ]; then
+      cat "$MIG/20261017194628_credit_paise_convert.sql" >> "$WORK/credit_paise_atomic.expanded.sql"
+    else
+      printf '%s\n' "$line" >> "$WORK/credit_paise_atomic.expanded.sql"
+    fi
+  done < "$TESTS/credit_paise_atomic.sql"
+  if psql_in "$db" < "$WORK/credit_paise_atomic.expanded.sql" > "$WORK/atomic_out.txt" 2>&1; then
+    echo '  atomic failure rollback ok - both initial pause states preserved'
+  else
+    echo '  ATOMIC FAIL'
+    { grep -E 'ERROR|FAIL:' "$WORK/atomic_out.txt" || cat "$WORK/atomic_out.txt"; } | head -8 | sed 's/^/    /'
+    return 1
+  fi
+}
+
 run_fixture() {
   local name="$1" db="niyantran_${1}_test" rc=0
   chain "$name"
@@ -743,6 +773,7 @@ run_fixture() {
 
   if psql_in "$db" < "$TESTS/$name.sql" > "$WORK/out.txt" 2>&1; then
     echo "  PASS  ($(grep -c . "$WORK/out.txt") lines of output)"
+    [ "$name" = credit_paise_contract ] && { credit_paise_atomic_check "$db" || rc=1; }
     [ "${VACUITY:-1}" = 1 ] && { vacuity_check "$name" || rc=1; }
     [ "$name" = corpus_records ] && { corpus_records_checks || rc=1; }
     [ "$name" = feed_records ] && { feed_records_checks || rc=1; }
@@ -769,7 +800,7 @@ FIXTURES=("$@")
 if [ ${#FIXTURES[@]} -eq 0 ]; then
   for f in "$TESTS"/*.sql; do
     n="$(basename "$f" .sql)"
-    case "$n" in bootstrap_*) ;; *) FIXTURES+=("$n") ;; esac
+    case "$n" in bootstrap_*|credit_paise_seed|credit_paise_atomic) ;; *) FIXTURES+=("$n") ;; esac
   done
 fi
 

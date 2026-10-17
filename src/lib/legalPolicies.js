@@ -116,9 +116,9 @@ export const TERMS_OF_SERVICE = {
     ['eligibility', 'Eligibility and accounts', `You must be at least 18 and able to enter a binding contract under Indian law. Give accurate information, keep your credentials secure and do not share your account. One account is allowed per email address. You are responsible for activity on your account; tell us promptly about any unauthorised use.`],
     ['service', 'The service', `The Terminal organises information from public government, legislative, economic and other published sources into desks, and offers an AI research assistant that answers questions with citations to those sources. All desks are available to signed-in users. We may add, change or remove features; we will give notice of changes that materially reduce a paid plan.`],
     ['plans', 'Plans, credits and billing', `- Plans: Free (₹0), Plus (₹399 per month), Pro (₹999 per month) and Max (₹9,999 per month). Current plan details are on the [Pricing](/#/pricing) page.
-- What plans include: paid plans differ in AI credits and, when personal file storage is introduced, storage. One credit is worth ₹0.10 of AI processing. An answer uses credits according to the AI processing it needs (tokens and web searches), so longer answers and larger models use more. How many credits each plan includes is published on the Pricing page; we may change it for future billing months with notice.
+- What plans include: paid plans differ in AI credits and, when personal file storage is introduced, storage. One credit is worth ₹0.01 of AI processing. An answer uses credits according to the AI processing it needs (tokens and web searches), so longer answers and larger models use more. How many credits each plan includes is published on the Pricing page; we may change it for future billing months with notice.
 - Model access: some AI models are available on paid plans only, and the model picker marks them. Niyantran AI, our in-house model, will be available only on Pro and Max plans once released. Every model uses credits.
-- Credits: new accounts receive 1,000 credits once, valid for 30 days. Paid plans add their monthly credits at the start of each paid month, valid until that month ends. Up to 10% of a month's unused plan credits carry into the next month and expire at its end. Top-up credits, when offered, are valid for 12 months. Credits are used in the order they expire. Credits have no cash value and cannot be transferred.
+- Credits: new accounts receive 10,000 credits once, valid for 30 days. Paid plans add their monthly credits at the start of each paid month, valid until that month ends. Up to 10% of a month's unused plan credits carry into the next month and expire at its end. Top-up credits, when offered, are valid for 12 months. Credits are used in the order they expire. Credits have no cash value and cannot be transferred.
 - How answers are charged: an answer that fails without giving you any text uses no credits. If you stop an answer, the part already produced is charged. An answer always finishes: if it costs more than your remaining credits, your balance can go below zero, and the difference is taken from your next credits.
 - Billing: paid plans are billed monthly in advance in Indian rupees through Razorpay. Plans do not renew automatically: your plan ends at the end of the paid month unless you pay again.
 - Taxes: we are not registered under GST, so no GST is charged; the price shown is the price you pay.
@@ -146,6 +146,7 @@ export const TERMS_OF_SERVICE = {
     ['general', 'General', `If any part of these Terms is unenforceable, the rest remains in force. These Terms and the documents they refer to are the whole agreement between you and us about the Terminal. Not enforcing a right is not a waiver.`],
     ['contact', 'Grievance Officer and contact', contactBody],
   ]),
+  lastUpdated: '18 October 2026',
   jurisdiction: 'Laws of India',
   courts: 'Courts at Kolkata, West Bengal',
 };
