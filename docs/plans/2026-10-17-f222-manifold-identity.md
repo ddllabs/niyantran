@@ -70,3 +70,11 @@ Rollback target before release is Vercel
 `dpl_4K3mQJmw37bVcGUbpvSG1VSBGfXz` at main `2dd8ecd`; rollback needs owner
 approval per the runbook. Optional IDs already stored can remain. Corpus stays
 excluded, payment stays held, and existing closure monitoring continues.
+
+Release execution: branch/main CI 39034204827 / 39034521190 passed both jobs
+on attempt 1; Vercel production `dpl_CPAJgveM9dZ5AZSYKP7mjDaf5wmx` READY at
+`e1a5557`. The ordinary 13:10 UTC refresh enriched 204 Political Odds and 17
+Election Forecast records, zero new item keys; both served APIs return all IDs.
+All 598 prior-day observations are fingerprint-identical. Separate state-landing
+502s are recorded as F223, outside this mapper change. Final documentation CI
+and deployment are verified after its push; see the living evidence.

@@ -1,7 +1,7 @@
 # F222 local verification
 
-> **Status: Living.** Local implementation verified on 2026-10-17;
-> production release is pending owner approval.
+> **Status: Living.** Local implementation verified on 2026-10-17. Owner
+> subsequently approved push/deploy; production verification completed.
 
 ## Scope and baseline
 
@@ -87,3 +87,95 @@ Corpus ingestion and payment integration remain out of scope. The existing
 closure follow-up was not changed, and this metadata improvement adds no M1/M2
 closure gate. Reverting the mapper commit is sufficient rollback; optional
 stored IDs can remain without affecting existing readers.
+
+## Authorized release — 2026-10-17
+
+Owner explicitly approved pushing/deploying F222 and requested that closure
+monitoring continue, corpus stay excluded and payment integration stay held.
+Fetched origin before release: main still equalled origin/main at `2dd8ecd`,
+working tree clean. Runtime/test files remain exactly the verified `294a273`
+versions; later task commits contain scope/evidence/closure documentation.
+
+Release target independently read back from the Vercel project API and explicit
+project inspect: `ddl-labs/niyantran`, project
+`prj_6UiaDz2rkTOmqIOaXnCAs92V7d86`, team
+`team_QFu1p3ObeXmlMQczPBcZb582`. The checkout has no CLI project link, so an
+unqualified inspect reported link_required; explicit project-name inspection
+succeeded without linking or changing configuration. The authenticated API
+fallback stayed in the exact approved team/project.
+
+Pushed branch head `e1a5557314e812638ee94976f843e75ac6feadad` after recording
+the owner's release approval. Ordinary branch CI
+[39034204827](https://github.com/ddllabs/niyantran/actions/runs/39034204827)
+passed Build and tests plus SQL fixtures on attempt 1. Preview
+`dpl_2ejTW1cpNsHwEf1gNQJomJNFgm8W`
+(`niyantran-qgth6x625-ddl-labs.vercel.app`) is READY. After that green,
+fast-forwarded main and pushed the same head. No retries, cancellations, empty
+commits, config changes or manual duplicate deployments.
+
+Production deployment `dpl_CPAJgveM9dZ5AZSYKP7mjDaf5wmx`
+(`niyantran-98cdfv4z3-ddl-labs.vercel.app`) is READY at `e1a5557`.
+The production alias answered both `/api/feature-feed` requests with HTTP 200,
+`served: store`: Political Odds 204 rows and Election Forecast 17 rows, initially
+without IDs because their stored records still came from the 12:50 UTC refresh.
+This verifies legacy record compatibility, not enriched storage yet.
+
+Pre-release October 15–16 prediction daily history: 598 rows, fingerprint
+`a2816d41c3197f48fe4877beeffe6695`, computed from ordered feed identity, item
+key, day, JSON payload and recorded timestamp. Read back unchanged at 12:59 UTC.
+Cron job 5 stays active `*/5 * * * *` and targets the expected production Vercel
+refresh URL (boolean-only command check). Normal next due times are just after
+13:05 UTC, so the 13:10 scheduled poll is the expected enrichment opportunity.
+No forced refresh or due-time adjustment.
+
+Bounded runtime error/fatal scan for this deployment, 12:56:00–12:57:39 UTC:
+10 records, all existing Node DEP0169 `url.parse` deprecation warnings; zero
+other error records, no pagination remainder. This is a bounded observation,
+not a claim of no errors outside that window.
+
+Main CI [39034521190](https://github.com/ddllabs/niyantran/actions/runs/39034521190)
+passed both app and SQL jobs on attempt 1. No source/config/dependency changes
+exist between the tested `294a273` implementation and the release head.
+All ten Edge Function versions, bundle hashes and verify_jwt settings read back
+identical to the pre-release inventory; ingestion functions remain
+ingest-documents v21, ingest-worker v3 and admin-ingest v4. No Edge Function was
+invoked or deployed for this check.
+
+### First ordinary refresh and served IDs
+
+The real 13:10 UTC cron opportunity completed successfully, without any forced
+refresh or scheduler change. Political Odds started at 13:10:00.172 and recorded
+204 items at 13:10:02.555622; Election Forecast started at 13:10:00.173 and
+recorded 17 at 13:10:07.683078. Both outcomes ok, both new_items zero, both
+consecutive_failures zero. All 204 / 17 current items have valid distinct IDs.
+Today's daily observations also have those 204 / 17 IDs under existing keys.
+
+The production alias returned HTTP 200 / served store for both feeds after the
+refresh: 204 of 204 Political Odds rows and 17 of 17 Election Forecast rows
+carry distinct IDs, with fetchedAt matching the database refresh timestamps.
+The BJP record still has the original
+`url:manifold.markets/_deleted_/will-bjp-remain-the-ruling-party-in#25988011376fe828`
+key, now with `market_id: KaQNzjn59n6ZFJUULr5E`; its closing date remains
+2030-12-31. The 598 October 15–16 daily records retain fingerprint
+`a2816d41c3197f48fe4877beeffe6695` exactly. Thus the executed refresh enriched
+current records and preserved the older daily payloads/timestamps.
+
+### Bounded request-log finding outside F222
+
+Request-log scan for this production deployment over 12:56–13:11 UTC returned
+two HTTP 502s, both GET `/api/state-landing`, at 13:08:57.209 and 13:08:58.060
+UTC. No pagination remainder or excluded intervals. These are outside the two
+F222 feed API paths; the log records omit the feature/query, so cause and
+affected summary are not established. Do not infer that the deployment is
+globally error-free from the successful prediction APIs, or label these errors
+pre-existing without comparative evidence. Recorded separately as F223, no
+state-landing changes under this release.
+
+### Release disposition
+
+F222 is released and its normal refresh/storage/API behavior is verified.
+Runtime commit `294a273`, first production release head `e1a5557`. The final
+documentation checkpoint contains no runtime/config changes and gets ordinary
+CI/deployment verification; its result must not be counted before completion.
+Hourly closure follow-up remains ACTIVE; daily reference gates, separate F221
+and F223 remain open. No corpus changes, paid calls or payment integration.

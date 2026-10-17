@@ -2187,3 +2187,19 @@ recommendations … We can fix everything that is under your control."
   unchanged Satellite Infrastructure landing-summary path can 502 while its
   module store is usable; logged F218 outside this cleanup, not fixed silently.
   Only real source-observation windows remain T15; hourly follow-up is active.
+
+- **2026-10-17: F222 market IDs released.** Owner explicitly approved push/deploy.
+  The additive mapper change `294a273` was pushed through branch/main head
+  `e1a5557`; branch CI 39034204827 and main CI 39034521190 passed app/SQL jobs
+  on attempt 1. Vercel `dpl_CPAJgveM9dZ5AZSYKP7mjDaf5wmx` READY at that head.
+  The ordinary 13:10 UTC refresh enriched 204 Political Odds / 17 Election
+  Forecast rows, zero new item keys; both APIs answer 200 from the store with
+  all IDs. All 598 prior-day snapshots remain fingerprint-identical. No schema,
+  key migration, historical backfill, source filter or timer change; all ten
+  Edge Function versions/hashes preserved. Ordinary scheduled refresh enrichment
+  is verified in the living [F222 evidence](../research/2026-10-17-f222-manifold-identity-evidence.md).
+  Rollback: restore pre-release Vercel `dpl_4K3mQJmw37bVcGUbpvSG1VSBGfXz`
+  at `2dd8ecd` with owner approval; optional stored IDs may remain. Corpus
+  excluded; payment integration held; hourly closure follow-up remains active.
+  Bounded request logs also found two `/api/state-landing` 502s at 13:08 UTC;
+  F223 records these separately, cause/feature unestablished, no summary fix.

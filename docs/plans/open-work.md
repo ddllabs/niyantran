@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F223 is next) and goes in the
+- A new finding gets the next free `F` number (F224 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-17 (milestone check)
@@ -123,7 +123,9 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   all successful; fixtures retain seven current events across all four leagues.
   Daily reference intervals remain pending: MLA next due October 18 10:45 UTC;
   Constitutions first post-rollout opportunity due October 17 15:40 UTC.
-  Latest origin/main `2dd8ecd` is deployed READY; local F222 work is not released.
+  At that observation, origin/main `2dd8ecd` was deployed READY and F222 local.
+  F222 subsequently released at `e1a5557` with verified ordinary refreshes;
+  separate state-landing 502s were found in its bounded log scan (F223).
   Zero sources above three failures; no new actionable failure or full closure.
   [Observation evidence](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1248-utc).
 
@@ -145,22 +147,17 @@ It does not close T15's real scheduled observations. The owner's earlier full
 orientation list is compared item by item in the
 [closure comparison](../research/2026-10-17-orientation-closure-comparison.md).
 
-## Feed source identity follow-up
+## Production landing-summary finding
 
-- [ ] **F222. Retain upstream Manifold market IDs in feed rows.** Owner approved
-  local implementation on 2026-10-17 after read-only checks established that
-  default variants, daily repetitions and future market-closing dates are valid;
-  all four `/_deleted_/` markets still answer as unresolved upstream markets.
-  Preserve optional `market_id` through both loaders and the JSON feed store,
-  keeping existing keys, filters and historical snapshots. No migration or
-  production data repair. Owner subsequently approved push/deployment on
-  2026-10-17; release verification is in progress, with no forced refreshes.
-  Local implementation verified in `294a273` on `task/f222-market-ids`:
-  206 focused / 6,147 full Vitest / 1,155 Deno tests passed, lint/build/bundle/router
-  checks passed. [Evidence](../research/2026-10-17-f222-manifold-identity-evidence.md).
-  [Spec](../specs/2026-10-17-f222-manifold-identity.md),
-  [plan](2026-10-17-f222-manifold-identity.md). Separate metadata improvement,
-  not an added M1/M2 closure gate.
+- [ ] **F223. Diagnose two state-landing HTTP 502s observed during F222 release.**
+  Bounded production request logs for `dpl_CPAJgveM9dZ5AZSYKP7mjDaf5wmx`
+  (12:56–13:11 UTC on 2026-10-17) returned two GET `/api/state-landing` 502s at
+  13:08:57.209 and 13:08:58.060. The request records omit feature/query, so
+  affected summary and cause are unestablished; no claim of a pre-existing
+  failure or F222 causation. Both F222 prediction APIs answer 200 with IDs.
+  Diagnose read-only before proposing a scoped fix; do not change unrelated
+  summary code under the metadata release.
+  [Evidence](../research/2026-10-17-f222-manifold-identity-evidence.md#bounded-request-log-finding-outside-f222).
 
 ## Test isolation finding outside the F220 write scope
 
@@ -1330,6 +1327,22 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- [x] **F222. Retain upstream Manifold market IDs in feed rows.**
+  Done 2026-10-17 (`294a273`, released at `e1a5557` with owner push/deploy approval).
+  Optional bounded `market_id` passes through both mappers and existing JSON
+  storage, preserving keys/filters/variants/dates. Real 13:10 UTC refresh:
+  204 Political Odds / 17 Election Forecast items, all distinct IDs, zero new
+  item keys; both public APIs 200 from store with all IDs. All 598 prior-day
+  snapshots retain their exact fingerprint. No schema, backfill, forced refresh,
+  timer or Edge Function change. Local 206 focused / 6,147 Vitest / 1,155 Deno
+  tests pass; lint/build/bundle/router pass; branch/main app+SQL CI pass attempt 1.
+  Final documentation CI/deployment verified after push; F223 separately records
+  two state-landing 502s outside this change. Closure monitor active, corpus
+  excluded, payment held.
+  [Spec](../specs/2026-10-17-f222-manifold-identity.md),
+  [plan](2026-10-17-f222-manifold-identity.md),
+  [evidence](../research/2026-10-17-f222-manifold-identity-evidence.md).
 
 - [x] **F220. Fractional watchdog cutoff restores high reasoning effort.**
   Done 2026-10-17 (`256f042`), research-chat v66 ACTIVE. Controlled clocks prove

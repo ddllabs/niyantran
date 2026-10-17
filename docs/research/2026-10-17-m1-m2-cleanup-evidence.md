@@ -435,3 +435,28 @@ T15 remains open for real daily reference observations. No actionable failure
 or overall completion, so no notification. Follow-up remains active. No forced
 refreshes, writes to production data, config/flags/timers, deployments, corpus
 operations, payment work, model calls or dotenv/credential-file reads.
+
+## F222 release follow-through — 2026-10-17 13:10 UTC
+
+Owner separately approved the additive Manifold ID metadata release (`294a273`,
+production `e1a5557`, Vercel `dpl_CPAJgveM9dZ5AZSYKP7mjDaf5wmx` READY).
+Branch/main CI 39034204827 / 39034521190 passed both app and SQL jobs on
+attempt 1. The ordinary 13:10 scheduled refresh updated 204 Political Odds and
+17 Election Forecast items with distinct IDs, zero new item keys; served APIs
+return HTTP 200 from store with all IDs. All 598 older daily observations are
+fingerprint-identical. No forced refresh, timer/serve flag or migration change.
+All ten Edge Function versions/hashes remain unchanged, including corpus.
+
+Latest read-only health: zero feed states above three failures; all six last
+30-minute feed-refresh cron executions succeeded, latest 13:10 UTC. The hourly
+closure monitor remains ACTIVE; reference sources have not reached their next
+daily opportunity. No additional reference opportunity is inferred from the
+market refresh or passing CI, and T15 remains open. Authorized behavioral
+evaluation remains the already executed evidence, with no new paid calls.
+
+A bounded 12:56–13:11 UTC request scan also found two GET `/api/state-landing`
+HTTP 502s at 13:08 UTC; logged F223 in the sole tracker, cause/feature unknown.
+No state-summary changes were made. Final documentation checkpoint CI will be
+checked after push rather than counted in advance. Full release and log limits:
+[F222 evidence](2026-10-17-f222-manifold-identity-evidence.md).
+Corpus excluded; payment integration held pending M1/M2 closure.
