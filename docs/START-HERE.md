@@ -1,6 +1,6 @@
 # Start here
 
-Status: **Living.** Rewritten 2026-09-29 as the entry point for any new agent
+Status: **Living.** Rewritten 2026-09-29 (current-state pointer 2026-10-17) as the entry point for any new agent
 or session, cloud or local. Update it when a listed document changes status
 or when the setup below changes.
 
@@ -65,20 +65,12 @@ These are the facts new sessions most often get wrong.
   development. Destructive operations still name their exact target and are
   confirmed first.
 
-## Where things stand (2026-10-03)
+## Where things stand
 
-- The upstream merge landed on September 26; origin is the only remote.
-- The [open-work baseline](plans/open-work.md) holds the dated infrastructure
-  snapshot and verification evidence, avoiding duplicate version and test counts.
-- Ingestion v2, admin upload/record management and the page viewer are deployed.
-  R4/R8 still have owner acceptance checks; R5 is the representative PDF pilot.
-  The two paged PDFs do not imply the legacy corpus has been converted.
-- F53's completeness experiments concluded without shipping either intervention.
-  F54's shared SidePanel and F55's attachment fixes are owner-closed.
-- Payments, launch prerequisites, corpus expansion and accepted risks remain in
-  open-work. Read that tracker before choosing work or operating infrastructure.
-- Network and CLI availability depend on the execution environment. Verify access
-  rather than assuming a local session, cloud container or connector has it.
+Not repeated here, so it cannot go stale: `plans/open-work.md` opens with **"Current state"** (the
+last dated milestone check: git, CI, site, database, functions, modules) and **"Milestones: what is
+left, in order"** (M1–M6, each with a checkpoint). The last module-by-module check of production is
+in `research/` (newest `*-live-module-status.md`). Re-run the checks before relying on them.
 
 ## A new session's first steps
 

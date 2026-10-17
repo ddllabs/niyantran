@@ -2148,3 +2148,11 @@ recommendations … We can fix everything that is under your control."
   answers (0 rows, honestly). Off: MLA Report Card + Statement Tracker, District Performance Tracker.
   Rollback: `update feed_state set serve = false where class in ('news','markets','events','charts',
   'reference','leaders') or (class = 'official' and feature <> 'SDL Auction & Borrowing Tracker');`
+- **2026-10-17: milestone check (read-only).** `git fetch`: one branch, `main` = `origin/main` =
+  `f1ce760`, no other worktrees or stashes. `scripts/module-probe.mjs` over all 120 desk modules on
+  production: all HTTP 200; 69 served from the store, 2 computed from registers, 42 shipped datasets,
+  2 fallback (NSE/BSE has no live source; MLA Report Card timed out once, then 500 rows live), 5
+  planned. Read-only SQL: 68 of 70 store modules serving, 98% of 24 hours' runs succeeded, one source
+  failing (Fixtures & Results — World Leagues, F215); 59 migrations applied; `research-chat` v63,
+  `desk-brief` v16. Record: `docs/research/2026-10-17-live-module-status.md`. Nothing written to
+  production.

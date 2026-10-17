@@ -1,6 +1,7 @@
 # Plan: the leftover phases after F201/F202 (2026-10-16)
 
-> **Status: Living.** Written 2026-10-16 from the owner's instruction: "Go plan out the leftover phases
+> **Status: Historical (completed 2026-10-16).** P0 and tasks A–D landed; what is left is ordered in
+> `open-work.md`, "Milestones". Written 2026-10-16 from the owner's instruction: "Go plan out the leftover phases
 > … and proceed. You can spawn multiple sub-agents … not every task requires an Opus." Items are tracked
 > in `docs/plans/open-work.md` (F201 T9b, F169/F160, F202). The owner is making UI changes on another
 > branch at the same time, so **no task here edits `.jsx`, `.css`, `src/shell/` or desk layout code**.

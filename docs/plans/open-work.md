@@ -14,92 +14,77 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F215 is next) and goes in the
+- A new finding gets the next free `F` number (F217 is next) and goes in the
   right section.
 
-## Current state — 2026-10-13 (night, milestone check)
+## Current state — 2026-10-17 (milestone check)
 
-The supervisor checked this with:
-- `git fetch`, the branch, worktree and stash lists;
-- the CI runs on `main`;
-- the served site;
-- `list_migrations` and the security advisor;
-- the `research-chat` source on NTER.
+Checked by the supervisor with `git fetch`, the branch, worktree and stash lists, CI on `main`, the
+served site, a read-only probe of all 120 desk modules, and read-only SQL on NTER. Nothing was
+written to production. Record: [live module status](../research/2026-10-17-live-module-status.md).
 
-Corpus counts are from read-only SQL earlier the same evening and were not
-rechecked. Nothing in this check wrote to production.
+- **Git:** one branch, `main`, locally and on `origin`, at `f1ce760`; no other worktrees, no stashes.
+  CI passed on the last five pushes (`05cc82d` failed on the flaky F210 test).
+- **Website:** niyantran-six.vercel.app serves `index-DYC_dpIO.js` (F214).
+- **Database:** 59 migrations in the repo and on NTER; the last is `20261015240000_record_brief_format`.
+  1,890 MB. Corpus 3,379 documents, 99,225 chunks; `desk_rows` 136,752 (with the RBI handbook).
+- **Edge Functions:** `research-chat` v63, `desk-brief` v16, `ingest-worker` v3, `ingest-documents` v21.
+- **Modules (all 120 answer):**
+  - 72 have a live source and all answer: 69 from the scheduled store (refreshed every 5 minutes to
+    daily, 0.1–0.7 s), 2 computed from stored registers, and MLA Report Card live (it timed out once);
+  - 43 are fixed data shipped with the site (bills, questions, court, geo, carbon and dossier
+    packs; NSE/BSE has no live source);
+  - 5 are planned and empty by design (two tender aggregators, three district modules).
+- **Feed timer:** 68 of 70 store modules serving; 98% of the last 24 hours' runs succeeded. One
+  source is down: Fixtures & Results — World Leagues (F215).
+- **AI credits** are enforced for everyone (F111). **Checkout stays closed** until O6.
+- **Owner checks:** everything listed for the owner's check on production was closed by the owner on
+  2026-10-15 ("The checks that you wanted me to perform are all done … Close them.").
+- **Done since 2026-10-13** (details under each item): F119–F214, including F169 module data repair
+  (phases 1–4), F160 serving from the store, F171 bug programme, F196 planned modules, F201 RBI
+  handbook full history and AI search, F202 module data quality, and the client's UI work F203–F214.
 
-- **Branches:** one, `main`, locally and on `origin`.
-  - Local `main` = `origin/main` = `6706838` (before this note's commit). The
-    working tree is clean.
-  - No stashes and no other worktrees.
-- **CI:** the run on `6706838` passed both jobs (build and tests; SQL fixtures
-  on a disposable Postgres). So did the three runs before it.
-- **Node:** 24.x in `.nvmrc`, `package.json`, CI and Vercel. The owner's Mac
-  runs Node 24.21.0 from Homebrew (2026-10-13). Lint, the build, the router
-  check and all 3,688 Vitest tests pass on it.
-- **Website:** niyantran-six.vercel.app serves `index-BAwrMUD7.js`, built
-  from F131 onwards. `/`, `/privacy` and `/api/site-icon` answer 200.
-- **Research chat:** `research-chat` v53 is ACTIVE (deployed from `4525ec9`).
-  It carries F130 web search, F131 one stream and F132 newline repair.
-  Rollback: redeploy from `38fbc4b` (v52) or `4159037` (v51).
-- **Database:** 45 migrations in the repo and on NTER; the last is
-  `20261013140000_web_search`.
-  - Security advisor: nothing new. It reports the seven signed-in SECURITY
-    DEFINER functions, nine service-only tables with RLS and no policy (for
-    information), and leaked-password protection off (section 7).
-- **Corpus:**
-  - 3,379 documents, 3,376 indexed, 99,225 chunks;
-  - 2,692 of 2,694 bill documents carry a version (the two without one are
-    Hindi errata);
-  - no identical-text documents, and no bill holds two documents of the same
-    version.
-  - Today's data changes are backed up under `tmp/backups/` (local,
-    git-ignored).
-  - R7 stays open.
-- **Done today:**
-  - F69, F104 (`research-chat` v48);
-  - F105 (docs reconciled), F106 (NterEarth retired);
-  - F112, F113, F114, F115;
-  - F116, F117, F118 (citation versions and one card per bill);
-  - F132 (Gemini newline safety net, `research-chat` v53).
+## Milestones: what is left, in order
 
-  The owner checked F112–F118 and F110 on production.
-- **Shipped and awaiting the owner's check on production** (nothing is
-  unfinished in code):
-  - F119, sector cards select:
-    - picture cards stay on the landing, the switch is visible, and phones
-      scroll to the modules;
-    - module cards open the terminal.
-  - F120: one header on every page.
-  - F121, F124, F128: Global, National and Law record panels.
-  - F129: WTO register.
-  - F130, F131: web search, and the source strip with site icons.
-- **Shipped and still open:**
-  - F107: legal pages, awaiting the full address and a lawyer review;
-  - F108: legal text is stored per browser;
-  - F109: INR billing, with migration `20261012120000` applied;
-  - F110: Plan & billing panel; checkout stays closed until F111 and O6.
-- **Order of work (owner, 2026-10-13):**
-  1. finish the existing bugs and fixes;
-  2. the owner's next UI changes, to be described;
-  3. plan AI credits (F111);
-  4. the Razorpay integration and live keys (O6).
+Recommended order (owner's sequencing 2026-10-14: data and bugs first, then corpus R7; Razorpay and
+chunking/OCR at the end). Each milestone ends with a checkpoint; the owner confirms before the next.
+The items themselves are below in this file; this section only orders them.
 
-## Waiting for the owner's check on production (built and live)
+**M1. Data-serving clean-up** (small, backend only, no owner input).
+- F215 Fixtures & Results source; F160 leftovers (nothing-new with no items, Music Charts timer,
+  World Constitutions key churn, latest-run variants over 2,000 items); F216 research answers
+  asserting what the rows do not say; F210 flaky research-thread test; F202 leftover (unread stored
+  searches in the data files, a data-migration task with an inventory); F201 optional review items.
+- *Checkpoint:* the module probe shows no `archive` answer except NSE/BSE; the feed store has no
+  source with more than 3 consecutive failures; three CI runs in a row green.
 
-Recorded 2026-10-14. Agents do not sign in to production, so these close on the owner's check:
+**M2. Front-end leftovers** (on or after the owner's UI branch).
+- F208 desk catalogue out of the first-load bundle (then lower the bundle baseline); the Heads of
+  State panel shows its Wikidata links (F202).
+- *Checkpoint:* bundle baseline re-recorded lower; panel checked in a browser.
 
-- **Desk and header:** F119 sector cards, F120 one header, F133 desk tabs, F134 search drag into
-  AI, F135 side panel closing.
-- **Record panels:** F121 Global, F124 National, F128 Law, F129 WTO register.
-- **Web search:** F130 web search in AI Research, F131 one stream and site icons.
-- **Homepage and marketing:** F140 homepage hero, F141 one globe, F142 live figures, F143 landing
-  counters, F144 preview figures (plus the client's 15 answers), F145 globe handover and speed.
-- **Error wording:** F159 plain module errors.
-- **Chat and viewer:** F46 chat brief, F47 phone avatar (re-measure in F171 B17), F48 PDF viewer,
-  F49 whole page, F50 Safari text view, F51 sources list.
-- **Other:** F76 dictation, R4 citation check, R8 "Budget at a Glance" upload.
+**M3. Modules waiting on sources or methods** (owner decisions first).
+- MLA Report Card from a real source (ADR/MyNeta, assembly records); District Performance,
+  District Governance and District Crime (NITI Aspirational Districts, NFHS-5, UDISE+, MGNREGA, an
+  approved composite method, a district map); the two tender aggregators (owner's source; F196);
+  then the homepage source count (F191).
+- *Checkpoint:* each module live from the store with a probe; F191 shows the true count.
+
+**M4. Corpus and retrieval** (owner go-ahead per step; section 3).
+- R5 pilot, R7 acquisition (5,327 linked PDFs), L1, L2; F170 rules 4–9 with F37 and F38; F40, P8, P9;
+  then P6, F34, F42, F33.
+- *Checkpoint:* the frozen retrieval eval no worse after each load; cost recorded per batch.
+
+**M5. Payments** (section 4).
+- F107 legal pages (registered address, lawyer review); F110 a Razorpay test-mode run on a preview;
+  O6 live keys, top-up packs, downgrade and renewal rules; P2 organisations later.
+- *Checkpoint:* one real payment end to end, credits granted, invoice issued.
+
+**M6. Launch** (section 5).
+- D2 nter.pro cutover; O1 nter.news key; O10 Vercel plan upgrade; O11 the old Vercel project
+  deleted; P11; P12 dependency majors and the RLS advisor items; P1 home feeds and O9 when the owner
+  has the inputs.
+- *Checkpoint:* signed-in smoke test on nter.pro.
 
 ## UI follow-ups
 
@@ -1052,6 +1037,17 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   number, or whatever the true number is." The source registry counts 115 working-route addresses
   since F180; the published figure stays 246 (`src/lib/siteFigures.js`) until the sources are sorted
   out, then it shows the true count.
+- [ ] **F215. Fixtures & Results — World Leagues: its source is failing.** Found 2026-10-17 in the
+  milestone check ([status](../research/2026-10-17-live-module-status.md)): 14 consecutive failed
+  runs since the last good fetch at 2026-10-16 18:35 UTC ("TheSportsDB did not return Premier League,
+  NBA, IPL or La Liga"); 16 failures and 4 timeouts in 24 hours. The stored copy (7 rows) is still
+  served and stops at the 7-day stale ceiling, about 2026-10-23. Find out whether TheSportsDB changed
+  its free endpoints or rate limit, then fix the adapter or move to another source.
+- [ ] **F216. Research answers state caveats the data does not.** Seen 2026-10-16 in the F201 T9b
+  production question: the answer's Gaps section said the 2023 outstanding-liability figures are
+  provisional, which the desk rows do not say. Rule for `research-chat`: a gap or caveat must come from
+  a returned row, document or tool result, or be worded as unknown. Prompt change plus a test;
+  redeploy after diffing the deployed source.
 - [ ] **F160 status 2026-10-16: serving from the store is on** for 64 of the 66 scheduled modules
   (`1345bfd`, `4244984`, `943246f`, `ffbc8ff`; coordination.md 2026-10-16). Store answers pass the
   module's own live row filters (`server/feedRows.mjs`); stored copies never read LIVE; stale copies are
@@ -1070,6 +1066,9 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   - Music Charts: a request's 8 s timer does not count time queued behind the host gate.
   - World Constitutions: about a quarter of its item keys change between runs.
   - A latest-run measurement variant over 2,000 items falls back to live (Political Odds holds ~280).
+  - 2026-10-17 check: 68 of 70 store modules serving (the count now includes the F196 and F201
+    registers). MLA Report Card's live answer timed out once at 4 s (0 rows, archive), then answered
+    500 rows in 0.4 s; it depends on Wikidata's speed until it has a real source.
 - [ ] **F160. Serve module data from the database, filled by scheduled jobs (ingest, then serve).**
   [Spec](../specs/2026-10-14-scheduled-module-data.md) written 2026-10-14. Owner's answers the same
   day: the timer every 5 minutes, not every minute; the other recommendations adopted. Now phase 4
@@ -2539,6 +2538,12 @@ Earlier items, updated:
   - the first live `search_documents` turn with a highlighted span;
   - the admin persona chat on Gemini Lite, Gemini Flash and GPT Astra;
   - medium and high reasoning in production.
+- [ ] **O10. Vercel plan upgrade (owner).** Owner 2026-10-14: "Vercel upgrade later". The feed
+  timer went live without it (2026-10-15). Hobby is for non-commercial use, so upgrade before paid
+  launch (O6, D2).
+- [ ] **O11. Delete the old Vercel project `niyantran-desk-reference-v6` (owner).** Its Git link was
+  removed under F94 (2026-10-12); the project and its deployment history remain. Deleting it is the
+  owner's action in the Vercel dashboard.
 - [ ] **P11.** Whether `require_parameters` makes reasoning a hard routing
   constraint, and whether a single attachment should be capped at its
   per-document quota. Decided on D3's evidence.
