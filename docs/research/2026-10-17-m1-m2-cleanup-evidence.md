@@ -828,3 +828,48 @@ F219 remains separate. Report actual M1/M2 closure before payment integration.
 F221 publication confirmed: main CI 39052960359 app/SQL green on attempt 1;
 production dpl_EC2dNBS1rX9ZPrcEBJDJydXmoqWh READY at exact 389dbed SHA.
 Final prose follow-up deployment/CI is verified after publication; T15 stays open.
+
+
+## Scheduled closure observation — 2026-10-17 18:05 UTC
+
+Read-only check at 18:05–18:07 UTC. Fetched main/origin both 1621924, initially
+clean. Reused local closure-observations branch, fast-forwarded from main to
+preserve F221's completed test-only release and evidence. No runtime change.
+
+- Cron job 5 remains active */5 with expected production Vercel refresh URL
+  (boolean match only). Latest six cron executions succeeded through 18:05.
+  Last-half-hour feed outcomes: 19 ok / 23 unchanged, no errors; 70 serving
+  modules / 257 variants, zero nonzero failure counters, none above three,
+  zero whole-feed availability=empty outcomes.
+- Fixtures and both charts retain seven genuine hourly opportunities through
+  17:05; the 18:05 cron claim precedes next_due_at (18:05:01–03), so the next
+  eligible ordinary poll is 18:10. No success or missed opportunity inferred.
+  Fixture latest-run items seven, 19 retained including history. Four leagues /
+  eight windows accounted for: Premier League, NBA, La Liga next/past ok; IPL
+  past ok, next explicitly empty. Charts retain 25 rows each and disclose the
+  Apple Music empty / iTunes fallback source outcome.
+- MLA reference remains 500 distinct keys: 400 mla-profile keys + 100 coverage.
+  One eligible post-rollout daily success at 10:45; prior 10:10 transition run
+  not counted as another daily interval. Next October 18 10:45 UTC.
+- World Constitutions remains 188 distinct constitute: keys; newline-sorted key
+  MD5 c14635ffbc17cef3a5ace4fc74273578 unchanged. One genuine post-rollout daily
+  opportunity, unchanged/188 at 15:45; next October 18 15:45 UTC.
+- Growth remains 20 items, zero failures, next October 18 15:55 UTC. The two
+  pre-F224 timeouts and 15:55 pre-deploy recovery remain separate evidence,
+  not post-F224 scheduled writer acceptance. No extra source call forced.
+- Exact-scope Vercel authenticated CLI GET confirms production
+  dpl_7YLtFYmpTNqB8QqtNeC9nwa2TET1 READY at
+  162192447ad37479ff184938410b9b0cb9270313, matching main/origin. Latest three
+  genuine CI runs 39052609249, 39052960359, 39053343742 each checked: attempt 1,
+  application and SQL jobs success, no retry/cancellation.
+- F221 is fixed/released. Previously approved behavioral evaluation was executed
+  (faithful five-case passing evidence and total $0.03677325 already recorded),
+  not newly pending and no new paid calls. F219 remains separate.
+
+Hourly automation remains ACTIVE. T15 remains open for two further genuine daily
+opportunities per reference and Growth writer acceptance; no new actionable
+failure or overall closure. No repeat notification. Local evidence/tracker prose
+only; git diff --check, no code tests rerun. No push/deploy, production mutation,
+function invocation, timer/serve adjustment, corpus operation, payment work or
+credential/dotenv read. Conditional payment handoff remains October 19 late IST
+only after real closure evidence is reported.

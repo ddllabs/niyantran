@@ -171,6 +171,17 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   Growth post-F224 writer acceptance pending tomorrow. F221 test-only fix
   landed as `389dbed`; T15 open and hourly follow-up ACTIVE.
   [F221 and closure evidence](../research/2026-10-17-f221-test-isolation-evidence.md).
+  Scheduled 18:05 UTC follow-up: 1621924 production READY, latest three genuine
+  CI runs 39052609249 / 39052960359 / 39053343742 app+SQL green, each attempt 1.
+  Cron active */5; latest six executions succeeded, zero failing sources. Daily
+  references still one of three each, Growth writer acceptance still pending;
+  next due October 18 10:45 / 15:45 / 15:55 UTC respectively. Fixtures/charts
+  retain seven genuine hourly opportunities through 17:05; 18:05 poll precedes
+  their exact next_due_at, next eligible ordinary poll 18:10. Constitution key
+  inventory stable, MLA 400 profiles + 100 coverage, all four leagues covered
+  with IPL-next truthfully empty. T15 stays open; automation ACTIVE.
+  [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1805-utc).
+
 
 
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
