@@ -540,3 +540,10 @@ Deno.test('the web block carves out the grounding rule for web results only, and
   assertStringIncludes(WEB_SEARCH, 'Only link to a page');
   assertStringIncludes(WEB_SEARCH, 'Every other rule above still applies');
 });
+
+Deno.test('F216: qualifications are factual claims requiring returned evidence', () => {
+  assertStringIncludes(SYSTEM_PROMPT_STATIC, 'Caveats and qualifications are factual claims');
+  assertStringIncludes(SYSTEM_PROMPT_STATIC, 'If the source says provisional, preserve that qualification');
+  assertStringIncludes(SYSTEM_PROMPT_STATIC, 'If it does not establish the qualification, say its status is unknown');
+  assertStringIncludes(SYSTEM_PROMPT_STATIC, 'Do not excuse an unsupported qualification as inference');
+});
