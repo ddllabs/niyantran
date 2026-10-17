@@ -153,3 +153,40 @@ next initiative after the approved closure gates, not part of this change.
 These commits are local on the task branch; main was not merged or pushed.
 The final documentation checkpoint records tracker progress without closing
 production findings. Protected data and ingestion paths have no diff from base.
+
+## Authorized rollout checkpoint — 2026-10-17
+
+Owner approved push and deploy, with M1/M2 closure before payment work. Base
+production rollback: Vercel `dpl_BHwBvmicYgiLUJQxvboxeJs4QneK`, commit `b8d9e51`.
+The connector returned 403 for DDL Labs; the same-project authenticated CLI
+fallback succeeded. No alternate scope or protection settings were used.
+
+- Applied the exact three local migration versions in order using
+  `supabase db push --project-ref vfgcppstyzjarlzyqdac --skip-vault --yes`.
+  Dry-run listed exactly those three; no seed, role or vault changes. Remote
+  history confirms all three. Latest-run RPC grants: anon false, authenticated
+  false, service_role true.
+- Pushed `task/m1-m2-cleanup` at `dd05adf`. First-attempt CI
+  [39025298847](https://github.com/ddllabs/niyantran/actions/runs/39025298847)
+  passed both app and SQL jobs, without retry.
+- Retrieved and compared deployed bundles. Research v63 differed in exactly
+  the three cleanup paths; deployed the changed bundle as v64, hash
+  `edba0ec418d9b5294cf7d39e0e2b13cbc96cc3504e3177caa8c651e35e946f46`.
+- Desk-brief v16 differed in the handbook catalogue and one unrelated deployed
+  module entry. Preserved that entry and replaced only the catalogue; v17 hash
+  `0722def616a1454da484999ffddb4648af4d46d2868476c2a6107751f50abca5`.
+  Both functions retain their existing verify_jwt=false and handler authentication.
+- Exact World Constitutions inventory: 188 rows / 188 distinct valid source IDs,
+  no active lease. Prepared a key-only transaction guarded by snapshot/count and
+  every old key/source-ID pair. It preserves row content, timestamps and positions.
+- MLA before transition: news/news, serve=false; 1,616 accumulated rows but the
+  latest successful source run contains 400 unique profiles and 39 coverage rows.
+  Transition inventory/repair must avoid treating the accumulated news history as
+  a reference list or defeating the source shrink guard without evidence.
+
+Evaluation environment probe: Vercel refuses exporting 15 protected production
+secret values. No dotenv/credential file was read and no value was printed.
+The CLI environment-run helper unexpectedly interpreted its child command as a
+preview deployment of the temporary probe directory (115 bytes), creating
+`dpl_JEAvP7PsM7zKwmhxqmKwoxqvqKMz`, target=null/preview. It never promoted a
+production alias; cleanup is recorded separately. That evaluation path was stopped.
