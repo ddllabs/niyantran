@@ -171,7 +171,8 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   Daily references unchanged (one of three each); Growth post-F224 writer run
   pending tomorrow. Production 54c24c4 READY; final genuine CI 39048250037,
   39048651791, 39049456929 all app/SQL green on attempt 1. F221 diagnosed only,
-  proposed test-only fix awaits approval. T15 open, hourly follow-up ACTIVE.
+  scoped test-only fix now authorized and undergoing verification. T15 open,
+  hourly follow-up ACTIVE.
   [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1700-utc).
 
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
@@ -211,7 +212,8 @@ orientation list is compared item by item in the
   preference baseline 36/36 passes. Proposed small test-only fix: controlled
   hanging-source disposal, asynchronous producer teardown and a causal guard,
   scoped to featureFeedTimeLimit.test.js; keep preferences assertions/runtime
-  unchanged. Implementation/publication awaits approval. [Diagnosis/proposal](../research/2026-10-17-f221-test-isolation-diagnosis.md).
+  unchanged. Owner subsequently approved test-only implementation and publication;
+  local verification underway on task/f221-test-isolation. [Diagnosis/proposal](../research/2026-10-17-f221-test-isolation-diagnosis.md).
 
 
 ## Documentation follow-up

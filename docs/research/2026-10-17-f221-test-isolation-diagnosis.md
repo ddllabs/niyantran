@@ -1,7 +1,8 @@
 # F221 preference-test interference diagnosis and proposed scope
 
 > **Status: Living.** Owner authorized diagnosis and a scoped proposal on
-> 2026-10-17. Implementation, push and deployment are not authorized by this task.
+> 2026-10-17. The owner subsequently authorized the scoped test-only fix and
+> push/deploy. Execution is recorded in the separate F221 implementation evidence.
 
 ## What failed and what did not
 
@@ -111,3 +112,11 @@ refresh can substitute for those elapsed intervals. Corpus remains excluded.
 
 Only local diagnosis/tracker documentation changed. No production, runtime,
 tracked test, configuration, data, corpus or payment change; no push/deploy.
+
+## Authorized implementation follow-up
+
+The scoped test-only fix is now authorized and implemented; the original diagnosis
+and lab results above describe the pre-fix state. See
+[implementation evidence](2026-10-17-f221-test-isolation-evidence.md) for red/green
+checks and publication status. Production late-live behavior and preferences
+assertions remain unchanged.

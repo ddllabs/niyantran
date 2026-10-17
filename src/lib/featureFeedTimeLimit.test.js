@@ -6,8 +6,9 @@ import {
   ARCHIVE_NOTES,
   LIVE_TIME_LIMIT_MS,
   resetFeedCache,
-  serveFeatureFeedWithBackup,
-  serveFeatureFeedWithinLimit,
+  serveFeatureFeed,
+  serveFeatureFeedWithBackup as withBackup,
+  serveFeatureFeedWithinLimit as withinLimit,
 } from '../../server/featureFeed.mjs';
 import { serveNationalLanding } from '../../server/nationalLandingSummary.mjs';
 import { serveEconomicsLanding } from '../../server/economicsLandingSummary.mjs';
@@ -15,23 +16,74 @@ import { serveStateLanding } from '../../server/stateLandingSummary.mjs';
 
 const CABINET = new URLSearchParams({ tier: 'national', feature: 'Cabinet Decisions' });
 
-// A source that never answers until the request gives up on it, like PIB on a bad day.
+const originalFetch = globalThis.fetch;
+const sources = new Set();
+const producers = new Set();
+const deferredFinishes = new Set();
+
+// A source stays pending until abort/disposal, including fallback requests.
 function hangingFetch() {
-  return vi.fn((_url, init = {}) => new Promise((_resolve, reject) => {
-    init.signal?.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true });
-  }));
+  let closing = false;
+  const pending = new Set();
+  const fetch = vi.fn((_url, init = {}) => {
+    if (closing) return Promise.reject(new Error('test source disposed'));
+    return new Promise((_resolve, reject) => {
+      const end = () => {
+        init.signal?.removeEventListener('abort', end);
+        pending.delete(end);
+        reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+      };
+      pending.add(end);
+      if (init.signal?.aborted) end();
+      else init.signal?.addEventListener('abort', end, { once: true });
+    });
+  });
+  sources.add(() => {
+    closing = true;
+    for (const end of [...pending]) end();
+  });
+  return fetch;
 }
+
+function deferredLive() {
+  let finish;
+  const promise = new Promise((resolve) => { finish = resolve; });
+  deferredFinishes.add(() => finish({ ok: true, rows: [] }));
+  return { live: vi.fn(() => promise), finish };
+}
+
+function trackedOptions({ live = serveFeatureFeed, ...options } = {}) {
+  return { ...options, live: (params) => {
+    const producer = Promise.resolve().then(() => live(params));
+    producers.add(producer);
+    return producer;
+  } };
+}
+const serveFeatureFeedWithinLimit = (params, options) => withinLimit(params, trackedOptions(options));
+const serveFeatureFeedWithBackup = (params, options) => withBackup(params, trackedOptions(options));
+
+// Drain under the source mock: releasing fetch first lets tryUrls escape into
+// another test after its original source deadline (F221).
+async function releaseFeedTest() {
+  try {
+    for (const dispose of sources) dispose();
+    for (const finish of deferredFinishes) finish();
+    await Promise.allSettled([...producers]);
+  } finally {
+    sources.clear();
+    producers.clear();
+    deferredFinishes.clear();
+    globalThis.fetch = originalFetch;
+    vi.useRealTimers();
+    resetFeedCache();
+  }
+}
+beforeEach(() => resetFeedCache());
+afterEach(releaseFeedTest);
 
 const realRows = (body) => (body?.rows || []).filter((r) => r?.status !== 'source_status');
 
 describe('serveFeatureFeedWithinLimit (F154)', () => {
-  const originalFetch = globalThis.fetch;
-  beforeEach(() => resetFeedCache());
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    vi.useRealTimers();
-  });
-
   it('gives live sources four seconds in all', () => {
     expect(LIVE_TIME_LIMIT_MS).toBe(4000);
   });
@@ -78,8 +130,7 @@ describe('serveFeatureFeedWithinLimit (F154)', () => {
   });
 
   it('shares one slow live request between callers instead of starting another', async () => {
-    let finish;
-    const live = vi.fn(() => new Promise((resolve) => { finish = resolve; }));
+    const { live, finish } = deferredLive();
     const [a, b] = await Promise.all([
       serveFeatureFeedWithinLimit(CABINET, { live, limitMs: 20 }),
       serveFeatureFeedWithinLimit(CABINET, { live, limitMs: 20 }),
@@ -91,14 +142,13 @@ describe('serveFeatureFeedWithinLimit (F154)', () => {
   });
 
   it('serves a live answer that arrived after an earlier request gave up on it', async () => {
-    let finish;
-    const slow = vi.fn(() => new Promise((resolve) => { finish = resolve; }));
+    const { live: slow, finish } = deferredLive();
     const first = await serveFeatureFeedWithinLimit(CABINET, { live: slow, limitMs: 20 });
     expect(first.served).toBe('archive');
     finish({ ok: true, rows: [{ title: 'Late live decision' }], source: { adapter: 'api' } });
     await new Promise((r) => setTimeout(r, 0));
 
-    const stillSlow = vi.fn(() => new Promise(() => {}));
+    const stillSlow = deferredLive().live;
     const second = await serveFeatureFeedWithinLimit(CABINET, { live: stillSlow, limitMs: 20 });
     expect(second.served).toBe('live');
     expect(second.rows).toEqual([{ title: 'Late live decision' }]);
@@ -106,20 +156,16 @@ describe('serveFeatureFeedWithinLimit (F154)', () => {
   });
 
   it('does not keep a late answer that has no rows', async () => {
-    let finish;
-    const slow = vi.fn(() => new Promise((resolve) => { finish = resolve; }));
+    const { live: slow, finish } = deferredLive();
     await serveFeatureFeedWithinLimit(CABINET, { live: slow, limitMs: 20 });
     finish({ ok: true, rows: [], source: { adapter: 'api' } });
     await new Promise((r) => setTimeout(r, 0));
-    const next = await serveFeatureFeedWithinLimit(CABINET, { live: vi.fn(() => new Promise(() => {})), limitMs: 20 });
+    const next = await serveFeatureFeedWithinLimit(CABINET, { live: deferredLive().live, limitMs: 20 });
     expect(next.served).toBe('archive');
   });
 });
 
 describe('landing summaries within the limit (F154)', () => {
-  const originalFetch = globalThis.fetch;
-  beforeEach(() => resetFeedCache());
-  afterEach(() => { globalThis.fetch = originalFetch; });
 
   it('a National count comes from the archive when PIB is slow, and says so', async () => {
     globalThis.fetch = hangingFetch();
@@ -141,10 +187,7 @@ describe('landing summaries within the limit (F154)', () => {
 // is not very user-friendly." What a reader sees of an archive answer is plain English; the
 // technical reason is kept in `source.diagnostic`, which no screen shows.
 describe('archive answers in plain words (F159)', () => {
-  const originalFetch = globalThis.fetch;
   const DEVELOPER = /\b\d+\s*s\b|time limit|HTTP|feature-feed|archive|adapter|ECONN|host did not respond|Live source failed/i;
-  beforeEach(() => resetFeedCache());
-  afterEach(() => { globalThis.fetch = originalFetch; });
   const failing = vi.fn(async () => { throw new Error('ECONNRESET'); });
 
   it('stored records after a slow live source', async () => {
@@ -183,7 +226,7 @@ describe('archive answers in plain words (F159)', () => {
 
   it('a State landing card that quotes the source note quotes the plain words', async () => {
     globalThis.fetch = hangingFetch();
-    const load = (params) => serveFeatureFeedWithBackup(params, { live: () => new Promise(() => {}), limitMs: 50 });
+    const load = (params) => serveFeatureFeedWithBackup(params, { live: deferredLive().live, limitMs: 50 });
     const summary = await serveStateLanding(new URLSearchParams({ feature: 'Constituency Register' }), load);
     expect(summary.served).toBe('archive');
     expect(summary.count).toBeGreaterThan(0);
@@ -206,7 +249,6 @@ describe('archive answers in plain words (F159)', () => {
 // the raw reason (which can name a server file) goes to the server log. A live attempt that threw is
 // marked `source.liveFailed`, so the page does not retry it as if it were only slow.
 describe('the public reason is a fixed code (F159 review)', () => {
-  const originalFetch = globalThis.fetch;
   const CODES = /^(timeout|upstream-error|no-stored-records|backup-error)( · (timeout|upstream-error|no-stored-records|backup-error))*$/;
   const RAW = "ENOENT: no such file or directory, open '/var/task/server/private-loader.mjs'";
   let warn;
@@ -215,7 +257,6 @@ describe('the public reason is a fixed code (F159 review)', () => {
     warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
   afterEach(() => {
-    globalThis.fetch = originalFetch;
     warn.mockRestore();
   });
   const throwing = async () => { throw new Error(RAW); };
@@ -267,5 +308,33 @@ describe('a backup pack that cannot be read (F159 review)', () => {
     expect(body.source.diagnostic).toBe('backup-error');
     expect(JSON.stringify(body)).not.toMatch(/athletes\.xlsx|\/var\/task|ENOENT/);
     expect(warn.mock.calls.flat().join(' ')).toContain(RAW);
+  });
+});
+
+// F221: a source fallback must not escape into the next test's fetch mock.
+describe('feed producer isolation (F221)', () => {
+  let producer;
+
+  it.each([0, 1])('leaves exactly %i consumer calls after the source deadline', async (consumerCalls) => {
+    resetFeedCache();
+    vi.useFakeTimers();
+    const source = hangingFetch();
+    globalThis.fetch = source;
+    const request = serveFeatureFeedWithinLimit(CABINET, {
+      limitMs: 50,
+      live: (params) => { producer = serveFeatureFeed(params); return producer; },
+    });
+    await vi.advanceTimersByTimeAsync(50);
+    expect((await request).served).toBe('archive');
+    expect(source).toHaveBeenCalledTimes(1);
+    await releaseFeedTest();
+    vi.useFakeTimers();
+    const consumer = vi.fn(async () => new Response('<rss><channel/></rss>'));
+    globalThis.fetch = consumer;
+    for (let i = 0; i < consumerCalls; i++) await fetch('/api/user-prefs');
+    await vi.advanceTimersByTimeAsync(12_000);
+    await producer;
+    expect(source.mock.calls.some(([url]) => String(url).includes('ViewRss.aspx'))).toBe(true);
+    expect(consumer).toHaveBeenCalledTimes(consumerCalls);
   });
 });
