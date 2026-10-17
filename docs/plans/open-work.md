@@ -110,19 +110,22 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   to simulate those opportunities. Three consecutive first-attempt CI runs previously passed:
   39025298847, 39025660396 and 39026919956 (`d63192b`). Later F218 code CI passed
   on branch/main, but documentation-only run 39028606428 failed F199 (F220).
-  F220 is now fixed/deployed as research-chat v66: first-attempt branch/main CI
-  39030425827 and 39030716589 pass. Verify the next genuine post-fix CI completion
-  rather than counting a retry/empty commit toward three greens. Separate local
+  F220 is now fixed/deployed as research-chat v66: three consecutive genuine
+  post-fix CI runs 39030425827, 39030716589 and 39031190292 passed both app and SQL
+  jobs on attempt 1. CI component verified complete at the 12:48 UTC observation;
+  no retries, cancellations or empty commits were used. Separate local
   test interference F221 is recorded and unresolved. Active hourly
   read-only follow-ups on this chat, explicitly requested by the owner, notify only on a meaningful
   failure or completion. Vercel connector remains 403; the authenticated CLI works for the exact
   DDL Labs scope. Report closure before beginning payment gateway integration.
-  Read-only observation 2026-10-17 11:42 UTC: fixtures' second genuine hourly
-  opportunity succeeded (seven current events, all four leagues checked); daily
-  references have not reached their next opportunity. Latest main `f3d5b59` is
-  deployed READY and CI 39028941094 passed on attempt 1, but only one green follows
-  F220's failed run. No sources above three failures; no new alert/completion.
-  [Observation evidence](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1142-utc).
+  Read-only observation 2026-10-17 12:48 UTC: fixtures and both Music Charts
+  modules completed three genuine hourly opportunities (10:40, 11:40, 12:45 UTC),
+  all successful; fixtures retain seven current events across all four leagues.
+  Daily reference intervals remain pending: MLA next due October 18 10:45 UTC;
+  Constitutions first post-rollout opportunity due October 17 15:40 UTC.
+  Latest origin/main `2dd8ecd` is deployed READY; local F222 work is not released.
+  Zero sources above three failures; no new actionable failure or full closure.
+  [Observation evidence](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1248-utc).
 
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving

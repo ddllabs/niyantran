@@ -379,3 +379,59 @@ READY at the code commit. Detailed [F220 evidence](2026-10-17-f220-answer-reserv
 F220 moved to Done. F221's separate isolation issue and T15's real source
 intervals/current CI checkpoint remain open. The requested hourly read-only
 follow-up remains ACTIVE. Corpus ingestion excluded; payment integration on hold.
+
+## Scheduled closure observation — 2026-10-17 12:48 UTC
+
+Read-only Supabase, Vercel and GitHub checks at approximately 12:48–12:50 UTC.
+Checkout began clean on local `task/f222-market-ids` at `bd25379` (verified local
+metadata improvement, not released). Fetch succeeded; main and origin/main
+remain equal at `2dd8ecd`. Only this evidence record and the sole tracker were
+updated for this observation; no source changes or production mutations.
+
+- Supabase cron job 5 `feed-refresh` is active at `*/5 * * * *`; the expected
+  production Vercel `/api/feeds/refresh` URL is present (boolean check only,
+  without retrieving the command or its secret). Six executions succeeded in
+  the last 30 minutes; feed outcomes were six ok and four unchanged, no failures.
+- Seventy distinct modules / 257 variants are serving. Zero states above three
+  consecutive failures; all monitored sources have zero failures.
+- Fixtures completed its third genuine post-rollout hourly opportunity at
+  `2026-10-17T12:45:00.422Z` (prior starts 10:40:00.509 and 11:40:14.375).
+  Seven latest-run events: English Premier League 2, NBA 2, Spanish La Liga 2,
+  Indian Premier League 1. All eight next/past windows are checked; IPL next is
+  explicitly empty, the other seven ok. Fourteen retained items include history.
+  State fetched at 12:45:01.865946; next due 13:45:01.865946 UTC. The five-minute
+  scheduler first reached this opportunity at 12:45 after its prior 12:40:16 due
+  time; this is one ordinary scheduled opportunity, not an extra retry.
+- Both Music Charts modules have three successful hourly opportunities at
+  10:40, 11:40 and 12:45 UTC, 25 items each. First outcomes unchanged, later ones
+  ok. Both remain hourly, serving and healthy; next due around 13:45 UTC.
+- MLA Report Card + Statement Tracker (the MLA Profiles & Coverage reference
+  store) remains at its actual 10:45 UTC successful run: 400 profiles with 400
+  `mla-profile:` keys plus 100 statement/coverage records. Serve is on, next due
+  October 18 10:45 UTC; no second daily interval has elapsed.
+- World Constitutions still holds exactly 188 distinct `constitute:` keys;
+  sorted newline-joined key MD5 remains `c14635ffbc17cef3a5ace4fc74273578`.
+  Last actual refresh October 16 15:40 UTC, next due October 17 15:40 UTC. Its
+  first post-rollout daily opportunity remains pending; current key identity
+  alone does not establish multi-run stability.
+- No live state has `meta.availability=empty`; no new production whole-feed
+  empty outcome is claimed. The explicit IPL-next empty window is source
+  coverage metadata. Existing local empty-contract evidence remains applicable.
+- Authenticated Vercel CLI API fallback for the exact approved team/project
+  confirms READY production deployment `dpl_4K3mQJmw37bVcGUbpvSG1VSBGfXz`,
+  `niyantran-2eahx5qy0-ddl-labs.vercel.app`, source
+  `2dd8ecd3c5fd66775bdaf8343fda7202cb6357de`, matching origin/main.
+- The final three consecutive genuine post-F220 CI runs were individually read
+  back: [39030425827](https://github.com/ddllabs/niyantran/actions/runs/39030425827),
+  [39030716589](https://github.com/ddllabs/niyantran/actions/runs/39030716589) and
+  [39031190292](https://github.com/ddllabs/niyantran/actions/runs/39031190292).
+  Each is attempt 1, conclusion success, with both Build and tests and SQL
+  fixtures jobs successful. The last run completed SQL at 12:10:48 UTC on
+  `2dd8ecd`. CI component is satisfied; no manufactured run or retry counted.
+- Approved behavioral evaluation already ran as recorded above; no new calls
+  were made. F221 remains separately open despite subsequent green runs.
+
+T15 remains open for real daily reference observations. No actionable failure
+or overall completion, so no notification. Follow-up remains active. No forced
+refreshes, writes to production data, config/flags/timers, deployments, corpus
+operations, payment work, model calls or dotenv/credential-file reads.
