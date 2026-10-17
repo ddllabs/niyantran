@@ -1,3 +1,4 @@
+import { deskHash } from './deskHash.js';
 import features from '../data/html-feature-map.json';
 import { TABS, bucketsFor, modulesForTier } from '../desks/catalog.js';
 
@@ -50,12 +51,7 @@ export function resolveDeskRoute(tabId, feature) {
   return { tab: tab.id, feature: hit?.htmlFeature || want };
 }
 
-export function deskHash(tab, feature) {
-  if (!tab || tab === 'home') return '#/';
-  const feat = String(feature || '').trim();
-  if (!feat) return `#/${encodeURIComponent(tab)}`;
-  return `#/${encodeURIComponent(tab)}/${encodeURIComponent(feat)}`;
-}
+export { deskHash } from './deskHash.js';
 
 export function parseDeskHash(hash = typeof location !== 'undefined' ? location.hash : '') {
   const raw = String(hash || '')

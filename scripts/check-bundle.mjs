@@ -69,6 +69,24 @@ if (geoChunks.length !== 1 || geoChunks[0] === entry || !geoChunks[0].startsWith
   fail(`the Goa geography pack is in ${geoChunks.join(', ') || 'no chunk'}; it must be in one lazily loaded chunk of its ` +
     'own, not the entry. Load src/data/niy-geo.json only through the dynamic import in src/lib/archiveFeed.js (F158).');
 }
+// F208: inspect the entire initial static chunk closure, including modulepreloads.
+// These identifiers survive minification and belong to the complete feature map / columns.
+const initial = new Set([entry, ...[...html.matchAll(/<link\b[^>]*\brel="modulepreload"[^>]*\bhref="\/assets\/([^"/]+\.js)"/g)].map(m => m[1])]);
+const visitInitial = name => {
+  const text = chunkText.get(name);
+  if (!text) fail(`initial JavaScript asset ${name} is missing.`);
+  for (const m of text.matchAll(/(?:\bfrom\s*|\bimport\s*)["']\.\/([^"']+\.js)["']/g)) {
+    if (!initial.has(m[1])) { initial.add(m[1]); visitInitial(m[1]); }
+  }
+};
+for (const name of initial) visitInitial(name);
+for (const name of initial) {
+  for (const marker of ['workbookFunctions', 'VENDOR / ORIGIN']) {
+    if (chunkText.get(name).includes(marker)) fail(`terminal schema marker "${marker}" in initial asset ${name}; keep the full catalogue behind terminal loading (F208).`);
+  }
+}
+const initialGzipBytes = [...initial].reduce((sum, name) => sum + gzipSync(chunkText.get(name)).length, 0);
+
 const geoChunk = geoChunks[0];
 const escaped = geoChunk.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const staticImport = new RegExp(`(?:\\bfrom|\\bimport)\\s*["']\\./${escaped}["']`);
@@ -91,4 +109,4 @@ if (gzipBytes > limit) {
 }
 
 console.log(`check:bundle ok: ${summary}; no "${PDFJS_MARKER}"; no stylesheet outside the entry and the PDF viewer; ` +
-  `Goa geography pack lazy in assets/${geoChunk}.`);
+  `Goa geography pack lazy in assets/${geoChunk}; initial JavaScript ${initialGzipBytes} bytes gzip across ${initial.size} assets, no terminal schemas.`);

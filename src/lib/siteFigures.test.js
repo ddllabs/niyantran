@@ -48,3 +48,17 @@ it('counts each endpoint URL once, across newline- or pipe-separated source list
     {},
   ])).toBe(3);
 });
+
+it('public figures do not statically depend on terminal column schemas or the full feature map', () => {
+  const seen = new Set();
+  function visit(url) {
+    if (seen.has(url.href) || !/\.(js|jsx|json)$/.test(url.pathname)) return;
+    seen.add(url.href);
+    const source = readFileSync(url, 'utf8');
+    if (url.pathname.endsWith('.json')) return;
+    for (const match of source.matchAll(/(?:\bfrom\s*|\bimport\s*)['"](\.[^'"]+)['"]/g)) visit(new URL(match[1], url));
+  }
+  visit(new URL('../App.jsx', import.meta.url));
+  expect([...seen].some(p=>p.endsWith('/columns.js'))).toBe(false);
+  expect([...seen].some(p=>p.endsWith('/html-feature-map.json'))).toBe(false);
+});

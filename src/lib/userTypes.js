@@ -1,4 +1,4 @@
-import { TABS } from '../desks/catalog.js';
+import { TABS } from '../desks/tabs.js';
 
 export const DEFAULT_USER_TYPE = 'analyst';
 

@@ -1,4 +1,4 @@
-import { TABS } from '../desks/catalog.js';
+import { TABS } from '../desks/tabs.js';
 import { serverEntitlement } from './entitlementStore.js';
 import { PUBLIC_PLANS, normalizePlanId } from './publicPlans.js';
 import { userTypeOf } from './userTypes.js';

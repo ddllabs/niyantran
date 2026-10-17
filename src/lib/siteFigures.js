@@ -1,4 +1,4 @@
-import { DESK_CATALOGUE } from '../desks/landing/deskCatalogue.js';
+import { DESK_CATALOGUE_IDENTITY as DESK_CATALOGUE } from '../desks/landing/deskCatalogueIdentity.js';
 
 import { MEASURED_FIGURES } from './measuredFigures.js';
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { deskHash } from '../lib/deskRoute.js';
+import { deskHash } from '../lib/deskHash.js';
 import { sessionUser } from '../lib/userStore.js';
 import { openGlobeDestination } from './globeDestinations.js';
 import './nterGlobe.css';
