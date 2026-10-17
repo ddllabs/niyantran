@@ -460,3 +460,56 @@ No state-summary changes were made. Final documentation checkpoint CI will be
 checked after push rather than counted in advance. Full release and log limits:
 [F222 evidence](2026-10-17-f222-manifold-identity-evidence.md).
 Corpus excluded; payment integration held pending M1/M2 closure.
+
+## Scheduled closure observation — 2026-10-17 13:52 UTC
+
+Read-only Supabase, GitHub and Vercel checks at approximately 13:52–13:54 UTC.
+Started on clean main `5302dc3`; fetch confirmed main equals origin/main.
+Documentation recorded locally on `task/m1-m2-closure-observations`; no push,
+deployment or production mutation.
+
+- Feed-refresh job 5 active at `*/5 * * * *`, expected production Vercel refresh
+  URL confirmed as a boolean without retrieving its command/secret. Six recent
+  cron executions succeeded, latest 13:50 UTC. Last 30-minute feed outcomes:
+  17 ok, 10 unchanged, no failed outcomes.
+- Seventy distinct modules / 257 variants serving, zero states above three
+  consecutive failures. Fixtures and both charts completed their fourth genuine
+  ordinary hourly opportunity at 13:50 UTC (prior 10:40, 11:40, 12:45); no retries
+  or manually triggered refreshes counted. Both charts retain 25 items and zero
+  failures, next due approximately 14:50 UTC.
+- Fixtures current-run seven events: English Premier League 2, NBA 2, Spanish
+  La Liga 2, Indian Premier League 1. All eight next/past windows checked;
+  IPL-next empty, remaining seven ok. Fourteen retained items include history.
+  Fetched 13:50:02.498930 UTC; next due 14:50:02.498930; zero failures.
+- MLA Profiles reference remains the genuine 10:45 UTC run, 400 profiles with
+  400 stable `mla-profile:` keys plus 100 coverage rows, serve on and healthy.
+  Next due October 18 10:45 UTC. No new daily opportunity has elapsed.
+- World Constitutions: 188 rows/distinct keys, all `constitute:`, sorted
+  newline-joined MD5 `c14635ffbc17cef3a5ace4fc74273578`, identical to inventory.
+  Still last refreshed October 16 15:40 UTC; first post-rollout daily opportunity
+  due October 17 15:40 UTC. Identity is verified, multi-run stability not yet.
+- Zero states have whole-feed `meta.availability=empty`; no new production empty
+  outcome claimed. IPL-next remains an explicit truthful empty coverage window;
+  existing local empty-contract evidence stands.
+- Exact Vercel project/team API fallback: production
+  `dpl_9x4jNNLXBW1iNySGQ6WADtji4JNs` READY,
+  `niyantran-cd3zeypqd-ddl-labs.vercel.app`, source
+  `5302dc302a21cd8571c1ad8ca6226e6fc75cd86b`, matching origin/main.
+- Latest three genuine CI runs remain green:
+  [39034204827](https://github.com/ddllabs/niyantran/actions/runs/39034204827),
+  [39034521190](https://github.com/ddllabs/niyantran/actions/runs/39034521190),
+  [39035656870](https://github.com/ddllabs/niyantran/actions/runs/39035656870).
+  Their attempt-1 app/SQL success was verified during release; the final run was
+  read back again in this observation, both jobs success, attempt 1. No retries,
+  cancellations or manufactured commits counted. CI component remains satisfied.
+- Approved behavioral evaluation already executed as recorded above; no new
+  paid calls. F221 remains open. Owner's separate F223 read-only diagnosis was
+  reported: reproduced MLA Directory live-first timeout/store bypass; the exact
+  original two failing feature names remain unknown. Proposed two-module fix
+  awaits approval, no backend changes. Sole tracker reconciled with that report;
+  no repeat failure notification or extra diagnostic production probe here.
+
+T15 remains open for actual daily reference opportunities. Follow-up ACTIVE;
+no new actionable failure or overall completion, so no notification. No forced
+refreshes, production writes/config/timer changes, deployments, corpus operations,
+payment work, dotenv/credential-file reads or provider calls.

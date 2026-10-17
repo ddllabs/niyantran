@@ -128,6 +128,14 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   separate state-landing 502s were found in its bounded log scan (F223).
   Zero sources above three failures; no new actionable failure or full closure.
   [Observation evidence](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1248-utc).
+  Latest read-only observation 2026-10-17 13:52 UTC: fixtures and both charts
+  completed a fourth ordinary hourly opportunity at 13:50, all ok. Daily
+  reference opportunities remain unchanged/pending; 188 constitution keys retain
+  the inventory fingerprint, MLA reference remains 400 profiles + 100 coverage.
+  The final three genuine release CI runs 39034204827, 39034521190 and
+  39035656870 passed first attempt; READY production source matches main
+  `5302dc3`. F223 is diagnosed below, with no backend-change approval yet.
+  [Latest observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1352-utc).
 
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving
@@ -153,10 +161,20 @@ orientation list is compared item by item in the
   Bounded production request logs for `dpl_CPAJgveM9dZ5AZSYKP7mjDaf5wmx`
   (12:56–13:11 UTC on 2026-10-17) returned two GET `/api/state-landing` 502s at
   13:08:57.209 and 13:08:58.060. The request records omit feature/query, so
-  affected summary and cause are unestablished; no claim of a pre-existing
-  failure or F222 causation. Both F222 prediction APIs answer 200 with IDs.
-  Diagnose read-only before proposing a scoped fix; do not change unrelated
-  summary code under the metadata release.
+  affected summaries for those original two requests remain unestablished;
+  no claim of a pre-existing failure or F222 causation. Owner subsequently
+  authorized read-only diagnosis: 35 of 36 configured State summaries passed,
+  MLA Directory reproduced 502 after 4.15 s while its module returned store
+  records in 0.59 s (31 serving variants, 4,104 records). Both routers send State
+  summaries through the four-second live-first path; with no archive rows,
+  stateLandingAnswer returns error and the router emits 502. A later summary
+  returned 200, consistent with late-live caching. MLA Profiles shares that
+  risk but passed the probe. Existing stored-first loader exercised locally
+  against actual production module responses returns ready/store summaries
+  (Directory 496 sampled rows, Profiles 500) with zero injected upstream calls.
+  Proposed to the owner: stored-first routing limited to those two modules in
+  both routers, preserve fetch/stale metadata, add safe feature diagnostics and
+  regression guards. Backend changes await approval; no implementation or deploy.
   [Evidence](../research/2026-10-17-f222-manifold-identity-evidence.md#bounded-request-log-finding-outside-f222).
 
 ## Test isolation finding outside the F220 write scope
