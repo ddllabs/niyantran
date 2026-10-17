@@ -181,6 +181,11 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   inventory stable, MLA 400 profiles + 100 coverage, all four leagues covered
   with IPL-next truthfully empty. T15 stays open; automation ACTIVE.
   [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1805-utc).
+  Continuation 18:13 UTC: eighth ordinary hourly opportunity at 18:10 succeeded
+  for fixtures and both charts (7/25/25 run items), all four leagues accounted
+  for, zero failing sources. Daily gates unchanged and monitor ACTIVE.
+  [Evidence](../research/2026-10-17-m1-m2-cleanup-evidence.md#continuation-observation--2026-10-17-1813-utc).
+
 
 
 
