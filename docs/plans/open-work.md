@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F224 is next) and goes in the
+- A new finding gets the next free `F` number (F225 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-17 (milestone check)
@@ -176,6 +176,23 @@ F218's separate Satellite landing fix is released (`0e2ebfb`) and moved to Done.
 It does not close T15's real scheduled observations. The owner's earlier full
 orientation list is compared item by item in the
 [closure comparison](../research/2026-10-17-orientation-closure-comparison.md).
+
+## Growth Indicators refresh finding
+
+- [ ] **F224. Growth Indicators timeout diagnostics and budget alignment.**
+  Owner authorized read-only diagnosis. Ordinary October 17 15:45/15:50 UTC
+  runs hit the 20-second module limit; all 20 prior rows retained. Natural
+  15:55 refresh recovered in 356 ms, unchanged, failures zero; public API
+  200/store afterward. Loader launches three World Bank requests, each with
+  a 25-second timer, while the worker serializes their host under a 20-second
+  active module budget. Local mocked reproduction proves cumulative-latency
+  risk, not the identity of the production stalled request. Current upstream
+  single-series probes all 200; proposed batch queries returned 502.
+  Recommend a narrowly scoped per-indicator diagnostic/deadline/cancellation
+  patch with bounded transient retry only within existing limits; no emergency
+  production change after recovery. Backend implementation awaits owner approval,
+  spec/plan and regression proof. No forced refresh or source substitution.
+  [Diagnosis and proposed fix](../research/2026-10-17-f224-growth-indicators-diagnosis.md).
 
 ## Test isolation finding outside the F220 write scope
 

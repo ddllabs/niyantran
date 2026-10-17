@@ -686,3 +686,18 @@ T15 stays open. Only local evidence/tracker documentation changed, with no
 push/deploy, production mutation, timer/serve change, forced refresh, corpus
 operation, payment work or dotenv/credential read. No test rerun is needed for
 this documentation-only observation; diff whitespace and scope are checked.
+
+
+## Read-only Growth Indicators diagnosis — 2026-10-17 15:55 UTC
+
+Owner separately authorized read-only diagnosis, with a proposed fix before
+backend changes. Two 20-second module timeouts preserved the prior store.
+The ordinary 15:55 refresh recovered in 356 ms without intervention, retained
+20 rows, reset failures to zero; public module GET 200/store afterward. Local
+mocked reproduction proves the three-request/serialized-host cumulative timing
+risk, while production lacks per-indicator timings. F224 records the evidence,
+uncertainty and proposed scoped diagnostic/budget handling; implementation
+awaits approval. Proposed batch upstream calls failed 502 and are not a ready
+replacement. [Diagnosis](2026-10-17-f224-growth-indicators-diagnosis.md).
+No forced refresh, backend/production mutation, corpus or payment work. Hourly
+closure checks remain ACTIVE; T15 daily observations remain pending.
