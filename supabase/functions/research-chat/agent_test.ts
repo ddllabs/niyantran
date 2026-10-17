@@ -1,4 +1,5 @@
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
+import { FakeTime } from 'jsr:@std/testing@1.0.21/time';
 import { createAnswerDecoder } from './answerStream.ts';
 import { HttpError } from '../_shared/http.ts';
 import { createHandleAssigner } from '../_shared/handles.ts';
@@ -1945,8 +1946,8 @@ Deno.test('F197: date_from and date_to reach the desk search; a year sent as a n
 
 // ---- F199 (D3): a turn finishes inside its time limit. ----
 
-type Step = ModelEvent[] | { hang: ModelEvent[] } | { slow: ModelEvent[]; ms: number; rest: ModelEvent[] };
-/** fake(), with calls that hang until aborted, or pause part-way, on the real clock. */
+type Step = ModelEvent[] | { hang: ModelEvent[] } | { slow: ModelEvent[]; ms: number; rest: ModelEvent[] } | { error: Error };
+/** fake(), with calls that hang until aborted, pause part-way, or fail. */
 function timedFake(steps: Step[], over: Partial<AgentDeps> = {}) {
   const f = fake([], over);
   f.deps.model = async function* (req) {
@@ -1954,6 +1955,7 @@ function timedFake(steps: Step[], over: Partial<AgentDeps> = {}) {
     const step = steps[f.requests.length - 1];
     if (!step) throw new Error('Unexpected model call');
     if (Array.isArray(step)) return yield* step;
+    if ('error' in step) throw step.error;
     const aborted = (signal?: AbortSignal) =>
       new Promise<never>((_, reject) => {
         // A call nobody cuts fails the test instead of hanging it.
@@ -1977,9 +1979,9 @@ function timedFake(steps: Step[], over: Partial<AgentDeps> = {}) {
   return f;
 }
 /** timeLeft for a turn that reaches the answer reserve `leadMs` from now. */
-function reserveIn(leadMs: number): () => number {
-  const start = performance.now();
-  return () => ANSWER_RESERVE_MS + leadMs - (performance.now() - start);
+function reserveIn(leadMs: number, clock: () => number): () => number {
+  const start = clock();
+  return () => ANSWER_RESERVE_MS + leadMs - (clock() - start);
 }
 const HIGH = { model: 'requested-model', reasoning: { effort: 'high' } };
 const LOW = { effort: 'low' };
@@ -2007,13 +2009,20 @@ Deno.test('F199: a turn already inside the answer reserve stops researching and 
 });
 
 Deno.test('F199: a research call still thinking at the reserve line is cut, and the answer is written from what was retrieved', async () => {
+  using time = new FakeTime(0);
   const f = timedFake([{ hang: [] }, answer()], {
     request: HIGH,
-    timeLeft: reserveIn(60),
+    timeLeft: reserveIn(60.75, () => time.now),
     lateReasoning: LOW,
     searchDocuments: () => Promise.resolve([chunk('a')]),
   });
-  const result = await runAgent(f.deps, { ...input, presearch: 'q' });
+  const pending = runAgent(f.deps, { ...input, presearch: 'q' });
+  await time.runMicrotasks();
+  assertEquals(f.requests.length, 1);
+  // Timer delays are truncated: the watchdog fires while 0.75 ms remains.
+  await time.tickAsync(60);
+  assertEquals(f.deps.timeLeft!(), ANSWER_RESERVE_MS + 0.75);
+  const result = await pending;
   assertEquals(f.requests.length, 2);
   assertEquals([f.requests[0].tool_choice, f.requests[0].reasoning], [undefined, { effort: 'high' }]);
   assertEquals([f.requests[1].tool_choice, f.requests[1].reasoning], ['none', LOW]);
@@ -2024,13 +2033,19 @@ Deno.test('F199: a research call still thinking at the reserve line is cut, and 
 });
 
 Deno.test('F199: an answer call that has written nothing by the reserve line is cut and rewritten at the lower effort', async () => {
+  using time = new FakeTime(0);
   const f = timedFake([[docCall(), finish('tool_calls')], ready(), { hang: [] }, answer()], {
     request: HIGH,
-    timeLeft: reserveIn(80),
+    timeLeft: reserveIn(80.75, () => time.now),
     lateReasoning: LOW,
     searchDocuments: () => Promise.resolve([chunk('a')]),
   });
-  const result = await runAgent(f.deps, input);
+  const pending = runAgent(f.deps, input);
+  await time.runMicrotasks();
+  assertEquals(f.requests.length, 3);
+  await time.tickAsync(80);
+  assertEquals(f.deps.timeLeft!(), ANSWER_RESERVE_MS + 0.75);
+  const result = await pending;
   assertEquals(f.requests.map((r) => r.tool_choice ?? null), [null, null, 'none', 'none']);
   assertEquals(f.requests[2].reasoning, { effort: 'high' });
   assertEquals(f.requests[3].reasoning, LOW);
@@ -2040,17 +2055,97 @@ Deno.test('F199: an answer call that has written nothing by the reserve line is 
 });
 
 Deno.test('F199: an answer already streaming at the reserve line is left to finish', async () => {
+  using time = new FakeTime(0);
   const [head, tail] = [ANSWER_TEXT.slice(0, 20), ANSWER_TEXT.slice(20)];
   const f = timedFake([[docCall(), finish('tool_calls')], ready(), { slow: [{ type: 'text', text: head }], ms: 120, rest: [{ type: 'text', text: tail }, finish()] }], {
     request: HIGH,
-    timeLeft: reserveIn(40),
+    timeLeft: reserveIn(40, () => time.now),
     lateReasoning: LOW,
     searchDocuments: () => Promise.resolve([chunk('a')]),
   });
-  const result = await runAgent(f.deps, input);
+  const pending = runAgent(f.deps, input);
+  await time.runMicrotasks();
+  await time.tickAsync(120);
+  const result = await pending;
   assertEquals(f.requests.length, 3);
   assertEquals(result.text, ANSWER_TEXT);
   assertEquals(outOfTime(f.events), []);
+});
+
+for (const lateReasoning of [null, undefined]) {
+  Deno.test(`F199: fractional reserve cut respects the ${lateReasoning === null ? 'removed' : 'absent'} reasoning override`, async () => {
+    using time = new FakeTime(0);
+    const f = timedFake([{ hang: [] }, answer()], {
+      request: HIGH, timeLeft: reserveIn(0.75, () => time.now), lateReasoning,
+      searchDocuments: () => Promise.resolve([chunk('a')]),
+    });
+    const pending = runAgent(f.deps, { ...input, presearch: 'q' });
+    await time.runMicrotasks();
+    await time.tickAsync(0);
+    const result = await pending;
+    assertEquals(f.requests.length, 2);
+    assertEquals(f.requests[1].reasoning, lateReasoning === null ? undefined : HIGH.reasoning);
+    assertEquals(outOfTime(f.events), [{ phase: 'research', cut: true }]);
+    assertEquals(result.text, ANSWER_TEXT);
+  });
+}
+
+Deno.test('F199: a reserve cut survives provider failure and checkpoint resume', async () => {
+  using time = new FakeTime(0);
+  const f = timedFake([{ hang: [] }, { error: new ProviderError(503, 'down') }, answer()], {
+    request: HIGH, timeLeft: reserveIn(60.75, () => time.now), lateReasoning: LOW,
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+  });
+  const turn = { ...input, presearch: 'q' };
+  const failed = assertRejects(() => runAgent(f.deps, turn), ProviderError);
+  await time.runMicrotasks();
+  await time.tickAsync(60);
+  await failed;
+  f.deps.request = { ...HIGH, model: 'fallback-model' };
+  const result = await runAgent(f.deps, turn);
+  assertEquals(f.requests.map(r => r.reasoning), [HIGH.reasoning, LOW, LOW]);
+  assertEquals(f.requests[2].tool_choice, 'none');
+  assertEquals(result.searches, 1, 'retrieved evidence is retained without repeating presearch');
+  assertEquals(result.modelCalls, 3, 'every attempt remains charged');
+  assertEquals(result.text, ANSWER_TEXT);
+  assertEquals(outOfTime(f.events), [{ phase: 'research', cut: true }]);
+  const next = fake([answer()], { request: HIGH, timeLeft: () => ANSWER_RESERVE_MS + 1_000, lateReasoning: LOW });
+  await runAgent(next.deps, { ...input, conversational: true });
+  assertEquals(next.requests[0].reasoning, HIGH.reasoning, 'a different turn does not inherit the reserve');
+});
+
+Deno.test('F199: caller cancellation before the watchdog never becomes a reserve retry', async () => {
+  using time = new FakeTime(0);
+  const caller = new AbortController();
+  const f = timedFake([{ hang: [] }], {
+    request: { ...HIGH, signal: caller.signal },
+    timeLeft: reserveIn(60.75, () => time.now), lateReasoning: LOW,
+  });
+  const failed = assertRejects(() => runAgent(f.deps, input), DOMException, 'caller cancelled');
+  await time.runMicrotasks();
+  caller.abort(new DOMException('caller cancelled', 'AbortError'));
+  await failed;
+  await time.tickAsync(61);
+  assertEquals(f.requests.length, 1);
+  assertEquals(outOfTime(f.events), []);
+});
+
+Deno.test('F199: a tool call already streaming at the reserve line is completed without a cut', async () => {
+  using time = new FakeTime(0);
+  const f = timedFake([{ slow: [docCall()], ms: 120, rest: [finish('tool_calls')] }, answer()], {
+    request: HIGH, timeLeft: reserveIn(40, () => time.now), lateReasoning: LOW,
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+  });
+  const pending = runAgent(f.deps, input);
+  await time.runMicrotasks();
+  await time.tickAsync(120);
+  const result = await pending;
+  assertEquals(f.requests.length, 2);
+  assertEquals(f.requests[0].reasoning, HIGH.reasoning);
+  assertEquals(f.requests[1].reasoning, LOW);
+  assertEquals(result.searches, 1);
+  assertEquals(result.text, ANSWER_TEXT);
+  assertEquals(outOfTime(f.events), [{ phase: 'research', cut: false }]);
 });
 
 // ---- F200 (D3): a greeting gets a greeting. ----

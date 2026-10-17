@@ -193,7 +193,7 @@ export interface AgentDeps {
   now?: () => number;
   /** F199: milliseconds left before the turn is cut off. Unset: no time budget. */
   timeLeft?: () => number;
-  /** F199: the reasoning of a call that starts with ANSWER_RESERVE_MS or less left. Unset keeps
+  /** F199: reasoning inside the answer reserve or after its watchdog cut. Unset keeps
    * request.reasoning; null sends none. */
   lateReasoning?: { effort: string } | null;
 }
@@ -263,6 +263,8 @@ export interface AgentCheckpoint {
   finish: string;
   pendingTools: ToolCall[];
   resumeAnswer: boolean;
+  /** A reserve cut cannot be undone by fractional timer rounding or provider failover. */
+  answerReserveReached: boolean;
   /** Once answer bytes stream, retries may only use the same model. */
   answerModel: string | null;
   /** The no-search push-back is spent at most once per turn. */
@@ -320,6 +322,7 @@ export function createAgentCheckpoint(
     finish: 'budget',
     pendingTools: [],
     resumeAnswer: false,
+    answerReserveReached: false,
     answerModel: null,
     pressedToSearch: false,
     pressedToDig: false,
@@ -719,7 +722,8 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     // F199: inside the answer reserve, research is over and the answer is written from what was
     // retrieved, at the lower effort, rather than starting a call that cannot finish.
     const left = deps.timeLeft ? deps.timeLeft() : Infinity;
-    const late = left <= ANSWER_RESERVE_MS;
+    const late = state.answerReserveReached || left <= ANSWER_RESERVE_MS;
+    if (late) state.answerReserveReached = true;
     if (late && state.phase === 'research') {
       deps.onEvent({ outOfTime: { phase: 'research', cut: false } });
       beginAnswer();
@@ -827,6 +831,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     } catch (error) {
       clearTimeout(watchdog);
       if (cut && !deps.request.signal?.aborted) {
+        state.answerReserveReached = true;
         // F199: cut at the reserve with nothing written. A research call's half-thought is
         // dropped and the answer starts now; a cut answer call runs again, late, at lateReasoning.
         if (webTool) state.webSearches += 1;

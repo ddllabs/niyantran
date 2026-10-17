@@ -313,3 +313,45 @@ remain identical. Only T15's real scheduled refresh opportunities remain open
 within the approved M1/M2 programme; F218 is separately tracked. The owner-requested
 hourly read-only follow-up will report meaningful failure or completion before any
 payment gateway work. No further paid calls are authorized or scheduled.
+
+## Scheduled closure observation — 2026-10-17 11:42 UTC
+
+Read-only checks at approximately 11:42–11:44 UTC. Checkout started clean on
+`main`, matching fetched `origin/main` at `f3d5b59`; no source changes. Results
+recorded locally on `task/m1-m2-closure-observations`, without push/deploy.
+
+- Supabase cron job 5 `feed-refresh` remains active every five minutes and its
+  command targets the expected production Vercel refresh route (checked as a
+  boolean, without retrieving command/credentials). Last 30 minutes: six cron
+  executions succeeded; feed runs were 16 ok / 30 unchanged, no failed outcomes.
+- Store health: 70 distinct modules / 257 serving variants; zero states above
+  three consecutive failures. All four monitored sources have zero failures.
+- Fixtures: second real post-rollout hourly opportunity succeeded at
+  `2026-10-17T11:40:14.375Z`, seven current-run events. Four-league counts remain
+  Premier League 2, NBA 2, La Liga 2, IPL 1. All next/past windows checked:
+  IPL next is verified empty, the other seven windows ok. Store `item_count=13`
+  includes retained history; latest-run count is seven. Next due 12:40:16 UTC;
+  only two qualifying hourly opportunities so far, not three.
+- MLA reference unchanged since the actual 10:45 UTC run: 400 profiles with
+  stable `mla-profile:` keys plus 100 reporting records. Serve enabled, next due
+  October 18 10:45 UTC. No additional daily opportunity has elapsed.
+- Constitutions: 188 distinct `constitute:` keys, exactly matching the approved
+  inventory. MD5 of newline-joined sorted keys is
+  `c14635ffbc17cef3a5ace4fc74273578` in both inventory and database. No refresh
+  since October 16 15:40 UTC; first post-rollout daily opportunity still due
+  October 17 15:40 UTC. This confirms current identity, not multi-run stability.
+- No live state has `meta.availability=empty`; no new production empty-source
+  outcome is claimed. Existing local fixture/deployed-contract evidence stands.
+- Vercel exact project/team: `dpl_DAxtC1E1waeajVfYAZRjyEsfBUWx` READY at
+  `f3d5b59a378dc34b13b2844e965fea3882c45d5f`, matching current main.
+- Latest main CI [39028941094](https://github.com/ddllabs/niyantran/actions/runs/39028941094)
+  completed successfully on attempt 1. Immediately preceding run 39028606428
+  remains failed (F220); only one new first-attempt green follows that failure.
+  This is a separate genuine documentation commit, not a rerun, and does not
+  resolve the intermittent answer-reserve finding or provide three new greens.
+- Approved behavioral evaluation already ran and is recorded above (total
+  $0.03677325); it is not pending and no new calls were made.
+
+No new actionable failure or completion. T15 and F220 remain open; no repeat
+failure notification. No forced refresh, production writes, corpus operations,
+payment work, paid calls or secret-file reads. Follow-up remains active.

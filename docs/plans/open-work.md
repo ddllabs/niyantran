@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F221 is next) and goes in the
+- A new finding gets the next free `F` number (F222 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-17 (milestone check)
@@ -115,6 +115,12 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   read-only follow-ups on this chat, explicitly requested by the owner, notify only on a meaningful
   failure or completion. Vercel connector remains 403; the authenticated CLI works for the exact
   DDL Labs scope. Report closure before beginning payment gateway integration.
+  Read-only observation 2026-10-17 11:42 UTC: fixtures' second genuine hourly
+  opportunity succeeded (seven current events, all four leagues checked); daily
+  references have not reached their next opportunity. Latest main `f3d5b59` is
+  deployed READY and CI 39028941094 passed on attempt 1, but only one green follows
+  F220's failed run. No sources above three failures; no new alert/completion.
+  [Observation evidence](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1142-utc).
 
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving
@@ -148,6 +154,20 @@ orientation list is compared item by item in the
   closure must include this finding, alongside real T15 observation windows.
   [Failure](https://github.com/ddllabs/niyantran/actions/runs/39028606428) ·
   [execution evidence](../research/2026-10-17-f218-stored-summary-evidence.md).
+  Owner authorized the scoped runtime/test fix and push/deploy on 2026-10-17.
+  Fractional timer reproduction confirms reserve entry must be retained across
+  retries. [Spec](../specs/2026-10-17-f220-answer-reserve.md) ·
+  [plan](2026-10-17-f220-answer-reserve.md) ·
+  [evidence](../research/2026-10-17-f220-answer-reserve-evidence.md).
+
+- [ ] **F221. Pending feed requests interfere with preference-test fetch counts.**
+  Found during F220's first local full Vitest run on 2026-10-17: two assertions
+  in `src/lib/userPrefsSync.test.js:134,338` fail because unrelated pending fetches
+  reach its global mock; captured call is a PIB RSS GET, not a preferences upload.
+  Focused suite 36/36 and a second full 6,126-test run pass; original failure
+  remains recorded. Investigate test isolation/pending feed work and
+  preserve the account-switch/no-unnecessary-upload behavioral assertions.
+  No preferences code or tests changed under F220. [Evidence](../research/2026-10-17-f220-answer-reserve-evidence.md).
 
 ## Documentation follow-up
 
