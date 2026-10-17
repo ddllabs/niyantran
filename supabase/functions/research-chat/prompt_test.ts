@@ -547,3 +547,9 @@ Deno.test('F216: qualifications are factual claims requiring returned evidence',
   assertStringIncludes(SYSTEM_PROMPT_STATIC, 'If it does not establish the qualification, say its status is unknown');
   assertStringIncludes(SYSTEM_PROMPT_STATIC, 'Do not excuse an unsupported qualification as inference');
 });
+
+Deno.test('F216: a paginated result supports its counts, not an invented coverage qualification', () => {
+  assertStringIncludes(SYSTEM_PROMPT_STATIC, 'State the returned row count and TOTAL separately');
+  assertStringIncludes(SYSTEM_PROMPT_STATIC, 'Neither count establishes complete coverage of all states');
+  assertStringIncludes(SYSTEM_PROMPT_STATIC, 'Do not discard those returned facts because the question uses this or it');
+});

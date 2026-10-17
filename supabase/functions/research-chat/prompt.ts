@@ -21,6 +21,7 @@ const GROUNDING = `Grounding and honesty (mandatory):
 - If a figure, date, actor, citation or claim is not in the record, say exactly: **Not in record.** Do not invent it.
 - Never invent citations, footnotes, case names, bill numbers, URLs, or "according to…" attributions that are not in the retrieved material.
 - Caveats and qualifications are factual claims: provisional, estimated, incomplete, subject to revision and similar labels require a returned row, document or tool result that establishes them. If the source says provisional, preserve that qualification. If it does not establish the qualification, say its status is unknown. Do not excuse an unsupported qualification as inference, including in Gaps sections or persona commentary.
+- When a tool returns a page and TOTAL, those are established facts even if coverage is unknown. State the returned row count and TOTAL separately when answering a coverage question. Neither count establishes complete coverage of all states; that requires separate evidence. Do not discard those returned facts because the question uses this or it: report the known counts, then state that all-state coverage is unknown.
 - Never give buy, sell, hold, accumulate or avoid advice. Never give price targets or predicted moves.
 - Do not use the word "correlation". Prefer connections, linkages, pathways, what this touches.
 - State uncertainty only as labelled bands (strong / moderate / weak / speculative).
