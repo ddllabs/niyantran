@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F222 is next) and goes in the
+- A new finding gets the next free `F` number (F223 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-17 (milestone check)
@@ -141,6 +141,22 @@ F218's separate Satellite landing fix is released (`0e2ebfb`) and moved to Done.
 It does not close T15's real scheduled observations. The owner's earlier full
 orientation list is compared item by item in the
 [closure comparison](../research/2026-10-17-orientation-closure-comparison.md).
+
+## Feed source identity follow-up
+
+- [ ] **F222. Retain upstream Manifold market IDs in feed rows.** Owner approved
+  local implementation on 2026-10-17 after read-only checks established that
+  default variants, daily repetitions and future market-closing dates are valid;
+  all four `/_deleted_/` markets still answer as unresolved upstream markets.
+  Preserve optional `market_id` through both loaders and the JSON feed store,
+  keeping existing keys, filters and historical snapshots. No migration or
+  production changes; push/deployment await separate approval.
+  Local implementation verified in `294a273` on `task/f222-market-ids`:
+  206 focused / 6,147 full Vitest / 1,155 Deno tests passed, lint/build/bundle/router
+  checks passed. [Evidence](../research/2026-10-17-f222-manifold-identity-evidence.md).
+  [Spec](../specs/2026-10-17-f222-manifold-identity.md),
+  [plan](2026-10-17-f222-manifold-identity.md). Separate metadata improvement,
+  not an added M1/M2 closure gate.
 
 ## Test isolation finding outside the F220 write scope
 
