@@ -2180,3 +2180,10 @@ recommendations … We can fix everything that is under your control."
   hashes unchanged. Real daily refresh gates remain open and the owner requested
   hourly read-only follow-ups, quiet except failures/completion. Detailed records:
   `docs/research/2026-10-17-m1-m2-cleanup-evidence.md` and the sole open-work tracker.
+
+  Final code/evidence `d63192b` deployed READY as
+  `dpl_jK49disGoPccuVkPsoDGsegPEFzS`; CI 39025298847, 39025660396 and
+  39026919956 all passed first attempt. Bounded request-log scan found the
+  unchanged Satellite Infrastructure landing-summary path can 502 while its
+  module store is usable; logged F218 outside this cleanup, not fixed silently.
+  Only real source-observation windows remain T15; hourly follow-up is active.

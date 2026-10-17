@@ -271,3 +271,45 @@ fixture and deployed migration rather than claimed as a live empty-source event.
 Durable full probe and after-transition samples:
 `2026-10-17-m1-m2-rollout-module-status.json`. Temporary eval functions and the
 unintended preview are deleted; corpus function hashes remain unchanged.
+
+
+## Final code-release gates — 2026-10-17
+
+Final code/evidence commit `d63192b17b55c02acd271138e2c34bcf1fcb8c36` is deployed
+READY as `dpl_jK49disGoPccuVkPsoDGsegPEFzS`,
+https://niyantran-bicrwvonl-ddl-labs.vercel.app, with production aliases including
+https://niyantran-six.vercel.app. Three consecutive genuine first-attempt CI runs
+passed app and SQL jobs, with no retries, cancellations or empty commits:
+[39025298847](https://github.com/ddllabs/niyantran/actions/runs/39025298847),
+[39025660396](https://github.com/ddllabs/niyantran/actions/runs/39025660396),
+[39026919956](https://github.com/ddllabs/niyantran/actions/runs/39026919956).
+F210 is closed. A later documentation-only checkpoint may create its ordinary CI
+run; it does not replace these code-release runs.
+
+Final public entry: index-YrIF11mq.js, 180,546 B gzip with production configuration;
+no feature-map/column markers. Fixtures store response: NBA 2, Premier League 2,
+La Liga 2, IPL 1. Per-window coverage: all next/past checked, IPL next verified
+empty, remaining windows ok. No missing league is hidden by partial success.
+
+Bounded production logs, 10:29–10:59 UTC: 20 error-level runtime records were all
+Node DEP0169 url.parse deprecation warnings, not application exceptions. Request
+logs on the final deployment, 10:45–11:00 UTC: two /api/global-landing HTTP 502s.
+A read-only 16-summary check identified Satellite Infrastructure as the only
+failed Global summary; its module still has a serving store and the 120-module
+probe itself had no HTTP failures. The unchanged live-first summary route bypasses
+that store. Logged separately as F218; no unapproved summary-route fix. Runtime
+warning origin was not changed in this cleanup.
+
+Post-DDL Supabase security advisor: 22 INFO no-policy tables and 15 WARN
+signed-in-callable SECURITY DEFINER functions, all objects unchanged by these
+migrations; no finding names the new run-page/period helper. Service-only feed
+storage and guarded self-service RPCs are intentional existing architecture;
+this task did not broaden their permissions. General review remains P12.
+[No-policy advisor](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy),
+[definer-execution advisor](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable).
+
+All temporary evaluator functions are confirmed absent. Ingestion versions/hashes
+remain identical. Only T15's real scheduled refresh opportunities remain open
+within the approved M1/M2 programme; F218 is separately tracked. The owner-requested
+hourly read-only follow-up will report meaningful failure or completion before any
+payment gateway work. No further paid calls are authorized or scheduled.

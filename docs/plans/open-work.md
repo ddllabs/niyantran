@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F218 is next) and goes in the
+- A new finding gets the next free `F` number (F219 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-17 (milestone check)
@@ -107,8 +107,8 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
 
 - [ ] **T15 (M1/M2):** finish real scheduled source observations: three post-rollout expected
   refresh opportunities, including actual daily reference intervals. Never force extra calls
-  to simulate those opportunities. Two first-attempt CI runs passed (39025298847 and
-  39025660396); the final correction/evidence integration must supply the third. Active hourly
+  to simulate those opportunities. Three consecutive first-attempt CI runs passed: 39025298847, 39025660396 and
+  39026919956 (the final code/evidence commit `d63192b`). Active hourly
   read-only follow-ups on this chat, explicitly requested by the owner, notify only on a meaningful
   failure or completion. Vercel connector remains 403; the authenticated CLI works for the exact
   DDL Labs scope. Report closure before beginning payment gateway integration.
@@ -125,6 +125,20 @@ checks, lint/build/router/bundle and browser checks pass. Explicitly authorized 
 4 faithful cases passed on v64; count/coverage case failed, then passed after the narrow v65
 correction. Total actual cost $0.03677325, every temporary evaluator deleted. Detailed failed
 batches, outputs and version distinctions are preserved; no rubric was loosened.
+
+## Rollout finding outside the approved cleanup write scope
+
+- [ ] **F218. Global landing summaries bypass usable feed-store data.** Observed 2026-10-17:
+  Satellite Infrastructure's `/api/global-landing` summary returns HTTP 502 / availability=error
+  when the launch source is unavailable, although its module has a usable serving store
+  (15 items, checked 10:10 UTC, zero failures). All 16 Global summaries were checked: only
+  Satellite failed; Global Commodities honestly reports unavailable with HTTP 200.
+  The unchanged `api/router.js` passes `serveFeatureFeedWithBackup` to Global/National/Law
+  summaries, while module pages use the store-first path. No diff in this route or Global
+  summary code from the rollout base. This is separate from the 120-module probe (all 200).
+  Likely scope for a separate fix: route/summary readers and focused landing tests; verify
+  shared-register counts and provenance before broadening store-first summary serving.
+  Reported without opportunistically changing the approved T15 write scope.
 
 ## UI follow-ups
 
@@ -607,18 +621,6 @@ batches, outputs and version distinctions are preserved; no rubric was loosened.
   brief card only in F209's `writing` state, loaded on first use, scaled to the card; a quick write
   waits for its 2.5 s; stored briefs and revisits are unchanged. Spec:
   `docs/specs/2026-10-16-record-brief-animation.md`.
-- [ ] **F210. `researchThreadIntegration.test.js` is flaky in CI.** Found 2026-10-16: "a TOKEN_REFRESHED
-  for the same account while a send is checked does not fail the send" saw the server called 3 times,
-  not 2, on CI run 38818354932 (commit 56f42d2); it passed 6 of 6 locally and on the next CI run.
-  A timing assumption under a busy runner; make the test wait on the send, not on time.
-  Implemented `8d6dec5`, live through `0e970f4`; two first-attempt CI passes so far.
-  Keep this finding open until the third final integration run passes (T15).
-  - Again on CI run 38828313006 (commit 05cc82d, no `src/ai` changes): attempt 1 failed the SIGNED_IN
-    and TOKEN_REFRESHED cases (server called 3 times, not 2); attempt 2 failed "changing the model and
-    reasoning after an answer…" with `SyntaxError: "undefined" is not valid JSON`. The file passed 5 of 5
-    locally on the same commit.
-  - Also failed locally (SIGNED_IN and TOKEN_REFRESHED cases) in a full `npm test` on 2026-10-16 during
-    F213, then passed 3 of 3 run alone: it is load-sensitive, not CI-only.
 - [x] **F209. The record brief shows "writing" only while it is written.** Done 2026-10-16 (`078100c`;
   desk-brief deployed first, then Vercel; CI green). Owner 2026-10-16 ("go"),
   before the client's new writing animation. Measured: stored reads took 1.1-2.5 s and showed the
@@ -1287,6 +1289,20 @@ batches, outputs and version distinctions are preserved; no rubric was loosened.
 ## 1. Done
 
 ### M1/M2 implementation and rollout — 2026-10-17
+
+- [x] **F210. `researchThreadIntegration.test.js` is flaky in CI.** Found 2026-10-16: "a TOKEN_REFRESHED
+  for the same account while a send is checked does not fail the send" saw the server called 3 times,
+  not 2, on CI run 38818354932 (commit 56f42d2); it passed 6 of 6 locally and on the next CI run.
+  A timing assumption under a busy runner; make the test wait on the send, not on time.
+  - Again on CI run 38828313006 (commit 05cc82d, no `src/ai` changes): attempt 1 failed the SIGNED_IN
+    and TOKEN_REFRESHED cases (server called 3 times, not 2); attempt 2 failed "changing the model and
+    reasoning after an answer…" with `SyntaxError: "undefined" is not valid JSON`. The file passed 5 of 5
+    locally on the same commit.
+  - Also failed locally (SIGNED_IN and TOKEN_REFRESHED cases) in a full `npm test` on 2026-10-16 during
+    F213, then passed 3 of 3 run alone: it is load-sensitive, not CI-only.
+  Done 2026-10-17 (`8d6dec5`, integrated `0e970f4`; final source `d63192b`):
+  all three actual post-fix CI runs passed first attempt, without retries/cancelled runs/empty commits.
+
 
 The items below are integrated/released; T15 owns the remaining multi-day observations.
 Evidence: [cleanup execution record](../research/2026-10-17-m1-m2-cleanup-evidence.md).
