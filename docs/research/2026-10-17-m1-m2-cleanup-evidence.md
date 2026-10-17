@@ -601,3 +601,42 @@ has separate explicit owner authority; it does not broaden the read-only monitor
 or authorize corpus/payment work. No credentials/dotenv read, forced refresh,
 corpus operation or payment work. Final documentation checkpoint CI/deployment
 is verified after its push in the completion report.
+
+
+## Scheduled closure observation — 2026-10-17 15:46 UTC
+
+Read-only observation during final F223 publication verification. Preserved
+locally on `task/m1-m2-closure-observations` after the approved release; this
+observation is documentation only and adds no production operation.
+
+World Constitutions completed its first genuine post-rollout daily opportunity
+at 15:45:00.466 UTC, status unchanged, 188 items, zero new keys and zero failures.
+Successful fetched_at 15:45:01.351775 UTC; next due October 18 15:45:01 UTC.
+All 188 keys remain distinct `constitute:` keys with the exact original MD5
+c14635ffbc17cef3a5ace4fc74273578. This counts as one real daily opportunity,
+not three. MLA reference remains at its first ordinary opportunity October 17
+10:45 UTC (400 profiles + 100 coverage records), next due October 18 10:45 UTC.
+T15 therefore remains open; no forced refresh or repeat-read credit.
+
+Final F223 documentation main `731428f4110850bdb008ef354dfaa9a1490e41f6`
+is deployed READY as `dpl_ERp34386wrtss2MC124xCnC12pqW`, exact approved
+project/team. A second read-only check on that deployment returns both MLA
+summary/module pairs 200/store, matching notes/fetchedAt/counts: Directory
+496 sampled of 4,104 total, Profiles 500. Summary times 0.760 / 0.713 seconds.
+No summary rows, asOf remains null. Final deployment logs, complete 15:44–15:46
+UTC window, return zero request 5xx, seven existing DEP0169 url.parse warnings
+and zero other error/fatal records; no pagination or excluded intervals.
+
+Hourly closure follow-up remains ACTIVE. No new actionable failure or overall
+M1/M2 completion. Corpus ingestion untouched, payment integration held. No
+function deployment, migration, timer/serve adjustment, provider call, manual
+refresh, production data write or credential/dotenv read in this observation.
+
+
+Final release verification at 15:48 UTC: CI 39046364866 passed app and SQL jobs
+on attempt 1. The latest three genuine runs 39045568101, 39045994021 and
+39046364866 all passed both jobs on their original attempts; no retries,
+cancellations or empty commits. Main and fetched origin/main both equal
+`731428f4110850bdb008ef354dfaa9a1490e41f6`, matching READY production.
+This new natural-refresh observation remains a local documentation checkpoint,
+separate from the already published F223 release, for the next closure follow-up.

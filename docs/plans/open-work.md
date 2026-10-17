@@ -144,6 +144,13 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   references remain pending (Constitutions eligible at 15:45; MLA October 18).
   No source above three failures; hourly follow-up ACTIVE.
   [Evidence](../research/2026-10-17-m1-m2-cleanup-evidence.md#f223-release-and-closure-observation--2026-10-17-1540-utc).
+  Subsequent 15:46 UTC read-only observation confirms Constitutions' first real
+  post-rollout daily success at 15:45 (unchanged, 188 stable keys, zero failures).
+  Next daily due October 18 15:45 UTC; MLA still next due October 18 10:45 UTC.
+  Both references still need further genuine daily opportunities; T15 remains open.
+  Final F223 documentation head `731428f` deployed READY; both MLA summaries
+  verified again 200/store with parity. Final CI 39046364866 passed app/SQL on
+  attempt 1; latest three genuine F223 release runs are green. [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1546-utc).
 
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving
