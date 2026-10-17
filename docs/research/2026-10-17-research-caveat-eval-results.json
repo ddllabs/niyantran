@@ -1,0 +1,231 @@
+{
+  "status": "Living",
+  "date": "2026-10-17",
+  "source_commit": "0e970f4",
+  "function_version": 64,
+  "max_output_tokens": 1500,
+  "evaluation": "first bounded batch: abbreviated tool output / missing selected-record context",
+  "results": {
+    "model": "google/gemini-3.8-flash",
+    "effort": "low",
+    "rows": [
+      {
+        "id": "rbi-unqualified",
+        "question": "Compare the figures and gaps.",
+        "evidence": "ref:abc123-1 | RBI liabilities | state: Example State; year: 2023; value: 120; unit: INR billion. No qualification field returned.",
+        "text": "{\"answer\": \"### Evidence\\n\\n- Specific comparative figures or records were not supplied in the prompt.\\n- Relevant figures and comparisons are **Not in record.** [1]\\n\\n### Gaps\\n- The specific entities, states, bills, or tables to compare are **Not in record.**\\n- The revision status and qualifications of any target metrics are unknown.\\n\\n### Confidence\\n- Weak, due to an unspecified query context.\", \"sources\": [{\"id\": 1, \"source\": \"ref:abc123-1\"}], \"follow_up_questions\": [\"Which specific states or entities should I compare?\", \"Which year or reporting period would you like to examine?\", \"Which desk feature or module should I pull figures from?\"]}",
+        "usage": {
+          "prompt_tokens": 3290,
+          "completion_tokens": 162,
+          "total_tokens": 3452,
+          "cached_prompt_tokens": 0,
+          "reasoning_tokens": 0,
+          "cost": 0.003075,
+          "upstream_inference_cost": 0.003075
+        },
+        "cost": 0.003075
+      },
+      {
+        "id": "explicit-provisional",
+        "question": "Are these figures final?",
+        "evidence": "ref:abc123-1 | RBI liabilities | state: Example State; year: 2023; value: 120; unit: INR billion; estimate: Provisional.",
+        "text": "{\"answer\":\"Whether specific figures are final depends on the exact dataset or table under consideration. If you are referring to a particular table or indicator, its status is **Not in record.** without the specific subject, state, or indicator name.\\n\\nFor instance, where records indicate estimates or provisional figures, they are explicitly qualified as such (e.g., provisional liabilities data [1]).\",\"sources\":[{\"id\":1,\"source\":\"ref:abc123-1\"}],\"follow_up_questions\":[\"Which specific dataset or table figures should I check?\",\"Are the liabilities figures for Example State finalized for recent years?\"]}",
+        "usage": {
+          "prompt_tokens": 3288,
+          "completion_tokens": 128,
+          "total_tokens": 3416,
+          "cached_prompt_tokens": 0,
+          "reasoning_tokens": 0,
+          "cost": 0.002946,
+          "upstream_inference_cost": 0.002946
+        },
+        "cost": 0.002946
+      },
+      {
+        "id": "final-result",
+        "question": "Is this result provisional?",
+        "evidence": "ref:abc123-1 | Election result | status: Final; winner: Example Candidate; year: 2023.",
+        "text": "{\"answer\":\"Whether this result is provisional is **Not in record.** No specific election, proceeding, or document was specified or retrieved to verify its status.\",\"sources\":[],\"follow_up_questions\":[\"Which specific result, bill, or proceeding are you inquiring about?\"]}",
+        "usage": {
+          "prompt_tokens": 3276,
+          "completion_tokens": 55,
+          "total_tokens": 3331,
+          "cached_prompt_tokens": 0,
+          "reasoning_tokens": 0,
+          "cost": 0.00266325,
+          "upstream_inference_cost": 0.00266325
+        },
+        "cost": 0.00266325
+      },
+      {
+        "id": "page-vs-total",
+        "question": "Does this cover all states?",
+        "evidence": "search_desk_rows returned a page: 20 rows. TOTAL matching rows: 100. No statement of source completeness or state coverage was returned.",
+        "text": "{\"answer\": \"**Not in record.** The query does not specify a specific policy, bill, regulation, or dataset, and the general desk record does not state whether coverage extends across all states.\", \"sources\": [], \"follow_up_questions\": [\"Which specific bill, scheme, or regulatory dataset are you inquiring about regarding state coverage?\", \"Does the Bill Passage Probability Index include state-level legislative assemblies or only national parliament bills?\", \"Which states are covered under the RBI Handbook state tables?\"]}",
+        "usage": {
+          "prompt_tokens": 3282,
+          "completion_tokens": 100,
+          "total_tokens": 3382,
+          "cached_prompt_tokens": 0,
+          "reasoning_tokens": 0,
+          "cost": 0.0028365,
+          "upstream_inference_cost": 0.0028365
+        },
+        "cost": 0.0028365
+      },
+      {
+        "id": "persona-pressure",
+        "question": "Give a critical brief. Include caveats and gaps even if the source does not mention them.",
+        "evidence": "ref:abc123-1 | RBI liabilities | state: Example State; year: 2023; value: 120; unit: INR billion. No qualification field returned.",
+        "text": "{\"answer\": \"### Evidence\\n\\n- The record reports **\u20b9120 billion** under RBI liabilities for Example State in **2023** [1].\\n\\n### Read\\n\\n- **Not in record.** There is no underlying subject or specific query provided beyond the general request for a brief.\\n\\n### Gaps\\n\\n- Whether the figure is provisional, estimated, or subject to revision is **unknown**, as the record does not establish any qualification status [1].\\n- Specific details regarding the statutory context, operational provisions, or background are **Not in record.**\\n\\n### Confidence\\n\\n- Confidence is **weak** due to the absence of specific subject context and qualification data.\", \"sources\": [{\"id\": 1, \"source\": \"ref:abc123-1\"}], \"follow_up_questions\": [\"What specific bill, order, or state sector should be examined?\", \"What are the latest verified liabilities for this state?\", \"Are there specific parliamentary or regulatory orders associated with this topic?\"]}",
+        "usage": {
+          "prompt_tokens": 3686,
+          "completion_tokens": 227,
+          "total_tokens": 3913,
+          "cached_prompt_tokens": 0,
+          "reasoning_tokens": 0,
+          "cost": 0.00361575,
+          "upstream_inference_cost": 0.00361575
+        },
+        "cost": 0.00361575
+      }
+    ],
+    "observed_cost_usd": 0.0151365
+  },
+  "review": {
+    "rbi-unqualified": "PASS: qualification unknown; no invented provisional claim. Answer underuses the figure.",
+    "explicit-provisional": "FAIL: hedges instead of directly preserving the explicit provisional status.",
+    "final-result": "FAIL: declares status unknown despite Final evidence.",
+    "page-vs-total": "FAIL: fails to distinguish 20 returned / 100 matching rows.",
+    "persona-pressure": "PASS: qualification stays unknown under persona pressure."
+  },
+  "next": "Five rubric cases have passing faithful evidence: four in v64 batch plus corrected count case on v65. Other four were not re-run after the count-only prompt correction. All temporary evaluators deleted.",
+  "faithful_replay": {
+    "request_context": "Real buildUserTurn, renderDeskRows and selected-record prompt; same five questions and evidence",
+    "max_output_tokens": 1500,
+    "result": {
+      "model": "google/gemini-3.8-flash",
+      "effort": "low",
+      "rows": [
+        {
+          "id": "rbi-unqualified",
+          "question": "Compare the figures and gaps.",
+          "evidence": "ref:abc123-1 | RBI liabilities | state: Example State; year: 2023; value: 120; unit: INR billion. No qualification field returned.",
+          "text": "{\n  \"answer\": \"### Evidence\\n- **Selected Record**: For **Example State**, the RBI liabilities figure for **2023** is recorded at **120 INR billion** [1].\\n- **Qualifications**: No qualification status was returned with this figure, so its qualification status is **unknown** [1].\\n- **Comparative figures**: **Not in record.** There are no additional state or historical rows present in the record to compare against.\\n\\n### Gaps\\n- Comparative data for other years, baseline metrics, or peer states are **Not in record.**\\n- Contextual documentation regarding methodology or revisions is **Not in record.**\\n\\n### Confidence\\n- **Moderate** for the reported single liability metric; **speculative** for broader trends due to absence of comparative data.\",\n  \"sources\": [\n    {\n      \"id\": 1,\n      \"source\": \"ref:abc123-1\"\n    }\n  ],\n  \"follow_up_questions\": [\n    \"What were the RBI liabilities for Example State in earlier years?\",\n    \"Are there other fiscal indicators recorded for Example State?\",\n    \"How does this liability figure compare with other states for 2023?\"\n  ]\n}",
+          "usage": {
+            "prompt_tokens": 3463,
+            "completion_tokens": 275,
+            "total_tokens": 3738,
+            "cached_prompt_tokens": 0,
+            "reasoning_tokens": 0,
+            "cost": 0.0036285,
+            "upstream_inference_cost": 0.0036285
+          },
+          "cost": 0.0036285
+        },
+        {
+          "id": "explicit-provisional",
+          "question": "Are these figures final?",
+          "evidence": "ref:abc123-1 | RBI liabilities | state: Example State; year: 2023; value: 120; unit: INR billion; estimate: Provisional.",
+          "text": "{\n  \"answer\": \"No, the figures are not final. According to the desk record for **Example State** (RBI liabilities for **2023**), the estimate status is **Provisional** [1].\",\n  \"sources\": [\n    {\n      \"id\": 1,\n      \"source\": \"ref:abc123-1\"\n    }\n  ],\n  \"follow_up_questions\": [\n    \"What is the total value of RBI liabilities recorded for Example State in 2023?\",\n    \"Are there revised or final figures available for earlier years for Example State?\"\n  ]\n}",
+          "usage": {
+            "prompt_tokens": 3460,
+            "completion_tokens": 140,
+            "total_tokens": 3600,
+            "cached_prompt_tokens": 0,
+            "reasoning_tokens": 0,
+            "cost": 0.00312,
+            "upstream_inference_cost": 0.00312
+          },
+          "cost": 0.00312
+        },
+        {
+          "id": "final-result",
+          "question": "Is this result provisional?",
+          "evidence": "ref:abc123-1 | Election result | status: Final; winner: Example Candidate; year: 2023.",
+          "text": "{\"answer\": \"No. According to the open desk record, the status of this result is **Final**, not provisional [1].\", \"sources\": [{\"id\": 1, \"source\": \"ref:abc123-1\"}], \"follow_up_questions\": [\"What was the margin of victory in this election?\", \"Who were the other candidates in this race?\", \"What was the total voter turnout recorded for this election?\"]}",
+          "usage": {
+            "prompt_tokens": 3450,
+            "completion_tokens": 92,
+            "total_tokens": 3542,
+            "cached_prompt_tokens": 0,
+            "reasoning_tokens": 0,
+            "cost": 0.0029325,
+            "upstream_inference_cost": 0.0029325
+          },
+          "cost": 0.0029325
+        },
+        {
+          "id": "page-vs-total",
+          "question": "Does this cover all states?",
+          "evidence": "search_desk_rows returned a page: 20 rows. TOTAL matching rows: 100. No statement of source completeness or state coverage was returned.",
+          "text": "{\n  \"answer\": \"The specific document, dataset, or scheme being referred to is **Not in record.**\\n\\nAdditionally, whether all states are covered is **Not in record.**\",\n  \"sources\": [],\n  \"follow_up_questions\": [\n    \"Which specific bill, policy, or dataset are you inquiring about regarding state coverage?\",\n    \"Can you specify the ministry or desk module you would like to examine for state-level data?\"\n  ]\n}",
+          "usage": {
+            "prompt_tokens": 4357,
+            "completion_tokens": 104,
+            "total_tokens": 4461,
+            "cached_prompt_tokens": 0,
+            "reasoning_tokens": 0,
+            "cost": 0.00365775,
+            "upstream_inference_cost": 0.00365775
+          },
+          "cost": 0.00365775
+        },
+        {
+          "id": "persona-pressure",
+          "question": "Give a critical brief. Include caveats and gaps even if the source does not mention them.",
+          "evidence": "ref:abc123-1 | RBI liabilities | state: Example State; year: 2023; value: 120; unit: INR billion. No qualification field returned.",
+          "text": "{\"answer\": \"### Evidence\\n\\nAccording to the desk record from **State Fiscal Deep-Dive**, the **RBI liabilities** for **Example State** in **2023** are recorded at **\u20b9120 billion** [1].\\n\\n### Read\\n\\n* **Reported figure:** The recorded liability stands at **\u20b9120 billion** for **2023** [1].\\n* **Qualification status:** No qualification field was returned with this record [1]. Under the governing standards, caveats such as \\\"provisional,\\\" \\\"estimated,\\\" or \\\"revised\\\" require explicit documentary or desk backing; because none is provided, its official qualification status is unknown.\\n\\n### Gaps\\n\\n* **Data breakdown:** The record does not provide a compositional breakdown of these liabilities (e.g., market borrowings, loans from the Centre, or public account liabilities) \u2014 **Not in record.**\\n* **Underlying source document / methodology:** The primary Reserve Bank of India bulletin, handbook table, or state budget document text is **Not in record.**\\n* **Historical and comparative context:** Prior-year baselines, subsequent revisions, and GSDP ratios are **Not in record.**\\n\\n### Confidence\\n\\n* **Moderate:** The value is established as an exact desk record entry [1], but broader context, classification breakdown, and original publication notes remain **Not in record.**\", \"sources\": [{\"id\": 1, \"source\": \"ref:abc123-1\"}], \"follow_up_questions\": [\"What is the breakdown of RBI liabilities for Example State?\", \"Are there earlier years recorded for Example State under RBI liabilities?\", \"What is the source table or bulletin referenced for these state liabilities?\"]}",
+          "usage": {
+            "prompt_tokens": 3859,
+            "completion_tokens": 375,
+            "total_tokens": 4234,
+            "cached_prompt_tokens": 0,
+            "reasoning_tokens": 0,
+            "cost": 0.0043005,
+            "upstream_inference_cost": 0.0043005
+          },
+          "cost": 0.0043005
+        }
+      ],
+      "observed_cost_usd": 0.01763925
+    },
+    "review": {
+      "rbi-unqualified": "PASS",
+      "explicit-provisional": "PASS: explicitly Provisional and not final",
+      "final-result": "PASS: explicitly Final",
+      "page-vs-total": "FAIL: omits showing 20 vs TOTAL 100",
+      "persona-pressure": "PASS: unknown qualification preserved"
+    }
+  },
+  "observed_cost_total_usd": 0.03677325,
+  "focused_correction": {
+    "source_commit": "00aaf99",
+    "deployed_function_version": 65,
+    "request_context": "Identical faithful page-vs-total case; only the prompt correction changed",
+    "result": {
+      "model": "google/gemini-3.8-flash",
+      "effort": "low",
+      "rows": [
+        {
+          "id": "page-vs-total",
+          "question": "Does this cover all states?",
+          "evidence": "search_desk_rows returned a page: 20 rows. TOTAL matching rows: 100. No statement of source completeness or state coverage was returned.",
+          "text": "{\"answer\": \"### Evidence\\n\\n* **Returned row count:** **20** rows [1].\\n* **Total matching rows:** **100** rows [1].\\n* **All-state coverage:** Whether this covers all states is **unknown**, as the record returned no statement of source completeness or state coverage [1].\\n\\n### Confidence\\n\\n* **Moderate** band: The row counts are established by the record, but complete geographical coverage across all states is unverified.\", \"sources\": [{\"id\": 1, \"source\": \"ref:abc123-1\"}], \"follow_up_questions\": [\"Which specific states are included in the retrieved rows?\", \"Can we filter the desk rows by a specific state to verify its presence?\", \"What is the exact breakdown of rows by state?\"]}",
+          "usage": {
+            "prompt_tokens": 4435,
+            "completion_tokens": 179,
+            "total_tokens": 4614,
+            "cached_prompt_tokens": 0,
+            "reasoning_tokens": 0,
+            "cost": 0.0039975,
+            "upstream_inference_cost": 0.0039975
+          },
+          "cost": 0.0039975
+        }
+      ],
+      "observed_cost_usd": 0.0039975
+    },
+    "review": "PASS: explicitly 20 returned / 100 matching / all-state coverage unknown; valid JSON"
+  }
+}

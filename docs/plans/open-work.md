@@ -95,69 +95,36 @@ Each milestone ends with a checkpoint. The items below track the work; this sect
   has the inputs.
 - *Checkpoint:* signed-in smoke test on nter.pro.
 
-## Active M1/M2 cleanup programme — 2026-10-17
+## Active M1/M2 cleanup programme — rollout 2026-10-17
 
-Owner: "Create the spec and implementation plan for all M1 items and the two M2 leftovers,
-keeping corpus ingestion out of scope. Once those are closed, we'll move to payment gateway
-integration." Local implementation was authorized subsequently on 2026-10-17 and is
-verified locally on `task/m1-m2-cleanup` from `b8d9e51` (main and origin/main matched after fetch).
-The orientation snapshot above predates this branch. Scope decisions from the preceding
-recommendations are approved. Pushes, deployments, production migrations/loads and paid
-evaluation remain separately gated; local disposable SQL verification is authorized.
+Owner approved implementation, push/deploy and closure checks; corpus ingestion remains
+excluded. Main cleanup through `0e970f4` is live, three compatibility migrations applied,
+research-chat v65 (`00aaf99`) and desk-brief v17 deployed. The T0–T14 implementation entries
+have moved to Done with hashes; do not infer the remaining scheduled-observation gate is closed.
 
-[Spec](../specs/2026-10-17-m1-m2-cleanup.md) · [implementation plan](2026-10-17-m1-m2-cleanup.md).
-The task IDs below reference that plan's ordered contracts. Existing F numbers remain the parent
-items; this index makes every task visible in the sole tracker, without creating duplicate findings.
+[Spec](../specs/2026-10-17-m1-m2-cleanup.md) · [plan](2026-10-17-m1-m2-cleanup.md) ·
+[execution/rollout evidence](../research/2026-10-17-m1-m2-cleanup-evidence.md).
 
-- [ ] **T0 (M1/M2):** safe baseline, reproducible defects and measured initial assets.
-- [ ] **T1 (F210):** deterministic research-thread integration tests, preserving ownership checks.
-- [ ] **T2 (F160):** retained-item guard and truthful verified-empty source outcomes.
-- [ ] **T3 (F160):** caller cancellation while queued, including Music Charts fallback.
-- [ ] **T4 (F160):** stable constitution identity, with exact stored-key inventory.
-- [ ] **T5 (F160):** bounded, complete latest-run pagination beyond 2,000 accumulated items.
-- [ ] **T6 (F215):** diagnose/repair World Leagues fixtures and preserve four-league coverage.
-- [ ] **T7 (F160):** reliable MLA Profiles reference serving; no scorecard/source expansion.
-- [ ] **T8 (F201):** exact selected-year comparisons and immediate comparable previous period.
-- [ ] **T9 (F201):** whole-variant reads request only necessary handbook pages.
-- [ ] **T10 (F201):** exact-period and overlapping-range handbook filtering; inventory any required
-  handbook-only repair separately. Corpus ingestion remains excluded.
-- [ ] **T11 (F216):** grounded qualifications, focused guards and behavioral evaluation evidence.
-- [ ] **T12 (F202):** inventory and remove only proven unused stored searches.
-- [ ] **T13a (F208):** lightweight public catalogue identity/counts, separate terminal schema.
-- [ ] **T13b (F208):** preserve deferred search/navigation and lower measured bundle baseline.
-- [ ] **T14 (F202/M2):** show the selected leader's real Wikidata item link.
-- [ ] **T15 (M1/M2):** separately authorized rollout, production/CI closure evidence and handoff
-  to payment gateway integration. Vercel DDL Labs access returned 403 during orientation;
-  release inspection needs restored access or an authorized release operator.
+- [ ] **T15 (M1/M2):** finish real scheduled source observations: three post-rollout expected
+  refresh opportunities, including actual daily reference intervals. Never force extra calls
+  to simulate those opportunities. Two first-attempt CI runs passed (39025298847 and
+  39025660396); the final correction/evidence integration must supply the third. Active hourly
+  read-only follow-ups on this chat, explicitly requested by the owner, notify only on a meaningful
+  failure or completion. Vercel connector remains 403; the authenticated CLI works for the exact
+  DDL Labs scope. Report closure before beginning payment gateway integration.
 
-Local implementation checkpoint (2026-10-17): T1–T14 code is committed and verified;
-parent findings stay open until integration/release evidence is complete. No task below
-is marked production-closed by local tests. Detailed commands, red/green evidence and
-release sequence: [execution evidence](../research/2026-10-17-m1-m2-cleanup-evidence.md).
+Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
+fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving
+from storage. No source above three consecutive failures. Supabase pg_cron feed-refresh job
+runs every five minutes and calls the deployed Vercel refresh route: the refresh system is active.
+70 distinct modules / 257 variants serve from storage, with District Performance deliberately
+planned/off. Corpus Edge Function versions/hashes and jobs were not changed.
 
-| Local scope | Commits | Remaining closure evidence |
-| --- | --- | --- |
-| T0 baseline, T1 + F217 tests | `8d6dec5` | Historical CI flake was not reproduced; three first-attempt green CI runs remain T15 |
-| T2–T7 source/store fixes | `8cd624c`, `acadaa2` | Approved migrations/release; actual constitution stored-key inventory and any exact repair; MLA reference refresh; three source refresh opportunities |
-| T8–T10 handbook | `8cd624c`, `81912bd` | Approved migration/function/client release and production verification; no reload required |
-| T11 grounding | `73cfd87` | Five actual-model behavioral evaluations with approved budget/environment; affected deployed-source diff/release |
-| T12 duplicate searches | `6657958` | Release verification; 57-field inventory and offline parity already pass |
-| T13a/T13b public bundle | `e5f45c2` | Release verification; browser/asset checks already pass |
-| T14 leader link | `d4c0054` | Release verification; browser/safety checks already pass |
-
-T15 remains unexecuted. Local result: 6,110 Vitest tests, 1,149 Deno tests,
-41 SQL fixtures with non-vacuity and rollback checks, lint/build/router/bundle guards
-and isolated desktop/mobile browser checks pass. Payment gateway integration follows
-M1/M2 closure. Corpus ingestion remains excluded.
-
-## Additional implementation finding
-
-- [ ] **F217. Morning Brief fixture clock ages out.** Found 2026-10-17 during M1/M2
-  verification: the fixed 14 October RSS date crossed the three-day retention window.
-  Owner authorized the test-only fix on 2026-10-17. `src/lib/briefFeeds.test.js`
-  now freezes Date at 15 October and restores real timers after each test;
-  runtime retention rules are unchanged. Focused 3/3 pass; final integration evidence
-  is recorded with T1. Committed locally as `8d6dec5`; final full suite passes. Integration/release closure remains T15.
+Final local gates: 6,110 Vitest tests, 1,150 Deno tests, 41 SQL fixtures with vacuity/rollback
+checks, lint/build/router/bundle and browser checks pass. Explicitly authorized model evaluation:
+4 faithful cases passed on v64; count/coverage case failed, then passed after the narrow v65
+correction. Total actual cost $0.03677325, every temporary evaluator deleted. Detailed failed
+batches, outputs and version distinctions are preserved; no rubric was loosened.
 
 ## UI follow-ups
 
@@ -644,6 +611,8 @@ M1/M2 closure. Corpus ingestion remains excluded.
   for the same account while a send is checked does not fail the send" saw the server called 3 times,
   not 2, on CI run 38818354932 (commit 56f42d2); it passed 6 of 6 locally and on the next CI run.
   A timing assumption under a busy runner; make the test wait on the send, not on time.
+  Implemented `8d6dec5`, live through `0e970f4`; two first-attempt CI passes so far.
+  Keep this finding open until the third final integration run passes (T15).
   - Again on CI run 38828313006 (commit 05cc82d, no `src/ai` changes): attempt 1 failed the SIGNED_IN
     and TOKEN_REFRESHED cases (server called 3 times, not 2); attempt 2 failed "changing the model and
     reasoning after an answer…" with `SyntaxError: "undefined" is not valid JSON`. The file passed 5 of 5
@@ -669,10 +638,6 @@ M1/M2 closure. Corpus ingestion remains excluded.
   column definitions and F196's modules, which the desk catalogue puts in the entry. Also (owner,
   2026-10-16): the All sections cards lose their ↗ arrow, and Home shows the Niyantran Terminal logo.
   On `task/cleanup`.
-- [ ] **F208. The desk catalogue puts every module's columns in the first-load bundle.** Found in F207,
-  2026-10-16. `src/desks/landing/deskCatalogue.js` imports `feedColumns` (`src/lib/columns.js`, 40 KB
-  of source) and the full feature map, so a signed-out visitor downloads them. Load them with the
-  terminal instead, then lower the baseline.
 - [x] **F204. Record panels draw no relations graph.** Done 2026-10-16 (`e2a9613`; owner: "push and
   merge"). Owner 2026-10-16 ("not genuine … remove that
   wherever it comes"). The four-lane graph is gone from all 26 record types; their related register
@@ -1014,16 +979,17 @@ M1/M2 closure. Corpus ingestion remains excluded.
     "LG gives nod to 6 bills" vs "six bills" still two rows); Climate Newswire says "N stories in the
     last 30 days"; the AI & Tech PIB filter keeps technology-industry releases only; the UK and
     Netherlands leaders' notes about the previous government blanked (addendum in the data-file
-    inventory).* Left: the stored registry and feature-map searches are no longer read but still sit in
-    the data files.
+    inventory).* Closed cleanup 2026-10-17 (`6657958`): removed 57 inventoried duplicate feature-map
+    source fields. The registry fields are actually read by admin/provenance consumers and remain;
+    the earlier blanket claim that both files were unread was incorrect.
   - Done 2026-10-15, data files (`af03724`, cause 7; inventory
     [2026-10-15-data-file-fixes](../research/2026-10-15-data-file-fixes.md)): 9,819 bill dates are
     the source's IST day; 19 heads of state named from Wikidata (as of 2026-10-15); expired stored
     tenders read Closed (in code); 14 Isometric rows dated; constitution names readable (in code).
     desk_rows reloaded for Bill Passage, Policy Intelligence Graph, Heads of State and Carbon
-    Registry Wire (9,817 + 9,817 + 43 upserted / 1 pruned + 24 / 13); analysed, 34,183 rows. Left:
-    the Heads of State panel does not show the new Wikidata links (UI; left for the owner's UI
-    branch).
+    Registry Wire (9,817 + 9,817 + 43 upserted / 1 pruned + 24 / 13); analysed, 34,183 rows.
+    The remaining leader source-link UI was closed 2026-10-17 (`d4c0054`, integrated `0e970f4`):
+    exact Wikidata item links with safe new-tab behavior, generic/unsafe links absent.
   - Checks for each: lint, build, router import, full Vitest (5,794 / 5,862 / 5,875), Deno 1,134,
     SQL fixture record_brief_format (vacuity and Down).
 - [ ] **F196. Planned modules: make them work from the sources the repo already names.** Owner
@@ -1102,9 +1068,10 @@ M1/M2 closure. Corpus ingestion remains excluded.
     one new year renames most older blocks; a shrunk block is refused and keeps serving last edition's
     years, and obsolete blocks keep `serve` on until the printed SQL is run. Group oldest-first or have
     the loader switch new blocks on and obsolete ones off in one step (review finding 3).
-  - [ ] Review, optional: the Comparison's store path omits an indicator with no figure for the year asked
-    (the page path shows its latest) and can miss a previous year across a block edge; `wholeVariant`
-    always reads 4 pages; "2019-21" spans and financial years are dated by their first year in desk_rows.
+  - [x] Optional review completed 2026-10-17 (`81912bd`, `acadaa2`, `8cd624c`): exact-year gaps,
+    immediate previous period across blocks, only necessary pages, and financial/survey interval
+    overlap. No handbook reload or corpus change. Live January–March 2020 search returns exact
+    2019-20 financial-year rows; TOTAL 446.
 - [ ] **F191. Homepage "Source endpoints" stays 246 (owner, 2026-10-15).** "Keep it at 246 sources for
   now because we are going to be fixing the rest of the sources and eventually bringing it up to that
   number, or whatever the true number is." The source registry counts 115 working-route addresses
@@ -1116,32 +1083,14 @@ M1/M2 closure. Corpus ingestion remains excluded.
   NBA, IPL or La Liga"); 16 failures and 4 timeouts in 24 hours. The stored copy (7 rows) is still
   served and stops at the 7-day stale ceiling, about 2026-10-23. Find out whether TheSportsDB changed
   its free endpoints or rate limit, then fix the adapter or move to another source.
-- [ ] **F216. Research answers state caveats the data does not.** Seen 2026-10-16 in the F201 T9b
-  production question: the answer's Gaps section said the 2023 outstanding-liability figures are
-  provisional, which the desk rows do not say. Rule for `research-chat`: a gap or caveat must come from
-  a returned row, document or tool result, or be worded as unknown. Prompt change plus a test;
-  redeploy after diffing the deployed source.
-- [ ] **F160 status 2026-10-16: serving from the store is on** for 64 of the 66 scheduled modules
-  (`1345bfd`, `4244984`, `943246f`, `ffbc8ff`; coordination.md 2026-10-16). Store answers pass the
-  module's own live row filters (`server/feedRows.mjs`); stored copies never read LIVE; stale copies are
-  capped (7 days or 20 intervals). Left:
-  - MLA Report Card + Statement Tracker: serve off; its store page holds 3–7 of ~495 live items (a
-    500-row Wikidata sample stored as news). Shown as "MLA Profiles & Coverage" since `7608584` (owner
-    2026-10-16), its note saying it is not a scorecard. A real report card needs a source (e.g.
-    ADR/MyNeta affidavits; state assembly questions and attendance).
-  - District Performance Tracker: planned since `7608584` (owner 2026-10-16) and off the timer; its only
-    source was a Wikidata district directory with no performance data. To build with the district
-    modules: NITI Aspirational Districts, NFHS-5 district fact sheets, UDISE+, MGNREGA; a composite
-    index needs an owner-approved method; shown as a district choropleth (DataMeet 2011 districts or
-    LGD-coded current boundaries) with a table.
-  - `feed_record` treats nothing-new as success even when the module holds no items (needs a migration:
-    `and v_state.item_count > 0` in the nothing-new branch).
-  - Music Charts: a request's 8 s timer does not count time queued behind the host gate.
-  - World Constitutions: about a quarter of its item keys change between runs.
-  - A latest-run measurement variant over 2,000 items falls back to live (Political Odds holds ~280).
-  - 2026-10-17 check: 68 of 70 store modules serving (the count now includes the F196 and F201
-    registers). MLA Report Card's live answer timed out once at 4 s (0 rows, archive), then answered
-    500 rows in 0.4 s; it depends on Wikidata's speed until it has a real source.
+  Rollout 2026-10-17 (`acadaa2`, integrated `0e970f4`): documented public configuration
+  repaired, all four leagues checked; first scheduled run at 10:40 UTC succeeded with 7 items
+  and reset failures to zero. Closure awaits three real hourly opportunities under T15.
+- [ ] **F160 rollout status 2026-10-17:** code, compatibility SQL, exact constitution key repair,
+  MLA reference transition and serve-on are complete. Local/bundle/browser/production probes pass.
+  Remaining: T15's three real post-rollout refresh opportunities across source intervals. First
+  fixtures and MLA checks succeeded, zero unexplained high-failure sources. District Performance
+  remains deliberately planned/off; real MLA scorecards and additional sources stay M3.
 - [ ] **F160. Serve module data from the database, filled by scheduled jobs (ingest, then serve).**
   [Spec](../specs/2026-10-14-scheduled-module-data.md) written 2026-10-14. Owner's answers the same
   day: the timer every 5 minutes, not every minute; the other recommendations adopted. Now phase 4
@@ -1336,6 +1285,66 @@ M1/M2 closure. Corpus ingestion remains excluded.
 
 
 ## 1. Done
+
+### M1/M2 implementation and rollout — 2026-10-17
+
+The items below are integrated/released; T15 owns the remaining multi-day observations.
+Evidence: [cleanup execution record](../research/2026-10-17-m1-m2-cleanup-evidence.md).
+
+- [x] **T0 (M1/M2):** safe baseline, reproducible defects and measured initial assets. Integrated/released 2026-10-17 (`0e970f4`); evidence below.
+
+- [x] **T1 (F210):** deterministic research-thread integration tests, preserving ownership checks. Integrated/released 2026-10-17 (`8d6dec5`); evidence below.
+
+- [x] **T2 (F160):** retained-item guard and truthful verified-empty source outcomes. Integrated/released 2026-10-17 (`8cd624c`); evidence below.
+
+- [x] **T3 (F160):** caller cancellation while queued, including Music Charts fallback. Integrated/released 2026-10-17 (`acadaa2`); evidence below.
+
+- [x] **T4 (F160):** stable constitution identity, with exact stored-key inventory. Integrated/released 2026-10-17 (`acadaa2, 0e970f4`); evidence below.
+
+- [x] **T5 (F160):** bounded, complete latest-run pagination beyond 2,000 accumulated items. Integrated/released 2026-10-17 (`8cd624c, acadaa2`); evidence below.
+
+- [x] **T6 (F215):** diagnose/repair World Leagues fixtures and preserve four-league coverage. Integrated/released 2026-10-17 (`acadaa2`); evidence below.
+
+- [x] **T7 (F160):** reliable MLA Profiles reference serving; no scorecard/source expansion. Integrated/released 2026-10-17 (`acadaa2`); evidence below.
+
+- [x] **T8 (F201):** exact selected-year comparisons and immediate comparable previous period. Integrated/released 2026-10-17 (`81912bd`); evidence below.
+
+- [x] **T9 (F201):** whole-variant reads request only necessary handbook pages. Integrated/released 2026-10-17 (`acadaa2`); evidence below.
+
+- [x] **T10 (F201):** exact-period and overlapping-range handbook filtering; inventory any required
+  handbook-only repair separately. Corpus ingestion remains excluded. Integrated/released 2026-10-17 (`8cd624c, 81912bd`); evidence below.
+
+- [x] **T11 (F216):** grounded qualifications, focused guards and behavioral evaluation evidence. Integrated/released 2026-10-17 (`73cfd87, 00aaf99`); evidence below.
+
+- [x] **T12 (F202):** inventory and remove only proven unused stored searches. Integrated/released 2026-10-17 (`6657958`); evidence below.
+
+- [x] **T13a (F208):** lightweight public catalogue identity/counts, separate terminal schema. Integrated/released 2026-10-17 (`e5f45c2`); evidence below.
+
+- [x] **T13b (F208):** preserve deferred search/navigation and lower measured bundle baseline. Integrated/released 2026-10-17 (`e5f45c2`); evidence below.
+
+- [x] **T14 (F202/M2):** show the selected leader's real Wikidata item link. Integrated/released 2026-10-17 (`d4c0054`); evidence below.
+
+- [x] **F208. The desk catalogue puts every module's columns in the first-load bundle.** Found in F207,
+  2026-10-16. `src/desks/landing/deskCatalogue.js` imports `feedColumns` (`src/lib/columns.js`, 40 KB
+  of source) and the full feature map, so a signed-out visitor downloads them. Load them with the
+  terminal instead, then lower the baseline.
+  Done 2026-10-17 (`e5f45c2`, integrated `0e970f4`): public initial JS 229,274 -> 185,438 B gzip including globe; desktop/mobile search and production homepage checks pass.
+
+- [x] **F216. Research answers state caveats the data does not.** Seen 2026-10-16 in the F201 T9b
+  production question: the answer's Gaps section said the 2023 outstanding-liability figures are
+  provisional, which the desk rows do not say. Rule for `research-chat`: a gap or caveat must come from
+  a returned row, document or tool result, or be worded as unknown. Prompt change plus a test;
+  redeploy after diffing the deployed source.
+  Done 2026-10-17 (`73cfd87`, `00aaf99`; research-chat v65): all five frozen rubric cases have passing faithful evidence (four on v64; corrected page/TOTAL case on v65). Total authorized evaluation cost $0.03677325; failed batches preserved.
+
+- [x] **F217. Morning Brief fixture clock ages out.** Found 2026-10-17 during M1/M2
+  verification: the fixed 14 October RSS date crossed the three-day retention window.
+  Owner authorized the test-only fix on 2026-10-17. `src/lib/briefFeeds.test.js`
+  now freezes Date at 15 October and restores real timers after each test;
+  runtime retention rules are unchanged. Focused 3/3 pass; final integration evidence
+  is recorded with T1. Committed locally as `8d6dec5`; final full suite passes. Integration/release closure remains T15.
+  Done 2026-10-17 (`8d6dec5`, integrated `0e970f4`): test-only Date clock, runtime retention unchanged; full suite passes.
+
 
 - [x] **F59. First-traversal and remaining heavy-viewer stutter attribution.** F58 observed isolated 105/55/111ms long tasks and a 650.7ms frame gap whose cause was not established. If the real issue remains reproducible, collect a CPU/render trace, profile full view with thumbnails and signed-storage network timing under fixed conditions before optimizing. Warm loopback scrolling was steady; this is not production performance acceptance. [F58 evidence](../research/2026-10-03-heavy-pdf-profile.md). Safari acceptance remains F50.
 

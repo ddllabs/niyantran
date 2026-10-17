@@ -2156,3 +2156,27 @@ recommendations … We can fix everything that is under your control."
   failing (Fixtures & Results — World Leagues, F215); 59 migrations applied; `research-chat` v63,
   `desk-brief` v16. Record: `docs/research/2026-10-17-live-module-status.md`. Nothing written to
   production.
+
+- **2026-10-17: authorized M1/M2 rollout.** Owner approved push/deploy and closure
+  checks, with corpus ingestion excluded and payment work held. Integrated the
+  verified cleanup through `0e970f4`, READY Vercel production deployment
+  `dpl_5UfXHXpSkp4BhVyZFBT8HPMpYqtT`. Three compatibility migrations applied
+  with their local versions; no vault/seed/role changes. Research-chat v64, then
+  v65 (`00aaf99`, grounded page/TOTAL correction); desk-brief v17 with its unrelated
+  deployed module entry preserved. Exact 188-key constitution re-key preserved
+  rows/timestamps. Exact MLA transition retained the latest 400 profiles / 39
+  coverage records, removed 1,177 older snapshot items, then the real 10:45 UTC
+  reference refresh produced 400 profiles / 100 coverage rows. Enabled its store
+  only after validation. The sole intentional scheduling adjustment was making
+  MLA due once for that first reference check; cron cadence unchanged.
+  Supabase feed-refresh job is active every 5 minutes and calls the deployed
+  Vercel refresh route; 12 last-hour cron executions succeeded. All 120 modules
+  HTTP 200; NSE/BSE alone archived. No source above three consecutive failures;
+  fixtures' first new-config refresh succeeded. Explicitly authorized model
+  batches: 5 + 5 + 1 calls, total $0.03677325; five rubric cases have passing
+  faithful evidence, preserving failed batches/version distinctions. Every
+  temporary evaluator deleted. An unintended CLI-created temporary preview was
+  removed without changing a production alias. Ingestion function versions and
+  hashes unchanged. Real daily refresh gates remain open and the owner requested
+  hourly read-only follow-ups, quiet except failures/completion. Detailed records:
+  `docs/research/2026-10-17-m1-m2-cleanup-evidence.md` and the sole open-work tracker.

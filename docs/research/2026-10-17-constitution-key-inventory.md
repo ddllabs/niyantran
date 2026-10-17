@@ -1,6 +1,7 @@
 # Constitution key inventory
 
-> **Status: Living.** Local source inventory, 2026-10-17. No stored keys have been changed.
+> **Status: Living.** Source and exact production inventories, 2026-10-17. The approved 188-key-only
+> production repair was applied and verified during rollout; timestamps and rows were preserved.
 
 Two public source responses are byte-identical (SHA256 0d9f1944f4870b4e7531b494814f6712b1483f22ccb991d32493427200b85e15). All 188 in-force records have unique constitution IDs.
 The old display-slug names versus current names change 47/188 keys; this reproduces the approximately quarter-list change caused by the prior name cleanup, rather than proving recurring upstream churn.
@@ -396,4 +397,3 @@ The proposed key uses the source ID, preserving constitutional versions while ig
 | Yemen_2015 | `url:constituteproject.org/constitution/Yemen_2015#7bd72312135d2d4d` | `constitute:Yemen_2015` |
 | Zambia_2016 | `url:constituteproject.org/constitution/Zambia_2016#5623555d24114c38` | `constitute:Zambia_2016` |
 | Zimbabwe_2021 | `url:constituteproject.org/constitution/Zimbabwe_2021#cc78b26ccaba3c06` | `constitute:Zimbabwe_2021` |
-

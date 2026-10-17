@@ -1,7 +1,7 @@
 # M1/M2 cleanup execution evidence
 
-> **Status: Living.** 2026-10-17. Local implementation and verification;
-> production release, source repairs and paid evaluations remain unapproved.
+> **Status: Living.** 2026-10-17. Local and authorized production implementation/verification.
+> Real scheduled refresh observation gates remain open; payment work has not started.
 
 ## Checkout and safety
 
@@ -10,7 +10,8 @@ agreed. Work is on `task/m1-m2-cleanup`; preceding planning documents preserved.
 Node v24.21.0, npm 11.19.0, Deno 2.9.7, Supabase CLI 2.117.0.
 Docker Desktop's CLI was used only for the existing `niyantran-recovery-db` and
 `niyantran-corpus-test-db` containers. Every SQL fixture creates a disposable local
-database. No production queries/writes, pushes, deployments or paid calls.
+database. During the initial local phase there were no production queries/writes, pushes,
+deployments or paid calls; the later authorized rollout is recorded separately.
 
 No environment file, credential folder or key was read. Node verification uses
 `NODE_OPTIONS='--import=/tmp/niyantran-cleanup-no-env/guard.mjs'`: the temporary
@@ -190,3 +191,83 @@ The CLI environment-run helper unexpectedly interpreted its child command as a
 preview deployment of the temporary probe directory (115 bytes), creating
 `dpl_JEAvP7PsM7zKwmhxqmKwoxqvqKMz`, target=null/preview. It never promoted a
 production alias; cleanup is recorded separately. That evaluation path was stopped.
+
+
+## Production verification checkpoint — 2026-10-17
+
+- Main `0e970f4` deployed READY as `dpl_5UfXHXpSkp4BhVyZFBT8HPMpYqtT`,
+  https://niyantran-53cwnm8h4-ddl-labs.vercel.app, production alias
+  https://niyantran-six.vercel.app. Second first-attempt CI
+  [39025660396](https://github.com/ddllabs/niyantran/actions/runs/39025660396)
+  passed app + SQL. Original rollback deployment remains recorded above.
+- Exact constitution transaction applied successfully: all 188 keys now match
+  constitute:source-ID; oldest first_seen and latest last_seen preserved. No
+  source records, positions, freshness or serving flag changed.
+- Exact MLA inventory is `2026-10-17-mla-reference-transition.json`. A disposable
+  local Docker schema proved 1,616 -> 439 rows: 400 profiles / 39 coverage rows,
+  with all 439 retaining content, timestamps and positions. The transaction
+  checks the complete key-set hash, count, snapshot, lease and changed-row counts;
+  a replay fails its inventory guard. Applied to production, retaining only the
+  latest successful snapshot and re-keying its profiles. One-time MLA due-now
+  transition; planned reference interval 1,440 minutes, no global cron changes.
+- The next actual scheduled MLA run at 10:45 UTC succeeded with 500 rows:
+  400 distinct stable profile keys + 100 typed coverage rows; zero failures.
+  Enabled only that module's serve flag with a guard on the successful snapshot,
+  reference kind/class, 500 items, 400 stable profile keys and no lease.
+- Read-only after-check: World Constitutions 188/store/488 ms; fixtures
+  7/store/126 ms; MLA Profiles 500/store/300 ms, all HTTP 200. Fixtures' 10:40 UTC
+  refresh succeeded and reset its previous 18 consecutive failures to zero.
+- Full read-only production probe: all 120 modules HTTP 200, no HTTP failures.
+  Before the MLA serve flip: 69 store / 50 live / 1 archive. NSE/BSE remains the
+  sole archived module. Existing Central Tender fallback remains labelled;
+  the five planned modules remain planned. After the flip, 70 distinct modules
+  / 257 variants serve from storage; District Performance is the sole disabled
+  store module and remains planned, outside this cleanup.
+- Verified refresh architecture: Supabase pg_cron `feed-refresh` job 5 is active
+  every five minutes and calls the deployed Vercel /api/feeds/refresh endpoint.
+  Last hour: 12 succeeded cron executions. Last half-hour: 14 ok / 20 unchanged
+  source checks, no failed/timeout/shrunk runs; no source above three consecutive
+  failures. `feed-purge` remains the existing daily job; no schedule changed.
+  Feed refresh is a Vercel function called by Supabase, not a missing Edge
+  Function. `refresh-model-pricing` is a separate existing Edge Function.
+- Isolated Chrome on actual production, 1280/390 px: homepage HTTP 200, heading
+  visible, no horizontal overflow or page errors. All writes and external
+  requests blocked. Production entry index-YrIF11mq.js plus unchanged globe.
+- F216 faithful evaluation found one remaining count/coverage omission. Added
+  the narrow prompt guard red-before-green, committed `00aaf99`, and deployed
+  research-chat v65, hash
+  e9f084cd83f2006dce7b92f979736bb3470e04c63fd785579893d54fd94e6eb5.
+  Final local rerun: 391 files / 6,110 Vitest tests (80.84 s), 1,150 Deno tests,
+  lint/build/bundle/router import pass. No SQL change since the 41-fixture pass.
+- Model evaluations: 5 + 5 + 1 expressly authorized calls; all five rubric cases
+  now have passing faithful evidence (four on v64; corrected count case on v65).
+  Total observed cost $0.03677325. Every temporary evaluator deleted; no provider
+  key left Supabase and no production chats/database rows were created.
+- Unintended temporary preview dpl_JEAvP7PsM7zKwmhxqmKwoxqvqKMz was removed
+  successfully with the exact native remove command. No production alias changed.
+- Ingestion functions unchanged: ingest-documents v21, ingest-worker v3,
+  admin-ingest v4, identical pre/post bundle hashes. No corpus jobs, dataset,
+  OCR, chunking, embedding or manifest changes.
+
+Owner requested follow-ups: active hourly heartbeat
+`niyantran-m1-m2-closure-checks` on this chat, read-only production checks, quiet
+unless meaningful failure/completion. Actual daily reference opportunities
+cannot be replaced with forced calls. MLA's next reference run is 18 October
+16:15 IST; constitution's next is 17 October about 21:10 IST. Three post-rollout
+opportunities require the real subsequent dates (approximately through 19 October
+evening IST), with actual completion recorded by the follow-up. Payment gateway
+work must wait for the closure report.
+
+
+Additional read-only production checks: the run-pinned fixtures RPC returned
+TOTAL 7 and page lengths 2/2/1 at offsets 0/2/6. No qualifying latest-run variant
+yet holds >2,000 items in production; that boundary is covered by the local SQL
+and reader regressions, not a fabricated live fixture. Handbook search for exact
+2019-20 with January–March 2020 returned financial-year rows (TOTAL 446), proving
+the deployed overlap contract against real stored records. No production state
+currently reports empty availability; empty semantics are proven by the local
+fixture and deployed migration rather than claimed as a live empty-source event.
+
+Durable full probe and after-transition samples:
+`2026-10-17-m1-m2-rollout-module-status.json`. Temporary eval functions and the
+unintended preview are deleted; corpus function hashes remain unchanged.
