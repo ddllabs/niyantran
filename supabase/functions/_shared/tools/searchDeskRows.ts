@@ -23,7 +23,7 @@ export const SEARCH_DESK_ROWS_TOOL = {
   function: {
     name: 'search_desk_rows',
     description:
-      'Look up rows in a terminal desk module and get the true total. Use for counts, lists, filters and comparisons across rows. Not for what a document says — use search_documents for that. Filters name the module\'s own fields (an unknown field is refused with the list of real ones); for a year or a period use date_from and date_to, never a "year" filter, except in modules whose rows carry a year field (the RBI Handbook tables), where year is filtered exactly as written ("2019-20"). A TOTAL of 0 means no row matches those conditions, not that the subject is absent from the record.',
+      'Look up rows in a terminal desk module and get the true total. Use for counts, lists, filters and comparisons across rows. Not for what a document says — use search_documents for that. Filters name the module\'s own fields (an unknown field is refused with the list of real ones); for a year or a period use date_from and date_to, never a "year" filter, except in modules whose rows carry a year field (the RBI Handbook tables), where year is filtered exactly as written ("2019-20") and date ranges match any overlap with the full calendar, financial or multi-year period. A TOTAL of 0 means no row matches those conditions, not that the subject is absent from the record.',
     parameters: {
       type: 'object',
       properties: {

@@ -277,3 +277,9 @@ Deno.test('F197: a true zero says which conditions matched nothing; a date range
   assertStringIncludes(res.error!, 'no dated rows');
   assertStringIncludes(res.error!, 'house');
 });
+
+Deno.test('handbook range searches describe interval overlap and exact period filters', () => {
+  const description = SEARCH_DESK_ROWS_TOOL.function.description;
+  assertStringIncludes(description, 'overlap');
+  assertStringIncludes(description, 'filtered exactly');
+});

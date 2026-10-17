@@ -152,7 +152,7 @@ describe('the loader: the fetched JSON as store items', () => {
 describe('serving: the stored table, else the table\'s page', () => {
   const LOADED = '2026-01-10T00:00:00.000Z';
   const NOW = { now: () => Date.parse('2026-10-15T10:00:00.000Z') };
-  // F201: feed_page pages a variant by offset (the store reads a handbook variant whole, four pages at once).
+  // F201: feed_page pages a variant by offset (the store reads only the pages needed for a whole handbook variant).
   const page = (variant, offset = 0, limit = STORE_PAGE_ROWS) => ({
     tier: 'state', feature: 'State Economic Data (GSDP, sectors)', variant, class: 'register', kind: 'reference', serve: true,
     fetched_at: LOADED, interval_minutes: 43200, total: T21.records.length,
@@ -667,25 +667,25 @@ describe('F201: the Comparison ranks any year', () => {
     const { rpc, store } = fakeStore();
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('no live read'); }));
     const body = await compare({ year: '2023' }, store);
-    expect(variantsRead(rpc)).toEqual(['176', '176@2020']);
+    expect(variantsRead(rpc)).toEqual(['176', '176@2020', '176@2017', '176@2014', '176@2011', '176@2008', '176@2005']);
     expect(body.source.adapter).toBe('register');
     expect(body.rows).toHaveLength(19 * 32);
     expect(new Set(body.rows.map((r) => r.indicator)).size).toBe(19);
     expect(body.rows.some((r) => r.indicator === 'Outstanding Liabilities')).toBe(true);
     expect(body.rows.every((r) => r.year === '2023' && r.previous_year === '2022')).toBe(true);
     expect(body.meta.years).toEqual(T176_YEARS);
-    expect(body.source.note).toMatch(/2023 where an indicator has it/);
+    expect(body.source.note).toMatch(/2023 only; missing figures are explicitly marked/);
     expect(body.source.note).toMatch(/the Year control/);
   });
 
   it('2015 is ranked from block 176@2014 alone; no year ranks each indicator\'s latest from the newest block', async () => {
     let { rpc, store } = fakeStore();
     const body = await compare({ year: '2015' }, store);
-    expect(variantsRead(rpc)).toEqual(['176', '176@2014']);
+    expect(variantsRead(rpc)).toEqual(['176', '176@2020', '176@2017', '176@2014', '176@2011', '176@2008', '176@2005']);
     expect(body.rows.every((r) => r.year === '2015' && r.previous_year === '2014')).toBe(true);
     ({ rpc, store } = fakeStore());
     const latest = await compare({}, store);
-    expect(variantsRead(rpc)).toEqual(['176']);
+    expect(variantsRead(rpc)).toEqual(['176', '176@2020', '176@2017', '176@2014', '176@2011', '176@2008', '176@2005']);
     expect(latest.rows).toHaveLength(19 * 32);
     expect(latest.rows.every((r) => r.year === '2025' && r.previous_year === '2024')).toBe(true);
     expect(latest.source.note).toMatch(/each indicator’s latest year is ranked/);

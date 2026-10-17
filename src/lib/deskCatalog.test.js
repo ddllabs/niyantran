@@ -87,13 +87,15 @@ describe('desk catalogue: the RBI Handbook modules', () => {
     }
   });
 
-  it('says how years are written: a financial year is dated 1 April, a calendar year is the year', () => {
+  it('says how complete periods overlap a date range and exact years remain exact', () => {
     for (const id of Object.keys(HANDBOOK_MODULES)) {
       const years = entryFor(featureOf(id))?.years;
       expect(years, id).toMatch(/"2019-20"/);
       expect(years, id).toMatch(/financial year/);
       expect(years, id).toMatch(/1 April 2019/);
       expect(years, id).toMatch(/calendar year/);
+      expect(years, id).toMatch(/interval overlap/);
+      expect(years, id).toMatch(/filter year exactly/);
       expect(years, id).toMatch(/"2005"/);
     }
   });

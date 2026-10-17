@@ -1521,16 +1521,17 @@ async function comparisonFromStore(no, year, store) {
   const blocks = Array.isArray(newest.meta?.blocks) ? newest.meta.blocks : [];
   const years = Array.isArray(newest.meta?.years) && newest.meta.years.length ? newest.meta.years.map(String) : comparisonYears(newest.rows);
   if (blocks.length < 2) return { records: newest.rows, years };
-  const holds = year ? blocks.findIndex((b) => year >= String(b.from) && year <= String(b.through)) : -1;
-  const at = Math.max(0, holds);
-  const held = at === 0 ? newest : await read(String(blocks[at].value));
-  if (!held) return null;
-  const latest = [...new Set(compareStates(held.rows, { year }).map((r) => r.year))];
-  const needsOlder = at + 1 < blocks.length && latest.includes(String(blocks[at].from));
-  if (!needsOlder) return { records: held.rows, years };
-  const older = await read(String(blocks[at + 1].value));
-  if (!older) return null;
-  return { records: [...held.rows, ...older.rows], years };
+  // Read only the selected table, including its older blocks. Otherwise a missing
+  // indicator can vanish entirely and an indicator's latest/previous period can be missed.
+  if (blocks.length > 16) return null;
+  const records = [...newest.rows];
+  const older = blocks.slice(1);
+  for (let i = 0; i < older.length; i += 4) {
+    const pages = await Promise.all(older.slice(i, i + 4).map(b => read(String(b.value))));
+    if (pages.some(p => !p)) return null;
+    for (const page of pages) records.push(...page.rows);
+  }
+  return { records, years };
 }
 
 /**
@@ -1581,7 +1582,7 @@ async function serveStateComparison(tier, feat, searchParams, { store = serveFro
   const rows = shown.rows;
   // F201: every year of the table (the stored view lists them; the page's records hold them all).
   const years = tableYears || comparisonYears(records);
-  const ranked = year && years.includes(year) ? `${year} where an indicator has it, else each indicator’s latest year` : 'each indicator’s latest year';
+  const ranked = year ? `${year} only; missing figures are explicitly marked` : 'each indicator’s latest year';
   const partly = shown.indicators < shown.of ? ` Showing ${shown.indicators} of its ${shown.of} indicators, each with all of its states.` : '';
   return envelope({
     tier,
@@ -1591,7 +1592,7 @@ async function serveStateComparison(tier, feat, searchParams, { store = serveFro
     links,
     coverage: { from: years.at(-1) || '', through: years[0] || '', exhaustive: false },
     fallback: false,
-    note: `${HANDBOOK_NOTE} ${handbookTableLabel(no)}${rows[0]?.unit ? ` (${rows[0].unit})` : ''}: every state ranked, highest value first (rank 1 is the largest figure, not the best), with the year before; ${ranked} is ranked. All India is shown unranked.${partly} ${fromStore ? 'From the stored register.' : 'Read from the table’s page.'} Pick another table with the Table control and another year with the Year control.`,
+    note: `${HANDBOOK_NOTE} ${handbookTableLabel(no)}${rows[0]?.unit ? ` (${rows[0].unit})` : ''}: every state ranked, highest value first (rank 1 is the largest figure, not the best), with the immediately preceding comparable period (marked unavailable when missing); ${ranked} is ranked. All India is shown unranked.${partly} ${fromStore ? 'From the stored register.' : 'Read from the table’s page.'} Pick another table with the Table control and another year with the Year control.`,
     meta: { heading: `Compare states: ${handbookTableLabel(no)}`, table: no, years, as_of: rows[0]?.as_of || HANDBOOK.published, status: 'RBI HANDBOOK · STATE LEVEL' },
   });
 }

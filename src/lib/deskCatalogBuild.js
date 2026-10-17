@@ -36,7 +36,7 @@ export const HANDBOOK_CATALOGUE_FIELDS = Object.freeze([
 
 /** How a handbook year is written and dated (handbookYearDate in src/lib/handbookDeskRows.js). */
 export const HANDBOOK_YEARS =
-  '"2019-20" = financial year (dated 1 April 2019 for date ranges); "2005" = calendar year; "2019-21" = period (dated 2019); filter year as written';
+  '"2019-20" = financial year (1 April 2019 to 31 March 2020); "2005" = calendar year; "2019-21" = inclusive calendar-year survey span; date ranges match interval overlap; filter year exactly as written';
 
 /** The State desk's handbook entries, in the module order the handbook defines. */
 function handbookEntries() {

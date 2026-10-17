@@ -7,11 +7,11 @@
  * returns one row per indicator and state:
  *   { rank, of, state, indicator, year, value, unit, previous_year?, previous_value?, change_pct?,
  *     price_basis?, estimate?, aggregate?, table_no, table_title, source_url, as_of, edition, title }
- * - year: the year asked for when the indicator has it, else the indicator's latest year with figures.
+ * - year: the exact year asked for, else the indicator's latest year with figures.
  * - rank: 1 is the highest value among the states and union territories with a figure that year (`of`
  *   of them); ties share a rank. The all-India row is shown under its states, unranked. A rank says
  *   which figure is larger, not which is better: for a deficit or a death rate, 1 is the largest.
- * - previous_year: the indicator's year before `year` in which the state has a figure;
+ * - previous_year: the immediately preceding calendar/financial period, when the state has a figure;
  *   change_pct the change from it, when both are numbers and the earlier one is not 0.
  * Rows come by indicator in the table's order, then by rank.
  */
@@ -68,13 +68,12 @@ export function compareStates(records, { year = '' } = {}) {
   const rows = [];
   for (const [indicator, list] of byIndicator) {
     const years = comparisonYears(list);
-    const chosen = year && years.includes(year) ? year : years[0];
+    const chosen = year || years[0];
     const current = list.filter((r) => r.year === chosen);
     const states = current.filter((r) => !r.aggregate).sort((a, b) => b.value - a.value || a.state.localeCompare(b.state, 'en'));
-    const previousOf = (state) =>
-      list
-        .filter((r) => r.state === state && r.year < chosen)
-        .sort((a, b) => b.year.localeCompare(a.year))[0];
+    const m = /^(\d{4})(?:-(\d{2}))?$/.exec(chosen);
+    const previous = m ? `${Number(m[1]) - 1}${m[2] ? `-${String(Number(m[1]) % 100).padStart(2, '0')}` : ''}` : '';
+    const previousOf = state => list.find(r => r.state === state && r.year === previous);
     let rank = 0;
     let last = null;
     const ranked = states.map((r, i) => {
@@ -99,8 +98,21 @@ export function compareStates(records, { year = '' } = {}) {
         row.previous_value = prev.value;
         if (prev.value !== 0) row.change_pct = Math.round(((r.value - prev.value) / Math.abs(prev.value)) * 1000) / 10;
       }
+      if (!prev) row.previous_status = 'Previous period unavailable';
       row.title = `${r.state} · ${indicator} · ${chosen}`;
       rows.push(row);
+    }
+    // The selected period never borrows a figure from a different year. Historical
+    // rows establish which states/indicators are known, not their missing values.
+    if (year) {
+      const present = new Set(current.map(r => r.state));
+      const known = new Map(list.map(r => [r.state, r]));
+      for (const [state, sample] of known) if (!present.has(state)) {
+        const gap = { state, indicator, year, value: null, data_status: 'No figure for selected year',
+          title: `${state} · ${indicator} · ${year} · No figure for selected year` };
+        for (const k of ['unit','table_no','table_title','source_url','as_of','edition']) if (sample[k] !== undefined) gap[k] = sample[k];
+        rows.push(gap);
+      }
     }
   }
   return rows;

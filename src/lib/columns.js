@@ -760,6 +760,8 @@ const PRESETS = [
       { key: 'previous_year', label: 'YEAR BEFORE' },
       { key: 'previous_value', label: 'VALUE BEFORE', num: true },
       { key: 'change_pct', label: 'CHANGE %', num: true },
+      { key: 'data_status', label: 'DATA STATUS' },
+      { key: 'previous_status', label: 'PREVIOUS PERIOD' },
     ],
   },
   {

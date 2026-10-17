@@ -9,8 +9,10 @@
  * the page. A row holds the figure's own fields (state, indicator, year, value, unit, table_no,
  * table_title, as_of, source_url and the handbook's qualifiers), a `date` and its `period`.
  *
- * The date (search_desk_rows' p_date_from / p_date_to read the row's `date`, compared at its own
- * precision: public.desk_row_date_in):
+ * The stored date is a stable anchor. Since handbook_period_ranges, date-range searches
+ * over hb:t keys use year/period interval overlap, without reloading any rows. Other
+ * modules still read `date`, compared at its own
+ * precision: public.desk_row_date_in. The anchors remain:
  *   - a calendar year ("2005") is that year, "2005": in any range that overlaps 2005;
  *   - a financial year ("2019-20", "1999-00", "2019-2020") is its first day, "2019-04-01": in a range
  *     that holds 1 April 2019, so the range 2019-04-01 to 2020-03-31 finds 2019-20 and no other year;
