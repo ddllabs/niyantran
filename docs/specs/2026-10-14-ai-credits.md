@@ -5,6 +5,15 @@
 
 **Related documents**
 
+**Current owner amendment, 2026-10-18 (F225):** one credit is to represent
+INR0.01 rather than INR0.10; preserve existing value through a 10x conversion.
+Top-ups are for Free and paid accounts, with model access still plan-based.
+The [conversion draft](2026-10-18-credit-paise.md) and
+[ordered plan](../plans/2026-10-18-credit-paise.md) define the pending migration.
+No backfill has run: the settings, quantities and executed behavior below
+describe the ten-paisa implementation until F225 is verified and released.
+Historical charge rates and immutable ledger records must be retained.
+
 | Document | What it holds |
 |---|---|
 | [Plan](../plans/2026-10-14-ai-credits.md) | Tasks, agents, checkpoints and progress (the working log) |

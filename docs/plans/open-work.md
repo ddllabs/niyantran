@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F225 is next) and goes in the
+- A new finding gets the next free `F` number (F226 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-17 (milestone check)
@@ -202,6 +202,20 @@ orientation list is compared item by item in the
   not an additional M1/M2 or payment prerequisite. [Comparison](../research/2026-10-17-orientation-closure-comparison.md).
 
 ## UI follow-ups
+
+- [ ] **F225. Redenominate AI credits to one paisa before payments.** Owner
+  directed 2026-10-18: one credit INR0.10 -> INR0.01, necessary backfill, top-ups
+  for every Free and paid account. Proposed value-preserving conversion is 10x
+  balances, debt, allowances and credit thresholds, unchanged INR prices and
+  validity. Preserve historical ledger/rates; explicit auditable conversion,
+  normalized mixed-era reports/estimates, request-id/stale-browser protection,
+  settings/write barrier and reconciliation are required. Draft
+  [spec](../specs/2026-10-18-credit-paise.md) and
+  [ordered plan](2026-10-18-credit-paise.md) prepared; no runtime code, tests or
+  production backfill executed. Read-only inventory: 3 wallets / 3 lots / 20
+  ledger entries, no active holds at 19:30 UTC October 17. Counts must be
+  refreshed at execution. Credit migration precedes payment implementation;
+  M1/M2 T15 remains independent/open and corpus excluded.
 
 - [ ] **F107. Legal policies for payment-gateway activation.** Owner request
   2026-10-12: Privacy, Terms, Refund & Cancellation, Delivery and Contact pages
@@ -2734,6 +2748,12 @@ Earlier items, updated:
   end to end.
   - Added by F111 (2026-10-14; recommendations in the
     [credits plan](2026-10-14-ai-credits.md), "After launch"):
+    - **Owner amendment 2026-10-18:** Free and paid accounts can buy top-ups;
+      buying credits does not grant paid-model access. One-paisa denomination
+      F225 precedes payment implementation. The equivalent proposed pack sizes
+      become 20,000 / 50,000 / 100,000 / 200,000 / 500,000; INR prices below
+      remain suggestions, not approved. The older quantities below describe
+      ten-paisa credits and must not feed a new payment catalogue.
     - **Top-up packs (owner, 2026-10-14):** 2,000, 5,000, 10,000, 20,000 and 50,000 credits,
       valid 12 months. Prices set with Razorpay (suggested ₹499 / 1,199 / 2,299 / 4,399 /
       10,499). Until then there is no way to buy credits in the app; an admin can grant a top-up.
