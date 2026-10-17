@@ -5,6 +5,10 @@ export async function serveGlobalLanding(searchParams, loadFeed) {
   if (!GLOBAL_FEATURES.includes(feature)) throw new Error('Unknown Global module');
   const raw = await loadFeed(new URLSearchParams({ tier: 'geopolitics', feature }));
   const summary = projectGlobalSummary({ ...raw, feature, tier: 'geopolitics' });
+  if (raw?.served === 'store') {
+    return { ...summary, served: raw.served, fetchedAt: raw.fetchedAt,
+      ...(raw.stale ? { stale: true, ageMinutes: raw.ageMinutes } : {}) };
+  }
   // F154: whether the count came from the live source or, past its time limit, the archive.
   return raw?.served ? { ...summary, served: raw.served } : summary;
 }

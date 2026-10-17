@@ -200,7 +200,11 @@ export default async function handler(req, res) {
       const entertainment = path === '/api/entertainment-landing';
       if (method !== 'GET') { res.status(405).json({ ok: false, error: 'GET only' }); return; }
       try {
-        const body = await (state ? serveStateLanding : entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(q(req), (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : serveFeatureFeedWithBackup);
+        const params = q(req);
+        const loadFeed = global && params.get('feature') === 'Satellite Infrastructure'
+          ? serveFeatureFeedStoredFirst
+          : (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : serveFeatureFeedWithBackup;
+        const body = await (state ? serveStateLanding : entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(params, loadFeed);
         res.status(body.ok ? 200 : 502).json(body);
       } catch (err) {
         res.status(err.message === `Unknown ${state ? 'State' : entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} module` ? 400 : 502).json({ ok: false, error: `${state ? 'State' : entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} summary unavailable` });

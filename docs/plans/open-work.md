@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F219 is next) and goes in the
+- A new finding gets the next free `F` number (F220 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-17 (milestone check)
@@ -139,6 +139,19 @@ batches, outputs and version distinctions are preserved; no rubric was loosened.
   Likely scope for a separate fix: route/summary readers and focused landing tests; verify
   shared-register counts and provenance before broadening store-first summary serving.
   Reported without opportunistically changing the approved T15 write scope.
+  Owner authorized the separate narrow Satellite fix, verification, push and
+  deployment on 2026-10-17: [spec](../specs/2026-10-17-f218-stored-summary.md),
+  [plan](2026-10-17-f218-stored-summary.md).
+
+## Documentation follow-up
+
+- [ ] **F219. Reconcile living architecture claims with current implementation.**
+  The owner's orientation-list comparison on 2026-10-17 reconfirmed the architecture
+  index's nine-function claim/missing feed-store path and the schema chapter's
+  UUID `desk_rows` primary key, contrary to the composite migration key.
+  Reconcile current claims without rewriting dated execution snapshots; consult
+  rollout sections for current versions/counts. Separate documentation work,
+  not an additional M1/M2 or payment prerequisite. [Comparison](../research/2026-10-17-orientation-closure-comparison.md).
 
 ## UI follow-ups
 

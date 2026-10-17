@@ -4031,7 +4031,8 @@ export async function serveFeatureFeedWithinLimit(
 /**
  * F156: the feed within its time limit, then the backup pack when live and archive have no rows.
  * The Vite middleware and api/router.js both answer /api/feature-feed and the National, Global,
- * Law and State landings through this, so the local and deployed servers answer the same way.
+ * Law and State landings through this, except Satellite's stored-first Global summary.
+ * The local and deployed servers answer the same way.
  */
 export async function serveFeatureFeedWithBackup(searchParams, options) {
   return applyBackupFallback(await serveFeatureFeedWithinLimit(searchParams, options), searchParams);
@@ -4056,8 +4057,8 @@ export function scheduledModuleId(searchParams) {
  * F169 phase 4 (C4): what /api/feature-feed answers. A scheduled module is read from the feed store
  * first (server/feedServe.mjs): that is the normal path, so it skips the live attempt and the backup
  * pass. When the store has nothing to serve (not configured, an error or timeout, no state, `serve`
- * off, no items) the answer is today's: serveFeatureFeedWithBackup. The landing summaries do not use
- * this; they still call serveFeatureFeedWithBackup or serveFeatureFeedWithinLimit directly.
+ * off, no items) the answer is today's: serveFeatureFeedWithBackup. Satellite Infrastructure's Global
+ * landing summary also uses this; other summaries retain their existing live-first loaders.
  * Paged modules (Bills, Parliamentary Questions) are not scheduled and keep serveFeaturePage.
  */
 export async function serveFeatureFeedStoredFirst(searchParams, { store = serveFromStore, ...options } = {}) {
@@ -4106,7 +4107,10 @@ export async function handleFeatureFeedRequest(req, res, next) {
       return;
     }
     try {
-      const body = await (state ? serveStateLanding : entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : serveFeatureFeedWithBackup);
+      const loadFeed = global && url.searchParams.get('feature') === 'Satellite Infrastructure'
+        ? serveFeatureFeedStoredFirst
+        : (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : serveFeatureFeedWithBackup;
+      const body = await (state ? serveStateLanding : entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, loadFeed);
       res.statusCode = body.ok ? 200 : 502;
       res.end(JSON.stringify(body));
     } catch (err) {
