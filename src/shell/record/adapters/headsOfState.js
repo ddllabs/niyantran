@@ -68,7 +68,8 @@ export default function headsOfState(row, ctx = {}) {
     title,
     meta: unverified ? ['Heads of State register'] : [country, office].filter(Boolean),
     badge: badge || undefined,
-    links: [],
+    links: /^https:\/\/www\.wikidata\.org\/wiki\/Q[1-9][0-9]*$/.test(String(row.source_url || ''))
+      ? [{ label: 'Wikidata source record', href: row.source_url }] : [],
     glance: {
       tiles: [
         { label: 'Office', value: office || 'Not on record' },

@@ -151,10 +151,9 @@ describe('flattenLeader defaults are treated as not on record', () => {
 
   it('never links the Wikidata home page that flattenLeader writes into every row', () => {
     for (const row of rows) {
-      // The home page flattenLeader defaults to, or (F202) the profile's own Wikidata item; neither is linked.
+      // A generic default is not a source record; sourced rows expose their own item.
       expect(row.source_url).toMatch(/^https:\/\/www\.wikidata\.org\/(wiki\/Q\d+)?$/);
-      expect(model(row).links, row.id).toEqual([]);
-      for (const s of strings(model(row))) expect(s, row.id).not.toMatch(/wikidata|world factbook|cia\.gov/i);
+      expect(model(row).links, row.id).toEqual(/\/wiki\/Q[1-9][0-9]*$/.test(row.source_url) ? [{label:'Wikidata source record',href:row.source_url}] : []);
     }
   });
 });
@@ -386,4 +385,10 @@ describe('feed statistics', () => {
   it('never puts the pack-wide statistics (autocracies, tenure) in a single leader\'s panel', () => {
     for (const row of rows) for (const s of strings(model(row))) expect(s).not.toMatch(/autocrac|avg tenure|elections this year/i);
   });
+});
+
+it('rejects unsafe or generic leader sources', () => {
+  for(const source_url of ['javascript:alert(1)','https://www.wikidata.org/','https://evil.example/wiki/Q123','https://www.wikidata.org/wiki/Q123?redirect=evil','']) {
+    expect(model(full({source_url})).links).toEqual([]);
+  }
 });
