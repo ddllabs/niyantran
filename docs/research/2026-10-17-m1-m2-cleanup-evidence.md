@@ -701,3 +701,39 @@ awaits approval. Proposed batch upstream calls failed 502 and are not a ready
 replacement. [Diagnosis](2026-10-17-f224-growth-indicators-diagnosis.md).
 No forced refresh, backend/production mutation, corpus or payment work. Hourly
 closure checks remain ACTIVE; T15 daily observations remain pending.
+
+## F224 release and read-only closure observation — 2026-10-17 16:20 UTC
+
+Approved runtime 0074991 deployed READY as dpl_FgB7koDRecBEo8i66wMBtHb1vXwZ.
+Full 6,192 Vitest / 1,155 Deno, focused 128, lint/build/bundle/router pass.
+Original runtime fails 23 of the first 25 regression guards; added body-disposal
+case also proved red/green, final 26 cases. Branch CI 39048250037 passed both
+jobs on attempt 1. Main CI 39048651791 also passed both jobs on attempt 1; its SQL job took
+longer than the branch run but was not restarted or retried. Final documentation
+checkpoint deployment/CI is verified after push in the completion report.
+
+First public live probe returned 502 after two six-second unemployment timeouts,
+GDP/CPI successful. Local upstream unemployment diagnostic also timed out.
+One later public live read recovered, 200/20 rows in 0.650 s; stored module
+200/20 rows with exact projected value parity. No feed refresh was invoked,
+no stored timestamp advanced. Complete 16:16–16:19 logs show just that known
+probe 5xx and existing Node DEP0169 warnings; no other request/error/fatal
+failure. Production per-series logs identify the stalled indicator and the
+later complete source recovery. All outcomes preserved in
+[F224 evidence](2026-10-17-f224-growth-budget-evidence.md).
+
+Read-only current health: cron job 5 active every five minutes at expected
+Vercel refresh URL (boolean only); 70 serving modules / 257 variants; zero
+consecutive failures anywhere and zero whole-feed empty outcomes. Fixtures and
+both charts completed their sixth genuine hourly opportunity at 16:00; all
+four leagues/eight windows checked, IPL-next truthfully empty, charts 25 each.
+Constitution MD5 c14635ffbc17cef3a5ace4fc74273578 unchanged, 188 keys; MLA
+reference 500 items. No further daily interval elapsed. Growth's next ordinary
+post-deployment writer opportunity is October 18 after 15:55 UTC, ordinarily
+16:00 / 21:30 IST; explicitly verify it in future read-only closure checks.
+Do not credit the pre-deploy recovery or public reads as that writer acceptance.
+
+T15 daily gates stay open; F221/F219 separate. Store fingerprint and all ten
+Edge Function versions/hashes/settings unchanged. No SQL/function deployment,
+manual refresh, timer/serve adjustment, corpus operation, payment work or
+provider call. Hourly follow-up ACTIVE; report actual closure before payment.

@@ -158,6 +158,13 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   Production `731428f` READY and three genuine first-attempt app/SQL CI runs
   remain green. Hourly follow-up stays ACTIVE; no action required yet.
   [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1549-utc).
+  F224 runtime `0074991` is released; its post-deploy production writer
+  acceptance remains pending at Growth's next ordinary daily opportunity,
+  October 18 after 15:55 UTC (normally 16:00 UTC / 21:30 IST poll). Inspect
+  feed_runs/feed_state and per-series logs without forcing refresh. Live API
+  failed once on unemployment, then recovered with exact stored-row parity;
+  do not substitute those reads for scheduled writer acceptance.
+  [F224 evidence](../research/2026-10-17-f224-growth-budget-evidence.md).
 
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving
@@ -176,24 +183,6 @@ F218's separate Satellite landing fix is released (`0e2ebfb`) and moved to Done.
 It does not close T15's real scheduled observations. The owner's earlier full
 orientation list is compared item by item in the
 [closure comparison](../research/2026-10-17-orientation-closure-comparison.md).
-
-## Growth Indicators refresh finding
-
-- [ ] **F224. Growth Indicators timeout diagnostics and budget alignment.**
-  Owner authorized read-only diagnosis. Ordinary October 17 15:45/15:50 UTC
-  runs hit the 20-second module limit; all 20 prior rows retained. Natural
-  15:55 refresh recovered in 356 ms, unchanged, failures zero; public API
-  200/store afterward. Loader launches three World Bank requests, each with
-  a 25-second timer, while the worker serializes their host under a 20-second
-  active module budget. Local mocked reproduction proves cumulative-latency
-  risk, not the identity of the production stalled request. Current upstream
-  single-series probes all 200; proposed batch queries returned 502.
-  Recommend a narrowly scoped per-indicator diagnostic/deadline/cancellation
-  patch with bounded transient retry only within existing limits; no emergency
-  production change after recovery. Owner approved scoped implementation, verification and push/deploy.
-  Active on task/f224-growth-budget; [spec](../specs/2026-10-17-f224-growth-budget.md)
-  and [plan](2026-10-17-f224-growth-budget.md) fix the bounded interface. No forced refresh or source substitution.
-  [Diagnosis and proposed fix](../research/2026-10-17-f224-growth-indicators-diagnosis.md).
 
 ## Test isolation finding outside the F220 write scope
 
@@ -1363,6 +1352,24 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- [x] **F224. Bound Growth Indicators requests and diagnose source failures.**
+  Runtime `0074991`, owner approved implementation/push/deploy 2026-10-17.
+  Growth alone uses sequential series, 6-second attempts / 18-second active
+  total, one bounded transient retry per series; host queue time excluded.
+  Safe per-series logs, cancellation and HTTP-body cleanup; no partial success
+  or replacement on failure. Existing worker budgets/host limits/schedule and
+  source/country/value contracts preserved. New guards fail on original runtime;
+  final 128 focused / 6,192 Vitest / 1,155 Deno, lint/build/bundle/router pass.
+  Branch/main CI 39048250037 / 39048651791 passed app/SQL on attempt 1.
+  Production READY. First live probe failed truthfully on unemployment after
+  GDP/CPI succeeded; a later live GET recovered, 200/20 rows exactly matching
+  stored values. Store fingerprint/fetch time and all ten Edge Functions unchanged.
+  Natural post-deploy writer acceptance is explicitly pending under T15 at the
+  next daily refresh, not claimed from public reads. Hourly monitoring ACTIVE,
+  corpus excluded, payment held. [Spec](../specs/2026-10-17-f224-growth-budget.md),
+  [plan](2026-10-17-f224-growth-budget.md),
+  [evidence](../research/2026-10-17-f224-growth-budget-evidence.md).
 
 - [x] **F223. Use stored data for MLA Directory and MLA Profiles landing summaries.**
   Done 2026-10-17 (`0c1319c`), owner explicitly approved implementation/push/deploy.

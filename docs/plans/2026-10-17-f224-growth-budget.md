@@ -1,6 +1,7 @@
 # F224 implementation and release plan
 
-> **Status: Living.** Approved sequential execution on task/f224-growth-budget.
+> **Status: Historical (2026-10-17).** Approved implementation/release completed
+> at runtime 0074991; next ordinary writer acceptance remains tracked under T15.
 
 [Spec](../specs/2026-10-17-f224-growth-budget.md). Only open-work tracks status.
 Preserve all existing local closure observation/diagnosis commits.

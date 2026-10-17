@@ -2219,3 +2219,22 @@ recommendations … We can fix everything that is under your control."
   See [release evidence](../research/2026-10-17-f223-state-summaries-evidence.md).
   Hourly closure checks remain active; T15 daily observations and separate F221
   stay open. Corpus excluded and payment integration held.
+
+- **2026-10-17: F224 Growth request budget released.** Explicit owner approval
+  covers scoped implementation, verification and push/deploy. Runtime 0074991
+  deployed READY as dpl_FgB7koDRecBEo8i66wMBtHb1vXwZ. Growth uses sequential
+  series with 6-second active attempts / 18-second shared budget, at most one
+  bounded transient retry per series, safe diagnostics and all-or-failure rows.
+  Private lifecycle bridge excludes host queue time and respects cancellation;
+  existing global budgets/schedule/host limits stay unchanged. 26 new cases,
+  128 focused / 6,192 Vitest / 1,155 Deno pass; lint/build/bundle/router pass.
+  Branch/main CI 39048250037 / 39048651791 passed both jobs on attempt 1.
+  Production first live probe exposed two
+  unemployment timeouts after GDP/CPI success; later read recovered in 0.650 s,
+  all 20 live/stored projections identical. Both outcomes retained in evidence.
+  Growth stored rows/fingerprint/fetchedAt and all ten Edge Functions unchanged.
+  Next ordinary Growth writer run remains pending under T15 (October 18 after
+  15:55 UTC, normally 16:00 / 21:30 IST poll), not simulated by public GETs.
+  Rollback requires approval to dpl_ERp34386wrtss2MC124xCnC12pqW / 731428f.
+  [Release evidence](../research/2026-10-17-f224-growth-budget-evidence.md).
+  Hourly monitoring ACTIVE; corpus excluded, payments held, daily gates open.
