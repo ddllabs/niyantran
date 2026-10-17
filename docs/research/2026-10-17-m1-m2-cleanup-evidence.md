@@ -640,3 +640,49 @@ cancellations or empty commits. Main and fetched origin/main both equal
 `731428f4110850bdb008ef354dfaa9a1490e41f6`, matching READY production.
 This new natural-refresh observation remains a local documentation checkpoint,
 separate from the already published F223 release, for the next closure follow-up.
+
+
+## Scheduled closure observation — 2026-10-17 15:49 UTC
+
+Read-only follow-up at approximately 15:49–15:51 UTC, starting clean on
+`task/m1-m2-closure-observations` at `eb6c7eb`. Fetch confirms main and
+origin/main both `731428f4110850bdb008ef354dfaa9a1490e41f6`; no source changes.
+
+- Feed-refresh cron job 5 active every five minutes, expected Vercel refresh URL
+  confirmed as a boolean without retrieving its command/secret. Six recent cron
+  executions succeeded, latest 15:45 at the initial snapshot.
+- Seventy serving modules / 257 variants, zero sources above three consecutive
+  failures and zero whole-feed meta.availability=empty outcomes.
+- The initial last-30-minute run snapshot includes 15 ok / 39 unchanged /
+  5 failed / 2 timeout outcomes. These failures must not be omitted or counted
+  as successful independent opportunities: Economic Simulator, Sector Policy
+  and Global Trade recovered at 15:45; Key Financial Indicators failed twice,
+  Industry Updates once, and Growth Indicators timed out. By the 15:50 state
+  read only Growth Indicators retained a positive failure count (2), with 20
+  older stored items and next retry due 15:54:20 UTC. No threshold breach or
+  manual retry. Empty-result failures remain failures, not truthful-empty
+  successes. Existing store content has not been erased to manufacture green.
+- Fixtures/charts still have five real hourly opportunities through 14:55;
+  next due just after 15:55, so no additional opportunity is credited. Charts
+  retain 25 items each. Fixtures retain 17 items including history, current run
+  seven; all four leagues and eight windows represented, IPL-next explicitly
+  empty, seven other windows ok. The limited-sample caveat remains explicit.
+- Constitutions' sole post-rollout daily run remains October 17 15:45,
+  unchanged/188 items/zero new keys. All 188 distinct constitute: keys retain
+  MD5 c14635ffbc17cef3a5ace4fc74273578; next due October 18 15:45 UTC.
+- MLA reference still has 400 distinct mla-profile keys plus 100 coverage
+  records, last successful ordinary run October 17 10:45, next due October 18
+  10:45 UTC. Both daily sources still require further genuine opportunities.
+- Exact-scope authenticated Vercel CLI API readback confirms
+  `dpl_ERp34386wrtss2MC124xCnC12pqW` READY at main/origin `731428f`.
+  CI runs 39045568101, 39045994021 and 39046364866 are still the latest three
+  genuine runs; each was read individually, app and SQL jobs success, attempt 1.
+- Behavioral evaluation already ran in its separately approved bounded
+  environment as documented above; no new provider calls. F221 remains open.
+  The hourly automation remains ACTIVE. No new actionable failure or overall
+  completion is reported; transient source failures remain under observation.
+
+T15 stays open. Only local evidence/tracker documentation changed, with no
+push/deploy, production mutation, timer/serve change, forced refresh, corpus
+operation, payment work or dotenv/credential read. No test rerun is needed for
+this documentation-only observation; diff whitespace and scope are checked.

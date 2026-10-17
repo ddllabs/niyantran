@@ -151,6 +151,13 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   Final F223 documentation head `731428f` deployed READY; both MLA summaries
   verified again 200/store with parity. Final CI 39046364866 passed app/SQL on
   attempt 1; latest three genuine F223 release runs are green. [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1546-utc).
+  Read-only 15:49–15:51 UTC follow-up: no new daily opportunity; references
+  unchanged, T15 open. Transient unrelated feed failures recorded accurately;
+  only Growth Indicators retains failures (2) at 15:50, none above three.
+  Serving inventory 70 modules / 257 variants; cron active every five minutes.
+  Production `731428f` READY and three genuine first-attempt app/SQL CI runs
+  remain green. Hourly follow-up stays ACTIVE; no action required yet.
+  [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1549-utc).
 
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving
