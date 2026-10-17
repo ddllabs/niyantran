@@ -53,6 +53,7 @@ const MODELS = [
 let clock = Date.parse('2026-10-15T10:00:00Z');
 const stamp = () => new Date(clock++).toISOString();
 let turns = 0;
+let researchRequests = [];
 
 /** The turn's frames, one per read; `auth.onChunk(i)` runs before frame i is handed over. */
 function sse(frames) {
@@ -67,8 +68,12 @@ function sse(frames) {
   }), { status: 200 });
 }
 /** research-chat: saves the question and a complete answer, then streams the turn. */
-async function server(_url, init) {
+async function server(url, init) {
+  if (String(url) !== 'https://fake.invalid/research-chat' || init?.method !== 'POST') {
+    throw new Error(`Unexpected test request: ${init?.method || 'GET'} ${url}`);
+  }
   const body = JSON.parse(init.body);
+  researchRequests.push({ body, headers: init.headers });
   const n = ++turns;
   const conversationId = body.conversation_id || 'conv-1';
   if (!auth.tables.conversations.some(c => c.id === conversationId)) {
@@ -102,7 +107,7 @@ beforeEach(async () => {
   const memory = new Map();
   vi.stubGlobal('localStorage', { getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, String(v)), removeItem: k => memory.delete(k) });
   vi.stubGlobal('fetch', vi.fn(server));
-  turns = 0;
+  turns = 0; researchRequests = [];
   auth.tables = { conversations: [], chat_messages: [] };
   auth.id = 'owner-a'; auth.token = 'token-1'; auth.expiresAt = Date.now() + 3600_000;
   auth.onGetUser = null; auth.onChunk = null;
@@ -119,12 +124,17 @@ beforeEach(async () => {
 afterEach(() => { controller?.dispose(); auth.onGetUser = null; auth.onChunk = null; vi.unstubAllGlobals(); });
 
 const thread = () => controller.getSnapshot().messages.map(m => `${m.role}: ${m.content}`);
-const settle = () => new Promise(r => setTimeout(r, 20));
+async function savedAnswer(n) {
+  await vi.waitFor(() => {
+    const view = controller.getSnapshot();
+    expect(view.locked).toBe(false);
+    expect(view.messages.some(m => m.id === `answer-${n}` && m.status === 'complete')).toBe(true);
+  });
+}
 async function ask(message) {
   controller.setDraft(message);
   await controller.send({ message, focus: 'broad' });
-  await vi.waitFor(() => expect(controller.getSnapshot().submitting).toBe(false));
-  await settle();
+  await savedAnswer(turns);
 }
 
 it('changing the model and reasoning after an answer leaves the thread as it was, and the next send goes', async () => {
@@ -139,7 +149,7 @@ it('changing the model and reasoning after an answer leaves the thread as it was
   expect(after.stream).toEqual(before.stream);
   await ask('Second');
   expect(controller.getSnapshot().error).toBe('');
-  expect(JSON.parse(fetch.mock.calls[1][1].body)).toMatchObject({ model: 'google/flash', reasoning: 'high' });
+  expect(researchRequests.find(r => r.body.message === 'Second')?.body).toMatchObject({ model: 'google/flash', reasoning: 'high' });
   expect(thread()).toEqual(['user: First', 'assistant: Answer 1', 'user: Second', 'assistant: Answer 2']);
 });
 
@@ -160,8 +170,27 @@ for (const event of ['SIGNED_IN', 'TOKEN_REFRESHED']) {
     atCheck(1, () => announce(event));
     await ask('Second');
     expect(controller.getSnapshot().error).toBe('');
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(researchRequests.map(r => r.body.message)).toEqual(['First', 'Second']);
     expect(thread()).toEqual(['user: First', 'assistant: Answer 1', 'user: Second', 'assistant: Answer 2']);
+  });
+}
+
+for (const event of ['SIGNED_IN', 'TOKEN_REFRESHED']) {
+  it(`waits for the persisted answer with a controlled stream delay and ${event}`, async () => {
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    auth.onChunk = async i => { if (i === 0) await held; };
+    const first = ask('First');
+    try {
+      await vi.waitFor(() => expect(researchRequests.map(r => r.body.message)).toEqual(['First']));
+      announce(event);
+    } finally { release(); }
+    await first;
+    auth.onChunk = null;
+    await ask('Second');
+    expect(researchRequests.map(r => r.body.message)).toEqual(['First', 'Second']);
+    expect(thread()).toEqual(['user: First', 'assistant: Answer 1', 'user: Second', 'assistant: Answer 2']);
+    expect(controller.getSnapshot().error).toBe('');
   });
 }
 
@@ -170,9 +199,9 @@ it('another account signing in while a send is checked still refuses the send', 
   atCheck(1, () => { auth.id = 'owner-b'; auth.token = 'token-b'; announce('SIGNED_IN'); });
   controller.setDraft('Private to A');
   await controller.send({ message: 'Private to A', focus: 'broad' });
-  await settle();
-  expect(fetch).toHaveBeenCalledTimes(1);
-  expect(fetch.mock.calls.some(([, init]) => init.headers.authorization === 'Bearer token-b')).toBe(false);
+  expect(controller.getSnapshot().submitting).toBe(false);
+  expect(researchRequests.map(r => r.body.message)).toEqual(['First']);
+  expect(researchRequests.some(r => r.headers.authorization === 'Bearer token-b')).toBe(false);
 });
 
 it('a sign-out while a send is checked still refuses the send', async () => {
@@ -180,6 +209,6 @@ it('a sign-out while a send is checked still refuses the send', async () => {
   atCheck(1, () => { auth.id = null; announce('SIGNED_OUT'); });
   controller.setDraft('Second');
   await controller.send({ message: 'Second', focus: 'broad' });
-  await settle();
-  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(controller.getSnapshot().submitting).toBe(false);
+  expect(researchRequests.map(r => r.body.message)).toEqual(['First']);
 });

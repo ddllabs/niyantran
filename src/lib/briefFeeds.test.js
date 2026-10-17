@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * F169 T3 (F166). Morning Brief and the Statement Tracker read /api/feature-feed on the live site.
@@ -29,7 +29,8 @@ async function feed(params) {
 }
 
 describe('Morning Brief and Statement Tracker on the server (F169 T3)', () => {
-  afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-15T12:00:00Z')); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.resetModules(); });
 
   it('Morning Brief has all three sections from PIB and Google News, without GDELT', async () => {
     const seen = stub([
