@@ -1,7 +1,7 @@
 # F223 verification and release evidence
 
 > **Status: Living.** Owner approved the scoped implementation and push/deploy
-> on 2026-10-17. Local verification complete; release verification in progress.
+> on 2026-10-17. Local and production checks passed; final CI/documentation checkpoint is verified separately after publication.
 
 ## Baseline and scope
 
@@ -88,3 +88,56 @@ safe bounded log fields only; no dependencies, extra network calls or migrations
 The two adjacent loader comments were corrected after checks; their semantics
 match the verified code. The complete runtime will also be exercised in CI.
 Production and final CI evidence must be observed before claiming release done.
+
+
+## Approved release and production acceptance
+
+Runtime commit `0c1319c056b1198c182bd16f032920a47e687771` was pushed on the
+approved task branch after local gates. Branch CI
+[39045568101](https://github.com/ddllabs/niyantran/actions/runs/39045568101)
+passed both app and disposable-Postgres SQL jobs on attempt 1. Main was
+fast-forwarded and pushed without overwriting any work. Production deployment
+`dpl_8cMAHjxjfBroGdaPLeHz1MwNuJdp`,
+`niyantran-bhsqf7919-ddl-labs.vercel.app`, is READY at that exact source, with
+`niyantran-six.vercel.app` alias. Team/project scope was checked explicitly.
+Main CI
+[39045994021](https://github.com/ddllabs/niyantran/actions/runs/39045994021)
+also passed both app and SQL jobs on attempt 1. Final documentation publication
+CI/deployment is checked after push and reported separately. No retry, cancelled
+run or empty commit was used.
+
+Read-only production acceptance at approximately 15:40 UTC:
+
+| Feature | Summary/module HTTP | Summary time | Summary count / module rows | Full stored count | Provenance |
+| --- | --- | --- | --- | --- | --- |
+| MLA Directory | 200 / 200 | 0.804 s | 496 / 496 | 4,104 | store |
+| MLA Profiles | 200 / 200 | 0.637 s | 500 / 500 | 500 | store |
+
+Both source notes exactly match their module responses. Directory fetchedAt is
+`2026-10-15T08:57:08.221Z`, Profiles `2026-10-17T10:45:02.365Z`, exactly matching
+the corresponding modules. Both retain null asOf, no stale flag, and no rows in
+the summary response. These are executed production checks, not a claim based
+only on code. No cache-bypass/refresh request was sent.
+
+Read-only post-deployment store fingerprints match the pre-release inventory
+exactly (4,104 Directory / 500 Profiles); all ten Edge Function versions,
+bundle hashes and verify_jwt settings also match exactly. No function or
+migration was deployed. The original two 13:08 failure feature names remain
+unknown; this closes the reproduced MLA routing defect without identifying
+those original requests retroactively.
+
+A bounded deployment request/error query, as observed around 15:41 UTC, returned
+zero HTTP 5xx and no pagination/excluded intervals. Runtime errors returned ten
+known Node DEP0169 url.parse deprecation warnings, zero other error records.
+Requested bounds were 15:38–15:42 UTC; the observation occurred before the end
+bound, so this is evidence only through the actual query time, not a guarantee
+about the entire requested interval. This does not establish absence of all
+future errors or errors on unrelated deployments.
+
+Closure health remains separate: feed-refresh job 5 active every five minutes
+at the expected Vercel URL, six recent cron successes; 70 serving modules / 257
+variants, zero sources above three failures. Fixtures and charts completed a
+fifth ordinary hourly opportunity at 14:55 UTC. Reference daily observations
+remain pending; no forced refresh, model call, corpus or payment operation.
+Hourly follow-up remains ACTIVE. Existing large lazy-chunk and Node deprecation
+warnings, the separate F221 isolation finding and F219 documentation work remain.

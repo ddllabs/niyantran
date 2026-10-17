@@ -2203,3 +2203,19 @@ recommendations … We can fix everything that is under your control."
   excluded; payment integration held; hourly closure follow-up remains active.
   Bounded request logs also found two `/api/state-landing` 502s at 13:08 UTC;
   F223 records these separately, cause/feature unestablished, no summary fix.
+
+
+- **2026-10-17: F223 MLA summaries released.** Owner explicitly approved the
+  scoped implementation and push/deploy. Runtime `0c1319c` reuses stored-first
+  loading in both routers for MLA Directory and MLA Profiles only, preserves
+  fetch/stale metadata and logs bounded feature diagnostics. Production
+  `dpl_8cMAHjxjfBroGdaPLeHz1MwNuJdp` READY: summary/module pairs 200/store,
+  matching notes/timestamps/counts (Directory 496 sampled of 4,104; Profiles
+  500). Full 6,166 Vitest / 1,155 Deno pass, lint/build/bundle/router pass;
+  old-runtime regression guards fail. All ten Edge Functions and stored MLA
+  content fingerprints unchanged; no schema/data/timer/forced-refresh change.
+  Exact original two failing feature names remain unknown. Rollback requires
+  owner approval to pre-release `dpl_9x4jNNLXBW1iNySGQ6WADtji4JNs` / `5302dc3`.
+  See [release evidence](../research/2026-10-17-f223-state-summaries-evidence.md).
+  Hourly closure checks remain active; T15 daily observations and separate F221
+  stay open. Corpus excluded and payment integration held.

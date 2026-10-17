@@ -1,7 +1,8 @@
 # F223 implementation and release plan
 
-> **Status: Living.** Approved sequential execution on
-> `task/f223-state-summaries`; no delegation.
+> **Status: Historical (2026-10-17).** Approved sequential execution completed
+> on `task/f223-state-summaries`; runtime `0c1319c` released, no delegation.
+> Final publication verification is recorded in the release evidence/report.
 
 Spec: [stored MLA summaries](../specs/2026-10-17-f223-state-summaries.md).
 Task status lives only in [open-work](open-work.md), F223. Preserve the existing

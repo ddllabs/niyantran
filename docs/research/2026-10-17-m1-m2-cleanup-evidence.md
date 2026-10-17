@@ -558,3 +558,46 @@ ACTIVE. No new actionable failure or completion; no notification. Only these
 local evidence/tracker records changed; no push/deploy, production writes,
 timer/serve changes, forced refresh, corpus operation, payment work, provider
 call or dotenv/credential-file read.
+
+
+## F223 release and closure observation — 2026-10-17 15:40 UTC
+
+Owner explicitly approved the scoped MLA Directory/Profiles implementation and
+push/deploy after diagnosis. Runtime `0c1319c` is READY at
+`dpl_8cMAHjxjfBroGdaPLeHz1MwNuJdp`, matching main. Branch/main CI 39045568101
+and 39045994021 passed both app and SQL jobs on attempt 1. Local 6,166 Vitest /
+1,155 Deno, lint/build/bundle/router pass; original runtime fails nine new guards.
+Production summary/module pairs answer 200/store with matching source notes,
+fetch times and counts: Directory 496 sampled rows (4,104 full stored), Profiles
+500. MLA store fingerprints and all ten Edge Function versions/hashes/settings
+are unchanged. Bounded logs through about 15:41 show no 5xx, only existing Node
+DEP0169 warnings. Detailed scope, failures and limitations are preserved in
+[F223 release evidence](2026-10-17-f223-state-summaries-evidence.md). No schema,
+Edge Function, data/timer/serve or forced-refresh changes were part of F223.
+
+Read-only closure queries at 15:40–15:42 UTC:
+
+- Cron job 5 remains active `*/5 * * * *` with the expected production refresh
+  URL (boolean only); six recent cron successes, latest 15:40 UTC. Last-30-minute
+  feed outcomes 12 ok / 29 unchanged, zero failures.
+- Seventy serving modules / 257 variants; zero sources above three consecutive
+  failures and zero whole-feed meta.availability=empty outcomes.
+- Fixtures and both charts completed their fifth genuine hourly opportunity
+  at 14:55 UTC, all ok. Charts 25 items each. Fixtures current run has seven
+  items, 17 retained items including history; all four league windows checked,
+  IPL-next explicitly empty and seven other windows ok. No full-schedule claim.
+- MLA reference still 400 distinct stable profile keys + 100 coverage records,
+  fetched October 17 10:45 UTC; next daily opportunity October 18 10:45 UTC.
+- World Constitutions still 188 distinct stable constitute: keys, inventory MD5
+  c14635ffbc17cef3a5ace4fc74273578, unchanged. Last refresh October 16 15:40 UTC;
+  first post-rollout daily opportunity was due just after the 15:40 poll, so
+  ordinarily becomes eligible for the 15:45 poll. This query precedes that
+  opportunity; do not credit a run that has not happened.
+- Approved bounded behavioral evaluation remains executed as recorded; no new
+  provider calls. F221 remains separate. The hourly follow-up is ACTIVE.
+
+T15 remains open for three real daily reference opportunities. This F223 release
+has separate explicit owner authority; it does not broaden the read-only monitor
+or authorize corpus/payment work. No credentials/dotenv read, forced refresh,
+corpus operation or payment work. Final documentation checkpoint CI/deployment
+is verified after its push in the completion report.

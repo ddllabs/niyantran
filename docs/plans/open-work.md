@@ -135,8 +135,15 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   the inventory fingerprint, MLA reference remains 400 profiles + 100 coverage.
   The final three genuine release CI runs 39034204827, 39034521190 and
   39035656870 passed first attempt; READY production source matches main
-  `5302dc3`. F223 is diagnosed below, with no backend-change approval yet.
+  `5302dc3`. F223 subsequently received explicit implementation/release approval
+  and was released at `0c1319c`; see Done and its evidence below.
   [Latest observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1448-utc).
+  F223 release observation at 15:40–15:42 UTC: runtime `0c1319c` READY;
+  branch/main CI 39045568101 / 39045994021 passed both jobs on attempt 1.
+  Fixtures/charts fifth genuine hourly opportunity at 14:55 passed. Daily
+  references remain pending (Constitutions eligible at 15:45; MLA October 18).
+  No source above three failures; hourly follow-up ACTIVE.
+  [Evidence](../research/2026-10-17-m1-m2-cleanup-evidence.md#f223-release-and-closure-observation--2026-10-17-1540-utc).
 
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving
@@ -155,32 +162,6 @@ F218's separate Satellite landing fix is released (`0e2ebfb`) and moved to Done.
 It does not close T15's real scheduled observations. The owner's earlier full
 orientation list is compared item by item in the
 [closure comparison](../research/2026-10-17-orientation-closure-comparison.md).
-
-## Production landing-summary finding
-
-- [ ] **F223. Diagnose two state-landing HTTP 502s observed during F222 release.**
-  Bounded production request logs for `dpl_CPAJgveM9dZ5AZSYKP7mjDaf5wmx`
-  (12:56–13:11 UTC on 2026-10-17) returned two GET `/api/state-landing` 502s at
-  13:08:57.209 and 13:08:58.060. The request records omit feature/query, so
-  affected summaries for those original two requests remain unestablished;
-  no claim of a pre-existing failure or F222 causation. Owner subsequently
-  authorized read-only diagnosis: 35 of 36 configured State summaries passed,
-  MLA Directory reproduced 502 after 4.15 s while its module returned store
-  records in 0.59 s (31 serving variants, 4,104 records). Both routers send State
-  summaries through the four-second live-first path; with no archive rows,
-  stateLandingAnswer returns error and the router emits 502. A later summary
-  returned 200, consistent with late-live caching. MLA Profiles shares that
-  risk but passed the probe. Existing stored-first loader exercised locally
-  against actual production module responses returns ready/store summaries
-  (Directory 496 sampled rows, Profiles 500) with zero injected upstream calls.
-  Proposed to the owner: stored-first routing limited to those two modules in
-  both routers, preserve fetch/stale metadata, add safe feature diagnostics and
-  regression guards. Owner approved that scoped implementation, verification
-  and push/deploy on 2026-10-17. Active on `task/f223-state-summaries`, preserving
-  existing local closure evidence; no broader summary routing or data changes.
-  [Spec](../specs/2026-10-17-f223-state-summaries.md),
-  [plan](2026-10-17-f223-state-summaries.md).
-  [Evidence](../research/2026-10-17-f222-manifold-identity-evidence.md#bounded-request-log-finding-outside-f222).
 
 ## Test isolation finding outside the F220 write scope
 
@@ -1350,6 +1331,23 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- [x] **F223. Use stored data for MLA Directory and MLA Profiles landing summaries.**
+  Done 2026-10-17 (`0c1319c`), owner explicitly approved implementation/push/deploy.
+  Both routers reuse the existing stored-first loader for exactly these two
+  features. Summary fetch/stale metadata preserved; safe validated-feature
+  diagnostics added. Original runtime fails nine new guards; final focused
+  143 tests, full 6,166 Vitest / 1,155 Deno, lint/build/bundle/router pass.
+  Production READY `dpl_8cMAHjxjfBroGdaPLeHz1MwNuJdp`: both summaries/modules
+  HTTP 200/store with matching notes/fetch times and 496 sampled Directory rows
+  (4,104 full stored records) / 500 Profiles rows. Store fingerprints and all
+  ten Edge Function versions/hashes/settings unchanged. No migration, forced
+  refresh or production data/timer change. Exact feature names of the original
+  two 13:08 failures remain unknown. F221 and T15 stay open; corpus excluded,
+  payment held, hourly closure follow-up active.
+  [Spec](../specs/2026-10-17-f223-state-summaries.md),
+  [plan](2026-10-17-f223-state-summaries.md),
+  [evidence](../research/2026-10-17-f223-state-summaries-evidence.md).
 
 - [x] **F222. Retain upstream Manifold market IDs in feed rows.**
   Done 2026-10-17 (`294a273`, released at `e1a5557` with owner push/deploy approval).
