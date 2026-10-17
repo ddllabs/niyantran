@@ -355,3 +355,27 @@ recorded locally on `task/m1-m2-closure-observations`, without push/deploy.
 No new actionable failure or completion. T15 and F220 remain open; no repeat
 failure notification. No forced refresh, production writes, corpus operations,
 payment work, paid calls or secret-file reads. Follow-up remains active.
+
+## F220 release — 2026-10-17
+
+Owner separately approved fixing, verifying and pushing/deploying F220.
+`256f042` retains the answer-reserve transition in the per-turn in-process
+checkpoint; controlled fractional timers reproduce the original high-effort
+restart. Old runtime fails four guards; fixed nine-case set passes ten executions.
+Full Deno 1,155 pass; final local Vitest 6,126 pass. Initial Vitest interference
+is retained as separate F221, with no preference source/test edits. Lint, build,
+bundle and router import pass; branch CI 39030425827 and main CI 39030716589
+both pass app/SQL jobs first attempt, without retry/cancellation/empty commits.
+
+Research-chat v66 ACTIVE, bundle hash
+`61c10a6983518003f2cdeb18007a6933618c55442e62392af9576a1e17c053b7`.
+Only agent.ts differs from v65; all 36 deployed files match the prepared release.
+All other Edge Function versions/hashes are unchanged, including corpus functions.
+No corpus operation, database/data/job change or paid model call. Production
+POST without bearer returns 401, preflight 204, expected production CORS; bounded
+post-deploy logs show boot/check responses without errors. Vercel main deployment
+READY at the code commit. Detailed [F220 evidence](2026-10-17-f220-answer-reserve-evidence.md).
+
+F220 moved to Done. F221's separate isolation issue and T15's real source
+intervals/current CI checkpoint remain open. The requested hourly read-only
+follow-up remains ACTIVE. Corpus ingestion excluded; payment integration on hold.

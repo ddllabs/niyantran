@@ -99,7 +99,7 @@ Each milestone ends with a checkpoint. The items below track the work; this sect
 
 Owner approved implementation, push/deploy and closure checks; corpus ingestion remains
 excluded. Main cleanup through `0e970f4` is live, three compatibility migrations applied,
-research-chat v65 (`00aaf99`) and desk-brief v17 deployed. The T0–T14 implementation entries
+research-chat v66 (F220, `256f042`) and desk-brief v17 deployed. The T0–T14 implementation entries
 have moved to Done with hashes; do not infer the remaining scheduled-observation gate is closed.
 
 [Spec](../specs/2026-10-17-m1-m2-cleanup.md) · [plan](2026-10-17-m1-m2-cleanup.md) ·
@@ -109,9 +109,11 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   refresh opportunities, including actual daily reference intervals. Never force extra calls
   to simulate those opportunities. Three consecutive first-attempt CI runs previously passed:
   39025298847, 39025660396 and 39026919956 (`d63192b`). Later F218 code CI passed
-  on branch/main, but documentation-only run 39028606428 failed the unchanged F199
-  Deno answer-reserve check (F220). The current CI checkpoint is therefore not
-  fully clear; do not hide this with a retry or use one to satisfy the gate. Active hourly
+  on branch/main, but documentation-only run 39028606428 failed F199 (F220).
+  F220 is now fixed/deployed as research-chat v66: first-attempt branch/main CI
+  39030425827 and 39030716589 pass. Verify the next genuine post-fix CI completion
+  rather than counting a retry/empty commit toward three greens. Separate local
+  test interference F221 is recorded and unresolved. Active hourly
   read-only follow-ups on this chat, explicitly requested by the owner, notify only on a meaningful
   failure or completion. Vercel connector remains 403; the authenticated CLI works for the exact
   DDL Labs scope. Report closure before beginning payment gateway integration.
@@ -129,7 +131,7 @@ runs every five minutes and calls the deployed Vercel refresh route: the refresh
 70 distinct modules / 257 variants serve from storage, with District Performance deliberately
 planned/off. Corpus Edge Function versions/hashes and jobs were not changed.
 
-Final local gates: 6,110 Vitest tests, 1,150 Deno tests, 41 SQL fixtures with vacuity/rollback
+Latest local gates: 6,126 Vitest tests, 1,155 Deno tests, 41 SQL fixtures with vacuity/rollback
 checks, lint/build/router/bundle and browser checks pass. Explicitly authorized model evaluation:
 4 faithful cases passed on v64; count/coverage case failed, then passed after the narrow v65
 correction. Total actual cost $0.03677325, every temporary evaluator deleted. Detailed failed
@@ -140,25 +142,7 @@ It does not close T15's real scheduled observations. The owner's earlier full
 orientation list is compared item by item in the
 [closure comparison](../research/2026-10-17-orientation-closure-comparison.md).
 
-## CI finding outside the F218 write scope
-
-- [ ] **F220. F199 answer-reserve test intermittently fails on unchanged code.**
-  Documentation-only main commit `d77ee6b`, CI run 39028606428: Deno 1,149 pass /
-  1 fail at `supabase/functions/research-chat/agent_test.ts:2036`, expected final
-  request reasoning low, observed high. Same source passed local full Deno and
-  both F218 code CI runs; five subsequent local focused executions also pass.
-  `reserveIn(80)` uses the real clock and the watchdog schedules a reserve timer,
-  but exact cause and runtime implications are unproven. Investigate with a
-  controlled clock before deciding test-only versus runtime correction. No retry
-  counted as acceptance, no unrelated research code changed under F218. Current
-  closure must include this finding, alongside real T15 observation windows.
-  [Failure](https://github.com/ddllabs/niyantran/actions/runs/39028606428) ·
-  [execution evidence](../research/2026-10-17-f218-stored-summary-evidence.md).
-  Owner authorized the scoped runtime/test fix and push/deploy on 2026-10-17.
-  Fractional timer reproduction confirms reserve entry must be retained across
-  retries. [Spec](../specs/2026-10-17-f220-answer-reserve.md) ·
-  [plan](2026-10-17-f220-answer-reserve.md) ·
-  [evidence](../research/2026-10-17-f220-answer-reserve-evidence.md).
+## Test isolation finding outside the F220 write scope
 
 - [ ] **F221. Pending feed requests interfere with preference-test fetch counts.**
   Found during F220's first local full Vitest run on 2026-10-17: two assertions
@@ -1327,6 +1311,19 @@ orientation list is compared item by item in the
 
 ## 1. Done
 
+- [x] **F220. Fractional watchdog cutoff restores high reasoning effort.**
+  Done 2026-10-17 (`256f042`), research-chat v66 ACTIVE. Controlled clocks prove
+  the timer can cut 0.75 ms before the boundary; the checkpoint now retains
+  reserve entry across replacement calls/provider retry. Null/absent overrides,
+  caller abort, active streaming and independent turns preserved. Nine F199
+  cases pass ten independent executions; old runtime fails four guards.
+  Full Deno 1,155 and Vitest 6,126 pass; branch/main CI first-attempt green,
+  including SQL. Exact deployed diff is only agent.ts; authentication/CORS and
+  all unrelated functions preserved. T15 observations and separate F221 remain.
+  [Spec](../specs/2026-10-17-f220-answer-reserve.md) ·
+  [plan](2026-10-17-f220-answer-reserve.md) ·
+  [evidence](../research/2026-10-17-f220-answer-reserve-evidence.md).
+
 - [x] **F218. Satellite Infrastructure landing summary bypasses usable feed-store data.**
   Done 2026-10-17 (`0e2ebfb`): both routers use the canonical stored-first loader
   for this summary, preserving fetched time/stale markers and existing fallbacks.
@@ -1336,8 +1333,8 @@ orientation list is compared item by item in the
   including 41 SQL fixtures/vacuity and 10 Down checks. Desktop/mobile browser
   verifies count and navigation. Other summaries retain their existing loaders;
   no broad shared-register change or corpus/payment work.
-  Later documentation-only CI exposed unrelated F220; the F218 code/source
-  and production checks remain unchanged, but overall CI closure is pending.
+  Later documentation-only CI exposed F220, now fixed separately in `256f042`;
+  F218 code/source and production checks remain unchanged.
   [Spec](../specs/2026-10-17-f218-stored-summary.md) ·
   [evidence](../research/2026-10-17-f218-stored-summary-evidence.md).
 

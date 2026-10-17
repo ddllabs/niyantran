@@ -1,6 +1,8 @@
 # F220 implementation plan
 
-> **Status: Living.** 2026-10-17. Sequential; no delegation. Branch
+> **Status: Historical (2026-10-17).** Executed sequentially without delegation.
+> Code `256f042` passed branch/main CI on first attempt and is deployed as
+> research-chat v66. Closure observations and separate F221 remain open. Branch
 > `task/f220-answer-reserve`, base `f3d5b59`. Scope and release authorization in
 > [spec](../specs/2026-10-17-f220-answer-reserve.md). Sole tracker: F220/open-work.
 

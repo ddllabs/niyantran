@@ -1,14 +1,14 @@
 # Orientation list versus the M1/M2 release
 
 > **Status: Living.** Compared 2026-10-17 against the owner's attached orientation
-> report, the sole tracker and the cleanup execution evidence. Updated after F218.
+> report, the sole tracker and the cleanup execution evidence. Updated after F220.
 
 The entire six-milestone list is **not complete**. The approved M1 implementation
 and both M2 leftovers are released. T15 still requires three real post-rollout
-refresh opportunities, including daily reference intervals. A later unchanged
-F199 Deno test failure is separately tracked as F220 and also needs resolution
-for current CI closure. Payment integration must wait; corpus ingestion remains
-explicitly excluded.
+refresh opportunities, including daily reference intervals. F220's answer-reserve
+bug is fixed and deployed; separately observed preference-test interference F221
+remains open. Actual CI closure is still tracked, without counting retries or
+unfinished runs. Payment integration must wait; corpus ingestion remains excluded.
 
 ## Every M1 item from the attachment
 
@@ -34,9 +34,10 @@ explicitly excluded.
 | --- | --- |
 | F208 catalogue initial loading | Released `e5f45c2`. Local entry 224,234 → 180,398 B gzip; total initial JS including globe 229,274 → 185,438 B. Baseline lowered after browser/search/navigation checks. |
 | F202 Heads of State links | Released `d4c0054`. Exact safe Wikidata item link verified for keyboard access, href, new tab and noopener. |
-| T15 release and closure | Code, three migrations, affected Edge Functions and inventoried reference transitions released. Earlier three-run CI gate passed, but later documentation CI exposed unchanged F199 test failure F220. Current CI clearance and real multi-day source observations remain open, with owner-requested hourly read-only follow-ups. |
+| T15 release and closure | Code, three migrations, affected Edge Functions and inventoried reference transitions released. F220 fixed; its branch/main CI pass first attempt. Real multi-day source observations, current CI checkpoint and separate F221 remain open. Owner-requested hourly read-only follow-ups remain active. |
 | F218 new rollout finding | Separate narrow Satellite landing store-first fix released as `0e2ebfb`; production and desktop/mobile browser checks pass. It does not replace T15. |
-| F220 new CI finding | Documentation-only `d77ee6b` run failed the unchanged answer-reserve test; five local focused repeats passed. Cause remains unproven; no research runtime/test change or acceptance retry under F218. |
+| F220 new CI finding | Fixed `256f042`, deployed research-chat v66. Fractional watchdog rounding reproduced; per-turn checkpoint retains reserve entry. Nine deterministic boundary cases and full suites pass; deployed diff only agent.ts. |
+| F221 new test-isolation finding | First F220 local full Vitest run exposed unrelated pending PIB fetches reaching preference-test global mocks. Focused and second full suite, then branch/main CI pass. Interference remains separately tracked; preferences code/tests untouched. |
 | M3 sources and methods | Still open for a true MLA scorecard, district modules, tender sources and resulting homepage source count. Separate from payments. |
 | M4 corpus/retrieval | Parked and out of scope by owner instruction. No ingestion resumed. |
 | M5 payment gateway | Waiting for M1/M2 closure and the next approved plan. Existing billing scaffolding is not payment acceptance. Legal/address/review and live billing decisions remain tracked. |
