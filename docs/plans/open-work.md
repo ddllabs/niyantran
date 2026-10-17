@@ -114,7 +114,7 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   post-fix CI runs 39030425827, 39030716589 and 39031190292 passed both app and SQL
   jobs on attempt 1. CI component verified complete at the 12:48 UTC observation;
   no retries, cancellations or empty commits were used. Separate local
-  test interference F221 is recorded and unresolved. Active hourly
+  test interference F221 is fixed in `389dbed` (see Done). Active hourly
   read-only follow-ups on this chat, explicitly requested by the owner, notify only on a meaningful
   failure or completion. Vercel connector remains 403; the authenticated CLI works for the exact
   DDL Labs scope. Report closure before beginning payment gateway integration.
@@ -165,15 +165,13 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   failed once on unemployment, then recovered with exact stored-row parity;
   do not substitute those reads for scheduled writer acceptance.
   [F224 evidence](../research/2026-10-17-f224-growth-budget-evidence.md).
-  Latest read-only follow-up 17:00 UTC: cron active every five minutes; 70 serving
-  modules / 257 variants, zero nonzero failures. Hourly sources remain at six
-  real opportunities through 16:00; next eligible poll 17:05, not yet observed.
-  Daily references unchanged (one of three each); Growth post-F224 writer run
-  pending tomorrow. Production 54c24c4 READY; final genuine CI 39048250037,
-  39048651791, 39049456929 all app/SQL green on attempt 1. F221 diagnosed only,
-  scoped test-only fix now authorized and undergoing verification. T15 open,
-  hourly follow-up ACTIVE.
-  [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1700-utc).
+  Latest read-only follow-up 17:08 UTC: cron active every five minutes; 70 serving
+  modules / 257 variants, zero failing counters. Fixtures/charts seventh real
+  hourly opportunity at 17:05. Daily references unchanged (one of three each);
+  Growth post-F224 writer acceptance pending tomorrow. F221 test-only fix
+  landed as `389dbed`; T15 open and hourly follow-up ACTIVE.
+  [F221 and closure evidence](../research/2026-10-17-f221-test-isolation-evidence.md).
+
 
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving
@@ -192,29 +190,6 @@ F218's separate Satellite landing fix is released (`0e2ebfb`) and moved to Done.
 It does not close T15's real scheduled observations. The owner's earlier full
 orientation list is compared item by item in the
 [closure comparison](../research/2026-10-17-orientation-closure-comparison.md).
-
-## Test isolation finding outside the F220 write scope
-
-- [ ] **F221. Pending feed requests interfere with preference-test fetch counts.**
-  Found during F220's first local full Vitest run on 2026-10-17: two assertions
-  in `src/lib/userPrefsSync.test.js:134,338` fail because unrelated pending fetches
-  reach its global mock; captured call is a PIB RSS GET, not a preferences upload.
-  Focused suite 36/36 and a second full 6,126-test run pass; original failure
-  remains recorded. Investigate test isolation/pending feed work and
-  preserve the account-switch/no-unnecessary-upload behavioral assertions.
-  No preferences code or tests changed under F220. [Evidence](../research/2026-10-17-f220-answer-reserve-evidence.md).
-  Owner authorized diagnosis/proposal on 2026-10-17. Deterministic four-case
-  lab confirms a producer leak in featureFeedTimeLimit.test.js: its live Cabinet
-  request survives archive return/cache reset, then falls back to PIB ViewRss
-  after its 12-second timer and reaches the later preferences mock. Disposing
-  and awaiting the source before replacing fetch restores both exact counts;
-  actual account-switch refusal/clean-upload behavior remains correct. Current
-  preference baseline 36/36 passes. Proposed small test-only fix: controlled
-  hanging-source disposal, asynchronous producer teardown and a causal guard,
-  scoped to featureFeedTimeLimit.test.js; keep preferences assertions/runtime
-  unchanged. Owner subsequently approved test-only implementation and publication;
-  local verification underway on task/f221-test-isolation. [Diagnosis/proposal](../research/2026-10-17-f221-test-isolation-diagnosis.md).
-
 
 ## Documentation follow-up
 
@@ -1373,6 +1348,18 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- [x] **F221. Feed timeout tests release their own live producers.** Landed
+  `389dbed` (2026-10-17): disposable source stubs reject pending and fallback
+  requests, tracked real/custom loaders settle before fetch/timers restore.
+  Two real-loader regressions failed with original teardown (0→1 / 1→2 calls),
+  pass after disposal; preference source and all 36 assertions unchanged.
+  Full 6,194 Vitest / 1,155 Deno, lint/build/bundle/router pass. Branch CI
+  39052609249 and main CI 39052960359 app/SQL passed attempt 1; production
+  dpl_EC2dNBS1rX9ZPrcEBJDJydXmoqWh READY at exact 389dbed. Details recorded
+  in [F221 evidence](../research/2026-10-17-f221-test-isolation-evidence.md).
+  Test-only: no backend/data/SQL/corpus/payment change. T15 remains open and
+  hourly closure monitoring ACTIVE.
 
 - [x] **F224. Bound Growth Indicators requests and diagnose source failures.**
   Runtime `0074991`, owner approved implementation/push/deploy 2026-10-17.
@@ -2864,6 +2851,9 @@ R7 execution update: the owner's remaining-270 review and single 182-document / 
 R7 wider-corpus continuation: [413-document release completed](../research/2026-10-11-corpus-wide-batch.md). All 413 passing sources from the fresh 500-source cohort were ingested in one frozen job: 7,493 complete context chunks, 6,661 contextual chunks, 3,033 independent scoped citation probes passed. The other 87 candidates remain held with evidence. Final live and planner totals: 3,434 documents / 3,431 indexed / 100,031 chunks / 2,143 covered listing bill keys, zero orphan chunks and null vectors. Actual embedding usage 706,730 tokens / USD 0.01413460; all 90 capacity samples passed, peak CPU 16.12%; 15 isolated slow health samples out of 437, no consecutive slow windows, final health passed. Runtime corpus-wide-20261011/job-wide500-v1/final-completion.json binds the full audit and exact SQL evidence. Manifest stage-01.release.json SHA256 b8a987362724afab31e157f01fae72b7f9cd9dec7667db269b4caed5864c2481 is COMPLETE; NEVER restart it. Supervisor exited 0 and locks released. The pre-write fetch recovery at 40 remains documented and preserved. Broader corpus candidates, nonbill scoping, the 87 held candidates and existing-source repair holds remain open; this is not completion of R7 as a whole.
 
 ## Done — 2026-10-12 consolidation
+
+
+
 
 - **Corpus code consolidation (2026-10-12), `d0a8020`:** reviewed corpus code, tests and documentation integrated with the released UI on main; original copies preserved outside Git. [Evidence](../research/2026-10-12-main-consolidation.md). R7 ingestion/repair holds remain open.
 - **F94 resolved (2026-10-12):** owner-authorized Git disconnect of only `niyantran-desk-reference-v6` (`prj_hlv83bVVPDlaJht0GP7njfUDhsLA`) verified `link: null`; project/deployment history retained. Actual production project still follows main. [Operations record](../research/2026-10-12-main-consolidation.md).

@@ -802,3 +802,29 @@ notification. Only local evidence/tracker documentation changed, checked with
 git diff --check; no tests rerun for prose. No push/deploy, production mutation,
 feed refresh invocation, timer/serve change, corpus operation, payment work or
 dotenv/credential-folder read. Final payment handoff remains conditional.
+
+
+## F221 scoped test-only release — 2026-10-17
+
+Owner approved implementation, verification and push/deploy. Commit 389dbed
+settles live source requests and controlled deferred loaders before restoring
+fetch/timers in featureFeedTimeLimit.test.js. Two causal regressions fail under
+old teardown with original 0→1 and 1→2 count mismatches; corrected 58 focused,
+6,194 full Vitest / 1,155 Deno tests pass. Lint/build/bundle/router pass; existing
+large-chunk warning remains. Preferences source and all 36 tests untouched;
+production runtime diff empty. Branch CI 39052609249 both jobs green attempt 1;
+main pushed at the same commit. [Detailed evidence](2026-10-17-f221-test-isolation-evidence.md).
+
+Read-only 17:08 UTC health: cron active */5 and expected Vercel refresh route;
+70 serving modules / 257 variants, zero failing counters, 14 ok / 23 unchanged
+last half-hour outcomes. Fixtures and charts seventh hourly opportunity 17:05;
+MLA daily store 500 items, next October 18 10:45; Constitutions 188, next October
+18 15:45; Growth 20, next October 18 15:55. No extra daily opportunity credited.
+T15 still requires the real reference intervals and post-F224 writer acceptance.
+Hourly automation ACTIVE. No local Docker, SQL/backend deployment, forced refresh,
+production data/timer/serve mutation, provider call, corpus or payment operation.
+F219 remains separate. Report actual M1/M2 closure before payment integration.
+
+F221 publication confirmed: main CI 39052960359 app/SQL green on attempt 1;
+production dpl_EC2dNBS1rX9ZPrcEBJDJydXmoqWh READY at exact 389dbed SHA.
+Final prose follow-up deployment/CI is verified after publication; T15 stays open.

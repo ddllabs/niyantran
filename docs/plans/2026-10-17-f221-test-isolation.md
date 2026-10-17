@@ -1,6 +1,6 @@
 # F221 test isolation implementation plan
 
-> **Status: Living.** Sequential execution, authorized October 17, 2026.
+> **Status: Historical (2026-10-17).** Executed sequentially under owner authorization.
 
 Spec: `docs/specs/2026-10-17-f221-test-isolation.md`.
 
@@ -23,3 +23,7 @@ Spec: `docs/specs/2026-10-17-f221-test-isolation.md`.
 
 Only step 2 depends on step 1; verification precedes publication. No delegation,
 forced refresh, SQL fixture against production, function deploy or payment work.
+
+Implementation `389dbed`; local verification passed. Final release evidence is
+recorded in `docs/research/2026-10-17-f221-test-isolation-evidence.md`. Remaining
+M1/M2 source-observation gates remain in the sole open-work tracker.

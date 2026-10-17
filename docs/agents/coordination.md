@@ -2238,3 +2238,19 @@ recommendations … We can fix everything that is under your control."
   Rollback requires approval to dpl_ERp34386wrtss2MC124xCnC12pqW / 731428f.
   [Release evidence](../research/2026-10-17-f224-growth-budget-evidence.md).
   Hourly monitoring ACTIVE; corpus excluded, payments held, daily gates open.
+
+
+- **2026-10-17: F221 test-only producer cleanup.** Owner authorized implementation
+  and publication. 389dbed drains disposable source requests and controlled live
+  loaders before restoring globals. Two causal regressions red under old teardown,
+  58 focused / 6,194 full Vitest / 1,155 Deno pass, lint/build/bundle/router pass.
+  Preferences code/assertions and production runtime unchanged; no backend/SQL
+  deployment or stored data mutation. Branch CI 39052609249 both jobs green on
+  attempt 1; main pushed at the same commit. Final publication evidence in
+  [F221 record](../research/2026-10-17-f221-test-isolation-evidence.md).
+  Hourly closure monitor ACTIVE; T15 daily intervals and Growth writer acceptance
+  remain open, corpus excluded and payments held. F219 remains a separate follow-up.
+
+F221 publication confirmed: main CI 39052960359 app/SQL green on attempt 1;
+production dpl_EC2dNBS1rX9ZPrcEBJDJydXmoqWh READY at exact 389dbed SHA.
+Final prose follow-up deployment/CI is verified after publication; T15 stays open.

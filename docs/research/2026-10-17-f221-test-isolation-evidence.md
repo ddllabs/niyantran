@@ -64,3 +64,23 @@ unchanged. No new dependency, global Vitest option, timeout increase or credenti
 access. Runtime, preference source and preference test diff against 54c24c4 is
 empty. No required review finding remains. Local SQL fixtures are unnecessary for
 this test-only change; the original branch/main CI SQL jobs will still be checked.
+
+## Publication
+
+Owner-approved task branch/main commit 389dbed8fdcee9f11963540c747c33cddb255953.
+Branch CI 39052609249 and main CI 39052960359 both passed application and SQL
+fixture jobs on attempt 1; no retry/cancellation. Preview
+`dpl_13rS5n5qVHAFTNRSRGXGSKorx7BR` and production
+`dpl_EC2dNBS1rX9ZPrcEBJDJydXmoqWh` READY at that exact SHA. Production URL
+https://niyantran-six.vercel.app, deployment niyantran-9ukoy1j6a-ddl-labs.vercel.app.
+Authenticated CLI GET used exact project prj_6UiaDz2rkTOmqIOaXnCAs92V7d86 and
+team team_QFu1p3ObeXmlMQczPBcZb582; no environment/credential file read.
+
+Final documentation records F221 Done and keeps T15 open. This prose-only
+follow-up does not require a repeat local code suite; its actual deployment and
+original CI are checked after publication. Existing Vite large-chunk warning and
+GitHub's ubuntu-latest migration notice remain informational. No backend rollback
+needed; revert the test-only commit on a task branch if required. Production
+rollback to pre-F221 dpl_7zhiGvtmhrZ3zb83xYyNg9i4ZMgT / 54c24c4 requires owner
+approval. No Edge Function, schema/data, cron, serving flag, corpus or payment
+change. Hourly monitor ACTIVE; no overall M1/M2 closure claimed.
