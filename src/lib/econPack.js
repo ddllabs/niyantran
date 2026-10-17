@@ -135,6 +135,11 @@ function politicalFlag(v) {
   return s === 'yes' || s === 'true' || s === '1';
 }
 
+// Optional provider metadata; feed storage keys stay unchanged (F222).
+function manifoldIdentity(id) {
+  return typeof id === 'string' && /^[A-Za-z0-9_-]{1,200}$/.test(id) ? { market_id: id } : {};
+}
+
 export function manifoldPoliticalRows(raw) {
   return (raw || [])
     .filter((r) => politicalFlag(r.is_political))
@@ -142,6 +147,7 @@ export function manifoldPoliticalRows(raw) {
       const title = String(r.question || r.title || '').trim();
       if (!title) return null;
       return {
+        ...manifoldIdentity(r.market_id),
         title,
         question: title,
         probability: pct(r.probability),
@@ -168,6 +174,7 @@ export function mapManifoldLive(json, { allPolitical = false } = {}) {
   const picked = allPolitical ? arr : arr.filter(livePolitical);
   return manifoldPoliticalRows(
     picked.map((m) => ({
+      market_id: m.id,
       question: m.question,
       probability: m.probability,
       volume_24h: m.volume24Hours ?? m.volume24Hour,
@@ -241,6 +248,7 @@ export function mapManifoldIndiaElections(markets, details = new Map()) {
     const top = topAnswer(details.get(m.id));
     const volume = num(m.volume);
     rows.push({
+      ...manifoldIdentity(m.id),
       title: question,
       question,
       market_type: MARKET_TYPE[m.outcomeType] || String(m.outcomeType || ''),
