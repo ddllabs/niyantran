@@ -153,7 +153,8 @@ orientation list is compared item by item in the
   all four `/_deleted_/` markets still answer as unresolved upstream markets.
   Preserve optional `market_id` through both loaders and the JSON feed store,
   keeping existing keys, filters and historical snapshots. No migration or
-  production changes; push/deployment await separate approval.
+  production data repair. Owner subsequently approved push/deployment on
+  2026-10-17; release verification is in progress, with no forced refreshes.
   Local implementation verified in `294a273` on `task/f222-market-ids`:
   206 focused / 6,147 full Vitest / 1,155 Deno tests passed, lint/build/bundle/router
   checks passed. [Evidence](../research/2026-10-17-f222-manifold-identity-evidence.md).

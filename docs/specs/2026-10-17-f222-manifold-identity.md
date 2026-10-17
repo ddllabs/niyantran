@@ -1,7 +1,8 @@
 # F222: Preserve Manifold market IDs
 
-> **Status: Normative.** Owner approved local implementation on 2026-10-17.
-> Production writes, push and deployment require separate approval for this change.
+> **Status: Normative.** Owner approved local implementation, then explicitly
+> approved push/deployment on 2026-10-17. Release is limited to this additive
+> mapping change; no forced refresh, historical backfill or schema change.
 
 ## Current state and problem
 

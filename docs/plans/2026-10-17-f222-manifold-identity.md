@@ -43,3 +43,30 @@ Steps 1–3 executed locally. New checks first failed for missing IDs, then all
 checks passed; existing large-chunk warning retained. Full evidence and limits:
 [local verification](../research/2026-10-17-f222-manifold-identity-evidence.md).
 Release remains tracked under F222 in open-work; no push or deployment occurred.
+
+## Release addendum — owner approval, 2026-10-17
+
+After the local execution above, the owner explicitly approved pushing and
+deploying F222. The verified runtime is unchanged from `294a273`; subsequent
+commits hold documentation and authorized closure observations only.
+
+Release target: origin `ddllabs/niyantran`, branch main, Vercel project
+`prj_6UiaDz2rkTOmqIOaXnCAs92V7d86` in team
+`team_QFu1p3ObeXmlMQczPBcZb582`, production `niyantran-six.vercel.app`.
+Supabase NTER `vfgcppstyzjarlzyqdac` is read-only during verification. No Edge
+Function deployment or SQL migration is necessary.
+
+Push the task branch and verify its ordinary CI. After it passes, fast-forward
+main, push main and verify the matching READY production deployment and CI.
+Use the authenticated Vercel CLI API fallback for this exact scope. Wait for
+ordinary due refreshes to observe IDs in current feed_items and served JSON;
+never force calls or move next_due_at. Compare a pre-release fingerprint of
+October 15–16 daily snapshots after release. Record actual results in the
+living evidence and move F222 to Done after release verification, with the
+runtime hash. Push the final documentation checkpoint and confirm its deployment
+and CI as well. Remove the merged task branch after verification.
+
+Rollback target before release is Vercel
+`dpl_4K3mQJmw37bVcGUbpvSG1VSBGfXz` at main `2dd8ecd`; rollback needs owner
+approval per the runbook. Optional IDs already stored can remain. Corpus stays
+excluded, payment stays held, and existing closure monitoring continues.
