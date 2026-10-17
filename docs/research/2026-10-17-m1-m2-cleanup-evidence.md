@@ -737,3 +737,24 @@ T15 daily gates stay open; F221/F219 separate. Store fingerprint and all ten
 Edge Function versions/hashes/settings unchanged. No SQL/function deployment,
 manual refresh, timer/serve adjustment, corpus operation, payment work or
 provider call. Hourly follow-up ACTIVE; report actual closure before payment.
+
+
+## F221 diagnosis and closure status — 2026-10-17 16:53 UTC
+
+Owner authorized diagnosis and a scoped proposal, no implementation/publication.
+Current main/origin 54c24c4, checkout initially clean. Preference baseline passes
+36/36. Four controlled local cases using the real feed and preference loaders
+reproduce both recorded global-fetch count mismatches: a timed-out Cabinet live
+request survives the test teardown, later falls back to the PIB RSS index and
+reaches the replacement preferences mock. Disposing the old source and awaiting
+its promise before replacing fetch prevents both mismatches; actual preferences
+identity/clean-upload outcomes hold. No probabilistic full-suite rerun or change
+to application/test source. [Scoped test-only proposal](2026-10-17-f221-test-isolation-diagnosis.md).
+
+Read-only production query confirms MLA/Constitutions still one genuine daily
+opportunity each, next due October 18 10:45 / 15:45 UTC; Growth post-F224 writer
+acceptance still pending, next due October 18 15:55 UTC. All three zero failures;
+no source above three consecutive failures. Hourly automation remains ACTIVE.
+No forced refresh, production mutation, runtime/test/config changes, corpus,
+payment or paid provider work. T15 remains open; expected October 19 late-evening
+IST handoff is conditional on real scheduled observations and final verification.

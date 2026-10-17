@@ -194,6 +194,17 @@ orientation list is compared item by item in the
   remains recorded. Investigate test isolation/pending feed work and
   preserve the account-switch/no-unnecessary-upload behavioral assertions.
   No preferences code or tests changed under F220. [Evidence](../research/2026-10-17-f220-answer-reserve-evidence.md).
+  Owner authorized diagnosis/proposal on 2026-10-17. Deterministic four-case
+  lab confirms a producer leak in featureFeedTimeLimit.test.js: its live Cabinet
+  request survives archive return/cache reset, then falls back to PIB ViewRss
+  after its 12-second timer and reaches the later preferences mock. Disposing
+  and awaiting the source before replacing fetch restores both exact counts;
+  actual account-switch refusal/clean-upload behavior remains correct. Current
+  preference baseline 36/36 passes. Proposed small test-only fix: controlled
+  hanging-source disposal, asynchronous producer teardown and a causal guard,
+  scoped to featureFeedTimeLimit.test.js; keep preferences assertions/runtime
+  unchanged. Implementation/publication awaits approval. [Diagnosis/proposal](../research/2026-10-17-f221-test-isolation-diagnosis.md).
+
 
 ## Documentation follow-up
 
