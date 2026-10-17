@@ -758,3 +758,47 @@ no source above three consecutive failures. Hourly automation remains ACTIVE.
 No forced refresh, production mutation, runtime/test/config changes, corpus,
 payment or paid provider work. T15 remains open; expected October 19 late-evening
 IST handoff is conditional on real scheduled observations and final verification.
+
+
+## Scheduled closure observation — 2026-10-17 17:00 UTC
+
+Read-only follow-up at approximately 17:00–17:02 UTC. Started clean on local
+F221 diagnosis branch fbf3c07; fetched main/origin both 54c24c4. Fast-forwarded
+existing local closure-observations branch to preserve that diagnosis and the
+published F224 release. No implementation/source change in this observation.
+
+- Feed-refresh cron job 5 remains active every five minutes, expected production
+  Vercel refresh URL confirmed boolean-only. Six recent cron runs succeeded,
+  latest 17:00 UTC. Last-30-minute feed outcomes 13 ok / 28 unchanged, no failures.
+- Seventy serving modules / 257 variants, zero nonzero failure counters, zero
+  sources above three failures, zero whole-feed meta.availability=empty outcomes.
+- Fixtures and both charts remain at six genuine hourly opportunities through
+  16:00 UTC. Their next_due_at values fall just after 17:00, so the 17:00 poll
+  precedes their eligibility; next ordinary poll is 17:05. No missed opportunity
+  or new success is inferred, and no forced refresh. Charts retain 25 items each.
+  Fixtures latest run seven items, 17 retained including history; all four leagues
+  and eight windows accounted for, IPL-next explicitly empty and seven others ok.
+- MLA reference still 400 distinct mla-profile keys + 100 distinct coverage
+  keys, successful October 17 10:45 run, next due October 18 10:45 UTC.
+- Constitutions still 188 distinct constitute: keys, unchanged inventory MD5
+  c14635ffbc17cef3a5ace4fc74273578. Sole genuine post-rollout daily run remains
+  October 17 15:45 unchanged/188; next due October 18 15:45 UTC. Both daily
+  references still need two further real opportunities.
+- Growth's two failed pre-F224 attempts and its pre-deploy 15:55 recovery are
+  retained as separate outcomes, not independent daily successes. No post-F224
+  scheduled writer run yet; next due October 18 15:55 UTC, ordinarily 16:00
+  (21:30 IST) poll. Public live/store checks do not substitute for it.
+- Exact-scope Vercel CLI API confirms dpl_7zhiGvtmhrZ3zb83xYyNg9i4ZMgT READY
+  at 54c24c4146552ea1ac3099f5c3197df093706951, matching main/origin. Latest
+  three genuine CI runs 39048250037, 39048651791, 39049456929 each individually
+  read: attempt 1, app and SQL jobs success. No intervening run/retry/cancellation.
+- Approved bounded behavioral evaluation already executed as previously recorded;
+  no new paid calls. F221 diagnosis/proposed test-only producer cleanup is local
+  at fbf3c07; implementation is not approved/completed. F219 stays separate.
+
+Hourly automation remains ACTIVE. T15 stays open for elapsed daily intervals and
+Growth writer acceptance; no overall closure or new actionable failure. No repeat
+notification. Only local evidence/tracker documentation changed, checked with
+git diff --check; no tests rerun for prose. No push/deploy, production mutation,
+feed refresh invocation, timer/serve change, corpus operation, payment work or
+dotenv/credential-folder read. Final payment handoff remains conditional.

@@ -165,6 +165,14 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   failed once on unemployment, then recovered with exact stored-row parity;
   do not substitute those reads for scheduled writer acceptance.
   [F224 evidence](../research/2026-10-17-f224-growth-budget-evidence.md).
+  Latest read-only follow-up 17:00 UTC: cron active every five minutes; 70 serving
+  modules / 257 variants, zero nonzero failures. Hourly sources remain at six
+  real opportunities through 16:00; next eligible poll 17:05, not yet observed.
+  Daily references unchanged (one of three each); Growth post-F224 writer run
+  pending tomorrow. Production 54c24c4 READY; final genuine CI 39048250037,
+  39048651791, 39049456929 all app/SQL green on attempt 1. F221 diagnosed only,
+  proposed test-only fix awaits approval. T15 open, hourly follow-up ACTIVE.
+  [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1700-utc).
 
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving
