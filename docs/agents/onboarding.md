@@ -86,3 +86,42 @@ Run <verification commands>.
 Read AGENTS.md and docs/agents/coordination.md before editing.
 Leave the result uncommitted for supervisor review.
 ```
+
+---
+
+## Orientation prompt for a new session with no context
+
+Use this for a fresh agent that should only read and report before any planning (added
+2026-10-17). It points at the documents, not at a dated status, so it stays valid while
+`open-work.md` "Current state" and "Milestones" are kept current.
+
+```text
+You are joining an existing software project called Niyantran Terminal. You have no prior context, and this first session is for reading and orientation only: do not edit, commit, push, deploy, or run anything that writes to a database or a live service.
+
+The repository is at:
+/Users/vighneshshukla/Downloads/DDL Labs/Clients/AI Project -> Niyantran AI
+
+Step 1 – confirm the checkout. Run pwd, git status, git branch -a, git remote -v and git worktree list, then git fetch origin. Report whether local main matches origin/main and whether the working tree is clean. Do not pull over uncommitted work.
+
+Step 2 – read these documents in this order:
+1. AGENTS.md (binding rules: authority, git, verification, safety)
+2. docs/START-HERE.md (entry point and how the setup works)
+3. docs/agents/coordination.md – the roles, work lifecycle and "Branches and deployments" sections, plus the last few dated Operations entries at the end
+4. docs/plans/open-work.md – start with "Current state" and "Milestones: what is left, in order", then the open items (lines starting "- [ ]") that the milestones name
+5. The newest docs/research/*-live-module-status.md (the latest production check)
+6. docs/agents/rollback-runbook.md (how deploys and rollbacks work)
+7. docs/Architectures/README.md, then only the architecture parts relevant to the next milestone
+
+Step 3 – check the docs against the code. For each item in the next open milestone, find the files involved (server/, src/lib/, supabase/) and check that the code matches what open-work.md says. When the code and a document disagree, the code wins: report the disagreement, don't fix it.
+
+Step 4 – report back with:
+- the repo state from step 1;
+- a one-paragraph summary of what the product is and how it is built (React/Vite site on Vercel, Supabase project "NTER" with Edge Functions, the scheduled feed store, the AI research chat);
+- the milestones in your own words, and for the next open milestone each item with its likely files, size (S/M/L) and any dependency or owner decision it needs;
+- anything stale, contradictory or unclear in the docs;
+- questions you need answered before planning that milestone.
+
+Rules for this session: production (Supabase project vfgcppstyzjarlzyqdac, niyantran-six.vercel.app) is shared and real, so no writes of any kind. Never read or print .env or .env.local, any credentials folder, or keys. Do not touch backup/ or public/data/. No AI or tool attribution anywhere. Branches, when work starts later, are task/<slug>.
+
+When the report is done, stop and wait. The next step will be to plan the next milestone from open-work.md.
+```

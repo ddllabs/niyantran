@@ -17,7 +17,7 @@ accepted risks and a Done log with commit hashes.
 | 3 | `plans/open-work.md` | What is open, what is blocked and on whom, the current baseline, and what landed |
 | 4 | `agents/rollback-runbook.md` | How Edge Functions and migrations are deployed, verified and rolled back |
 | 5 | `plans/2026-09-29-corpus-ingestion.md` | Historical: the old L1/L2 measurements; current R4–R8 work is in open-work |
-| 6 | `agents/onboarding.md` | Only when dispatching subagents: the onboarding text and dispatch template |
+| 6 | `agents/onboarding.md` | The onboarding text and dispatch template for subagents, and the orientation prompt for a new session with no context |
 | 7 | `Architectures/README.md`, `decisions/` | How the system is built and why; read the part you are changing |
 
 When a document and the code disagree, the code and migrations win, and the
