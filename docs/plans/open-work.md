@@ -190,8 +190,9 @@ orientation list is compared item by item in the
   single-series probes all 200; proposed batch queries returned 502.
   Recommend a narrowly scoped per-indicator diagnostic/deadline/cancellation
   patch with bounded transient retry only within existing limits; no emergency
-  production change after recovery. Backend implementation awaits owner approval,
-  spec/plan and regression proof. No forced refresh or source substitution.
+  production change after recovery. Owner approved scoped implementation, verification and push/deploy.
+  Active on task/f224-growth-budget; [spec](../specs/2026-10-17-f224-growth-budget.md)
+  and [plan](2026-10-17-f224-growth-budget.md) fix the bounded interface. No forced refresh or source substitution.
   [Diagnosis and proposed fix](../research/2026-10-17-f224-growth-indicators-diagnosis.md).
 
 ## Test isolation finding outside the F220 write scope

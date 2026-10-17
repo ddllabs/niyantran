@@ -17,6 +17,7 @@ import { LIVE_ADAPTERS, classifyAnswer } from './feedAnswer.mjs';
 import { FEED_CLASSES, FEED_SCHEDULE, feedRunsForDb, itemKeysFor } from './feedSchedule.mjs';
 import { serveFeatureFeed } from './featureFeed.mjs';
 import { withoutLoaderCaches } from './loaderCache.mjs';
+import { SOURCE_ATTEMPT } from './sourceAttempt.mjs';
 import { cutChars, safeText, supabaseRpc } from './supabaseRpc.mjs';
 
 // The database client lives in supabaseRpc.mjs so that the page server (feedServe.mjs) can use it without
@@ -348,7 +349,7 @@ class RunGate {
     const closed = this.closed.get(host);
     if (!closed) return;
     if (closed.by !== mod && !mod.refusal) mod.refusal = closed.why;
-    throw new Error(closed.why);
+    throw Object.assign(new Error(closed.why), { code: 'http', httpStatus: closed.httpStatus });
   }
 
   async fetch(original, input, init, mod) {
@@ -366,11 +367,13 @@ class RunGate {
     });
     const tail = before.then(() => mine);
     this.tails.set(host, tail);
+    const { [SOURCE_ATTEMPT]: attempt, ...requestInit } = init || {};
     let running = false;
     mod.waiting += 1;
     mod.waitingFor = host;
     this.settle(mod);
     try {
+      attempt?.queued(mod.controller.signal);
       try {
         await waitUnlessAborted(before, signal);
         signal.throwIfAborted();
@@ -379,17 +382,22 @@ class RunGate {
         this.settle(mod);
       }
       this.refuseIfClosed(host, mod);
+      // An opted-in request may be admitted in the same timer turn that ends
+      // the run. Let the existing module timer cancel it before any source I/O.
+      if (attempt && this.now() >= mod.workEnd) await waitUnlessAborted(new Promise(() => {}), signal);
       mod.active += 1;
       mod.requests += 1;
       running = true;
       this.settle(mod);
-      const res = await original(input, { ...(init || {}), signal });
+      attempt?.active();
+      const res = await original(input, { ...requestInit, signal });
       if (res.status === 429 || res.status === 403) {
         const why = `${host} answered HTTP ${res.status}; closed for the rest of this run`;
-        if (!this.closed.has(host)) this.closed.set(host, { why, by: mod });
+        if (!this.closed.has(host)) this.closed.set(host, { why, by: mod, httpStatus: res.status });
       }
       return await buffered(res, host);
     } finally {
+      attempt?.finished();
       if (running) {
         mod.active -= 1;
         this.settle(mod);
@@ -502,6 +510,7 @@ export async function refreshDue({
     const run = byKey.get(runKey(claim)) || {};
     const kind = claim.kind || run.kind || FEED_CLASSES[FEED_SCHEDULE[`${claim.tier}:${claim.feature}`]]?.kind;
     const params = new URLSearchParams({ tier: claim.tier, feature: claim.feature, ...(run.params || {}) });
+    mod.workEnd = workEnd;
     const limit = moduleLimit(mod, moduleMs, workEnd, now);
     const outcome = await Promise.race([
       gate.run(mod, () => load(params)).then(

@@ -1,7 +1,8 @@
 # F224 Growth Indicators read-only diagnosis
 
-> **Status: Living.** Read-only diagnosis authorized 2026-10-17; backend changes,
-> push/deploy and forced refresh are not authorized by this task.
+> **Status: Living.** Initial read-only diagnosis 2026-10-17. Owner subsequently
+> approved scoped implementation and push/deploy; [implementation spec](../specs/2026-10-17-f224-growth-budget.md).
+> No forced refresh is authorized. The dated diagnostic evidence below is preserved.
 
 ## Observed production evidence
 

@@ -5,6 +5,7 @@
  * GET /api/leaders        — UN member heads of state / government
  */
 import { cacheFresh, cacheWritable } from './loaderCache.mjs';
+import { sourceJsonAttempt } from './sourceAttempt.mjs';
 import { constitutionCountryName } from '../src/lib/globalResources.js';
 
 const UA = 'Mozilla/5.0 (compatible; NiyantranTerminal/1.0; GlobalResources)';
@@ -99,13 +100,51 @@ function wbMap(payload) {
   return out;
 }
 
+const GROWTH_SERIES = ['NY.GDP.MKTP.KD.ZG', 'FP.CPI.TOTL.ZG', 'SL.UEM.TOTL.ZS'];
+const GROWTH_ATTEMPT_MS = 6000;
+const GROWTH_ACTIVE_MS = 18000; // Leave margin inside the worker's unchanged 20 s limit.
+
+async function growthSeries(series, budget) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const remaining = GROWTH_ACTIVE_MS - budget.used;
+    if (remaining <= 0) throw new Error(`World Bank growth ${series}: budget`);
+    let elapsed = 0;
+    try {
+      const result = await sourceJsonAttempt(WB(series), Math.min(GROWTH_ATTEMPT_MS, remaining),
+        { Accept: 'application/json', 'User-Agent': UA });
+      elapsed = result.activeMs;
+      const data = result.payload;
+      // World Bank can answer HTTP 200 with an error object. Never cache that
+      // as a missing series, nor accept an unconsumed page as complete.
+      if (!Array.isArray(data) || !data[0] || !Array.isArray(data[1]) || Number(data[0].pages) !== 1) {
+        throw Object.assign(new Error('invalid series'), { code: 'invalid', activeMs: elapsed });
+      }
+      budget.used += elapsed;
+      console.info('[growth-source]', { series, attempt, code: 'ok', activeMs: Math.round(elapsed) });
+      return data;
+    } catch (error) {
+      budget.used += error.activeMs || elapsed;
+      const code = error.code === 'timeout' && budget.used >= GROWTH_ACTIVE_MS ? 'budget' : error.code;
+      const detail = { series, attempt, code, activeMs: Math.round(error.activeMs || elapsed),
+        ...(error.httpStatus ? { httpStatus: error.httpStatus } : {}) };
+      console.warn('[growth-source]', detail);
+      const retryable = code === 'timeout' || code === 'transport' ||
+        (code === 'http' && [500, 502, 503, 504].includes(error.httpStatus));
+      if (!retryable || attempt === 2 || budget.used >= GROWTH_ACTIVE_MS) {
+        throw new Error(`World Bank growth ${series}: ${code}`);
+      }
+    }
+  }
+}
+
 export async function loadGrowth() {
   if (grCache && cacheFresh(grAt, GR_TTL)) return grCache;
-  const [gdpJ, cpiJ, uemJ] = await Promise.all([
-    getJson(WB('NY.GDP.MKTP.KD.ZG')),
-    getJson(WB('FP.CPI.TOTL.ZG')),
-    getJson(WB('SL.UEM.TOTL.ZS')),
-  ]);
+  const budget = { used: 0 };
+  // Sequential requests share one active budget and do not start their clocks
+  // while the refresh gate queues them behind other World Bank modules.
+  const data = [];
+  for (const series of GROWTH_SERIES) data.push(await growthSeries(series, budget));
+  const [gdpJ, cpiJ, uemJ] = data;
   const gdp = wbMap(gdpJ);
   const cpi = wbMap(cpiJ);
   const uem = wbMap(uemJ);
