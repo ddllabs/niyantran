@@ -78,5 +78,55 @@ October 17 10:45 UTC with 500 records, next due October 18 10:45 UTC. Real daily
 opportunities have not elapsed. T15 stays open and payment work has not started.
 The owner's hourly follow-up remains responsible for these real windows.
 
-Release CI, production commit/response and browser results will be recorded
-after the authorized push/deploy.
+## Authorized release and production verification
+
+Code commit `0e2ebfb8ccf4b55cf31d335b5a0540729d05be85` pushed first to the
+task branch. [Branch CI 39028020440](https://github.com/ddllabs/niyantran/actions/runs/39028020440)
+passed both jobs on first attempt: 391 files / 6,126 Vitest tests, 1,150 Deno
+tests, lint/build/router import and unchanged-public-data check; 41 SQL fixtures,
+41 vacuity checks and 10 Down/reapply checks. Fast-forward merged main and pushed
+with owner approval. [Main CI 39028299148](https://github.com/ddllabs/niyantran/actions/runs/39028299148)
+also passed both jobs on first attempt. No retry or empty commit.
+
+Vercel production deployment `dpl_GFrsGgPzU3A8mjzmHuGUoYrcQeaX`,
+`https://niyantran-nckhgd2m7-ddl-labs.vercel.app`, target production, is READY
+at that exact code commit in the verified team/project. CLI inspection confirms
+the `niyantran-six.vercel.app` alias. No database or Edge Function deployment.
+
+Read-only production GETs with cache-bypassing probe parameters:
+
+| Endpoint | Result |
+| --- | --- |
+| Satellite Global landing | 200, ready, count 12, `served: store`, 775 ms |
+| Satellite module | 200, 12 prepared rows, `served: store`, 450 ms |
+| Both Satellite responses | Same `fetchedAt: 2026-10-17T11:15:01.824Z`; source observation date remains honestly null |
+| Global Commodities summary | 200, intentionally unavailable/null count |
+| Nuclear Watch summary | 200, ready, count 112, unchanged source date |
+
+Satellite summary preserves The Space Devs source link and the “not a complete
+satellite or constellation inventory” limitation. Summary has no full rows.
+The scheduled source refreshed naturally during this task; no manual refresh.
+
+Isolated Chrome at 1280×844 and 390×844 loaded the real Global landing components
+and summary loader through a local GET-only proxy to the production Satellite
+summary. Both show “Upcoming launches” with 12 records and the correct canonical
+module href/navigation callback. No page errors or horizontal overflow. No
+production authentication/session, analytics writes or external page requests.
+Only this module's summary was loaded in the harness; other module placeholders
+are deliberate. Initial harness attempts exposed missing temporary dependency
+linkage and an incorrect assumed detail-dialog interaction; corrected the harness
+to test actual direct module navigation. Final ordinary and reduced-motion runs
+pass; stable mobile screenshot visually inspected. No product code was changed
+to accommodate the harness. Temporary harness compilation emits a Babel size
+notice for React DOM; the production build warning remains the known lazy chunk.
+
+Bounded logs for the exact deployment: request query `httpStatus >= 500`,
+11:06:56–11:21:56 UTC, returned zero records, no further page. Runtime error query,
+11:07:32–11:22:32 UTC, returned nine records, all existing DEP0169 `url.parse`
+deprecation warnings; zero other errors and no further page. These are bounded
+observations, not a long-duration reliability claim. GitHub also warns of its
+upcoming Ubuntu 26 runner-image transition; no workflow change in this task.
+
+F218 is closed in the tracker with the code hash. The follow-up documentation
+commit records these actual results; T15 and F219 remain open. Corpus ingestion
+and payment integration remain untouched.

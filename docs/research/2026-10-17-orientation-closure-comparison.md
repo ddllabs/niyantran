@@ -33,7 +33,7 @@ must wait for that gate; corpus ingestion remains explicitly excluded.
 | F208 catalogue initial loading | Released `e5f45c2`. Local entry 224,234 → 180,398 B gzip; total initial JS including globe 229,274 → 185,438 B. Baseline lowered after browser/search/navigation checks. |
 | F202 Heads of State links | Released `d4c0054`. Exact safe Wikidata item link verified for keyboard access, href, new tab and noopener. |
 | T15 release and closure | Code, three migrations, affected Edge Functions and inventoried reference transitions released. CI gate passed. Real multi-day source observations remain open, with owner-requested hourly read-only follow-ups. |
-| F218 new rollout finding | Separate narrow Satellite landing store-first fix authorized after the cleanup. See its execution record for release status; it does not replace T15. |
+| F218 new rollout finding | Separate narrow Satellite landing store-first fix released as `0e2ebfb`; production and desktop/mobile browser checks pass. It does not replace T15. |
 | M3 sources and methods | Still open for a true MLA scorecard, district modules, tender sources and resulting homepage source count. Separate from payments. |
 | M4 corpus/retrieval | Parked and out of scope by owner instruction. No ingestion resumed. |
 | M5 payment gateway | Waiting for M1/M2 closure and the next approved plan. Existing billing scaffolding is not payment acceptance. Legal/address/review and live billing decisions remain tracked. |

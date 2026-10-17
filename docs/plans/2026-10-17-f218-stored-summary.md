@@ -1,6 +1,8 @@
 # F218 implementation and release plan
 
-> **Status: Living.** Created 2026-10-17. Sequential work, no delegation.
+> **Status: Historical (2026-10-17).** Executed sequentially without delegation.
+> Code `0e2ebfb` verified, pushed and deployed with owner approval. Release
+> evidence is recorded in the companion execution document. T15 remains open.
 
 Spec: [F218 contract](../specs/2026-10-17-f218-stored-summary.md).
 Tracking: [open-work](open-work.md), F218. Branch `task/f218-stored-summary`.

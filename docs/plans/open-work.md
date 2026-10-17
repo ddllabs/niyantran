@@ -126,22 +126,10 @@ checks, lint/build/router/bundle and browser checks pass. Explicitly authorized 
 correction. Total actual cost $0.03677325, every temporary evaluator deleted. Detailed failed
 batches, outputs and version distinctions are preserved; no rubric was loosened.
 
-## Rollout finding outside the approved cleanup write scope
-
-- [ ] **F218. Global landing summaries bypass usable feed-store data.** Observed 2026-10-17:
-  Satellite Infrastructure's `/api/global-landing` summary returns HTTP 502 / availability=error
-  when the launch source is unavailable, although its module has a usable serving store
-  (15 items, checked 10:10 UTC, zero failures). All 16 Global summaries were checked: only
-  Satellite failed; Global Commodities honestly reports unavailable with HTTP 200.
-  The unchanged `api/router.js` passes `serveFeatureFeedWithBackup` to Global/National/Law
-  summaries, while module pages use the store-first path. No diff in this route or Global
-  summary code from the rollout base. This is separate from the 120-module probe (all 200).
-  Likely scope for a separate fix: route/summary readers and focused landing tests; verify
-  shared-register counts and provenance before broadening store-first summary serving.
-  Reported without opportunistically changing the approved T15 write scope.
-  Owner authorized the separate narrow Satellite fix, verification, push and
-  deployment on 2026-10-17: [spec](../specs/2026-10-17-f218-stored-summary.md),
-  [plan](2026-10-17-f218-stored-summary.md).
+F218's separate Satellite landing fix is released (`0e2ebfb`) and moved to Done.
+It does not close T15's real scheduled observations. The owner's earlier full
+orientation list is compared item by item in the
+[closure comparison](../research/2026-10-17-orientation-closure-comparison.md).
 
 ## Documentation follow-up
 
@@ -1300,6 +1288,18 @@ batches, outputs and version distinctions are preserved; no rubric was loosened.
 
 
 ## 1. Done
+
+- [x] **F218. Satellite Infrastructure landing summary bypasses usable feed-store data.**
+  Done 2026-10-17 (`0e2ebfb`): both routers use the canonical stored-first loader
+  for this summary, preserving fetched time/stale markers and existing fallbacks.
+  Production deployment `dpl_GFrsGgPzU3A8mjzmHuGUoYrcQeaX` READY; landing and module
+  both return 12 stored launches with fetched time `2026-10-17T11:15:01.824Z`.
+  6,126 Vitest / 1,150 Deno tests pass; branch/main CI first-attempt green,
+  including 41 SQL fixtures/vacuity and 10 Down checks. Desktop/mobile browser
+  verifies count and navigation. Other summaries retain their existing loaders;
+  no broad shared-register change or corpus/payment work.
+  [Spec](../specs/2026-10-17-f218-stored-summary.md) ·
+  [evidence](../research/2026-10-17-f218-stored-summary-evidence.md).
 
 ### M1/M2 implementation and rollout — 2026-10-17
 
