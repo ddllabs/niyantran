@@ -4,6 +4,9 @@
 > production migration, backfill, deployment or payment operation has occurred.
 > Production release requires separate owner approval.
 
+Verified implementation commit: `7d7aaa9` on `task/credit-paise-plan`, local
+only. F225 remains open for approved production rollout and reconciliation.
+
 ## Outcome and scope
 
 One credit becomes INR0.01. Existing economic value is preserved by converting
@@ -109,6 +112,10 @@ unchanged INR plan prices and the new typical-cost illustration. Mobile Terms
 exposed INR0.01 and the 10,000 signup allowance. No browser warnings/errors
 were observed. Temporary browser harness was deleted. Signed-in billing and
 admin interactions use component tests; no production account was exercised.
+The dotenv-blocked Vite server reported the expected missing `SUPABASE_URL`
+authentication startup warning. Authenticated live flows were not verified;
+no secret files were loaded to enable them. The local server was stopped
+after verification; disposable Docker containers retain their prior running state.
 Screenshots: `/tmp/niyantran-credit-paise-desktop.png` and
 `/tmp/niyantran-credit-paise-mobile.png` (local evidence, not committed).
 

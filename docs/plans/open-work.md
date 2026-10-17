@@ -215,6 +215,7 @@ orientation list is compared item by item in the
   [local verification/release record](../research/2026-10-18-credit-paise-evidence.md)
   cover the implementation. Production backfill, push and deployment remain
   unapproved and unexecuted; F225 stays open until release reconciliation.
+  Verified local implementation: `7d7aaa9` on `task/credit-paise-plan`.
   Local verification: 6,224 app / 1,155 Deno tests, 44 SQL fixtures with vacuity,
   lint/build/router/bundle and desktop/mobile checks pass. Read-only inventory: 3 wallets / 3 lots / 20
   ledger entries, no active holds at 19:30 UTC October 17. Counts must be
