@@ -85,7 +85,7 @@ describe('curated news in the source data and the loader (F196)', () => {
   const registry = JSON.parse(readFileSync(new URL('../data/source-registry.json', import.meta.url), 'utf8'));
   const featureMap = JSON.parse(readFileSync(new URL('../data/html-feature-map.json', import.meta.url), 'utf8'));
 
-  it('the registry and the feature map name the search the loader asks, with a 30-minute refresh', async () => {
+  it('the registry names the actual search and the feature map references it without duplicate storage', async () => {
     const { newsRssUrlForFeature } = await import('../../server/featureFeed.mjs');
     // The four F196 modules. The F202 modules still have older searches stored in the registry and
     // the feature map (changing those files needs a data-migration task); the loader asks their own.
@@ -96,7 +96,7 @@ describe('curated news in the source data and the loader (F196)', () => {
       expect(url, id).not.toMatch(/%22(?:Governance|Friction|Productivity|Defection)%22/);
       const fm = featureMap.find((f) => f.htmlTier === tier && f.htmlFeature === feature);
       expect(fm.mapping, id).not.toBe('HTML-ONLY');
-      expect(fm.source, id).toBe(url);
+      expect(fm.source, id).toBeUndefined();
       expect(fm.registryKeys, id).toHaveLength(1);
       const entry = registry.find((r) => r.key === fm.registryKeys[0]);
       expect(entry, id).toMatchObject({ htmlTier: tier, htmlFeature: feature, adapter: 'news-search', primaryFeedUrl: url, sourceUrls: url, refreshMinutes: 30, endpointCount: '1.0' });

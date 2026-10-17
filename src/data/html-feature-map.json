@@ -85,7 +85,6 @@
     "backendRoute": "/api/feature-feed?tier=sports&feature=Indian%20Sports%20Wire",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India+hockey+OR+badminton+OR+kabaddi+OR+athletics+OR+chess+when:7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS — Indian sports · GET · RSS · auth: none",
     "role": "primary_of_record"
   },
@@ -103,7 +102,6 @@
     "backendRoute": "/api/feature-feed?tier=sports&feature=Sports%20Governance%20%26%20Policy",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Curated Google News topic search kept to on-topic headlines (F196); news coverage, not an official register. Status row when the search returns nothing on topic. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22sports%20ministry%22%20OR%20%22national%20sports%20federation%22%20OR%20%22National%20Sports%20Code%22%20OR%20NADA%20OR%20%22anti-doping%22%20OR%20%22Indian%20Olympic%20Association%22%20OR%20IOA%20OR%20%22sports%20governance%22%20OR%20%22Sports%20Governance%20Act%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS curated topic search (FEATURE_TOPIC_Q) · title guard in src/lib/curatedNews.js · never product-name search",
     "role": "primary_of_record"
   },
@@ -193,7 +191,6 @@
     "backendRoute": "/api/feature-feed?tier=entertainment&feature=Entertainment%20News%20Wire",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Entertainment%22%20OR%20%22News%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -211,7 +208,6 @@
     "backendRoute": "/api/feature-feed?tier=entertainment&feature=Bollywood%20%26%20Film%20Wire",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Bollywood%22%20OR%20%22Film%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -301,7 +297,6 @@
     "backendRoute": "/api/feature-feed?tier=geopolitics&feature=Open%20Fronts",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Open%22%20OR%20%22Fronts%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -355,7 +350,6 @@
     "backendRoute": "/api/feature-feed?tier=geopolitics&feature=Global%20Intelligence",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Global%22%20OR%20%22Intelligence%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -373,7 +367,6 @@
     "backendRoute": "/api/feature-feed?tier=geopolitics&feature=Alliances",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Alliances%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -517,7 +510,6 @@
     "backendRoute": "/api/feature-feed?tier=geopolitics&feature=Nuclear%20Watch",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Nuclear%22%20OR%20%22Watch%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -553,7 +545,6 @@
     "backendRoute": "/api/feature-feed?tier=geopolitics&feature=Critical%20Minerals",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Critical%22%20OR%20%22Minerals%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -805,7 +796,6 @@
     "backendRoute": "/api/feature-feed?tier=national&feature=Delimitation%20Impact%20Simulator",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Delimitation%22%20OR%20%22Impact%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -823,7 +813,6 @@
     "backendRoute": "/api/feature-feed?tier=national&feature=Bureaucratic%20Transfers%20%E2%80%94%20AGMUT%20Cadre",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Bureaucratic%22%20OR%20%22Transfers%22%20OR%20%22AGMUT%22%20OR%20%22Cadre%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -931,7 +920,6 @@
     "backendRoute": "/api/feature-feed?tier=national&feature=LS%20Manifestos%20%26%20Promises%20Tracker",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Manifestos%22%20OR%20%22Promises%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -1111,7 +1099,6 @@
     "backendRoute": "/api/feature-feed?tier=state&feature=Bureaucrat%20Transfer%20%26%20Posting%20Tracker%20(State%20Cadre)",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(IAS%20OR%20IPS%20OR%20bureaucrat%20OR%20%22chief%20secretary%22)%20(transfer%20OR%20transferred%20OR%20posting%20OR%20posted)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -1147,7 +1134,6 @@
     "backendRoute": "/api/feature-feed?tier=state&feature=Governor%20Assent%20Tracker",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(governor)%20(assent%20OR%20%22returned%20the%20bill%22%20OR%20%22withheld%20assent%22%20OR%20ordinance)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -1183,7 +1169,6 @@
     "backendRoute": "/api/feature-feed?tier=state&feature=Assembly%20Proceedings%20Digest%20(Vernacular%2C%20Translated)",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Vidhan%20Sabha%22%20OR%20%22assembly%20proceedings%22%20OR%20%22legislative%20assembly%22%20OR%20%22assembly%20session%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -1255,7 +1240,6 @@
     "backendRoute": "/api/feature-feed?tier=state&feature=MLA%20Defection%20%26%20Anti-defection%20Case%20Tracker",
     "mapping": "SOURCE-MAPPED",
     "feedGuarantee": "Curated Google News topic search kept to on-topic headlines (F196); news coverage, not an official register. Status row when the search returns nothing on topic. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(MLA%20OR%20MLAs%20OR%20legislator)%20(defection%20OR%20%22anti-defection%22%20OR%20%22Tenth%20Schedule%22%20OR%20%22disqualification%20petition%22%20OR%20disqualified%20OR%20%22switch%20party%22%20OR%20%22joins%20BJP%22%20OR%20%22joins%20Congress%22%20OR%20%22switched%20sides%22%20OR%20defect)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS curated topic search (FEATURE_TOPIC_Q) · title guard in src/lib/curatedNews.js · never product-name search",
     "role": "primary_of_record"
   },
@@ -1273,7 +1257,6 @@
     "backendRoute": "/api/feature-feed?tier=state&feature=District%20Media%20Monitor%20(Vernacular%20District%20Editions)",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(district%20OR%20collectorate%20OR%20%22district%20magistrate%22%20OR%20%22zilla%20parishad%22)%20(protest%20OR%20land%20OR%20water%20OR%20road%20OR%20school%20OR%20hospital)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS district themes · GDELT real topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -1291,7 +1274,6 @@
     "backendRoute": "/api/feature-feed?tier=state&feature=Cabinet%20Decisions",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(cabinet)%20(decision%20OR%20approves%20OR%20approved%20OR%20%22cabinet%20meeting%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -1381,7 +1363,6 @@
     "backendRoute": "/api/feature-feed?tier=state&feature=CAG%20Audit%20Tracker",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(CAG%20OR%20%22Comptroller%20and%20Auditor%20General%22)%20(audit%20OR%20report)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -1399,7 +1380,6 @@
     "backendRoute": "/api/feature-feed?tier=state&feature=Legislative%20Productivity%20Comparison",
     "mapping": "SOURCE-MAPPED",
     "feedGuarantee": "Curated Google News topic search kept to on-topic headlines (F196); news coverage, not an official register. Status row when the search returns nothing on topic. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22assembly%20session%22%20OR%20%22Vidhan%20Sabha%20session%22%20OR%20%22monsoon%20session%22%20OR%20%22winter%20session%22%20OR%20%22budget%20session%22)%20(assembly%20OR%20%22Vidhan%20Sabha%22)%20(sittings%20OR%20adjourned%20OR%20%22sine%20die%22%20OR%20%22bills%20passed%22%20OR%20%22passed%20the%20bill%22%20OR%20walkout%20OR%20%22cut%20short%22%20OR%20curtailed)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS curated topic search (FEATURE_TOPIC_Q) · title guard in src/lib/curatedNews.js · never product-name search",
     "role": "primary_of_record"
   },
@@ -1417,7 +1397,6 @@
     "backendRoute": "/api/feature-feed?tier=state&feature=Governor%20Friction%20%26%20President's%20Rule%20Tracker",
     "mapping": "SOURCE-MAPPED",
     "feedGuarantee": "Curated Google News topic search kept to on-topic headlines (F196); news coverage, not an official register. Status row when the search returns nothing on topic. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20governor%20(%22state%20government%22%20OR%20%22President's%20Rule%22%20OR%20%22Article%20356%22%20OR%20%22withheld%20assent%22%20OR%20%22governor's%20address%22%20OR%20walkout%20OR%20%22Raj%20Bhavan%22%20OR%20%22Lok%20Bhavan%22%20OR%20%22chief%20minister%22)%20(row%20OR%20clash%20OR%20friction%20OR%20standoff%20OR%20confrontation%20OR%20tussle%20OR%20%22President's%20Rule%22%20OR%20%22Article%20356%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS curated topic search (FEATURE_TOPIC_Q) · title guard in src/lib/curatedNews.js · never product-name search",
     "role": "primary_of_record"
   },
@@ -1789,7 +1768,6 @@
     "backendRoute": "/api/feature-feed?tier=local&feature=MGNREGA%20Works%20%26%20Muster%20Roll%20Tracker",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22MGNREGA%22%20OR%20%22Works%22%20OR%20%22Muster%22%20OR%20%22Roll%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -1841,7 +1819,6 @@
     "backendRoute": "/api/feature-feed?tier=local&feature=Local%20Officer%20Directory%20%2B%20Transfer%20Tracker%20(BDO%2FSDO%2FEO)",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Local%22%20OR%20%22Officer%22%20OR%20%22Directory%22%20OR%20%22Transfer%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -1859,7 +1836,6 @@
     "backendRoute": "/api/feature-feed?tier=local&feature=Councillor%20%26%20Pradhan%20Profiles%20%2B%20Report%20Cards",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Councillor%22%20OR%20%22Pradhan%22%20OR%20%22Profiles%22%20OR%20%22Report%22%20OR%20%22Cards%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -1895,7 +1871,6 @@
     "backendRoute": "/api/feature-feed?tier=local&feature=Hyperlocal%20News%20Aggregator",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Hyperlocal%22%20OR%20%22News%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -1913,7 +1888,6 @@
     "backendRoute": "/api/feature-feed?tier=local&feature=Municipal%20Watch",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Municipal%22%20OR%20%22Watch%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -1931,7 +1905,6 @@
     "backendRoute": "/api/feature-feed?tier=local&feature=Panchayat%20Watch",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Panchayat%22%20OR%20%22Watch%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2068,7 +2041,6 @@
     "backendRoute": "/api/feature-feed?tier=local&feature=Municipal%20Finance%20%26%20Solvency",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Municipal%22%20OR%20%22Finance%22%20OR%20%22Solvency%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2171,7 +2143,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=Supreme%20Court%20Order%20%26%20Judgment%20Feed",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Supreme%22%20OR%20%22Court%22%20OR%20%22Order%22%20OR%20%22Judgment%22%20OR%20%22Feed%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2189,7 +2160,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=Order%20Archive%20by%20Topic%20(Cross-Court)",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Order%22%20OR%20%22Archive%22%20OR%20%22Topic%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2207,7 +2177,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=District%20Court%20Case%20Tracker",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22District%22%20OR%20%22Court%22%20OR%20%22Case%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2225,7 +2194,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=UP%20High%20Court%20(Allahabad)%20Order%20Feed",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22High%22%20OR%20%22Court%22%20OR%20%22Order%22%20OR%20%22Feed%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2243,7 +2211,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=NGT%20Environmental%20Litigation%20Tracker",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22NGT%22%20OR%20%22Environmental%22%20OR%20%22Litigation%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2261,7 +2228,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=CAT%20%26%20Consumer%20Disputes%20(NCDRC)%20Watch",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22CAT%22%20OR%20%22Consumer%22%20OR%20%22Disputes%22%20OR%20%22Watch%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2279,7 +2245,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=ICC%20Proceedings",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22ICC%22%20OR%20%22Proceedings%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2297,7 +2262,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=ICJ%20Proceedings",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22ICJ%22%20OR%20%22Proceedings%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2333,7 +2297,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=Supreme%20Courts%20%26%20precedent%20%E2%80%94%20other%20common-law%20jurisdictions",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Supreme%22%20OR%20%22Courts%22%20OR%20%22precedent%22%20OR%20%22other%22%20OR%20%22common-law%22%20OR%20%22jurisdictions%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2369,7 +2332,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=Regional%20Int'l%20Courts%20(ECtHR%20%2F%20CJEU%20%2F%20ITLOS)",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Regional%22%20OR%20%22Int'l%22%20OR%20%22Courts%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2387,7 +2349,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=Judge%20Analytics%20(Ruling%20Patterns)",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Judge%22%20OR%20%22Analytics%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2405,7 +2366,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=Case%20Pendency%20%26%20Disposal%20Analytics",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Case%22%20OR%20%22Pendency%22%20OR%20%22Disposal%22%20OR%20%22Analytics%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2423,7 +2383,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=Precedent%20%2F%20Citation%20Network",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Precedent%22%20OR%20%22Citation%22%20OR%20%22Network%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2441,7 +2400,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=Constitutional%20Bench%20Tracker",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Constitutional%22%20OR%20%22Bench%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2459,7 +2417,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=Cause-List%20%2F%20Hearing%20Scheduler",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Cause-List%22%20OR%20%22Hearing%22%20OR%20%22Scheduler%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2477,7 +2434,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=NCLT%20%2F%20NCLAT%20(Insolvency)",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22NCLT%22%20OR%20%22NCLAT%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2495,7 +2451,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=Sector%20Tribunals%20(ITAT%20%2F%20TDSAT%20%2F%20SAT%20%2F%20DRT)",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Sector%22%20OR%20%22Tribunals%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2513,7 +2468,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=Professional%20Case-Law%20Database",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Professional%22%20OR%20%22Case-Law%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2531,7 +2485,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=HC%20Case%20Status%20%26%20Cause%20Lists",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Case%22%20OR%20%22Status%22%20OR%20%22Cause%22%20OR%20%22Lists%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2549,7 +2502,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=HC%20Pendency%20%26%20Disposal%20Analytics",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Pendency%22%20OR%20%22Disposal%22%20OR%20%22Analytics%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2567,7 +2519,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=HC%20Judge%20Profiles%20%26%20Bench%20Analytics",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Judge%22%20OR%20%22Profiles%22%20OR%20%22Bench%22%20OR%20%22Analytics%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2585,7 +2536,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=HC%20Constitutional%20%26%20PIL%20Tracker",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Constitutional%22%20OR%20%22PIL%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2603,7 +2553,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=HC%20vs%20State%20Government%20Litigation",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22State%22%20OR%20%22Government%22%20OR%20%22Litigation%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2621,7 +2570,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=District%20Court%20Cause%20Lists",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22District%22%20OR%20%22Court%22%20OR%20%22Cause%22%20OR%20%22Lists%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2639,7 +2587,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=District%20Court%20Pendency%20%26%20Disposal",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22District%22%20OR%20%22Court%22%20OR%20%22Pendency%22%20OR%20%22Disposal%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2657,7 +2604,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=Undertrial%20%26%20Prison%20Data",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Undertrial%22%20OR%20%22Prison%22%20OR%20%22Data%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2675,7 +2621,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=Legal%20Aid%20%26%20Lok%20Adalat%20Tracker",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Legal%22%20OR%20%22Aid%22%20OR%20%22Lok%22%20OR%20%22Adalat%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2693,7 +2638,6 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=Local%20Judge%20%26%20Court%20Directory",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Local%22%20OR%20%22Judge%22%20OR%20%22Court%22%20OR%20%22Directory%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
@@ -2927,7 +2871,6 @@
     "backendRoute": "/api/feature-feed?tier=climate&feature=Carbon%20Price%20Monitor",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Carbon%22%20OR%20%22Price%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
     "role": "primary_of_record"
   },
