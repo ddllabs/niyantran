@@ -356,6 +356,9 @@ class RunGate {
     const host = requestHost(input);
     if (!host) return original(input, init);
     this.refuseIfClosed(host, mod);
+    const signals = [mod.controller.signal, init?.signal, input instanceof Request ? input.signal : null].filter(Boolean);
+    const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
+    signal.throwIfAborted();
     const before = this.tails.get(host) || Promise.resolve();
     let release;
     const mine = new Promise((resolve) => {
@@ -369,7 +372,8 @@ class RunGate {
     this.settle(mod);
     try {
       try {
-        await waitUnlessAborted(before, mod.controller.signal);
+        await waitUnlessAborted(before, signal);
+        signal.throwIfAborted();
       } finally {
         mod.waiting -= 1;
         this.settle(mod);
@@ -379,8 +383,6 @@ class RunGate {
       mod.requests += 1;
       running = true;
       this.settle(mod);
-      const signals = [mod.controller.signal, init?.signal, input instanceof Request ? input.signal : null].filter(Boolean);
-      const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
       const res = await original(input, { ...(init || {}), signal });
       if (res.status === 429 || res.status === 403) {
         const why = `${host} answered HTTP ${res.status}; closed for the rest of this run`;

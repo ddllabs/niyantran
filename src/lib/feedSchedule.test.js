@@ -247,3 +247,18 @@ describe('item keys (F170 rule 1)', () => {
   });
 });
 
+
+it('constitution reference keys follow source identity and version, never display fields', () => {
+  const row = { title: 'Bahamas_the', country: 'Bahamas_the', constitution_id: 'Bahamas_1973', source_url: 'https://www.constituteproject.org/constitution/Bahamas_1973' };
+  const [first] = itemKeysFor([row], 'reference');
+  const [changed] = itemKeysFor([{ ...row, title: 'Bahamas', country: 'Bahamas', date: '2026-10-17' }], 'reference');
+  expect(changed).toBe(first);
+  expect(first).toBe('constitute:Bahamas_1973');
+  expect(itemKeysFor([{ ...row, constitution_id: 'Bahamas_2027', source_url: 'https://www.constituteproject.org/constitution/Bahamas_2027' }], 'reference')[0]).not.toBe(first);
+  expect(itemKeysFor([{ ...row, source_url: 'https://unrelated.example/list' }], 'reference')[0]).not.toBe(first);
+});
+
+it('MLA profile reference keys use the Wikidata person identity, independently of display fields', () => {
+  const row = { title: 'Member A', section: 'MLA profiles', source_url: 'https://www.wikidata.org/entity/Q123' };
+  expect(itemKeysFor([row], 'reference')).toEqual(itemKeysFor([{ ...row, title: 'Member A updated', state: 'Goa' }], 'reference'));
+});

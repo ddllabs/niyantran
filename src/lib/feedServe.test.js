@@ -507,7 +507,7 @@ describe('serveFromStore: a whole handbook variant (F201)', () => {
   const warn = () => vi.spyOn(console, 'warn').mockImplementation(() => {});
   afterEach(() => vi.restoreAllMocks());
 
-  it('a 1,824-item block is served whole, in order, from four reads made at once', async () => {
+  it('a 1,824-item block is served whole, in order, from one initial read and three remaining reads', async () => {
     const rows = rowsOf(1824);
     const rpc = store(rows);
     const body = await ask({ table: '176' }, rpc);
@@ -515,6 +515,12 @@ describe('serveFromStore: a whole handbook variant (F201)', () => {
     expect(body.rows).toEqual(rows);
     expect(body).toMatchObject({ served: 'store', register: true, storeTotal: 1824 });
     expect(body.meta.blocks).toHaveLength(2);
+  });
+
+  it.each([1, 500, 501, 2000])('reads exactly the pages needed for %i handbook figures', async n => {
+    const rpc = store(rowsOf(n));
+    expect((await ask({ table: '176' }, rpc)).rows).toHaveLength(n);
+    expect(rpc).toHaveBeenCalledTimes(Math.ceil(n / STORE_PAGE_ROWS));
   });
 
   it('`years` names an older block', async () => {
@@ -689,4 +695,17 @@ describe('liveAnswerIsUsable: the refresh\'s adapter rules (review finding 4)', 
       expect(liveAnswerIsUsable(body), adapter).toBe(classifyAnswer(body).status === 'ok');
     }
   });
+});
+
+it('reads a complete current market run from more than 2,000 accumulated items', async () => {
+  const id = 'finance:Prediction Market Political Odds';
+  const all = Array.from({ length: 2501 }, (_, i) => ({ item_key: `m${i}`, row: { title: `Market ${i}`, source_url: `https://manifold.markets/m${i}` }, last_seen: '2026-10-15T10:00:00.000Z' }));
+  const rpc = vi.fn(async (name, args) => page({ feature: 'Prediction Market Political Odds', class: 'markets', kind: 'measurement',
+    total: name === 'feed_latest_run_page' ? all.length : 5500,
+    items: all.slice(args.p_offset, args.p_offset + args.p_limit),
+  }));
+  const body = await serveFromStore(id, new URLSearchParams(), { rpc, ...SOON });
+  expect(body?.rows.map(r => r.title)).toEqual(all.map(i => i.row.title));
+  expect(rpc.mock.calls.filter(([name]) => name === 'feed_latest_run_page')).toHaveLength(6);
+  expect(rpc.mock.calls.every(([, args]) => args.p_limit === 500)).toBe(true);
 });

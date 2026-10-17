@@ -34,3 +34,41 @@ describe('Sports API registration', () => {
     }
   });
 });
+
+describe('World League source completeness', () => {
+  it('uses the documented free configuration and accounts for every league and window', async () => {
+    vi.resetModules();
+    const calls = [];
+    vi.stubGlobal('fetch', vi.fn(async input => {
+      const url = new URL(String(input)); calls.push(url);
+      if (!url.pathname.includes('/123/')) return new Response('', { status: 403 });
+      const id = url.searchParams.get('id');
+      return Response.json({ events: [{ idEvent: `${id}-${url.pathname.includes('past') ? 'past' : 'next'}`, strEvent: `Event ${id}`, dateEvent: '2026-10-17' }] });
+    }));
+    try {
+      const { loadWorldFixtures } = await import('../../server/sportsApi.mjs');
+      const answer = await loadWorldFixtures();
+      expect(answer.ok).toBe(true);
+      expect(answer.rows).toHaveLength(8);
+      expect(answer.coverage).toHaveLength(4);
+      expect(answer.coverage.every(c => c.next === 'ok' && c.past === 'ok')).toBe(true);
+      expect(calls).toHaveLength(8);
+    } finally { vi.unstubAllGlobals(); vi.resetModules(); }
+  });
+
+  it('a failed league is partial, while a verified empty window is not a failed request', async () => {
+    vi.resetModules();
+    vi.stubGlobal('fetch', vi.fn(async input => {
+      const url = new URL(String(input));
+      if (url.searchParams.get('id') === '4387') return new Response('', { status: 429 });
+      return Response.json({ events: null });
+    }));
+    try {
+      const { loadWorldFixtures } = await import('../../server/sportsApi.mjs');
+      const answer = await loadWorldFixtures();
+      expect(answer.ok).toBe(false);
+      expect(answer.coverage.find(c => c.league === 'NBA')).toMatchObject({ next: 'failed', past: 'failed' });
+      expect(answer.coverage.find(c => c.league === 'Premier League')).toMatchObject({ next: 'empty', past: 'empty' });
+    } finally { vi.unstubAllGlobals(); vi.resetModules(); }
+  });
+});

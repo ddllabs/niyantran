@@ -796,3 +796,45 @@ describe('closed hosts and loader caches (C3 re-review)', () => {
     expect(after).toEqual(snapshot);
   });
 });
+
+describe('caller cancellation in the host queue', () => {
+  it('starts the chart fallback before a blocked host releases, without starting the expired request', async () => {
+    const original = globalThis.fetch;
+    const calls = [];
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    let started = 0, fallback = false;
+    const ac = new AbortController();
+    globalThis.fetch = vi.fn(async input => {
+      const url = String(input);
+      calls.push(url);
+      if (url.endsWith('/held')) await held;
+      return new Response('ok');
+    });
+    const db = fakeDb(['held', 'chart', 'sibling']);
+    const running = refreshDue({ rpc: db.rpc, concurrency: 3, moduleMs: 2000, budgetMs: 6000, reserveMs: 500,
+      load: async params => {
+        const name = params.get('feature');
+        started++;
+        if (name === 'chart') {
+          try { await fetch('https://chart.example/chart', { signal: ac.signal }); }
+          catch { await fetch('https://fallback.example/chart'); fallback = true; }
+        } else await fetch(`https://chart.example/${name}`);
+        return live([row(name)]);
+      },
+    });
+    try {
+      await vi.waitFor(() => expect(started).toBe(3));
+      ac.abort();
+      await vi.waitFor(() => expect(fallback).toBe(true), { timeout: 500 });
+      expect(calls).not.toContain('https://chart.example/chart');
+      expect(calls).not.toContain('https://chart.example/sibling');
+    } finally {
+      release();
+      await running;
+      globalThis.fetch = original;
+    }
+    expect(calls).toContain('https://chart.example/sibling');
+    expect(byFeature(db.records).chart.status).toBe('ok');
+  });
+});

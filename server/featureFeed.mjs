@@ -2419,19 +2419,20 @@ export async function serveFeatureFeed(searchParams, { store } = {}) {
     if (slice === 'fixtures') {
       try {
         const live = await loadWorldFixtures();
-        if (live.rows?.length) {
+        if (live.ok && live.rows?.length) {
           return envelope({
             tier,
             feature: feat,
             rows: live.rows,
             adapter: 'api',
-            links: ['https://www.thesportsdb.com/api/v1/json/3/eventsnextleague.php?id=4328'],
+            links: ['https://www.thesportsdb.com/'],
             coverage: { from: '', through: '', exhaustive: false },
             fallback: false,
-            note: sportsNote('fixtures'),
-            meta: { heading: feat.htmlFeature, section: 'WORLD LEAGUES' },
+            note: sportsNote('fixtures', 'A limited next/last-event sample, not the full league schedule.'),
+            meta: { heading: feat.htmlFeature, section: 'WORLD LEAGUES', coverage: live.coverage },
           });
         }
+        if (!live.ok) return sportsStatus(`TheSportsDB could not check every league: ${(live.coverage || []).filter(c => c.next === 'failed' || c.past === 'failed').map(c => c.league).join(', ')}`);
       } catch {
         /* status */
       }
@@ -3432,20 +3433,20 @@ export async function serveFeatureFeed(searchParams, { store } = {}) {
     const profileRows = (profiles.rows || []).slice(0, 400);
     const wireLimited = wireRows.slice(0, 100);
     const rows = [...profileRows, ...wireLimited];
-    if (rows.length) {
+    if (profileRows.length) {
       return envelope({
         tier,
         feature: feat,
         rows,
         adapter: profiles.source === 'embedded' ? 'embedded' : 'api',
         links: [MLA_WD, newsUrl].filter(Boolean),
-        coverage: { from: '', through: 'present', exhaustive: false },
+        coverage: { from: '', through: 'source sample', exhaustive: false },
         fallback: false,
         note:
           `${profileRows.length} MLA profiles (${profiles.source || 'none'}) · ${wireLimited.length} coverage rows (${wireNote}). ` +
-          'Wikidata MLA identity profiles plus Google News coverage; not a scorecard (no attendance, questions or funds data yet).',
+          'A sample of identities, not a complete current assembly register or a scorecard. States outside this sample are not covered. Profiles and dated reporting are separate sections; no attendance, questions or funds data.',
         meta: {
-          heading: 'MLA Report Card + Statement Tracker',
+          heading: 'MLA Profiles & Coverage',
           profiles: profileRows.length,
           wire: wireLimited.length,
           profileSource: profiles.source || '',

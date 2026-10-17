@@ -268,7 +268,7 @@ export const STORE_ROWS_AS_STORED = Object.freeze({
   'sports:Football Wire': 'BBC Sport football RSS shaped and ordered only (rssWireRows); no topic, age or story filter',
   'entertainment:Entertainment News Wire': 'Variety RSS shaped and ordered only (rssWireRows); no topic, age or story filter',
   'entertainment:Bollywood & Film Wire': 'NDTV Movies RSS shaped and ordered only (rssWireRows; the Google News fallback likewise); no topic, age or story filter',
-  'state:MLA Report Card + Statement Tracker': 'not fixed here: serve stays off (owner, 2026-10-16); 400 undated Wikidata profiles plus an unfiltered coverage wire, flagged by scripts/compare-feed-store.mjs',
+  'state:MLA Report Card + Statement Tracker': 'reference snapshot: profiles and reporting have distinct section tags and source identities; every successful refresh replaces the sample, not an accumulating news history',
 });
 
 /**

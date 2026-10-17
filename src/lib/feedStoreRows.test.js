@@ -96,11 +96,14 @@ describe('measurement modules: only the items of the latest run', () => {
       { seen: i < 450 ? EARLIER_RUN : RUN },
     ));
     const id = 'finance:Prediction Market Political Odds';
-    const rpc = vi.fn(async (_name, args) => page(id, all.slice(args.p_offset, args.p_offset + args.p_limit), { total: all.length }));
+    const rpc = vi.fn(async (name, args) => {
+      const rows = name === 'feed_latest_run_page' ? all.slice(450) : all;
+      return page(id, rows.slice(args.p_offset, args.p_offset + args.p_limit), { total: rows.length });
+    });
     const body = await serveFromStore(id, new URLSearchParams(), { rpc, ...SOON });
     expect(titles(body)).toEqual(all.slice(450).map((i) => i.row.title));
-    // The first page, then the second, read once each (pages past the total are not asked for).
-    expect(rpc.mock.calls.map(([, args]) => args.p_offset).sort((a, b) => a - b)).toEqual([0, 500]);
+    // One metadata/history page, then one page containing only the complete current run.
+    expect(rpc.mock.calls.map(([name]) => name)).toEqual(['feed_page', 'feed_latest_run_page']);
   });
 
   it('Prediction Market Political Odds: a variant that fits one page is read once', async () => {
@@ -115,9 +118,9 @@ describe('measurement modules: only the items of the latest run', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const id = 'finance:Prediction Market Political Odds';
     const all = Array.from({ length: 600 }, (_v, i) => item({ title: `Market ${i}`, source_url: `https://manifold.markets/m${i}` }));
-    const rpc = vi.fn(async (_name, args) => page(id, all.slice(args.p_offset, args.p_offset + args.p_limit), {
+    const rpc = vi.fn(async (name, args) => page(id, all.slice(args.p_offset, args.p_offset + args.p_limit), {
       total: all.length,
-      fetched_at: args.p_offset ? AT(FETCHED + 60_000) : RUN,
+      fetched_at: name === 'feed_latest_run_page' ? AT(FETCHED + 60_000) : RUN,
     }));
     expect(await serveFromStore(id, new URLSearchParams(), { rpc, ...SOON })).toBeNull();
   });
@@ -397,4 +400,15 @@ describe('every scheduled module of a kept or latest-run kind is covered', () =>
     expect(isTechTitle('Strengthening Digital Data Systems under DAY-NRLM')).toBe(false);
     expect(isTechTitle('IndiaAI Mission opens GPU compute portal')).toBe(true);
   });
+});
+
+it('MLA reference profiles survive a slow source without losing undated identities to the news window', async () => {
+  const id = 'state:MLA Report Card + Statement Tracker';
+  expect(FEED_SCHEDULE[id]).toBe('reference');
+  const body = await served(id, [
+    item({ title: 'Member A', section: 'MLA profiles', source_url: 'https://www.wikidata.org/entity/Q123' }, { seen: EARLIER_RUN }),
+    item({ title: 'Assembly coverage', section: 'Statement / coverage wire', date: '2026-10-15', source_url: 'https://news.example/story' }),
+  ]);
+  expect(titles(body)).toEqual(['Member A', 'Assembly coverage']);
+  expect(body.rows[0].section).not.toBe(body.rows[1].section);
 });

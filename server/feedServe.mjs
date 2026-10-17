@@ -21,7 +21,7 @@
  * with no state (or one the register does not hold) the page gets a first page across every variant,
  * the same share of each, in one read (registerAcross, public.feed_page_across). F201: a handbook
  * register's variant (a table, or a whole-year block of a large table, `table` and `years`) is read
- * whole, up to 2,000 items in four pages asked for at once (wholeVariant).
+ * whole, up to 2,000 items, reading page one then only necessary pages (wholeVariant).
  *
  * Task B follow-up (2026-10-16): a stored answer shows only rows the module's live code would show now:
  * the latest run of an events module or of a market whose items close (servesLatestRunOnly; such a
@@ -288,8 +288,13 @@ export const WHOLE_VARIANT_PAGES = 4;
  * reads, or a variant larger than the reads, is never served part-way.
  */
 async function readWholeVariant(id, ask, tier, feature, variant, first = null) {
+  if (!first) {
+    first = await ask('feed_page', { p_tier: tier, p_feature: feature, p_variant: variant, p_limit: STORE_PAGE_ROWS, p_offset: 0 });
+    if (!isRow(first) || first.serve !== true) return null;
+  }
   const total = Number(first?.total);
-  const needed = first ? Math.ceil(total / STORE_PAGE_ROWS) : WHOLE_VARIANT_PAGES;
+  const needed = Math.ceil(total / STORE_PAGE_ROWS);
+  if (!Number.isInteger(total) || total < 1) return null;
   if (first && needed > WHOLE_VARIANT_PAGES) {
     console.warn(`[feed-store] ${id} / ${safeText(variant, 40)}: ${total} items, more than the ${WHOLE_VARIANT_PAGES * STORE_PAGE_ROWS} read whole; the live path answers`);
     return null;
@@ -330,6 +335,26 @@ function needsWholeRun(id, page, offset) {
   return servesLatestRunOnly(id, kindOf(id, page)) && Number(page.total) > read;
 }
 
+/** A bounded current-run read; history size never determines how many pages are fetched. */
+const MAX_LATEST_RUN_ITEMS = 10_000;
+async function readLatestRun(ask, tier, feature, variant, runAt) {
+  const args = { p_tier: tier, p_feature: feature, p_variant: variant, p_limit: STORE_PAGE_ROWS, p_run_at: runAt };
+  const head = await ask('feed_latest_run_page', { ...args, p_offset: 0 });
+  const total = Number(head?.total);
+  if (!isRow(head) || head.serve !== true || head.fetched_at !== runAt
+      || !Number.isInteger(total) || total < 1 || total > MAX_LATEST_RUN_ITEMS) return null;
+  const pages = [head];
+  // At most four RPCs in flight. The enclosing store deadline still bounds the whole read.
+  for (let offset = STORE_PAGE_ROWS; offset < total; offset += 4 * STORE_PAGE_ROWS) {
+    const offsets = Array.from({ length: 4 }, (_, i) => offset + i * STORE_PAGE_ROWS).filter(n => n < total);
+    pages.push(...await Promise.all(offsets.map(p_offset => ask('feed_latest_run_page', { ...args, p_offset }))));
+  }
+  if (pages.some(p => !isRow(p) || p.serve !== true || p.fetched_at !== runAt || Number(p.total) !== total)) return null;
+  const items = pages.flatMap(p => Array.isArray(p.items) ? p.items : []);
+  if (items.length !== total || new Set(items.map(i => i.item_key)).size !== total) return null;
+  return { ...head, items };
+}
+
 /**
  * Whether a live answer may take the place of a stored copy (Task B, 2026-10-16): a live attempt that
  * finished (`served: 'live'`) with an answer the refresh itself would keep (feedAnswer.mjs
@@ -368,8 +393,8 @@ export async function serveFromStore(
         : ask('feed_page', { p_tier: tier, p_feature: feature, p_variant: variant, p_limit: limit, p_offset: offset })
           .then(async (page) => {
             if (!needsWholeRun(id, page, offset)) return storedAnswer(id, page, now(), register, allowStale);
-            // The first page is reused when it is a whole page; otherwise every page is read.
-            const whole = await readWholeVariant(id, ask, tier, feature, variant, limit === STORE_PAGE_ROWS ? page : null);
+            // Pin the current run: historical items may exceed the whole-variant register cap.
+            const whole = await readLatestRun(ask, tier, feature, variant, page.fetched_at);
             return whole ? storedAnswer(id, whole, now(), register, allowStale) : null;
           });
     return await Promise.race([

@@ -69,7 +69,7 @@ export const FEED_SCHEDULE = Object.freeze({
   'entertainment:Bollywood & Film Wire': 'news',
   'state:Governor Assent Tracker': 'news',
   'state:Assembly Proceedings Digest (Vernacular, Translated)': 'news',
-  'state:MLA Report Card + Statement Tracker': 'news',
+  'state:MLA Report Card + Statement Tracker': 'reference',
   'local:Municipal Watch': 'news',
   'local:Panchayat Watch': 'news',
   'state:Bureaucrat Transfer & Posting Tracker (State Cadre)': 'news',
@@ -315,6 +315,16 @@ const norm = (v) => String(v ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
  */
 export function itemKeysFor(rows, kind) {
   return rows.map((row) => {
+    // A constitution's source identity includes its version. Display names and fetch dates
+    // must not replace a reference item (F160: the country-name cleanup changed 47 keys).
+    const constitution = typeof row?.constitution_id === 'string' ? row.constitution_id : '';
+    if (kind === 'reference' && /^[A-Za-z0-9_-]{1,180}$/.test(constitution)
+        && row.source_url === `https://www.constituteproject.org/constitution/${constitution}`) {
+      return `constitute:${constitution}`;
+    }
+    const member = row?.section === 'MLA profiles'
+      ? /^https:\/\/www\.wikidata\.org\/(?:entity|wiki)\/(Q[1-9][0-9]*)$/.exec(String(row.source_url || '')) : null;
+    if (kind === 'reference' && member) return `mla-profile:${member[1]}`;
     const key = itemKeyFor(row);
     if (!REPLACING_KINDS.has(kind) || !key.startsWith('url:')) return key;
     const r = row || {};

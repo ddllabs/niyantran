@@ -46,28 +46,33 @@ async function getJson(url, extraHeaders = {}, timeoutMs = FETCH_MS) {
 }
 
 function sportsDb(kind, id) {
-  return `https://www.thesportsdb.com/api/v1/json/3/${kind}.php?id=${id}`;
+  return `https://www.thesportsdb.com/api/v1/json/123/${kind}.php?id=${id}`;
 }
 
 export async function loadWorldFixtures() {
   if (fxCache && cacheFresh(fxAt, TTL)) return fxCache;
   const rows = [];
-  await Promise.all(
-    WORLD_LEAGUES.map(async (lg) => {
-      for (const kind of ['eventsnextleague', 'eventspastleague']) {
-        try {
-          const json = await getJson(sportsDb(kind, lg.id));
-          rows.push(...sportsDbRows(json, lg.name));
-        } catch {
-          /* skip a missing window */
-        }
-      }
-    }),
-  );
-  rows.sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(a.league).localeCompare(String(b.league)));
-  const fresh = { ok: true, source: 'thesportsdb', rows };
-  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
-  if (cacheWritable()) {
+  const coverage = await Promise.all(WORLD_LEAGUES.map(async lg => {
+    const result = { league: lg.name };
+    for (const [window, kind] of [['next', 'eventsnextleague'], ['past', 'eventspastleague']]) {
+      try {
+        const json = await getJson(sportsDb(kind, lg.id));
+        const events = json?.events ?? json?.event;
+        if (!json || (!Object.hasOwn(json, 'events') && !Object.hasOwn(json, 'event'))
+            || (events != null && !Array.isArray(events))) throw new Error('invalid event response');
+        const got = sportsDbRows(json, lg.name);
+        if (events?.length && !got.length) throw new Error('unreadable events');
+        result[window] = got.length ? 'ok' : 'empty';
+        rows.push(...got);
+      } catch { result[window] = 'failed'; }
+    }
+    return result;
+  }));
+  const unique = [...new Map(rows.map(r => [r.source_url || `${r.league}|${r.date}|${r.title}`, r])).values()];
+  unique.sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(a.league).localeCompare(String(b.league)));
+  const fresh = { ok: coverage.every(c => c.next !== 'failed' && c.past !== 'failed'), source: 'thesportsdb', rows: unique, coverage };
+  // An incomplete league check must never replace a known-good copy.
+  if (fresh.ok && unique.length && cacheWritable()) {
     fxCache = fresh;
     fxAt = Date.now();
   }
