@@ -175,7 +175,11 @@ orientation list is compared item by item in the
   (Directory 496 sampled rows, Profiles 500) with zero injected upstream calls.
   Proposed to the owner: stored-first routing limited to those two modules in
   both routers, preserve fetch/stale metadata, add safe feature diagnostics and
-  regression guards. Backend changes await approval; no implementation or deploy.
+  regression guards. Owner approved that scoped implementation, verification
+  and push/deploy on 2026-10-17. Active on `task/f223-state-summaries`, preserving
+  existing local closure evidence; no broader summary routing or data changes.
+  [Spec](../specs/2026-10-17-f223-state-summaries.md),
+  [plan](2026-10-17-f223-state-summaries.md).
   [Evidence](../research/2026-10-17-f222-manifold-identity-evidence.md#bounded-request-log-finding-outside-f222).
 
 ## Test isolation finding outside the F220 write scope

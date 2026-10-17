@@ -95,5 +95,7 @@ export function stateLandingAnswer(module, raw) {
   const counted = hasRealRows(raw);
   const summary = projectStateSummary(module, counted ? raw : noShippedRegister(module));
   const answer = !counted && raw?.served === 'archive' ? { ...summary, availability: 'error' } : summary;
-  return { ...answer, ok: answer.availability !== 'error', ...(raw?.served ? { served: raw.served } : {}) };
+  return { ...answer, ok: answer.availability !== 'error', ...(raw?.served ? { served: raw.served } : {}),
+    ...(raw?.served === 'store' ? { fetchedAt: raw.fetchedAt,
+      ...(raw.stale ? { stale: true, ageMinutes: raw.ageMinutes } : {}) } : {}) };
 }
