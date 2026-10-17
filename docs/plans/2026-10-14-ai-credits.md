@@ -343,8 +343,8 @@ At most three agents run at once.
 ## After launch (2026-10-14)
 
 **Owner amendment 2026-10-18:** F225 changes the unit from INR0.10 to INR0.01
-with a locally implemented, release-pending value-preserving 10x conversion; production still uses the old
-unit until its migration runs. Top-up buying is for every Free and paid account.
+with a completed, reconciled value-preserving 10x production conversion
+(application `de51434`, migrations `20261017194626` / `20261017194628`). Top-up buying is for every Free and paid account.
 Use the [current conversion plan](2026-10-18-credit-paise.md) before O6; older
 pack proposals below are historical alternatives, not a confirmed catalogue.
 

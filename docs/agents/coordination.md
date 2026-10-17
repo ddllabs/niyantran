@@ -2254,3 +2254,18 @@ recommendations … We can fix everything that is under your control."
 F221 publication confirmed: main CI 39052960359 app/SQL green on attempt 1;
 production dpl_EC2dNBS1rX9ZPrcEBJDJydXmoqWh READY at exact 389dbed SHA.
 Final prose follow-up deployment/CI is verified after publication; T15 stays open.
+
+- **2026-10-18 IST: F225 one-paisa credit conversion released.** Owner approved
+  push, deployment and controlled production backfill. Credit-only branch
+  `de51434` excludes unrelated closure observations; Vercel
+  `dpl_99ho6FyZMshn7f5HECTbpqyMydsM` READY. Contract and conversion migrations
+  `20261017194626` / `20261017194628` applied separately. Credit writes paused
+  20:28:25 UTC October17, full five-minute idle drain observed, conversion at
+  20:33:51, reconciliation and real read-only usage reports passed, then writes
+  resumed20:34:28. Three wallets preserve value at10x; original20 ledger rows,
+  17 draws,92 cost mappings and18 holds fingerprint-identical. Local6,224 app /
+  1,155 Deno /44 SQL fixtures and all gates pass; branch/main CI39066720672 /
+  39066765071 green attempt1. All ten Edge Function hashes unchanged; no paid
+  evaluation, payment operation, feed flag/timer or corpus action. F225 closed;
+  T15 remains open and Razorpay held. Detailed reconciliation and recovery:
+  [execution record](../research/2026-10-18-credit-paise-evidence.md).

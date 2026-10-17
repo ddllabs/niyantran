@@ -203,25 +203,6 @@ orientation list is compared item by item in the
 
 ## UI follow-ups
 
-- [ ] **F225. Redenominate AI credits to one paisa before payments.** Owner
-  directed 2026-10-18: one credit INR0.10 -> INR0.01, necessary backfill, top-ups
-  for every Free and paid account. Proposed value-preserving conversion is 10x
-  balances, debt, allowances and credit thresholds, unchanged INR prices and
-  validity. Preserve historical ledger/rates; explicit auditable conversion,
-  normalized mixed-era reports/estimates, request-id/stale-browser protection,
-  settings/write barrier and reconciliation are implemented locally. Current
-  [spec](../specs/2026-10-18-credit-paise.md) and
-  [ordered plan](2026-10-18-credit-paise.md), additive ADR 0013 and
-  [local verification/release record](../research/2026-10-18-credit-paise-evidence.md)
-  cover the implementation. Production backfill, push and deployment remain
-  unapproved and unexecuted; F225 stays open until release reconciliation.
-  Verified local implementation: `7d7aaa9` on `task/credit-paise-plan`.
-  Local verification: 6,224 app / 1,155 Deno tests, 44 SQL fixtures with vacuity,
-  lint/build/router/bundle and desktop/mobile checks pass. Read-only inventory: 3 wallets / 3 lots / 20
-  ledger entries, no active holds at 19:30 UTC October 17. Counts must be
-  refreshed at execution. Credit migration precedes payment implementation;
-  M1/M2 T15 remains independent/open and corpus excluded.
-
 - [ ] **F107. Legal policies for payment-gateway activation.** Owner request
   2026-10-12: Privacy, Terms, Refund & Cancellation, Delivery and Contact pages
   for Niyantran Strategy Consulting Pvt Ltd (Kolkata, not GST-registered),
@@ -1367,6 +1348,26 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- [x] **F225. Redenominate AI credits to one paisa before payments.** *Done
+  2026-10-18 IST (`679921a`, released through `de51434`).* Owner approved
+  push/deploy and controlled backfill. Migrations `20261017194626` /
+  `20261017194628` applied separately; compatible production deployment
+  `dpl_99ho6FyZMshn7f5HECTbpqyMydsM` READY. All three wallets, lots and debt
+  reconciled at 10x while paused; original 20 ledger rows, 17 draws, 92 cost
+  mappings, 18 holds and entitlements fingerprint-identical. Writes resumed
+  only after checks at 20:34:28 UTC October 17. Legacy stored values/rates
+  remain immutable; usage/answer projections use the current unit. Allowances
+  10k/20k/65k/750k, INR prices/dates unchanged. 6,224 app / 1,155 Deno tests,
+  44 SQL fixtures with vacuity, lint/build/router/bundle/browser gates pass;
+  branch/main CI 39066720672 / 39066765071 green on attempt 1.
+  [Spec](../specs/2026-10-18-credit-paise.md),
+  [plan](2026-10-18-credit-paise.md),
+  [production reconciliation evidence](../research/2026-10-18-credit-paise-evidence.md).
+  Final top-up prices and Razorpay implementation remain unapproved/on hold;
+  all-account eligibility is the later payment requirement. Corpus excluded;
+  M1/M2 T15 remains independent/open.
+
 
 - [x] **F221. Feed timeout tests release their own live producers.** Landed
   `389dbed` (2026-10-17): disposable source stubs reject pending and fallback

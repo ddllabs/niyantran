@@ -9,9 +9,10 @@
 INR0.01 rather than INR0.10; preserve existing value through a 10x conversion.
 Top-ups are for Free and paid accounts, with model access still plan-based.
 The [conversion specification](2026-10-18-credit-paise.md) and
-[ordered plan](../plans/2026-10-18-credit-paise.md) define the locally implemented, release-pending migration.
-No production backfill has run: the settings, quantities and executed behavior below
-describe the ten-paisa implementation until F225 is verified and released.
+[ordered plan](../plans/2026-10-18-credit-paise.md) record the completed production conversion. The settings, quantities and
+executed behavior below preserve the original ten-paisa launch context;
+current balances, allowances and charge projections use the F225 one-paisa
+contract. Historical stored entries retain their original denomination.
 Historical charge rates and immutable ledger records must be retained.
 
 | Document | What it holds |

@@ -1,8 +1,8 @@
 # One-paisa credits and payment prerequisites
 
-> **Status: Living.** Owner approved local implementation 2026-10-18.
-> Credit conversion is implemented locally; production release/backfill still
-> requires approval. Suggested payment prices remain unapproved.
+> **Status: Living.** Owner approved local implementation and production
+> rollout on 2026-10-18 IST. Production conversion and reconciliation are
+> complete. Suggested payment prices remain unapproved.
 
 ## Objective and decisions
 
@@ -225,6 +225,7 @@ decisions and should be reconciled in living documents, not reopened.
 
 Implementation and local execution evidence are recorded in the
 [verification and release record](../research/2026-10-18-credit-paise-evidence.md).
-SQL tests use the two disposable local Docker Postgres containers. No
-production conversion, push, deployment or Razorpay operation is authorized
-by this local implementation approval.
+SQL tests use the two disposable local Docker Postgres containers. The owner
+subsequently approved push, deployment and controlled production backfill;
+the execution record contains the completed reconciliation. Razorpay remains
+on hold and corpus ingestion remains excluded.

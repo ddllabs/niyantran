@@ -1,9 +1,9 @@
 # One-paisa credit conversion: implementation plan
 
-> **Status: Living.** Owner direction 2026-10-18. Specification:
+> **Status: Historical (2026-10-18).** Completed credit rollout. Owner direction 2026-10-18. Specification:
 > [one-paisa credits](../specs/2026-10-18-credit-paise.md). This document is an
-> ordered execution record. Local implementation and verification are complete; production
-> backfill has not occurred.
+> ordered execution record. Local verification and the approved controlled
+> production backfill are complete; reconciliation preceded credit-write resume.
 
 ## Scope and authority
 
@@ -159,7 +159,10 @@ release packet are recorded in the [execution evidence](../research/2026-10-18-c
 P6 passes: 6,224 app tests, 1,155 Deno tests, 44 SQL fixtures with vacuity,
 lint/build/router import/bundle gate, and desktop/mobile browser checks.
 SQL and client review findings were fixed with red-before-green regressions.
-P7 has not run and requires explicit production approval. Hosted Razorpay MCP registration
+P7 completed with subsequent explicit owner approval: compatible application
+`de51434`, production `dpl_99ho6FyZMshn7f5HECTbpqyMydsM`, migrations
+`20261017194626` / `20261017194628`, all three wallets reconciled while paused,
+then writes resumed at 20:34:28 UTC October 17 (02:04:28 IST October 18). Hosted Razorpay MCP registration
 is a separate local configuration operation; authentication and callable access
 must be confirmed, not inferred from registration. M1/M2 T15 remains open and
 the last observed follow-up configuration was PAUSED, not silently resumed.

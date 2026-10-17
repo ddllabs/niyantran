@@ -1,7 +1,7 @@
 # ADR 0013: Preserve value and history when changing the credit unit
 
 > **Status: Normative.** Owner approved local implementation 2026-10-18.
-> Production cutover requires separate approval. Supplements ADR 0011's unit
+> Production cutover subsequently approved and completed. Supplements ADR 0011's unit
 > value and ledger entry vocabulary; its append-only rule remains binding.
 
 ## Context
