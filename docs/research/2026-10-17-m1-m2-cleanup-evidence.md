@@ -890,3 +890,44 @@ the 18:05 observation remain the latest verified release evidence. Hourly
 closure automation confirmed ACTIVE. T15 remains open; corpus excluded and
 payments held. No forced refresh, production mutation, push/deploy or code
 change. Local prose only, git diff --check; no code tests rerun.
+
+
+## Scheduled closure observation — 2026-10-17 19:09 UTC
+
+Read-only production observation at 19:09–19:11 UTC (October 18 00:39–00:41
+IST). Fetched main/origin remain 1621924; observation branch initially clean.
+
+- Feed-refresh job 5 remains active every five minutes with the exact expected
+  production Vercel refresh URL (boolean comparison only). Latest six cron
+  executions through 19:05 succeeded. Serving inventory 70 modules / 257
+  variants; zero failing counters and none above three. Last-half-hour outcomes
+  14 ok / 27 unchanged / 3 timeouts; zero whole-feed availability=empty flags.
+- TV & Streaming Tonight timed out at 18:45, 18:50 and 18:55 (20-second module
+  limit), then recovered naturally at 19:05: unchanged/43 run items, 277 retained
+  rows and zero failures. This transient reached three, not above three; no new
+  persistent defect inferred and no refresh forced.
+- Fixtures/charts retain eight genuine hourly successes through 18:10,
+  next due just after 19:10, normally eligible at the 19:15 poll. Fixtures retain
+  19 including history, seven latest-run events; Premier League, NBA and La Liga
+  next/past ok, IPL past ok and next truthfully empty. Charts retain 25 each.
+- MLA remains 500 distinct keys, 400 profiles plus 100 coverage, next due
+  October 18 10:45 UTC. Constitutions remain 188 distinct constitute: keys,
+  newline-sorted MD5 c14635ffbc17cef3a5ace4fc74273578, next due October 18
+  15:45 UTC. Daily gates remain one of three each, with two further real
+  opportunities required. Growth remains 20 items, zero failures, next due
+  October 18 15:55 UTC; post-F224 ordinary writer acceptance still pending.
+- Exact-scope Vercel CLI GET confirms dpl_7YLtFYmpTNqB8QqtNeC9nwa2TET1 READY
+  at 162192447ad37479ff184938410b9b0cb9270313. Latest three genuine CI runs
+  39052609249 / 39052960359 / 39053343742 remain successful on attempt 1,
+  with application and SQL jobs successful. No new deployment or CI run.
+- Saved closure automation configuration now reads PAUSED, unlike the prior
+  ACTIVE observation. Read-only automation view requested; no reason/intent
+  available. Pause was not overridden. Continued scheduled checking needs
+  attention; this heartbeat itself completed its authorized read-only checks.
+- Approved behavioral evaluation remains executed with faithful passing
+  evidence and total $0.03677325 already recorded; no new model calls.
+
+T15 remains open; corpus excluded and payments held. Only local tracker/evidence
+prose changed, checked with git diff --check; no code tests rerun. No push,
+deployment, production data/timer/serve changes, function invocation, forced
+refresh, corpus or payment operation, dotenv or credential-folder reads.

@@ -185,6 +185,14 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   for fixtures and both charts (7/25/25 run items), all four leagues accounted
   for, zero failing sources. Daily gates unchanged and monitor ACTIVE.
   [Evidence](../research/2026-10-17-m1-m2-cleanup-evidence.md#continuation-observation--2026-10-17-1813-utc).
+  Scheduled 19:09 UTC follow-up: zero failing sources; TV & Streaming recovered
+  at 19:05 after three ordinary 20-second timeouts. Retained 277 rows, no forced
+  refresh. Daily gates unchanged; fixtures/charts still eight hourly successes,
+  next due just after 19:10. Constitution fingerprint and MLA sample stable.
+  Production remains READY at 1621924; latest three CI runs still attempt-1
+  green. Saved follow-up configuration now reads PAUSED; cause/intent unknown,
+  not overridden. T15 remains open and continued scheduling needs attention.
+  [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-17-1909-utc).
 
 
 
