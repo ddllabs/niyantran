@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F220 is next) and goes in the
+- A new finding gets the next free `F` number (F221 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-17 (milestone check)
@@ -107,8 +107,11 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
 
 - [ ] **T15 (M1/M2):** finish real scheduled source observations: three post-rollout expected
   refresh opportunities, including actual daily reference intervals. Never force extra calls
-  to simulate those opportunities. Three consecutive first-attempt CI runs passed: 39025298847, 39025660396 and
-  39026919956 (the final code/evidence commit `d63192b`). Active hourly
+  to simulate those opportunities. Three consecutive first-attempt CI runs previously passed:
+  39025298847, 39025660396 and 39026919956 (`d63192b`). Later F218 code CI passed
+  on branch/main, but documentation-only run 39028606428 failed the unchanged F199
+  Deno answer-reserve check (F220). The current CI checkpoint is therefore not
+  fully clear; do not hide this with a retry or use one to satisfy the gate. Active hourly
   read-only follow-ups on this chat, explicitly requested by the owner, notify only on a meaningful
   failure or completion. Vercel connector remains 403; the authenticated CLI works for the exact
   DDL Labs scope. Report closure before beginning payment gateway integration.
@@ -130,6 +133,21 @@ F218's separate Satellite landing fix is released (`0e2ebfb`) and moved to Done.
 It does not close T15's real scheduled observations. The owner's earlier full
 orientation list is compared item by item in the
 [closure comparison](../research/2026-10-17-orientation-closure-comparison.md).
+
+## CI finding outside the F218 write scope
+
+- [ ] **F220. F199 answer-reserve test intermittently fails on unchanged code.**
+  Documentation-only main commit `d77ee6b`, CI run 39028606428: Deno 1,149 pass /
+  1 fail at `supabase/functions/research-chat/agent_test.ts:2036`, expected final
+  request reasoning low, observed high. Same source passed local full Deno and
+  both F218 code CI runs; five subsequent local focused executions also pass.
+  `reserveIn(80)` uses the real clock and the watchdog schedules a reserve timer,
+  but exact cause and runtime implications are unproven. Investigate with a
+  controlled clock before deciding test-only versus runtime correction. No retry
+  counted as acceptance, no unrelated research code changed under F218. Current
+  closure must include this finding, alongside real T15 observation windows.
+  [Failure](https://github.com/ddllabs/niyantran/actions/runs/39028606428) ·
+  [execution evidence](../research/2026-10-17-f218-stored-summary-evidence.md).
 
 ## Documentation follow-up
 
@@ -1298,6 +1316,8 @@ orientation list is compared item by item in the
   including 41 SQL fixtures/vacuity and 10 Down checks. Desktop/mobile browser
   verifies count and navigation. Other summaries retain their existing loaders;
   no broad shared-register change or corpus/payment work.
+  Later documentation-only CI exposed unrelated F220; the F218 code/source
+  and production checks remain unchanged, but overall CI closure is pending.
   [Spec](../specs/2026-10-17-f218-stored-summary.md) ·
   [evidence](../research/2026-10-17-f218-stored-summary-evidence.md).
 

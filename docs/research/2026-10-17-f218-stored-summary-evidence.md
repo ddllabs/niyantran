@@ -128,5 +128,36 @@ observations, not a long-duration reliability claim. GitHub also warns of its
 upcoming Ubuntu 26 runner-image transition; no workflow change in this task.
 
 F218 is closed in the tracker with the code hash. The follow-up documentation
-commit records these actual results; T15 and F219 remain open. Corpus ingestion
+commit records these actual results; T15, F219 and newly observed F220 remain open. Corpus ingestion
 and payment integration remain untouched.
+
+## Later documentation CI failure — F220
+
+Documentation commit `d77ee6b85789a50ffb46321cd86098102f0c5c09` contains no
+changes under api/server/src/supabase, configuration or dependency files compared
+with the verified F218 commit. Its production deployment
+`dpl_FuSD477XLfANhMQVWKLi3TFfafQ6` is READY and the final alias GETs again return
+12/store from summary and module with the same fetched time.
+
+[Documentation CI 39028606428](https://github.com/ddllabs/niyantran/actions/runs/39028606428)
+passed lint/build/router/Vitest/public-data and the full SQL job, but Deno reports
+1,149 pass / 1 fail: “F199: an answer call that has written nothing by the reserve
+line is cut and rewritten at the lower effort”, `agent_test.ts:2036`. The fourth
+request's reasoning is high instead of low. The test's `reserveIn(80)` and runtime
+watchdog use real elapsed time; exact race/cause and runtime impact are not yet
+established. Both files are unchanged from the pre-F218 baseline; their last
+test commit is `71f4897`.
+
+Read-only diagnosis command, five separate local executions:
+
+```bash
+deno test -A --config supabase/functions/deno.json --filter 'F199: an answer call that has written nothing' supabase/functions/research-chat/agent_test.ts
+```
+
+All five focused executions pass. This does not erase the failed CI run or prove
+the runtime safe at the boundary. No CI rerun, extra model call, research source
+edit or production mutation was used for diagnosis. Recorded F220 in the sole
+tracker under the rule to report defects outside the write scope. Overall T15
+closure now includes clearing this finding as well as real scheduled intervals;
+the earlier three first-attempt green runs remain historical evidence. F218's
+local, code-CI and production/browser acceptance evidence remains valid.
