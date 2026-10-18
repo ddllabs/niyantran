@@ -1461,8 +1461,10 @@ orientation list is compared item by item in the
   [Spec](../specs/2026-10-18-credit-paise.md),
   [plan](2026-10-18-credit-paise.md),
   [production reconciliation evidence](../research/2026-10-18-credit-paise-evidence.md).
-  Final top-up prices and Razorpay implementation remain unapproved/on hold;
-  all-account eligibility is the later payment requirement. Corpus excluded;
+  Top-up prices were subsequently confirmed by the owner; the catalogue is
+  recorded under O6 in current one-paisa units. Razorpay planning authorized
+  2026-10-18; local implementation and later Test-branch publication separately
+  approved; hosted migration/activation still gated. Corpus excluded;
   M1/M2 T15 remains independent/open.
 
 
@@ -2886,14 +2888,57 @@ Earlier items, updated:
     [credits plan](2026-10-14-ai-credits.md), "After launch"):
     - **Owner amendment 2026-10-18:** Free and paid accounts can buy top-ups;
       buying credits does not grant paid-model access. One-paisa denomination
-      F225 precedes payment implementation. The equivalent proposed pack sizes
-      become 20,000 / 50,000 / 100,000 / 200,000 / 500,000; INR prices below
-      remain suggestions, not approved. The older quantities below describe
-      ten-paisa credits and must not feed a new payment catalogue.
-    - **Top-up packs (owner, 2026-10-14):** 2,000, 5,000, 10,000, 20,000 and 50,000 credits,
-      valid 12 months. Prices set with Razorpay (suggested ₹499 / 1,199 / 2,299 / 4,399 /
-      10,499). Until then there is no way to buy credits in the app; an admin can grant a top-up.
-    - **Downgrade at the next cycle:** `grant_paid_plan` queues a lower plan
+      F225 production conversion is complete. Owner subsequently confirmed the
+      top-up prices:20,000/50,000/100,000/200,000/500,000 credits for
+      ₹499/1,199/2,299/4,399/10,499 respectively, valid12 months. Older pack
+      quantities were ten-paisa units and must not feed a new payment catalogue.
+    - **Planning authorized2026-10-18:** [spec](../specs/2026-10-18-razorpay-integration.md),
+      [ordered plan](2026-10-18-razorpay-integration.md). React Standard Checkout,
+      existing Vercel Node REST adapter, Supabase atomic fulfilment/invoice and
+      durable webhook recovery. Fix authorized-only/missing-status acceptance,
+      add immutable orders/catalogue, captured-only checks, payment top-up RPC,
+      raw-byte webhook validation and deduplication before enabling checkout.
+      Current previews share NTER. Owner confirms no customers/paid users and
+      launch intended within two days. Recommended pre-launch rehearsal can use
+      existing NTER with dedicated test buyers and restricted Test preview;
+      a second hosted DB is optional, not a mandatory blocker.
+      Expanded schema proposal: five private tables (orders, payments, event inbox,
+      adjustments, paid periods), additive links on invoices/plan_grants/profile/
+      lots/ledger; existing wallet/credit engine retained. Ordered A-O slices and
+      local Docker execution evidence is linked below. Five-table migration and application changes implemented locally.
+      Owner-generated key is Live mode; no GST registration reconfirmed; seller
+      name/address supplied. Merchant/website approval remains unconfirmed.
+      Context7 works; Razorpay MCP is not callable/connection unverified here.
+      Separate Test-mode credentials/secure provisioning, enforced test-buyer
+      allowlist configuration and merchant/legal readiness required. The allowlist
+      now exists locally with causal tests and independent review; not deployed.
+      Test mode does not isolate
+      credit wallets/invoice records. Existing Docker containers are PostgreSQL
+      fixtures, not a running full Supabase Auth/PostgREST stack. Owner explicitly approved local implementation/Docker testing before T15.
+      Local implementation and Test-branch push/Preview build are approved before
+      T15. Hosted migrations, provider writes and Live activation remain separately
+      gated. Seller name/address supplied; reviewed adjustments chosen.
+    - **Local implementation 2026-10-18:** five private billing tables, atomic
+      capture/invoice, signed webhook inbox, leased recovery, anchored periods,
+      reviewed adjustments and account purchase UI implemented and independently
+      reviewed. [Execution evidence](../research/2026-10-18-razorpay-local-evidence.md).
+      Final full SQL:all45 fixtures passed; Deno1,155 passed; lint/build/bundle/router passed.
+      Preparation follow-up SQL:all45 fixtures passed, including added replay,
+      overpayment, refund-ordering, debt and paid-top-up checks.
+      Latest follow-up full Vitest:403 files/6,324 tests passed; the formerly
+      timing-out paging file also passed46 isolated tests unchanged. Earlier
+      failure retained in evidence; root cause unproven, no threshold/code change.
+      Secure handoff prepared: pending separate Test-mode key pair and dedicated
+      buyers; Preview task/razorpay-plan only, never broad Preview/Production.
+      Owner confirms Test keys ready; no values provisioned. Connector403 persists
+      but authenticated CLI fallback now verifies project/link/Production READY
+      at3ccdf8a and no billing/Razorpay environment entries. GitHub lacks the local
+      task/razorpay-plan branch; Vercel rejected its scoped closed-checkout setting
+      with400 and created nothing. Owner now approves the recommended narrow Test
+      branch push/Preview build before T15; no main/Production/database/Live changes.
+      O6 remains open for restricted external Test-mode acceptance and release gates;
+      no push, deployment, provider write, credential change or live payment.
+    - **Downgrade at the next cycle:** the new billing fulfilment queues a lower plan
       until the current `plan_period_end`.
     - **Renewal dates anchored to the first paid day,** so they do not drift
       after the 31st.
