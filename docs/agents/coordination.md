@@ -2367,3 +2367,14 @@ has no chunk advisory and bounded runtime scan has noDEP0169/error. Full local
 verification and limits: [release evidence](../plans/2026-10-18-bundle-node-warnings.md#production-verification--2026-10-18).
 No Supabase/data/timer/corpus/payment change. Hourly M1/M2 monitor ACTIVE; T15
 still open. Closure-record follow-up has the same runtime implementation.
+
+
+### Operations — 2026-10-18: F233 login/logout race
+
+Owner approved push/merge/deploy of F233. Runtime66cc4f2, records68c4aff merged
+and pushed main; production dpl_5B3sUpd4zBEoLz3kAJCmGsifsNv6 READY, exact SHA.
+Branch/main app+SQL CI passed attempt1. Actual Arc password sign-in verified
+three times with two intervening logout/home/re-login cycles, no verification
+error. Credentials remained in the browser; no password read/export or settings
+change. Public home/API200, bounded runtime scan no errors. [Release evidence](../plans/2026-10-18-login-logout-race.md#production-verification--2026-10-18).
+No Supabase/data/timer/corpus/payment change. M1/M2 T15 open, hourly checks ACTIVE.

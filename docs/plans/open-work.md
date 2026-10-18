@@ -223,17 +223,6 @@ orientation list is compared item by item in the
 
 ## UI follow-ups
 
-- [ ] **F233. Fix login/logout passive-verification race.** Implemented and
-  verified locally on task/login-logout-race,2026-10-18; not published. Passive
-  refusal by the logout latch returns no authority without emitting a false
-  logout. Real logout/account/token switches and failed verification remain
-  protected. Causal regression failed before repair;6,288 app/1,155 Deno tests,
-  lint/build/bundle and four synthetic browser login cycles pass. Independent
-  review has no required findings. Awaiting owner review/release approval.
-  [Spec](../specs/2026-10-18-login-logout-race.md) ·
-  [Plan/evidence](2026-10-18-login-logout-race.md). Razorpay held; corpus excluded.
-
-
 - [ ] **F107. Legal policies for payment-gateway activation.** Owner request
   2026-10-12: Privacy, Terms, Refund & Cancellation, Delivery and Contact pages
   for Niyantran Strategy Consulting Pvt Ltd (Kolkata, not GST-registered),
@@ -1566,6 +1555,22 @@ orientation list is compared item by item in the
   F218 code/source and production checks remain unchanged.
   [Spec](../specs/2026-10-17-f218-stored-summary.md) ·
   [evidence](../research/2026-10-17-f218-stored-summary-evidence.md).
+
+### Login/logout race released — 2026-10-18
+
+- [x] **F233. Fix login/logout passive-verification race.** Runtime fix
+  `66cc4f2`, merged/released with evidence as main `68c4aff`. Passive refusal
+  grants no authority and emits no false logout; genuine logout/account/token
+  invalidation protections retained. Causal regression,6,288 app/1,155 Deno
+  tests, lint/build/bundle and independent review passed. Branch CI39138273293
+  and main CI39138686342 app+SQL green attempt1. Production READY deployment
+  dpl_5B3sUpd4zBEoLz3kAJCmGsifsNv6; Arc real password sign-in verified three
+  times with two intervening logout → public home → sign-in cycles, no reload
+  between cycles and no verification error. No credentials read/exported,
+  provider/model calls or Supabase settings/function/schema changes.
+  [Spec](../specs/2026-10-18-login-logout-race.md) ·
+  [Production evidence](2026-10-18-login-logout-race.md#production-verification--2026-10-18).
+  M1/M2 T15 remains open; hourly checks ACTIVE, Razorpay held, corpus excluded.
 
 ### Warning fixes released — 2026-10-18
 

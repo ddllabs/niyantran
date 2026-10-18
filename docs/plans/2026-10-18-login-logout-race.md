@@ -126,3 +126,41 @@ Prior known-good deployment dpl_4GxihNxpJ63dL7FeFyv29gvdQ19n at db5793f;
 rollback still requires owner approval. Push task branch, require genuine green
 CI, merge main, verify deployment/CI/public routes and production login/logout
 acceptance using the owner's browser without reading or exporting credentials.
+
+
+## Production verification — 2026-10-18
+
+Runtime commit66cc4f2 and spec/evidence commit68c4aff pushed on the task branch.
+CI39138273293 passed app and disposable SQL jobs on attempt1. Fast-forwarded
+main and pushed exact68c4aff1566447d9f3f940424c741cd4d113c4f1. Main
+CI39138686342 also passed both jobs on attempt1, with no retries/cancellations.
+Vercel dpl_5B3sUpd4zBEoLz3kAJCmGsifsNv6 READY at that SHA, aliases confirmed
+www.nter.pro, nter.pro and niyantran-six.vercel.app. Build Completed present;
+no large-chunk advisory or DEP0169 in build events. Bounded runtime scan returned
+one record, zero error/fatal or DEP0169 entries; it is limited to that window.
+
+HTTP home and /api/home/segments returned200 on www.nter.pro and the original
+Vercel host. Both serve the same index-DWGagfpi.js and React vendor filenames.
+No forced feed refresh, database repair, timer or serve switch invoked.
+
+Live acceptance in the owner's existing Arc production tab: reloaded after READY,
+submitted the already browser-filled password form without reading/exporting its
+password. Visibly reached authenticated Terminal home. Log out returned to the
+public marketing home; top Sign in reopened the password form and its submission
+returned to authenticated Terminal home without the reported error. Repeated the
+logout → home → sign-in sequence once more, again successful. Total three real
+password sign-ins and two intervening logouts, without reloading between cycles.
+Final browser state left signed in on Terminal home. No chat/model call, credit
+spend, password change, signup, Google OAuth or recovery flow was performed.
+Security failure-path claims rest on the local regression matrix, not deliberate
+production fault injection. Native browser interaction occasionally required a
+fresh accessibility observation before its visible state settled; screenshots
+and refreshed trees confirmed the actual success states.
+
+Read-only14:58 UTC closure health: cron5 active */5 with expected Vercel refresh
+target confirmed boolean-only;257 serving variants, zero nonzero failure counters
+and zero above3. MLA500 next dueOctober19 10:45:19 UTC; Constitutions188 next
+dueOctober18 15:45:01 UTC; Growth20 next dueOctober18 15:55:02 UTC. No extra
+opportunity credited. Hourly heartbeat remains ACTIVE unchanged. T15 stays open;
+Razorpay held and corpus excluded. Final evidence/tracker/Operations publication
+is documentation only and must have its resulting deployment/CI verified.
