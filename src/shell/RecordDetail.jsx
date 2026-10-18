@@ -5,7 +5,7 @@ import { formatDate, formatDateTime } from '../lib/format.js';
 import CsvTablePane from './CsvTablePane.jsx';
 import { sensitiveNoteFor } from '../lib/sensitiveData.js';
 import { briefPlainLines, useEntryBrief } from './EntryBriefInline.jsx';
-import { BriefCard } from './record/RecordPanel.jsx';
+import { BriefCard, RecordPaneLoading, isRecordBriefWaiting } from './record/RecordPanel.jsx';
 import { useRecordBrief } from './record/useRecordBrief.js';
 import { plainNote, plainSourceLine } from '../lib/plainSourceNote.js';
 
@@ -336,6 +336,8 @@ function RecordDetailBody({
   // (otherwise "Reading this entry…" vanishes and the whole section disappears).
   const showAnalysis =
     !aiCard && (Boolean(analysis) || Boolean(analysisBrief) || busy || Boolean(err) || Boolean(brief));
+
+  if (isRecordBriefWaiting(recordBrief)) return <RecordPaneLoading brief={recordBrief} onClose={onClear} />;
 
   return (
     <div className="rd">

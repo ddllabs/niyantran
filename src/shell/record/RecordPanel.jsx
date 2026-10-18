@@ -94,6 +94,18 @@ function BriefAnimation({ writing }) {
   );
 }
 
+export const isRecordBriefWaiting = (brief) => ['loading', 'writing', 'pending'].includes(brief?.state);
+
+/** Occupies the selected-record content pane until its existing brief state settles. */
+export function RecordPaneLoading({ brief, onClose }) {
+  return (
+    <section className="rp-record-loading" aria-label="Niyantran analysis" aria-busy="true">
+      <button type="button" className="rp-close rp-record-loading-close" onClick={onClose} aria-label="Close record">×</button>
+      <BriefAnimation key={brief.record} writing={brief.state !== 'loading'} />
+    </section>
+  );
+}
+
 export function BriefCard({ brief }) {
   const ready = brief.state === 'ready'
     && (Array.isArray(brief.points) ? Boolean(brief.headline && brief.points.length) : Boolean(brief.brief));
@@ -116,6 +128,7 @@ function Visual({ visual }) {
 
 export default function RecordPanel({ model, onClose, onAsk, onSelect, onQuick, brief }) {
   if (!model) return null;
+  if (isRecordBriefWaiting(brief)) return <RecordPaneLoading brief={brief} onClose={onClose} />;
   const { glance = {}, about = {}, touches, footer = {} } = model;
   const links = (model.links || []).map((l) => ({ ...l, href: safeHref(l.href) })).filter((l) => l.href);
   const tiles = glance.tiles || [];

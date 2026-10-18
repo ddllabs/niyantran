@@ -12,10 +12,10 @@ const feed = { feature: 'Industry Updates (Ministry Data)', tier: 'national' };
 const render = (props) => renderToStaticMarkup(<NationalRecord row={row} feature={feed.feature} onClear={() => {}} {...props} />);
 
 describe('NationalRecord GenericRecord AI brief', () => {
-  it('shows the record brief card, loading on first render', () => {
+  it('shows the full-pane animation instead of details on first render', () => {
     const out = render({ feed, loading: false });
-    expect(out).toContain('Steel ministry notifies a quality order');
-    expect(out).toContain('✦ Niyantran analysis');
+    expect(out).not.toContain('Steel ministry notifies a quality order');
+    expect(out).toContain('rp-record-loading');
     expect(out).toContain('Loading the AI brief…');
   });
 

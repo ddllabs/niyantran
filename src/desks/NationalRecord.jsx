@@ -1,6 +1,6 @@
 import { parseINR, tenderCloseBand } from '../lib/nationalKpi.js';
 import { AffidavitRecord, DelimitationRecord, ManifestoRecord } from './ElectoralRecords.jsx';
-import { BriefCard } from '../shell/record/RecordPanel.jsx';
+import { BriefCard, RecordPaneLoading, isRecordBriefWaiting } from '../shell/record/RecordPanel.jsx';
 import { useRecordBrief } from '../shell/record/useRecordBrief.js';
 import { plainReportingNote } from '../lib/plainSourceNote.js';
 
@@ -184,6 +184,7 @@ function GenericRecord({ row, onClear, noun, feed, loading }) {
   const foundBy = plainReportingNote(row?.reporting_search);
   // F123: the stored AI brief, written the first time anyone opens the record (platform-paid).
   const brief = useRecordBrief({ feed, selected: row, loading });
+  if (isRecordBriefWaiting(brief)) return <RecordPaneLoading brief={brief} onClose={onClear} />;
   return (
     <div className="nat-rec">
       <header>

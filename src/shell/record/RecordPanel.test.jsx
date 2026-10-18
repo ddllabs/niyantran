@@ -228,7 +228,7 @@ describe('RecordPanel AI brief', () => {
     expect(html({ state: 'error' })).toContain('AI brief unavailable right now');
     for (const state of ['loading', 'writing', 'pending', 'unavailable', 'error']) {
       expect(html({ state })).not.toContain('AI brief · written');
-      expect(html({ state })).toMatch(/<div class="rd-ai[ "]/);
+      expect(html({ state })).toContain(['loading', 'writing', 'pending'].includes(state) ? 'rp-record-loading' : 'rd-ai rp-brief');
     }
   });
 

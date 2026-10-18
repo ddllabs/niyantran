@@ -4,9 +4,15 @@
 // CSV (RightRail renders RecordDetail with generateBrief on by default).
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/supabaseClient.js', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: null } }) } } }));
+const briefState = vi.hoisted(() => ({ current: { state: 'ready', brief: 'Stored analysis' } }));
+vi.mock('./record/useRecordBrief.js', () => ({
+  useRecordBrief: ({ selected }) => selected ? briefState.current : { state: 'none' },
+  RECORD_BRIEF_ANIMATION_MS: 2500,
+}));
+beforeEach(() => { briefState.current = { state: 'ready', brief: 'Stored analysis' }; });
 import RecordDetail from './RecordDetail.jsx';
 
 describe('RecordDetail', () => {
@@ -17,10 +23,12 @@ describe('RecordDetail', () => {
   });
 
   // F123 (owner 2026-10-15): every record view has the stored AI brief, in the record panels' card.
-  it('shows the record brief card, loading on first render', () => {
+  it('shows a full-pane loader on first render', () => {
+    briefState.current = { state: 'loading', record: 'r2' };
     const row = { id: 'r2', title: 'State rolls out a scheme', source_url: 'https://example.gov.in/x' };
     const html = renderToStaticMarkup(createElement(RecordDetail, { row, feed: { feature: 'Local Governance Brief', tier: 'state' }, onClear: () => {} }));
-    expect(html).toContain('✦ Niyantran analysis');
+    expect(html).toContain('rp-record-loading');
+    expect(html).not.toContain('State rolls out a scheme');
     expect(html).toContain('Loading the AI brief…');
   });
 
@@ -46,7 +54,7 @@ describe('RecordDetail', () => {
     it('shows only the AI brief card in a record view, and lists the row\'s analysis fields in All fields', () => {
       const html = render({ row: GOA_ROW, feed: GOA_FEED });
       expect(html.match(/niyantran analysis/gi)).toHaveLength(1);
-      expect(html).toContain('Loading the AI brief…');
+      expect(html).toContain('Stored analysis');
       expect(html).not.toContain('rd-section rd-ai');
       expect(html).toContain(field('Brief', GOA_ROW.brief));
       expect(html).toContain(field('Why It Matters', GOA_ROW.why_it_matters));

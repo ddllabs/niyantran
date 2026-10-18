@@ -130,3 +130,11 @@
 .theme-dark .rp-callout-amber { background: #3a2a0c; border-color: #6b4f14; color: #fde68a; } .theme-dark .rp-callout-red { background: #3d1515; border-color: #7f1d1d; color: #fecaca; }
 .theme-dark .rp-step.now i { box-shadow: 0 0 0 3px #3a2414; }
 .theme-dark .rp-ask { color: #0b1020; }
+
+/* While the brief loads, the approved animation occupies the whole record content pane. */
+.rp-record-loading { position: relative; display: flex; flex-direction: column; justify-content: center; min-height: 100%; background: var(--panel, #fff); }
+.rp-record-loading-close { position: absolute; top: 0; right: 0; z-index: 1; }
+.rp-record-loading > .rp-brief-anim { margin: 0; border-radius: 0; }
+.rp-record-loading nter-record-loader { zoom: 1; }
+.rp-record-loading .rp-brief-writing { padding: 40px 12px 12px; }
+.rp-record-loading .rp-brief-skel { margin: 12px; }

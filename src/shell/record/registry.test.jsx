@@ -1,10 +1,14 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import warTracker from '../../../public/data/embedded_csv/geopolitics_war_tracker.json';
 import alliancesPack from '../../data/alliances.json';
 import { flattenAlliance } from '../../lib/alliances.js';
 import bills from '../../../public/data/embedded_csv/national_bill_tracker.json';
 import { adapterFor } from './registry.js';
+
+const briefState = vi.hoisted(() => ({ current: { state: 'ready', brief: 'Stored analysis' } }));
+vi.mock('./useRecordBrief.js', () => ({ useRecordBrief: () => briefState.current, RECORD_BRIEF_ANIMATION_MS: 2500 }));
+beforeEach(() => { briefState.current = { state: 'ready', brief: 'Stored analysis' }; });
 
 vi.mock('../RecordDetail.jsx', () => ({ default: () => <div data-record-detail /> }));
 vi.mock('../../desks/NationalRecord.jsx', () => ({ default: () => <div data-national-record /> }));
@@ -42,9 +46,10 @@ describe('record panel registry', () => {
     expect(html).not.toMatch(/class="alw-/);
   });
 
-  it('gives every record panel the AI brief box, starting while the brief is fetched or written', () => {
+  it('starts the record pane animation while the brief is fetched or written', () => {
+    briefState.current = { state: 'loading', record: 'test' };
     const html = renderToStaticMarkup(<RailContent view="record" feed={{ feature: 'Open Fronts', tier: 'global', rows: warTracker }} selected={warTracker[0]} />);
-    expect(html).toContain('✦ Niyantran analysis');
+    expect(html).toContain('rp-record-loading');
     expect(html).toContain('Loading the AI brief…');
   });
 
