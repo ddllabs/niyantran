@@ -1,6 +1,6 @@
 /**
- * The header's balance pill and its glance popover (F184 spec §2). The popover grows from the pill,
- * closes on Escape, a click outside or focus leaving it, and hands focus back to the pill on Escape.
+ * The header's profile control and embedded credit summary (F230, retaining F184/F193 behavior).
+ * Closes on Escape, a click outside or focus leaving it, and returns focus to the avatar on Escape.
  * Every credit message lives here (F193, owner 2026-10-15): the chat's refusal, low, empty, overdrawn,
  * unchecked and renewal. A new refusal opens the popover by itself, leaving focus in the chat box.
  */
@@ -112,7 +112,7 @@ function useCredits(userId) {
   return { credits, failed: tried && !credits };
 }
 
-function Glance({ credits, failed, notice, id, onOpenPage, onClose }) {
+function Glance({ credits, failed, notice, onClose }) {
   const [extra, setExtra] = useState({ pace: null, latest: null });
   const cycleStart = credits?.cycleStartsAt || null;
   const ready = Boolean(credits);
@@ -130,19 +130,22 @@ function Glance({ credits, failed, notice, id, onOpenPage, onClose }) {
     // The balance itself changes after every answer; the pace and the latest answers are read once per opening.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, cycleStart]);
+  return <CreditGlanceBody credits={credits} failed={failed} notice={notice} onClose={onClose} extra={extra} />;
+}
+
+export function CreditGlanceBody({ credits, failed, notice, onClose, extra = {} }) {
   if (!credits) {
     return (
-      <div id={id} className="cp-pop" role="dialog" aria-label="Credits at a glance">
+      <section className="cp-pop cp-profile-summary" aria-label="Credits at a glance">
         <GlanceMessages credits={credits} failed={failed} notice={notice} onDone={onClose} />
         {failed ? null : <p className="cu-note">Loading your credits…</p>}
-        <button type="button" className="cp-pop-open" onClick={onOpenPage}>Open credits page</button>
-      </div>
+      </section>
     );
   }
   const bar = periodBar(credits);
   const days = daysLeftText(credits);
   return (
-    <div id={id} className="cp-pop" role="dialog" aria-label="Credits at a glance">
+    <section className="cp-pop cp-profile-summary" aria-label="Credits at a glance">
       <GlanceMessages credits={credits} failed={failed} notice={notice} onDone={onClose} />
       <div className="cp-pop-head">
         <BalanceRing credits={credits} size={52} />
@@ -162,14 +165,12 @@ function Glance({ credits, failed, notice, id, onOpenPage, onClose }) {
           </ul>
         </>
       ) : null}
-      <button type="button" className="cp-pop-open" onClick={onOpenPage}>Open credits page</button>
-    </div>
+    </section>
   );
 }
 
-export default function BalancePill({ user }) {
+export default function ProfileCredits({ user, open, setOpen, onToggle, children }) {
   const { credits, failed } = useCredits(user?.id || null);
-  const [open, setOpen] = useState(false);
   const wrap = useRef(null);
   const button = useRef(null);
   const id = useId();
@@ -186,15 +187,15 @@ export default function BalancePill({ user }) {
     shown.current = next;
     setNotice(next);
     if (step.open) { quiet.current = step.quiet; setOpen(true); }
-  }), []);
+  }), [setOpen]);
 
   useEffect(() => {
     if (!open) return undefined;
     const stop = watchPopover({ doc: document, root: wrap.current, onClose: () => setOpen(false), focusPill: () => button.current?.focus({ preventScroll: true }) });
-    if (!quiet.current) wrap.current?.querySelector('.cp-pop-open')?.focus({ preventScroll: true });
+    if (!quiet.current) wrap.current?.querySelector('.profile-pop-upgrade')?.focus({ preventScroll: true });
     quiet.current = false;
     return stop;
-  }, [open]);
+  }, [open, setOpen]);
 
   if (!user?.id) return null;
   const left = credits ? Math.max(Math.round(credits.balance - (credits.held || 0)), 0) : null;
@@ -202,14 +203,16 @@ export default function BalancePill({ user }) {
   const tone = attentionTone(credits, failed, notice);
   const label = `${state === 'unchecked' ? 'Credits could not be checked.' : state === 'loading' ? 'Credits.' : `${words} left.`}${tone ? ' Needs attention.' : ''}`;
   return (
-    <div className={`cp-pill-wrap${open ? ' open' : ''}`} ref={wrap}>
-      <button type="button" ref={button} className={`cp-pill cp-pill-${state}`} aria-haspopup="dialog" aria-expanded={open}
-        aria-controls={open ? id : undefined} aria-label={`${label} Open the summary.`} onClick={() => setOpen((v) => !v)}>
-        <BalanceRing credits={credits} failed={failed} />
-        <span className="cp-pill-text">{words}</span>
+    <div className="profile-wrap cp-profile-wrap" ref={wrap}>
+      <button type="button" ref={button} className={`avatar-btn cp-profile-trigger${open ? ' on' : ''}`} aria-haspopup="dialog" aria-expanded={open}
+        aria-controls={open ? id : undefined} aria-label={`${user.name || user.email || 'Profile'}. ${label} Open account.`} onClick={() => { onToggle?.(); setOpen((v) => !v); }}>
+        <span className="cp-profile-ring"><BalanceRing credits={credits} failed={failed} size={48} /></span>
+        <span className="avatar">{(user.name || user.email || 'A').charAt(0).toUpperCase()}</span>
         {tone ? <span className={`cp-pill-dot cp-dot-${tone}`} aria-hidden="true" /> : null}
       </button>
-      {open ? <Glance credits={credits} failed={failed} notice={notice} id={id} onClose={() => setOpen(false)} onOpenPage={() => { setOpen(false); goAccount('credits'); }} /> : null}
+      {open ? <div id={id} className="profile-pop" role="dialog" aria-label="Account">
+        {children(<Glance credits={credits} failed={failed} notice={notice} onClose={() => setOpen(false)} />)}
+      </div> : null}
     </div>
   );
 }

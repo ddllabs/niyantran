@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F230 is next) and goes in the
+- A new finding gets the next free `F` number (F231 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-17 (milestone check)
@@ -212,6 +212,14 @@ orientation list is compared item by item in the
   not an additional M1/M2 or payment prerequisite. [Comparison](../research/2026-10-17-orientation-closure-comparison.md).
 
 ## UI follow-ups
+
+- [ ] **F230. Combine profile and credits controls.** Owner approved local UI
+  relocation 2026-10-18: ring around avatar, all credit-summary content inside
+  Account dropdown, existing Credits action opens same page. No billing logic
+  or backend change. Implemented locally with focused and browser fixture
+  verification; awaiting owner review/release. No publication.
+  [Spec](../specs/2026-10-18-profile-credit-summary.md) ·
+  [Plan](2026-10-18-profile-credit-summary.md).
 
 - [ ] **F107. Legal policies for payment-gateway activation.** Owner request
   2026-10-12: Privacy, Terms, Refund & Cancellation, Delivery and Contact pages

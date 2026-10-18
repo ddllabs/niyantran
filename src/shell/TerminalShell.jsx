@@ -33,7 +33,7 @@ import { openInDesk, takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
 import PersonaChooser from './PersonaChooser.jsx';
 import CreditsPage from './credits/CreditsPage.jsx';
-import BalancePill from './credits/BalancePill.jsx';
+import ProfileCredits from './credits/BalancePill.jsx';
 import { ACCOUNT_SECTIONS, deskRouteFor, goAccount, parseAccountHash } from './credits/accountRoute.js';
 import { OPEN_BILLING_EVENT } from '../ai/CreditBalance.jsx';
 import LiveTvModal from './LiveTvModal.jsx';
@@ -63,7 +63,6 @@ export default function TerminalShell({ onLogout }) {
   // F195: the desk rail on module pages, open (names, over the page; a drawer on phones) or not.
   const [railOpen, setRailOpen] = useState(false);
   const [userTick, setUserTick] = useState(0);
-  const profileRef = useRef(null);
   const user = sessionUser();
   const typeId = userTypeOf(user?.type).id;
   const typeMeta = userTypeOf(typeId);
@@ -80,22 +79,6 @@ export default function TerminalShell({ onLogout }) {
   // the shell is lazy-loaded.
   useEffect(() => applyInterfaceLang(document.documentElement, lang), [lang]);
 
-
-  useEffect(() => {
-    if (!profileOpen) return undefined;
-    function onDoc(e) {
-      if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false);
-    }
-    function onKey(e) {
-      if (e.key === 'Escape') setProfileOpen(false);
-    }
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [profileOpen]);
 
   useEffect(() => {
     startUserPrefsSync();
@@ -437,23 +420,8 @@ export default function TerminalShell({ onLogout }) {
           >
             {theme === 'light' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
           </button>
-          <BalancePill user={user} />
-          <div className="profile-wrap" ref={profileRef}>
-            <button
-              type="button"
-              className={`avatar-btn${profileOpen ? ' on' : ''}`}
-              onClick={() => {
-                setLiveTvOpen(false);
-                setProfileOpen((v) => !v);
-              }}
-              aria-expanded={profileOpen}
-              aria-haspopup="dialog"
-              title={user?.name || user?.email || 'Profile'}
-            >
-              <span className="avatar">{(user?.name || user?.email || 'A').charAt(0).toUpperCase()}</span>
-            </button>
-            {profileOpen ? (
-              <div className="profile-pop" role="dialog" aria-label="Account">
+          <ProfileCredits user={user} open={profileOpen} setOpen={setProfileOpen} onToggle={() => setLiveTvOpen(false)}>
+            {(glance) => <>
                 <div className="profile-pop-head">
                   <span className="avatar lg">{(user?.name || user?.email || 'A').charAt(0).toUpperCase()}</span>
                   <div className="profile-pop-id">
@@ -487,6 +455,7 @@ export default function TerminalShell({ onLogout }) {
                   ) : null}
                 </dl>
                 {planMeta?.tag ? <p className="profile-pop-tag">{planMeta.tag}</p> : null}
+                {glance}
                 <div className="profile-pop-actions">
                   <button
                     type="button"
@@ -512,9 +481,8 @@ export default function TerminalShell({ onLogout }) {
                     Log out
                   </button>
                 </div>
-              </div>
-            ) : null}
-          </div>
+            </>}
+          </ProfileCredits>
           <button type="button" className="logout-btn" onClick={doLogout}>
             Log out
           </button>

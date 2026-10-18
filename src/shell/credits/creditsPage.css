@@ -266,3 +266,24 @@
   .cp-bar, .cp-mini > span, .cp-pop { animation: none; }
   .cp-pill, .cp-pop-open { transition: none; }
 }
+
+/* F230: one account control, with the existing remaining-credit ring around its avatar. */
+.cp-profile-trigger { position: relative; width: 48px; height: 48px; flex-shrink: 0; }
+.cp-profile-ring { position: absolute; inset: 0; pointer-events: none; }
+.cp-profile-ring .cp-ring-spark { display: none; }
+.cp-profile-trigger .avatar { position: relative; z-index: 1; }
+.cp-profile-trigger:hover .avatar, .cp-profile-trigger.on .avatar { box-shadow: none; }
+.cp-profile-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cp-profile-trigger .cp-pill-dot { left: auto; right: 2px; top: 2px; z-index: 2; }
+.cp-profile-wrap > .profile-pop {
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - 24px));
+  max-height: calc(100vh - 90px);
+  max-height: calc(100dvh - 90px);
+  overflow-y: auto;
+}
+.cp-pop.cp-profile-summary {
+  position: static; width: auto; padding: 14px 0; margin: 12px 0;
+  border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  border-radius: 0; box-shadow: none; animation: none;
+}

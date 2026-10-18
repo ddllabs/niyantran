@@ -40,7 +40,7 @@ it('follows the address both ways: back and forward set the section, and a desk 
   expect(read('../SidePanel.jsx')).toMatch(/if \(e\.key !== 'Escape'\) return;\s*\/\/[^\n]*\n\s*if \(panelHidden\(document\)\)/);
 });
 
-it('opens from the profile menu and the pricing page, and puts the pill in the header', () => {
+it('opens from the profile menu and the pricing page, combines the profile and credit summary in the header', () => {
   const menu = shell.slice(shell.indexOf('profile-pop-actions'), shell.indexOf('Log out', shell.indexOf('profile-pop-actions')));
   expect(menu).toContain("goAccount('credits');");
   expect(menu).not.toMatch(/Credits usage|Plan &amp; billing/);
@@ -48,7 +48,9 @@ it('opens from the profile menu and the pricing page, and puts the pill in the h
   expect(shell).not.toMatch(/OPEN_USAGE_EVENT|onOpenUsage/);
   expect(read('../../lib/creditsStore.js')).not.toMatch(/OPEN_USAGE_EVENT|openCreditsUsage/);
   expect(shell).toContain("const onOpenBilling = (event) => goAccount('billing', { plan: event.detail?.plan ?? null });");
-  expect(shell.indexOf('<BalancePill user={user} />')).toBeLessThan(shell.indexOf('<div className="profile-wrap" ref={profileRef}>'));
+  expect(shell).toContain('<ProfileCredits user={user} open={profileOpen} setOpen={setProfileOpen}');
+  expect(shell).toContain('{glance}');
+  expect(shell).not.toMatch(/<BalancePill|profileRef/);
 });
 
 it('leaves the page for the desk when an answer asks to open its chat', () => {
