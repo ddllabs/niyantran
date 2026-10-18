@@ -27,7 +27,7 @@ describe('marketing header', () => {
 
   it('puts Sign in beside the Get started button, after the links', () => {
     const actions = header().slice(header().indexOf('mkt-nav-actions'));
-    expect(actions).toMatch(/class="mkt-sign-in"[^>]*>Sign in<\/button><button[^>]*class="mkt-cta mkt-start"[^>]*>Get started <span aria-hidden="true">↗<\/span>/);
+    expect(actions).toMatch(/class="mkt-sign-in"[^>]*>Sign in<\/button><button[^>]*class="mkt-cta mkt-start"[^>]*>Get started<\/button>/);
     expect(header().indexOf('Data coverage')).toBeLessThan(header().indexOf('Sign in'));
   });
 

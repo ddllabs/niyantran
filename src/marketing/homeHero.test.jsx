@@ -22,7 +22,7 @@ describe('homepage hero', () => {
     expect(hero).toContain('THE RESEARCH TERMINAL');
     expect(hero).toMatch(/The intelligence<br\/> layer for <span class="nd-blue">Government,<\/span><br\/><span class="nd-purple">Policy<\/span> &amp;<br\/>Global Affairs<span class="nd-red">\.<\/span>/);
     expect(hero).toContain('See what a record touches —<br/>before you argue about it.');
-    expect(hero).toMatch(/Open the terminal <span aria-hidden="true">↗<\/span>/);
+    expect(hero).toMatch(/Open the terminal<\/button>/);
     expect(hero).toContain('See plans');
     expect(hero).toContain('View data coverage');
   });

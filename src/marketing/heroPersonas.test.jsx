@@ -130,8 +130,8 @@ describe('persona and coverage text size (F213)', () => {
     }
   });
 
-  it('sets the card subtitles and the hint at 10 px from tablet width up', () => {
-    expect(css).toMatch(/\.nd-persona-choice small \{[^}]*font-size: 10px;/);
+  it('sets card subtitles at 11 px and the hint at 10 px from tablet width up', () => {
+    expect(css).toMatch(/\.nd-persona-choice small \{[^}]*font-size: 11px;/);
     expect(css).toMatch(/\.nd-persona-hint \{[^}]*font-size: 10px;/);
   });
 });

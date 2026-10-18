@@ -4902,8 +4902,8 @@ html.mkt-doc:has(.mkt-auth) #root {
    bottom-right corner, above the labels. */
 .data-globe-pause{position:absolute;right:4%;bottom:4%;z-index:40;display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid var(--mkt-border);border-radius:50%;background:rgba(255,255,255,.88);color:var(--mkt-black);cursor:pointer}
 .data-globe-pause:focus-visible{outline:2px solid var(--mkt-blue);outline-offset:3px}
-/* F177 (owner 2026-10-14): sign-in shows the globe 10% smaller and sign-up 5% smaller, in every layout below. */
-.mkt-login-earth-visual{--globe-scale:.9}
+/* Sign-in is another 5% smaller than its previous 0.9 scale; sign-up retains 0.95. */
+.mkt-login-earth-visual{--globe-scale:.855}
 .mkt-signup-illustration{--globe-scale:.95}
 .mkt-globe-slot>.nter-globe-scene{flex:none;width:calc(93.75% * var(--globe-scale, 1));max-width:calc(100vw - 24px)}
 /* A narrow box beside other content (sign-in and sign-up between the stacked and the wide layouts)

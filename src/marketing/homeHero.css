@@ -175,9 +175,9 @@
     radial-gradient(ellipse at 33% 31%, #c2353d52 0%, #c2353d1f 23%, transparent 57%);
   mask-image: radial-gradient(ellipse closest-side, #000 24%, rgba(0, 0, 0, 0.85) 45%, rgba(0, 0, 0, 0.44) 63%, rgba(0, 0, 0, 0.1) 81%, transparent 100%);
 }
-/* F214 (owner 2026-10-16): the globe and its labels 5% larger again. A scale grows the labels' fixed-size
-   text with the Earth and takes no extra room, so the coverage box stays where it was. */
-.nd-globe-column .nter-globe-scene { max-width: none; scale: 1.05; }
+/* The scene includes the globe, orbits and labels. Another 5% over the previous
+   1.05 scale keeps the layout and coverage box in place. */
+.nd-globe-column .nter-globe-scene { max-width: none; scale: 1.1025; }
 .nd-globe-column nter-data-globe { margin-block: -28px; }
 
 /* —— Persona column (F212) —— */
@@ -282,16 +282,16 @@
 }
 .nd-persona-choice strong {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 15.4px;
 }
 .nd-persona-choice small {
   display: block;
   margin-top: 3px;
-  /* F213 (owner): the reference's 8.5 px subtitles and 8 px hint, a step larger to read. */
-  font-size: 10px;
-  line-height: 1.5;
+  /* Keep the existing line box while making the descriptions easier to read. */
+  font-size: 11px;
+  line-height: 15px;
   color: #96899f;
 }
 .nd-persona-hint {
@@ -498,7 +498,7 @@
   .nd-globe-column {
     width: min(105%, calc(100svh - 245px));
     max-width: calc(760px * 1.05);
-    transform: translateY(-12px);
+    transform: translate(-24px, -12px);
   }
   .nd-globe-column::before { inset: 0 -19%; }
   .nd-globe-column nter-data-globe { margin-block: 0; }

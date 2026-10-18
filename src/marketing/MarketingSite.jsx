@@ -153,7 +153,7 @@ export default function MarketingSite({ onAuthed }) {
                 Sign in
               </button>
               <button type="button" className={`mkt-cta mkt-start${page === 'signup' ? ' on' : ''}`} onClick={() => go('signup')}>
-                Get started <span aria-hidden="true">↗</span>
+                Get started
               </button>
             </span>
           </nav>

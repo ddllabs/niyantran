@@ -271,7 +271,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
             </p>
             <div className="nd-actions">
               <button type="button" className="nd-btn nd-btn-primary" onClick={onLogin}>
-                Open the terminal <span aria-hidden="true">↗</span>
+                Open the terminal
               </button>
               <button type="button" className="nd-btn nd-btn-secondary" onClick={onPricing}>
                 See plans
