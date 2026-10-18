@@ -437,3 +437,196 @@ since those checks. Checkout remains0, all six billing variables branch-only.
 Production/main, Live keys, database migration, protection settings, provider
 transactions and corpus excluded. Separate M1/M2 observation edits are not part
 of this publication. Deployed verification evidence will follow after readiness.
+
+
+## Published raw-body fix / Test Preview verification — 2026-10-19
+
+Owner-approved commit18db3026e24b8add40d79ab4fc31c000f850db67 pushed only to
+origin task/razorpay-plan. Includes the reader, two regression test files and
+related billing records; O6 tracker hunk staged separately. Unrelated M1/M2
+tracker/evidence edits remain local, unmodified by this publication. No main
+merge/push. Existing local test evidence remains6,333 Vitest/1,155 Deno and all
+listed lint/build/bundle/router checks; runtime source unchanged after those runs.
+
+Automatic Git Preview build satisfies the requested Test redeployment:
+ dpl_HtZeAsvc2oVEpSPj7Po9u77n6inf READY,31-second build, exact source18db302,
+branch task/razorpay-plan, project prj_6UiaDz2rkTOmqIOaXnCAs92V7d86.
+URL https://niyantran-rob528205-ddl-labs.vercel.app ; stable branch alias unchanged.
+No redundant manual redeploy or second source push was performed.
+
+Executed hosted checks using authenticated vercel curl on that exact Preview:
+- Whitespace/Unicode JSON POST without signature returns400 Invalid webhook
+  signature (before fix:400 Webhook raw body unavailable).
+- Malformed JSON without signature also returns400 Invalid webhook signature,
+  confirming host JSON parsing is not triggered before original-byte validation.
+- Oversized JSON returns413 Request too large, preserving the128KiB limit.
+- Public config: enabled=false, checkoutOpen=false, key absent, five packs.
+- Unauthenticated create-order POST returns401 Authentication required.
+- Application root serves HTML with two JS entry scripts.
+No probe has a valid signature/application bearer, so none can persist a billing
+inbox/order/financial record or invoke Razorpay. These prove deployed transport
+and refusal behavior, not successful signed provider delivery or key-pair validity.
+
+Environment metadata before publication confirms all six billing entries scoped
+to Preview/task/razorpay-plan; closed flag0. No environment or secret value changed
+or decrypted. Production target after publication remains
+ dpl_VTPtwrTtawEMkvKyq9WgfAGtQV2m, source3ccdf8a343070d5365a6093c84230afaf0e1e441;
+protection remains all_except_custom_domains. Plain public branch webhook GET
+still302; no protection exception/bypass provisioned. Supabase migration/Edge
+functions, Live keys, provider settings/payments and corpus untouched.
+
+GitHub CI39160473575 started for exact18db302, attempt1; final result below when
+complete. Signed Razorpay acceptance, public ingress, subscription narrowing,
+shared NTER migration and M1/M2/live gates remain open under O6. Post-deployment
+verification notes remain local to avoid a redundant documentation-only build.
+
+
+Final publication verification: GitHub CI39160473575 completed SUCCESS on attempt1
+for exact18db3026e24b8add40d79ab4fc31c000f850db67; Build and tests plus SQL fixtures
+(disposable Postgres) jobs both pass. Remote Test ref is18db302; remote main stays
+3ccdf8a. Preview raw-body transport correction is published and verified; broader
+O6 provider acceptance remains open. Post-deployment evidence updates are local
+and uncommitted; no second docs-only push/build was triggered.
+
+
+## Controlled hosted Test rehearsal authorized — 2026-10-19
+
+Owner directs completion of remaining Test end-to-end work before moving to Live.
+This authorizes the previously described additive billing migration on shared NTER
+and bounded simulated purchases for the owner-selected allowlisted account. Test
+checkout may be opened only on task/razorpay-plan for the rehearsal, then closed.
+Production checkout, Live credentials and corpus remain excluded until Test
+acceptance and remaining M1/M2/live gates pass; any real payment is owner-operated.
+No automatic production recovery schedule is included.
+
+Ordered execution: (1) read-only migration guard/schema comparison plus retained
+financial fingerprints/counts; (2) apply reviewed migration526lines SHA256
+21ad5d2c23558454190729a6b9cdec54279fc0c6aab291f20c18e248d6757122; (3) prove
+five private RLS tables/service-only RPCs and unchanged existing data; (4) arrange
+scoped temporary Test webhook access and narrow provider subscriptions; (5) confirm
+Test-mode runtime/allowlisted buyer, open only Test checkout for bounded provider
+flows; (6) reconcile capture/credit/invoice/idempotency/recovery/refund facts, close
+Test checkout, retain traceable Test records; (7) only then staged Live readiness.
+Use native Checkout/dashboard, never fake a provider capture or historical invoice.
+
+Preflight: reviewed local/remote Test commit18db302 matches, origin/main3ccdf8a;
+hosted billing tables absent, private.credit_due_cycles exact guard matches.
+Existing state:11 profiles,4 wallets,7 lots,28 ledger rows,0 plan grants/invoices;
+total balance/remaining33,304.4895 credits, debt0. Fingerprints captured separately
+for post-migration verification. Production functions do change with this reviewed
+additive migration; web deployment/Live checkout are not thereby activated.
+M1/M2 daily references remain incomplete; no forced refresh or false closure.
+Browser controls fail across Arc/IAB/Chrome; owner Test UI handoff requested while
+independent backend preparation continues. No secrets are read/exported.
+
+
+## Hosted migration result / Test ingress hold — 2026-10-19
+
+Applied reviewed billing_purchases SQL to NTER using Supabase apply_migration after
+owner's controlled end-to-end Test authorization. Hosted history version
+20261018200238/name billing_purchases maps to reviewed repository file
+20261018160700_billing_purchases.sql, SHA256
+21ad5d2c23558454190729a6b9cdec54279fc0c6aab291f20c18e248d6757122. Tool reports
+success; this is the shared hosted schema change, not a Vercel production release.
+
+Post-migration checks: all five private tables exist with RLS, no direct
+anon/authenticated/service_role DML. Five public billing RPCs permit service_role
+execution only, denying anon/authenticated. Profiles11, wallets4, lots7, ledger28,
+grants0/invoices0. Fingerprints of every original profile/wallet/lot/ledger row
+(excluding additive NULL link columns) match baseline; balance/remaining
+33,304.4895 and debt0 unchanged. All five new billing tables have0 rows. No test
+financial fixture or fake payment inserted into hosted NTER. Owner-selected buyer
+is active/admin/free with3,304.4895 credits and zero debt.
+
+Browser automation unavailable: IAB navigation/focus commands fail, Arc content
+unavailable, Chrome extension timed out. Owner agrees to manually execute guided
+Razorpay Test dashboard/Checkout steps while supervisor reconciles backend facts.
+
+Ingress experiment: created a7200-second shareable link for only the Test branch
+alias. Standard automation-bypass query parameter returned302; correct share-link
+parameter returned307 cookie handshake on an unsigned POST. It is not proved a
+usable direct Razorpay receiver. Revoked the unused token successfully; no secret
+URL/token printed, committed or sent to Razorpay. Temporary token request/response
+files remain private in /private/tmp for audit and are never repository artifacts.
+
+Attempt to apply a Test-alias-only protection override was rejected BEFORE
+execution by automatic approval review: the API creates a non-expiring exception,
+whereas authorization was for a bounded rehearsal. No workaround attempted.
+No alias exception, project-wide bypass credential or paid add-on enabled.
+Public webhook remains302 and Test Checkout remains enabled=false/open=false.
+Explicit approval required for a persistent-until-manual-revocation Test-alias
+exception (exact alias niyantran-git-task-razorpay-plan-ddl-labs.vercel.app), keeping
+app authentication, server buyer allowlist, HMAC and Production protection intact.
+No Live credential change, main/Production web deployment, Edge deployment,
+provider transaction, webhook setting, timer or corpus operation. M1/M2 live
+opening gate remains pending genuine daily opportunities; no forced refresh.
+
+Next controlled owner pilot after ingress approval: ensure Razorpay Test mode;
+review webhook subscriptions, retain the shared webhook secret; sign in to the
+Test Preview as the allowlisted account; only after Test runtime confirmation
+open restricted Test checkout, buy the20,000-credit/499INR Test pack through
+Razorpay's simulation, then reconcile capture/order/lot/ledger/invoice exactly once
+before proceeding to paid-plan/failure/recovery/refund cases. Close Test checkout
+when the rehearsal ends. No real card/payment or Live activation is authorized
+by a Test screenshot or an unsigned probe.
+
+
+## Approved Test alias exception and owner pilot ready — 2026-10-19
+
+Owner explicitly approved the Test Preview alias exception until manual revocation
+after testing. Applied only to niyantran-git-task-razorpay-plan-ddl-labs.vercel.app
+using alias-protection-override; no paid add-on or project-wide bypass enabled.
+Unauthenticated unsigned webhook POST now reaches application HMAC rejection400,
+including after redeployment. This proves ingress, not a valid provider delivery.
+Manual revocation remains required when Test acceptance ends.
+
+Updated only BILLING_CHECKOUT_OPEN Preview/task/razorpay-plan to1 for the approved
+allowlisted owner rehearsal. Redeployed verified18db302 as
+ dpl_7Z3ZA131HxYPektqosTJ7tUgF5Ws, READY. Public runtime configuration confirms
+enabled=true, checkoutOpen=true and key prefix Test (key value never printed).
+Existing server Test-buyer UUID restriction remains in force. Secret pair validity
+and webhook-secret matching remain unproven until a genuine Test transaction.
+Production remains dpl_VTPtwrTtawEMkvKyq9WgfAGtQV2m/3ccdf8a; project protection
+remains all_except_custom_domains. Live credentials untouched. Shared NTER schema
+was upgraded as recorded above; no financial rows created: orders/payments/events/
+invoices all0 immediately before owner pilot. No Edge/timer/corpus operation.
+
+Owner next: sign in on the Test branch, open account/billing, select the20,000-credit
+499INR top-up and use Razorpay Test Netbanking simulation Success. Pause after one
+attempt for capture, webhook, lot, ledger and invoice reconciliation. Do not
+repeat pending purchases. Close Test Checkout and revoke the alias exception when
+testing finishes. External acceptance and O6 remain open; no Live readiness claim.
+
+
+## Owner Plus pilot blocked / local diagnostics — 2026-10-19
+
+Owner clicked Plus rather than initial top-up. Read-only NTER shows two Test
+plan-plus intents (39900paise):068c065d-2751-471f-9eff-902e69f48170 at20:24:16UTC
+and5af59ea0-3575-4d79-be5a-b89457853c6a at20:26:33UTC onOctober18. Both reconciling,
+provider_order_idNULL, attempts1. Payments/events/invoices all0. Test Vercel request
+logs confirm two create-order202responses; runtime logs returned0records. Owner
+reports Razorpay Test Orders blank. No provider-order existence or charge is
+assumed from this response; no new order/recovery/refund was triggered by agent.
+Pause manual purchases. Provider creation/transport is suspected, not proven;
+empty dashboard alone cannot distinguish authentication, request or connectivity.
+
+Local diagnostic fix: provider adapter retains only bounded internal HTTP status
+and fixed failure category; purchase catch logs only stage/category/status. No
+provider bodies, raw error messages, headers, config, buyer or keys are logged.
+Client pending behavior and POST no-retry policy unchanged. No DB schema change.
+Eight new tests failed against old code (8failed/35passed); after implementation
+focused3files/88tests pass. Lint, build, bundle check and router import pass;
+Deno1155pass. Full application result recorded after completion. Existing unrelated
+M1/M2 documentation changes preserved; nothing committed/pushed/deployed in this
+local diagnostic step. Requires scoped Test publication approval to observe actual
+hosted cause. Production/Live keys, alias exception and checkout configuration
+unchanged during this diagnosis. Exception must still be revoked after rehearsal.
+
+Final local verification: npm test403files/6341tests pass171.39s; deno test -A
+--config supabase/functions/deno.json supabase/functions1155pass; npm run lint,
+npm run build, npm run check:bundle and router import pass. No bundle advisory or
+lint warning. SQL not rerun: no SQL changes. Hosted failure remains unresolved
+until diagnostics are published and an approved controlled request is observed.
+
+Owner approved push/deploy of diagnostics only to Test Preview2026-10-19;
+Production, Live keys and corpus remain unchanged. No repeat pending Plus POST.

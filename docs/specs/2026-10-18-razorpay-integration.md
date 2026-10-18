@@ -422,3 +422,43 @@ Live/corpus unchanged by this local correction.
 Final local full-suite verification:403 application files/6,333 tests and1,155
 Deno tests pass; focused80, lint/build/bundle/router/diff checks pass. Hosted
 verification and all remote changes remain explicitly excluded from this task.
+
+
+### Current raw-body publication status — 2026-10-19
+
+Supersedes the earlier local-only outcome: owner approved Test publication and
+18db302 is now on origin/task/razorpay-plan. Exact-commit Preview
+dpl_HtZeAsvc2oVEpSPj7Po9u77n6inf is READY; deployed JSON reaches HMAC rejection400
+rather than raw-body failure, malformed JSON does not invoke host parsing, size
+limit413 and unauthenticated order401 remain. Checkout closed. CI39160473575
+app+SQL jobs green attempt1. Production/main/protection unchanged; no database,
+Live/provider/corpus operation. Public delivery302 and signed provider acceptance
+remain outstanding. Latest deployment evidence notes remain local.
+
+
+### Current hosted foundation status — 2026-10-19
+
+Owner-authorized shared NTER migration applied successfully as hosted version
+20261018200238/billing_purchases (reviewed local20261018160700 migration). Five
+private RLS tables and service-only RPCs verified; original profile/financial
+fingerprints, balances and record counts preserved. New billing tables empty.
+Test Checkout closed. Actual provider acceptance blocked on Test-alias ingress: a
+short-lived share link redirects through cookies and was revoked; automatic
+approval review rejected the non-expiring alias exception without explicit scope
+approval. No exception applied. Owner will handle browser Test steps once ready.
+Production web/main/Live/Edge/corpus unchanged; shared schema was upgraded.
+
+
+## Test order creation diagnostic gap — 2026-10-19 (local scope)
+
+Owner Test Plus attempts persisted as reconciling with no provider order binding;
+owner reports Razorpay Test Orders empty. Payments/events/invoices remain zero.
+The provider adapter discards HTTP status and createPurchase catches provider and
+binding errors together without diagnostics. This prevents determining the cause.
+Add server-only bounded stage/category/HTTP-status diagnostics without provider
+bodies, error messages, credentials, headers or buyer data. Preserve pending
+responses, no automatic POST retry, stable IDs and existing accounting guards.
+Acceptance: causal tests prove safe authentication/rate-limit/provider/transport
+classification and distinguish bind failure; hostile error text cannot reach logs
+or client. Local verification only; publication needs owner approval. No claim
+that keys are invalid or that the underlying provider issue is fixed.

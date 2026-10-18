@@ -31,12 +31,21 @@ export function paymentConfig(env = process.env) {
 export async function providerFetch(path, { method = 'GET', body } = {}, config = paymentConfig()) {
   if (!config.ready) throw paymentError('Payments are not configured.', 503);
   // This adapter deliberately does not retry POSTs: timeout may mean order created.
-  const result = await fetch(`https://api.razorpay.com/v1${path}`, { method,
-    signal: AbortSignal.timeout(10000), headers: { Authorization: `Basic ${Buffer.from(`${config.keyId}:${config.keySecret}`).toString('base64')}`, 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined });
-  if (!result.ok) throw paymentError('Payment provider unavailable. Check purchase status before retrying.', 503);
-  const data = await result.json();
-  if (!data || typeof data !== 'object') throw paymentError('Invalid provider response.', 502);
+  const unavailable = () => paymentError('Payment provider unavailable. Check purchase status before retrying.', 503);
+  let result;
+  try {
+    result = await fetch(`https://api.razorpay.com/v1${path}`, { method,
+      signal: AbortSignal.timeout(10000), headers: { Authorization: `Basic ${Buffer.from(`${config.keyId}:${config.keySecret}`).toString('base64')}`, 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined });
+  } catch (error) {
+    throw Object.assign(unavailable(), { paymentFailure: ['TimeoutError', 'AbortError'].includes(error?.name) ? 'timeout' : 'transport' });
+  }
+  // Keep only bounded HTTP metadata. Provider bodies may contain sensitive data.
+  if (!result.ok) throw Object.assign(unavailable(), { paymentFailure: 'http', providerStatus: result.status });
+  let data;
+  try { data = await result.json(); }
+  catch { throw Object.assign(unavailable(), { paymentFailure: 'invalid_response' }); }
+  if (!data || typeof data !== 'object') throw Object.assign(paymentError('Invalid provider response.', 502), { paymentFailure: 'invalid_response' });
   return data;
 }
 export async function billingRpc(client, name, args) {
@@ -65,12 +74,22 @@ export async function createPurchase(body, user, ctx) {
   const order = await orderRpc(ctx, 'claim', { userId: user.id, requestId: body.requestId, requestHash,
     snapshot: { ...product, seller: sellerFromEnv(), buyerEmail: user.email, buyerName: String(body.name || '').slice(0, 200) } });
   if (!order.fresh) return { ok: true, ...publicPurchase(order), keyId: ctx.config.keyId };
+  let stage = 'provider_create';
   try {
     const provider = await ctx.fetch('/orders', { method: 'POST', body: { amount: product.amountPaise, currency: 'INR',
       receipt: order.id, notes: { purchaseId: order.id } } });
+    stage = 'order_bind';
     const saved = await orderRpc(ctx, 'bind', { purchaseId: order.id, order: provider });
     return { ok: true, ...publicPurchase(saved), keyId: ctx.config.keyId };
-  } catch {
+  } catch (error) {
+    // Never log raw errors, provider bodies, buyer data or configuration.
+    console.warn('billing_order_creation_failed', {
+      stage,
+      category: stage === 'order_bind' ? 'binding'
+        : ['http', 'timeout', 'transport', 'invalid_response'].includes(error?.paymentFailure) ? error.paymentFailure : 'unknown',
+      providerStatus: stage === 'provider_create' && Number.isInteger(error?.providerStatus)
+        && error.providerStatus >= 100 && error.providerStatus <= 599 ? error.providerStatus : null,
+    });
     await orderRpc(ctx, 'defer', { purchaseId: order.id, leaseToken: order.lease_token });
     return { ok: true, ...publicPurchase(order), status: 'reconciling', pending: true };
   }

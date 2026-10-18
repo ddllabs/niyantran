@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import crypto from 'node:crypto';
 import { PassThrough, Readable } from 'node:stream';
 import { paymentProduct, TOPUP_PACKS } from '../../server/paymentCatalog.mjs';
-import { signatureMatches, verifyPurchase, createPurchase, receivePaymentWebhook, paymentConfig, recoverPayments, readRawPaymentBody } from '../../server/paymentService.mjs';
+import { signatureMatches, verifyPurchase, createPurchase, receivePaymentWebhook, paymentConfig, providerFetch, recoverPayments, readRawPaymentBody } from '../../server/paymentService.mjs';
 
 const id = 'd0000000-0000-4000-8000-000000000001';
 const user = { id: 'd0000000-0000-4000-8000-000000000002', email: 'buyer@example.test' };
@@ -161,5 +161,48 @@ describe('payment raw body boundaries', () => {
     Object.defineProperty(req, 'body', { get: getter });
     await expect(readRawPaymentBody(req, 64)).rejects.toMatchObject({ status: 413 });
     expect(getter).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('safe purchase failure diagnostics', () => {
+  it.each([401, 400, 429, 503])('retains provider HTTP %i without reading a sensitive body', async status => {
+    const json = vi.fn(() => { throw new Error('secret-response'); });
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status, json })));
+    try {
+      await expect(providerFetch('/orders', { method: 'POST', body: {} }, context().config))
+        .rejects.toMatchObject({ status: 503, providerStatus: status, paymentFailure: 'http' });
+      expect(json).not.toHaveBeenCalled();
+    } finally { vi.unstubAllGlobals(); }
+  });
+  it.each(['TimeoutError', 'TypeError'])('sanitizes %s transport errors', async name => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw Object.assign(new Error('key-secret-private'), { name }); }));
+    try {
+      await expect(providerFetch('/orders', {}, context().config)).rejects.toMatchObject({
+        status: 503, paymentFailure: name === 'TimeoutError' ? 'timeout' : 'transport',
+        message: 'Payment provider unavailable. Check purchase status before retrying.',
+      });
+    } finally { vi.unstubAllGlobals(); }
+  });
+  it.each(['provider_create', 'order_bind'])('logs only bounded diagnostic fields for %s and defers without retry', async stage => {
+    const ctx = context();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    if (stage === 'provider_create') ctx.fetch.mockRejectedValue(Object.assign(new Error('secret-private-body'), { providerStatus: 401, paymentFailure: 'http' }));
+    else {
+      const original = ctx.client.rpc.getMockImplementation();
+      ctx.client.rpc.mockImplementation(async (name, args) => args.p_action === 'bind'
+        ? { error: { code: '22023', message: 'secret-private-body' } } : original(name, args));
+    }
+    try {
+      const result = await createPurchase({ productId: 'topup-20000', requestId: id }, user, ctx);
+      expect(result).toMatchObject({ pending: true, status: 'reconciling' });
+      expect(ctx.fetch).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledExactlyOnceWith('billing_order_creation_failed', {
+        stage, category: stage === 'provider_create' ? 'http' : 'binding',
+        providerStatus: stage === 'provider_create' ? 401 : null,
+      });
+      expect(JSON.stringify([warn.mock.calls, result])).not.toContain('secret-private-body');
+      expect(ctx.client.rpc.mock.calls.some(c => c[1].p_action === 'defer')).toBe(true);
+    } finally { warn.mockRestore(); }
   });
 });
