@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F226 is next) and goes in the
+- A new finding gets the next free `F` number (F227 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-17 (milestone check)
@@ -104,6 +104,23 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
 
 [Spec](../specs/2026-10-17-m1-m2-cleanup.md) · [plan](2026-10-17-m1-m2-cleanup.md) ·
 [execution/rollout evidence](../research/2026-10-17-m1-m2-cleanup-evidence.md).
+
+- [ ] **F226. Policy Pipeline National landing ignores its working scheduled store.**
+  Found in D2 final read-only checks2026-10-18. Four observed National landing
+  502s; bounded16-resource pass isolates Policy Pipeline Tracker
+  (Draft-to-Gazette). Its summary returns502 on both www.nter.pro and
+  niyantran-six.vercel.app, while /api/feature-feed returns200 from store with
+  3 prepared rows; feed_state serve=true,26 raw stored rows, zero failures.
+  Both summary routers use the live-first loader instead of the module's
+  stored-first loader. Proposed scoped fix: only this National summary selects
+  serveFeatureFeedStoredFirst in api/router.js and server/featureFeed.mjs;
+  focused loader/fallback regression tests, required gates, then approved
+  push/deploy and both-alias verification. No refresh/data/schedule changes.
+  Owner approved final fixes2026-10-18. Scoped fix implemented locally with
+  store fetch/stale provenance in441343e;102 focused,6242 app and1155 Deno
+  assertions pass with lint/build/bundle/router. CI and approved Vercel release
+  verification remain before closure.
+  D2 final observation remains blocked. [Evidence](../research/2026-10-18-nter-domain-launch-evidence.md).
 
 - [ ] **T15 (M1/M2):** finish real scheduled source observations: three post-rollout expected
   refresh opportunities, including actual daily reference intervals. Never force extra calls
@@ -2803,9 +2820,31 @@ Earlier items, updated:
 - [ ] **D2. nter.pro cutover:**
   Owner confirms Namecheap registration access and that the old public site
   has no backend. First full-application launch uses the existing Vercel
-  project and NTER; no backend/data/credit migration. Current DNS is Cloudflare,
-  existing website Vercel, and our project has only its vercel.app domain.
-  Custom-domain research-chat preflights lack allowed-origin headers.
+  project and NTER; no backend/data/credit migration. Technical handover completed
+  2026-10-18: BasicDNS dns1/dns2, ownership transferred to DDL Labs, both project
+  domains verified, valid HTTPS and apex308 to www. www.nter.pro serves the exact
+  current production entry hash at e45f298; vercel.app alias retained. Old site
+  remains accessible at niyantran-weld.vercel.app. Owner sign-in confirmed and
+  inspected on the custom domain; National desk and10,000-credit badge persist
+  after reload. Subsequently, the existing vs account passed saved-history and
+  one bounded Gemini2.5 Lite greeting: exactly1 call USD0.000533,5.0635 credits
+  charged at INR0.01, balance3309.553→3304.4895. Both new messages and the
+  receipt survive reload, with no extra call/charge/grant. Owner subsequently
+  confirms recovery-email delivery, password reset and sign-in all passed.
+  Final gate: HTTPS/release/API/CORS/credit/disabled-checkout pass, but Policy
+  Pipeline's National summary reproducibly returns502 on both aliases despite
+  a working store (F226). D2 stays open pending that fix and clean observation;
+  no backend change or release authorized by these final checks.
+  Owner-approved Auth/CORS preparation completed2026-10-18: four exact custom
+  login/recovery destinations added, Site URL changed to https://www.nter.pro/
+  only after working routing was verified and persisted through reload;
+  both custom origins appended to the digest-verified CORS list;35/35 preflight
+  checks passed across five functions, retaining production/preview/local access
+  and denying unrelated/lookalike origins. All function bundle hashes unchanged;
+  shared configuration update incremented all version counters. No ingestion
+  invocation/deployment or source change; only the later authorized normal
+  chat wrote its messages, call log and accounting rows. Domain handover
+  routes the custom hostname to the new application and retains the old alias.
   [Spec](../specs/2026-10-18-nter-domain-launch.md) and
   [ordered plan](2026-10-18-nter-domain-launch.md) prepared 2026-10-18:
   inventory → app/Auth/email/CORS readiness → exact Vercel verification records
@@ -2813,19 +2852,32 @@ Earlier items, updated:
   team/project hostname verification and production assignment → owner pilot
   → observation/closure. Proposed canonical www.nter.pro, apex redirects.
   Old Cloudflare/Vercel access is optional; Namecheap control can establish DNS
-  authority and ownership proof. Resolve mail/services/DNSSEC and O10 before
-  handover. Reinspect Google OAuth and confirmation settings rather than
-  blindly changing them. No implementation or live mutation authorized by
-  this planning request. Razorpay held, corpus excluded; old-project deletion
+  authority and ownership proof. Client confirms no existing email service;
+  preserve known records. Resolve remaining services/DNSSEC and O10 before
+  handover. O10 verified complete (Pro active). Reinspect Google OAuth and confirmation settings rather than
+  blindly changing them. Ownership TXT challenge and exact A/CNAME recommendations
+  prepared; owner authorized handover after upgrading to Pro and then explicitly
+  approved the controlled downtime after the initial approval-review rejection.
+  BasicDNS saved and latent Netlify routing replaced with the prepared two apex
+  A records/www CNAME; three Vercel TXT challenges saved. Existing forwarding
+  MX/SPF preserved and zero configured forwarders confirmed. Direct Namecheap
+  DNS answers correct; registry now advertises Namecheap. Ownership claim and
+  both project verifications succeeded after propagation; no force flag used.
+  Final15/15 CORS checks, /api/home/segments200 and native browser home/sign-in
+  render verified. Existing
+  malformed Auth URL and broad Vercel redirect wildcard remain for a separately
+  verified cleanup; owner pilot including recovery is passed, final observation
+  is blocked by F226. Razorpay held, corpus excluded; old-project deletion
   remains separate O11, and M1/M2 T15 is not closed by domain preparation.
 - [x] **D3. Paid live round.** *Done 2026-10-15 on production (owner signed in, supervisor ran it): greeting, document answer with a highlighted passage, Stop and reload, Gemini Lite medium and cross-account denial passed; defects opened as F197 to F200. [Record](../research/2026-10-15-d3-paid-live-round.md).* Five paid-model scenarios plus a
   cross-account denial check, including:
   - the first live `search_documents` turn with a highlighted span;
   - the admin persona chat on Gemini Lite, Gemini Flash and GPT Astra;
   - medium and high reasoning in production.
-- [ ] **O10. Vercel plan upgrade (owner).** Owner 2026-10-14: "Vercel upgrade later". The feed
-  timer went live without it (2026-10-15). Hobby is for non-commercial use, so upgrade before paid
-  launch (O6, D2).
+- [x] **O10. Vercel plan upgrade (owner).** Owner completed upgrade2026-10-18.
+  Authenticated API for team_QFu1p3ObeXmlMQczPBcZb582 confirms plan=pro and
+  status=active. No subscription purchase was executed from this checkout.
+  [Evidence](../research/2026-10-18-nter-domain-launch-evidence.md).
 - [ ] **O11. Delete the old Vercel project `niyantran-desk-reference-v6` (owner).** Its Git link was
   removed under F94 (2026-10-12); the project and its deployment history remain. Deleting it is the
   owner's action in the Vercel dashboard.

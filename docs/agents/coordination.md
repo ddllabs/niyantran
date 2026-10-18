@@ -169,8 +169,9 @@ git rev-list --left-right --count main...origin/main
   branch name replaced by `-`. For example, `task/foo` becomes
   `niyantran-git-task-foo-ddl-labs.vercel.app`. The owner can check a change
   there before it merges.
-- **Production** is `https://niyantran-six.vercel.app` and deploys only from
-  `main`.
+- **Production** is `https://www.nter.pro` (apex redirects), with
+  `https://niyantran-six.vercel.app` retained as an alias, and deploys only from
+  `main`. Custom-domain handover verified2026-10-18; owner pilot remains in D2.
 - **Vercel Authentication protects all of these URLs.**
 - **Previews and production share the one live Supabase project (NTER).**
   A preview that writes data writes real data.
@@ -2269,3 +2270,52 @@ Final prose follow-up deployment/CI is verified after publication; T15 stays ope
   evaluation, payment operation, feed flag/timer or corpus action. F225 closed;
   T15 remains open and Razorpay held. Detailed reconciliation and recovery:
   [execution record](../research/2026-10-18-credit-paise-evidence.md).
+
+- **2026-10-18 IST: D2 technical domain handover.** Owner completed Pro upgrade
+  (team API verifies pro/active), authorized handover and explicitly approved
+  possible temporary downtime after the initial automatic approval rejection.
+  Namecheap BasicDNS saved; stale latent Netlify routing replaced with the exact
+  prepared Vercel A/CNAME records; three TXT challenges and existing MX/SPF
+  retained. Registry delegation changed to dns1/dns2.registrar-servers.com, team
+  ownership claim succeeded and both production hostnames verified. HTTPS www
+  serves the exact e45f298 entry hash, apex308 redirects to www; current vercel.app
+  and old niyantran-weld.vercel.app aliases remain200. Supabase Site URL saved
+  as https://www.nter.pro/ and verified after reload; custom Auth redirects and
+  CORS prepared earlier, final15/15 preflights and live API200 pass. Native home
+  and sign-in render verified without login. All Edge versions/hashes unchanged
+  since the CORS update; no code push, data/credit operation, payment or corpus
+  invocation. Resolver caches may retain old DNS temporarily. D2 owner pilot
+  and independent T15 remain pending. [Evidence](../research/2026-10-18-nter-domain-launch-evidence.md).
+
+- **2026-10-18 IST: D2 conversation and credit pilot.** Owner authorized one
+  bounded chat; existing vs session restored an old saved answer and submitted
+  one Gemini2.5 Lite greeting with reasoning/web search off. Exactly1 successful
+  call costUSD0.000533 and charged5.0635 credits at INR0.01; wallet reconciles
+  3309.553→3304.4895, hold settled, cost mapping joins call and charge. Reload
+  and History restore both complete messages and receipt without an extra call,
+  charge or grant. Owner received recovery-email/reset guidance; actual delivery
+  and owner password/reset/sign-in remain pending, so D2 remains open. Only
+  documentation edited locally; no source push/deploy, config change, payment
+  or corpus operation. [Evidence](../research/2026-10-18-nter-domain-launch-evidence.md).
+
+- **2026-10-18 IST: D2 final gate held on F226.** Owner confirms recovery email,
+  reset and sign-in passed. Final HTTPS/release/API,20/20 CORS checks, disabled
+  checkout and unchanged pilot accounting pass; all Edge hashes/versions remain
+  unchanged. Vercel request logs reveal4 National landing502s. A bounded check
+  identifies Policy Pipeline; summary502 reproduces on both aliases while its
+  module serves3 prepared rows from a healthy26-row scheduled store. Both
+  routers use live-first for this summary. F226 records a proposed narrow
+  stored-first loader fix; no backend change performed or approved here. D2
+  remains open pending fix and observation. Two runtime DEP0169 warnings and
+  stale resolver caches recorded as limitations. No paid calls, production
+  mutation, push/deploy, payment or corpus work. [Evidence](../research/2026-10-18-nter-domain-launch-evidence.md).
+
+- **2026-10-18 IST: F226 final-fix local verification.** Owner approved final
+  fixes/checks. Source441343e routes only National Policy Pipeline through the
+  existing stored-first loader in both routers and preserves fetch/stale
+  provenance. Four regression cases failed502 before fix;18/18 pass after,
+  focused102/102 and final full6242/6242 pass; Deno1155, lint/build/bundle/router
+  pass. Earlier full run had a fixture error corrected without filter changes;
+  final-fixture run had one5s paging timeout, isolated46/46 and full retry green
+  at original limits. Public data unchanged; branch/main release verification
+  pending. No Supabase changes, paid calls, payment or corpus operation.

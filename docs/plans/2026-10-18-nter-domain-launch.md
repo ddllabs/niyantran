@@ -1,9 +1,31 @@
 # D2: nter.pro application launch plan
 
-> **Status: Living.** Proposed 2026-10-18. Planning only. No live changes,
-> publication, paid upgrade or production testing authorized by this document.
+> **Status: Living.** 2026-10-18. Owner approved Auth/CORS changes and Vercel
+> domain preparation, then authorized handover after completing Pro upgrade.
+> Owner explicitly approved the controlled interruption after the initial
+> approval-review rejection. Technical handover completed: BasicDNS, ownership,
+> both hostnames/HTTPS, canonical redirect and Supabase Site URL verified.
+> Owner sign-in/reload, saved history and one-call answer/debit verified.
+> Owner confirms recovery-email/reset/sign-in passed. Final observation found
+> F226 Policy Pipeline summary502; D2 remains open; scoped fix implemented, release verification pending.
 
 Specification: [D2 launch](../specs/2026-10-18-nter-domain-launch.md).
+Progress: four exact Auth redirects saved, canonical Site URL now www.nter.pro,
+ALLOWED_ORIGINS updated without removing existing entries,35/35 live OPTIONS
+checks passed. Vercel routing recommendations and ownership challenge prepared
+read-only; both domains subsequently attached and verified, with apex308 redirect
+to www. BasicDNS and all routing/TXT records saved under explicit downtime
+approval. Registry now delegates to dns1/dns2.registrar-servers.com; some public
+caches initially retained old DNS. Ownership transfer and project verification
+succeeded; www serves the exact expected production entry hash. Final15/15 CORS
+checks and custom-domain API200 passed. Owner sign-in and reload persistence
+passed; saved history and the single-call greeting/debit pilot also passed.
+Owner confirms recovery-email delivery/reset/sign-in passed. Final observation
+found Policy Pipeline summary502 on both aliases despite working stored module
+data (F226). Owner then approved the scoped final fix; implemented locally,
+release verification pending. D2 stays open. See the
+[execution evidence](../research/2026-10-18-nter-domain-launch-evidence.md).
+
 Only open-work.md tracks unfinished work; the phases below are its execution
 breakdown, not a second tracker. Use task/nter-domain-launch or a fresh task
 branch from verified main when execution begins.
@@ -48,7 +70,9 @@ the owner's inventory of email and other hostnames. Query DS before switching
 authority and resolve any signed-zone dependency. The current public www
 CNAME and apex records are observations, not guaranteed future targets.
 
-Check app URL precedence, Auth redirect paths, sender-domain verification,
+Production uses native Supabase Auth; the older server auth URL precedence is
+not part of the mounted production router. No APP_URL/SITE_URL edit is needed
+on that evidence. Check Auth redirect paths, sender-domain verification,
 current confirmation mode and Google OAuth flow. Inspect configuration with
 redaction and minimum fields. Identify whether any origin change needs an
 affected-function deployment; do not redeploy every Edge Function. Capture
@@ -104,7 +128,12 @@ Verify & Claim, which may change live routing immediately.
    password, MFA and any security challenges. No plugin installation is needed.
 2. Confirm exact domain nter.pro and the replacement-record inventory. Retain
    existing Cloudflare nameserver names and DNS records as rollback evidence.
-3. Switch to BasicDNS; enter the required TXT and preserved website/mail/service
+3. **Checkpoint amendment after approval-review rejection:** first seek a way to
+   pre-provision the zone (provider support or an accessible DNS host). Namecheap's
+   current editor is unavailable under external NS; saving BasicDNS before adding
+   records creates a possible outage interval. The owner must explicitly approve
+   that interval before retrying the rejected sequence. Never bypass the review.
+   Then switch to BasicDNS; enter the required TXT and preserved website/mail/service
    records in Advanced DNS. Do not assume the old zone is copied automatically
    or mix Cloudflare and BasicDNS nameservers. Check actual delegation/record
    propagation before proceeding; different resolvers may differ temporarily.
@@ -146,3 +175,30 @@ Owner confirms canonical hostname, required mail/other services, hosting-plan
 readiness and the release window/pilot bounds in the concrete release packet.
 Old account access is optional. Exact verification tokens and actual current
 Auth/email configuration are obtained during execution preparation, not guessed.
+
+
+## F226 final-fix execution amendment — 2026-10-18
+
+Owner approved proceeding with final fixes/checks. Sequential on the existing
+task/nter-domain-launch checkout; no delegation needed. Write scope:
+api/router.js, server/featureFeed.mjs, server/nationalLandingSummary.mjs,
+new src/lib/nationalLandingStore.test.js, and existing D2 spec/plan/evidence,
+open-work and coordination records. The extra projection file carries stored
+fetch/stale metadata without changing filters or counts.
+
+1. Add real-router tests with synthetic store/upstream boundary responses;
+   demonstrate fresh stored-count regressions fail in both routers before fix.
+2. Select stored-first only for the named National feature; preserve store
+   provenance. Focused green tests include stale, unavailable store, validation,
+   unrelated National route and live fallback.
+3. Run lint, npm test, Deno suite, build, check:bundle and router import with the
+   no-dotenv guard; inspect diff and committed-data cleanliness. No SQL migration;
+   no need to start local database containers. CI still verifies SQL fixtures.
+4. Commit scoped source/docs, push task branch for first-attempt CI; merge the
+   verified commit to main and push to the existing auto-deploy project. Verify
+   exact READY source commit, both aliases' summary/module counts, Auth/CORS,
+   disabled checkout, no duplicate charge and bounded request/runtime logs.
+5. Close F226 and D2 only after actual release evidence passes. Preserve owner
+   recovery success. Record independent T15 and Auth redirect cleanup separately;
+   payment/corpus remain excluded. Rollback target is the pre-fix production
+   deployment dpl_3TAwkp7cPozmhA8EmM7J5jULc66F; no rollback without approval.

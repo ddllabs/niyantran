@@ -1,7 +1,13 @@
 # D2: First application launch on nter.pro
 
-> **Status: Living.** Proposed 2026-10-18. Planning only; no authority to change
-> DNS, domain ownership, authentication, production configuration or traffic.
+> **Status: Living.** 2026-10-18. Owner approved Auth redirect and CORS
+> preparation plus Vercel domain preparation. Owner subsequently completed Pro
+> upgrade and authorized handover, then explicitly approved controlled downtime.
+> BasicDNS, ownership, HTTPS/routing and canonical Auth URL are verified live;
+> Owner sign-in/reload, saved history and one-call answer/debit verified;
+> Owner confirms recovery-email/reset/sign-in passed. Final observation
+> found F226 (Policy Pipeline summary502); scoped final fix approved and
+> implemented locally, release verification pending. D2 remains open.
 
 ## Objective
 
@@ -15,7 +21,7 @@ deployment target, not a new project or backend. Razorpay remains disabled;
 corpus ingestion, feed schedules, data republishing, database migrations and
 deleting the old Vercel project are excluded.
 
-## Read-only evidence, October 18
+## Initial pre-cutover evidence, October 18
 
 - Namecheap screenshots show domain registration and custom Cloudflare DNS.
   Public NS lookup confirms `julio.ns.cloudflare.com` / `sara.ns.cloudflare.com`.
@@ -27,12 +33,20 @@ deleting the old Vercel project are excluded.
 - Vercel connector returns a scope403; same-scope authenticated CLI inspection
   succeeds for our project. Existing access is sufficient for our side of the
   handover; old Vercel/Cloudflare access is optional.
-- Research-chat OPTIONS requests from both custom-domain origins returned204
+- Before preparation, research-chat OPTIONS requests from both custom-domain origins returned204
   without Access-Control-Allow-Origin. Configuration must allow the required
   origins before launch; a204 by itself is not a passing CORS check.
-- `server/authApi.mjs` prefers APP_URL, then SITE_URL, then forwarded host.
-  `_shared/cors.ts` reads ALLOWED_ORIGINS. No secret values or dotenv files were
-  inspected. Actual Auth/email/OAuth configuration remains to be inventoried.
+- Production authenticates directly with Supabase: `api/router.js` deliberately
+  does not mount `/api/auth/*`. The older `server/authApi.mjs` URL settings are
+  not a demonstrated production dependency. Google uses the current browser
+  origin as its return URL; recovery uses `/#/reset-password`; signup/resend
+  omit an explicit return URL and therefore depend on the Supabase Site URL.
+- Approved preparation is recorded in the [execution evidence](../research/2026-10-18-nter-domain-launch-evidence.md):
+  four exact Auth destinations added, current Site URL preserved, both custom
+  CORS origins added and35/35 preflight checks passed. No dotenv or credential
+  files were inspected. Owner later confirms recovery delivery/reset/sign-in;
+  Google Console branding was not part of this acceptance slice. No
+  confirmation/provider settings were changed.
 
 ## Deployment and DNS contract
 
@@ -82,7 +96,7 @@ more as a separately reviewed step.
 
 ## Scope and verification
 
-This phase writes only this specification, its plan and D2 in open-work.md.
+The approved preparation changes configuration and its execution records.
 Implementation should prefer configuration-only changes. Candidate source
 scopes, only if inventory proves a defect: `server/authApi.mjs` with a new
 `src/lib/authDomain.test.js`, `src/lib/userStore.js` with
@@ -108,8 +122,11 @@ temporary fallback serving the current application or maintenance page. DNS
 rollback cannot restore a Vercel association that ownership transfer removed.
 
 Approval covers a concrete sequence and exact targets, including owner-run
-email/model tests. Current request authorizes preparation only. O10 hosting
-plan readiness remains an owner decision; no paid upgrade is authorized.
+email/model tests. The owner subsequently completed the Pro upgrade, approved
+controlled BasicDNS/traffic cutover and authorized final launch checks. Those
+checks passed Auth/email/conversations/accounting but found F226; backend fixes
+require a separately approved scope and release. No further paid upgrade,
+checkout activation or ingestion operation is authorized.
 M1/M2 T15 stays separately tracked; domain preparation does not close it or
 authorize payment implementation. Other broad M6 tasks are not silently
 included in D2.
@@ -117,3 +134,18 @@ included in D2.
 References: [Namecheap nameserver changes](https://www.namecheap.com/support/knowledgebase/article.aspx/767/10/how-to-change-dns-for-a-domain/),
 [Vercel ownership](https://vercel.com/docs/domains/working-with-domains/claim-domain-ownership),
 [Supabase redirects](https://supabase.com/docs/guides/auth/redirect-urls).
+
+
+## F226 approved final-fix amendment — 2026-10-18
+
+Owner authorized final fixes and launch verification after the scoped proposal.
+Change only Policy Pipeline's National summary to the existing stored-first
+loader, in both local and Vercel routers. Preserve fetchedAt and stale/age
+provenance in server/nationalLandingSummary.mjs, as the Global summary already
+does. No filter, displayed-row inflation, schedule, feed data or freshness-rule
+change. Acceptance: working stored records yield200 and the same prepared count
+as the module despite upstream failure; permitted stale copies remain marked;
+missing/disabled/empty/over-ceiling store retains truthful fallback/error;
+non-target National summaries keep their loader and validation stays ahead of
+reads. Release is limited to the existing Vercel production project through
+reviewed main; no Supabase function/config/schema deployment or paid model test.
