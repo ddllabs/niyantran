@@ -851,3 +851,29 @@ first-attempt CI checks must be reconfirmed at actual closure. Earliest expected
 handoff October19 late evening IST depends on third constitution daily success;
 not guaranteed. No payment or corpus work started. Documentation-only check:
 git diff --check passes; no runtime suites rerun for prose.
+
+
+## Scheduled closure observation — 2026-10-18 11:54 UTC
+
+Read-only NTER and scoped Vercel/GitHub inspection; initial main/origin d5d4254
+clean after fetch. Cron5 active */5 and expected Vercel refresh URL true; last6
+cron executions11:25–11:50 UTC succeeded. All257 serving variants zero failure
+counters and zero whole-feed empty markers. All feed outcomes since11:00 were
+ok/unchanged. Fixtures and both charts24 genuine hourly successes each since
+October17 10:00, no other outcomes; latest11:15, next eligible12:15. Charts25
+items each. Fixtures20 retained: EPL6, IPL1, NBA6, La Liga7; all4 leagues intact.
+MLA400 unique profile +100 coverage keys; Constitutions188 unique constitute:
+keys, fingerprint c14635ffbc17cef3a5ace4fc74273578 unchanged.
+
+Daily gates unchanged: MLA2/3, next October19 10:45:19 UTC; Constitutions1/3,
+next October18 15:45:01 UTC; Growth first post-F224 ordinary scheduled writer
+acceptance pending October18 after15:55 UTC. No additional daily opportunity
+inferred, no refresh forced. Prior bounded behavioral evaluation remains complete.
+
+Latest3 genuine CI39120540412,39120962896,39123391599 individually verified:
+app and SQL successful, attempt1. Production dpl_J7Xk55nfHaNPsdStFc9QYRyCSxWq
+READY at exact d5d42544d082ef8a7f0edef4cb44557e393e399f with both custom and
+retained aliases. No new actionable failure or full closure; no repeat alert.
+Hourly monitor stays ACTIVE. T15 open; payment held/corpus excluded. Only local
+tracker/evidence prose recorded; git diff --check passes, no runtime tests rerun,
+production mutation, push/deploy or paid call.
