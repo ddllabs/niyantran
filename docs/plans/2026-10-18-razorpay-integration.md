@@ -902,3 +902,41 @@ branch is already approved, but deploying before its DB dependency would break
 purchase history and retry RPCs; preserve the current working Preview meanwhile.
 No hosted migration, legacy row repair, push, redeploy, Production or Live-key
 change performed in this recovery implementation turn. Corpus excluded.
+
+
+## Recovery migration applied — 2026-10-19
+
+Owner explicitly approves additive shared migration, provider review of three
+old Test attempts, conditional retry classification and Test-only publication.
+Applied exact reviewed08fb2591 SHA migration to NTER successfully; hosted
+history20261018214242/billing_creation_retry maps to local20261019000000.
+New RPC denies anon/authenticated execution and grants service_role only.
+No retry records modified; payments/events/invoices0. Wallet/lot/ledger complete
+row fingerprints match preflight:bd65c80f30935125ed928db1814d2d4f /
+e57fd2321652e45372d5d792367b25c6 /61f278e7e4381ea803dc5971a37f5134.
+Production web preflight dpl_4HUQ975dnQattdSnfW5TL5cRCXf2/main3ccdf8a and
+all_except_custom_domains protection. No Live/env/provider/corpus change.
+Arc initially blank; after owner's 'check again' dashboard HTML accessible and
+Test mode confirmed. Actual provider receipt review now in progress before
+classification; do not infer absence from database rows alone.
+
+
+## Provider review and legacy retry classification — 2026-10-19
+
+After owner opened Orders, Arc exposed actual Test dashboard HTML and screenshot.
+Account matches all three local attempts. Orders tab, All status selected, empty
+search/status filters, complete Showing1-2 inventory: only new Pro
+order_TpW05aqrgP5E0y/81439bec-7700-4241-8985-0c02a0df56c3 and50k top-up
+order_TpVy9B8fGCcZSy/720f9f12-8ed9-4ae2-a1d6-921c2987c303; both Created,
+zero attempts. Today includes all old attempts (Oct19IST). Overview zero captured
+payments/refunds/disputes. Thus old three exact receipts absent from full provider
+inventory, independently of the local DB. No provider settings or payment modified.
+
+Executed approved service-only review_rejection for exactly the three listed
+Test IDs, actor the owner-selected active admin. Each retains original row/quote,
+state reconciling, creation_retryable=true and exactly one operator audit entry
+with reason/time/actor; no fabricated provider401 history. Newer ready Pro/50k
+orders untouched. Post-review payments/events/invoices0 and complete ledger,
+wallet and lot hashes still match preflight. No credit grant, invoice, refund
+or provider-order POST performed by this review. Ready to publish verified Test
+code; Production web/Live/corpus remain excluded.

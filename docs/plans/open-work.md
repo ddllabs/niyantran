@@ -3041,6 +3041,14 @@ Earlier items, updated:
       migration approval and reviewed classification of the three old Test
       intents. No hosted schema/row mutation or Test publication yet; preserve
       working Preview until dependency can be applied.
+      Owner approved shared additive migration and reviewed Test repairs. Hosted
+      migration20261018214242/billing_creation_retry applied exact08fb2591 hash;
+      service-only grants verified; financial fingerprints unchanged. Actual
+      Razorpay Test All Orders complete1-2 inventory contains only new Pro/50k;
+      old three receipts absent, zero captured payments. Reviewed three exact
+      old Test intents:retryable=true, one operator audit each; no grants/invoices.
+      Ready for authorized Test-only publication; Production web/Live/corpus
+      unchanged.
       CI39164169136 app+SQL green attempt1. Separately
       observed Production redeploy dpl_3jVL7ikUYANELS4Jt94vDF1Sqckj from same
       main3ccdf8a; protection unchanged, initiator unknown, no agent Production action.
