@@ -185,3 +185,41 @@ is dpl_DtfvnFUWUZCQiFE2dtNGN2B2f2Wx at 79c0799; rollback requires owner approval
 Push the task branch, verify its genuine CI, then fast-forward main and verify
 production CI/deployment, read-only public routes/assets and bounded runtime logs.
 Live warning verification remains pending until those observations are recorded.
+
+
+## Production verification — 2026-10-18
+
+Both runtime fixes landed on main at `cd0e14daee7ac4d4df9f56690bb0dafd8ec9c08e`.
+Task-branch CI39134798867 and main CI39135220208 each passed both application
+and disposable SQL jobs on attempt1. No retries or empty commits. Production
+Vercel deployment dpl_HV8UVwmvBe6dsfE59gsEBjXRypx8 is READY at that exact SHA;
+aliases include nter.pro, www.nter.pro and niyantran-six.vercel.app.
+
+Production build scan:256 events, Build Completed present, no large-chunk
+advisory or DEP0169. TerminalShell495.71kB; xlsx499.55kB. Deployed public initial
+entry plus React vendor total180,869B gzip using Node gzipSync (same budget
+method), below182,446B. Entry assets agree across both hosts; React vendor
+matches the local build byte-for-byte. The production entry hash differs from
+the no-dotenv local build, as expected for environment-specific public build
+configuration; no configuration values were read or printed.
+
+Read-only HTTP checks on www.nter.pro and niyantran-six.vercel.app: home200,
+/api/home/segments200, intentionally unknown query-bearing route404. Request
+logs prove both probes reached /api/router on this deployment with cache MISS,
+including repeated query values and encoded Unicode/separator input. Signed-out
+fresh Chrome smoke loads home and Sign in route with no JavaScript exceptions,
+no failed JavaScript assets and zero blocked write attempts. Optional shell
+chunks load at sign-in intent. No production account or paid chat was invoked;
+local fixture evidence remains the source for authenticated draft persistence.
+
+Prior production deployment had eightDEP0169 log entries in the preceding hour.
+Post-release bounded runtime scan returned one record, zeroDEP0169 and zero
+error/fatal records. Empty early runtime scan was not used alone: uncached
+request records independently demonstrate actual router execution. This verifies
+the exercised live path and observation window, not every possible dependency.
+
+Hourly M1/M2 heartbeat configuration remains ACTIVE, hourly interval unchanged.
+T15 remains open for genuine reference daily opportunities and Growth writer
+acceptance; no artificial refresh or closure claim. Razorpay held, corpus
+excluded. Final closure records are a documentation-only follow-up to this
+verified runtime release; verify its resulting deployment/CI separately.

@@ -223,20 +223,6 @@ orientation list is compared item by item in the
 
 ## UI follow-ups
 
-- [ ] **F231. Reduce large JavaScript chunks through real load boundaries.**
-  Implemented and verified locally on `task/bundle-node-warnings` (2026-10-18).
-  Home-route JavaScript gzip reduced 25.4%; all chunks below the unchanged
-  500kB threshold; aggregate initial gzip remains within budget. Awaiting owner
-  approval to publish; no push or production change.
-  [Spec](../specs/2026-10-18-bundle-node-warnings.md) ·
-  [Plan](2026-10-18-bundle-node-warnings.md).
-- [ ] **F232. Diagnose and remove DEP0169 URL-parser warning locally.**
-  Implemented and verified locally: reproduced the historical Vercel lazy-query
-  getter warning, then preserved query values through safe request-local
-  materialization. No warning suppression or runtime downgrade. Awaiting owner
-  release approval and live warning validation. Same spec/plan as F231.
-
-
 - [ ] **F107. Legal policies for payment-gateway activation.** Owner request
   2026-10-12: Privacy, Terms, Refund & Cancellation, Delivery and Contact pages
   for Niyantran Strategy Consulting Pvt Ltd (Kolkata, not GST-registered),
@@ -1569,6 +1555,23 @@ orientation list is compared item by item in the
   F218 code/source and production checks remain unchanged.
   [Spec](../specs/2026-10-17-f218-stored-summary.md) ·
   [evidence](../research/2026-10-17-f218-stored-summary-evidence.md).
+
+### Warning fixes released — 2026-10-18
+
+- [x] **F231. Reduce large JavaScript chunks through real load boundaries.**
+  Landed `f158aa8`, released on main `cd0e14d`. Home-route gzip down25.4%
+  locally; production TerminalShell495.71kB, largest xlsx499.55kB, no chunk
+  advisory. Production initial180,869B gzip below unchanged182,446B budget.
+  App/SQL CI branch39134798867 and main39135220208 green on attempt1.
+  [Spec](../specs/2026-10-18-bundle-node-warnings.md) ·
+  [Release evidence](2026-10-18-bundle-node-warnings.md#production-verification--2026-10-18).
+- [x] **F232. Remove deprecated lazy URL-parser path.**
+  Landed `32c611e`, released on main `cd0e14d`. Causal legacy-helper tests,
+  routing/query compatibility and full suites pass. Two uncached live router
+  probes returned expected404; bounded deployment runtime scan zeroDEP0169
+  and zeroerrors, versus eightDEP0169 entries on the prior deployment in1h.
+  Ongoing monitoring continues; this is bounded evidence, not a guarantee about
+  every dependency/path. Same release evidence as F231. No Supabase changes.
 
 ### M1/M2 implementation and rollout — 2026-10-17
 

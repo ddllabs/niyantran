@@ -2355,3 +2355,15 @@ Final prose follow-up deployment/CI is verified after publication; T15 stays ope
   post-F224 scheduled writer acceptance pending tonight. All257 serving variants
   zero failures, expected */5 cron active. Hourly monitor ACTIVE; Razorpay held,
   corpus excluded. [Evidence](../research/2026-10-18-f227-auth-evidence.md).
+
+
+### Operations — 2026-10-18: warning fixes
+
+Owner approved publication of F231/F232. Runtime commits32c611e/f158aa8 merged
+and pushed with records as maincd0e14d; Vercel production
+ dpl_HV8UVwmvBe6dsfE59gsEBjXRypx8 READY. Branch/main app+SQL CI passed attempt1.
+Production home/API, signed-out browser and uncached router probes pass; build
+has no chunk advisory and bounded runtime scan has noDEP0169/error. Full local
+verification and limits: [release evidence](../plans/2026-10-18-bundle-node-warnings.md#production-verification--2026-10-18).
+No Supabase/data/timer/corpus/payment change. Hourly M1/M2 monitor ACTIVE; T15
+still open. Closure-record follow-up has the same runtime implementation.
