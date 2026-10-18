@@ -225,7 +225,7 @@ export async function completeCheckout({ planId, productId, requestId, user, bil
       await Promise.all([refreshEntitlement(), refreshCredits()]);
       return { ok: true, recovered: true };
     }
-    if (!order.orderId) return { ok: false, pending: true, purchaseId: order.purchaseId, reason: 'Purchase confirmation is pending. Check your purchases before paying again.' };
+    if (!order.orderId) return { ok: false, pending: !order.retryable, retryable: Boolean(order.retryable), purchaseId: order.purchaseId, reason: order.retryable ? (order.reason || 'Checkout did not start. You can retry this purchase.') : 'Purchase confirmation is pending. Check your purchases before paying again.' };
     const outcome = await openRazorpayCheckout({
       keyId: order.keyId || config.keyId,
       orderId: order.orderId,

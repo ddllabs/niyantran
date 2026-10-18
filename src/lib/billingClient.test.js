@@ -76,3 +76,23 @@ describe('openInvoice', () => {
     expect(await openInvoice('inv_9')).toMatchObject({ ok: false });
   });
 });
+
+
+describe('rejected creation retry messaging', () => {
+  it.each([true,false])('keeps the stable intent and requires a user click to retry; retryable=%s', async retryable => {
+    const values=new Map();vi.stubGlobal('sessionStorage',{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)});
+    serve({
+      '/api/billing/config':[200,{enabled:true}],
+      '/api/billing/create-order':[202,{ok:true,status:retryable?'creation_failed':'reconciling',retryable,purchaseId:'purchase_fixture'}],
+    });
+    const first=await completeCheckout({productId:'topup-20000'});
+    expect(first).toMatchObject({ok:false,pending:!retryable,retryable});
+    expect(first.reason).toMatch(retryable?/did not start/:/confirmation is pending/);
+    expect(calls.filter(c=>c.url==='/api/billing/create-order')).toHaveLength(1);
+    await completeCheckout({productId:'topup-20000'});
+    const attempts=calls.filter(c=>c.url==='/api/billing/create-order');
+    expect(attempts).toHaveLength(2);
+    expect(JSON.parse(attempts[0].init.body).requestId).toBe(JSON.parse(attempts[1].init.body).requestId);
+    expect(values.size).toBe(1);
+  });
+});

@@ -10,7 +10,7 @@ import { loadEnv } from './loadEnv.mjs';
 import { getSupabaseAdminClient } from './authEmailProvider.mjs';
 import { authorizeLocalUser, localClientForToken } from './usersApi.mjs';
 import { computeQuote, renderInvoiceHtml, sellerFromEnv } from './inrBilling.mjs';
-import { createPurchase, verifyPurchase, purchaseStatus, receivePaymentWebhook, recoverPayments, paymentContext, paymentConfig, checkoutEnabled, billingRpc, readRawPaymentBody, TOPUP_PACKS } from './paymentService.mjs';
+import { createPurchase, listPurchases, verifyPurchase, purchaseStatus, receivePaymentWebhook, recoverPayments, paymentContext, paymentConfig, checkoutEnabled, billingRpc, readRawPaymentBody, TOPUP_PACKS } from './paymentService.mjs';
 
 loadEnv();
 
@@ -111,7 +111,7 @@ export async function handleBillingApi(req, res, url, deps = {}) {
       const ctx = paymentContext(d);
       let result;
       if (webhook) result = await receivePaymentWebhook(req, ctx);
-      else if (url.pathname.endsWith('/purchases')) result = { ok: true, purchases: await billingRpc(ctx.client, 'billing_order', { p_action: 'list', p: { userId: who.id, account: ctx.config.account, mode: ctx.config.mode } }) };
+      else if (url.pathname.endsWith('/purchases')) result = { ok: true, purchases: await listPurchases(who, ctx) };
       else if (url.pathname.endsWith('/order-status')) result = await purchaseStatus(Object.fromEntries(url.searchParams), who, ctx);
       else if (url.pathname.endsWith('/recover')) result = await recoverPayments(ctx);
       else if (url.pathname.endsWith('/adjustments')) result = { ok: true, adjustments: await billingRpc(ctx.client, 'billing_event', { p_action: 'reviews', p: { account: ctx.config.account, mode: ctx.config.mode } }) };

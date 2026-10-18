@@ -462,3 +462,30 @@ Acceptance: causal tests prove safe authentication/rate-limit/provider/transport
 classification and distinguish bind failure; hostile error text cannot reach logs
 or client. Local verification only; publication needs owner approval. No claim
 that keys are invalid or that the underlying provider issue is fixed.
+
+
+## Rejected creation recovery — 2026-10-19
+
+Status: Living. Existing stable per-product intents preserve uncertain results but
+strand HTTP401 rejections. Add service-only durable rejection metadata and atomic
+retry claim on the same purchase ID. Only explicit authentication HTTP401/403
+received during provider creation is automatically classified retryable. Timeout,
+transport, parse,5xx and binding failures stay uncertain; no blind repeat POST.
+Retry uses original immutable amount/snapshot; one claimant gets a fenced lease,
+others reuse the existing result. An ambiguous retry consumes retry permission.
+Keep signature/capture/invoice deduplication and records. Cap retries per purchase.
+
+Old unclassified intents require explicit operator review, never inferred rejection
+from age or an empty receipt lookup. Provide service-only Test-only review RPC
+requiring active admin, reason and confirmation that provider absence was checked;
+reject bound/paid/leased/recent/foreign requests. Record operator decision with
+reason/time/actor. This operator confirmation is a trusted manual evidence boundary,
+not machine proof of provider absence; use only after reviewing exact Test receipts.
+
+No new tables: additive columns on private.billing_orders and one service-only
+RPC. Main code/Live keys remain unchanged. Shared hosted Supabase migration and
+old-intent review are separate concrete approval gates; perform neither silently.
+Verification: causal application/SQL fixtures, genuine two-session retry contention,
+wrong owner/mode/account/admin refusal, original snapshot, timeout after retry,
+no public execute, unchanged capture deduplication. Focused/full Vitest, Deno,
+SQL/vacuity/concurrency, lint/build/bundle/router; Test-only publication authorized.

@@ -17,6 +17,8 @@ function context() {
       if (args.p_action === 'recovery') return { data: [] };
       return { data: { ok: true } };
     }
+    if (name === 'billing_creation_retry' && args.p_action === 'claim') return { data: { canCreate: false, order: { ...order, provider_order_id: null, state: 'reconciling' } } };
+    if (name === 'billing_creation_retry' && args.p_action === 'reject') return { data: { ...order, provider_order_id: null, state: 'reconciling', creation_retryable: true } };
     if (name === 'billing_capture') return { data: { ok: true, status: 'fulfilled', invoice: { id: 'inv_a' } } };
     if (name === 'billing_event' && args.p_action === 'receive') return { data: { id, ...args.p, event_type: args.p.type, state: 'pending' } };
     if (name === 'billing_event' && args.p_action === 'pending') return { data: [] };
@@ -195,14 +197,64 @@ describe('safe purchase failure diagnostics', () => {
     }
     try {
       const result = await createPurchase({ productId: 'topup-20000', requestId: id }, user, ctx);
-      expect(result).toMatchObject({ pending: true, status: 'reconciling' });
+      expect(result).toMatchObject(stage === 'provider_create' ? { pending: false, retryable: true, status: 'creation_failed' } : { pending: true, status: 'reconciling' });
       expect(ctx.fetch).toHaveBeenCalledTimes(1);
       expect(warn).toHaveBeenCalledExactlyOnceWith('billing_order_creation_failed', {
         stage, category: stage === 'provider_create' ? 'http' : 'binding',
         providerStatus: stage === 'provider_create' ? 401 : null,
       });
       expect(JSON.stringify([warn.mock.calls, result])).not.toContain('secret-private-body');
-      expect(ctx.client.rpc.mock.calls.some(c => c[1].p_action === 'defer')).toBe(true);
+      expect(ctx.client.rpc.mock.calls.some(c => c[1].p_action === (stage === 'provider_create' ? 'reject' : 'defer'))).toBe(true);
     } finally { warn.mockRestore(); }
+  });
+});
+
+describe('same-intent rejected creation recovery', () => {
+  const pending = { ...order, provider_order_id: null, state: 'reconciling' };
+  function retryContext(canCreate = true) {
+    const ctx = context(); const original = ctx.client.rpc.getMockImplementation();
+    ctx.client.rpc.mockImplementation(async (name, args) => {
+      if (name === 'billing_order' && args.p_action === 'claim') return { data: { ...pending, fresh: false } };
+      if (name === 'billing_creation_retry' && args.p_action === 'claim') return { data: { canCreate, order: { ...pending, lease_token: id } } };
+      if (name === 'billing_creation_retry' && args.p_action === 'reject') return { data: { ...pending, creation_retryable: true } };
+      return original(name, args);
+    });
+    return ctx;
+  }
+  it('retries a rejected intent only after an atomic database claim, using stored price', async () => {
+    const ctx = retryContext();
+    expect(await createPurchase({ productId: 'topup-20000', requestId: id }, user, ctx)).toMatchObject({ ok: true, orderId: 'order_A1' });
+    expect(ctx.client.rpc.mock.calls.map(c => c[0]+':'+c[1].p_action)).toEqual(['billing_order:claim','billing_creation_retry:claim','billing_order:bind']);
+    expect(ctx.fetch).toHaveBeenCalledExactlyOnceWith('/orders', { method: 'POST', body: { amount: 49900, currency: 'INR', receipt: id, notes: { purchaseId: id } } });
+  });
+  it('does not repeat POST for an uncertain or already-claimed intent', async () => {
+    const ctx = retryContext(false);
+    expect(await createPurchase({ productId: 'topup-20000', requestId: id }, user, ctx)).toMatchObject({ pending: true });
+    expect(ctx.fetch).not.toHaveBeenCalled();
+  });
+  it.each([401, 403])('records definitive provider rejection %i as retryable, without retrying automatically', async providerStatus => {
+    const ctx = retryContext();
+    ctx.fetch.mockRejectedValue(Object.assign(new Error('private'), { paymentFailure: 'http', providerStatus }));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await createPurchase({ productId: 'topup-20000', requestId: id }, user, ctx)).toMatchObject({ pending: false, retryable: true, status: 'creation_failed' });
+      expect(ctx.client.rpc).toHaveBeenCalledWith('billing_creation_retry', expect.objectContaining({ p_action: 'reject', p: expect.objectContaining({ purchaseId: id, leaseToken: id, providerStatus }) }));
+      expect(ctx.fetch).toHaveBeenCalledTimes(1);
+    } finally { warn.mockRestore(); }
+  });
+  it.each([{paymentFailure:'timeout'}, {paymentFailure:'http',providerStatus:500}, {paymentFailure:'invalid_response'}])('does not make an uncertain retry retryable: %j', async failure => {
+    const ctx = retryContext();ctx.fetch.mockRejectedValue(Object.assign(new Error('private'), failure));
+    const warn = vi.spyOn(console,'warn').mockImplementation(()=>{});
+    try {
+      expect(await createPurchase({ productId:'topup-20000',requestId:id },user,ctx)).toMatchObject({pending:true,status:'reconciling'});
+      expect(ctx.client.rpc.mock.calls.some(c=>c[0]==='billing_creation_retry'&&c[1].p_action==='reject')).toBe(false);
+      expect(ctx.client.rpc).toHaveBeenCalledWith('billing_order',expect.objectContaining({p_action:'defer',p:expect.objectContaining({leaseToken:id})}));
+    } finally { warn.mockRestore(); }
+  });
+  it('fails closed before provider POST when atomic retry permission is unavailable', async()=>{
+    const ctx=retryContext();const original=ctx.client.rpc.getMockImplementation();
+    ctx.client.rpc.mockImplementation(async(name,args)=>name==='billing_creation_retry'?{error:{code:'42883'}}:original(name,args));
+    await expect(createPurchase({productId:'topup-20000',requestId:id},user,ctx)).rejects.toMatchObject({status:503});
+    expect(ctx.fetch).not.toHaveBeenCalled();
   });
 });

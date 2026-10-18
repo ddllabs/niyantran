@@ -630,3 +630,170 @@ until diagnostics are published and an approved controlled request is observed.
 
 Owner approved push/deploy of diagnostics only to Test Preview2026-10-19;
 Production, Live keys and corpus remain unchanged. No repeat pending Plus POST.
+
+
+## Test diagnostic publication — 2026-10-19
+
+Owner approved diagnostics-only Test publication. Runtime895b7a0 and isolated O6
+recordcd1413c pushed only task/razorpay-plan; unrelated M1/M2 observation hunks
+remain local. Deployment dpl_8ouxfCPPnQ2zQMrE7Zh3Vtr9B26g READY at exactcd1413c,
+branch alias publicly reports enabled/open Test mode. Unsigned webhook400 retains
+HMAC enforcement and approved alias exception. Production remains
+dpl_VTPtwrTtawEMkvKyq9WgfAGtQV2m/3ccdf8a and protection all_except_custom_domains.
+No env/key/schema/provider/Edge/timer/corpus changes in this publication. CI
+39164169136 attempt1 in progress at initial deployment verification.
+
+Existing pending Plus intents are reused without a new provider call, so owner
+was asked to reload the Test Preview and select the previously unattempted
+20k/499INR top-up once, stopping at Checkout or pending/error without payment.
+Awaiting that controlled reproduction before claiming a hosted cause. No keys
+were inspected/exported; do not repeat unresolved Plus requests or fabricate facts.
+
+
+## Hosted diagnosis confirmed: provider authentication rejection — 2026-10-19
+
+Owner reproduced on the diagnostic Preview by selecting20k/499INR top-up; Plus
+remained pending. Safe runtime log at2026-10-18T20:39:36.189Z, request
+w8fhv-1792355976024-36e3d4200570, deploymentdpl_8ouxfCPPnQ2zQMrE7Zh3Vtr9B26g:
+billing_order_creation_failed {stage:provider_create,category:http,providerStatus:401}.
+Thus the request reached Razorpay and failed API authentication before order bind
+or browser Checkout. The exact credential fault (mismatch/copy/revocation/etc.)
+is not established; Test prefix alone was never pair validation. Webhook secret
+is not used for order-create API authentication. No raw provider response, key
+or secret was inspected or printed.
+
+Read-only NTER shows top-up intent734e8f1c-f2a1-4b66-8978-7bc72de65c67 reconciling,
+49900paise, provider_order_idNULL,attempts1,created20:39:36.155525UTC. Two prior Plus
+intents remain reconciling/unbound. Payments/events/invoices all0. No agent
+provider write, retry, refund, key/config change, Production/Edge/corpus action.
+Next required owner action: securely replace RAZORPAY_KEY_ID and KEY_SECRET with
+the matching active Test pair, Preview/task/razorpay-plan only, no quotes or
+whitespace; preserve webhook secret/merchant/Production/Live. If original Test
+secret unavailable, owner may regenerate Test keys only. After owner reports
+saved, redeploy Test Preview then use bounded GET recovery/authentication evidence
+before any new purchase intent; preserve unresolved records and stable IDs.
+CI39164169136 was still in progress at diagnosis read. O6 remains blocked on
+Test API credentials, then full provider/accounting acceptance.
+
+
+Owner requested omitting secret in Test mode2026-10-19. Executed one read-only
+GET https://api.razorpay.com/v1/orders?count=1 with the deployed public Test key
+ID and empty Basic Auth password. Confirmed Test prefix in memory; printed only
+HTTP status401, no key, secret or provider body. No order/payment/data/config
+mutation. Test mode therefore does not bypass secret authentication. Blank
+Vercel Secret input does not establish stored emptiness; sensitive values are
+hidden. Active matching Test pair still required; do not change production keys.
+
+
+## Owner secret update / Test redeploy metadata mismatch — 2026-10-19
+
+Owner reports adding Test API secret and authorizes Test redeploy. Redeployed only
+existingcd1413c with explicit --target preview: dpl_AMXGYdcbnso3kdKugsZhSC6rqMKh
+READY, niyantran-hquydl7f0-ddl-labs.vercel.app. Stable branch config enabled/open
+Test mode; no secret values inspected. CI39164169136 both app+SQL success attempt1.
+
+Env metadata identifies likely wrong-field update: RAZORPAY_KEY_SECRET updatedAt
+1792347945274 (Oct18 23:55:45IST), unchanged from prior; WEBHOOK_SECRET updatedAt
+1792357151187 (Oct19 02:29:11IST). All six billing vars remain Preview and exact
+Test branch only. Do not initiate more Test order attempts until owner securely
+updates API KEY_SECRET and verifies webhook secret still matches Razorpay webhook.
+We cannot infer secret contents from these timestamps; no value was exported.
+
+Observed a separate Production source=redeploy created02:29:19IST, deployment
+dpl_3jVL7ikUYANELS4Jt94vDF1Sqckj, main3ccdf8a unchanged and protection still
+all_except_custom_domains. This differs from earlier production deployment ID;
+agent did not invoke production redeploy. Exact initiator not established. No
+Production billing vars or Live keys introduced. Reported discrepancy honestly;
+no rollback or other Production mutation attempted. Corpus remains excluded.
+
+
+Owner confirms correct Test API secret update2026-10-19. Metadata now shows
+KEY_ID02:36:40IST and KEY_SECRET02:37:00IST, each Preview/task/razorpay-plan only;
+values not read. Explicitly redeployed Testcd1413c as
+dpl_93oRKJG9xbUEVFby77Jr1Pi1JJhJ (initial BUILDING). Current pre-action Production
+target dpl_4HUQ975dnQattdSnfW5TL5cRCXf2 still main3ccdf8a, same protection; this
+is another independently observed redeploy, not triggered by agent. No Live
+settings, provider writes or corpus operations. Updated-pair authentication still
+requires a genuine request; prior pending intents do not repeat provider POSTs.
+
+Corrected-settings Test deploy dpl_93oRKJG9xbUEVFby77Jr1Pi1JJhJ READY/exactcd1413c;
+stable alias runtime enabled/open Test mode. Production target matches preflight
+dpl_4HUQ975dnQattdSnfW5TL5cRCXf2/main3ccdf8a and protection unchanged. Owner
+asked for one unused50k/1199INR order-creation attempt, no payment, to avoid
+reusing unresolved20k/Plus session intents. Pair acceptance not yet proven.
+
+
+## Corrected API credentials accepted / retry-state defect — 2026-10-19
+
+Owner reports fresh50k top-up and Pro open Checkout while old20k and Plus remain
+pending. Read-only NTER confirms Test topup-50000 ready/providerorder
+order_TpVy9B8fGCcZSy at21:10:41UTC and plan-pro ready/order_TpW05aqrgP5E0y
+at21:12:31UTC. No new safe creation-failure logs on corrected deployment. Thus
+corrected credentials successfully created and bound provider orders. Payments,
+events,invoices all0; Checkout opening is not capture/fulfilment acceptance.
+
+Root cause of stuck earlier intents established from code and rows: browser keeps
+per-user/product billing-intent UUID until fulfilment; createPurchase returns any
+nonfresh order immediately. Earlier unbound20k/Plus intents remain reconciling
+with attempts1 and no providerorder; all creation failures, including definitive
+HTTP401, are treated as uncertain. Recovery can bind a receipt match but defers
+again when no order exists. No definitive-failure retry/reset transition exists.
+This is an application recovery gap; preserving intent prevents duplicate orders
+but currently strands known rejected creations. Do not clear storage or delete
+audit rows as the permanent fix. Scoped next work: classify known rejected order
+creation separately, provide explicit safely retryable outcome/transition, retain
+lookup/idempotency protection for timeout/unknown results, and verify corrected
+credentials let same-product retry without duplicate order/credit/invoice. Old
+unclassified records require controlled reconciliation, not blind re-POST.
+No source/provider/DB mutation made in this explanatory investigation.
+
+
+## Local rejected-creation recovery implementation — 2026-10-19
+
+Owner authorizes fix/local verification and Test publication, preserving Production
+web/Live/corpus. New migration20261019000000 adds only creation_retryable and
+creation_failures to private.billing_orders plus service-only billing_creation_retry
+RPC. Main purchase/capture/credit functions unchanged. Retry consumes durable
+permission under row lock before network POST, retains original purchase ID and
+quote, and fences rejection writes with lease token. Known provider401/403 may
+retry; timeout/transport/invalidJSON/5xx/binding uncertainty does not. No automatic
+client POST retry or storage-reset workaround. Old unclassified records require
+explicit active-admin Test-only reviewed evidence; reasons/time/actor preserved.
+New history projection reports retry availability without exposing operator audit.
+
+Causal service regression:7fail/44pass against old code; new client retry tests
+2fail/4pass against original client, restored owned source after execution. Focused
+service/API/client/webhook4files102pass. Full application403files6351pass242.59s;
+Deno1155pass. Lint/build/bundle/router pass, no warnings. Dedicated SQL fixture
+passes as non-superuser migration, fails without new migration (non-vacuous),
+two real sessions obtain exactly one retry lease. All-SQL run still in progress.
+Shared hosted migration and legacy Test-row operator decisions NOT performed;
+new source uncommitted/unpublished until dependency authorization resolved.
+
+
+Final recovery verification:403files/6351Vitest pass242.59s;1155Deno pass;
+46 SQL fixtures pass including migration vacuity and both retry/capture two-session
+concurrency. Original billing_purchases.sql also passes on the disposable DB
+with the new migration applied. Focused4files102pass; lint/build/bundle/router
+import and diff whitespace pass. Source review covers immutable quote, scoped
+buyer/account/mode, authenticated Test-only operator boundary, consumed retry
+permission before POST, lease mismatch refusal, no blind uncertain re-POST and
+unchanged signature/capture/credit/invoice core. No new dependency or credential.
+
+Release dependency: migration20261019000000_billing_creation_retry.sql SHA256
+08fb259183945440ce4e075023a30a6a716016b1e19a7e2d15b5167be3da7f85 adds two
+metadata columns and one service-only RPC; no new table or financial backfill.
+This is a shared hosted database schema mutation, so it is not implied by the
+owner's instruction to keep Production unchanged. Concrete approval required
+before applying it, and before audited review of the exact old Test intents
+068c065d-2751-471f-9eff-902e69f48170,5af59ea0-3575-4d79-be5a-b89457853c6a,
+734e8f1c-f2a1-4b66-8978-7bc72de65c67. Read-only recheck confirms all unbound/
+reconciling/Test with zero linked payments/invoices. Operator reason must cite
+owner's provider-absence evidence, not invent historical401 for the two Plus
+requests without retained status logs. Audit rows remain; no grants/invoices
+or provider charges occur from classification. Actual provider receipt review
+is required before executing the operator action. Code publication to the Test
+branch is already approved, but deploying before its DB dependency would break
+purchase history and retry RPCs; preserve the current working Preview meanwhile.
+No hosted migration, legacy row repair, push, redeploy, Production or Live-key
+change performed in this recovery implementation turn. Corpus excluded.

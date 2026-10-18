@@ -3007,6 +3007,43 @@ Earlier items, updated:
       diagnostics verified locally:8causal red cases,88focused/6341full/1155Deno
       pass; lint/build/bundle/router pass. Root cause unconfirmed; code uncommitted
       and owner approved Test-only diagnostic publication2026-10-19.
+      Published runtime895b7a0/recordcd1413c only Test branch; Preview
+      dpl_8ouxfCPPnQ2zQMrE7Zh3Vtr9B26g READY/exactcd1413c, Test config and
+      unsigned webhook400 verified. Production target/protection unchanged.
+      CI39164169136 attempt1 initially in progress. Controlled owner top-up
+      order-only reproduction completed: provider_create/http401 in safe hosted
+      log20:39:36UTC. Razorpay rejected API authentication; exact credential fault
+      unconfirmed. New top-up intent reconciling/unbound; payments/events/invoices0.
+      Owner must securely correct matching Test key pair (branch-only), then Test
+      redeploy and bounded recovery before further purchase attempts. Webhook
+      secret and Production/Live remain unchanged. O6 acceptance still blocked.
+      Owner-reported API-secret update followed by approved Test redeploy:
+      dpl_AMXGYdcbnso3kdKugsZhSC6rqMKh READY/exactcd1413c. Metadata shows
+      WEBHOOK_SECRET updated02:29IST; KEY_SECRET remains Oct18 23:55IST.
+      Pause order attempts; owner must correct API-secret field and preserve
+      matching webhook secret. Later metadata confirms correct API pair updates
+      02:36/02:37IST; Test redeployed dpl_93oRKJG9xbUEVFby77Jr1Pi1JJhJ READY
+      cd1413c, runtime Test mode. Fresh50k order-only owner reproduction requested;
+      credential acceptance subsequently confirmed: fresh50k and Pro Test provider
+      orders created/bound ready; payments/events/invoices0. Earlier20k/Plus stuck
+      because stable browser intent reuses unbound reconciling rows, and nonfresh
+      claims never retry. Open recovery defect: distinguish definitive rejected
+      creation from uncertain outcomes; safe explicit retry with causal duplicate/
+      timeout safeguards and controlled reconciliation of older intents required.
+      Owner approved local fix plus Test publication2026-10-19. Implementing
+      durable rejection metadata/atomic same-intent retry; timeout/unknown remains
+      pending. Additive shared-DB migration and legacy operator decisions require
+      separate concrete approval; main/Production/Live/corpus excluded.
+      Local recovery verified:6351Vitest/1155Deno/46SQL fixtures pass;102focused,
+      causal service/client red, vacuity, retry and capture concurrency, original
+      billing fixture with new migration, lint/build/bundle/router pass.
+      Ready for release; awaiting shared-Supabase two-column/service-only-RPC
+      migration approval and reviewed classification of the three old Test
+      intents. No hosted schema/row mutation or Test publication yet; preserve
+      working Preview until dependency can be applied.
+      CI39164169136 app+SQL green attempt1. Separately
+      observed Production redeploy dpl_3jVL7ikUYANELS4Jt94vDF1Sqckj from same
+      main3ccdf8a; protection unchanged, initiator unknown, no agent Production action.
       O6 remains open for restricted external Test-mode acceptance and release gates;
       no main/Production push/deployment, provider write, key provisioning or payment.
     - **Downgrade at the next cycle:** the new billing fulfilment queues a lower plan

@@ -57,10 +57,13 @@ export function paymentContext(deps) {
   const config = deps.paymentConfig || paymentConfig();
   return { config, client: deps.adminClient(), fetch: deps.razorpayFetch || ((path, init) => providerFetch(path, init, config)) };
 }
+const retryRpc = (ctx, action, p) => billingRpc(ctx.client, 'billing_creation_retry', { p_action: action, p: { account: ctx.config.account, mode: ctx.config.mode, ...p } });
 const orderRpc = (ctx, action, p) => billingRpc(ctx.client, 'billing_order', { p_action: action, p: { account: ctx.config.account, mode: ctx.config.mode, ...p } });
 export function publicPurchase(order) {
-  return { purchaseId: order.id, orderId: order.provider_order_id, status: order.state,
-    pending: !['fulfilled', 'refunded'].includes(order.state), quote: order.snapshot, amount: Number(order.amount_paise), currency: order.currency };
+  const retryable = Boolean(order.creation_retryable && !order.provider_order_id && ['creating', 'reconciling'].includes(order.state));
+  return { purchaseId: order.id, orderId: order.provider_order_id, status: retryable ? 'creation_failed' : order.state,
+    retryable,
+    pending: !retryable && !['fulfilled', 'refunded'].includes(order.state), quote: order.snapshot, amount: Number(order.amount_paise), currency: order.currency };
 }
 export async function createPurchase(body, user, ctx) {
   if (!ctx.config.open || !ctx.config.ready) throw paymentError('Online payments open soon.', 503);
@@ -71,12 +74,17 @@ export async function createPurchase(body, user, ctx) {
   const product = paymentProduct(body.productId || body.planId);
   if (!product) throw paymentError('Unknown product.');
   const requestHash = digest(JSON.stringify({ productId: product.productId }));
-  const order = await orderRpc(ctx, 'claim', { userId: user.id, requestId: body.requestId, requestHash,
+  let order = await orderRpc(ctx, 'claim', { userId: user.id, requestId: body.requestId, requestHash,
     snapshot: { ...product, seller: sellerFromEnv(), buyerEmail: user.email, buyerName: String(body.name || '').slice(0, 200) } });
-  if (!order.fresh) return { ok: true, ...publicPurchase(order), keyId: ctx.config.keyId };
+  if (!order.fresh) {
+    if (order.provider_order_id || ['fulfilled', 'review', 'refunded'].includes(order.state)) return { ok: true, ...publicPurchase(order), keyId: ctx.config.keyId };
+    const retry = await retryRpc(ctx, 'claim', { purchaseId: order.id, userId: user.id });
+    order = retry.order;
+    if (!retry.canCreate) return { ok: true, ...publicPurchase(order), keyId: ctx.config.keyId };
+  }
   let stage = 'provider_create';
   try {
-    const provider = await ctx.fetch('/orders', { method: 'POST', body: { amount: product.amountPaise, currency: 'INR',
+    const provider = await ctx.fetch('/orders', { method: 'POST', body: { amount: Number(order.amount_paise), currency: order.currency,
       receipt: order.id, notes: { purchaseId: order.id } } });
     stage = 'order_bind';
     const saved = await orderRpc(ctx, 'bind', { purchaseId: order.id, order: provider });
@@ -90,9 +98,17 @@ export async function createPurchase(body, user, ctx) {
       providerStatus: stage === 'provider_create' && Number.isInteger(error?.providerStatus)
         && error.providerStatus >= 100 && error.providerStatus <= 599 ? error.providerStatus : null,
     });
+    if (stage === 'provider_create' && error?.paymentFailure === 'http' && [401, 403].includes(error.providerStatus)) {
+      const rejected = await retryRpc(ctx, 'reject', { purchaseId: order.id, userId: user.id,
+        leaseToken: order.lease_token, providerStatus: error.providerStatus });
+      return { ok: true, ...publicPurchase(rejected), reason: 'Checkout could not start. No payment was initiated. You can retry after the payment configuration is corrected.' };
+    }
     await orderRpc(ctx, 'defer', { purchaseId: order.id, leaseToken: order.lease_token });
     return { ok: true, ...publicPurchase(order), status: 'reconciling', pending: true };
   }
+}
+export async function listPurchases(user, ctx) {
+  return retryRpc(ctx, 'list', { userId: user.id });
 }
 export async function ownedPurchase(body, user, ctx) {
   if ((!body.purchaseId || !UUID.test(body.purchaseId)) && (!body.orderId || !ORDER.test(body.orderId))) throw paymentError('Invalid purchase reference.');
