@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F233 is next) and goes in the
+- A new finding gets the next free `F` number (F234 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-17 (milestone check)
@@ -222,6 +222,17 @@ orientation list is compared item by item in the
   not an additional M1/M2 or payment prerequisite. [Comparison](../research/2026-10-17-orientation-closure-comparison.md).
 
 ## UI follow-ups
+
+- [ ] **F233. Fix login/logout passive-verification race.** Implemented and
+  verified locally on task/login-logout-race,2026-10-18; not published. Passive
+  refusal by the logout latch returns no authority without emitting a false
+  logout. Real logout/account/token switches and failed verification remain
+  protected. Causal regression failed before repair;6,288 app/1,155 Deno tests,
+  lint/build/bundle and four synthetic browser login cycles pass. Independent
+  review has no required findings. Awaiting owner review/release approval.
+  [Spec](../specs/2026-10-18-login-logout-race.md) ·
+  [Plan/evidence](2026-10-18-login-logout-race.md). Razorpay held; corpus excluded.
+
 
 - [ ] **F107. Legal policies for payment-gateway activation.** Owner request
   2026-10-12: Privacy, Terms, Refund & Cancellation, Delivery and Contact pages
