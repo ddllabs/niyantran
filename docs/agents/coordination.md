@@ -2332,3 +2332,26 @@ Final prose follow-up deployment/CI is verified after publication; T15 stays ope
   retained Auth allowlist review is F227. T15 remains independent/open;
   Razorpay held, corpus excluded. No further paid call, database/config/feed
   mutation, Edge deployment or owner-browser navigation. [Evidence](../research/2026-10-18-nter-domain-launch-evidence.md).
+
+
+- **2026-10-18 IST: F227 owner Auth cleanup verified.** Dashboard control was
+  unavailable; owner applied the approved nine-entry redirect list and supplied
+  screenshot. Site URL remains www.nter.pro; broad/malformed entries removed,
+  exact retained Vercel root/reset present, other entries preserved. Credential-
+  free no-follow invalid-token checks pass11/11: eight intended destinations
+  retained; three unrelated/lookalike destinations fall back to Site URL. Same
+  unrelated Vercel case accepted before and rejected after. Real Google and
+  recovery/reset/sign-in owner pilot plus saved-list reload confirmation pending;
+  F227 remains open. Documentation only locally, no source push/deploy, paid call,
+  account/data/feed/corpus operation. Hourly closure monitor ACTIVE; T15 open,
+  Razorpay held. [Evidence](../research/2026-10-18-f227-auth-evidence.md).
+
+
+- **2026-10-18 IST: F227 closed by owner acceptance.** Owner reloaded all nine
+  saved URLs and confirmed post-change Google sign-in, recovery email, password
+  reset and sign-in. Together with11/11 live redirect checks, all F227 acceptance
+  gates pass. Local documentation closure only; no source deployment. Read-only
+  T15 status11:25 UTC: MLA2/3, Constitutions1/3 daily opportunities, Growth first
+  post-F224 scheduled writer acceptance pending tonight. All257 serving variants
+  zero failures, expected */5 cron active. Hourly monitor ACTIVE; Razorpay held,
+  corpus excluded. [Evidence](../research/2026-10-18-f227-auth-evidence.md).
