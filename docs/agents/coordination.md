@@ -2319,3 +2319,16 @@ Final prose follow-up deployment/CI is verified after publication; T15 stays ope
   final-fixture run had one5s paging timeout, isolated46/46 and full retry green
   at original limits. Public data unchanged; branch/main release verification
   pending. No Supabase changes, paid calls, payment or corpus operation.
+
+- **2026-10-18 IST: F226 released and D2 closed.** Source441343e included in
+  release6c08b48, production dpl_3zLWhoTXdAycyofcGAwU7BquJ2JJ READY with all
+  custom/retained aliases. Branch/main CI39120245451/39120540412 pass both jobs
+  attempt1. Both Policy Pipeline summary/module APIs200 with3 stored rows and
+  fetch provenance;16/16 National resources,20/20 CORS, home API and disabled
+  checkout pass. Pilot remains exactly1 call/charge, unchanged wallet; all10
+  Edge hashes/versions unchanged. New-deployment request scan zero5xx;10 runtime
+  entries all known DEP0169 warnings, no other exception. Owner recovery/reset/
+  sign-in and earlier persisted chat pilot complete. D2/F226 moved to Done;
+  retained Auth allowlist review is F227. T15 remains independent/open;
+  Razorpay held, corpus excluded. No further paid call, database/config/feed
+  mutation, Edge deployment or owner-browser navigation. [Evidence](../research/2026-10-18-nter-domain-launch-evidence.md).

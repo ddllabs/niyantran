@@ -483,3 +483,58 @@ remains unchanged. Source committed locally as441343e (four paths,110 additions/
 3 deletions including the18-case regression file). D2 configuration/pilot/final
 checks are documented alongside the fix; branch/main publication and production
 verification follow. No unrelated local top-up-price branch is included.
+
+
+## F226 release verified; D2 closed — 2026-10-18, 16:20 IST
+
+Branch CI39120245451 at6c08b48 passed both application and SQL jobs on attempt1;
+main was fast-forwarded and pushed to origin at the same exact commit.
+Main CI39120540412 also passed both jobs attempt1. Application jobs execute
+lint/build/router,6242 app tests, public-data cleanliness and1155 Deno tests;
+SQL fixtures execute only in CI's disposable Postgres containers. No container
+on the owner's laptop was started or used. Source441343e is included; separate
+local top-up-price branch0bab1fc was not merged/published incidentally.
+
+Vercel production dpl_3zLWhoTXdAycyofcGAwU7BquJ2JJ is READY at exact
+6c08b48ac527524a04a8b102eea8d2ce86c2db52, with aliases www.nter.pro,
+nter.pro and niyantran-six.vercel.app. No CLI source upload or Edge deploy.
+At10:47:06 UTC both www and retained Vercel URL return200 for Policy Pipeline
+summary and module: summary count3, module3 rows, served=store, fetchedAt
+2026-10-18T10:30:00.244Z, fresh (no stale flag). The normal schedule refreshed
+the store; no refresh endpoint was called. Both current entry hashes remain
+780f3c662586dc19eb0a5417a703f30bea7306b860386726bf327b38cd05983d (frontend
+unchanged); old alias200 retains its separate old hash. Home segments API200.
+A post-release pass of16 unique National resources returns16/16 successful200s,
+including the fixed Policy Pipeline and truthful empty Tender result.
+
+20/20 OPTIONS checks again allow both custom origins and retained production,
+deny the unrelated origin across five browser-facing functions. GET billing
+config still enabled=false, checkoutOpen=false. At10:46:43 UTC pilot wallet
+3304.4895/debt0; pilot conversation exactly2 messages/1 call/1 charge -5.0635,
+no active hold. No further paid request. Read-only function inventory compares
+all10 versions and bundle hashes exactly equal to the post-CORS baseline.
+
+New-deployment request scan10:46:23–10:48:16 UTC returns zero HTTP5xx;
+no pagination or excluded intervals. Runtime error/fatal scan10:46:23–10:48:44.990
+returns10 entries, all Node DEP0169 url.parse deprecation warnings, zero other
+exceptions, no pagination or excluded intervals. Full result set was classified
+after initial text truncation, rather than inferring omitted lines were safe.
+These are bounded observations, not a guarantee about future upstream uptime.
+The last public DNS sample still had Cloudflare resolver caches on the old
+NS/CNAME while registry/BasicDNS and Google resolver were correct; HTTPS worked.
+No DNS rewrite is warranted merely to change a cached resolver answer.
+
+Owner previously completed the real browser sign-in/recovery/reset/sign-in,
+saved-conversation reload and bounded debit pilot. Post-fix verification uses
+actual public API responses through both production hosts; no new browser
+sign-in or paid chat was repeated. The owner browser had moved to unrelated
+work, so it was not navigated or changed and no new visual assertion is made.
+Source/frontend contracts and prepared module count remain verified by tests
+and actual responses.
+
+All scoped D2 gates now pass. F226 and D2 moved to Done with source/release
+hashes; the existing broad/malformed Auth allowlist cleanup is now F227, so it
+is not lost when D2 closes. Independent T15 scheduled daily observations remain
+open. Razorpay remains held and corpus ingestion excluded. Closure record
+publication is documentation only; no further production configuration, model,
+feed-data, source timer or ingest action is authorized by closing D2.

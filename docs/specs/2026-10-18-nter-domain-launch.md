@@ -1,13 +1,10 @@
 # D2: First application launch on nter.pro
 
-> **Status: Living.** 2026-10-18. Owner approved Auth redirect and CORS
-> preparation plus Vercel domain preparation. Owner subsequently completed Pro
-> upgrade and authorized handover, then explicitly approved controlled downtime.
-> BasicDNS, ownership, HTTPS/routing and canonical Auth URL are verified live;
-> Owner sign-in/reload, saved history and one-call answer/debit verified;
-> Owner confirms recovery-email/reset/sign-in passed. Final observation
-> found F226 (Policy Pipeline summary502); scoped final fix approved and
-> implemented locally, release verification pending. D2 remains open.
+> **Status: Historical (2026-10-18).** Completed D2 launch record. Owner
+> sign-in/recovery/reset, saved history and bounded credit pilot passed. F226
+> stored-summary fix released at6c08b48; both production hosts, final runtime
+> checks and first-attempt branch/main CI passed. D2 closed; Razorpay held,
+> corpus excluded and independent T15 unchanged. See final execution evidence.
 
 ## Objective
 

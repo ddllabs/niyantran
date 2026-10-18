@@ -1,30 +1,18 @@
 # D2: nter.pro application launch plan
 
-> **Status: Living.** 2026-10-18. Owner approved Auth/CORS changes and Vercel
-> domain preparation, then authorized handover after completing Pro upgrade.
-> Owner explicitly approved the controlled interruption after the initial
-> approval-review rejection. Technical handover completed: BasicDNS, ownership,
-> both hostnames/HTTPS, canonical redirect and Supabase Site URL verified.
-> Owner sign-in/reload, saved history and one-call answer/debit verified.
-> Owner confirms recovery-email/reset/sign-in passed. Final observation found
-> F226 Policy Pipeline summary502; D2 remains open; scoped fix implemented, release verification pending.
+> **Status: Historical (2026-10-18).** Completed D2 launch record. Owner
+> sign-in/recovery/reset, saved history and bounded credit pilot passed. F226
+> stored-summary fix released at6c08b48; both production hosts, final runtime
+> checks and first-attempt branch/main CI passed. D2 closed; Razorpay held,
+> corpus excluded and independent T15 unchanged. See final execution evidence.
 
 Specification: [D2 launch](../specs/2026-10-18-nter-domain-launch.md).
-Progress: four exact Auth redirects saved, canonical Site URL now www.nter.pro,
-ALLOWED_ORIGINS updated without removing existing entries,35/35 live OPTIONS
-checks passed. Vercel routing recommendations and ownership challenge prepared
-read-only; both domains subsequently attached and verified, with apex308 redirect
-to www. BasicDNS and all routing/TXT records saved under explicit downtime
-approval. Registry now delegates to dns1/dns2.registrar-servers.com; some public
-caches initially retained old DNS. Ownership transfer and project verification
-succeeded; www serves the exact expected production entry hash. Final15/15 CORS
-checks and custom-domain API200 passed. Owner sign-in and reload persistence
-passed; saved history and the single-call greeting/debit pilot also passed.
-Owner confirms recovery-email delivery/reset/sign-in passed. Final observation
-found Policy Pipeline summary502 on both aliases despite working stored module
-data (F226). Owner then approved the scoped final fix; implemented locally,
-release verification pending. D2 stays open. See the
-[execution evidence](../research/2026-10-18-nter-domain-launch-evidence.md).
+Final outcome: BasicDNS/domain ownership, HTTPS/canonical redirect, Auth/CORS,
+owner recovery and saved-history/credit pilot passed. F226 fixed the Policy
+Pipeline summary loader; production count matches its stored module. Final
+16/16 National resources,20/20 CORS, disabled checkout and bounded no5xx gate
+pass. Branch/main CI39120245451/39120540412 both green on attempt1. D2 and F226
+closed in the sole tracker. [Execution evidence](../research/2026-10-18-nter-domain-launch-evidence.md).
 
 Only open-work.md tracks unfinished work; the phases below are its execution
 breakdown, not a second tracker. Use task/nter-domain-launch or a fresh task
