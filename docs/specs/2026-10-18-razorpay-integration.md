@@ -1,7 +1,7 @@
 # Razorpay plans and credit top-ups
 
 > **Status: Living.** Local implementation approved 2026-10-18, explicitly before T15 closure.
-> No push, deployment, credential provisioning, provider mutation or production activation is authorized. Tracked under existing F107/F110/O6.
+> Narrow Test-branch publication approved and closed Preview deployed. Main/Production, hosted migration, provider writes and Live activation remain gated. Tracked under existing F107/F110/O6.
 
 ## Objective and existing decisions
 
@@ -369,3 +369,56 @@ from verified bearer and passed only by the server. Snapshot uses productId,
 kind, planId/credits, amountPaise, currency, creditUnit, label and seller. HTTP
 requests add productId and stable requestId while retaining planId compatibility.
 No customer can call the financial RPCs directly.
+
+
+### Test Preview setup verification — 2026-10-18
+
+Owner retained the Vercel payment backend and approved a closed Preview refresh.
+Both API credential names now have Sensitive, Preview-only task/razorpay-plan
+metadata; values/mode/pair validity remain unread/unverified. Same-commit24d51d4
+Preview dpl_2D72ZQmN9hmLytECecJNYH97HXPm is READY; closed config, app shell,
+Plus quote and unauthenticated-order rejection verified. Webhook fails closed503
+and public access redirects to Vercel authentication302. Merchant ID, separate
+webhook secret, test-buyer allowlist, approved ingress and hosted migration are
+still outstanding; no actual provider acceptance or Production change. See
+[execution evidence](../research/2026-10-18-razorpay-local-evidence.md#closed-test-preview-credential-refresh--2026-10-18).
+
+
+### Hosted transport blocker — 2026-10-19
+
+Branch-only merchant/webhook/buyer configuration now exists and same-source
+Preview dpl_HRHCghckTkLp5Jzqcp8uDvhunGzC is READY with Checkout closed. The
+hosted JSON webhook probe now reaches400 raw-body refusal. An equivalent lazy
+request.body getter reproduces this locally; current plain-stream transport tests
+do not exercise the Vercel helper. Acceptance requires a causal getter test and
+original-byte preservation without HMAC reserialization or weakened validation.
+No source fix/push yet. Public ingress, exact55 event review, shared DB migration
+and actual Test acceptance remain pending. Production/Live/corpus unchanged.
+
+
+### Approved raw-body fix scope — 2026-10-19
+
+Owner approves local-only webhook transport correction. Read original bytes from
+the host-restored request stream without triggering a lazy body parser. Preserve
+Buffer/string body support, size bounds, fail-closed parsed-only refusal and
+original-byte HMAC verification. Acceptance: first demonstrate lazy-getter failure
+in the real router fixture; then prove exact whitespace/Unicode bytes succeed,
+reserialized/bad signatures fail before persistence, and oversized inputs remain
+rejected. Source scope server/paymentService.mjs plus focused tests. No global
+parser/router configuration, schema, checkout flag, provider or deployment changes.
+
+
+### Raw-body implementation outcome — 2026-10-19
+
+Local reader now avoids lazy body parsing and consumes restored data/end events;
+original-byte HMAC, raw Buffer/string support, size limits and fail-closed parsed
+objects remain. Both lazy-getter and consumed/restored failures were demonstrated
+before passing; real localhost HTTP validates exact bytes and HMAC with no getter
+access. Focused80 and Deno1,155 tests plus lint/build/bundle/router checks pass.
+See execution evidence for final full-suite result and interim red checkpoints.
+Not pushed/deployed; actual Test webhook delivery is pending. Checkout/Production/
+Live/corpus unchanged by this local correction.
+
+Final local full-suite verification:403 application files/6,333 tests and1,155
+Deno tests pass; focused80, lint/build/bundle/router/diff checks pass. Hosted
+verification and all remote changes remain explicitly excluded from this task.

@@ -2936,8 +2936,45 @@ Earlier items, updated:
       task/razorpay-plan branch; Vercel rejected its scoped closed-checkout setting
       with400 and created nothing. Owner now approves the recommended narrow Test
       branch push/Preview build before T15; no main/Production/database/Live changes.
+      Published implementation6a749b6/docs24d51d4 on task/razorpay-plan. Preview
+      dpl_GxGydDNFEv1By8T6x5WjpM1eboJX READY; CI39151639554 green attempt1 app+SQL.
+      Verified Preview-only branch-scoped BILLING_CHECKOUT_OPEN=0 and deployed
+      enabled=false/checkoutOpen=false/five packs; main/Production still3ccdf8a.
+      **Latest closed Preview refresh:** owner-saved API variables verified Sensitive,
+      Preview/task/razorpay-plan only; values/mode not read or authenticated.
+      Authorized same-commit24d51d4 redeploy dpl_2D72ZQmN9hmLytECecJNYH97HXPm
+      READY. App/config/Plus quote pass; Checkout closed; unauthenticated order401;
+      unconfigured webhook503. Public webhook302 to Vercel login; protection unchanged.
+      Account ID, independent webhook secret, dedicated test-buyer list and approved
+      ingress/migration/Test execution remain pending. Production target
+      dpl_VTPtwrTtawEMkvKyq9WgfAGtQV2m/source3ccdf8a unchanged before/after.
+      No provider write, database/Edge deployment, source push or corpus operation.
+      **2026-10-19:** approved owner buyer UUID saved to branch-only Sensitive
+      BILLING_TEST_BUYER_IDS; removed broad Preview webhook-secret duplicate only.
+      All six billing settings now Preview/task/razorpay-plan; Checkout0. Refreshed
+      same source24d51d4 Preview dpl_HRHCghckTkLp5Jzqcp8uDvhunGzC READY. Config
+      closed; Production/protection unchanged. New hosted JSON webhook blocker400
+      `Webhook raw body unavailable.` reproduced locally with a Vercel-style lazy
+      body getter. Scoped original-byte transport fix and causal host-helper test
+      required before provider acceptance; no source fix/push yet. Public webhook
+      still302; secure ingress and shared DB migration require explicit scope.
+      Owner screenshot proves Test registration enabled55 subscriptions; exact
+      event list/secret matching not independently verified. No provider write,
+      database/Edge/corpus operation. See latest billing execution evidence.
+      **Local raw-body fix2026-10-19:** own body descriptor avoids lazy parser;
+      replayed data/end reader preserves Vercel original bytes. Causal lazy and
+      restored-stream regressions failed before passing; real localhost HTTP
+      proves exact UTF-8/whitespace and HMAC, no getter access. Focused80 and
+      Deno1,155 tests, lint/build/bundle/router pass. Final full-suite result in
+      billing execution evidence. No source commit/push/deploy; current Preview
+      still pre-fix24d51d4. Existing ingress/subscription/migration/acceptance gates
+      remain; Checkout, Production, Live keys and corpus unchanged.
+      Final local verification:403 application files/6,333 tests pass108.48s;
+      all other listed checks pass. Raw-body correction remains local/uncommitted.
+      Owner approves Test-branch-only publication of this verified raw-body fix
+      and closed Preview verification2026-10-19; no Production/DB/Live changes.
       O6 remains open for restricted external Test-mode acceptance and release gates;
-      no push, deployment, provider write, credential change or live payment.
+      no main/Production push/deployment, provider write, key provisioning or payment.
     - **Downgrade at the next cycle:** the new billing fulfilment queues a lower plan
       until the current `plan_period_end`.
     - **Renewal dates anchored to the first paid day,** so they do not drift

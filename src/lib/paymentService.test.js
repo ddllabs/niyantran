@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import crypto from 'node:crypto';
+import { PassThrough, Readable } from 'node:stream';
 import { paymentProduct, TOPUP_PACKS } from '../../server/paymentCatalog.mjs';
-import { signatureMatches, verifyPurchase, createPurchase, receivePaymentWebhook, paymentConfig, recoverPayments } from '../../server/paymentService.mjs';
+import { signatureMatches, verifyPurchase, createPurchase, receivePaymentWebhook, paymentConfig, recoverPayments, readRawPaymentBody } from '../../server/paymentService.mjs';
 
 const id = 'd0000000-0000-4000-8000-000000000001';
 const user = { id: 'd0000000-0000-4000-8000-000000000002', email: 'buyer@example.test' };
@@ -130,5 +131,35 @@ describe('payment purchase boundaries', () => {
   it('continues recovery while new checkout is closed',async()=>{
     const ctx=context();ctx.config.open=false;expect(await recoverPayments(ctx)).toMatchObject({ok:true});
     expect(ctx.client.rpc).toHaveBeenCalledWith('billing_order',expect.objectContaining({p_action:'recovery'}));
+  });
+});
+
+
+describe('payment raw body boundaries', () => {
+  it.each(['buffer', 'string', 'stream'])('retains exact UTF-8 bytes and byte limits for %s bodies', async kind => {
+    const raw = Buffer.from(' { "label": "₹ नीति" }\n');
+    const request = () => kind === 'stream' ? Readable.from([raw.subarray(0, 5), raw.subarray(5)]) : { body: kind === 'buffer' ? raw : raw.toString() };
+    expect(await readRawPaymentBody(request(), raw.length)).toEqual(raw);
+    await expect(readRawPaymentBody(request(), raw.length - 1)).rejects.toMatchObject({ status: 413 });
+  });
+  it('rejects interrupted bodies instead of returning partial signed bytes', async () => {
+    const req = new PassThrough();
+    const result = readRawPaymentBody(req);
+    req.write('partial');req.emit('aborted');req.end();
+    await expect(result).rejects.toMatchObject({ status: 400, message: 'Incomplete request body.' });
+  });
+  it('propagates stream errors instead of accepting a truncated body', async () => {
+    const req = new PassThrough();
+    const result = readRawPaymentBody(req);
+    const error = Error('fixture stream failure');
+    req.destroy(error);
+    await expect(result).rejects.toBe(error);
+  });
+  it('enforces stream limits without evaluating a lazy JSON parser', async () => {
+    const req = Readable.from([Buffer.alloc(65)]);
+    const getter = vi.fn(() => { throw Error('body parser must not run'); });
+    Object.defineProperty(req, 'body', { get: getter });
+    await expect(readRawPaymentBody(req, 64)).rejects.toMatchObject({ status: 413 });
+    expect(getter).not.toHaveBeenCalled();
   });
 });

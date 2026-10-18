@@ -102,15 +102,34 @@ export async function purchaseStatus(query, user, ctx) {
   return { ok: true, ...publicPurchase(order) };
 }
 export async function readRawPaymentBody(req, limit = 131072) {
-  if (Buffer.isBuffer(req.body) || typeof req.body === 'string') {
-    const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body);
+  // Vercel's lazy body getter parses JSON; its restored stream keeps the signed bytes.
+  // Inspect only an already assigned value, never invoke that getter for a webhook.
+  const body = Object.getOwnPropertyDescriptor(req, 'body')?.value;
+  if (Buffer.isBuffer(body) || typeof body === 'string') {
+    const raw = Buffer.isBuffer(body) ? body : Buffer.from(body);
     if (raw.length > limit) throw paymentError('Request too large.', 413);
     return raw;
   }
-  if (req.body && typeof req.body === 'object') throw paymentError('Webhook raw body unavailable.', 400);
-  const chunks = []; let size = 0;
-  for await (const chunk of req) { size += Buffer.byteLength(chunk); if (size > limit) throw paymentError('Request too large.', 413); chunks.push(Buffer.from(chunk)); }
-  return Buffer.concat(chunks);
+  if (body && typeof body === 'object') throw paymentError('Webhook raw body unavailable.', 400);
+  // Vercel replays consumed bodies through these events, not the original iterator.
+  return new Promise((resolve, reject) => {
+    const chunks = []; let size = 0, finished = false;
+    const finish = error => {
+      if (finished) return;
+      finished = true;
+      if (error) { chunks.length = 0; reject(error); }
+      else resolve(Buffer.concat(chunks));
+    };
+    req.on('data', chunk => {
+      if (finished) return;
+      size += Buffer.byteLength(chunk);
+      if (size > limit) finish(paymentError('Request too large.', 413));
+      else chunks.push(Buffer.from(chunk));
+    });
+    req.on('end', () => finish());
+    req.on('error', finish);
+    req.on('aborted', () => finish(paymentError('Incomplete request body.', 400)));
+  });
 }
 async function processEvent(event, ctx) {
   const payload = event.payload;

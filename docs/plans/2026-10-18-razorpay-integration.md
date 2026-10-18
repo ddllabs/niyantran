@@ -1,6 +1,6 @@
 # Razorpay integration plan
 
-> **Status: Living.** Local implementation and Docker tests authorized 2026-10-18; release remains gated.
+> **Status: Living.** Local implementation verified; approved closed Test Preview published 2026-10-18. Production release remains gated.
 
 [Spec and contracts](../specs/2026-10-18-razorpay-integration.md). Existing tracker
 F107/F110/O6, no duplicate programme. Planning baseline3ccdf8a. Preserve separate
@@ -256,10 +256,10 @@ secure keys, recovery-runner assignment and production release remain pending.
 
 | Checkpoint | Status |
 | --- | --- |
-| Local purchase/schema/financial core | Implemented and locally reviewed; not published |
+| Local purchase/schema/financial core | Implemented and reviewed; source published to Test branch only. Hosted migration not applied. |
 | Local webhook transport and browser fixture | Executed with mocked provider; not hosted Razorpay acceptance |
 | Full local verification | Latest full Vitest403 files/6,324 tests and Deno1,155 green; lint/build/bundle/router passed. Earlier paging timeout did not recur; no paging code/limit changed. Expanded SQL full run45 fixtures passed; evidence records exact scenarios. |
-| Dedicated hosted test-buyer restriction | Implemented locally; red/green tests and independent read-only security review passed; not deployed/configured |
+| Dedicated hosted test-buyer restriction | Code deployed on closed Test Preview; red/green and independent review passed. No dedicated buyer IDs configured. |
 | Actual Test-mode provider/webhook/recovery | Pending credentials, environment preparation and approved execution |
 | Live release / first real payment | Pending T15, merchant readiness, acceptance and separate release approval |
 
@@ -384,3 +384,234 @@ Function, change Production settings or provision/use Live keys. Keep Test
 Checkout closed. This narrow amendment does not authorize a real payment or
 opening public checkout. Hosted application acceptance remains dependent on the
 later migration/execution scope and secure Test credential provisioning.
+
+
+## Secret placement by executing runtime
+
+The browser calls /api/billing/* on Vercel. server/paymentService.mjs executes
+Razorpay Orders/Payments HTTPS calls and webhook HMAC validation in the Vercel
+Node runtime. Therefore RAZORPAY_KEY_ID/KEY_SECRET/WEBHOOK_SECRET belong to the
+branch-scoped Vercel server environment. Supabase Postgres runs trusted atomic
+billing RPCs and does not call Razorpay; it does not need those merchant secrets.
+Other provider secrets belong in Supabase when its Edge Functions execute those
+provider calls. The research-chat change here only consumes an entitlement RPC
+and does not need payment credentials. Do not duplicate the Razorpay secrets in
+Supabase or introduce VITE variants to make them visible in the browser bundle.
+
+
+## Closed Test Preview publication result — 2026-10-18
+
+Implementation6a749b6 plus documentation24d51d4 pushed only to task/razorpay-plan.
+GitHub main and Vercel Production remain3ccdf8a. Preview deployment
+ dpl_GxGydDNFEv1By8T6x5WjpM1eboJX is READY at
+https://niyantran-8jirv2za2-ddl-labs.vercel.app . CI run39151639554 completed
+successfully on attempt1, both app and SQL jobs. This does not replace T15's main
+CI/source-observation criteria or constitute provider acceptance.
+
+BILLING_CHECKOUT_OPEN=0 created successfully only for Preview/gitBranch
+ task/razorpay-plan; metadata readback confirmed that scope. Authenticated CLI
+GET /api/billing/config on the exact deployment returned enabled=false,
+checkoutOpen=false, no public key and five INR packs. No financial RPC called.
+No migration, Supabase Edge deployment, real/Test provider payment, webhook
+registration, main merge or Live key change occurred. Owner secure entry of the
+Test pair remains pending; no secret values were supplied/read by the agent.
+The latest readiness record is local and not included in24d51d4; separate prior
+M1/M2 observation edits remain unstaged. No additional push was made solely to
+record verification, avoiding a redundant Preview/CI cycle.
+
+
+## Closed Test Preview credential refresh — 2026-10-18
+
+Owner approved next Test setup steps and Preview verification with Checkout closed,
+Live keys/Production unchanged and corpus excluded. Keep payments on Vercel;
+Supabase remains the accounting database. This does not approve hosted migration,
+provider writes, checkout opening or a Production/Edge release.
+
+Environment metadata now confirms RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are
+Sensitive, Preview-only, gitBranch task/razorpay-plan; neither is scoped to
+Production. BILLING_CHECKOUT_OPEN is exactly0 in the same branch scope. Values
+were not decrypted, read or printed; key mode, pair validity and Razorpay account
+access are not verified by this metadata check. This supersedes earlier notes
+that secure key provisioning remained absent.
+
+Executed authenticated CLI redeploy of prior Preview dpl_GxGydDNFEv1By8T6x5WjpM1eboJX,
+explicit --target preview, using published commit24d51d4. New deployment
+ dpl_2D72ZQmN9hmLytECecJNYH97HXPm is READY (34-second build):
+https://niyantran-oo07tez73-ddl-labs.vercel.app . Branch alias:
+https://niyantran-git-task-razorpay-plan-ddl-labs.vercel.app . No source push,
+main merge, new CI run, database migration or Edge deployment occurred.
+
+Executed checks via authenticated vercel curl on this exact deployment:
+- GET / serves an HTML document and bundled entry scripts.
+- GET /api/billing/config returns Razorpay, enabled=false, checkoutOpen=false,
+  no exposed key, five packs and INR.
+- GET /api/billing/quote?planId=plus returns Plus monthly399/39900paise and
+  approved seller name/address/support email.
+- POST /api/billing/create-order with empty JSON and no application bearer
+  returns401 Authentication required, before any order/provider operation.
+- POST /api/billing/webhook with empty JSON returns503 Webhook not configured,
+  before event persistence/provider operations. This is expected missing setup,
+  not successful signed-webhook acceptance.
+- Plain unauthenticated GET of the webhook returns302 to vercel.com. Existing
+  all_except_custom_domains deployment protection remains unchanged; provider
+  delivery requires a separately approved scoped ingress arrangement.
+
+Production project target read before/after is unchanged:
+ dpl_VTPtwrTtawEMkvKyq9WgfAGtQV2m, SHA3ccdf8a343070d5365a6093c84230afaf0e1e441.
+This current observation supersedes older production deployment IDs while keeping
+that same source commit; this execution did not redeploy Production.
+
+Remaining setup: RAZORPAY_ACCOUNT_ID, independent RAZORPAY_WEBHOOK_SECRET and
+BILLING_TEST_BUYER_IDS are absent from environment metadata. Dedicated test buyers,
+hosted additive migration and compatible release sequence, approved webhook ingress,
+actual Test provider acceptance/reconciliation, recovery ownership and M1/M2/live
+release gates remain outstanding. No Razorpay order/payment/webhook registration,
+secret extraction, financial record write or corpus operation occurred. Existing
+local documentation edits are preserved; source unchanged, no suite rerun warranted
+for a same-commit Preview rebuild and documentation-only evidence update.
+
+
+## Branch-only Test configuration completion — 2026-10-19
+
+Owner approved proceeding after the read-only setup review. Scope executed here:
+Test branch configuration and closed Preview refresh only. Shared NTER database,
+Live keys, Production deployment/protection, Edge Functions and corpus unchanged.
+
+Supabase read-only lookup previously confirmed the owner-selected email maps to
+one confirmed, non-deleted Auth account. Its UUID was saved as Sensitive
+BILLING_TEST_BUYER_IDS only for Preview/gitBranch task/razorpay-plan. This is the
+existing owner-selected account, not a newly created synthetic account; future
+Test purchases will affect its shared wallet and invoice history if approved.
+No account/financial rows changed. The exact UUID was supplied to Vercel only in
+the approved server configuration, never exposed by the public billing endpoint.
+
+Removed only environment entry jUSOF6ZammskG9AD (RAZORPAY_WEBHOOK_SECRET scoped to
+all Preview branches), retaining branch-specific VTzpjgqrre24OqVp. Readback proves
+six billing entries, all Preview/task/razorpay-plan only, no Production target;
+BILLING_CHECKOUT_OPEN remains0. No secret values were decrypted/read/printed.
+Owner screenshot confirms the correct branch webhook URL is enabled in Razorpay
+Test mode with55 subscriptions. Exact event selections and matching secret values
+remain unverified; unrelated events may become unresolved inbox work in the
+current generic payment/order/refund/dispute processor. No Razorpay settings changed.
+
+Authenticated CLI redeployed prior Test deployment explicitly to Preview. New
+ dpl_HRHCghckTkLp5Jzqcp8uDvhunGzC READY at
+https://niyantran-bku7m5sav-ddl-labs.vercel.app ; branch alias unchanged; build40s.
+Same published source24d51d4, no source push or new GitHub CI. Deployed config
+returns enabled=false, checkoutOpen=false, no exposed key and five packs.
+Production target before/after remains dpl_VTPtwrTtawEMkvKyq9WgfAGtQV2m,
+SHA3ccdf8a343070d5365a6093c84230afaf0e1e441; protection all_except_custom_domains.
+
+**New executed transport blocker:** authenticated CLI JSON POST {} to the new
+Preview webhook returns400 `Webhook raw body unavailable.`, not the expected
+invalid-signature response. Previous503 configuration block is gone, but this is
+not webhook acceptance. readRawPaymentBody reads req.body, which Vercel documents
+as a lazy JSON-parsing getter. A local Readable with original whitespace-bearing
+JSON bytes and an equivalent body getter reproduces400 with4 getter accesses.
+The existing router fixture uses a plain stream and misses this host-helper case.
+This supports the source-level cause; actual signed provider delivery is not run.
+Do not reserialize JSON for HMAC or weaken the signature/parsed-only rejection.
+A scoped fix must preserve original bytes without invoking the host body getter,
+cover the lazy getter causally, retain bounds and parsed-only refusal, and run
+focused/full applicable checks before a new source publication is proposed.
+No source fix has been applied or published in this configuration-only execution.
+
+Public branch webhook still returns302 to Vercel authentication. Official Vercel
+options include automation-bypass credentials (project-wide authority) in webhook
+URLs, domain exceptions (entire Preview domain exposure; plan/add-on dependent),
+and shareable links (deployment/branch access, webhook POST behavior needs proof).
+No access protection was weakened or bypass credential registered with Razorpay.
+OPTIONS allowlists do not solve POST webhook delivery. Resolve an exact approved
+ingress method before attempting provider events. Hosted billing migration is
+still absent per prior read-only table/RPC check; no migration was applied here.
+Checkout opening, shared DB migration, real Test transactions, event subscription
+cleanup, secure ingress and later M1/M2/live release gates remain open under O6.
+
+Sources: https://vercel.com/docs/functions/runtimes/node-js (lazy request.body),
+https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection .
+
+
+## Approved local webhook transport fix — 2026-10-19
+
+Sequential scope: (1) src/lib/billingWebhookRouter.test.js and paymentService.test.js
+causal host-helper tests, retaining existing negative tests; (2) minimal
+server/paymentService.mjs raw-reader correction without invoking req.body getter;
+(3) focused payment/router checks, full npm/Deno suites, lint, build, bundle and
+router import; (4) review and evidence under O6. No new source publication, schema,
+remote settings, secret access or corpus work. Preserve earlier documentation and
+M1/M2 observation changes. Vercel upstream helpers.ts confirms lazy parsing and
+restoration of original bytes to the request stream; do not reconstruct JSON.
+
+
+## Local webhook raw-body correction — 2026-10-19
+
+Owner explicitly approves the scoped original-byte transport fix and local
+verification only; no source publication or remote mutation is part of this task.
+Write scope: server/paymentService.mjs, src/lib/billingWebhookRouter.test.js,
+src/lib/paymentService.test.js and existing billing spec/plan/evidence/O6 records.
+Earlier documentation/M1/M2 observation edits are preserved.
+
+Causal evidence:
+1. Added two router regressions emulating Vercel's lazy JSON getter. Both failed
+   before the fix:400 raw-body refusal, getter invoked; three existing cases pass.
+2. Merely avoiding the getter preserved a plain stream, but a real localhost HTTP
+   fixture modeling Vercel consuming/restoring the body returned no original bytes.
+   A new consumed/restored router regression failed with invalid signature against
+   that intermediate implementation. This is an intentional red checkpoint, not
+   a random suite failure. An overlapping interim full suite also failed that same
+   newly introduced restoration test (402 files/6,330 tests passed).
+3. Final reader inspects only own body data descriptors, never evaluates the lazy
+   JSON getter, and reads Vercel's replayed data/end events. Buffer/string handling
+   and128KiB default bounds remain; parsed-object-only input still fails closed.
+   Interrupted/errored streams reject; excess body chunks are not accumulated.
+   Signature comparison, merchant binding, deduplication and fulfilment unchanged.
+4. Same real localhost HTTP consumed/restored fixture now proves exact original
+   whitespace/UTF-8 bytes, valid HMAC and zero getter reads. No external service,
+   real secret or database was involved. Router fixtures also reject signatures
+   computed from reserialized JSON before persistence/provider requests.
+
+Final focused command:
+ npm test -- src/lib/billingWebhookRouter.test.js src/lib/paymentService.test.js src/lib/billingApi.test.js
+passes3 files/80 tests:6 router,35 payment service,39 billing API. Extra boundary
+checks preserve exact byte limits across Buffer/string/stream, reject oversized
+lazy streams without parsing, and reject partial/error bodies. Final Deno suite
+ deno test -A --config supabase/functions/deno.json supabase/functions
+passes1,155 tests. npm run lint, npm run build, npm run check:bundle and
+ node -e "import('./api/router.js').then(() => console.log('router import ok'))"
+all pass; build4.75s, initial JS180,735bytes gzip, no bundle-limit advisory.
+Final full Vitest result is recorded below after completion. No standalone
+TypeScript check exists. SQL fixtures are not rerun: no migration, SQL contract
+or database authorization change in this transport-only fix.
+
+Review: no body reserialization or signature bypass; raw-byte hash remains based
+on original bytes; invalid requests fail before RPC/provider calls. No global
+parser/helper disabling, route change or dependency added. Local fixtures model
+Vercel upstream helpers.ts restoration; actual deployed-runtime/provider acceptance
+still requires approved Test publication and signed delivery. Existing Preview
+remains the pre-fix24d51d4 build; Checkout remains closed. Public ingress, narrowed
+subscription review, shared NTER migration, actual provider acceptance and live
+release gates remain pending. No git commit/push, deployment, hosted database or
+configuration operation, Live credential use, payment or corpus change occurred.
+
+Runtime reference checked:
+https://github.com/vercel/vercel/blob/main/packages/node/src/serverless-functions/helpers.ts
+(restored stream events plus lazy body parsing), alongside official Node helper docs.
+
+
+Final local verification completed2026-10-19: npm test passes403 files/6,333 tests
+in108.48s. Final Deno passes1,155/0 failed. Focused payment/router80 tests, lint,
+build, bundle gate, router import and git diff --check all pass. No build warnings
+matched the warning/deprecation scan. All runtime changes remain uncommitted on
+task/razorpay-plan; prior documentation edits and separate M1/M2 observations are
+preserved. No push, deployment, provider action or Production/corpus mutation.
+
+
+## Owner-approved Test publication — 2026-10-19
+
+Owner approves pushing the verified raw-body correction only to task/razorpay-plan
+and refreshing/verifying its Test Preview. Local verification remains403 files/
+6,333 Vitest and1,155 Deno plus lint/build/bundle/router checks; no runtime change
+since those checks. Checkout remains0, all six billing variables branch-only.
+Production/main, Live keys, database migration, protection settings, provider
+transactions and corpus excluded. Separate M1/M2 observation edits are not part
+of this publication. Deployed verification evidence will follow after readiness.
