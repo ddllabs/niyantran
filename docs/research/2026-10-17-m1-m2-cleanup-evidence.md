@@ -851,3 +851,49 @@ first-attempt CI checks must be reconfirmed at actual closure. Earliest expected
 handoff October19 late evening IST depends on third constitution daily success;
 not guaranteed. No payment or corpus work started. Documentation-only check:
 git diff --check passes; no runtime suites rerun for prose.
+
+
+## Scheduled closure observation — 2026-10-18 14:05 UTC
+
+Read-only production observations at 14:07–14:09 UTC. Existing uncommitted
+F231/F232 implementation on `task/bundle-node-warnings` preserved. Fetched origin;
+main/origin remain 79c07995992d2d96072ad6a308afe7f7617f0de1.
+
+- Cron job 5 active `*/5 * * * *`; expected niyantran-six Vercel
+  `/api/feeds/refresh` target confirmed boolean-only, without exposing command
+  credentials. Six cron executions succeeded in the preceding 30 minutes.
+- 70 modules / 257 serving variants; zero positive failure counters, zero
+  above three consecutive failures, zero whole-feed empty availability labels.
+  Recent feed outcomes: five ok and five unchanged; no failed outcomes.
+- Fixtures and both Music Charts each have 25 successful/unchanged observations
+  since October 17 11:40, latest October 18 13:25 UTC. No retry is counted toward
+  the outstanding daily gates. Charts retain 25 items each; fixtures retain 23.
+  Coverage metadata accounts for Premier League, NBA and La Liga next/past as
+  ok, IPL past ok and IPL next explicitly empty. Limited next/last sampling is
+  disclosed, not represented as a complete league schedule.
+- MLA reference still two genuine daily opportunities: October 17 10:45:00.813
+  and October 18 10:45:13.744 UTC; 500 distinct keys (400 `mla-profile:` and
+  100 `url:` coverage records). Next eligible October 19 10:45:19.121837 UTC.
+- World Constitutions still one genuine daily opportunity, October 17 15:45;
+  188 distinct `constitute:` keys. Sorted newline-joined MD5 remains
+  c14635ffbc17cef3a5ace4fc74273578, identical to the approved inventory.
+  Next eligible October 18 15:45:01.351775 UTC.
+- Growth Indicators retains 20 items with zero failures. Its two October 17
+  timeouts and 15:55 recovery remain pre-F224 outcomes. Post-fix ordinary daily
+  writer acceptance is still pending October 18 after 15:55:02 UTC, normally
+  the 16:00 poll. No forced refresh or extra opportunity inferred.
+- Exact-scope authenticated Vercel CLI API confirms production deployment
+  dpl_DtfvnFUWUZCQiFE2dtNGN2B2f2Wx READY at exact main/origin 79c0799.
+  Latest three genuine main CI runs 39128803358, 39131455379 and 39131793656
+  individually inspected: attempt 1, Build and tests plus SQL fixtures success.
+  The local warning fixes are not part of this deployed commit.
+- The separately approved behavioral evaluation already ran as recorded;
+  no additional calls or evaluator deployment. No new closure blocker found.
+
+T15 remains open for real daily reference intervals and Growth writer acceptance.
+Earliest reference completion remains October 19 after the constitution opportunity,
+conditional on actual success and final checks. Existing hourly follow-up remains
+unchanged; no completion/failure notification warranted. Documentation-only
+`git diff --check` passes; runtime suites not rerun for prose. No push/deploy,
+production mutation, timer/serve change, refresh invocation, credential/dotenv
+read, corpus operation or Razorpay work.

@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F231 is next) and goes in the
+- A new finding gets the next free `F` number (F233 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-17 (milestone check)
@@ -183,6 +183,16 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   Hourly monitor ACTIVE; no forced refresh; Razorpay held, corpus excluded.
 
 
+  Read-only October18 14:07 UTC: no new blocker; MLA2/3, Constitutions1/3,
+  Growth post-F224 writer acceptance still pending its15:55 daily eligibility.
+  All257 serving variants zero failures; six recent cron executions succeeded.
+  Constitution188-key inventory unchanged; four-league coverage remains explicit.
+  Production79c0799 READY; latest three main CI runs39128803358/39131455379/
+  39131793656 individually green on attempt1, both app and SQL jobs.
+  [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-18-1405-utc).
+  Hourly checks continue; F231/F232 remain local/unpublished; payment held.
+
+
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving
 from storage. No source above three consecutive failures. Supabase pg_cron feed-refresh job
@@ -212,6 +222,20 @@ orientation list is compared item by item in the
   not an additional M1/M2 or payment prerequisite. [Comparison](../research/2026-10-17-orientation-closure-comparison.md).
 
 ## UI follow-ups
+
+- [ ] **F231. Reduce large JavaScript chunks through real load boundaries.**
+  Implemented and verified locally on `task/bundle-node-warnings` (2026-10-18).
+  Home-route JavaScript gzip reduced 25.4%; all chunks below the unchanged
+  500kB threshold; aggregate initial gzip remains within budget. Awaiting owner
+  approval to publish; no push or production change.
+  [Spec](../specs/2026-10-18-bundle-node-warnings.md) ·
+  [Plan](2026-10-18-bundle-node-warnings.md).
+- [ ] **F232. Diagnose and remove DEP0169 URL-parser warning locally.**
+  Implemented and verified locally: reproduced the historical Vercel lazy-query
+  getter warning, then preserved query values through safe request-local
+  materialization. No warning suppression or runtime downgrade. Awaiting owner
+  release approval and live warning validation. Same spec/plan as F231.
+
 
 - [ ] **F107. Legal policies for payment-gateway activation.** Owner request
   2026-10-12: Privacy, Terms, Refund & Cancellation, Delivery and Contact pages
