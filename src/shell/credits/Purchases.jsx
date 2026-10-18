@@ -39,7 +39,7 @@ export default function Purchases({ user }) {
     {orders.length ? <>
       <h4>Your recent purchases</h4>
       <p>Pending confirmation does not mean you need to pay again.</p>
-      <ul>{orders.map(order => <li key={order.id}>{order.snapshot?.label} · {order.creation_retryable ? 'Checkout not started — retry available' : order.state === 'fulfilled' ? 'Confirmed' : order.state === 'review' ? 'Support review required' : order.state === 'refunded' ? 'Refund recorded' : 'Confirmation pending'}</li>)}</ul>
+      <ul>{orders.map(order => <li key={order.id}>{order.snapshot?.label} · {order.creation_retryable ? 'Checkout not started — retry available' : order.state === 'ready' ? 'Awaiting payment' : order.state === 'fulfilled' ? 'Confirmed' : order.state === 'review' ? 'Support review required' : order.state === 'refunded' ? 'Refund recorded' : 'Confirmation pending'}</li>)}</ul>
       <button type="button" disabled={busy} onClick={refresh}>Refresh purchase status</button>
     </> : null}
   </section>;
