@@ -4058,7 +4058,7 @@ export function scheduledModuleId(searchParams) {
  * first (server/feedServe.mjs): that is the normal path, so it skips the live attempt and the backup
  * pass. When the store has nothing to serve (not configured, an error or timeout, no state, `serve`
  * off, no items) the answer is today's: serveFeatureFeedWithBackup. Satellite Infrastructure's Global
- * summary and the State MLA Directory/Profiles summaries also use this; other summaries retain
+ * summary, National Policy Pipeline and the State MLA Directory/Profiles summaries also use this; other summaries retain
  * their existing live-first loaders.
  * Paged modules (Bills, Parliamentary Questions) are not scheduled and keep serveFeaturePage.
  */
@@ -4108,7 +4108,7 @@ export async function handleFeatureFeedRequest(req, res, next) {
       return;
     }
     try {
-      const loadFeed = (global && url.searchParams.get('feature') === 'Satellite Infrastructure') || (state && stateSummaryUsesStore(url.searchParams.get('feature')))
+      const loadFeed = (url.pathname === '/api/national-landing' && url.searchParams.get('feature') === 'Policy Pipeline Tracker (Draft-to-Gazette)') || (global && url.searchParams.get('feature') === 'Satellite Infrastructure') || (state && stateSummaryUsesStore(url.searchParams.get('feature')))
         ? serveFeatureFeedStoredFirst
         : (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : serveFeatureFeedWithBackup;
       const body = await (state ? serveStateLanding : entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, loadFeed);

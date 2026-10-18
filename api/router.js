@@ -201,7 +201,7 @@ export default async function handler(req, res) {
       if (method !== 'GET') { res.status(405).json({ ok: false, error: 'GET only' }); return; }
       try {
         const params = q(req);
-        const loadFeed = (global && params.get('feature') === 'Satellite Infrastructure') || (state && stateSummaryUsesStore(params.get('feature')))
+        const loadFeed = (path === '/api/national-landing' && params.get('feature') === 'Policy Pipeline Tracker (Draft-to-Gazette)') || (global && params.get('feature') === 'Satellite Infrastructure') || (state && stateSummaryUsesStore(params.get('feature')))
           ? serveFeatureFeedStoredFirst
           : (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : serveFeatureFeedWithBackup;
         const body = await (state ? serveStateLanding : entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(params, loadFeed);
