@@ -73,10 +73,10 @@ it('says payments open soon and never pays while checkout is closed', () => {
   expect(text(tree)).toContain('niyantranai@gmail.com');
 });
 
-it('on an active Pro month: Plus is unavailable, Pro renews, Max upgrades now without refunding Pro', () => {
+it('on an active Pro month: Plus queues, Pro renews, Max upgrades now without refunding Pro', () => {
   let tree = render(PRO, { config: OPEN });
   const [plus, pro, max] = tiles(tree);
-  expect(plus.props.disabled).toBe(true);
+  expect(plus.props.disabled).toBe(false);
   expect(text(pro)).toMatch(/Current/);
   expect(max.props.disabled).toBeFalsy();
   max.props.onClick();
@@ -215,12 +215,13 @@ it('is a section of the credits page: no dialog, scrim or close button', () => {
 
 // F161 (owner approved 2026-10-14): top-ups are not on sale until O6, whatever the state of plan
 // checkout, so the note and the address to write to always show.
-it('says top-ups are coming soon and where to write for credits, whether checkout is open or not', () => {
+it('keeps the coming-soon note only while checkout is closed', () => {
   const note = config => { fake.states = []; return text(section(render(PRO, { config, credits: credits() }))); };
-  for (const config of [CLOSED, OPEN, null]) {
+  for (const config of [CLOSED, null]) {
     expect(note(config)).toMatch(/Top-ups coming soon\. Need more credits now\? Write to/);
     expect(note(config)).toContain('niyantranai@gmail.com');
   }
+  expect(note(OPEN)).not.toMatch(/Top-ups coming soon/);
 });
 
 // F162: credits set aside for an answer still running are shown, in the muted style, not as debt.

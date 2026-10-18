@@ -4,16 +4,16 @@
 // pending review by an Indian lawyer (open-work F107).
 
 export const COMPANY = {
-  legalName: 'Niyantran Strategy Consulting Private Limited',
+  legalName: 'Niyantran Consulting Pvt. Ltd.',
   brand: 'NIYANTRAN TERMINAL',
-  address: 'Kolkata, West Bengal, India',
+  address: '48, Vivekananda Park, Haridevpur, Kolkata, West Bengal, India – 700082',
   email: 'niyantranai@gmail.com',
   phone: '+91 80134 25401',
   grievanceOfficer: 'Tamanesh Kauri',
   hours: 'Monday to Saturday, 10:00 to 18:00 IST, except public holidays',
 };
 
-const LAST_UPDATED = '14 October 2026';
+const LAST_UPDATED = '18 October 2026';
 
 const contactBody = `Grievance Officer and contact person: ${COMPANY.grievanceOfficer}
 

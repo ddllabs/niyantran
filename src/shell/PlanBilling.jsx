@@ -1,3 +1,5 @@
+import BillingReviews from './credits/BillingReviews.jsx';
+import Purchases from './credits/Purchases.jsx';
 import { useEffect, useState } from 'react';
 import { completeCheckout, fetchBillingConfig, fetchInvoices, openInvoice } from '../lib/billing.js';
 import { creditsText, refreshCredits, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
@@ -26,7 +28,7 @@ function day(iso) {
  * allowance and the lots; it is left out when there is no cycle (null). On the credits page (F184) it
  * sits in the plan card with this period's bar; usage and activity have their own sections.
  */
-function CreditsSection({ credits, tried }) {
+function CreditsSection({ credits, tried, checkoutOpen }) {
   if (!credits) {
     return (
       <section className="plan-credits" aria-labelledby="plan-credits-title">
@@ -68,10 +70,10 @@ function CreditsSection({ credits, tried }) {
       <PeriodBar credits={credits} compact />
 
       {/* F161: top-ups are not on sale until O6, whatever the state of plan checkout. */}
-      <p className="plan-up-note plan-credits-note">
+      {!checkoutOpen ? <p className="plan-up-note plan-credits-note">
         Top-ups coming soon. Need more credits now? Write to{' '}
         <a href="mailto:niyantranai@gmail.com">niyantranai@gmail.com</a>.
-      </p>
+      </p> : null}
     </section>
   );
 }
@@ -140,7 +142,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
       setSelected(null);
       Promise.resolve(fetchInvoices()).then((list) => setInvoices(list || []));
     } else {
-      setResult({ ok: false, text: outcome?.reason || 'The payment could not be completed.' });
+      setResult({ ok: false, pending: outcome?.pending, text: outcome?.reason || 'The payment could not be completed.' });
     }
   }
 
@@ -156,9 +158,11 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
         {renewDue ? (
           <p className="plan-up-renew">Your {planLabel(current)} month ends on {day(end)}. Renew to keep it.</p>
         ) : null}
-        {userId ? <CreditsSection credits={credits} tried={creditsTried} /> : null}
+        {userId ? <CreditsSection credits={credits} tried={creditsTried} checkoutOpen={open} /> : null}
       </section>
 
+      {user ? <Purchases user={user} /> : null}
+      {user?.role === 'admin' ? <BillingReviews user={user} /> : null}
       <section className="cp-card" aria-labelledby="plan-change-title">
         <h3 id="plan-change-title" className="cp-card-title">Change plan</h3>
         <div className="plan-up-choices">
@@ -180,7 +184,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
                 {option === 'renew' ? <em>Current</em> : p.popular ? <em>Popular</em> : null}
                 <strong>{p.name}</strong>
                 <span className="amt">{rupees(p.monthly)}<small>/month</small></span>
-                <span className="who">{blocked ? `Not available while ${planLabel(current)} is active` : p.tag}</span>
+                <span className="who">{blocked ? `Not available while ${planLabel(current)} is active` : option === 'downgrade' ? 'Starts after your current paid period' : p.tag}</span>
               </button>
             );
           })}
@@ -192,7 +196,9 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
               ? `Your ${planLabel(choice.id)} month starts now. Unused days of ${planLabel(current)} are not refunded.`
               : kind === 'renew'
                 ? `Adds one month after ${day(end)}.`
-                : `One month of ${planLabel(choice.id)}, starting now.`}
+                : kind === 'downgrade'
+                  ? `Your ${planLabel(choice.id)} month starts after the current paid period. Your current access continues until then.`
+                  : `One month of ${planLabel(choice.id)}, starting now.`}
           </p>
         ) : null}
 
@@ -209,7 +215,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
         ) : null}
         {result?.ok ? (
           <p className="plan-up-ok" role="status">
-            Payment verified. Your plan is updated.
+            Payment verified. Your paid period has been recorded.
             {result.invoice ? (
               <>
                 {' '}

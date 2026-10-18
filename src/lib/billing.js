@@ -11,6 +11,7 @@
 import { supabase } from './supabaseClient.js';
 import { PUBLIC_PLANS } from './publicPlans.js';
 import { normalizePlanId, planOf } from './planEntitlements.js';
+import { refreshCredits } from './creditsStore.js';
 import { refreshEntitlement } from './entitlementStore.js';
 import { sessionUser } from './userStore.js';
 import { trackProductEvent } from './productAnalytics.js';
@@ -27,23 +28,30 @@ async function authHeaders() {
   }
 }
 
+let checkoutScript;
 function loadRazorpay() {
   if (typeof window === 'undefined') return Promise.reject(new Error('No window'));
   if (window.Razorpay) return Promise.resolve(window.Razorpay);
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[src="${RAZORPAY_SRC}"]`);
-    if (existing) {
-      existing.addEventListener('load', () => resolve(window.Razorpay));
-      existing.addEventListener('error', () => reject(new Error('Razorpay failed to load')));
-      return;
-    }
-    const s = document.createElement('script');
-    s.src = RAZORPAY_SRC;
-    s.async = true;
-    s.onload = () => resolve(window.Razorpay);
-    s.onerror = () => reject(new Error('Razorpay failed to load'));
-    document.head.appendChild(s);
+  if (checkoutScript) return checkoutScript;
+  checkoutScript = new Promise((resolve, reject) => {
+    let script = document.querySelector(`script[src="${RAZORPAY_SRC}"]`);
+    const fresh = !script;
+    script ||= document.createElement('script');
+    const timer = setTimeout(() => fail(), 15000);
+    const fail = () => { clearTimeout(timer); script.remove(); checkoutScript = null; reject(new Error('Checkout could not load. Check purchase status before retrying.')); };
+    script.addEventListener('load', () => { clearTimeout(timer); if (window.Razorpay) resolve(window.Razorpay); else fail(); }, { once: true });
+    script.addEventListener('error', fail, { once: true });
+    if (fresh) { script.src = RAZORPAY_SRC; script.async = true; document.head.appendChild(script); }
   });
+  return checkoutScript;
+}
+
+export async function fetchPurchases() {
+  try {
+    const response = await fetch('/api/billing/purchases', { headers: await authHeaders() });
+    const body = await response.json();
+    return response.ok && body.ok ? body.purchases : [];
+  } catch { return []; }
 }
 
 export async function fetchBillingConfig() {
@@ -104,7 +112,7 @@ function buyerPayload(seat, billing = {}) {
   return { email: seat.email || '', name: billing.buyerName || seat.name || '' };
 }
 
-async function openRazorpayCheckout({ keyId, orderId, amount, currency, plan, seat, meta, billing, quote }) {
+async function openRazorpayCheckout({ keyId, orderId, purchaseId, amount, currency, plan, seat, meta, billing, quote }) {
   const Razorpay = await loadRazorpay();
   const buyer = buyerPayload(seat, billing);
   return new Promise((resolve) => {
@@ -113,7 +121,7 @@ async function openRazorpayCheckout({ keyId, orderId, amount, currency, plan, se
       amount,
       currency: currency || 'INR',
       name: 'Niyantran Terminal',
-      description: `${meta?.name || plan} plan · one month`,
+      description: quote?.label || `${meta?.name || plan} plan · one month`,
       order_id: orderId,
       prefill: {
         name: buyer.name || '',
@@ -127,6 +135,7 @@ async function openRazorpayCheckout({ keyId, orderId, amount, currency, plan, se
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
             body: JSON.stringify({
+              purchaseId,
               orderId: response.razorpay_order_id,
               paymentId: response.razorpay_payment_id,
               signature: response.razorpay_signature,
@@ -136,12 +145,12 @@ async function openRazorpayCheckout({ keyId, orderId, amount, currency, plan, se
           });
           const body = await verify.json().catch(() => ({}));
           if (!verify.ok || !body.ok) {
-            resolve({ ok: false, reason: body.reason || 'Payment could not be verified.', mode: 'razorpay' });
+            resolve({ ok: false, pending: Boolean(body.pending) || verify.status >= 500, purchaseId, reason: body.reason || 'Payment confirmation is pending. Check your purchases before paying again.', mode: 'razorpay' });
             return;
           }
           // The server recorded the paid period; read it back rather than
           // trusting this response.
-          await refreshEntitlement();
+          await Promise.all([refreshEntitlement(), refreshCredits()]);
           trackProductEvent('plan_upgraded', {
             planId: plan,
             provider: 'razorpay',
@@ -156,7 +165,7 @@ async function openRazorpayCheckout({ keyId, orderId, amount, currency, plan, se
             quote: body.quote || quote || null,
           });
         } catch (err) {
-          resolve({ ok: false, reason: err.message || 'Verification failed.', mode: 'razorpay' });
+          resolve({ ok: false, pending: true, purchaseId, reason: 'Payment confirmation is pending. Check your purchases before paying again.', mode: 'razorpay' });
         }
       },
       modal: {
@@ -177,9 +186,9 @@ async function openRazorpayCheckout({ keyId, orderId, amount, currency, plan, se
  * Buy one month of a paid plan for the signed-in user.
  * @param {{ planId: string, user?: object, billing?: { buyerName? } }} opts
  */
-export async function completeCheckout({ planId, user, billing = {} } = {}) {
+export async function completeCheckout({ planId, productId, requestId, user, billing = {} } = {}) {
   const plan = normalizePlanId(planId);
-  if (plan === 'free') {
+  if (!productId && plan === 'free') {
     return { ok: false, reason: 'Free is the free plan; there is nothing to buy.', mode: 'free' };
   }
   const seat = user || sessionUser();
@@ -195,19 +204,32 @@ export async function completeCheckout({ planId, user, billing = {} } = {}) {
     };
   }
   const buyer = buyerPayload(seat, billing);
+  const product = productId || `plan-${plan}`;
+  const intentKey = `billing-intent:${seat.id}:${product}`;
+  let stableId = requestId;
+  try { stableId ||= sessionStorage.getItem(intentKey); } catch { /* restricted storage */ }
+  stableId ||= globalThis.crypto.randomUUID();
+  try { sessionStorage.setItem(intentKey, stableId); } catch { /* server remains authoritative */ }
   try {
     const orderRes = await fetch('/api/billing/create-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-      body: JSON.stringify({ planId: plan, name: buyer.name }),
+      body: JSON.stringify({ planId: productId ? undefined : plan, productId: product, requestId: stableId, name: buyer.name }),
     });
     const order = await orderRes.json().catch(() => ({}));
     if (!orderRes.ok || !order.ok) {
       return { ok: false, reason: order.reason || 'Could not start Razorpay checkout.', mode: 'razorpay' };
     }
-    return openRazorpayCheckout({
+    if (order.status === 'fulfilled') {
+      try { sessionStorage.removeItem(intentKey); } catch { /* restricted storage */ }
+      await Promise.all([refreshEntitlement(), refreshCredits()]);
+      return { ok: true, recovered: true };
+    }
+    if (!order.orderId) return { ok: false, pending: true, purchaseId: order.purchaseId, reason: 'Purchase confirmation is pending. Check your purchases before paying again.' };
+    const outcome = await openRazorpayCheckout({
       keyId: order.keyId || config.keyId,
       orderId: order.orderId,
+      purchaseId: order.purchaseId,
       amount: order.amount,
       currency: order.currency,
       plan,
@@ -216,6 +238,8 @@ export async function completeCheckout({ planId, user, billing = {} } = {}) {
       billing,
       quote: order.quote,
     });
+    if (outcome.ok) { try { sessionStorage.removeItem(intentKey); } catch { /* restricted storage */ } }
+    return outcome;
   } catch (err) {
     return { ok: false, reason: err.message || 'Could not open payment gateway.', mode: 'razorpay' };
   }
@@ -232,3 +256,16 @@ export function refreshSessionFromStore() {
 export function formatInr(n) {
   return `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+async function paymentOperation(path, body) {
+  try {
+    const response = await fetch(`/api/billing/${path}`, { method: body ? 'POST' : 'GET',
+      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(await authHeaders()) },
+      ...(body ? { body: JSON.stringify(body) } : {}) });
+    const value = await response.json();
+    return response.ok ? value : { ok: false, reason: value.reason || 'Payment operation unavailable.' };
+  } catch { return { ok: false, reason: 'Payment operation could not be confirmed. Check its status before retrying.' }; }
+}
+export async function fetchBillingReviews() { return (await paymentOperation('adjustments')).adjustments || []; }
+export async function reviewBillingAdjustment(body) { return paymentOperation('adjustments/review', body); }
+export async function runBillingRecovery() { return paymentOperation('recover', {}); }

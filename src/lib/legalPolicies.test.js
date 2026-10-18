@@ -10,7 +10,7 @@ it('names the operating company, contact and grievance officer on every policy p
     expect(doc.org, name).toBe(COMPANY.legalName);
     expect(doc.email, name).toBe('niyantranai@gmail.com');
     const body = text(doc);
-    expect(body, name).toContain('Niyantran Strategy Consulting Private Limited');
+    expect(body, name).toContain('Niyantran Consulting Pvt. Ltd.');
     expect(body, name).toContain('Tamanesh Kauri');
     expect(body, name).toContain('+91 80134 25401');
   }
@@ -62,9 +62,9 @@ it('routes the new pages and links every policy from the footer', () => {
   expect(footer).toMatch(/operated by/i);
 });
 
-it('dates the revised credit terms without changing unrelated policies', () => {
+it('dates the updated seller identity on all affected policies', () => {
   expect(DEFAULT_TERMS.lastUpdated).toBe('18 October 2026');
-  expect(REFUND_POLICY.lastUpdated).toBe('14 October 2026');
+  expect(REFUND_POLICY.lastUpdated).toBe('18 October 2026');
 });
 
 // F111 owner-approved wording (spec §10.1, approved 2026-10-14).

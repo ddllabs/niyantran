@@ -879,10 +879,10 @@ Deno.test('credits: a late cost updates its own uncosted log row on the service 
 });
 
 // F150: the plan is read with the service client for the verified owner; the model rows carry min_plan.
-Deno.test('plans: the plan columns are read with the service client for the verified owner only', async () => {
+Deno.test('plans: canonical billing eligibility is read with the service client for the verified owner only', async () => {
   const f = fixture();
   f.setReply((_side, table) =>
-    table === 'user_profiles'
+    table === 'billing_effective_profile'
       ? { data: { plan: 'plus', plan_status: 'active', plan_period_end: null, status: 'active' }, error: null }
       : table === 'ai_models'
       ? { data: [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1, min_plan: 'free' }], error: null }
@@ -896,11 +896,10 @@ Deno.test('plans: the plan columns are read with the service client for the veri
   const adminCheck = f.calls.find((c) => c.table === 'is_platform_admin');
   assert(adminCheck, 'is_platform_admin is asked');
   assertEquals(adminCheck.side, 'caller');
-  const read = f.calls.find((c) => c.table === 'user_profiles');
+  const read = f.calls.find((c) => c.table === 'billing_effective_profile');
   assert(read);
   assertEquals(read.side, 'service');
-  assertEquals(read.columns, 'plan,plan_status,plan_period_end,status');
-  assertEquals(read.filters.find((x) => x[0] === 'eq'), ['eq', 'user_id', 'verified-owner']);
+  assertEquals(read.value, { p_user: 'verified-owner' });
   assert(read.signal, 'bounded');
   await d.models();
   const models = f.calls.find((c) => c.table === 'ai_models');

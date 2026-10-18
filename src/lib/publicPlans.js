@@ -57,7 +57,7 @@ export function purchaseKind(entitlement, target) {
   const have = active ? PLAN_RANK[normalizePlanId(entitlement.plan)] : 0;
   if (!have) return 'choose';
   if (want === have) return 'renew';
-  return want > have ? 'upgrade' : 'blocked';
+  return want > have ? 'upgrade' : 'downgrade';
 }
 
 export const PRICING_COMPARE = [

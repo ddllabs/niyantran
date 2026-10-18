@@ -19,9 +19,9 @@ export function planCatalog() {
 
 export function sellerFromEnv() {
   return {
-    legalName: process.env.BILLING_LEGAL_NAME || 'Niyantran Strategy Consulting Private Limited',
+    legalName: process.env.BILLING_LEGAL_NAME || 'Niyantran Consulting Pvt. Ltd.',
     tradeName: process.env.BILLING_TRADE_NAME || 'NIYANTRAN TERMINAL',
-    address: process.env.BILLING_ADDRESS || 'Kolkata, West Bengal, India',
+    address: process.env.BILLING_ADDRESS || '48, Vivekananda Park, Haridevpur, Kolkata, West Bengal, India – 700082',
     email: process.env.BILLING_EMAIL || 'niyantranai@gmail.com',
   };
 }
@@ -61,7 +61,7 @@ const LABELS = Object.fromEntries(Object.entries(PAID_PLANS).map(([id, p]) => [i
 
 /** Printable invoice HTML. */
 export function renderInvoiceHtml(inv, seller) {
-  const s = seller || sellerFromEnv();
+  const s = inv.seller || seller || sellerFromEnv();
   const label = inv.planLabel || LABELS[inv.planId] || inv.planId;
   return `<!DOCTYPE html>
 <html lang="en">
@@ -104,7 +104,7 @@ export function renderInvoiceHtml(inv, seller) {
   <table>
     <thead><tr><th>#</th><th>Description</th><th class="r">Amount</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td>${esc(label)} plan — one month</td><td class="r">${inr(inv.total)}</td></tr>
+      <tr><td>1</td><td>${esc(inv.description || `${label} plan — one month`)}</td><td class="r">${inr(inv.total)}</td></tr>
       <tr class="tot"><td></td><td>Total paid (INR)</td><td class="r">${inr(inv.total)}</td></tr>
     </tbody>
   </table>

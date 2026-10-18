@@ -299,8 +299,7 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
     plan: async (userId) => {
       if (!owner || userId !== owner) throw new HttpError(403, 'Turn owner mismatch');
       const row = await query((signal) =>
-        service().from('user_profiles').select('plan,plan_status,plan_period_end,status').eq('user_id', userId)
-          .abortSignal(signal).maybeSingle()
+        service().rpc('billing_effective_profile', { p_user: userId }).abortSignal(signal)
       );
       if (!row) return row;
       // Asked as the caller, so the answer is about this bearer, not the service key.

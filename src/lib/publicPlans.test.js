@@ -46,11 +46,11 @@ it('presents the billing facts as styled chips, not a bordered paragraph box', (
   expect(page).not.toContain('mkt-pr-notes');
 });
 
-it('allows upgrades and renewals while a plan is active, never a lower plan (owner, F110)', () => {
+it('allows upgrades and renewals while a plan is active, queues lower plans at the next cycle', () => {
   expect(purchaseKind({ plan: 'free', status: 'free' }, 'plus')).toBe('choose');
   expect(purchaseKind({ plan: 'pro', status: 'active' }, 'max')).toBe('upgrade');
   expect(purchaseKind({ plan: 'pro', status: 'active' }, 'pro')).toBe('renew');
-  expect(purchaseKind({ plan: 'pro', status: 'active' }, 'plus')).toBe('blocked');
+  expect(purchaseKind({ plan: 'pro', status: 'active' }, 'plus')).toBe('downgrade');
   expect(purchaseKind({ plan: 'max', status: 'free' }, 'plus')).toBe('choose');
   expect(purchaseKind({ plan: 'pro', status: 'active' }, 'free')).toBe('blocked');
   expect(purchaseKind(null, 'enterprise')).toBe('blocked');
