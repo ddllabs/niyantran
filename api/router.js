@@ -129,18 +129,38 @@ function cacheAtEdgeOnSuccess(res) {
   };
 }
 
-function routePath(req) {
-  // Prefer explicit rewrite param from vercel.json (via req.query or req.url)
-  let via = req.query?.__route;
-  if (!via && req.url) {
-    try {
-      const host = req.headers?.host || 'localhost';
-      const sp = new URL(req.url, `http://${host}`).searchParams;
-      via = sp.get('__route');
-    } catch {
-      // ignore
-    }
+// Older Vercel query helpers lazily call deprecated url.parse(). Read explicit
+// data properties when supplied by an adapter; otherwise parse the raw URL.
+export function requestQueryValue(req, name) {
+  const descriptor = Object.getOwnPropertyDescriptor(req, 'query');
+  const explicit = descriptor && 'value' in descriptor ? descriptor.value?.[name] : undefined;
+  if (explicit) return explicit;
+  try {
+    const values = new URL(req.url || '/', 'http://localhost').searchParams.getAll(name);
+    return values.length > 1 ? values : values[0];
+  } catch {
+    return undefined;
   }
+}
+
+function materializeRequestQuery(req) {
+  const descriptor = Object.getOwnPropertyDescriptor(req, 'query');
+  if (descriptor && 'value' in descriptor) return;
+  const query = Object.create(null);
+  try {
+    new URL(req.url || '/', 'http://localhost').searchParams.forEach((value, name) => {
+      query[name] = name in query ? [].concat(query[name], value) : value;
+    });
+  } catch {
+    // Invalid URLs retain the router's existing missing-route behavior.
+  }
+  // Preserve the original query before a downstream adapter rewrites req.url.
+  Object.defineProperty(req, 'query', { configurable: true, enumerable: true, writable: true, value: query });
+}
+
+export function routePath(req) {
+  // Prefer explicit rewrite params; never evaluate a runtime query accessor.
+  const via = requestQueryValue(req, '__route');
   if (typeof via === 'string' && via.trim()) {
     const s = via.trim().replace(/^\/+/, '');
     return `/api/${s}`.replace(/\/+$/, '') || '/api';
@@ -184,6 +204,7 @@ function q(req) {
 }
 
 export default async function handler(req, res) {
+  materializeRequestQuery(req);
   res.setHeader('Cache-Control', 'no-store');
   const path = routePath(req);
   const method = String(req.method || 'GET').toUpperCase();
@@ -486,10 +507,10 @@ export default async function handler(req, res) {
       if (method === 'GET') {
         const sp = q(req);
         const hit = await getCachedDeskBrief(
-          String(sp.get('feature') || req.query?.feature || ''),
-          String(sp.get('tier') || req.query?.tier || ''),
-          String(sp.get('hash') || req.query?.hash || ''),
-          String(sp.get('scope') || req.query?.scope || 'entry'),
+          String(sp.get('feature') || requestQueryValue(req, 'feature') || ''),
+          String(sp.get('tier') || requestQueryValue(req, 'tier') || ''),
+          String(sp.get('hash') || requestQueryValue(req, 'hash') || ''),
+          String(sp.get('scope') || requestQueryValue(req, 'scope') || 'entry'),
         );
         if (!hit) {
           res.status(404).json({ ok: false, cached: false, error: 'No cached brief for this fingerprint.' });
@@ -543,8 +564,8 @@ export default async function handler(req, res) {
       // that resolves to a non-public address.
       if (!(await authorizeLocalUser(req, res))) return;
       const sp = q(req);
-      const target = String(sp.get('url') || req.query?.url || '');
-      const title = String(sp.get('title') || req.query?.title || '');
+      const target = String(sp.get('url') || requestQueryValue(req, 'url') || '');
+      const title = String(sp.get('title') || requestQueryValue(req, 'title') || '');
       if (!target || isHubListingUrl(target) || !isExtractableSourceUrl(target)) {
         res.status(400).json({
           ok: false,
