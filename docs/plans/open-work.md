@@ -2973,6 +2973,40 @@ Earlier items, updated:
       all other listed checks pass. Raw-body correction remains local/uncommitted.
       Owner approves Test-branch-only publication of this verified raw-body fix
       and closed Preview verification2026-10-19; no Production/DB/Live changes.
+      **Published raw-body fix:**18db302 pushed only to task/razorpay-plan;
+      Preview dpl_HtZeAsvc2oVEpSPj7Po9u77n6inf READY/exact SHA. Hosted JSON and
+      malformed JSON reach signature rejection400; oversized413; unauthenticated
+      order401; app/config pass, Checkout0/no exposed key. Production target and
+      protection unchanged. CI39160473575 app+SQL green attempt1; raw-body
+      correction published/verified18db302. Post-deployment evidence notes local.
+      Public webhook302 remains; no valid event/provider/DB/Live/corpus operation.
+      Owner authorizes controlled hosted Test rehearsal2026-10-19: reviewed
+      additive NTER migration, allowlisted Test flow and reconciliation before
+      Live; public checkout/Live/corpus gates retained. Financial baseline captured;
+      browser UI handoff requested due unavailable automation. See billing plan.
+      **Hosted foundation2026-10-19:** approved migration applied to NTER as
+      20261018200238/billing_purchases, reviewed local20261018160700 SHA recorded.
+      Five private RLS tables/service-only RPCs verified; all original profile/
+      financial fingerprints and balance preserved; new billing tables empty.
+      Test Checkout still closed. Temporary Test share token revoked after307
+      cookie handshake; non-expiring alias exception blocked before execution by
+      automatic approval review. Explicit Test-alias exception approval pending;
+      owner agrees to guided Test UI steps. No payment/Live/Edge/corpus change.
+      **Approved Test ingress / pilot ready2026-10-19:** owner explicitly approved
+      alias-only protection exception until manual revocation after testing; applied
+      and unsigned public webhook400 verified after redeploy. No paid add-on.
+      Branch-only Checkout1; Preview dpl_7Z3ZA131HxYPektqosTJ7tUgF5Ws READY18db302,
+      runtime Test prefix/enabled confirmed without printing key. Test-buyer guard
+      retained. Production target/protection unchanged; no Live/Edge/corpus action.
+      Orders/payments/events/invoices0 before guided owner20k/499INR simulated pilot.
+      Genuine provider acceptance/reconciliation pending. Close Test Checkout and
+      manually revoke alias exception after testing; detailed billing evidence linked.
+      **Test pilot blocked2026-10-19:** two Plus399INR intents reconciling with
+      no provider order ID; payments/events/invoices0; owner reports Test Orders
+      empty. Do not retry payment. Local safe order-stage/provider-status
+      diagnostics verified locally:8causal red cases,88focused/6341full/1155Deno
+      pass; lint/build/bundle/router pass. Root cause unconfirmed; code uncommitted
+      and owner approved Test-only diagnostic publication2026-10-19.
       O6 remains open for restricted external Test-mode acceptance and release gates;
       no main/Production push/deployment, provider write, key provisioning or payment.
     - **Downgrade at the next cycle:** the new billing fulfilment queues a lower plan
