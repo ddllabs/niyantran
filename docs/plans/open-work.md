@@ -2801,13 +2801,23 @@ Earlier items, updated:
   Agents may not create accounts or sign in on production, so this is the
   owner's. Afterwards an agent can check the rows with read-only SQL.
 - [ ] **D2. nter.pro cutover:**
-  - DNS to this Vercel project;
-  - the Google OAuth client for the domain;
-  - Resend email delivery, with `mailer_autoconfirm` back off;
-  - nter.pro in `ALLOWED_ORIGINS` and the Auth URLs;
-  - clean up the old upstream setup.
-
-  The owner doesn't have the domain settings yet.
+  Owner confirms Namecheap registration access and that the old public site
+  has no backend. First full-application launch uses the existing Vercel
+  project and NTER; no backend/data/credit migration. Current DNS is Cloudflare,
+  existing website Vercel, and our project has only its vercel.app domain.
+  Custom-domain research-chat preflights lack allowed-origin headers.
+  [Spec](../specs/2026-10-18-nter-domain-launch.md) and
+  [ordered plan](2026-10-18-nter-domain-launch.md) prepared 2026-10-18:
+  inventory → app/Auth/email/CORS readiness → exact Vercel verification records
+  → owner changes Namecheap to BasicDNS with preserved required records →
+  team/project hostname verification and production assignment → owner pilot
+  → observation/closure. Proposed canonical www.nter.pro, apex redirects.
+  Old Cloudflare/Vercel access is optional; Namecheap control can establish DNS
+  authority and ownership proof. Resolve mail/services/DNSSEC and O10 before
+  handover. Reinspect Google OAuth and confirmation settings rather than
+  blindly changing them. No implementation or live mutation authorized by
+  this planning request. Razorpay held, corpus excluded; old-project deletion
+  remains separate O11, and M1/M2 T15 is not closed by domain preparation.
 - [x] **D3. Paid live round.** *Done 2026-10-15 on production (owner signed in, supervisor ran it): greeting, document answer with a highlighted passage, Stop and reload, Gemini Lite medium and cross-account denial passed; defects opened as F197 to F200. [Record](../research/2026-10-15-d3-paid-live-round.md).* Five paid-model scenarios plus a
   cross-account denial check, including:
   - the first live `search_documents` turn with a highlighted span;
