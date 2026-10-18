@@ -189,6 +189,13 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   attempt1; exact d5d4254 production READY. No new actionable failure; monitor
   ACTIVE, T15 open. [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-18-1154-utc).
 
+  Scheduled October18 12:54 UTC check: MLA2/3, Constitutions1/3 and Growth
+  post-F224 writer acceptance still pending across real daily intervals.
+  Fixtures/charts25 hourly successes each,4-league coverage and reference keys
+  intact; zero serving failures. Production6e57a31 READY; latest3 genuine CI
+  39128091215/39128436114/39128803358 app/SQL pass attempt1. No new actionable
+  failure or closure; hourly monitor ACTIVE. [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-18-1254-utc).
+
 
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving

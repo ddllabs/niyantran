@@ -877,3 +877,33 @@ retained aliases. No new actionable failure or full closure; no repeat alert.
 Hourly monitor stays ACTIVE. T15 open; payment held/corpus excluded. Only local
 tracker/evidence prose recorded; git diff --check passes, no runtime tests rerun,
 production mutation, push/deploy or paid call.
+
+
+## Scheduled closure observation — 2026-10-18 12:54 UTC
+
+Read-only production check at12:54–12:55 UTC. Initial clean main/origin6e57a31
+confirmed after fetch. Previous11:54 local observation preserved on follow-up
+branch, no publication. Cron5 active */5, exact expected Vercel refresh route;
+last6 runs12:25–12:50 succeeded. All257 serving variants zero failure counters,
+zero above3 and zero whole-feed empty markers. Last hour24 ok/31 unchanged,
+no failures. Fixtures/charts25 genuine hourly successes each sinceOctober17
+10:00, no other outcomes; latest12:20, next13:20. Charts25 items each. Fixtures
+21 retained (EPL6/IPL1/NBA6/La Liga8). All4 leagues/eight windows accounted for:
+IPL-next explicitly empty; other7 ok. Sampling remains explicitly non-exhaustive.
+MLA400 unique profile+100 coverage keys; Constitutions188 unique constitute:
+keys, fingerprint c14635ffbc17cef3a5ace4fc74273578 unchanged.
+
+No new daily eligibility yet: MLA2/3 nextOctober19 10:45:19 UTC;
+Constitutions1/3 nextOctober18 15:45:01 UTC. Growth20/zero failures, first
+post-F224 ordinary scheduled writer acceptance still nextOctober18 after15:55
+UTC. No refresh forced, retries not credited as opportunities. Approved bounded
+behavioral evaluation already complete; no new model calls.
+
+Latest3 genuine CI39128091215/39128436114/39128803358 each individually read:
+attempt1, app and SQL successful. Exact production6e57a31 is READY at
+ dpl_fiosRdMWzi6hzRgoEhEWDXvFLfak with both custom and retained aliases. UI
+releaseF228/F229 complete independently; daily T15 gate remains open. No new
+meaningful failure or completion, so no repeat alert. Hourly follow-up ACTIVE;
+Razorpay held/corpus excluded. Only local tracker/evidence edits; git diff
+--check passes. No runtime suite rerun, production mutation, push/deploy,
+account/config/data/timer/serve change or provider call in this observation.
