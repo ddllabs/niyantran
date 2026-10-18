@@ -828,3 +828,26 @@ F219 remains separate. Report actual M1/M2 closure before payment integration.
 F221 publication confirmed: main CI 39052960359 app/SQL green on attempt 1;
 production dpl_EC2dNBS1rX9ZPrcEBJDJydXmoqWh READY at exact 389dbed SHA.
 Final prose follow-up deployment/CI is verified after publication; T15 stays open.
+
+
+## Closure status after F227 acceptance — 2026-10-18 11:25 UTC
+
+Read-only NTER feed_state/feed_runs and cron query: MLA reference two genuine
+post-rollout daily successes October17 10:45:00.813/October18 10:45:13.744 UTC,
+500 items, zero failures; next October19 10:45:19.121837 UTC. Constitutions one
+October17 15:45:00.466 UTC unchanged188; next October18 15:45:01.351775 UTC.
+Growth20 items/zero failures, next October18 15:55:02.002558 UTC. Its October17
+15:45/15:50 timeouts and15:55 recovery predate F224; no post-fix ordinary writer
+acceptance yet. No retries counted as independent daily opportunities.
+All257 serving variants zero failure counters. Job5 active */5, expected
+niyantran-six Vercel refresh URL confirmed boolean-only, no command secrets read.
+Hourly follow-up remains ACTIVE. No forced refresh or production mutation.
+
+F227 Auth cleanup completed with owner-applied9-entry inventory,11/11 redirect
+checks, owner reload and Google/recovery/reset/sign-in acceptance; evidence
+0cc7198. T15 remains the sole M1/M2 closure gate. Existing successful release/CI
+checks are prior evidence; final deployed commit and latest three genuine
+first-attempt CI checks must be reconfirmed at actual closure. Earliest expected
+handoff October19 late evening IST depends on third constitution daily success;
+not guaranteed. No payment or corpus work started. Documentation-only check:
+git diff --check passes; no runtime suites rerun for prose.

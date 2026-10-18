@@ -173,6 +173,16 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   [F221 and closure evidence](../research/2026-10-17-f221-test-isolation-evidence.md).
 
 
+  Read-only October18 11:25 UTC: MLA daily observations2/3, next eligible
+  October19 10:45:19 UTC; Constitutions1/3, next eligible October18 15:45:01 UTC.
+  Growth post-F224 scheduled writer acceptance pending October18 after15:55 UTC,
+  normally16:00 UTC poll. All257 serving variants zero failures; */5 cron active
+  with expected Vercel route. F227 separately closed by owner real-flow acceptance
+  (evidence0cc7198). Earliest overall handoff remains October19 late evening IST,
+  conditional on actual third reference success and final release/CI checks.
+  Hourly monitor ACTIVE; no forced refresh; Razorpay held, corpus excluded.
+
+
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving
 from storage. No source above three consecutive failures. Supabase pg_cron feed-refresh job
@@ -1348,6 +1358,17 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- [x] **F227. Supabase Auth redirect cleanup.** *Closed2026-10-18,
+  evidence0cc7198.* Owner applied nine-entry allowlist: broad all-Vercel wildcard,
+  malformed entry and obsolete bare root removed; exact retained Vercel root/
+  reset added. Site URL, four custom entries, scoped preview and localhost
+  preserved. Live no-follow invalid-token checks11/11 pass; unrelated Vercel
+  destination accepted before and rejected after. Owner confirms reload persists
+  all9 URLs and Google sign-in/recovery/reset/sign-in pass after cleanup. No
+  source deployment needed; D2 unchanged, T15 independent/open.
+  [Evidence](../research/2026-10-18-f227-auth-evidence.md).
+
 
 - [x] **F226. Policy Pipeline stored landing summary.** *Done2026-10-18,
   source441343e, released6c08b48.* Only this National summary selects the
@@ -2829,14 +2850,6 @@ Earlier items, updated:
 
   Agents may not create accounts or sign in on production, so this is the
   owner's. Afterwards an agent can check the rows with read-only SQL.
-- [ ] **F227. Review the retained Supabase Auth redirect allowlist.**
-  Observed during D2: pre-existing `https://*.vercel.app/**` wildcard and
-  malformed `https://https://niyantran-six.vercel.app/**`. New custom-domain
-  entries are exact and owner recovery/sign-in passed. Inventory actual required
-  preview/local redirects, propose exact replacements/removals and obtain approval
-  before changing Auth configuration. Existing entries were deliberately retained
-  during the handover; this separate cleanup does not reopen completed D2.
-  [D2 evidence](../research/2026-10-18-nter-domain-launch-evidence.md).
 - [x] **D3. Paid live round.** *Done 2026-10-15 on production (owner signed in, supervisor ran it): greeting, document answer with a highlighted passage, Stop and reload, Gemini Lite medium and cross-account denial passed; defects opened as F197 to F200. [Record](../research/2026-10-15-d3-paid-live-round.md).* Five paid-model scenarios plus a
   cross-account denial check, including:
   - the first live `search_documents` turn with a highlighted span;
