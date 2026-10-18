@@ -46,3 +46,19 @@ operation. Diff review passed correctness, shared state/lifecycle, accessibility
 Bundle guard passes180382 gzip bytes (baseline180398; limit182446). Full6264,
 lint/build evidence above remains current. Visual preview limitation disclosed;
 publication explicitly authorized afterward. CI/production verification pending.
+
+
+## Release verification
+
+Branch fae886b pushed, preview dpl_AiiFSNPSvo2H2nNBVoo44B2W6Uwc READY.
+CI39128091215 app and SQL success attempt1. Fast-forwarded main and pushed same
+SHA. Production dpl_J3uHbqrdoHcJSoK3cGyEBqvLjgX2 READY with www.nter.pro,
+nter.pro and retained Vercel aliases; aliasError null. HTTP200 on www and
+niyantran-six; actual served CSS confirms scene1.1025, translate(-24px,-12px),
+sign-in0.855, full-pane class and native animation zoom1. Ten assertions pass
+across two hosts. These checks verify deployed assets, not a signed-in row click;
+no live model or account test performed. Main CI39128436114 app/SQL success
+on attempt1. F228/F229 closed with source hashes and release evidence.
+Runtime build has the pre-existing >500kB warning. Hourly monitor ACTIVE;
+T15 still pending daily intervals, Razorpay held/corpus excluded. No production
+SQL/config/Edge changes. Local synthetic preview files stay generated/untracked.

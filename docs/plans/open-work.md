@@ -213,26 +213,6 @@ orientation list is compared item by item in the
 
 ## UI follow-ups
 
-- [ ] **F229. Full selected-record pane animation.** Source8a33c19 locally
-  verified; owner authorized push/merge/deploy2026-10-18. All3 existing brief
-  renderers use one native-size full-pane loader during loading/writing/pending;
-  Close remains available. Ready/error/unavailable/none reveal normal content.
-  Hook/timing/cache/polling/provider/billing unchanged. New guards9 fail before,
-  22 pass after; focused86/full6264 tests, lint/build/bundle pass. Existing chunk
-  warning remains. Local synthetic preview available without model/auth calls;
-  visual check unavailable because Arc window control failed. Release pending.
-  [Spec](../specs/2026-10-18-record-pane-animation.md) ·
-  [Plan](2026-10-18-record-pane-animation.md).
-
-- [ ] **F228. Homepage and sign-in visual adjustments.** Source4e739b1 locally
-  verified; owner authorized push/merge/deploy2026-10-18. Hero/header CTA arrows
-  removed; homepage globe/orbits another5% larger and24px left on desktop; role
-  names11→12px and descriptions10→11px with existing line boxes/card geometry;
-  sign-in globe another5% smaller. Mobile globe sizing and sign-up preserved.
-  Existing guards proved red before changes, focused35 and later full6264 pass;
-  lint/build/bundle pass. Owner accepted local homepage preview and requested
-  subsequent tweaks. Release pending; no backend/data/corpus/payment change.
-
 - [ ] **F107. Legal policies for payment-gateway activation.** Owner request
   2026-10-12: Privacy, Terms, Refund & Cancellation, Delivery and Contact pages
   for Niyantran Strategy Consulting Pvt Ltd (Kolkata, not GST-registered),
@@ -1378,6 +1358,28 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+
+- [x] **F229. Full selected-record pane animation.** Source8a33c19, released
+  fae886b2026-10-18 after explicit owner approval. Adapted, generic National and
+  fallback records show one native-size pane loader while loading/writing/pending;
+  Close stays available, normal details return on settlement. Hook/provider/
+  cache/timing/billing unchanged. Guards9 red before/22 green after, focused86,
+  full6264, lint/build/bundle pass. BranchCI39128091215 app/SQL pass attempt1;
+  production dpl_J3uHbqrdoHcJSoK3cGyEBqvLjgX2 READY; updated loader CSS verified
+  on both aliases. MainCI39128436114 app/SQL pass attempt1.
+  Browser visual check unavailable due Arc control; limitation disclosed before
+  owner release approval. No paid call, backend, corpus or payment change.
+  [Release evidence](2026-10-18-record-pane-animation.md#authorized-release--2026-10-18).
+
+- [x] **F228. Homepage/sign-in presentation.** Source4e739b1, releasedfae886b
+  2026-10-18. Removed hero/header CTA arrows; enlarged homepage globe/orbits5%,
+  shifted desktop scene24px left, increased role names/descriptions with fixed
+  line boxes, reduced sign-in globe5%. Mobile globe/sign-up preserved. Owner
+  accepted local homepage preview; follow-up tweaks explicitly approved for
+  release. Full6264 tests, lint/build/bundle pass; production CSS smoke checks
+  pass on custom and retained aliases. Same release/CI evidence as F229.
+
 
 - [x] **F227. Supabase Auth redirect cleanup.** *Closed2026-10-18,
   evidence0cc7198.* Owner applied nine-entry allowlist: broad all-Vercel wildcard,
