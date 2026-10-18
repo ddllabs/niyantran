@@ -150,7 +150,14 @@ async function verifyLocalIdentity({ admin = false, resumeSession = null } = {})
     const initial = await supabase.auth.getSession();
     const session = initial.data?.session;
     if (isTransient(initial.error)) throw new TransientIdentityError('Session unavailable');
-    if ((locallySignedOut && !resumeSession) || initial.error || !validSession(session)) throw new Error('No session');
+    // A passive check cannot reopen local logout, but its refusal is not a new
+    // logout event: broadcasting null here would cancel a fresh sign-in that is
+    // independently verifying this same session before reopening the latch.
+    if (locallySignedOut && !resumeSession) {
+      lastFailure = 'authoritative';
+      return null;
+    }
+    if (initial.error || !validSession(session)) throw new Error('No session');
     if (resumeSession && (session.access_token !== resumeSession.access_token || session.user.id !== resumeSession.user?.id)) throw new Error('Sign-in changed');
     const verified = await supabase.auth.getUser(session.access_token);
     if (isTransient(verified.error)) throw new TransientIdentityError('User check unavailable');
