@@ -23,6 +23,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
+import { checkBundleBudget } from './bundle-budget.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = join(root, 'dist');
@@ -102,6 +103,11 @@ if (!Number.isInteger(baseline) || baseline <= 0) {
 }
 const gzipBytes = gzipSync(code).length;
 const limit = baseline + TOLERANCE_BYTES;
+try {
+  checkBundleBudget({ initialGzipBytes, limit, chunks: chunkText });
+} catch (error) {
+  fail(error.message);
+}
 const delta = gzipBytes - baseline;
 const summary = `assets/${entry}: ${gzipBytes} bytes gzip (baseline ${baseline}, ${delta >= 0 ? '+' : ''}${delta}; limit ${limit})`;
 if (gzipBytes > limit) {

@@ -72,6 +72,10 @@ export default defineConfig({
     billingApiPlugin(),
     userPrefsApiPlugin(),
   ],
+  // Cache the React runtime independently; aggregate initial bytes remain budgeted.
+  build: { rollupOptions: { output: { manualChunks(id) {
+    if (/\/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'vendor-react';
+  } } } },
   envPrefix: ['VITE_'],
   server: {
     port: 5173,

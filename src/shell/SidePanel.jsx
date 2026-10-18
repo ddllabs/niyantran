@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import AiPanel from '../ai/AiPanel.jsx';
+import { lazy, useCallback, useEffect, useReducer, useRef, useState } from 'react';
+const AiPanel = lazy(() => import('../ai/AiPanel.jsx'));
+import LazyView from './LazyView.jsx';
 import PanelOverlay from './PanelOverlay.jsx';
 import RailContent, { railClasses } from './RailContent.jsx';
 import {
@@ -414,7 +415,7 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
         ))}
         {state.mounted.includes('ai') ? (
           <div role="tabpanel" id={panelId('ai')} aria-labelledby={tabId('ai')} className="ai-dock ai-dock-v2" hidden={!shown('ai')}>
-            <AiPanel
+            <LazyView><AiPanel
               embedded
               feed={feed}
               selected={selected}
@@ -428,7 +429,7 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
               onCitation={onCitation}
               viewerSlot={viewerSlot}
               actionsSlot={actionsSlot}
-            />
+            /></LazyView>
           </div>
         ) : null}
       </div>

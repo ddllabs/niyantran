@@ -8,9 +8,9 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const shell = read('../TerminalShell.jsx');
 
 it('renders the page for #/account/<section> inside the themed terminal root, over a desk kept mounted and hidden', () => {
-  expect(shell).toContain("import CreditsPage from './credits/CreditsPage.jsx'");
+  expect(shell).toContain("const CreditsPage = lazy(() => import('./credits/CreditsPage.jsx'));");
   expect(shell).toContain('const [account, setAccount] = useState(() => parseAccountHash());');
-  expect(shell).toContain('{account ? <CreditsPage section={account} user={user} ent={ent} /> : null}');
+  expect(shell).toContain('{account ? <LazyView><CreditsPage section={account} user={user} ent={ent} /></LazyView> : null}');
   expect(shell.indexOf('<CreditsPage')).toBeGreaterThan(shell.indexOf('theme-${theme}'));
   // Review (2026-10-15): the desk, and the AI panel in it, stay mounted so a draft or a running answer
   // survives a visit to the credits page; the workspace is hidden, not removed.

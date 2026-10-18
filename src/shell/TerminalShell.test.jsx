@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const fixture = vi.hoisted(() => ({ allowed: true, user: { id: 'local-shell-fixture', type: 'policy' } }));
@@ -11,6 +11,16 @@ vi.mock('./OnboardingTour.jsx', () => ({ default: () => <div data-protected="tou
 vi.mock('./CommandSearch.jsx', () => ({ default: () => <div>Search fixture</div> }));
 vi.mock('./LiveTvModal.jsx', () => ({ default: () => null }));
 import TerminalShell from './TerminalShell.jsx';
+
+// These snapshots assert settled route authorization, after mocked deferred views resolve.
+beforeAll(async () => {
+  vi.stubGlobal('location', { hash: '#/home' });
+  for (const hash of ['#/home', '#/carbon', '#/economics/Live%20Global%20Stock%20Exchanges']) {
+    location.hash = hash;
+    renderToStaticMarkup(<TerminalShell/>);
+  }
+  await new Promise(resolve => setImmediate(resolve));
+});
 
 beforeEach(() => { fixture.allowed = true; vi.stubGlobal('location', { hash: '#/economics/Live%20Global%20Stock%20Exchanges' }); });
 describe('account-restricted canonical destinations', () => {

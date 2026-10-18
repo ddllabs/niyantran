@@ -251,6 +251,15 @@ button, input, textarea { font-family: inherit; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .icon-btn.spin svg { animation: spin 0.8s linear infinite; }
 
+/* Deferred view downloads stay in normal flow, leaving neighboring panels usable. */
+.lazy-view-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
 .feed-loader {
   position: absolute;
   inset: 0;

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { bucketsFor, catalogModules, modulesForTier, TABS } from '../desks/catalog.js';
-import HomeDesk from '../desks/HomeDesk.jsx';
-import DeskView from '../desks/DeskView.jsx';
-import DeskLandingView from '../desks/DeskLandingView.jsx';
+const HomeDesk = lazy(() => import('../desks/HomeDesk.jsx'));
+const DeskView = lazy(() => import('../desks/DeskView.jsx'));
+const DeskLandingView = lazy(() => import('../desks/DeskLandingView.jsx'));
 import DeskNav from './DeskNav.jsx';
 import DeskRail from './DeskRail.jsx';
 import DeskDirectory, { DeskLandingTabs } from './DeskDirectory.jsx';
@@ -32,11 +32,12 @@ import { applyInterfaceLang } from './interfaceLang.js';
 import { openInDesk, takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
 import PersonaChooser from './PersonaChooser.jsx';
-import CreditsPage from './credits/CreditsPage.jsx';
+const CreditsPage = lazy(() => import('./credits/CreditsPage.jsx'));
+import LazyView from './LazyView.jsx';
 import ProfileCredits from './credits/BalancePill.jsx';
 import { ACCOUNT_SECTIONS, deskRouteFor, goAccount, parseAccountHash } from './credits/accountRoute.js';
 import { OPEN_BILLING_EVENT } from '../ai/CreditBalance.jsx';
-import LiveTvModal from './LiveTvModal.jsx';
+const LiveTvModal = lazy(() => import('./LiveTvModal.jsx'));
 import { clearPersonaPrefs } from '../lib/personas.js';
 import { hydrateUserPrefs, startUserPrefsSync } from '../lib/userPrefsSync.js';
 import './upgrade.css';
@@ -56,6 +57,7 @@ export default function TerminalShell({ onLogout }) {
   const [loading, setLoading] = useState(false);
   const [vizFilter, setVizFilter] = useState(null);
   const [liveTvOpen, setLiveTvOpen] = useState(false);
+  const [liveTvVisited, setLiveTvVisited] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
   // The credits page (F184): its section while open (#/account/<section>), else null.
@@ -214,10 +216,12 @@ export default function TerminalShell({ onLogout }) {
 
   useEffect(() => {
     function onOpenLiveTv() {
+      setLiveTvVisited(true);
       setLiveTvOpen(true);
     }
     function checkLiveTvHash() {
       if (typeof window !== 'undefined' && window.location.hash === '#livetv') {
+        setLiveTvVisited(true);
         setLiveTvOpen(true);
       }
     }
@@ -386,6 +390,7 @@ export default function TerminalShell({ onLogout }) {
               className="tv-btn"
               onClick={() => {
                 setProfileOpen(false);
+                setLiveTvVisited(true);
                 setLiveTvOpen((v) => !v);
               }}
               title="Open Live TV Intelligence Stream & Broadcasts"
@@ -394,11 +399,11 @@ export default function TerminalShell({ onLogout }) {
               <span className="live-dot" />
               LIVE TV
             </button>
-            <LiveTvModal
+            {liveTvVisited ? <LazyView><LiveTvModal
               open={liveTvOpen}
               onClose={() => setLiveTvOpen(false)}
               onNavigateDesk={(deskTab, feature) => onOpen({ tab: deskTab, feature: feature || '' })}
-            />
+            /></LazyView> : null}
           </div>
           {/* Owner 2026-10-13: the same header on every page. A landing's refresh remounts it, so its
               summaries are requested again. */}
@@ -491,7 +496,7 @@ export default function TerminalShell({ onLogout }) {
       </header>
       {/* F184: the credits page takes the work area; the desk stays mounted underneath, hidden, so the
           AI panel keeps its thread, draft and any answer still streaming (SidePanel.jsx). */}
-      {account ? <CreditsPage section={account} user={user} ent={ent} /> : null}
+      {account ? <LazyView><CreditsPage section={account} user={user} ent={ent} /></LazyView> : null}
       {moduleNavigation && !account && <DeskRail tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}
         open={railOpen} onOpenChange={setRailOpen} />}
       {moduleNavigation && !account && <DeskNav
@@ -512,18 +517,18 @@ export default function TerminalShell({ onLogout }) {
               onAccess={doLogout}
               onBack={() => backFromRestrictedDesk(() => onDesk('home'))}/>
           ) : tab === 'home' ? (
-            <HomeDesk onOpen={onOpen} onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} />
+            <LazyView><HomeDesk onOpen={onOpen} onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} /></LazyView>
           ) : guideMode ? (
-            <DeskLandingView
+            <LazyView><DeskLandingView
               key={`${tab}:${reload}`}
               tab={tab}
               label={hi ? active.labelHi : active.label}
               buckets={deskBuckets}
               onFeature={onFeature}
               lang={lang}
-            />
+            /></LazyView>
           ) : (
-            <DeskView
+            <LazyView><DeskView
               key={`${feedTier}:${featureName}`}
               tier={feedTier}
               featureName={featureName}
@@ -534,7 +539,7 @@ export default function TerminalShell({ onLogout }) {
               reload={reload}
               vizFilter={vizFilter}
               onClearViz={onClearViz}
-            />
+            /></LazyView>
           )}
         </main>
         {!restricted && <SidePanel

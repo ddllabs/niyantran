@@ -5,12 +5,8 @@
 import features from '../data/html-feature-map.json';
 import registry from '../data/source-registry.json';
 import manifest from '../../public/data/embedded_csv/_manifest.json';
-import alliances from '../data/alliances.json';
-import sanctions from '../data/sanctions.json';
-import globalAid from '../data/global-aid.json';
 import geoConflicts from '../data/geo-conflicts.json';
 import infraProjects from '../data/infra-projects.json';
-import nuclearWatch from '../data/nuclear-watch.json';
 import chokepoints from '../data/chokepoints.json';
 import leaders from '../data/leaders.json';
 import commodities from '../data/commodities.json';
@@ -545,6 +541,7 @@ export async function fetchArchiveFeature({ tier, feature, signal } = {}) {
   }
 
   if (/^nuclear watch$/i.test(name)) {
+    const { default: nuclearWatch } = await import('../data/nuclear-watch.json');
     const rows = (nuclearWatch.facilities || []).map(flattenNuclear);
     if (rows.length) {
       return envelope({
@@ -668,6 +665,7 @@ export async function fetchArchiveFeature({ tier, feature, signal } = {}) {
   }
 
   if (/^sanctions$/i.test(name)) {
+    const { default: sanctions } = await import('../data/sanctions.json');
     const rows = (sanctions.programs || []).map(flattenSanction);
     if (rows.length) {
       return envelope({
@@ -682,6 +680,7 @@ export async function fetchArchiveFeature({ tier, feature, signal } = {}) {
   }
 
   if (/^global aid$/i.test(name)) {
+    const { default: globalAid } = await import('../data/global-aid.json');
     const rows = (globalAid.appeals || []).map(flattenAppeal);
     if (rows.length) {
       return envelope({
@@ -695,6 +694,7 @@ export async function fetchArchiveFeature({ tier, feature, signal } = {}) {
   }
 
   if (/^alliances$/i.test(name)) {
+    const { default: alliances } = await import('../data/alliances.json');
     const rows = (alliances.alliances || []).map((p) => flattenAlliance(p, alliances.memberFlags || {}));
     if (rows.length) {
       return envelope({

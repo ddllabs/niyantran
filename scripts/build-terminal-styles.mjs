@@ -20,6 +20,13 @@ export const OUTPUT = 'src/shell/terminalStyles.js';
 export const EAGER_BEFORE = ['src/marketing/MarketingSite.jsx', 'src/marketing/legalRoutes.js'];
 export const LAZY_ROOTS = ['src/shell/TerminalShell.jsx', 'src/admin/AdminApp.jsx', 'src/shell/PersonaChooser.jsx'];
 
+// Follow only newly deferred views for CSS; the PDF viewer keeps its deliberate
+// independent stylesheet. Position in the source preserves the existing cascade.
+const DEFERRED_STYLE_ROOTS = new Set([
+  'src/desks/HomeDesk.jsx', 'src/desks/DeskView.jsx', 'src/desks/DeskLandingView.jsx',
+  'src/shell/credits/CreditsPage.jsx', 'src/shell/LiveTvModal.jsx', 'src/ai/AiPanel.jsx',
+]);
+
 const IMPORT = /^\s*(?:import|export)(?:\s+[\w$*{}\s,]+?\s+from)?\s*['"]([^'"\n]+)['"]/gm;
 // Comments go first, so a commented-out import is not followed and a comment inside an import's
 // braces does not hide it. A comment needs whitespace or a line start before it, so "//" in a URL and
@@ -44,12 +51,17 @@ function resolveFile(spec, from) {
  * stylesheets met (repo-relative, or the package path), skipping any `seen` already holds.
  * `modules` collects every source module visited.
  */
-export function walk(roots, { seen = new Set(), modules = new Set(), base = root } = {}) {
+export function walk(roots, { seen = new Set(), modules = new Set(), base = root, includeDynamic = false } = {}) {
   const styles = [];
   const visit = (file) => {
     if (modules.has(file)) return;
     modules.add(file);
-    for (const spec of staticImports(readFileSync(file, 'utf8'))) {
+    const code = readFileSync(file, 'utf8');
+    const clean = code.replace(COMMENTS, '$1');
+    const imports = includeDynamic
+      ? [...clean.matchAll(IMPORT), ...[...clean.matchAll(/\bimport\(\s*['"]([^'"\n]+)['"]\s*\)/g)].filter(m => DEFERRED_STYLE_ROOTS.has(relative(base, resolve(dirname(file), m[1]))))].sort((a, b) => a.index - b.index).map(m => m[1])
+      : staticImports(code);
+    for (const spec of imports) {
       if (spec.includes('?')) continue;
       const relativeSpec = spec.startsWith('.');
       if (spec.endsWith('.css')) {
@@ -71,7 +83,7 @@ export function terminalStyles(base = root) {
   const seen = new Set();
   const modules = new Set();
   walk(EAGER_BEFORE, { seen, modules, base });
-  return walk(LAZY_ROOTS, { seen, modules, base });
+  return walk(LAZY_ROOTS, { seen, modules, base, includeDynamic: true });
 }
 
 export function render(styles) {

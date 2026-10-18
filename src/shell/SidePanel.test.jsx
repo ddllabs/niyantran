@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 vi.mock('../ai/AiPanel.jsx', () => ({ default: (p) => <div data-ai-panel={p.open ? 'open' : 'hidden'} data-embedded={String(p.embedded)} data-actions-slot={String(p.actionsSlot)} /> }));
 vi.mock('./RailContent.jsx', () => ({ default: (p) => <div data-rail={p.view} />, railClasses: () => 'right-rail' }));
 import SidePanel, { attachRailDismiss, dragOpensAi, escapeAction, escapeOwnerOpen, panelDragProps, panelHidden, railDismissible } from './SidePanel.jsx';
@@ -10,6 +10,12 @@ const panel = (state, extra = {}) => ({
   expanded: false, userExpanded: false, setUserExpanded: () => {}, citation: { open: false }, setCitation: () => {}, citationExpanded: false, ...extra,
 });
 const render = (state, props = {}, extra = {}) => renderToStaticMarkup(<SidePanel panel={panel(state, extra)} hasRail feed={{ feature: 'Bills' }} selected={null} lang="en" {...props} />);
+
+// Warm the deferred mocked view before checking the settled panel's props/state.
+beforeAll(async () => {
+  render({ active: 'ai', mounted: ['ai'] });
+  await new Promise(resolve => setImmediate(resolve));
+});
 
 // side-panel spec point 1: one real tablist for Desk, Record and AI research.
 describe('the side panel', () => {
