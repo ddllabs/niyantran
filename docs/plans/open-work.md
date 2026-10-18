@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F228 is next) and goes in the
+- A new finding gets the next free `F` number (F230 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-17 (milestone check)
@@ -212,6 +212,26 @@ orientation list is compared item by item in the
   not an additional M1/M2 or payment prerequisite. [Comparison](../research/2026-10-17-orientation-closure-comparison.md).
 
 ## UI follow-ups
+
+- [ ] **F229. Full selected-record pane animation.** Source8a33c19 locally
+  verified; owner authorized push/merge/deploy2026-10-18. All3 existing brief
+  renderers use one native-size full-pane loader during loading/writing/pending;
+  Close remains available. Ready/error/unavailable/none reveal normal content.
+  Hook/timing/cache/polling/provider/billing unchanged. New guards9 fail before,
+  22 pass after; focused86/full6264 tests, lint/build/bundle pass. Existing chunk
+  warning remains. Local synthetic preview available without model/auth calls;
+  visual check unavailable because Arc window control failed. Release pending.
+  [Spec](../specs/2026-10-18-record-pane-animation.md) ·
+  [Plan](2026-10-18-record-pane-animation.md).
+
+- [ ] **F228. Homepage and sign-in visual adjustments.** Source4e739b1 locally
+  verified; owner authorized push/merge/deploy2026-10-18. Hero/header CTA arrows
+  removed; homepage globe/orbits another5% larger and24px left on desktop; role
+  names11→12px and descriptions10→11px with existing line boxes/card geometry;
+  sign-in globe another5% smaller. Mobile globe sizing and sign-up preserved.
+  Existing guards proved red before changes, focused35 and later full6264 pass;
+  lint/build/bundle pass. Owner accepted local homepage preview and requested
+  subsequent tweaks. Release pending; no backend/data/corpus/payment change.
 
 - [ ] **F107. Legal policies for payment-gateway activation.** Owner request
   2026-10-12: Privacy, Terms, Refund & Cancellation, Delivery and Contact pages

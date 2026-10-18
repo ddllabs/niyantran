@@ -35,3 +35,14 @@ controls and makes no LLM/auth requests. Arc control unavailable (window not
 found); visual browser verification remains pending, no screenshot claimed.
 No push/deploy, production mutation, paid call, corpus or payment work.
 Prior homepage changes stay uncommitted alongside this local task.
+
+
+## Authorized release — 2026-10-18
+
+Owner explicitly approved push, merge and deploy. Combined release contains
+homepage/sign-in source4e739b1 and pane-animation source8a33c19; no backend
+operation. Diff review passed correctness, shared state/lifecycle, accessibility
+(close/status), security (no new input/network boundary) and load behavior.
+Bundle guard passes180382 gzip bytes (baseline180398; limit182446). Full6264,
+lint/build evidence above remains current. Visual preview limitation disclosed;
+publication explicitly authorized afterward. CI/production verification pending.
