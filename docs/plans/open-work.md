@@ -182,6 +182,13 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   conditional on actual third reference success and final release/CI checks.
   Hourly monitor ACTIVE; no forced refresh; Razorpay held, corpus excluded.
 
+  Scheduled October18 11:54 UTC check: daily gates unchanged (MLA2/3,
+  Constitutions1/3, Growth writer pending tonight). Fixtures/charts24 real hourly
+  successes each, four leagues intact; reference keys unchanged. Zero serving
+  failure counters. Latest3 CI39120540412/39120962896/39123391599 app/SQL green
+  attempt1; exact d5d4254 production READY. No new actionable failure; monitor
+  ACTIVE, T15 open. [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-18-1154-utc).
+
 
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving
