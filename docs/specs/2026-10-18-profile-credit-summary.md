@@ -1,6 +1,6 @@
 # Combined profile and credit summary
 
-> **Status: Living.** Owner approved local implementation 2026-10-18.
+> **Status: Normative.** Owner accepted and approved release 2026-10-18.
 
 Replace the separate header credits pill with the existing balance ring around
 the profile initial. Clicking the combined control opens one Account dropdown.
@@ -14,4 +14,4 @@ balances remain honest and accessible; ring semantics/calculations unchanged.
 Dropdown scrolls within a narrow/short viewport, supports light/dark modes.
 No API/RPC/database/credit conversion/deduction/grant/plan/payment/corpus change.
 Verify causal guards before implementation, summary contents/route/ring/states,
-focused and full app tests, lint/build and local preview. Production unpublished.
+focused and full app tests, lint/build and local preview. Frontend release authorized after owner review.

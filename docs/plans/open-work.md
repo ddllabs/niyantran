@@ -213,14 +213,6 @@ orientation list is compared item by item in the
 
 ## UI follow-ups
 
-- [ ] **F230. Combine profile and credits controls.** Owner approved local UI
-  relocation 2026-10-18: ring around avatar, all credit-summary content inside
-  Account dropdown, existing Credits action opens same page. No billing logic
-  or backend change. Implemented locally with focused and browser fixture
-  verification; awaiting owner review/release. No publication.
-  [Spec](../specs/2026-10-18-profile-credit-summary.md) ·
-  [Plan](2026-10-18-profile-credit-summary.md).
-
 - [ ] **F107. Legal policies for payment-gateway activation.** Owner request
   2026-10-12: Privacy, Terms, Refund & Cancellation, Delivery and Contact pages
   for Niyantran Strategy Consulting Pvt Ltd (Kolkata, not GST-registered),
@@ -1366,6 +1358,21 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- [x] **F230. Combine profile and credits controls.** Source7756c67, owner
+  accepted local UI and authorized push/merge/deploy2026-10-18. Credit ring
+  surrounds avatar; Account contains all prior credit details, warnings/retries
+  and the same Credits route. No backend or credit calculation change.
+  Guards4 red before green, focused49/full6268 pass; lint/build/bundle pass.
+  Browser fixture desktop/mobile/dark, dismissal/focus, quiet refusal/retry and
+  route pass. Independent review found no blocking source issues. Branch
+  CI39131057499 app/SQL passed attempt1; merged main and deployed
+  dpl_AbnvcMevyeMwtL71YxpoeoMMsTZg READY at7756c67. Public assets verified on
+  www.nter.pro and retained Vercel alias. MainCI39131455379 app/SQL passed
+  attempt1; zero5xx in bounded deployment request scan. Evidence in
+  [Release record](2026-10-18-profile-credit-summary.md#authorized-release--2026-10-18).
+  Scheduled M1/M2 checks continue; Razorpay held, corpus excluded.
+
 
 
 - [x] **F229. Full selected-record pane animation.** Source8a33c19, released

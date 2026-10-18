@@ -1,6 +1,6 @@
 # Profile credit summary implementation
 
-> **Status: Living.** Approved implementation and release, 2026-10-18.
+> **Status: Historical (2026-10-18).** Owner-approved implementation and release, verified.
 
 Spec: ../specs/2026-10-18-profile-credit-summary.md; sole tracker F230.
 1. Adapt existing BalancePill controller into ProfileCredits (same file) with
@@ -41,8 +41,8 @@ section within one Account dialog. Credits keeps its existing account route.
   dependency, service call, provider/billing logic, or credit calculation.
 - Full suite, lint, build, bundle and whitespace outcomes recorded below.
 
-Work remains local on task/profile-credit-summary, awaiting owner review and
-release instruction. Scheduled closure checks remain active; Razorpay held,
+At the local-verification handoff, work remained on task/profile-credit-summary
+awaiting owner review and release instruction. Scheduled closure checks remain active; Razorpay held,
 corpus ingestion excluded. No production mutation, commit, push or deployment.
 
 `npm run lint` passed with zero warnings. `npm run build` passed; existing
@@ -56,8 +56,8 @@ src/shell/credits/creditsPage.css, src/shell/credits/creditsPageWiring.test.jsx,
 src/shell/credits/profileCredits.test.jsx, this plan, its spec and open-work.md.
 Final `npm test` after the embedded-section cleanup: 397 files / 6,268 tests
 passed (145.66 seconds). Expected mocked feed-error diagnostics occurred; no
-failed tests. Working tree contains only the eight task paths listed above,
-uncommitted on task/profile-credit-summary.
+failed tests. At that handoff, the working tree contained only the eight task
+paths listed above, uncommitted on task/profile-credit-summary.
 
 ## Authorized release — 2026-10-18
 
@@ -72,3 +72,29 @@ production from main at www.nter.pro, retaining niyantran-six.vercel.app.
 Known-good rollback candidate dpl_fiosRdMWzi6hzRgoEhEWDXvFLfak is READY at
 6e57a31. No Supabase deployment or migration is needed. Branch CI, main CI,
 exact deployed commit and public asset checks are required before closure.
+
+
+Source commit 7756c6792fb280ccc82cf70af7d21ca05759ebde passed branch CI
+39131057499 on attempt1 (app and SQL). Read-only independent review found no
+blocking source issues; its tracker-status observation is reconciled here.
+Branch preview dpl_vNW9A7uq13pNMBKzkEmPtrph4dwH READY. Fast-forward merged
+main and pushed; production dpl_AbnvcMevyeMwtL71YxpoeoMMsTZg READY at exact
+7756c67, serving www.nter.pro, nter.pro and niyantran-six.vercel.app.
+
+Production root/CSS/JS reads on www.nter.pro and niyantran-six.vercel.app passed:
+HTTP200, avatar ring and viewport-sizing CSS, combined profile trigger, embedded
+summary, Account dialog, no separate credit-pill text. Both served terminal
+chunk TerminalShell-D0lx6hG3.js. No authenticated credit/model calls made.
+Bounded error-level runtime scan returned7 entries, all known DEP0169 Node
+url.parse deprecation warnings (already recorded with domain launch); no new
+application exception in those entries. Existing build-size advisory remains.
+Main CI39131455379 passed app and SQL on attempt1. Bounded request-log scan
+for this exact deployment returned0 HTTP5xx records, with no excluded intervals
+or additional pages. No Supabase function, timer, data, credit or payment change.
+
+F230 is closed in the sole tracker with source7756c67. Closure records are
+published separately; that documentation-only push uses the same verified
+application source and follows normal CI/deployment. Scheduled M1/M2 closure
+checks continue unchanged, with Razorpay held and corpus excluded. Live
+signed-in interaction was not repeated: acceptance is the owner's local preview,
+with automated fixture interaction and deployed asset verification as above.
