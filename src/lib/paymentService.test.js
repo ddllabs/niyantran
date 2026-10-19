@@ -303,3 +303,16 @@ describe('same-intent rejected creation recovery', () => {
     expect(ctx.fetch).not.toHaveBeenCalled();
   });
 });
+
+
+it.each([['plus',39900,20000],['pro',99900,65000],['max',999900,750000]])('keeps %s price separate from its one-paisa allowance', (plan, price, credits) => {
+  expect(paymentProduct(plan)).toMatchObject({ amountPaise: price, credits, creditUnit: 'credit-paise-v2' });
+});
+it.each(['free','plus','pro','max'])('keeps every topup fixed on %s and ignores browser conversion claims', async plan => {
+  for (const pack of TOPUP_PACKS) {
+    const ctx = context();
+    await createPurchase({ requestId: id, productId: pack.productId, planId: plan, credits: 99999999, amountPaise: 1, inrPerCredit: 99 }, user, ctx);
+    const claim = ctx.client.rpc.mock.calls.find(([name, args]) => name === 'billing_order' && args.p_action === 'claim')[1];
+    expect(claim.p.snapshot).toMatchObject({ kind: 'topup', credits: pack.credits, amountPaise: pack.amountPaise, creditUnit: 'credit-paise-v2' });
+  }
+});

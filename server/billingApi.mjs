@@ -10,7 +10,7 @@ import { loadEnv } from './loadEnv.mjs';
 import { getSupabaseAdminClient } from './authEmailProvider.mjs';
 import { authorizeLocalUser, localClientForToken } from './usersApi.mjs';
 import { computeQuote, renderInvoiceHtml, sellerFromEnv } from './inrBilling.mjs';
-import { createPurchase, listPurchases, verifyPurchase, purchaseStatus, receivePaymentWebhook, recoverPayments, paymentContext, paymentConfig, checkoutEnabled, billingRpc, readRawPaymentBody, TOPUP_PACKS } from './paymentService.mjs';
+import { createPurchase, listPurchases, listPlanPeriods, verifyPurchase, purchaseStatus, receivePaymentWebhook, recoverPayments, paymentContext, paymentConfig, checkoutEnabled, billingRpc, readRawPaymentBody, TOPUP_PACKS } from './paymentService.mjs';
 
 loadEnv();
 
@@ -95,11 +95,11 @@ export async function handleBillingApi(req, res, url, deps = {}) {
     return true;
   }
 
-  const purchaseRoute = ['/api/billing/create-order', '/api/billing/verify', '/api/billing/order-status', '/api/billing/purchases', '/api/billing/webhook', '/api/billing/recover', '/api/billing/adjustments', '/api/billing/adjustments/review'].includes(url.pathname);
+  const purchaseRoute = ['/api/billing/create-order', '/api/billing/verify', '/api/billing/order-status', '/api/billing/purchases', '/api/billing/plan-periods', '/api/billing/webhook', '/api/billing/recover', '/api/billing/adjustments', '/api/billing/adjustments/review'].includes(url.pathname);
   if (purchaseRoute) {
     try {
       const webhook = url.pathname === '/api/billing/webhook';
-      if (req.method !== (url.pathname.endsWith('order-status') || url.pathname.endsWith('/purchases') || url.pathname.endsWith('/adjustments') ? 'GET' : 'POST')) {
+      if (req.method !== (url.pathname.endsWith('order-status') || url.pathname.endsWith('/purchases') || url.pathname.endsWith('/plan-periods') || url.pathname.endsWith('/adjustments') ? 'GET' : 'POST')) {
         json(res, { ok: false, reason: 'Method not allowed.' }, 405); return true;
       }
       const who = webhook ? null : await caller();
@@ -111,6 +111,7 @@ export async function handleBillingApi(req, res, url, deps = {}) {
       const ctx = paymentContext(d);
       let result;
       if (webhook) result = await receivePaymentWebhook(req, ctx);
+      else if (url.pathname.endsWith('/plan-periods')) result = { ok: true, periods: await listPlanPeriods(who, ctx) };
       else if (url.pathname.endsWith('/purchases')) result = { ok: true, purchases: await listPurchases(who, ctx) };
       else if (url.pathname.endsWith('/order-status')) result = await purchaseStatus(Object.fromEntries(url.searchParams), who, ctx);
       else if (url.pathname.endsWith('/recover')) result = await recoverPayments(ctx);

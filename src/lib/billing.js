@@ -55,6 +55,15 @@ export async function fetchPurchases() {
   } catch { throw new Error('Purchase history unavailable.'); }
 }
 
+export async function fetchPlanPeriods() {
+  try {
+    const response = await fetch('/api/billing/plan-periods', { headers: await authHeaders() });
+    const body = await response.json();
+    if (!response.ok || !body.ok || !Array.isArray(body.periods)) throw new Error('Plan periods unavailable.');
+    return body.periods;
+  } catch { throw new Error('Plan periods unavailable.'); }
+}
+
 export async function fetchBillingConfig() {
   try {
     const res = await fetch('/api/billing/config');

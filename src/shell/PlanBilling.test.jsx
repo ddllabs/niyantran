@@ -22,6 +22,7 @@ vi.mock('../lib/creditsStore.js', async original => ({
   subscribeCredits: (...args) => fake.subscribeCredits(...args),
   serverCredits: (...args) => fake.serverCredits(...args),
 }));
+vi.mock('./credits/PlanPeriods.jsx', () => ({ default: () => null }));
 import PlanBilling from './PlanBilling.jsx';
 
 const DAY = 86400000;

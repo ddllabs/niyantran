@@ -16,7 +16,7 @@ vi.mock('./productAnalytics.js', () => ({ trackProductEvent: () => {} }));
 const ent = vi.hoisted(() => ({ refresh: null }));
 vi.mock('./entitlementStore.js', () => ({ refreshEntitlement: (...args) => ent.refresh(...args) }));
 
-import { completeCheckout, openInvoice, fetchPurchases, fetchInvoices, fetchBillingReviews } from './billing.js';
+import { completeCheckout, openInvoice, fetchPurchases, fetchInvoices, fetchBillingReviews, fetchPlanPeriods } from './billing.js';
 
 let calls;
 function serve(routes) {
@@ -121,4 +121,13 @@ it('stores a server-reviewed next plan intent without automatically opening or p
   const posted = calls.filter(c => c.url === '/api/billing/create-order');
   expect(posted).toHaveLength(2);
   expect(JSON.parse(posted[1].init.body).requestId).toBe(next);
+});
+
+
+it('loads owned plan periods with authentication and reports failed reads', async () => {
+  serve({ '/api/billing/plan-periods': [200, { ok: true, periods: [{ id: 'period-1', status: 'scheduled' }] }] });
+  expect(await fetchPlanPeriods()).toEqual([{ id: 'period-1', status: 'scheduled' }]);
+  expect(calls[0].init.headers.Authorization).toBe('Bearer access-1');
+  serve({ '/api/billing/plan-periods': [503, { ok: false }] });
+  await expect(fetchPlanPeriods()).rejects.toThrow('Plan periods unavailable.');
 });

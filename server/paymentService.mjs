@@ -144,6 +144,13 @@ export async function createPurchase(body, user, ctx) {
     return { ok: true, ...publicPurchase(order), status: 'reconciling', pending: true };
   }
 }
+export async function listPlanPeriods(user, ctx) {
+  const periods = await billingRpc(ctx.client, 'billing_plan_periods', { p: {
+    userId: user.id, account: ctx.config.account, mode: ctx.config.mode,
+  } });
+  if (!Array.isArray(periods)) throw paymentError('Plan periods unavailable.', 503);
+  return periods;
+}
 export async function listPurchases(user, ctx) {
   return retryRpc(ctx, 'list', { userId: user.id });
 }

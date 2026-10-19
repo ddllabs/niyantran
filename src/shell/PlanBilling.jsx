@@ -1,3 +1,4 @@
+import PlanPeriods from './credits/PlanPeriods.jsx';
 import BillingReviews from './credits/BillingReviews.jsx';
 import Purchases from './credits/Purchases.jsx';
 import PurchaseReview from './credits/PurchaseReview.jsx';
@@ -175,6 +176,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
         {renewDue ? (
           <p className="plan-up-renew">Your {planLabel(current)} month ends on {day(end)}. Renew to keep it.</p>
         ) : null}
+        {userId ? <PlanPeriods key={userId} revision={revision} /> : null}
         {userId ? <CreditsSection credits={credits} tried={creditsTried} checkoutOpen={open} /> : null}
       </section>
 

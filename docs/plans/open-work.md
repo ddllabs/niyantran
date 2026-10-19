@@ -3163,6 +3163,16 @@ Earlier items, updated:
       verified. Production deployment/protection unchanged and billing disabled.
       Hosted migration history20261019192743; actual captured Test top-up,
       signed webhook/invoice and plan lifecycle rehearsal still pending.
+      **Purchased plan periods — 2026-10-20:** canonical active/future display
+      implemented with confirmed dates, allowances and invoice links, no early
+      balance/access change. New read-only service RPC separately approved and
+      applied (local20261019194527/hosted20261019195351); canonical hash matches,
+      financial fingerprints identical, advisor counts unchanged. Full6402 app/
+      1172 Deno/48 SQL fixtures plus lint/build/bundle/router pass. Accounting
+      matrix covers9 paid transitions and5 packs on all4 plans; no denomination
+      or commercial rule changes. Test publication authorized; final deployed
+      SHA/remote CI reported in chat. Actual owner capture/reconciliation and
+      plan lifecycle rehearsal remain open. Spec/plan2026-10-20-billing-plan-period-display.
       **Previously observed operator-list defect:** billing/adjustments503; read-only reviews RPC
       reproduces42702 ambiguous pay.id (table alias versus PL/pgSQL variable).
       Resolved by6515956 and the separately approved shared migration above;

@@ -286,3 +286,25 @@ describe('durable Razorpay order and verification routes',()=>{
     expect((await call(request('POST','/api/billing/adjustments/review',{as:A,body:{}}),d)).status).toBe(403);
   });
 });
+
+
+it('reads paid periods for the verified buyer and configured scope, ignoring URL identities', async () => {
+  const rpc = vi.fn(async () => ({ data: [{ id: 'period-1', plan: 'plus', status: 'scheduled' }], error: null }));
+  const result = await call(request('GET', `/api/billing/plan-periods?userId=${B.id}&mode=live&account=foreign`, { as: A }), deps({
+    adminClient: () => ({ rpc }), paymentConfig: { account: 'acc_fixture', mode: 'test' },
+  }));
+  expect(result.status).toBe(200);
+  expect(result.body.periods).toEqual([{ id: 'period-1', plan: 'plus', status: 'scheduled' }]);
+  expect(rpc).toHaveBeenCalledWith('billing_plan_periods', { p: { userId: A.id, account: 'acc_fixture', mode: 'test' } });
+});
+it('denies unsigned period reads and rejects writes', async () => {
+  expect((await call(request('GET', '/api/billing/plan-periods'))).status).toBe(401);
+  expect((await call(request('POST', '/api/billing/plan-periods', { as: A }))).status).toBe(405);
+});
+it('does not turn a failed period read into an empty paid schedule', async () => {
+  const result = await call(request('GET', '/api/billing/plan-periods', { as: A }), deps({
+    adminClient: () => ({ rpc: async () => ({ error: { code: 'XX000' } }) }),
+  }));
+  expect(result.status).toBe(503);
+  expect(result.body.periods).toBeUndefined();
+});
