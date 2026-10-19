@@ -47,8 +47,14 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F234 is next) and goes in the
+- A new finding gets the next free `F` number (F235 is next) and goes in the
   right section.
+
+## Authenticated browser diagnostics — active
+
+- [ ] **F234 — Development toolchain advisories.** Read-only npm audit on 2026-10-19 reports existing Vite/Vitest dependency advisories (2 moderate, 2 high, 2 critical; esbuild, source-map-js, @vitest/mocker, tinypool and dependents). Production dependency audit reports zero. Review compatible upgrades separately; no dependency changes in the scoped BBC/form fix.
+
+- Owner-approved BBC browser CORS and scoped fund-flow/account/admin form repairs verified in commits 2593b09 and a19e2a8; production deployment verification pending. [Plan](2026-10-19-authenticated-browser-fixes.md).
 
 ## Current state — 2026-10-17 (milestone check)
 
