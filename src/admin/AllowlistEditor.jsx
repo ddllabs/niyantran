@@ -140,10 +140,10 @@ export function AllowlistEditor() {
                     <div className="note">{m.vendor} · {pricingLabel(pricingById[m.model_id]) || 'not in current catalogue'}</div>
                   </td>
                   <td>
-                    <input value={d.label} disabled={readOnly} onChange={(e) => patchDraft(m.model_id, 'label', e.target.value)} />
+                    <input value={d.label} disabled={readOnly} onChange={(e) => patchDraft(m.model_id, 'label', e.target.value)} name="model-label" aria-label={`Display label for ${m.model_id}`} />
                   </td>
                   <td>
-                    <select value={String(d.tier)} disabled={readOnly} onChange={(e) => patchDraft(m.model_id, 'tier', Number(e.target.value))}>
+                    <select value={String(d.tier)} disabled={readOnly} onChange={(e) => patchDraft(m.model_id, 'tier', Number(e.target.value))} name="model-tier" aria-label={`Tier for ${m.model_id}`}>
                       <option value="1">1 · cheap</option>
                       <option value="2">2</option>
                       <option value="3">3 · costly</option>
@@ -155,6 +155,7 @@ export function AllowlistEditor() {
                       value={modelPlanOf(d)}
                       disabled={readOnly}
                       onChange={(e) => patchDraft(m.model_id, 'min_plan', e.target.value)}
+                      name="model-plan"
                     >
                       {MODEL_PLANS.map((p) => (
                         <option key={p.value} value={p.value}>
@@ -167,10 +168,10 @@ export function AllowlistEditor() {
                     ) : null}
                   </td>
                   <td>
-                    <input value={d.efforts} disabled={readOnly} placeholder="low, medium, high" onChange={(e) => patchDraft(m.model_id, 'efforts', e.target.value)} />
+                    <input value={d.efforts} disabled={readOnly} placeholder="low, medium, high" onChange={(e) => patchDraft(m.model_id, 'efforts', e.target.value)} name="model-efforts" aria-label={`Reasoning efforts for ${m.model_id}`} />
                   </td>
                   <td>
-                    <input type="number" value={d.sort_order} disabled={readOnly} style={{ width: 64 }} onChange={(e) => patchDraft(m.model_id, 'sort_order', e.target.value)} />
+                    <input type="number" value={d.sort_order} disabled={readOnly} style={{ width: 64 }} onChange={(e) => patchDraft(m.model_id, 'sort_order', e.target.value)} name="model-order" aria-label={`Sort order for ${m.model_id}`} />
                   </td>
                   <td>
                     <input
@@ -178,6 +179,7 @@ export function AllowlistEditor() {
                       checked={Boolean(m.enabled)}
                       disabled={readOnly || busy === key}
                       onChange={(e) => save('model', { model_id: m.model_id, enabled: e.target.checked }, key)}
+                      name="model-enabled" aria-label={`Enable ${m.model_id}`}
                     />
                   </td>
                   <td>
@@ -187,6 +189,7 @@ export function AllowlistEditor() {
                       checked={Boolean(m.is_default)}
                       disabled={readOnly || !m.enabled || busy === key}
                       onChange={() => save('model', { model_id: m.model_id, is_default: true }, key)}
+                      aria-label={`Use ${m.model_id} as the default model`}
                     />
                   </td>
                   <td>
@@ -219,7 +222,7 @@ export function AllowlistEditor() {
       </div>
 
       <div className="adm-actions">
-        <select value={addId} disabled={readOnly} onChange={(e) => setAddId(e.target.value)}>
+        <select value={addId} disabled={readOnly} onChange={(e) => setAddId(e.target.value)} name="catalogue-model" aria-label="Model to add from catalogue">
           <option value="">Add from catalogue… ({choices.length} tool-capable models)</option>
           {choices.map((c) => (
             <option key={c.model_id} value={c.model_id}>
@@ -227,7 +230,7 @@ export function AllowlistEditor() {
             </option>
           ))}
         </select>
-        <select aria-label="Plans that may use the new model" value={addPlan} disabled={readOnly} onChange={(e) => setAddPlan(e.target.value)}>
+        <select aria-label="Plans that may use the new model" value={addPlan} disabled={readOnly} onChange={(e) => setAddPlan(e.target.value)} name="new-model-plan">
           {MODEL_PLANS.map((p) => (
             <option key={p.value} value={p.value}>
               {p.label}
@@ -284,6 +287,7 @@ export function AllowlistEditor() {
                       value={r.model_id || ''}
                       disabled={readOnly || busy === key}
                       onChange={(e) => save('role', { role_id: r.role_id, label: r.label, hint: r.hint, sort_order: r.sort_order, model_id: e.target.value }, key)}
+                      name="role-model" aria-label={`Model for ${r.label}`}
                     >
                       <option value="">— choose an enabled model —</option>
                       {enabledModels.map((m) => (

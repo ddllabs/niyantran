@@ -29,14 +29,14 @@ function Filters({ filters, models, onFilter, onExport, exporting, disabled }) {
     <div className="cu-filters">
       <label className="cu-select">
         <span>Model</span>
-        <select value={filters.model || ''} onChange={(e) => onFilter({ model: e.target.value || null })}>
+        <select value={filters.model || ''} onChange={(e) => onFilter({ model: e.target.value || null })} name="activity-model">
           <option value="">All models</option>
           {models.map((m) => <option key={m} value={m}>{modelLabel(m)}</option>)}
         </select>
       </label>
       <label className="cu-select">
         <span>Status</span>
-        <select value={filters.status} onChange={(e) => onFilter({ status: e.target.value })}>
+        <select value={filters.status} onChange={(e) => onFilter({ status: e.target.value })} name="activity-status">
           <option value="all">All</option>
           <option value="succeeded">Succeeded</option>
           <option value="failed">Failed</option>
@@ -44,7 +44,7 @@ function Filters({ filters, models, onFilter, onExport, exporting, disabled }) {
       </label>
       <label className="cu-select">
         <span>Kind</span>
-        <select value={filters.kind} onChange={(e) => onFilter({ kind: e.target.value })}>
+        <select value={filters.kind} onChange={(e) => onFilter({ kind: e.target.value })} name="activity-kind">
           <option value="all">All</option>
           <option value="answers">Answers</option>
           <option value="dictation">Dictation</option>

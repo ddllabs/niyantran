@@ -102,7 +102,7 @@ export default function UsageAnalytics({
         </div>
         <label className="cu-select">
           <span className="cu-sr">Range</span>
-          <select value={range} onChange={(e) => onRange(e.target.value)}>
+          <select value={range} onChange={(e) => onRange(e.target.value)} name="usage-range">
             {RANGES.map((r) => <option key={r.id} value={r.id}>{r.label}{r.id === 'lifetime' ? ' (by month)' : ''}</option>)}
           </select>
         </label>

@@ -105,16 +105,17 @@ export function SiteSettingsPage() {
                 type="checkbox"
                 checked={video.enabled !== false}
                 onChange={(e) => patchVideo('enabled', e.target.checked)}
+                name="video-enabled"
               />
               <span>Show video section on the homepage</span>
             </label>
             <label className="adm-field span2">
               <span>Section title</span>
-              <input value={video.title || ''} onChange={(e) => patchVideo('title', e.target.value)} />
+              <input value={video.title || ''} onChange={(e) => patchVideo('title', e.target.value)} name="video-title" />
             </label>
             <label className="adm-field span2">
               <span>Supporting line</span>
-              <input value={video.subtitle || ''} onChange={(e) => patchVideo('subtitle', e.target.value)} />
+              <input value={video.subtitle || ''} onChange={(e) => patchVideo('subtitle', e.target.value)} name="video-subtitle" />
             </label>
             <label className="adm-field span2">
               <span>Upload video file</span>
@@ -123,6 +124,7 @@ export function SiteSettingsPage() {
                 accept="video/mp4,video/webm,video/ogg,video/quicktime,.mp4,.webm,.ogg,.mov"
                 disabled={vBusy}
                 onChange={(e) => onUpload(e.target.files?.[0])}
+                name="video-file"
               />
             </label>
             {vProgress > 0 && vProgress < 100 ? (
@@ -144,6 +146,7 @@ export function SiteSettingsPage() {
                 placeholder="https://…"
                 value={video.externalUrl || ''}
                 onChange={(e) => patchVideo('externalUrl', e.target.value)}
+                name="video-url"
               />
             </label>
             <label className="adm-field span2">
@@ -152,6 +155,7 @@ export function SiteSettingsPage() {
                 placeholder="/brand/… or https://…"
                 value={video.posterUrl || ''}
                 onChange={(e) => patchVideo('posterUrl', e.target.value)}
+                name="video-poster"
               />
             </label>
           </div>

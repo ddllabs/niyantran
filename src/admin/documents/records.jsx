@@ -30,7 +30,7 @@ export function DeskPicker({ value, pairs, onChange, disabled = false }) {
   return (
     <label className="adm-field span2">
       <span>Desk</span>
-      <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+      <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} name="document-desk">
         <optgroup label="Desks with records">
           {keyed.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
           {aliases.map((c) => <option key={c.value} value={c.value}>{`${c.label} — ${c.note}`}</option>)}
@@ -189,7 +189,7 @@ export function RecordPicker({ api, desk, excludeKey, onPick, onCancel }) {
   const choices = current && found.records ? pickerChoices(found.records, excludeKey) : [];
   return (
     <div className="adm-picker">
-      <input className="adm-search" value={input} placeholder="Bill title or number" aria-label="Search for the record to link to" onChange={(e) => setInput(e.target.value)} />
+      <input className="adm-search" value={input} placeholder="Bill title or number" aria-label="Search for the record to link to" onChange={(e) => setInput(e.target.value)} name="record-link-search" />
       {current && found.error ? <p className="adm-msg err" role="alert">{found.error}</p> : null}
       {current && found.records && !choices.length ? <p className="note">No other record matches.</p> : null}
       {choices.length ? (
@@ -273,7 +273,7 @@ export function RecordsSection({ api, desk, reloadToken = 0, uploading = false, 
       {desk.alias ? <p className="adm-hint" style={{ marginTop: 0 }}>Policy Intelligence Graph holds the same records as Bill Passage Probability Index; they are shown here.</p> : null}
       <CoverageLine coverage={data?.coverage} />
       <div className="adm-filters">
-        <input className="adm-search" value={input} placeholder="Search bills by title or number" aria-label="Search records" onChange={(e) => setInput(e.target.value)} />
+        <input className="adm-search" value={input} placeholder="Search bills by title or number" aria-label="Search records" onChange={(e) => setInput(e.target.value)} name="record-search" />
         <StatusChips status={status} onChange={(next) => setStatus(next)} />
       </div>
       <Banner text={banner} />

@@ -316,7 +316,7 @@ html.adm-doc #root {
 .adm-kpi.local::after { background: var(--adm-blue); }
 .adm-kpi.inactive::after { background: var(--adm-red); }
 .adm-kpi.users::after { background: var(--adm-purple); }
-.adm-kpi label {
+.adm-kpi-label {
   display: block;
   font-size: 10px;
   font-weight: 700;

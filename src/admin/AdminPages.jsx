@@ -76,6 +76,7 @@ function RefreshBar({ compact }) {
               step="0.25"
               value={hours}
               onChange={(e) => setHours(e.target.value)}
+              name="refresh-hours"
             />
             <em>hours</em>
             <button className="adm-btn ghost" type="submit">
@@ -160,22 +161,22 @@ export function OverviewPage({ users }) {
       <RefreshBar />
       <div className="adm-kpis">
         <article className="adm-kpi live">
-          <label>Live</label>
+          <div className="adm-kpi-label">Live</div>
           <strong>{stats.live}</strong>
           <span>APIs returning rows</span>
         </article>
         <article className="adm-kpi archive">
-          <label>Stored</label>
+          <div className="adm-kpi-label">Stored</div>
           <strong>{stats.archive}</strong>
           <span>Stored records showing</span>
         </article>
         <article className="adm-kpi local">
-          <label>Local pack</label>
+          <div className="adm-kpi-label">Local pack</div>
           <strong>{stats.local}</strong>
           <span>URL unused · data showing</span>
         </article>
         <article className="adm-kpi inactive">
-          <label>Inactive</label>
+          <div className="adm-kpi-label">Inactive</div>
           <strong>{stats.inactive}</strong>
           <span>No data showing</span>
         </article>
@@ -266,7 +267,7 @@ export function ApisPage() {
       </p>
       <RefreshBar />
       <div className="adm-filters">
-        <input className="adm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search desks, hosts, notes" />
+        <input className="adm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search desks, hosts, notes" name="api-search" aria-label="Search API status" />
         {['all', 'live', 'archive', 'local', 'inactive', 'unchecked'].map((id) => (
           <button
             key={id}
@@ -534,6 +535,7 @@ export function UsersPage({ users, onChange, paging = usersPaging() }) {
             e.preventDefault();
             void showPage(1, searchText);
           }}
+          name="user-search"
         />
         <div className="adm-pager" role="group" aria-label="Pages of users">
           <span className="adm-pager-range" aria-live="polite">
@@ -596,6 +598,7 @@ export function UsersPage({ users, onChange, paging = usersPaging() }) {
                           const type = e.target.value;
                           void change(u.id, () => setUserType(u.id, type));
                         }}
+                        name="user-type"
                       >
                         {USER_TYPES.map((t) => (
                           <option key={t.id} value={t.id}>
@@ -613,6 +616,7 @@ export function UsersPage({ users, onChange, paging = usersPaging() }) {
                           value={draftFor(u).plan}
                           disabled={locked || busy}
                           onChange={(e) => editDraft(u, { plan: e.target.value })}
+                          name="user-plan"
                         >
                           {Object.entries(PLAN_NAMES).map(([id, label]) => (
                             <option key={id} value={id}>
@@ -627,6 +631,7 @@ export function UsersPage({ users, onChange, paging = usersPaging() }) {
                           value={draftFor(u).end}
                           disabled={locked || busy || draftFor(u).plan === 'free'}
                           onChange={(e) => editDraft(u, { end: e.target.value })}
+                          name="user-plan-end"
                         />
                         <button
                           type="button"
@@ -650,6 +655,7 @@ export function UsersPage({ users, onChange, paging = usersPaging() }) {
                           value={creditDraftFor(u).kind}
                           disabled={locked || busy || !u.creditUnitVersion}
                           onChange={(e) => editCredit(u, { kind: e.target.value })}
+                          name="credit-action"
                         >
                           {CREDIT_ACTIONS.map((a) => (
                             <option key={a.id} value={a.id}>
@@ -668,6 +674,7 @@ export function UsersPage({ users, onChange, paging = usersPaging() }) {
                           value={creditDraftFor(u).amount}
                           disabled={locked || busy || !u.creditUnitVersion}
                           onChange={(e) => editCredit(u, { amount: e.target.value })}
+                          name="credit-amount"
                         />
                         <input
                           type="text"
@@ -679,6 +686,7 @@ export function UsersPage({ users, onChange, paging = usersPaging() }) {
                           value={creditDraftFor(u).reason}
                           disabled={locked || busy || !u.creditUnitVersion}
                           onChange={(e) => editCredit(u, { reason: e.target.value })}
+                          name="credit-reason"
                         />
                         <button
                           type="button"
