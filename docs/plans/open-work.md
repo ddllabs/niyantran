@@ -37,6 +37,8 @@
   acceptance of required web-tool call remain pending; no Supabase deployment
   in the push/merge authorization. Vercel frontend deploys automatically.
 
+- [ ] **Frontend default icons (2026-10-19).** Scoped favicon/Apple icon repair and initial HTML declarations; plan: 2026-10-19-frontend-icons.md. Production asset verification pending.
+
 ## How to use this file
 
 - **This is the only list of open work.** Plans, specs, ADRs and
