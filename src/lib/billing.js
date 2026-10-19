@@ -222,6 +222,14 @@ export async function completeCheckout({ planId, productId, requestId, user, bil
     if (!orderRes.ok || !order.ok) {
       return { ok: false, reason: order.reason || 'Could not start Razorpay checkout.', mode: 'razorpay' };
     }
+    if (order.requiresReview) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(order.nextRequestId || '')) {
+        return { ok: false, pending: true, reason: 'Plan checkout could not be refreshed. Check purchases before retrying.' };
+      }
+      try { sessionStorage.setItem(intentKey, order.nextRequestId); } catch { /* explicit retry remains server-safe */ }
+      await Promise.all([refreshEntitlement(), refreshCredits()]);
+      return { ok: false, requiresReview: true, reason: order.reason || 'Your plan changed. Review the updated plan before confirming again.' };
+    }
     if (order.status === 'fulfilled') {
       try { sessionStorage.removeItem(intentKey); } catch { /* restricted storage */ }
       await Promise.all([refreshEntitlement(), refreshCredits()]);

@@ -20,6 +20,7 @@ function context() {
     if (name === 'billing_creation_retry' && args.p_action === 'claim') return { data: { canCreate: false, order: { ...order, provider_order_id: null, state: 'reconciling' } } };
     if (name === 'billing_creation_retry' && args.p_action === 'reject') return { data: { ...order, provider_order_id: null, state: 'reconciling', creation_retryable: true } };
     if (name === 'billing_capture') return { data: { ok: true, status: 'fulfilled', invoice: { id: 'inv_a' } } };
+    if (name === 'billing_checkout_preflight') return { data: { stale: false, version: '0', observedPayment: false } };
     if (name === 'billing_event' && args.p_action === 'receive') return { data: { id, ...args.p, event_type: args.p.type, state: 'pending' } };
     if (name === 'billing_event' && args.p_action === 'pending') return { data: [] };
     return { data: { ok: true } };
@@ -28,6 +29,50 @@ function context() {
     client: { rpc }, fetch: vi.fn(async path => path.startsWith('/payments/') ? payment : { id: 'order_A1', amount: 49900, currency: 'INR', receipt: id }) };
 }
 const signature = secret => crypto.createHmac('sha256', secret).update('order_A1|pay_A1').digest('hex');
+
+describe('stale plan checkout', () => {
+  function staleContext() {
+    const ctx = context(); const original = ctx.client.rpc.getMockImplementation();
+    ctx.client.rpc.mockImplementation(async (name, args) => {
+      if (name === 'billing_order' && args.p_action === 'claim') return { data: { ...order, fresh: false, amount_paise: 39900, snapshot: { ...paymentProduct('plus'), grantVersion: 0 } } };
+      if (name === 'billing_checkout_preflight') return { data: { stale: true, version: '3', observedPayment: false } };
+      return original(name, args);
+    });
+    ctx.fetch.mockImplementation(async path => path.endsWith('/payments') ? { count: 0, items: [] } : { id: 'order_A1', status: 'created', amount: 39900, amount_paid: 0, amount_due: 39900, attempts: 0, currency: 'INR', receipt: id });
+    return ctx;
+  }
+  it('does not reopen an unused stale order and offers a stable new review without a POST', async () => {
+    const ctx = staleContext();
+    const first = await createPurchase({ planId: 'plus', requestId: id }, user, ctx);
+    const second = await createPurchase({ planId: 'plus', requestId: id }, user, ctx);
+    expect(first).toMatchObject({ ok: true, requiresReview: true, status: 'plan_changed' });
+    expect(first.orderId).toBeUndefined();
+    expect(first.nextRequestId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(first.nextRequestId).toBe(second.nextRequestId);
+    expect(ctx.fetch.mock.calls.every(c => !c[1]?.method || c[1].method === 'GET')).toBe(true);
+    expect(ctx.client.rpc.mock.calls.some(c => c[0] === 'billing_capture')).toBe(false);
+  });
+  it.each(['authorized','captured','created'])('does not replace a stale order with a %s payment', async status => {
+    const ctx = staleContext();
+    ctx.fetch.mockResolvedValue({ count: 1, items: [{ ...payment, amount: 39900, status }] });
+    const result = await createPurchase({ planId: 'plus', requestId: id }, user, ctx);
+    expect(result).toMatchObject({ pending: true });
+    expect(result.nextRequestId).toBeUndefined(); expect(result.orderId).toBeUndefined();
+  });
+  it.each(['timeout','wrong-order','missing-count','observed'])('fails closed for %s facts', async kind => {
+    const ctx = staleContext();
+    if (kind === 'timeout') ctx.fetch.mockRejectedValue(new Error('timeout'));
+    if (kind === 'wrong-order') ctx.fetch.mockResolvedValue({ id: 'order_foreign', count: 0, items: [] });
+    if (kind === 'missing-count') ctx.fetch.mockResolvedValue({ items: [] });
+    if (kind === 'observed') {
+      const original = ctx.client.rpc.getMockImplementation();
+      ctx.client.rpc.mockImplementation(async (name,args) => name === 'billing_checkout_preflight'
+        ? { data: { stale: true, version: '3', observedPayment: true } } : original(name,args));
+    }
+    const result = await createPurchase({ planId: 'plus', requestId: id }, user, ctx);
+    expect(result.pending).toBe(true); expect(result.nextRequestId).toBeUndefined(); expect(result.orderId).toBeUndefined();
+  });
+});
 describe('payment purchase boundaries', () => {
   it('locks approved pack prices/current units and rejects unknown products', () => {
     expect(TOPUP_PACKS.map(p => [p.credits, p.amountPaise])).toEqual([[20000,49900],[50000,119900],[100000,229900],[200000,439900],[500000,1049900]]);

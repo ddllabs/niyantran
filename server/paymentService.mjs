@@ -65,6 +65,39 @@ export function publicPurchase(order) {
     retryable,
     pending: !retryable && !['fulfilled', 'refunded'].includes(order.state), quote: order.snapshot, amount: Number(order.amount_paise), currency: order.currency };
 }
+
+async function stalePlanReview(order, user, ctx) {
+  const state = await billingRpc(ctx.client, 'billing_checkout_preflight', { p: {
+    purchaseId: order.id, userId: user.id, account: ctx.config.account, mode: ctx.config.mode,
+  } });
+  if (typeof state?.stale !== 'boolean') throw paymentError('Plan checkout could not be checked. Please retry later.', 503);
+  if (!state.stale) return null;
+  const pending = { ok: true, pending: true, status: 'reconciling', purchaseId: order.id,
+    reason: 'Your plan changed. This earlier checkout needs reconciliation before another payment. Refresh purchases or contact support.' };
+  if (state.observedPayment !== false || !/^\d+$/.test(state.version || '') ||
+    (order.lease_until && Date.parse(order.lease_until) > Date.now())) return pending;
+  if (order.provider_order_id) {
+    // A stale, unused provider order stays in the audit. Never reopen it or infer
+    // that a timed-out/authorized/captured payment is safe to pay again.
+    try {
+      const path = `/orders/${encodeURIComponent(order.provider_order_id)}`;
+      const [provider, payments] = await Promise.all([ctx.fetch(path), ctx.fetch(`${path}/payments`)]);
+      if (provider.id !== order.provider_order_id || provider.receipt !== order.id || provider.status !== 'created' ||
+        provider.currency !== order.currency || provider.amount !== Number(order.amount_paise) ||
+        provider.amount_paid !== 0 || provider.amount_due !== Number(order.amount_paise) || provider.attempts !== 0 ||
+        payments.count !== 0 || !Array.isArray(payments.items) || payments.items.length !== 0) return pending;
+    } catch { return pending; }
+  } else if (!order.fresh && !order.creation_retryable) return pending;
+  // Same old intent + authoritative grant version always yields the same next
+  // intent, including concurrent old tabs. It is a review handoff, never a POST.
+  const hex = digest(`plan-review:${ctx.config.account}:${ctx.config.mode}:${order.id}:${state.version}`).slice(0, 32).split('');
+  hex[12] = '4'; hex[16] = '8';
+  const value = hex.join('');
+  const nextRequestId = `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`;
+  return { ok: true, requiresReview: true, status: 'plan_changed', purchaseId: order.id, nextRequestId,
+    reason: 'Your plan changed since this checkout was created. Review the updated plan and confirm again. No new payment has been started.' };
+}
+
 export async function createPurchase(body, user, ctx) {
   if (!ctx.config.open || !ctx.config.ready) throw paymentError('Online payments open soon.', 503);
   if (ctx.config.mode !== 'live' && (!validTestBuyers(ctx.config) || !ctx.config.testBuyerIds.some(id => id.toLowerCase() === String(user.id).toLowerCase()))) {
@@ -76,6 +109,10 @@ export async function createPurchase(body, user, ctx) {
   const requestHash = digest(JSON.stringify({ productId: product.productId }));
   let order = await orderRpc(ctx, 'claim', { userId: user.id, requestId: body.requestId, requestHash,
     snapshot: { ...product, seller: sellerFromEnv(), buyerEmail: user.email, buyerName: String(body.name || '').slice(0, 200) } });
+  if (order.snapshot?.kind === 'plan' && !['fulfilled', 'review', 'refunded'].includes(order.state)) {
+    const review = await stalePlanReview(order, user, ctx);
+    if (review) return review;
+  }
   if (!order.fresh) {
     if (order.provider_order_id || ['fulfilled', 'review', 'refunded'].includes(order.state)) return { ok: true, ...publicPurchase(order), keyId: ctx.config.keyId };
     const retry = await retryRpc(ctx, 'claim', { purchaseId: order.id, userId: user.id });

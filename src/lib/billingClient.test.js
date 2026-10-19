@@ -105,3 +105,16 @@ describe('rejected creation retry messaging', () => {
     expect(values.size).toBe(1);
   });
 });
+
+it('stores a server-reviewed next plan intent without automatically opening or posting again', async () => {
+  const values = new Map();
+  vi.stubGlobal('sessionStorage', { getItem: k => values.get(k), setItem: (k,v) => values.set(k,v), removeItem: k => values.delete(k) });
+  const next = 'e0000000-0000-4000-8000-000000000001';
+  serve({ '/api/billing/config': [200,{ enabled: true }],
+    '/api/billing/create-order': [200,{ ok: true, requiresReview: true, status: 'plan_changed', nextRequestId: next }] });
+  const result = await completeCheckout({ planId: 'pro' });
+  expect(result.requiresReview).toBe(true);
+  expect(values.get('billing-intent:u1:plan-pro')).toBe(next);
+  expect(calls.filter(c => c.url === '/api/billing/create-order')).toHaveLength(1);
+  expect(ent.refresh).toHaveBeenCalledOnce();
+});

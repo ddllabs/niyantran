@@ -221,6 +221,7 @@ function purchaseDeps(extra={}) {
       if(args.p_action==='bind') return {data:stored()};
       return {data:{ok:true}};
     }
+    if(name==='billing_checkout_preflight') return {data:{stale:false,version:'0',observedPayment:false}};
     if(name==='billing_capture') {
       if(extra.captureError)return {error:{code:'XX000'}};
       if(!fulfilled){granted.push(args);issued.push(saved);fulfilled=true;}
