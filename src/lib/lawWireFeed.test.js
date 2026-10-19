@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * F128: Google News RSS names each item's publisher in a <source> element. The server keeps it as
@@ -23,6 +23,9 @@ async function wireFeed(feature) {
 }
 
 describe('Law wire feed publisher (F128)', () => {
+  // Publisher tests use a fixed story date; keep it inside the live seven-day window.
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-12T10:00:00Z')); });
+  afterEach(() => { vi.useRealTimers(); });
   afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
 
   it('keeps the publisher Google News names for each item', async () => {
