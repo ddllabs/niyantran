@@ -14,6 +14,14 @@ import { createPurchase, listPurchases, listPlanPeriods, verifyPurchase, purchas
 
 loadEnv();
 
+// Fixed categories only: provider requests and arbitrary exception text are private.
+const WEBHOOK_REJECTION_STAGE = new Map([
+  ['Webhook raw body unavailable.', 'raw_body'], ['Incomplete request body.', 'raw_body'],
+  ['Request too large.', 'body_size'], ['Invalid webhook signature.', 'signature'],
+  ['Invalid webhook JSON.', 'json'], ['Webhook merchant mismatch.', 'merchant_payload'],
+  ['Invalid event identity.', 'event_identity'], ['Webhook not configured.', 'configuration'],
+]);
+
 function json(res, body, status = 200) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -125,7 +133,15 @@ export async function handleBillingApi(req, res, url, deps = {}) {
       }
       if (result.invoice) result.invoice = rowToInvoice(result.invoice);
       json(res, result, result.pending ? 202 : 200);
-    } catch (err) { json(res, { ok: false, reason: err.status ? err.message : 'Purchase processing is pending. Check purchase status before retrying.' }, err.status || 503); }
+    } catch (err) {
+      if (url.pathname === '/api/billing/webhook' && d.paymentConfig.mode === 'test') {
+        console.warn('billing_webhook_rejected', {
+          stage: WEBHOOK_REJECTION_STAGE.get(err.message) || 'processing',
+          status: Number.isInteger(err.status) && err.status >= 400 && err.status <= 599 ? err.status : 503,
+        });
+      }
+      json(res, { ok: false, reason: err.status ? err.message : 'Purchase processing is pending. Check purchase status before retrying.' }, err.status || 503);
+    }
     return true;
   }
 

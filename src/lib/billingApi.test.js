@@ -308,3 +308,33 @@ it('does not turn a failed period read into an empty paid schedule', async () =>
   expect(result.status).toBe(503);
   expect(result.body.periods).toBeUndefined();
 });
+
+
+it.each([
+  ['signature', Buffer.from('{"private":"fixture-sensitive-payload"}'), false],
+  ['raw_body', { private: 'fixture-sensitive-payload' }, false],
+  ['merchant_payload', Buffer.from('{"account_id":"wrong","event":"payment.captured","payload":{}}'), true],
+  ['json', Buffer.from('not-json-sensitive-fixture'), true],
+  ['event_identity', Buffer.from('{"account_id":"acc_test","event":"payment.captured","payload":{}}'), true],
+])('logs only a fixed Test webhook %s rejection category', async (stage, body, signedBody) => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    const d = purchaseDeps({ config: { account: 'acc_test', webhookSecret: 'fixture-sensitive-hook-secret' } });
+    const req = request('POST', '/api/billing/webhook', { body });
+    if (signedBody) req.headers['x-razorpay-signature'] = crypto.createHmac('sha256', d.paymentConfig.webhookSecret).update(body).digest('hex');
+    const result = await call(req, d);
+    expect(result.status).toBe(400);
+    expect(warn.mock.calls).toEqual([['billing_webhook_rejected', { stage, status: 400 }]]);
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/fixture-sensitive|wrong|account_id|razorpay-signature/);
+    expect(d.calls).toEqual([]);
+    expect(d.razorpayFetch).not.toHaveBeenCalled();
+  } finally { warn.mockRestore(); }
+});
+it('emits no Test diagnostics for Live webhook errors or unrelated billing routes', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    await call(request('POST', '/api/billing/webhook', { body: Buffer.from('{}') }), purchaseDeps({ config: { mode: 'live', webhookSecret: 'fixture-secret' } }));
+    await call(request('GET', '/api/billing/plan-periods', { as: A }), deps({adminClient: () => ({ rpc: async () => ({error:{code:'XX000'}}) })}));
+    expect(warn).not.toHaveBeenCalled();
+  } finally { warn.mockRestore(); }
+});

@@ -3173,6 +3173,24 @@ Earlier items, updated:
       or commercial rule changes. Test publication authorized; final deployed
       SHA/remote CI reported in chat. Actual owner capture/reconciliation and
       plan lifecycle rehearsal remain open. Spec/plan2026-10-20-billing-plan-period-display.
+      **Owner Test payments reconciled — 2026-10-20:**500k topup₹10,499
+      and Pro₹999 captured/fulfilled,1 invoice/lot/grant each. Balance566460.511
+      reconciles exactly. No confirmed₹499 in account records. **Open blocker:**
+      signed webhook delivery returns400 (42 observed POSTs), verified inbox empty;
+      callback worked but webhook acceptance has not passed. Owner asked for
+      dashboard response text; cause not yet established. Invoice rendering in
+      IAB unverified (Open produced no tab); stored invoice facts verified.
+      UI polish proposed only. See purchased-period execution record. No code,
+      config, provider/payment or Live mutation in this read-only investigation.
+      **Webhook diagnostic follow-up:** Razorpay response body null; Test
+      requests reach api/router (WAF allow), exact rejection stage unknown.
+      Prepare local Test-only allowlisted category logging; no secrets/bodies/
+      headers/identifiers. Spec/plan2026-10-20-test-webhook-diagnostics. New
+      Test publication approval required; no schema/provider/financial mutation.
+      Local diagnostics verified:6408 app/1172 Deno, focused114, lint/build/
+      bundle/router pass;5 causal failures before logging. Only fixed Test
+      stage/status emitted; Live/unrelated silence and unexpected-error redaction
+      verified. Await Test push/deploy approval; signed failure remains unknown.
       **Previously observed operator-list defect:** billing/adjustments503; read-only reviews RPC
       reproduces42702 ambiguous pay.id (table alias versus PL/pgSQL variable).
       Resolved by6515956 and the separately approved shared migration above;

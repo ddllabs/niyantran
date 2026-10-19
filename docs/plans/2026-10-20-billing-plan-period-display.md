@@ -83,3 +83,49 @@ the next. All captures remain Test-mode and owner-operated. Never advance hosted
 clock or mint future credits to simulate expiry. Future activation, every pack
 and all plan-pair accounting are already exercised in disposable SQL. Merchant
 readiness, Live keys, live acceptance and other O6 launch gates remain open.
+
+
+## Owner Test capture reconciliation — 2026-10-20 IST
+
+Read-only investigation after owner-operated payments. Actual IAB screen shows
+Pro active through20 Nov2026 and5,66,461 rounded credits. Database verifies:
+- topup-500000, ₹10,499, order12a5a5ef-b82b-49c7-acd5-7ad6390bf4bd,
+  captured pay_TptSFyyr9aGl2D, fulfilled, invoice NIY/2627/00001;
+- plan-pro, ₹999, order35fd134d-a856-4fde-9dbe-8bfd173ca038,
+  captured pay_TptT4RvM8aYpY9, fulfilled, invoice NIY/2627/00002.
+Each has exactly1 payment,1 invoice,1 lot and1 grant ledger entry. Quantities
+500000 and65000 respectively. Seller name/address/support match approved stored
+snapshots. Pro period20Oct01:40:12 IST to20Nov01:40:12 IST; topup expiry
+20Oct2027. Wallet566460.511 =500000+65000+1460.511 signup; debt0. Monthly
+usage0 since activation is correct; earlier usage belongs to the Free period.
+No confirmed ₹499 purchase appears in this account's app records; its old
+20k-credit attempts remain unconfirmed. No duplicate fulfilment observed.
+
+Webhook acceptance FAILS: verified Test inbox0 events. Vercel exact Test
+deployment dpl_3ZmyJcPLw9LrCmXH651ANDqa3KX1 shows42 webhook POSTs all400
+between20:09:13 and20:15:20 UTC19Oct (01:39:13–01:45:20 IST20Oct), WAF allow.
+No webhook runtime messages. This is receipt rejection before inbox persistence,
+not a browser callback/payment grant failure. Unsigned diagnostic returns400
+Invalid webhook signature, proving raw bytes reach the signature check for that
+probe only; it does NOT prove the cause of signed Razorpay rejection. Dashboard
+error text requested from owner because Arc exposes no webpage content even
+though navigation works. Do not diagnose secret mismatch without that evidence.
+No replay, setting change, provider action, recovery invocation or payment by
+agent. Clicking Open invoice in IAB produced no new browser tab; database invoice
+verification passed, rendered invoice viewing remains unverified in that browser.
+
+UI review: correct quantities and expiries but thin hierarchy, duplicate current
+plan/invoice/history presentation, long visible UUIDs, small period bar lacking a
+legend, prominent admin operations and no obvious Test context. Proposed polish:
+compact plan/balance summary, separate monthly vs purchased-credit breakdown,
+combined transaction/invoice rows, details disclosure for UUIDs, Test badge,
+admin tools outside ordinary purchase hierarchy. No UI code edited. Existing
+shared account means Test benefits also affect this account on Production; Test
+keys do not isolate its wallet or invoice counter. Production web/config and
+Live keys unchanged. Screenshot /private/tmp/billing-owner-test-reconciliation.png.
+
+Next: resolve signed webhook400 before calling external acceptance complete.
+Account already Pro: Plus purchase is now a queued downgrade, not an upgrade.
+To rehearse paid upgrade use Pro->Max before queuing any lower period; or use a
+separately allowlisted test buyer for Free->Plus->Pro. No clock/data edits to
+force next-cycle activation. All pair arithmetic remains covered by local SQL.
