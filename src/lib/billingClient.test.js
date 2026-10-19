@@ -16,7 +16,7 @@ vi.mock('./productAnalytics.js', () => ({ trackProductEvent: () => {} }));
 const ent = vi.hoisted(() => ({ refresh: null }));
 vi.mock('./entitlementStore.js', () => ({ refreshEntitlement: (...args) => ent.refresh(...args) }));
 
-import { completeCheckout, openInvoice } from './billing.js';
+import { completeCheckout, openInvoice, fetchPurchases, fetchInvoices, fetchBillingReviews } from './billing.js';
 
 let calls;
 function serve(routes) {
@@ -34,6 +34,15 @@ beforeEach(() => {
   ent.refresh = vi.fn(async () => ({ plan: 'pro', status: 'active' }));
 });
 afterEach(() => vi.unstubAllGlobals());
+
+it.each([
+  ['/api/billing/purchases', fetchPurchases],
+  ['/api/billing/invoices', fetchInvoices],
+  ['/api/billing/adjustments', fetchBillingReviews],
+])('does not disguise a failed %s read as an empty account', async (path, read) => {
+  serve({ [path]: [503, { ok: false, reason: 'Unavailable' }] });
+  await expect(read()).rejects.toThrow();
+});
 
 describe('completeCheckout without Razorpay', () => {
   it('says payments are off, records no demo invoice and grants nothing', async () => {

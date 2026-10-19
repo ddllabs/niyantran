@@ -50,8 +50,9 @@ export async function fetchPurchases() {
   try {
     const response = await fetch('/api/billing/purchases', { headers: await authHeaders() });
     const body = await response.json();
-    return response.ok && body.ok ? body.purchases : [];
-  } catch { return []; }
+    if (!response.ok || !body.ok || !Array.isArray(body.purchases)) throw new Error('Purchase history unavailable.');
+    return body.purchases;
+  } catch { throw new Error('Purchase history unavailable.'); }
 }
 
 export async function fetchBillingConfig() {
@@ -72,14 +73,15 @@ export async function fetchQuote(planId) {
   return body;
 }
 
-/** The signed-in user's invoices, newest first, or [] when unavailable. */
+/** The signed-in user's invoices, newest first. Failed reads reject, never imply an empty account. */
 export async function fetchInvoices() {
   try {
     const res = await fetch('/api/billing/invoices', { headers: await authHeaders() });
     const body = await res.json().catch(() => ({}));
-    return res.ok && body.ok && Array.isArray(body.invoices) ? body.invoices : [];
+    if (!res.ok || !body.ok || !Array.isArray(body.invoices)) throw new Error('Invoices unavailable.');
+    return body.invoices;
   } catch {
-    return [];
+    throw new Error('Invoices unavailable.');
   }
 }
 
@@ -266,6 +268,10 @@ async function paymentOperation(path, body) {
     return response.ok ? value : { ok: false, reason: value.reason || 'Payment operation unavailable.' };
   } catch { return { ok: false, reason: 'Payment operation could not be confirmed. Check its status before retrying.' }; }
 }
-export async function fetchBillingReviews() { return (await paymentOperation('adjustments')).adjustments || []; }
+export async function fetchBillingReviews() {
+  const result = await paymentOperation('adjustments');
+  if (!result.ok || !Array.isArray(result.adjustments)) throw new Error('Payment operations could not be loaded.');
+  return result.adjustments;
+}
 export async function reviewBillingAdjustment(body) { return paymentOperation('adjustments/review', body); }
 export async function runBillingRecovery() { return paymentOperation('recover', {}); }

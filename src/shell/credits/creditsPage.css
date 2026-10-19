@@ -287,3 +287,34 @@
   border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
   border-radius: 0; box-shadow: none; animation: none;
 }
+
+/* Purchase review and auditable history use the account page's existing tokens. */
+.billing-review { margin-top: 18px; padding: 18px; border: 1px solid var(--accent); border-radius: 10px; background: var(--panel); }
+.billing-review h4, .billing-history h4 { margin: 0 0 12px; font-size: 14px; }
+.billing-review dl { margin: 0; display: grid; gap: 10px; }
+.billing-review dl > div { display: flex; justify-content: space-between; gap: 20px; }
+.billing-review dt { color: var(--muted); }
+.billing-review dd { margin: 0; text-align: right; font-weight: 600; }
+.billing-review p, .billing-disclosure p { font-size: 13px; line-height: 1.55; color: var(--muted); }
+.billing-review-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.billing-review-actions .plan-up-pay { flex: 1 1 220px; width: auto; }
+.billing-secondary { padding: 9px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; }
+.billing-secondary:disabled { opacity: .55; cursor: not-allowed; }
+.billing-secondary:focus-visible, .billing-disclosure summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.plan-billing-section .plan-up-plan.billing-current { border-color: var(--accent); border-style: dashed; }
+.billing-history { margin: 24px 0 14px; }
+.billing-history-list { list-style: none; padding: 0; margin: 0 0 16px; }
+.billing-history-list li { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.billing-history-main, .billing-history-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; }
+.billing-history-main { font-size: 14px; }
+.billing-history-meta { margin-top: 7px; font-size: 12px; color: var(--muted); }
+.billing-reference { overflow-wrap: anywhere; }
+.billing-disclosure { border-top: 1px solid var(--line); padding-top: 14px; }
+.billing-disclosure summary { cursor: pointer; color: var(--fg); font-size: 13px; font-weight: 600; padding: 4px 0; }
+.plan-billing-section .plan-up-plan.billing-current.on { border-style: solid; }
+@media (max-width: 560px) {
+  .billing-review { padding: 14px; }
+  .billing-review dl > div { flex-direction: column; gap: 4px; }
+  .billing-review dd { text-align: left; }
+  .billing-review-actions > button { width: 100%; }
+}

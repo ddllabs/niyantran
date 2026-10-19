@@ -10,7 +10,8 @@ vi.mock('react', async original => ({ ...(await original()), useState: initial =
   return [fake.states[index], value => { fake.states[index] = typeof value === 'function' ? value(fake.states[index]) : value; }];
 }, useEffect: effect => { fake.effects.push(effect); }, useRef: () => ({ current: null }) }));
 vi.mock('../lib/billing.js', () => ({
-  fetchBillingConfig: vi.fn(), fetchInvoices: vi.fn(),
+  fetchBillingConfig: vi.fn(), fetchInvoices: vi.fn().mockResolvedValue([]),
+  formatInr: n => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
   completeCheckout: (...args) => fake.checkout(...args), openInvoice: (...args) => fake.open(...args),
 }));
 vi.mock('../lib/entitlementStore.js', () => ({ refreshEntitlement: (...args) => fake.refresh(...args) }));
@@ -78,6 +79,8 @@ it('on an active Pro month: Plus queues, Pro renews, Max upgrades now without re
   const [plus, pro, max] = tiles(tree);
   expect(plus.props.disabled).toBe(false);
   expect(text(pro)).toMatch(/Current/);
+  expect(pro.props.className).toContain('billing-current');
+  expect(text(pro)).toContain('Current plan');
   expect(max.props.disabled).toBeFalsy();
   max.props.onClick();
   tree = render(PRO, { config: OPEN });
@@ -98,6 +101,16 @@ it('pays through checkout and shows only the server-verified result', async () =
   expect(fake.checkout).toHaveBeenCalledWith(expect.objectContaining({ planId: 'plus' }));
   tree = render(FREE, { config: OPEN });
   expect(text(tree)).toMatch(/Payment verified/);
+});
+
+it('reviews a plan with current access and no automatic renewal before paying', () => {
+  const tree = render(PRO, { config: OPEN, selected: 'plus' });
+  expect(text(tree)).toContain('Review your purchase');
+  expect(text(tree)).toContain('Current planPro');
+  expect(text(tree)).toContain('20,000 AI credits every month');
+  expect(text(tree)).toContain('starts after the current paid period');
+  expect(text(tree)).toContain('No automatic renewal');
+  expect(fake.checkout).not.toHaveBeenCalled();
 });
 
 it('shows the reason when a payment fails or is cancelled', async () => {

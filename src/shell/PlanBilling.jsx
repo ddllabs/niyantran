@@ -1,6 +1,7 @@
 import BillingReviews from './credits/BillingReviews.jsx';
 import Purchases from './credits/Purchases.jsx';
-import { useEffect, useState } from 'react';
+import PurchaseReview from './credits/PurchaseReview.jsx';
+import { useEffect, useRef, useState } from 'react';
 import { completeCheckout, fetchBillingConfig, fetchInvoices, openInvoice } from '../lib/billing.js';
 import { creditsText, refreshCredits, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
 import { refreshEntitlement } from '../lib/entitlementStore.js';
@@ -94,16 +95,28 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
   const userId = user?.id || null;
   const [credits, setCredits] = useState(() => serverCredits(userId));
   const [creditsTried, setCreditsTried] = useState(false);
+  const [invoiceError, setInvoiceError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const paying = useRef(false);
+
+  function updated() {
+    setRevision(value => value + 1);
+    Promise.allSettled([refreshCredits(), refreshEntitlement()]);
+    fetchInvoices().then(list => { setInvoices(list); setInvoiceError(''); })
+      .catch(() => setInvoiceError('Invoices could not be loaded. Try refreshing purchases.'));
+  }
 
   useEffect(() => {
     let live = true;
     fetchBillingConfig().then((c) => live && setConfig(c));
-    Promise.resolve(fetchInvoices()).then((list) => live && setInvoices(list || []));
+    setInvoices(null); setInvoiceError('');
+    Promise.resolve(fetchInvoices()).then((list) => live && setInvoices(list || []))
+      .catch(() => live && setInvoiceError('Invoices could not be loaded. Try refreshing purchases.'));
     refreshEntitlement();
     return () => {
       live = false;
     };
-  }, []);
+  }, [userId]);
 
   // Credits are read the way the plan is: subscribe to the store, then refresh it.
   useEffect(() => {
@@ -123,7 +136,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
     };
   }, [userId]);
 
-  const active = ent?.status === 'active';
+  const active = ent?.status === 'active' && !ent?.lapsed;
   const current = active ? ent.plan : 'free';
   const end = active ? ent.periodEnd : null;
   const renewDue = Boolean(end) && Date.parse(end) - Date.now() <= RENEW_WINDOW_MS;
@@ -132,18 +145,21 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
   const open = Boolean(config?.enabled);
 
   async function pay() {
-    if (!choice) return;
+    if (!choice || !open || paying.current) return;
+    paying.current = true;
     setBusy(true);
     setResult(null);
-    const outcome = await completeCheckout({ planId: choice.id, user });
-    setBusy(false);
-    if (outcome?.ok) {
-      setResult({ ok: true, invoice: outcome.invoice || null });
-      setSelected(null);
-      Promise.resolve(fetchInvoices()).then((list) => setInvoices(list || []));
-    } else {
-      setResult({ ok: false, pending: outcome?.pending, text: outcome?.reason || 'The payment could not be completed.' });
-    }
+    try {
+      const outcome = await completeCheckout({ planId: choice.id, user });
+      if (outcome?.ok) {
+        setResult({ ok: true, invoice: outcome.invoice || null });
+        setSelected(null);
+        updated();
+      } else {
+        setResult({ ok: false, pending: outcome?.pending, text: outcome?.reason || 'The payment could not be completed.' });
+      }
+    } catch { setResult({ ok: false, text: 'Purchase status is uncertain. Refresh purchases before paying again.' }); }
+    finally { setBusy(false); paying.current = false; }
   }
 
   return (
@@ -155,13 +171,14 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
             ? `${planLabel(current)} is active ${end ? `until ${day(end)}` : 'with no end date'}.`
             : 'You are on Free: every desk at no cost, with 10,000 AI credits to start.'}
         </p>
+        <p className="plan-up-note">No automatic renewal. Top-ups do not change your plan.</p>
         {renewDue ? (
           <p className="plan-up-renew">Your {planLabel(current)} month ends on {day(end)}. Renew to keep it.</p>
         ) : null}
         {userId ? <CreditsSection credits={credits} tried={creditsTried} checkoutOpen={open} /> : null}
       </section>
 
-      {user ? <Purchases user={user} /> : null}
+      {user ? <Purchases key={userId} user={user} revision={revision} onUpdated={updated} /> : null}
       {user?.role === 'admin' ? <BillingReviews user={user} /> : null}
       <section className="cp-card" aria-labelledby="plan-change-title">
         <h3 id="plan-change-title" className="cp-card-title">Change plan</h3>
@@ -173,7 +190,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
               <button
                 type="button"
                 key={p.id}
-                className={`plan-up-plan${selected === p.id ? ' on' : ''}`}
+                className={`plan-up-plan${selected === p.id ? ' on' : ''}${current === p.id ? ' billing-current' : ''}`}
                 aria-pressed={selected === p.id}
                 disabled={blocked || busy}
                 onClick={() => {
@@ -181,7 +198,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
                   setResult(null);
                 }}
               >
-                {option === 'renew' ? <em>Current</em> : p.popular ? <em>Popular</em> : null}
+                {current === p.id ? <em>Current plan</em> : p.popular ? <em>Popular</em> : null}
                 <strong>{p.name}</strong>
                 <span className="amt">{rupees(p.monthly)}<small>/month</small></span>
                 <span className="who">{blocked ? `Not available while ${planLabel(current)} is active` : option === 'downgrade' ? 'Starts after your current paid period' : p.tag}</span>
@@ -190,23 +207,21 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
           })}
         </div>
 
-        {choice ? (
-          <p className="plan-up-selnote">
-            {kind === 'upgrade'
+        {choice ? <PurchaseReview label={`${choice.name} plan — one month`} amountPaise={choice.monthly * 100}
+          credits={choice.items[0]} currentPlan={planLabel(current)} busy={busy} disabled={!open}
+          onConfirm={pay} onCancel={() => setSelected(null)} timing={kind === 'upgrade'
               ? `Your ${planLabel(choice.id)} month starts now. Unused days of ${planLabel(current)} are not refunded.`
               : kind === 'renew'
                 ? `Adds one month after ${day(end)}.`
                 : kind === 'downgrade'
                   ? `Your ${planLabel(choice.id)} month starts after the current paid period. Your current access continues until then.`
-                  : `One month of ${planLabel(choice.id)}, starting now.`}
-          </p>
-        ) : null}
+                  : `One month of ${planLabel(choice.id)}, starting now.`} /> : null}
 
-        <div className="plan-up-actions">
+        {!choice ? <div className="plan-up-actions">
           <button type="button" className="plan-up-pay" disabled={!choice || busy || !open} onClick={pay}>
             {busy ? 'Opening payment…' : choice ? `Pay ${rupees(choice.monthly)} for one month` : 'Choose a plan'}
           </button>
-        </div>
+        </div> : null}
         {config && !open ? (
           <p className="plan-up-note">
             Online payments open soon. To upgrade now, write to{' '}
@@ -231,14 +246,14 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
 
       <section className="cp-card" aria-labelledby="plan-invoices-title">
         <h3 id="plan-invoices-title" className="cp-card-title">Invoices</h3>
-        {invoices === null ? (
+        {invoiceError ? <p role="alert">{invoiceError}</p> : invoices === null ? (
           <p className="plan-up-note">Loading invoices…</p>
         ) : invoices.length ? (
           <ul className="plan-up-invoices">
             {invoices.map((inv) => (
               <li key={inv.id}>
                 <span>{inv.invoiceNo}</span>
-                <span>{inv.issuedAt ? day(inv.issuedAt) : ''}{inv.planId ? ` · ${planLabel(inv.planId)}` : ''}</span>
+                <span>{inv.issuedAt ? day(inv.issuedAt) : ''} · {inv.description || inv.label || planLabel(inv.planId)}</span>
                 <span>{rupees(Math.round(Number(inv.total) || 0))}</span>
                 <button type="button" className="plan-up-inv-link" onClick={() => openInvoice(inv.id)}>
                   Open
@@ -251,7 +266,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
         )}
 
         <p className="plan-up-note">
-          Prices in Indian rupees; no GST is charged. Each payment covers one month. See the{' '}
+          Prices in Indian rupees; no GST is charged. Plans cover one month; top-up credits are valid for 12 months. See the{' '}
           <a href="/refunds">Refund &amp; Cancellation Policy</a>.
         </p>
       </section>

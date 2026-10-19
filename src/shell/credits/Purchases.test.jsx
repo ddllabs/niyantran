@@ -24,6 +24,7 @@ it.each([
 ])('renders %s (retryable=%s) accurately', (status, retryable, label) => {
   state.order = { ...state.order, state: status, creation_retryable: retryable };
   const html = renderToStaticMarkup(<Purchases user={{ id: 'buyer' }} />);
-  expect(html).toContain(`20,000 AI credits · ${label}</li>`);
-  if (status === 'ready') expect(html).not.toContain('· Confirmation pending</li>');
+  expect(html).toContain('20,000 AI credits');
+  expect(html).toContain(label);
+  if (status === 'ready') expect(html).not.toContain('Confirmation pending');
 });

@@ -13,9 +13,11 @@ export default function BillingReviews({ user }) {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [requestId, setRequestId] = useState(null);
+  const [loadError, setLoadError] = useState('');
   useEffect(() => {
     let live = true;
-    fetchBillingReviews().then(list => { if (live) setRows(list); });
+    fetchBillingReviews().then(list => { if (live) { setRows(list); setLoadError(''); } })
+      .catch(() => { if (live) setLoadError('Payment operations could not be loaded. Try refreshing the page.'); });
     return () => { live = false; };
   }, [user.id]);
   function changed() { setRequestId(null); }
@@ -25,20 +27,26 @@ export default function BillingReviews({ user }) {
     const result = await reviewBillingAdjustment({ adjustmentId: selected, requestId: stable,
       decision: { resolution: rows.find(r => r.id === selected)?.kind === 'purchase_review' ? 'refund_recorded' : 'reviewed', creditsToRemove: Number(credits), creditsToRestore: Number(restore), cancelPeriod: cancel, restorePeriod, reason, document: documentRef ? { reference: documentRef } : null } });
     setMessage(result.ok ? 'Reviewed adjustment recorded.' : result.reason || 'Review could not be confirmed. Retry the same decision.');
-    if (result.ok) { setRows(await fetchBillingReviews()); setSelected(''); setRequestId(null); }
+    if (result.ok) {
+      try { setRows(await fetchBillingReviews()); setLoadError(''); }
+      catch { setLoadError('Adjustment list could not be refreshed.'); }
+      setSelected(''); setRequestId(null);
+    }
     setBusy(false);
   }
   async function recover() {
     setBusy(true);
     const result = await runBillingRecovery();
     setMessage(result.ok ? `Recovery checked ${result.ordersChecked} orders and processed ${result.eventsProcessed} events.` : result.reason);
-    setRows(await fetchBillingReviews()); setBusy(false);
+    try { setRows(await fetchBillingReviews()); setLoadError(''); }
+    catch { setLoadError('Payment operations could not be loaded.'); }
+    setBusy(false);
   }
   return <section className="cp-card" aria-labelledby="billing-reviews-title">
-    <h3 id="billing-reviews-title" className="cp-card-title">Payment operations</h3>
+    <details className="billing-disclosure"><summary id="billing-reviews-title">Payment operations · Admin only</summary>
     <p>Purchase exceptions require a confirmed full provider refund before they can be closed. Provider events are recorded automatically. This action changes benefits only; it does not initiate a cash refund.</p>
     <button type="button" disabled={busy} onClick={recover}>Run bounded payment recovery</button>
-    {rows.length ? <form onSubmit={review}>
+    {loadError ? <p role="alert">{loadError}</p> : rows.length ? <form onSubmit={review}>
       <label>Adjustment <select required value={selected} disabled={busy} onChange={e => {setSelected(e.target.value);changed();}}>
         <option value="">Choose an adjustment</option>{rows.map(row => <option key={row.id} value={row.id}>{row.kind} · {row.provider_adjustment_id} · {row.provider_status}</option>)}
       </select></label>
@@ -51,5 +59,6 @@ export default function BillingReviews({ user }) {
       <button type="submit" disabled={busy || !selected}>Record reviewed adjustment</button>
     </form> : <p>No unreviewed adjustments were returned.</p>}
     {message ? <p role="status">{message}</p> : null}
+    </details>
   </section>;
 }
