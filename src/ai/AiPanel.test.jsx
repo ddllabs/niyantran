@@ -615,3 +615,12 @@ describe('a fresh chat on opening',()=>{
   expect(fresh).toBeLessThan(src.indexOf('if (seedOwner.current?.seed === seed) return undefined;'));
  });
 });
+
+it('sends the pinned desk identity needed for authoritative row citations', async () => {
+ const { requestAttachments } = await import('./AiPanel.jsx');
+ const pin={kind:'row',tab:'national',feature:'Bill Passage Probability Index',title:'Current bill',text:'browser copy',preview:{bill_name:'Current bill',bill_number:'77',house:'Lok Sabha'}};
+ const [attachment]=requestAttachments([pin]);
+ expect(attachment.tier).toBe('national');
+ expect(attachment.feature).toBe(pin.feature);
+ expect(attachment.row_key).toBeTruthy();
+});

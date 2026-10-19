@@ -2168,3 +2168,24 @@ Deno.test('F200: small talk never searches, so a greeting cannot widen the scope
   assert(f.requests[1].messages.find((m) => m.role === 'tool')?.content?.startsWith('SMALL_TALK'));
   assertEquals(result.text, greeting);
 });
+
+Deno.test('missing full text forces one bounded web-only research attempt before answering', async () => {
+  const f = fake([answer('uncited draft'), [
+    { type: 'web-results', pages: [{ url: 'https://example.com/bill', title: 'Bill', excerpt: 'provisions' }] },
+    finish(),
+  ], answer('final answer')], { webSearch: { perTurn: 3, required: true } });
+  const result = await runAgent(f.deps, { ...input, presearch: 'Current bill' });
+  assertEquals(f.requests[1].tools, []);
+  assertEquals(f.requests[1].tool_choice, 'required');
+  assertEquals(f.requests[1].serverTools?.length, 1);
+  assertEquals(f.requests[2].tool_choice, 'none');
+  assertEquals(result.webPages.length, 1);
+  assertEquals(f.requests.length, 3);
+});
+Deno.test('a provider declining required web cannot loop or promote its unsearched draft', async () => {
+  const f = fake([answer(), answer(), answer()], { webSearch: { perTurn: 3, required: true } });
+  const result = await runAgent(f.deps, { ...input, presearch: 'Current bill' });
+  assertEquals(f.requests.filter(r => r.tool_choice === 'required').length, 1);
+  assertEquals(f.requests.at(-1)?.tool_choice, 'none');
+  assertEquals(result.webPages, []);
+});

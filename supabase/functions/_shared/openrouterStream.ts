@@ -55,7 +55,7 @@ export interface StreamRequest {
   serverTools?: unknown[];
   /** 'none' offers the tools for prompt identity only; they cannot be called.
    * Only an Anthropic body keeps them - see buildRequestBody. */
-  tool_choice?: 'none';
+  tool_choice?: 'none' | 'required';
   response_format?: unknown;
   reasoning?: { effort: string };
   max_tokens?: number;
@@ -142,7 +142,7 @@ export function buildRequestBody(req: StreamRequest): Record<string, unknown> {
   // needs, so it is never sent on a tools-disabled call - Anthropic included.
   if (req.serverTools?.length && req.tool_choice !== 'none') {
     body.tools = [...(req.tools ?? []), ...req.serverTools];
-    body.tool_choice = 'auto';
+    body.tool_choice = req.tool_choice ?? 'auto';
   }
   // The explicit breakpoints stop at the question. Top-level cache_control is
   // Anthropic's automatic breakpoint on the last block, so each research call

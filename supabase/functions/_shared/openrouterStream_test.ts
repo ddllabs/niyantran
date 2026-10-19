@@ -614,3 +614,10 @@ Deno.test('providerSort sets provider.sort, alongside require_parameters; unset,
   assertEquals(buildRequestBody({ ...base, providerSort: 'latency', response_format: { type: 'json_object' } }).provider, { require_parameters: true, sort: 'latency' });
   assertEquals(buildRequestBody(base).provider, undefined);
 });
+
+Deno.test('required server-tool selection survives the wire body without unrelated function tools', () => {
+  const serverTools = [{ type: 'openrouter:web_search' }];
+  const body = buildRequestBody({ model: 'google/gemini-2.5-flash-lite', messages: [], tools: [], serverTools, tool_choice: 'required' });
+  assertEquals(body.tools, serverTools);
+  assertEquals(body.tool_choice, 'required');
+});

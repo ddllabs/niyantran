@@ -141,3 +141,20 @@ Deno.test('repair rejects empty completion and never incorporates private reason
   ]), { answer: 'A fact.', evidence, model: 'fake' });
   assertEquals(result.text, 'A fact.[1]');
 });
+
+Deno.test('repair inserts issued citations at exact unique answer anchors without asking for rewritten prose', async () => {
+  const original = 'The proposal was approved.\nYear 2026; count 12.';
+  const result = await repair(original, JSON.stringify({ citations: [
+    { quote: 'The proposal was approved.', source: 1 }, { quote: 'Year 2026; count 12.', source: 2 },
+  ] }));
+  assertEquals(result.text, 'The proposal was approved.[1]\nYear 2026; count 12.[2]');
+});
+Deno.test('anchor repair rejects changed, ambiguous, unissued and excessive annotations', async () => {
+  for (const citations of [
+    [{ quote: 'The proposal was rejected.', source: 1 }],
+    [{ quote: 'The proposal was approved.', source: 99 }],
+    [{ quote: 'approved', source: 1 }],
+    Array.from({ length: 101 }, () => ({ quote: 'The proposal was approved.', source: 1 })),
+  ]) assertEquals((await repair('The proposal was approved.', JSON.stringify({ citations }))).text, null);
+  assertEquals((await repair('The proposal was approved. The proposal was approved.', JSON.stringify({ citations: [{ quote: 'The proposal was approved.', source: 1 }] }))).text, null);
+});

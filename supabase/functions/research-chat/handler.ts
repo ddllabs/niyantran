@@ -20,6 +20,7 @@ import { deskRecordText, deskRowKey } from '../_shared/deskRows.ts';
 import { createHandleAssigner } from '../_shared/handles.ts';
 import { HttpError } from '../_shared/http.ts';
 import { isConversational } from './conversational.ts';
+import { isContextQuestion, presearchFor, requiresWebContext } from './turnScope.ts';
 import { checkLinks, decideWebSearch, webModelAllowed, type WebScope, webSourcesOf } from './webPolicy.ts';
 import { normaliseUrl, WEB_PAGES_PER_TURN, WEB_SEARCHES_PER_TURN, webDomain, type WebSource } from '../_shared/webSearch.ts';
 import { log } from '../_shared/logging.ts';
@@ -962,10 +963,31 @@ async function runTurnBody(
   // three follow-up chips. The prompt already asks for no tool and no
   // follow-ups here; withholding the attachments removes what the model was
   // summarising instead of greeting.
-  const attachments: RenderedAttachment[] = conversational ? [] : request.attachments.map(promptAttachment);
+  const verifiedHandles = new Set<string>();
+  const attachments: RenderedAttachment[] = [];
+  if (!conversational) {
+    for (const attachment of request.attachments) {
+      // A row chip is citable only after its identity is resolved against the
+      // database. Never trust its text or an invented browser-supplied handle.
+      const stored = (attachment.kind === 'row' || attachment.kind === 'record') &&
+          attachment.tier && attachment.feature && attachment.row_key
+        ? await deps.db.findDeskRow(attachment.tier, attachment.feature, attachment.row_key)
+        : null;
+      if (stored) {
+        const handle = handles.assign(rowSourceKey(stored));
+        evidence.set(handle, { kind: 'row', row: { ...stored, snapshot_at: stored.snapshot_at || '' } });
+        verifiedHandles.add(handle);
+        attachments.push({ kind: attachment.kind as 'row' | 'record', title: attachment.title, text: stored.record_text, handle });
+      } else attachments.push(promptAttachment(attachment));
+    }
+  }
   // F200: and it is told that it is small talk, so no answer style or persona format turns it into
   // a brief; the agent runs no search for it (agent.ts), so nothing can widen either.
-  const userTurn = buildUserTurn(request.message, attachments, undefined, { smallTalk: conversational });
+  const userTurn = buildUserTurn(request.message, attachments, verifiedHandles, { smallTalk: conversational });
+  const targetRecords = request.focus === 'selection' && request.selection && isContextQuestion(request.message)
+    ? webScope.records.slice(-1) : webScope.records;
+  const requiredWeb = web.offered && targetRecords.some(r => !r.indexed) &&
+    !webScope.documentAttached && requiresWebContext(request.message);
   const documentKeys = documentKeysOf(request);
   const documentIds = documentIdsOf(request);
   const scopedDocumentIds = await deps.db.resolveDocumentIds({ keys: documentKeys, ids: documentIds });
@@ -1137,11 +1159,10 @@ async function runTurnBody(
     scopedDocumentIds,
     focus: request.focus,
     conversational,
-    // answer-speed spec §1: search with the question before the first model call. Not small talk,
-    // and not a follow-up (amendment 1): "What about penalties?" names nothing to search for, so the
-    // model writes its own query with the conversation in view. Judged on the stored history, not
-    // the trimmed window.
-    ...(deps.presearch && !conversational && !history.length ? { presearch: request.message } : {}),
+    // Search the current subject before the first call, including "this bill"
+    // after a selection change. Ambiguous follow-ups keep model-written queries;
+    // conversation history must not override a named current selection.
+    ...(deps.presearch && !conversational ? { presearch: presearchFor(request, history.length > 0) } : {}),
     // scopeSent: the reader named a document, by key or by id. Whether it
     // resolved is what `scopedDocumentIds` says; this says whether leaving the
     // attachments is "unresolved" or "unkeyed".
@@ -1184,7 +1205,7 @@ async function runTurnBody(
           searchDeskRows: (args) => deps.searchDeskRows(args, { signal }),
           // Offered per model: a failover to a model that may not search withdraws it (spec §1).
           webSearch: web.offered && webModelAllowed(model, t.models.find((m) => m.model_id === model)?.params)
-            ? { perTurn: WEB_SEARCHES_PER_TURN }
+            ? { perTurn: WEB_SEARCHES_PER_TURN, required: requiredWeb }
             : null,
           handles,
           budget,
@@ -1353,21 +1374,20 @@ async function runTurnBody(
     if (page) ladder = applyCitationLadder({ ...ladderInput, page });
   }
 
-  // A substantial answer that cites nothing, on a turn that retrieved nothing,
-  // is not grounded in the record however confidently it reads. The repair pass
-  // cannot rescue it - there are no passages to insert markers from - so the
-  // only honest move left is to say so above it. The turn that forced this
-  // reproduced its own earlier answer verbatim, markers stripped, opening "The
-  // record shows": correct facts, no way for the reader to tell.
-  //
-  // Small talk is exempt: it asks nothing, so citing nothing is right.
-  const grounded = ladder.sources.length > 0 || evidence.size > 0 ||
+  // Retrieving evidence is not citing it. If repair could not link a substantial
+  // answer, disclose that instead of passing evidence.size off as verification.
+  // Small talk asks nothing, so citing nothing remains right.
+  const grounded = ladder.sources.length > 0 ||
     conversational || ladder.answer.trim().length < UNCITED_ANSWER_CHARS;
   // Both can be true at once - a widened search that also returned nothing -
   // and they answer different questions, so neither replaces the other.
   const notes = [
-    ...(grounded ? [] : [unverifiedNote(result.searches, result.webPages.length)]),
     ...(result.widened ? [widenedNote(result.widened, featureScope?.feature)] : []),
+    ...(grounded ? [] : [evidence.size > 0 && !result.webPages.length
+      ? '**Unverified.** Evidence was retrieved, but this answer could not be linked to verified citations. Treat its claims as unverified.'
+      : unverifiedNote(result.searches, result.webPages.length)]),
+    ...(requiredWeb && !result.webPages.length
+      ? ['**Web context unavailable.** No usable web sources were returned for this turn. The record alone does not establish the missing details.'] : []),
   ];
   // Spec §4: a link survives only to a page searched this turn or a URL already in the turn's
   // evidence. Code is scanned too, because the reader's renderer links inside code as well.
@@ -1391,7 +1411,8 @@ async function runTurnBody(
   // Written only when it happened, so an ordinary turn keeps its existing shape.
   const summary = attempts.summary();
   const usage = summary &&
-    { ...summary, searches: result.searches, ...(result.widened ? { widened: result.widened } : {}) };
+    { ...summary, searches: result.searches, web_offered: web.offered, web_required: requiredWeb,
+      web_reason: web.reason, ...(result.widened ? { widened: result.widened } : {}) };
   const terminal = makeAssistantMessage({
     content,
     sources: ladder.sources,
