@@ -24,7 +24,6 @@ import { dgftRows, econNote, econSlice, isEconExtract, manifoldPoliticalRows, ma
 import { carbonDataset, carbonNote, carbonRows, carbonSlice, isCarbonExtract } from './carbonPack.js';
 import {
   CRICKET_RSS,
-  FOOTBALL_RSS,
   INDIA_SPORTS_RSS,
   ISL_ESPN,
   WORLD_LEAGUES,
@@ -441,7 +440,11 @@ export async function fetchArchiveFeature({ tier, feature, signal } = {}) {
 
   const sport = sportsSlice(name);
   if (sport) {
-    // D15: browser-OK hosts — wire directly (no /api proxy required).
+    // BBC RSS does not allow browser CORS. The deployed feature-feed fetches it server-side.
+    if (sport === 'football') {
+      return envelope({ feature: feat, rows: [], note: `${sportsNote(sport)} Live host required; BBC RSS is served through the feature-feed API.` });
+    }
+    // Other existing browser-reachable sports hosts.
     let rows = [];
     if (sport === 'isl') {
       const json = await fetchJsonOk(ISL_ESPN, signal);
@@ -456,8 +459,7 @@ export async function fetchArchiveFeature({ tier, feature, signal } = {}) {
       }
     } else if (sport === 'cricket') {
       rows = rssWireRows(parseRssItems(await fetchTextOk(CRICKET_RSS, signal), 'ESPNcricinfo'), 'ESPNcricinfo');
-    } else if (sport === 'football') {
-      rows = rssWireRows(parseRssItems(await fetchTextOk(FOOTBALL_RSS, signal), 'BBC Sport'), 'BBC Sport');
+
     } else if (sport === 'india') {
       rows = rssWireRows(parseRssItems(await fetchTextOk(INDIA_SPORTS_RSS, signal), 'Google News'), 'Google News');
     } else if (sport === 'business') {
