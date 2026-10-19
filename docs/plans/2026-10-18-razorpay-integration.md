@@ -940,3 +940,82 @@ orders untouched. Post-review payments/events/invoices0 and complete ledger,
 wallet and lot hashes still match preflight. No credit grant, invoice, refund
 or provider-order POST performed by this review. Ready to publish verified Test
 code; Production web/Live/corpus remain excluded.
+
+
+## Recovery Test release — 2026-10-19
+
+Runtimef96863f plus migration/review recordsd709ecb pushed only task/razorpay-plan.
+Vercel dpl_CnpXP4qtm4HgnKarC3SuUF7uPzHE READY/exactd709ecb,
+niyantran-chcecpdfo-ddl-labs.vercel.app and stable branch alias. Public config
+enabled Test mode; unsigned raw webhook400. Production web target/protection
+identical to preflight dpl_4HUQ975dnQattdSnfW5TL5cRCXf2/main3ccdf8a. No env/Live
+key or corpus action. CI39169346694 attempt1 in progress at initial verification.
+
+Actual signed-in browser purchase-list/config/invoices requests200 on release.
+New service-only list returns5 owned Test purchases. Arc AX state stalls while
+screenshot says Loading view; owner handoff requested for one old20k/499INR
+retry, stopping at Checkout, no payment. Cannot claim hosted retry/capture yet.
+
+Separate existing defect observed during release: GET billing/adjustments503.
+Read-only execution of billing_event('reviews',Test scope) reproduces42702:
+PL/pgSQL variable pay collides with table alias pay.id. This branch predates
+recovery migration; not modified opportunistically. Record under O6 for scoped
+fix before refund/operator acceptance. No missing adjustment records inferred
+from UI's empty fallback. This does not invalidate observed purchase-list200.
+
+
+## Owner retry verification and remaining status wording — 2026-10-19
+
+CI run 39169346694 completed successfully on attempt 1: Build and tests and
+SQL fixtures (disposable Postgres) both green. Owner confirms Checkout opened
+for the old purchases. Read-only hosted reconciliation confirms original Plus
+purchase 5af59ea0-3575-4d79-be5a-b89457853c6a now ready with provider order
+order_TpWenTd5VhXmFa, and original 20,000-credit purchase
+734e8f1c-f2a1-4b66-8978-7bc72de65c67 now ready with order_TpWf2N4uGahVvQ.
+Both consumed retry permission and retained their single review audit. Total
+purchase intents remains five; payments and invoices remain zero. Wallet, lot
+and ledger fingerprints remain unchanged. The separate oldest Plus attempt
+068c065d-2751-471f-9eff-902e69f48170 remains reviewed/retryable and unbound.
+
+Owner screenshot shows Payment cancelled alongside Confirmation pending in
+history. Purchases.jsx maps ready/unpaid provider orders to the generic pending
+label. This is a remaining wording defect, not evidence of capture or renewed
+creation failure. Track a scoped distinction between Awaiting payment for ready
+orders and uncertain confirmation/reconciliation. Closing Checkout currently
+has no durable cancelled-history state; preserve provider order and stable
+purchase identity rather than delete the audit or invent a payment fact.
+Actual Test payment, credit/invoice fulfilment and signed provider webhook
+acceptance remain pending. No additional web deployment or production action
+was performed for this verification.
+
+## Purchase status wording — approved Test-only follow-up 2026-10-19
+
+Scope and ordered verification: docs/specs/2026-10-19-purchase-status-wording.md.
+Ready unpaid orders now render Awaiting payment; uncertain, retryable and
+terminal labels retained. No payment, stable-intent, API or SQL logic changes.
+Causal rendering test failed for ready status before fix (six other cases passed).
+After fix: 58 focused tests pass; lint, production build and bundle check pass.
+Full application suite and approved Test publication verification pending.
+
+Local full application suite completed: 404 files, 6,358 tests pass (119.90s).
+Wording commit 10fd50a pushed only task/razorpay-plan; Preview build
+dpl_DHpUe1gv4isyHGpLRkbELS4BW81v in progress, exact SHA10fd50a.
+
+
+## Purchase wording Test deployment verified — 2026-10-19
+
+Commit10fd50a3cc91ea531f42ba32b065e0bef47559a1 deployed READY as
+ dpl_DHpUe1gv4isyHGpLRkbELS4BW81v; stable Test branch alias resolves to it.
+HTTP read of deployed assets/CreditsPage-DWQPpEer.js confirms Awaiting payment
+and retained Confirmation pending labels. Public billing config remains Test.
+Production target before/after remains dpl_4HUQ975dnQattdSnfW5TL5cRCXf2 at
+main3ccdf8a, protection all_except_custom_domains unchanged. No environment
+variable edits, database mutations, provider writes, payment or Live action.
+
+Local full suite404 files/6358 tests, focused58, lint/build/bundle/router and
+whitespace checks pass. CI39170163103 app/SQL jobs in progress at final check.
+Arc reloaded the signed-in billing page but its data stays in loading state;
+actual refreshed history labels could not be observed in that browser session.
+Deployed asset verification and local rendered-state regression are complete;
+owner should reload the Test billing page to continue the payment rehearsal.
+The separate operator-list503 defect remains open and untouched.

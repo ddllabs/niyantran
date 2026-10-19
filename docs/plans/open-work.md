@@ -193,6 +193,16 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   Hourly checks continue; F231/F232 remain local/unpublished; payment held.
 
 
+  Read-only October18 15:15 UTC: unchanged daily gates, MLA2/3 and
+  Constitutions1/3; Growth post-F224 writer acceptance pending after15:55 UTC.
+  All257 serving variants zero failures; */5 cron active, six recent successes.
+  Fixtures24 with all four league windows accounted for; constitution188-key
+  inventory unchanged. Production3ccdf8a READY; latest three main CI runs
+  39135672936/39138686342/39139165726 individually green attempt1, app+SQL.
+  [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-18-1514-utc).
+  No new blocker or closure; hourly checks continue; Razorpay held, corpus excluded.
+
+
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving
 from storage. No source above three consecutive failures. Supabase pg_cron feed-refresh job
@@ -212,6 +222,11 @@ orientation list is compared item by item in the
 [closure comparison](../research/2026-10-17-orientation-closure-comparison.md).
 
 ## Documentation follow-up
+
+  Latest read-only billing-foundation observation2026-10-18: both daily references
+  remain2/3; Growth16:00UTC timeout recovered on16:05 retry (not a new expected
+  opportunity). Cron remains active every five minutes; no serving source above
+  three failures. Detailed evidence in the existing cleanup execution record.
 
 - [ ] **F219. Reconcile living architecture claims with current implementation.**
   The owner's orientation-list comparison on 2026-10-17 reconfirmed the architecture
@@ -3052,6 +3067,37 @@ Earlier items, updated:
       CI39164169136 app+SQL green attempt1. Separately
       observed Production redeploy dpl_3jVL7ikUYANELS4Jt94vDF1Sqckj from same
       main3ccdf8a; protection unchanged, initiator unknown, no agent Production action.
+      Recovery releasef96863f/recordsd709ecb pushed only Test; Preview
+      dpl_CnpXP4qtm4HgnKarC3SuUF7uPzHE READY/exactd709ecb. Config Test mode,
+      webhook400, signed-in purchases/invoices200; Production web/protection
+      unchanged. CI39169346694 app+SQL green attempt1. Owner Checkout retry
+      succeeded: original Plus5af59ea0 and topup734e8f1c now ready/bound to Test
+      orders, retry permission consumed, review audit retained; five intents total,
+      zero payments/invoices and unchanged financial fingerprints. Oldest Plus
+      remains retryable. No payment initiated by agent.
+      **Purchase-status wording follow-up approved:** display-only ready orders
+      now Awaiting payment; uncertain/retryable/terminal labels retained. Causal
+      rendering test failed before fix; 58 focused tests, lint/build/bundle pass.
+      Full suite 404 files/6,358 tests green; commit10fd50a pushed only Test,
+      Preview dpl_DHpUe1gv4isyHGpLRkbELS4BW81v READY/exact10fd50a;
+      deployed CreditsPage asset verifies both labels. Arc history data remains
+      loading; owner refresh verification pending. CI39170163103 in progress.
+      Production target/protection unchanged; spec2026-10-19-purchase-status-wording.
+      No stable intent/API/SQL changes. Actual captured Test payment and signed
+      provider webhook acceptance remain pending.
+      **Billing purchase experience — local 2026-10-20:** owner authorized UI
+      cleanup after screenshot. Review before payment, current-plan distinction,
+      collapsed identifiable unconfirmed attempts/admin tools, honest read errors
+      and cross-section refresh implemented locally; audit rows unchanged.
+      Spec/plan2026-10-20-billing-purchase-experience. Focused136 and Deno1155
+      pass; lint/build/bundle/router pass, synthetic browser desktop/320px checked.
+      Full app6363 pass/5 fail: four publisher fixture clocks already fixed on
+      newer main, one feedStore timing case passes in isolation. No publication;
+      main integration/full green and hosted payment acceptance still pending.
+      **Open operator-list defect:** billing/adjustments503; read-only reviews RPC
+      reproduces42702 ambiguous pay.id (table alias versus PL/pgSQL variable).
+      Separate scoped fix required before adjustment/refund acceptance; do not
+      treat empty UI fallback as proof of no reviews. No opportunistic change.
       O6 remains open for restricted external Test-mode acceptance and release gates;
       no main/Production push/deployment, provider write, key provisioning or payment.
     - **Downgrade at the next cycle:** the new billing fulfilment queues a lower plan
