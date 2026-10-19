@@ -1,6 +1,6 @@
 # Branch cleanup execution plan
 
-Status: Living.
+Status: Historical (2026-10-20).
 
 Spec: [branch cleanup](../specs/2026-10-20-branch-cleanup.md).
 
@@ -54,3 +54,13 @@ Remote targets already merged in origin/main (8):
 Payment branches preserved: `task/credit-paise-plan`, `task/credit-paise-release`, `task/razorpay-plan`, `task/top-up-price-approval`. Remote Razorpay and credit-paise-release also preserved.
 
 Validation: all unique historical research additions (including the duplicate 11:54 source) occur verbatim in the appendix; both release-plan source versions occur intact in the consolidated files. All incoming unique commits touch only docs. No historical tracker snapshot is replayed over newer state. Original source commits will remain ancestors via an explicit documentation-history merge. Code/tests/config/data tree remains exactly origin/main.
+
+## Completion evidence
+
+Payment chat confirmed no non-payment branch dependency before ref deletion. Its requested existing working files were preserved; the previously registered `/private/tmp/niyantran-rag-production` directory was confirmed absent, and only its stale registration was pruned.
+
+Documentation consolidation: `e11eae0`; reviewed original documentation histories retained by merge `cef7849`. Local main fast-forwarded to that merge, followed by this execution record. No code, configuration, data or production changes; origin/main remains `4a0c98109da97caba1fe312c8e9db056dfde7df5`. Local documentation is not published.
+
+Deleted exactly the 18 local and eight remote targets above. Remote deletion passed a dry run and an atomic push with exact expected-tip leases. Removed the temporary cleanup branch after integration. Five local branches remain (main plus four payment branches); three actual remote branches remain (main, Razorpay and credit-paise-release). The shared checkout remains on task/razorpay-plan; both existing frontend checkouts are detached at their original commits with all files preserved. Main is checked out in `/private/tmp/nter-branch-cleanup-20261020`.
+
+Verification: pre-cleanup bundle verified; exact target tips and ancestor checks passed; original observation content and release-plan evidence preserved; documentation links/status and diff whitespace checked; non-document tree matches origin/main exactly; payment refs unchanged. Application, Edge Function, lint, build and SQL suites were not rerun because this task changes only documentation and Git references. Existing billing verification and its unfinished work remain owned by the payment chat.

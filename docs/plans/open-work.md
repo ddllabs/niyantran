@@ -50,10 +50,6 @@
 - A new finding gets the next free `F` number (F236 is next) and goes in the
   right section.
 
-## Branch cleanup — active
-
-- [ ] Consolidate non-payment branch documentation and prune merged refs while preserving all payment work. [Plan](2026-10-20-branch-cleanup.md).
-
 ## Frontend follow-up
 
 - [ ] **F235 — Indian Sports redundant browser fallback.** Chrome shows direct Google News RSS canceled after same-origin feature-feed succeeds (200,227stories); console empty and publisher navigation works. Review unnecessary parallel fallback requests separately; no CORS failure proven by this observation. The long-open blank tab recovered on reload and was not reproduced in a fresh session; keep this limitation in browser evidence.
@@ -3075,3 +3071,7 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 
 - **Corpus code consolidation (2026-10-12), `d0a8020`:** reviewed corpus code, tests and documentation integrated with the released UI on main; original copies preserved outside Git. [Evidence](../research/2026-10-12-main-consolidation.md). R7 ingestion/repair holds remain open.
 - **F94 resolved (2026-10-12):** owner-authorized Git disconnect of only `niyantran-desk-reference-v6` (`prj_hlv83bVVPDlaJht0GP7njfUDhsLA`) verified `link: null`; project/deployment history retained. Actual production project still follows main. [Operations record](../research/2026-10-12-main-consolidation.md).
+
+## Done — 2026-10-20 branch cleanup
+
+- [x] Non-payment documentation consolidated in `e11eae0`, original histories retained in `cef7849`, and local main updated. Removed 18 merged local and 8 merged remote branches after payment-agent coordination. All four payment local branches, both payment remote branches, shared working files and existing frontend checkout files preserved. Main documentation remains local, unpublished. [Execution record](2026-10-20-branch-cleanup.md).
