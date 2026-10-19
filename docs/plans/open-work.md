@@ -37,7 +37,6 @@
   acceptance of required web-tool call remain pending; no Supabase deployment
   in the push/merge authorization. Vercel frontend deploys automatically.
 
-- [ ] **Chrome DevTools follow-up (2026-10-19).** Extension-enabled profile reports CSP eval blocking with no source, a form field without id/name and lazy images without explicit dimensions. Attribute these separately; no console messages or failed requests on the post-icon homepage load. Owner authorized scoped frontend repair and deployment; spec/plan2026-10-19-frontend-browser-issues.
 
 ## How to use this file
 
@@ -3045,6 +3044,10 @@ F88/F90/F91/F92 application work is verified through ca70175. Final native share
 R7 execution update: the owner's remaining-270 review and single 182-document / 3,611-chunk ingestion job are complete and independently audited. All 88 source-specific exclusions remain aside. See [270-source final run evidence](../research/2026-10-11-corpus-270-reviewed-run.md) and the latest R7 entry above. Never restart this completed manifest or earlier completed releases. Remaining cohorts and existing-source repairs retain their documented review/authorization requirements.
 
 R7 wider-corpus continuation: [413-document release completed](../research/2026-10-11-corpus-wide-batch.md). All 413 passing sources from the fresh 500-source cohort were ingested in one frozen job: 7,493 complete context chunks, 6,661 contextual chunks, 3,033 independent scoped citation probes passed. The other 87 candidates remain held with evidence. Final live and planner totals: 3,434 documents / 3,431 indexed / 100,031 chunks / 2,143 covered listing bill keys, zero orphan chunks and null vectors. Actual embedding usage 706,730 tokens / USD 0.01413460; all 90 capacity samples passed, peak CPU 16.12%; 15 isolated slow health samples out of 437, no consecutive slow windows, final health passed. Runtime corpus-wide-20261011/job-wide500-v1/final-completion.json binds the full audit and exact SQL evidence. Manifest stage-01.release.json SHA256 b8a987362724afab31e157f01fae72b7f9cd9dec7667db269b4caed5864c2481 is COMPLETE; NEVER restart it. Supervisor exited 0 and locks released. The pre-write fetch recovery at 40 remains documented and preserved. Broader corpus candidates, nonbill scoping, the 87 held candidates and existing-source repair holds remain open; this is not completion of R7 as a whole.
+
+## Done — 2026-10-19 frontend browser issues
+
+- **Homepage form and image warnings — `a82bab8`.** Production deployment Ready; Chrome Incognito main target has zero Issues and zero console messages, 40/40 network requests successful. Stable filter id/name/label and explicit walkthrough image dimensions/aspect ratio. Full application tests (6,295), lint, build and bundle check passed. CSP warning only reproduced in regular browser profile; particular source unproven, no application policy change. See `2026-10-19-frontend-browser-issues.md` for evidence and scope.
 
 ## Done — 2026-10-12 consolidation
 

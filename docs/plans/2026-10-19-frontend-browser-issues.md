@@ -19,3 +19,12 @@ Spec: ../specs/2026-10-19-frontend-browser-issues.md. Sequential work in isolate
 - Edge Function tests, SQL fixtures and router import are not applicable: no src/lib, src/admin, supabase, api or server changes.
 - Final checks: npm test — 401 files / 6,295 tests passed; npm run lint — passed with zero warnings; npm run build — passed; npm run check:bundle — passed (entry 120,681 bytes gzip, initial JavaScript 180,766 bytes gzip); git diff --check — passed.
 - Final diff review: no business-logic, API, authentication, security policy, dependency or data changes. Stable form identity is unique within the homepage; image retains lazy loading, its actual 16:9 ratio and existing responsive width cap. Browser evidence covers the behavior absent from server-rendered regression tests.
+
+## Release
+
+- Code commit a82bab8 published to origin/main after a clean fast-forward comparison; shared checkout and its four existing dirty documentation files preserved.
+- Vercel deployment dpl_CQLJLMk6xsmCD9WzHLMGZ7qWCnDY is Ready, aliased to www.nter.pro (https://niyantran-ja9u6exc9-ddl-labs.vercel.app).
+- Production Chrome Incognito, explicitly selecting Main instead of the browser warmup prerender target: zero Issues, zero console messages, 40 requests with no status outside 200/304. Finance filter returns the Finance bill; clearing restores six rows.
+- Independent HTTP verification: 43 actual resources all HTTP 200, including deployed JS/CSS/fonts, favicon, apple-touch-icon, walkthrough image and /api/marketing/intro-video. Preconnect origin roots were excluded from asset counts (they are connection hints, not requested resources). Deployed JS contains the filter identity and image 720/405 dimensions.
+- CSP attribution limit: absent in clean Incognito before and after release; regular-profile source location was empty. No confirmed application CSP defect and no security-policy changes. This does not establish which browser extension or feature caused it.
+- Evidence: frontend-issues-production-network.png and frontend-issues-production-http.json in the task browser-audit-20261019 directory. These checks cover the scoped homepage fixes, not a fresh exhaustive authenticated-route audit.
