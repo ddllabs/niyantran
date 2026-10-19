@@ -37,7 +37,7 @@
   acceptance of required web-tool call remain pending; no Supabase deployment
   in the push/merge authorization. Vercel frontend deploys automatically.
 
-- [ ] **Frontend default icons (2026-10-19).** Scoped favicon/Apple icon repair and initial HTML declarations; plan: 2026-10-19-frontend-icons.md. Production asset verification pending.
+- [ ] **Chrome DevTools follow-up (2026-10-19).** Extension-enabled profile reports CSP eval blocking with no source, a form field without id/name and lazy images without explicit dimensions. Attribute these separately; no console messages or failed requests on the post-icon homepage load. Scope excludes fixes until reviewed.
 
 ## How to use this file
 
@@ -1401,6 +1401,8 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- [x] **Frontend default icons (2026-10-19).** c748e26 deployed Production READY. Both icon paths200/image MIME;46 frontend asset checks pass; Chrome32 successful requests and empty Console after reload. Evidence and remaining unrelated DevTools issues: [release record](2026-10-19-frontend-icons.md).
 
 - [x] **Research citation/web repair implementation (2026-10-19).** 4a1c978:
   current selection anchors retrieval; pinned rows carry tier and server-verified
