@@ -2,9 +2,19 @@
 
 > **Status: Living.** Created 2026-09-29 from the earlier trackers, and
 > rewritten the same evening as a clean slate after the local cleanup
+
 > session (`main` at `3a51724` and the docs commit after it). Every item is
 > either Done (with its commit or its operations record), waiting on one
 > named owner decision, in one of four later phases, or an accepted risk.
+
+- [ ] **Production RAG delivery recovery (2026-10-19).** Owner authorized main
+  repair/publication, billing paused. Saved answer completed but connection lost;
+  charge880.688 matches completed provider work. Fix late authoritative store
+  reload and bounded malformed-envelope correction. Spec/plan2026-10-19-rag-production-recovery.
+  No credit/account mutations, corpus or payment work. Local401 files/6292 app
+  tests,1158 Deno,lint/build/bundle/router pass; causal regressions verified.
+  Publisher clock-only prerequisite7a10c32. Main/Edge publication next.
+
 
 ## How to use this file
 

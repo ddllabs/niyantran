@@ -1153,6 +1153,7 @@ async function runTurnBody(
   const chain = failoverChain(t.models, t.chosen.model_id);
   let result: AgentResult | null = null;
   let schemaDropped = false;
+  let structureRetried = false;
   let served: string | null = null;
 
   for (let i = 0; i < chain.length; i++) {
@@ -1201,6 +1202,23 @@ async function runTurnBody(
         input,
       );
       served = result.served;
+      if (!structureRetried && !signal.aborted && !streamed && result.finish === 'stop' &&
+          !parseEnvelope(result.text) && budget.modelAttempts < BUDGET.maxSteps &&
+          (!context.timeLeft || context.timeLeft() > 0)) {
+        // Correct format once, before any answer is visible. Keep retrieved
+        // evidence, tool replies, handles and the turn-wide cost/time budgets.
+        attempts.rejectLast('chat_answer', 'Answer declined by this server: finish=stop, envelope=absent.');
+        structureRetried = true;
+        checkpoint.phase = 'answer';
+        checkpoint.text = '';
+        checkpoint.finish = '';
+        checkpoint.resumeAnswer = false;
+        checkpoint.messages.push({ role: 'user', content: 'Return the complete answer in the required JSON object with answer, sources and follow_up_questions. Keep the existing evidence and citation rules. Do not repeat searches.' });
+        decoder.reset();
+        result = null;
+        i--;
+        continue;
+      }
       break;
     } catch (e) {
       // Every abandoned attempt is logged. Without this the turn persists

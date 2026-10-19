@@ -3413,3 +3413,41 @@ Deno.test('F200: a greeting is answered in plain prose: no search, no "Search wi
   assertStringIncludes(user, SMALL_TALK);
   assert(!user.includes('six sample rows'), 'the attachment is not context for a greeting');
 });
+
+Deno.test('an empty visible answer with malformed structured output gets one bounded correction', async () => {
+  const provider = scripted([...DECLINES,
+    [text('I cannot return the requested object'), finish()],
+    [text(envelope('A complete structured answer.')), finish()],
+  ]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.messages[0].status, 'complete');
+  assertEquals(rec.messages[0].content, 'A complete structured answer.');
+  assertEquals(rec.reserves.length, 1);
+  assertEquals(rec.messages.length, 1);
+});
+
+Deno.test('repeated malformed structured output stops after one correction and keeps both costs', async () => {
+  const provider = scripted([...DECLINES,
+    [text('not JSON'), finish()], [text('still not JSON'), finish()],
+    [text(envelope('Must never execute')), finish()],
+  ]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(provider.seen.length, DECLINES.length + 2);
+  assertEquals(rec.messages[0].status, 'error');
+  assertEquals(rec.calls.slice(-2).map(c => c.status), ['error','error']);
+  assertEquals(rec.calls.slice(-2).map(c => c.cost_usd), [0.0001,0.0001]);
+});
+
+Deno.test('malformed output that already displayed an answer never starts a replacement', async () => {
+  const provider = scripted([...DECLINES,
+    [text('{"answer":"Visible partial'), finish()],
+    [text(envelope('Must never execute')), finish()],
+  ]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(provider.seen.length, DECLINES.length + 1);
+  assertEquals(rec.messages[0].status, 'error');
+  assertStringIncludes(rec.messages[0].content, 'Visible partial');
+});
