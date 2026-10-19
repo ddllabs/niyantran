@@ -50,11 +50,11 @@
 - A new finding gets the next free `F` number (F235 is next) and goes in the
   right section.
 
-## Authenticated browser diagnostics — active
+## Development toolchain follow-up
 
 - [ ] **F234 — Development toolchain advisories.** Read-only npm audit on 2026-10-19 reports existing Vite/Vitest dependency advisories (2 moderate, 2 high, 2 critical; esbuild, source-map-js, @vitest/mocker, tinypool and dependents). Production dependency audit reports zero. Review compatible upgrades separately; no dependency changes in the scoped BBC/form fix.
 
-- Owner-approved BBC browser CORS and scoped fund-flow/account/admin form repairs verified in commits 2593b09 and a19e2a8; production deployment verification pending. [Plan](2026-10-19-authenticated-browser-fixes.md).
+
 
 ## Current state — 2026-10-17 (milestone check)
 
@@ -3051,6 +3051,10 @@ F88/F90/F91/F92 application work is verified through ca70175. Final native share
 R7 execution update: the owner's remaining-270 review and single 182-document / 3,611-chunk ingestion job are complete and independently audited. All 88 source-specific exclusions remain aside. See [270-source final run evidence](../research/2026-10-11-corpus-270-reviewed-run.md) and the latest R7 entry above. Never restart this completed manifest or earlier completed releases. Remaining cohorts and existing-source repairs retain their documented review/authorization requirements.
 
 R7 wider-corpus continuation: [413-document release completed](../research/2026-10-11-corpus-wide-batch.md). All 413 passing sources from the fresh 500-source cohort were ingested in one frozen job: 7,493 complete context chunks, 6,661 contextual chunks, 3,033 independent scoped citation probes passed. The other 87 candidates remain held with evidence. Final live and planner totals: 3,434 documents / 3,431 indexed / 100,031 chunks / 2,143 covered listing bill keys, zero orphan chunks and null vectors. Actual embedding usage 706,730 tokens / USD 0.01413460; all 90 capacity samples passed, peak CPU 16.12%; 15 isolated slow health samples out of 437, no consecutive slow windows, final health passed. Runtime corpus-wide-20261011/job-wide500-v1/final-completion.json binds the full audit and exact SQL evidence. Manifest stage-01.release.json SHA256 b8a987362724afab31e157f01fae72b7f9cd9dec7667db269b4caed5864c2481 is COMPLETE; NEVER restart it. Supervisor exited 0 and locks released. The pre-write fetch recovery at 40 remains documented and preserved. Broader corpus candidates, nonbill scoping, the 87 held candidates and existing-source repair holds remain open; this is not completion of R7 as a whole.
+
+## Done — 2026-10-19 authenticated browser fixes
+
+- BBC browser CORS and fund-flow/account/admin form semantics fixed in 2593b09 and a19e2a8; release 4a0c981 is Vercel production READY and Chrome verified. [Evidence](2026-10-19-authenticated-browser-fixes.md). No data, schema or Edge deployment. Existing development dependency advisories remain F234.
 
 ## Done — 2026-10-12 consolidation
 
