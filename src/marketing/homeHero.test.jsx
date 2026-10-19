@@ -18,6 +18,23 @@ describe('homepage hero', () => {
     hero = html.slice(html.indexOf('nd-hero-shell'), html.indexOf('mkt-ai-demo'));
   });
 
+  it('gives the preview filter a stable form identity and accessible name', () => {
+    const input = html.match(/<input[^>]*placeholder="Filter this table"[^>]*>/)[0];
+    expect(input).toMatch(/id="[^"]+"/);
+    expect(input).toMatch(/name="[^"]+"/);
+    expect(input).toContain('aria-label="Filter this table"');
+  });
+
+  it('reserves the walkthrough image aspect ratio before lazy loading', () => {
+    const img = html.match(/<img[^>]*src="\/brand\/walkthrough-globe\.webp"[^>]*>/)[0];
+    expect(img).toContain('width="720"');
+    expect(img).toContain('height="405"');
+    const css = readFileSync(new URL('./marketing.css', import.meta.url), 'utf8');
+    const rule = css.match(/\.mkt-walk-video-bg img \{([^}]+)\}/)[1];
+    expect(rule).toMatch(/height:\s*auto;/);
+    expect(rule).toMatch(/aspect-ratio:\s*16 \/ 9;/);
+  });
+
   it('shows the design copy, with the headline coloured as the design', () => {
     expect(hero).toContain('THE RESEARCH TERMINAL');
     expect(hero).toMatch(/The intelligence<br\/> layer for <span class="nd-blue">Government,<\/span><br\/><span class="nd-purple">Policy<\/span> &amp;<br\/>Global Affairs<span class="nd-red">\.<\/span>/);
@@ -89,7 +106,7 @@ describe('homepage hero', () => {
     const { statSync } = await import('node:fs');
     expect(html).not.toContain('globe.gif');
     const bg = html.match(/<span class="mkt-walk-video-bg"[^>]*>(.*?)<\/span>/)[1];
-    expect(bg).toMatch(/<img src="\/brand\/walkthrough-globe\.webp" alt="" loading="lazy" decoding="async"\/>/);
+    expect(bg).toMatch(/<img src="\/brand\/walkthrough-globe\.webp" alt=""[^>]*loading="lazy" decoding="async"\/>/);
     expect(statSync(new URL('../../public/brand/walkthrough-globe.webp', import.meta.url)).size).toBeLessThan(40 * 1024);
   });
 });

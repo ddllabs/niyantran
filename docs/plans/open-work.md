@@ -37,7 +37,7 @@
   acceptance of required web-tool call remain pending; no Supabase deployment
   in the push/merge authorization. Vercel frontend deploys automatically.
 
-- [ ] **Chrome DevTools follow-up (2026-10-19).** Extension-enabled profile reports CSP eval blocking with no source, a form field without id/name and lazy images without explicit dimensions. Attribute these separately; no console messages or failed requests on the post-icon homepage load. Scope excludes fixes until reviewed.
+- [ ] **Chrome DevTools follow-up (2026-10-19).** Extension-enabled profile reports CSP eval blocking with no source, a form field without id/name and lazy images without explicit dimensions. Attribute these separately; no console messages or failed requests on the post-icon homepage load. Owner authorized scoped frontend repair and deployment; spec/plan2026-10-19-frontend-browser-issues.
 
 ## How to use this file
 

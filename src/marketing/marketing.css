@@ -369,6 +369,8 @@ html.mkt-doc:has(.mkt-auth) #root {
   right: -8%;
   top: 6%;
   width: 78%;
+  height: auto;
+  aspect-ratio: 16 / 9;
   max-width: 460px;
   opacity: 0.55;
   filter: saturate(0.85) brightness(0.72);
