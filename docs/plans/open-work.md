@@ -7,14 +7,35 @@
 > either Done (with its commit or its operations record), waiting on one
 > named owner decision, in one of four later phases, or an accepted risk.
 
-- [ ] **Production RAG delivery recovery (2026-10-19).** Owner authorized main
-  repair/publication, billing paused. Saved answer completed but connection lost;
-  charge880.688 matches completed provider work. Fix late authoritative store
-  reload and bounded malformed-envelope correction. Spec/plan2026-10-19-rag-production-recovery.
-  No credit/account mutations, corpus or payment work. Local401 files/6292 app
-  tests,1158 Deno,lint/build/bundle/router pass; causal regressions verified.
-  Publisher clock-only prerequisite7a10c32. Main/Edge publication next.
+- [ ] **Production RAG acceptance (2026-10-19).** Implementation shipped on main
+  8f72418 (clock-test prerequisite7a10c32), Vercel Production READY/exact commit,
+  research-chat v68 exact36-file bundle and unauthenticated401 verified. Local
+  6292 application and1158 Deno tests,lint/build/bundle/router pass. CI39258763690
+  app+SQL fully green. Arc now shows vs/3304 credits and research history; owner needs
+  existing conversation Reload and signed-in normal turn acceptance. Saved answer
+  complete3191chars, charge880.688 retained; network closure cause unproven.
+  No balance/schema/payment/corpus changes. Spec/plan2026-10-19-rag-production-recovery.
 
+
+
+- [ ] **RAG citation/web production acceptance (2026-10-19).** Owner tests expose Lite
+  zero-citation answers despite retrieved evidence; repair rejected for changing
+  content; no Web calls occurred for missing-text record questions. Existing
+  evidence-presence guard permits uncited completion. Generic pre-search and
+  previous-subject resolution need regressions. Flash returns8 citations.
+  Anti-Doping Source3 is PDF-backed; Source6 is legacy passed-version text.
+  Audit:research/2026-10-19-rag-citations-web-audit.md. Owner authorized scoped
+  local repair:task/rag-citation-web-recovery. Current-subject pre-search,
+  verified pinned-row handles (including missing client tier), anchor-based
+  content-preserving citation repair, bounded required web-only fallback and
+  truthful missing-source notices implemented locally. New causal regressions;
+  6293 application/1172 Deno tests,lint/build/bundle/router pass. Existing PDF
+  and Text views observed in owner Arc on Anti-Doping page3/22 with highlights,
+  owner-operated switching because native input failed. No viewer rebuild.
+  Implementation4a1c978; owner approved push/merge to main. Plan:
+  2026-10-19-rag-citation-web-recovery.md. Edge activation and real-provider
+  acceptance of required web-tool call remain pending; no Supabase deployment
+  in the push/merge authorization. Vercel frontend deploys automatically.
 
 ## How to use this file
 
@@ -1378,6 +1399,18 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- [x] **Research citation/web repair implementation (2026-10-19).** 4a1c978:
+  current selection anchors retrieval; pinned rows carry tier and server-verified
+  handles; exact-anchor citation repair preserves prose; one bounded web-only
+  fallback and truthful unverified notices. Local6293 app/1172 Deno tests pass.
+  Existing PDF/Text viewer verified in owner Arc; hosted activation/acceptance
+  remains open above.
+
+- [x] **Production research recovery implementation (2026-10-19).** Main8f72418:
+  refresh saved answer after terminal verification, including initial-read race;
+  one bounded structured-output correction before visible text. No second turn,
+  retrieval replay or credit reset. Acceptance remains tracked above.
 
 - [x] **F230. Combine profile and credits controls.** Source7756c67, owner
   accepted local UI and authorized push/merge/deploy2026-10-18. Credit ring

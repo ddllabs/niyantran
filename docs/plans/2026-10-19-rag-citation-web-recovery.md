@@ -1,6 +1,6 @@
 # Research citation and web recovery plan
 
-> **Status: Living.** Local implementation authorized; publication remains separate.
+> **Status: Living.** Owner approved push and merge to main on 2026-10-19; Edge activation and provider acceptance remain separate.
 
 Spec: ../specs/2026-10-19-rag-citation-web-recovery.md. Sequential, no delegation.
 Checkout /private/tmp/niyantran-rag-production, task/rag-citation-web-recovery.
@@ -73,3 +73,12 @@ Remaining release gate: real-provider acceptance (especially required server-too
 selection on Gemini2.5 Lite) and new-turn verification after approved deployment.
 Local scripted execution proves control flow and wire request, not provider
 compliance or answer quality on a live turn.
+
+## Publication authorization — 2026-10-19
+
+Owner requested push and merge to main. Runtime implementation4a1c978 reviewed
+against the passing local evidence above. The existing PDF/Text viewer is
+unchanged. Vercel's automatic frontend deployment follows the main push;
+research-chat deployment is not part of this authorization and remains v68.
+This publishes the backend source, not an assertion of live backend activation.
+No billing commits, Supabase mutations, Live secrets or corpus functions included.
