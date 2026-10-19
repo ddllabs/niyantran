@@ -56,3 +56,27 @@ payments/events/periods/invoices. No account/financial rows or keys altered.
 Pre-release Production dpl_CmCWdRkJMWcskCJqPpABbCdqx7UY exact4a0c981, protection
 all_except_custom_domains. Connector403; authenticated exact-scope CLI fallback
 works. Preview push/deployment and remote CI verification follow below.
+
+
+## Test publication verification — 2026-10-20 IST
+
+Pushed only task/razorpay-plan at6182686d131f2ffc0ac92c939805a6f87b207150.
+Preview dpl_6CfgxN7to5FcTgGX5avJUm2wvGeP is READY at that exact SHA;
+stable alias niyantran-git-task-razorpay-plan-ddl-labs.vercel.app resolves it.
+CI39311346794 completed successfully on attempt1: Build and tests and SQL
+fixtures both green. All27 deployed JS assets fetched successfully; purchase
+review, current-plan and unconfirmed-attempt labels present. Config200 confirms
+Test key prefix and existing restricted Test checkout enabled; no keys printed.
+Unauthenticated purchases401 and unsigned webhook400 confirm guards. These are
+transport/assets checks, not an authenticated browser payment rehearsal.
+
+Production remains dpl_CmCWdRkJMWcskCJqPpABbCdqx7UY at4a0c981, READY;
+protection all_except_custom_domains unchanged. Production config200 retains
+enabled=false/checkoutOpen=false. No Production web, config or Live-key changes.
+The sole shared-database change was the separately approved migration, recorded
+in hosted history as20261019192743_billing_checkout_preflight.
+
+Actual Test capture/webhook/invoice reconciliation and paid plan lifecycle
+rehearsal remain pending. Future purchased-period UI projection remains open.
+No payment, provider order, refund or corpus operation was made by this release
+verification. This evidence-only follow-up does not alter the tested runtime.

@@ -3158,10 +3158,16 @@ Earlier items, updated:
       1172 Deno,47 SQL fixtures pass, plus lint/build/bundle/router. New review
       requires explicit confirmation and never auto-replaces uncertain payments.
       Test publication/remote acceptance in2026-10-20-billing-preflight-release.md.
+      **Test release verified:**6182686 Preview READY; CI39311346794 attempt1
+      both jobs green. Deployed review/current-plan/history assets and API guards
+      verified. Production deployment/protection unchanged and billing disabled.
+      Hosted migration history20261019192743; actual captured Test top-up,
+      signed webhook/invoice and plan lifecycle rehearsal still pending.
       **Previously observed operator-list defect:** billing/adjustments503; read-only reviews RPC
       reproduces42702 ambiguous pay.id (table alias versus PL/pgSQL variable).
-      Separate scoped fix required before adjustment/refund acceptance; do not
-      treat empty UI fallback as proof of no reviews. No opportunistic change.
+      Resolved by6515956 and the separately approved shared migration above;
+      real read-only reviews RPC now succeeds. Full adjustment/refund acceptance
+      still needs actual Test events; an empty list alone does not prove it.
       O6 remains open for restricted external Test-mode acceptance and release gates;
       no main/Production push/deployment, provider write, key provisioning or payment.
     - **Downgrade at the next cycle:** the new billing fulfilment queues a lower plan
