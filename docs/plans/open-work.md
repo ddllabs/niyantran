@@ -3151,7 +3151,14 @@ Earlier items, updated:
       Full app6363 pass/5 fail: four publisher fixture clocks already fixed on
       newer main, one feedStore timing case passes in isolation. No publication;
       main integration/full green and hosted payment acceptance still pending.
-      **Open operator-list defect:** billing/adjustments503; read-only reviews RPC
+      **2026-10-20 Test continuation:** UI89bab64 preserved; latest main9d89c1b
+      integrated via dc9a5e7. Operator alias and stale-plan preflight6515956;
+      shared migration separately approved/applied, canonical hashes and service-
+      only grants verified. All financial fingerprints unchanged. Full6386 app,
+      1172 Deno,47 SQL fixtures pass, plus lint/build/bundle/router. New review
+      requires explicit confirmation and never auto-replaces uncertain payments.
+      Test publication/remote acceptance in2026-10-20-billing-preflight-release.md.
+      **Previously observed operator-list defect:** billing/adjustments503; read-only reviews RPC
       reproduces42702 ambiguous pay.id (table alias versus PL/pgSQL variable).
       Separate scoped fix required before adjustment/refund acceptance; do not
       treat empty UI fallback as proof of no reviews. No opportunistic change.

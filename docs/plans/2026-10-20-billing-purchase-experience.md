@@ -1,6 +1,6 @@
 # Billing purchase experience plan
 
-> **Status: Living.** Local-only implementation authorized; no publication.
+> **Status: Living.** Implemented locally; owner subsequently approved Test Preview publication and main integration.
 
 Spec: ../specs/2026-10-20-billing-purchase-experience.md. Sequential on existing
 task/razorpay-plan; retain all pre-existing modified documentation.
@@ -60,3 +60,10 @@ only open-work gains this task paragraph. No push/deploy/config/key/provider/DB/
 corpus operation. Remaining acceptance blockers: operator SQL ambiguity, queued
 plan projection, stale-plan order preflight, newer-main integration and actual
 Test capture/webhook/plan lifecycle rehearsal.
+
+## Continuation
+
+Owner approved operator SQL/stale-plan fixes, latest-main integration and Test-only
+publication. UI preserved in89bab64, main integrated indc9a5e7. Full integrated
+app6386/Deno1172/SQL47 and lint/build/bundle/router now pass. See
+2026-10-20-billing-preflight-release.md for migration and release evidence.

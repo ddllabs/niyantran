@@ -117,4 +117,8 @@ it('stores a server-reviewed next plan intent without automatically opening or p
   expect(values.get('billing-intent:u1:plan-pro')).toBe(next);
   expect(calls.filter(c => c.url === '/api/billing/create-order')).toHaveLength(1);
   expect(ent.refresh).toHaveBeenCalledOnce();
+  await completeCheckout({ planId: 'pro' }); // another explicit confirmation
+  const posted = calls.filter(c => c.url === '/api/billing/create-order');
+  expect(posted).toHaveLength(2);
+  expect(JSON.parse(posted[1].init.body).requestId).toBe(next);
 });
