@@ -810,3 +810,48 @@ describe('a fresh chat by default',()=>{
   expect(f.controller.freshIfStale()).toBe(false);expect(f.controller.getSnapshot().chat.id).toBe('c1');
  });
 });
+
+it('late saved-answer recovery reloads the conversation content, not only the execution lock',async()=>{
+ vi.useFakeTimers();
+ try {
+  const f=fixture();await f.controller.start();
+  f.deps.sendTurn.mockImplementation(async(body,opts)=>{await opts.onConversation({id:'server-c'});return{conversationId:'server-c',isPending:true,status:'unknown',errorCode:'connection_lost',error:'Connection dropped',messageId:'m'}});
+  f.deps.reconcileSavedTurn.mockResolvedValueOnce(false).mockResolvedValue(true);
+  const initial=f.deps.reconcileTurn.getMockImplementation();
+  f.deps.reconcileTurn.mockImplementationOnce(initial).mockImplementation(async()=>({...f.getState(),chats:[{...f.getState().chats[0],messages:[{id:'m',role:'assistant',status:'complete',content:'The durable answer'}]}]}));
+  await f.controller.send({message:'Q',turn_key:'original-key'});
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(f.deps.reconcileTurn).toHaveBeenCalledTimes(2);
+  expect(f.controller.getSnapshot().chat.messages).toContainEqual(expect.objectContaining({id:'m',content:'The durable answer'}));
+  expect(f.deps.sendTurn).toHaveBeenCalledOnce();
+  expect(f.deps.retryTurn).not.toHaveBeenCalled();
+ }finally{vi.useRealTimers();}
+});
+
+it.each(['signOut','dispose'])('late saved-answer reload cannot republish private content after %s',async(action)=>{
+ vi.useFakeTimers();
+ try {
+  const f=fixture();await f.controller.start();
+  f.deps.sendTurn.mockImplementation(async(body,opts)=>{await opts.onConversation({id:'server-c'});return{conversationId:'server-c',isPending:true,status:'unknown',errorCode:'connection_lost',messageId:'m'}});
+  f.deps.reconcileSavedTurn.mockResolvedValueOnce(false).mockResolvedValue(true);
+  const gate=deferred();
+  f.deps.reconcileTurn.mockResolvedValueOnce(f.getState()).mockImplementation(()=>gate.promise);
+  await f.controller.send({message:'Q',turn_key:'k'});
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(f.deps.reconcileTurn).toHaveBeenCalledTimes(2);
+  if(action==='dispose')f.controller.dispose();else f.signOut();
+  gate.resolve({chats:[{id:'server-c',messages:[{content:'Private recovered answer'}]}],activeId:'server-c'});
+  await vi.advanceTimersByTimeAsync(1);
+  expect(JSON.stringify(f.controller.getSnapshot())).not.toContain('Private recovered answer');
+ }finally{vi.useRealTimers();}
+});
+
+it('a terminal row verified just after the initial load refreshes the saved body again',async()=>{
+ const f=fixture();await f.controller.start();
+ f.deps.sendTurn.mockImplementation(async(body,opts)=>{await opts.onConversation({id:'server-c'});return{conversationId:'server-c',isPending:true,status:'unknown',errorCode:'connection_lost',messageId:'m'}});
+ f.deps.reconcileSavedTurn.mockResolvedValue(true);
+ f.deps.reconcileTurn.mockResolvedValueOnce(f.getState()).mockImplementation(async()=>({...f.getState(),chats:[{...f.getState().chats[0],messages:[{id:'m',role:'assistant',status:'complete',content:'Just saved'}]}]}));
+ await f.controller.send({message:'Q',turn_key:'k'});
+ expect(f.controller.getSnapshot().chat.messages).toContainEqual(expect.objectContaining({content:'Just saved'}));
+ expect(f.deps.sendTurn).toHaveBeenCalledOnce();
+});

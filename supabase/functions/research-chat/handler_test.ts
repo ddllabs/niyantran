@@ -1276,7 +1276,11 @@ Deno.test('D5: accepted repair emits the exact saved patch and rejected/thrown r
       mode === 'valid' ? null : mode === 'rewrite' ? 'Repair declined by this server: content.' : 'Provider attempt failed.',
     );
     assertEquals(rec.messages[0].status, 'complete');
-    assertEquals(rec.messages[0].content, mode === 'valid' ? answer + '[1]' : answer);
+    if (mode === 'valid') assertEquals(rec.messages[0].content, answer + '[1]');
+    else {
+      assertStringIncludes(rec.messages[0].content, '**Unverified.**');
+      assert(rec.messages[0].content.endsWith(answer), 'rejected repair preserves the original answer');
+    }
     assertEquals(rendered(got), rec.messages[0].content);
     assertEquals(
       (got.find((f) => 'sources' in f) as { sources: unknown }).sources,
@@ -3412,4 +3416,103 @@ Deno.test('F200: a greeting is answered in plain prose: no search, no "Search wi
   const user = String(provider.seen[0].messages.at(-1)?.content);
   assertStringIncludes(user, SMALL_TALK);
   assert(!user.includes('six sample rows'), 'the attachment is not context for a greeting');
+});
+
+Deno.test('an empty visible answer with malformed structured output gets one bounded correction', async () => {
+  const provider = scripted([...DECLINES,
+    [text('I cannot return the requested object'), finish()],
+    [text(envelope('A complete structured answer.')), finish()],
+  ]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.messages[0].status, 'complete');
+  assertEquals(rec.messages[0].content, 'A complete structured answer.');
+  assertEquals(rec.reserves.length, 1);
+  assertEquals(rec.messages.length, 1);
+});
+
+Deno.test('repeated malformed structured output stops after one correction and keeps both costs', async () => {
+  const provider = scripted([...DECLINES,
+    [text('not JSON'), finish()], [text('still not JSON'), finish()],
+    [text(envelope('Must never execute')), finish()],
+  ]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(provider.seen.length, DECLINES.length + 2);
+  assertEquals(rec.messages[0].status, 'error');
+  assertEquals(rec.calls.slice(-2).map(c => c.status), ['error','error']);
+  assertEquals(rec.calls.slice(-2).map(c => c.cost_usd), [0.0001,0.0001]);
+});
+
+Deno.test('malformed output that already displayed an answer never starts a replacement', async () => {
+  const provider = scripted([...DECLINES,
+    [text('{"answer":"Visible partial'), finish()],
+    [text(envelope('Must never execute')), finish()],
+  ]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(provider.seen.length, DECLINES.length + 1);
+  assertEquals(rec.messages[0].status, 'error');
+  assertStringIncludes(rec.messages[0].content, 'Visible partial');
+});
+
+Deno.test('attached stored records become citable using server text, never the supplied text', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('Recorded fact.')), finish()]]);
+  const { deps } = fakeDeps(provider, {}, { findDeskRow: () => Promise.resolve(storedRow()) });
+  await frames(await handleResearchChat(post({ ...BODY, focus: 'attached', attachments: [{ kind: 'record', title: 'Current bill', text: 'forged browser claim', tier: 'national', feature: 'Bill Passage Probability Index', row_key: storedRow().row_key }] }), deps));
+  const prompt = provider.seen[0].messages.map(m => m.content).join('\n');
+  assertStringIncludes(prompt, 'Citable server-grounded attachment: ref:');
+  assertStringIncludes(prompt, storedRow().record_text);
+  assert(!prompt.includes('forged browser claim'));
+});
+Deno.test('retrieved evidence alone never marks an uncited substantial answer as verified', async () => {
+  const provider = scripted([[{ type: 'tool-call', id: 's', name: 'search_documents', args: '{"query":"bill"}' }, finish('tool_calls')],
+    [text(envelope('The record supports a detailed answer. '.repeat(12))), finish()]]);
+  const { deps, rec } = fakeDeps(provider, { searchDocuments: () => Promise.resolve([chunk('a')]), repairModel: '' });
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertStringIncludes(rec.messages[0].content, '**Unverified.**');
+  assert(!rec.messages[0].content.includes('returned no passages'));
+});
+
+Deno.test('missing-document overview stores the web decision and discloses declined web, while off remains private', async () => {
+  for (const off of [false, true]) {
+    const provider = scripted([...DECLINES, ...Array.from({ length: 4 }, () => [text(envelope('Only row facts.')), finish()])]);
+    const { deps, rec } = fakeDeps(provider, {}, { findDeskRow: () => Promise.resolve(ROW_ONLY) });
+    await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, message: 'Tell me about this bill', ...(off ? { web_search: false } : {}), turn_key: `fallback-${off}` }), deps));
+    assertEquals(provider.seen.filter(r => r.tool_choice === 'required').length, off ? 0 : 1);
+    assertEquals(rec.messages[0].usage?.web_offered, !off);
+    assertEquals(rec.messages[0].usage?.web_required, !off);
+    assertEquals(rec.messages[0].content.includes('**Web context unavailable.**'), !off);
+  }
+});
+
+Deno.test('current pinned bill anchors pre-search instead of the previous subject in history', async () => {
+  const queries: string[] = [];
+  const provider = scripted([NO_RESEARCH, [text(envelope('Current record answer.')), finish()]]);
+  const { deps } = fakeDeps(provider, {
+    presearch: true,
+    searchDocuments: args => { queries.push(args.query); return Promise.resolve([]); },
+  }, { recentMessages: () => Promise.resolve([{ role: 'user', content: 'Old bill subject' }, { role: 'assistant', content: 'Old answer' }]) });
+  await frames(await handleResearchChat(post({ ...BODY, message: 'tell me about this bill', focus: 'attached', web_search: false,
+    attachments: [{ kind: 'record', title: 'National Anti-Doping (Amendment) Bill, 2025', text: 'Record only' }] }), deps));
+  assertEquals(queries, ['National Anti-Doping (Amendment) Bill, 2025 — tell me about this bill']);
+});
+
+Deno.test('an indexed current selection does not force web because an old pin lacks full text', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('Record answer.')), finish()]]);
+  const { deps, rec } = fakeDeps(provider, {}, {
+    findDeskRow: () => Promise.resolve({ ...storedRow(), document_key: 'bill:current' }),
+    indexedDocumentKeys: () => Promise.resolve(['bill:current']),
+  });
+  await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, message: 'tell me about this bill',
+    attachments: [{ kind: 'record', title: 'Previous bill', text: 'Previous row', document_key: 'bill:previous' }] }), deps));
+  assertEquals(rec.messages[0].usage?.web_offered, true);
+  assertEquals(rec.messages[0].usage?.web_required, false);
+  assertEquals(provider.seen.filter(r => r.tool_choice === 'required').length, 0);
+});
+Deno.test('failed row identity lookup never promotes browser text into citable attachment evidence', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('Limited answer.')), finish()]]);
+  const { deps } = fakeDeps(provider);
+  await frames(await handleResearchChat(post({ ...BODY, attachments: [{ kind: 'row', title: 'Record', text: 'unverified text', tier: 'national', feature: 'Bills', row_key: 'invented' }] }), deps));
+  assert(!provider.seen[0].messages.map(m => m.content).join('\n').includes('Citable server-grounded attachment:'));
 });

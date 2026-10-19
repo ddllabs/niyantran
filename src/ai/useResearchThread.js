@@ -260,10 +260,10 @@ export function createResearchThread(overrides = {}) {
     clearTimeout(loop.timer);
     savedRechecks.delete(conversationId);
   }
-  function recheckSaved(conversationId, t, tries = 24, loop = null) {
+  function recheckSaved(conversationId, t, context, tries = 24, loop = null) {
     if (!loop) {
       cancelRecheck(conversationId);
-      loop = { timer: null };
+      loop = { timer: null, saved: false };
       savedRechecks.set(conversationId, loop);
     }
     const mine = () => savedRechecks.get(conversationId) === loop;
@@ -276,12 +276,20 @@ export function createResearchThread(overrides = {}) {
       if (!mine()) return;
       if (!valid(t)) { savedRechecks.delete(conversationId); return; }
       try {
-        const done = await settleSaved(conversationId, t);
-        if (!mine()) return;
-        if (done) savedRechecks.delete(conversationId);
-        else recheckSaved(conversationId, t, tries - 1, loop);
+        loop.saved ||= await settleSaved(conversationId, t);
+        if (!mine() || !await current(t)) return;
+        if (loop.saved) {
+          // Verifying a terminal row retires its stream; it does not load the
+          // answer body. Refresh under the original conversation/owner context.
+          const store = await deps.reconcileTurn(conversationId, context);
+          if (!mine() || !await current(t)) return;
+          emit({ store });
+          savedRechecks.delete(conversationId);
+          void refreshWallet();
+          void loadAnswerCredits(conversationId, t);
+        } else recheckSaved(conversationId, t, context, tries - 1, loop);
       } catch {
-        if (mine()) recheckSaved(conversationId, t, tries - 1, loop);
+        if (mine()) recheckSaved(conversationId, t, context, tries - 1, loop);
       }
     }, 5000);
   }
@@ -309,14 +317,21 @@ export function createResearchThread(overrides = {}) {
     }
     if (result.conversationId) {
       try {
-        const store = await deps.reconcileTurn(result.conversationId, context);
+        let store = await deps.reconcileTurn(result.conversationId, context);
         if (!await current(t)) return;
         emit({ store });
         const settled = await settleSaved(result.conversationId, t);
         if (!await current(t)) return;
+        if (settled) {
+          // The answer can finalize between the initial history read and the
+          // terminal-row verification. Read its body after that verification.
+          store = await deps.reconcileTurn(result.conversationId, context);
+          if (!await current(t)) return;
+          emit({ store });
+        }
         // F66: after a dropped connection the answer may still be finishing on the server; its
         // saved result is read again every 5 s, for up to 2 minutes, until it is there.
-        if (!settled && result.errorCode === 'connection_lost') recheckSaved(result.conversationId, t);
+        if (!settled && result.errorCode === 'connection_lost') recheckSaved(result.conversationId, t, context);
         if (!result.isPending && result.messageId && store.chats.some(c => c.id === result.conversationId
           && c.messages.some(m => m.id === result.messageId && m.status !== 'running'))) {
           deps.clearStream(result.conversationId); emit();

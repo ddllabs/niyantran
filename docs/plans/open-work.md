@@ -2,9 +2,42 @@
 
 > **Status: Living.** Created 2026-09-29 from the earlier trackers, and
 > rewritten the same evening as a clean slate after the local cleanup
+
 > session (`main` at `3a51724` and the docs commit after it). Every item is
 > either Done (with its commit or its operations record), waiting on one
 > named owner decision, in one of four later phases, or an accepted risk.
+
+- [ ] **Production RAG acceptance (2026-10-19).** Implementation shipped on main
+  8f72418 (clock-test prerequisite7a10c32), Vercel Production READY/exact commit,
+  research-chat v68 exact36-file bundle and unauthenticated401 verified. Local
+  6292 application and1158 Deno tests,lint/build/bundle/router pass. CI39258763690
+  app+SQL fully green. Arc now shows vs/3304 credits and research history; owner needs
+  existing conversation Reload and signed-in normal turn acceptance. Saved answer
+  complete3191chars, charge880.688 retained; network closure cause unproven.
+  No balance/schema/payment/corpus changes. Spec/plan2026-10-19-rag-production-recovery.
+
+
+
+- [ ] **RAG citation/web production acceptance (2026-10-19).** Owner tests expose Lite
+  zero-citation answers despite retrieved evidence; repair rejected for changing
+  content; no Web calls occurred for missing-text record questions. Existing
+  evidence-presence guard permits uncited completion. Generic pre-search and
+  previous-subject resolution need regressions. Flash returns8 citations.
+  Anti-Doping Source3 is PDF-backed; Source6 is legacy passed-version text.
+  Audit:research/2026-10-19-rag-citations-web-audit.md. Owner authorized scoped
+  local repair:task/rag-citation-web-recovery. Current-subject pre-search,
+  verified pinned-row handles (including missing client tier), anchor-based
+  content-preserving citation repair, bounded required web-only fallback and
+  truthful missing-source notices implemented locally. New causal regressions;
+  6293 application/1172 Deno tests,lint/build/bundle/router pass. Existing PDF
+  and Text views observed in owner Arc on Anti-Doping page3/22 with highlights,
+  owner-operated switching because native input failed. No viewer rebuild.
+  Implementation4a1c978; owner approved push/merge to main. Plan:
+  2026-10-19-rag-citation-web-recovery.md. Edge activation and real-provider
+  acceptance of required web-tool call remain pending; no Supabase deployment
+  in the push/merge authorization. Vercel frontend deploys automatically.
+
+
 
 ## How to use this file
 
@@ -14,8 +47,18 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F234 is next) and goes in the
+- A new finding gets the next free `F` number (F236 is next) and goes in the
   right section.
+
+## Frontend follow-up
+
+- [ ] **F235 — Indian Sports redundant browser fallback.** Chrome shows direct Google News RSS canceled after same-origin feature-feed succeeds (200,227stories); console empty and publisher navigation works. Review unnecessary parallel fallback requests separately; no CORS failure proven by this observation. The long-open blank tab recovered on reload and was not reproduced in a fresh session; keep this limitation in browser evidence.
+
+## Development toolchain follow-up
+
+- [ ] **F234 — Development toolchain advisories.** Read-only npm audit on 2026-10-19 reports existing Vite/Vitest dependency advisories (2 moderate, 2 high, 2 critical; esbuild, source-map-js, @vitest/mocker, tinypool and dependents). Production dependency audit reports zero. Review compatible upgrades separately; no dependency changes in the scoped BBC/form fix.
+
+
 
 ## Current state — 2026-10-17 (milestone check)
 
@@ -1383,6 +1426,20 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- [x] **Frontend default icons (2026-10-19).** c748e26 deployed Production READY. Both icon paths200/image MIME;46 frontend asset checks pass; Chrome32 successful requests and empty Console after reload. Evidence and remaining unrelated DevTools issues: [release record](2026-10-19-frontend-icons.md).
+
+- [x] **Research citation/web repair implementation (2026-10-19).** 4a1c978:
+  current selection anchors retrieval; pinned rows carry tier and server-verified
+  handles; exact-anchor citation repair preserves prose; one bounded web-only
+  fallback and truthful unverified notices. Local6293 app/1172 Deno tests pass.
+  Existing PDF/Text viewer verified in owner Arc; hosted activation/acceptance
+  remains open above.
+
+- [x] **Production research recovery implementation (2026-10-19).** Main8f72418:
+  refresh saved answer after terminal verification, including initial-read race;
+  one bounded structured-output correction before visible text. No second turn,
+  retrieval replay or credit reset. Acceptance remains tracked above.
 
 - [x] **F230. Combine profile and credits controls.** Source7756c67, owner
   accepted local UI and authorized push/merge/deploy2026-10-18. Credit ring
@@ -3206,6 +3263,14 @@ R7 execution update: the owner's remaining-270 review and single 182-document / 
 
 R7 wider-corpus continuation: [413-document release completed](../research/2026-10-11-corpus-wide-batch.md). All 413 passing sources from the fresh 500-source cohort were ingested in one frozen job: 7,493 complete context chunks, 6,661 contextual chunks, 3,033 independent scoped citation probes passed. The other 87 candidates remain held with evidence. Final live and planner totals: 3,434 documents / 3,431 indexed / 100,031 chunks / 2,143 covered listing bill keys, zero orphan chunks and null vectors. Actual embedding usage 706,730 tokens / USD 0.01413460; all 90 capacity samples passed, peak CPU 16.12%; 15 isolated slow health samples out of 437, no consecutive slow windows, final health passed. Runtime corpus-wide-20261011/job-wide500-v1/final-completion.json binds the full audit and exact SQL evidence. Manifest stage-01.release.json SHA256 b8a987362724afab31e157f01fae72b7f9cd9dec7667db269b4caed5864c2481 is COMPLETE; NEVER restart it. Supervisor exited 0 and locks released. The pre-write fetch recovery at 40 remains documented and preserved. Broader corpus candidates, nonbill scoping, the 87 held candidates and existing-source repair holds remain open; this is not completion of R7 as a whole.
 
+## Done — 2026-10-19 homepage browser fixes
+
+- Homepage form identity and image dimensions released in a82bab8; exact production assets and Chrome checked. CSP report was absent in clean Incognito; no application CSP cause proved and no policy weakened. [Release evidence](2026-10-19-frontend-browser-issues.md).
+
+## Done — 2026-10-19 authenticated browser fixes
+
+- BBC browser CORS and fund-flow/account/admin form semantics fixed in 2593b09 and a19e2a8; release 4a0c981 is Vercel production READY and Chrome verified. [Evidence](2026-10-19-authenticated-browser-fixes.md). No data, schema or Edge deployment. Existing development dependency advisories remain F234.
+
 ## Done — 2026-10-12 consolidation
 
 
@@ -3213,3 +3278,7 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 
 - **Corpus code consolidation (2026-10-12), `d0a8020`:** reviewed corpus code, tests and documentation integrated with the released UI on main; original copies preserved outside Git. [Evidence](../research/2026-10-12-main-consolidation.md). R7 ingestion/repair holds remain open.
 - **F94 resolved (2026-10-12):** owner-authorized Git disconnect of only `niyantran-desk-reference-v6` (`prj_hlv83bVVPDlaJht0GP7njfUDhsLA`) verified `link: null`; project/deployment history retained. Actual production project still follows main. [Operations record](../research/2026-10-12-main-consolidation.md).
+
+## Done — 2026-10-20 branch cleanup
+
+- [x] Non-payment documentation consolidated in `e11eae0`, original histories retained in `cef7849`, and local main updated. Removed 18 merged local and 8 merged remote branches after payment-agent coordination. All four payment local branches, both payment remote branches, shared working files and existing frontend checkout files preserved. Main documentation remains local, unpublished. [Execution record](2026-10-20-branch-cleanup.md).

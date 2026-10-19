@@ -334,7 +334,7 @@ describe('UploadForm modes', () => {
     expect(blank).toMatch(/<input type="url"[^>]*required=""/);
     expect(buttonTag(blank, 'Upload and ingest')).toContain('disabled=""');
     const ticked = html({ draft: draft({ file_url: '', no_public_source: true }) });
-    expect(ticked).toMatch(/<input type="checkbox" checked=""/);
+    expect(ticked).toMatch(/<input type="checkbox"[^>]*checked=""/);
     expect(ticked).toMatch(/<input type="url"[^>]*disabled=""/);
     expect(buttonTag(ticked, 'Upload and ingest')).not.toContain('disabled');
   });

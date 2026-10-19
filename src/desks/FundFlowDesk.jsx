@@ -87,6 +87,7 @@ export default function FundFlowDesk({ feed, selected, onSelect, vizFilter, onCl
           value={q}
           onChange={(e) => setQ(e.target.value)}
           aria-label="Filter fund-flow rows"
+          name="fund-flow-search"
         />
         <span className="fund-flow-count">{filtered.length} lines</span>
       </div>

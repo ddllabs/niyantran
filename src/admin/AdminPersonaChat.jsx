@@ -146,6 +146,7 @@ export default function AdminPersonaChat({ typeId }) {
               send();
             }
           }}
+          name="persona-message" aria-label={`Message as ${meta.short}`}
         />
         <div className="adm-mini-row">
           <button className="adm-btn" type="submit" disabled={busy || !draft.trim()}>

@@ -322,7 +322,7 @@ export default function DocumentsPage({ api: injectedApi } = {}) {
         <div className="adm-form">
           <label className="adm-field span2">
             <span>{target.mode === 'standalone' ? 'PDF files' : 'PDF file'}</span>
-            <input type="file" multiple={target.mode === 'standalone'} accept="application/pdf,.pdf" onChange={onPick} />
+            <input type="file" multiple={target.mode === 'standalone'} accept="application/pdf,.pdf" onChange={onPick} name="document-files" />
           </label>
         </div>
         {queue.length ? <p className="adm-hint">{`${plural(queue.length, 'more file')} waiting.`}</p> : null}

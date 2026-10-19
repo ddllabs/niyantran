@@ -75,6 +75,7 @@ export function AiPersonasPage() {
                 setDrafts((map) => ({ ...map, [typeId]: value }));
                 setMsg('');
               }}
+              name="persona-prompt"
             />
           </label>
           <p className="adm-hint">

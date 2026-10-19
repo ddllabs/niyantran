@@ -370,6 +370,9 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                     <path d="M20 20l-3-3" />
                   </svg>
                   <input
+                    id="homepage-preview-filter"
+                    name="previewFilter"
+                    aria-label="Filter this table"
                     value={q}
                     placeholder="Filter this table"
                     onChange={(e) => {
@@ -479,7 +482,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
             {!videoPlaying ? (
               <button type="button" className="mkt-walk-video-face" onClick={openWalkthrough} aria-label="Play product walkthrough">
                 <span className="mkt-walk-video-bg" aria-hidden="true">
-                  <img src="/brand/walkthrough-globe.webp" alt="" loading="lazy" decoding="async" />
+                  <img src="/brand/walkthrough-globe.webp" alt="" width="720" height="405" loading="lazy" decoding="async" />
                 </span>
                 <span className="mkt-walk-video-brand">— NTER.PRO</span>
                 <span className="mkt-walk-video-title">

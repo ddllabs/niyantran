@@ -237,7 +237,7 @@ export function UploadForm({ draft, pairs, planCurrent, busy = false, target = S
     <div className="adm-form">
       <label className="adm-field span2">
         <span>Title</span>
-        <input value={draft.title} maxLength={TITLE_MAX} required disabled={busy} aria-invalid={Boolean(errors.title)} onChange={field('title')} />
+        <input value={draft.title} maxLength={TITLE_MAX} required disabled={busy} aria-invalid={Boolean(errors.title)} onChange={field('title')} name="document-title" />
       </label>
       {keyed ? (
         <div className="adm-field span2">
@@ -247,7 +247,7 @@ export function UploadForm({ draft, pairs, planCurrent, busy = false, target = S
       ) : (
         <label className="adm-field span2">
           <span>Desk</span>
-          <select value={draft.desk} required disabled={busy} aria-invalid={Boolean(errors.desk)} onChange={field('desk')}>
+          <select value={draft.desk} required disabled={busy} aria-invalid={Boolean(errors.desk)} onChange={field('desk')} name="document-desk">
             <option value="" disabled>Choose a desk</option>
             {deskGroups(pairs).map((group) => (
               <optgroup key={group.tier} label={group.tier}>
@@ -269,12 +269,13 @@ export function UploadForm({ draft, pairs, planCurrent, busy = false, target = S
           disabled={busy || Boolean(draft.no_public_source)}
           aria-invalid={urlTyped && Boolean(errors.file_url)}
           onChange={field('file_url')}
+          name="document-source-url"
         />
         {hints.length ? <small className="adm-hint" style={{ marginTop: 0 }}>{`The desk’s source page is ${hints[0]} — paste the document’s own link.`}</small> : null}
         {urlTyped && errors.file_url ? <small className="adm-msg err">{errors.file_url}</small> : null}
       </label>
       <label className="adm-field adm-check">
-        <input type="checkbox" checked={Boolean(draft.no_public_source)} disabled={busy} onChange={(e) => onChange('no_public_source', e.target.checked)} />
+        <input type="checkbox" checked={Boolean(draft.no_public_source)} disabled={busy} onChange={(e) => onChange('no_public_source', e.target.checked)} name="document-no-public-source" />
         <span>No public source</span>
       </label>
       <label className="adm-field">
@@ -290,12 +291,13 @@ export function UploadForm({ draft, pairs, planCurrent, busy = false, target = S
           onChange={field('splitEvery')}
           onBlur={() => onReplan?.()}
           onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+          name="document-split-pages"
         />
         {errors.splitEvery ? <small className="adm-msg err">{errors.splitEvery}</small> : null}
       </label>
       <label className="adm-field span2">
         <span>Note (optional)</span>
-        <textarea value={draft.note} disabled={busy} onChange={field('note')} />
+        <textarea value={draft.note} disabled={busy} onChange={field('note')} name="document-note" />
       </label>
       <div className="adm-actions">
         <button className="adm-btn" type="button" disabled={busy || !valid || !planCurrent} onClick={() => onConfirm?.()}>Upload and ingest</button>

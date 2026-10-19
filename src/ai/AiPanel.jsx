@@ -180,6 +180,7 @@ export function requestAttachments(pins) {
       title: String(a.title || a.feature || 'Attachment'),
       text: String(a.text || a.preview?.record_text || ''),
       ...(a.feature ? { feature: a.feature } : {}),
+      ...(a.tab || a.tier ? { tier: a.tab || a.tier } : {}),
       ...(a.preview ? { row_key: deskRowKey(a.preview) } : {}),
       ...(a.document_key ? { document_key: a.document_key } : {}),
     }))
