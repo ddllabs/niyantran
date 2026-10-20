@@ -16,21 +16,21 @@ export const PUBLIC_PLANS = [
     who: 'For regular research',
     tag: 'More AI credits for everyday questions.',
     cta: 'Get started', ctaKind: 'fill-purple', plus: 'Everything in Free, plus',
-    items: ['20,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', '10% of unused credits roll over for a month'],
+    items: ['20,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra'],
   },
   {
     id: 'pro', tone: 'enterprise', name: 'PRO', monthly: 999, monthlyCredits: 65000, unit: '/month', popular: true,
     who: 'For analysts and professionals',
     tag: 'Higher AI credits and our own research model.',
     cta: 'Get started', ctaKind: 'fill-blue', plus: 'Everything in Plus, plus',
-    items: ['65,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', 'Niyantran AI is coming soon', '10% of unused credits roll over for a month'],
+    items: ['65,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', 'Niyantran AI is coming soon'],
   },
   {
     id: 'max', tone: 'gov', name: 'MAX', monthly: 9999, monthlyCredits: 750000, unit: '/month',
     who: 'For heavy research use',
     tag: 'The largest AI credit allowance.',
     cta: 'Get started', ctaKind: 'ghost-red', plus: 'Everything in Pro, plus',
-    items: ['750,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', 'Niyantran AI is coming soon', '10% of unused credits roll over for a month'],
+    items: ['750,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', 'Niyantran AI is coming soon'],
   },
 ];
 
@@ -66,7 +66,6 @@ export const PRICING_COMPARE = [
   ['Cited answers and source viewer', true, true, true, true],
   ['Copy and export', true, true, true, true],
   ['Monthly AI credits', '10,000 to start', '20,000', '65,000', '750,000'],
-  ['Unused credits roll over', '—', '10% for a month', '10% for a month', '10% for a month'],
   ['Niyantran AI model', false, false, 'Coming soon', 'Coming soon'],
   ['Personal file storage', 'Coming later', 'Coming later', 'Coming later', 'Coming later'],
   ['Price per month', ...PUBLIC_PLANS.map(p => rupees(p.monthly))],

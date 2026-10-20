@@ -50,6 +50,9 @@
 - A new finding gets the next free `F` number (F236 is next) and goes in the
   right section.
 
+- [ ] **Always-open billing chooser/navigation (2026-10-21).** Frontend first: remove toggle,fix anchors,remove rollover benefit promises. Spec/plan2026-10-21-billing-open-chooser.md. Existing Test scope; no database writes.
+- [ ] **Rollover backend retirement (2026-10-21).** Owner requests no rollover; audit/plan2026-10-21-rollover-retirement.md. Current backend still mints10%; future additive migration/causal SQL fixtures and shared-NTER rollout approval needed. Preserve historical lot/ledger/refund provenance; cutover policy needs explicit handling.
+
 ## Frontend follow-up
 
 - [ ] **F235 — Indian Sports redundant browser fallback.** Chrome shows direct Google News RSS canceled after same-origin feature-feed succeeds (200,227stories); console empty and publisher navigation works. Review unnecessary parallel fallback requests separately; no CORS failure proven by this observation. The long-open blank tab recovered on reload and was not reproduced in a fresh session; keep this limitation in browser evidence.

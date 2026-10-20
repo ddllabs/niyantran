@@ -63,8 +63,8 @@ it('routes the new pages and links every policy from the footer', () => {
 });
 
 it('dates the updated seller identity on all affected policies', () => {
-  expect(DEFAULT_TERMS.lastUpdated).toBe('18 October 2026');
-  expect(REFUND_POLICY.lastUpdated).toBe('18 October 2026');
+  expect(DEFAULT_TERMS.lastUpdated).toBe('21 October 2026');
+  expect(REFUND_POLICY.lastUpdated).toBe('21 October 2026');
 });
 
 // F111 owner-approved wording (spec §10.1, approved 2026-10-14).
@@ -72,13 +72,14 @@ it('states the credit value, the credit rules and how answers are charged', () =
   const terms = text(DEFAULT_TERMS);
   expect(terms).toContain('One credit is worth ₹0.01 of AI processing.');
   expect(terms).toContain('Credits: new accounts receive 10,000 credits once, valid for 30 days.');
-  expect(terms).toContain('Up to 10% of a month\'s unused plan credits carry into the next month and expire at its end.');
+  expect(terms).not.toMatch(/10%|carry into the next month/);
   expect(terms).toContain('Top-up credits, when offered, are valid for 12 months.');
   expect(terms).toContain('How answers are charged: an answer that fails without giving you any text uses no credits.');
   expect(terms).toContain('the difference is taken from your next credits');
   expect(terms).not.toContain('Unused credits remain available on your account');
   const refunds = text(REFUND_POLICY);
-  expect(refunds).toContain('Up to 10% of a month\'s unused plan credits carry into the next month; the rest expire at the end of the month.');
+  expect(refunds).not.toMatch(/10%|carry into the next month/);
+  expect(refunds).toContain('Monthly credits expire on the dates shown in your account.');
   expect(refunds).not.toContain('Unused credits remain on your account');
 });
 

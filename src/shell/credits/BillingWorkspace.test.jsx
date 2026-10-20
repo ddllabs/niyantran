@@ -19,3 +19,10 @@ it('shows the standard allowance even when the personal credit read is unavailab
  const html=renderToStaticMarkup(<BillingWorkspace {...props} credits={null} creditsTried/>);
  expect(html).toContain('65,000 credits');expect(html).toContain('Your balance could not be loaded');expect(html).not.toContain('Plan credits added this period');
 });
+it('keeps the chooser visible by default without an open or close toggle',()=>{
+ const html=renderToStaticMarkup(<BillingWorkspace {...props} initialPlan={null}/>);
+ expect(html).toContain('Choose your plan');
+ expect(html).not.toMatch(/id="billing-plan-picker"[^>]*hidden/);
+ expect(html).not.toContain('Close plan options');expect(html).not.toContain('>Change plan<');
+ expect(html).not.toContain('10% monthly rollover');
+});

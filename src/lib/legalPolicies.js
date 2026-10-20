@@ -118,7 +118,7 @@ export const TERMS_OF_SERVICE = {
     ['plans', 'Plans, credits and billing', `- Plans: Free (₹0), Plus (₹399 per month), Pro (₹999 per month) and Max (₹9,999 per month). Current plan details are on the [Pricing](/#/pricing) page.
 - What plans include: paid plans differ in AI credits and, when personal file storage is introduced, storage. One credit is worth ₹0.01 of AI processing. An answer uses credits according to the AI processing it needs (tokens and web searches), so longer answers and larger models use more. How many credits each plan includes is published on the Pricing page; we may change it for future billing months with notice.
 - Model access: some AI models are available on paid plans only, and the model picker marks them. Niyantran AI, our in-house model, will be available only on Pro and Max plans once released. Every model uses credits.
-- Credits: new accounts receive 10,000 credits once, valid for 30 days. Paid plans add their monthly credits at the start of each paid month, valid until that month ends. Up to 10% of a month's unused plan credits carry into the next month and expire at its end. Top-up credits, when offered, are valid for 12 months. Credits are used in the order they expire. Credits have no cash value and cannot be transferred.
+- Credits: new accounts receive 10,000 credits once, valid for 30 days. Paid plans add their monthly credits at the start of each paid month, valid until that month ends. Top-up credits, when offered, are valid for 12 months. Credits are used in the order they expire. Credits have no cash value and cannot be transferred.
 - How answers are charged: an answer that fails without giving you any text uses no credits. If you stop an answer, the part already produced is charged. An answer always finishes: if it costs more than your remaining credits, your balance can go below zero, and the difference is taken from your next credits.
 - Billing: paid plans are billed monthly in advance in Indian rupees through Razorpay. Plans do not renew automatically: your plan ends at the end of the paid month unless you pay again.
 - Taxes: we are not registered under GST, so no GST is charged; the price shown is the price you pay.
@@ -146,12 +146,12 @@ export const TERMS_OF_SERVICE = {
     ['general', 'General', `If any part of these Terms is unenforceable, the rest remains in force. These Terms and the documents they refer to are the whole agreement between you and us about the Terminal. Not enforcing a right is not a waiver.`],
     ['contact', 'Grievance Officer and contact', contactBody],
   ]),
-  lastUpdated: '18 October 2026',
+  lastUpdated: '21 October 2026',
   jurisdiction: 'Laws of India',
   courts: 'Courts at Kolkata, West Bengal',
 };
 
-export const REFUND_POLICY = doc('Grievance Officer: Tamanesh Kauri', [
+export const REFUND_POLICY = { ...doc('Grievance Officer: Tamanesh Kauri', [
   ['overview', 'Overview', `This policy explains cancellations and refunds for paid plans of ${COMPANY.brand}, operated by ${COMPANY.legalName}. It forms part of our [Terms of Service](/#/terms).`],
   ['cancel', 'Cancelling a plan', `You can cancel a paid plan at any time by writing to us from your registered email address, and through your account once that option is available. There is no cancellation charge. Your plan stays active until the end of the current billing month and then moves to the Free plan; no further charges are made.`],
   ['refunds', 'Refunds', `Plan fees are non-refundable once a billing month has been charged, including for partly used months and unused credits, because the AI service and credits are made available immediately.`],
@@ -162,10 +162,10 @@ export const REFUND_POLICY = doc('Grievance Officer: Tamanesh Kauri', [
 - a charge was made without your authorisation and reported to us promptly.
 
 We confirm an eligible refund within 7 working days of your request. Your bank or card issuer may take a further 5 to 7 working days to credit it.`],
-  ['credits', 'Unused credits', `Unused credits have no cash value and are not refunded. Up to 10% of a month's unused plan credits carry into the next month; the rest expire at the end of the month.`],
+  ['credits', 'Unused credits', `Unused credits have no cash value and are not refunded. Monthly credits expire on the dates shown in your account.`],
   ['request', 'How to ask', `Email [${COMPANY.email}](mailto:${COMPANY.email}) from your registered email address with the payment reference and a short description. We acknowledge within 48 hours. This policy does not affect any rights you have under Indian consumer law.`],
   ['contact', 'Grievance Officer and contact', contactBody],
-]);
+]), lastUpdated: '21 October 2026' };
 
 export const DELIVERY_POLICY = doc('Grievance Officer: Tamanesh Kauri', [
   ['digital', 'Digital service', `${COMPANY.brand} is an online service operated by ${COMPANY.legalName}. Nothing physical is shipped and there are no shipping charges.`],

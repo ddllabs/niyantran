@@ -58,15 +58,15 @@ it('allows upgrades and renewals while a plan is active, queues lower plans at t
 });
 
 // F111 owner-approved wording (spec §10.1, approved 2026-10-14).
-it('states each plan\'s AI credits and the 10% rollover, never "carry forward"', () => {
+it('states each plan\'s AI credits without advertising rollover', () => {
   const items = Object.fromEntries(PUBLIC_PLANS.map(p => [p.id, p.items]));
   expect(items.free).toContain('10,000 AI credits to start, valid 30 days');
-  expect(items.plus).toEqual(['20,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', '10% of unused credits roll over for a month']);
+  expect(items.plus).toEqual(['20,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra']);
   expect(items.pro).toContain('65,000 AI credits every month');
   expect(items.max).toContain('750,000 AI credits every month');
-  for (const id of ['plus', 'pro', 'max']) expect(items[id]).toContain('10% of unused credits roll over for a month');
+  for (const id of ['plus', 'pro', 'max']) expect(items[id].join(' ')).not.toMatch(/roll.?over|roll over/i);
   expect(PRICING_COMPARE.find(r => r[0] === 'Monthly AI credits').slice(1)).toEqual(['10,000 to start', '20,000', '65,000', '750,000']);
-  expect(PRICING_COMPARE.find(r => r[0] === 'Unused credits roll over').slice(1)).toEqual(['—', '10% for a month', '10% for a month', '10% for a month']);
+  expect(PRICING_COMPARE.find(r => r[0] === 'Unused credits roll over')).toBeUndefined();
   const all = JSON.stringify([PUBLIC_PLANS, PRICING_COMPARE, PRICING_NOTES]);
   expect(all).not.toMatch(/carry forward|starter credits|allowances published/i);
   expect(PRICING_NOTES.find(n => n.title === 'AI credits').text).toBe('a typical answer uses about 200 credits; larger models use more');
