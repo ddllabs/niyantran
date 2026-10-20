@@ -3232,6 +3232,40 @@ Earlier items, updated:
       local follow-up verified:25 profile tests, lint/build/bundle,6 browser
       overlap checks and light/dark contrast pass. Uncommitted/unpublished;
       see plan-discovery record. Production/Live unchanged.
+      Subsequently owner-approved badge release caa3212 READY as
+      dpl_8pp5Soxo6nhdkQAU8XeLvJskQNhp, CI39410686188 both jobs green attempt1;
+      live Pro pill overlap/colour verified. Fresh readiness read shows inbox0,
+      adjustments0 and only2 fulfilled Test products (500k/Pro). Signed webhook,
+      remaining provider lifecycle/recovery/refund/invoice-view acceptance and
+      launch/Live gates remain open; details in plan-discovery release record.
+      Owner saved original webhook secret: metadata update verified; exactcaa3212
+      redeployed Test-only as dpl_BhTpje1R95zM18MVSHn3rCEa4EoZ READY. Inbox0
+      before delivery; no webhook requests in preceding hour. Await natural or
+      owner-replayed existing Test captured event before claiming signature
+      acceptance. No new payment; Production runtime/closed Checkout retained.
+      **Webhook blocker resolved for new Test events —20Oct19:54 IST:** owner
+      completes499INR top-up; authorized/captured/order.paid each200 and inbox
+      done attempt1. Exactly1 captured payment/invoice NIY/2627/00003/20000-credit
+      lot/grant; wallet586286.87 equals lots, debt0, Pro period unchanged.
+      Original durable intent reused. Three distinct events are not duplicate
+      replay/browser-close acceptance; those and plan/refund/invoice-view/Live
+      gates remain open. Full evidence in webhook-diagnostics record.
+      Owner Pro->Max Test upgrade verified: captured9999INR, invoice00004,
+      one750000 monthly grant, unusedPro65000 replaced; topups/signup preserved,
+      wallet1271286.87 debt0, all3 events done attempt1. Downgrade pending.
+      Owner requests distinct Current plan/Popular badge styling: scoped local
+      green current state versus purple recommendation verified:31 tests,
+      lint/build/bundle and both-theme browser comparison pass; local/unpublished.
+      Subsequent owner Plus Test399 purchase also verified: invoice00005, future
+      period20Nov–20Dec, zero early lots/ledger entries, Max/balance unchanged;
+      all3 events done attempt1/HTTP200. Real future activation remains pending,
+      not forced. Recovery/duplicate/refund/invoice-view and Live gates stay open.
+      **Commercial policy reopened by owner:** full-price upgrades and purchasing
+      future lower-plan months are rejected as the intended change-plan UX.
+      Discuss proration, unused-paid value/credits and no-charge downgrade
+      scheduling before further implementation or Live opening. Previous Test
+      checks establish mechanical accounting only. Owner requests publication of
+      existing label CSS first; no new billing coding or financial changes.
       **Previously observed operator-list defect:** billing/adjustments503; read-only reviews RPC
       reproduces42702 ambiguous pay.id (table alias versus PL/pgSQL variable).
       Resolved by6515956 and the separately approved shared migration above;

@@ -429,4 +429,6 @@
 .plan-picker .plan-up-plan.billing-current.on { border-style: solid; }
 .plan-picker .plan-up-pay { width: 100%; margin-top: 12px; }
 .plan-picker-timing { font-size: 14px; line-height: 1.6; }
+.plan-up-plan.billing-current em { background: #dcf4e9; color: #146b49; border: 1px solid #a5d8c0; border-radius: 6px; }
+.theme-dark .plan-up-plan.billing-current em { background: #173c30; color: #a9edce; border-color: #356b54; }
 @media (max-width: 600px) { .plan-picker { padding: 18px; } }

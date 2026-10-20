@@ -100,3 +100,52 @@ not hosted provider-byte equivalence. No code defect established, no speculative
 source change. Razorpay documents HMAC-SHA256 over original raw bytes and that
 old event retries retain the original secret:
 https://raw.githubusercontent.com/razorpay/markdown-docs/master/webhooks/validate-test.md.
+
+## Owner secret re-entry and Test redeploy — 2026-10-20 IST
+
+Owner confirms saved original webhook secret. Metadata-only read verifies
+Sensitive variableVTzpjgqrre24OqVp updated1792505640125, still Preview only /
+task/razorpay-plan. No value retrieved. Redeployed exact existing Test commit
+caa3212 as dpl_BhTpje1R95zM18MVSHn3rCEa4EoZ, READY with branch alias.
+Config remains enabled/open with Test key prefix (value not printed). Existing
+source CI39410686188 green attempt1; configuration redeploy changes no source.
+
+Baseline inbox0, fulfilled Test orders2, captured payments2. At19:47 IST there
+were no genuine webhook requests in the preceding hour. Owner asked to replay
+the existing failed Test payment.captured eventTptTB3J5reLMwT if dashboard offers
+it; no new payment or signature bypass. Await genuine delivery before claiming
+signature repair or resuming purchases.
+
+Production read shows same runtime commit4a0c981 and checkout disabled; its
+currently observed deployment is dpl_54raBgMjb4oZbtXSWc1KBuDrK4xQ (different
+from prior observation). This agent invoked only the explicit Preview redeploy;
+the separate Production redeployment cause is not established. No Live setting,
+key, provider, schema or corpus changes performed here.
+
+## Genuine signed Test acceptance — 2026-10-20 19:54 IST
+
+Owner reports no dashboard replay action, then completes the guided499INR Test
+top-up. Existing durable purchase0d11bc2c-243b-44b5-8caa-7d6643924caa /
+order_Tptq7O7zpXk4Gh was reused (created19Oct20:31:44 UTC), fulfilled20Oct
+14:24:12.829931 UTC. Provider paymentpay_TqC6tbs5B92glY is captured, Test mode,
+49900paise. New genuine events all returned200 on the secret-update deployment:
+payment.authorized TqC6z3fLwXfRZ1 at14:24:11.514 UTC;
+payment.captured TqC6zwVAvIokL6 at14:24:12.344;
+order.paid TqC70Q4dxvu1pv at14:24:12.762. Each inbox record is done on attempt1,
+last_error NULL. This establishes real HMAC/merchant/inbox acceptance after owner
+secret restoration, separately from the earlier unsigned control. No signature
+or payload was printed, no validation bypass or source change.
+
+Read-only exact purchase reconciliation:1 captured payment,1 invoice
+NIY/2627/00003 total499,1 top-up lot granted/remaining20000 expiring20Oct2027
+14:24:12 UTC,1 grant ledger entry20000. Three distinct event types and callback
+processing did not duplicate the benefit/invoice. Wallet586286.87, debt0, equals
+sum of active remaining lots586286.87. Active Pro65000 allowance and original
+20Nov2026 01:40:12 IST end are unchanged. Do not infer duplicate delivery replay
+or browser-closed recovery acceptance from these three different events.
+
+Signature blocker resolved for new genuine deliveries. Remaining external
+upgrade/queued-downgrade, duplicate/recovery/refund/invoice-view and launch gates
+remain open. Old failed event retries were not replayed or claimed repaired.
+Agent performed only read-only reconciliation and documentation here; owner
+operated the simulated payment. Production web/settings/Live keys unchanged.

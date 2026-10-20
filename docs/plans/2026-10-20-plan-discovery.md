@@ -115,3 +115,73 @@ Owner explicitly approves Test-branch deployment of the attached badge styling
 on2026-10-20. Publish only task/razorpay-plan and verify exact Preview commit,
 live Pro badge and CI; Production and Live configuration stay unchanged. Local
 styling verification above is the pre-publication baseline.
+
+Attached badge release: caa3212e1b49f815e509e35af033c0dba904a423 pushed to
+task/razorpay-plan; dpl_8pp5Soxo6nhdkQAU8XeLvJskQNhp READY at exact commit
+and existing branch alias. Original CI39410686188 app/Edge and SQL jobs passed
+attempt1 (only runner-label migration annotation). Authenticated IAB Pro badge
+has measured circle overlap and purple palette; screenshot
+/private/tmp/attached-badge-live-preview.png. Production remains4a0c981 /
+dpl_CmCWdRkJMWcskCJqPpABbCdqx7UY. No environment/key/schema/provider mutation.
+
+Live-readiness read-only snapshot: Test inbox0, Test adjustments0; exactly2
+captured/fulfilled products (500k top-up10499INR and Pro999INR). No confirmed
+499INR top-up or genuine signed-event acceptance. Callback success does not
+prove webhook recovery. Invoice Open again produced no new IAB view; stored
+invoices are verified, rendered-view acceptance is still pending. Current
+balance differs from earlier screenshot through ordinary account usage; no
+purchase/grant action was performed by this release. Remaining release phases:
+1 webhook-secret resolution and signed delivery/dedup/browser-independent
+recovery;2 owner Test purchase/upgrade/queued-downgrade/invoice and bounded
+refund/review acceptance;3 final readiness (merchant/legal, M1/M2 closure
+sign-off, recovery operator/backlog monitoring, rollback/Test-exception cleanup,
+secure Live provisioning);4 separately approved closed Production release and
+owner-operated bounded Live pilot/reconciliation before opening checkout.
+Automated accounting/security coverage and earlier independent review exist;
+do not describe remaining provider acceptance as complete. This is a readiness
+audit, not approval to run refunds/payments or change Live settings.
+
+## Current-plan versus Popular badge — owner request, 2026-10-20 IST
+
+Current shared em styling gives both labels the same purple palette. Scope:
+upgrade.css only plus this record/tracker. Render Current plan with green active
+state, a border and6px corners in both themes; Popular retains its purple
+recommendation treatment. No plan selection/payment behavior changes. Verify
+existing billing/dialog tests, lint/build/bundle and synthetic browser cards in
+both themes. Leave local; no publication request for this styling slice yet.
+
+Owner-operated Pro->Max Test upgrade reconciled read-only: purchase
+0cc7a4e5-8c7f-4706-aa66-4199db2d6ac0, captured Test paymentpay_TqCENSy9FZxpHX,
+999900paise, invoice NIY/2627/00004 total9999, exactly1 lot/grant750000.
+Active Max period20Oct14:31:16.857113 UTC to20Nov same UTC time; prior Pro
+period superseded at upgrade and its65000 unused monthly credits removed.
+Signup1286.87 plus topups500000+20000 preserved. Wallet1271286.87, debt0:
+586286.87 -65000 +750000. Authorized/captured/order.paid events each done
+attempt1 and last_error NULL. No duplicate financial effect. Queued downgrade
+and other provider acceptance remain pending; no agent payment/production action.
+
+During investigation a new owner-operated Plus Test purchase appeared:
+3aa45faf-5b38-4003-99b6-8a2791d0f134, captured39900paise, invoice
+NIY/2627/00005 total399. Plus is scheduled20Nov14:31:16.857113 UTC through
+20Dec same UTC time, credits20000. No lot or ledger entry exists for this future
+purchase (both counts0); Max remains active, wallet1271286.87 debt0 unchanged.
+All3 Plus events done attempt1, last_error NULL. Runtime webhooks for both
+Max14:31:15–16 and Plus14:34:39–40 UTC returned200. Queued downgrade purchase
+acceptance is confirmed; real future activation is not simulated or claimed.
+
+Styling verification:31 existing billing/dialog tests, lint/build/check:bundle
+and whitespace pass. Initial JS180806 gzip bytes; no chunk warning. Actual
+shared card component rendered in both themes with synthetic Max entitlement:
+Popular computed purple, Current plan computed green/bordered in both cases.
+Screenshot /private/tmp/current-popular-plan-labels.png; local tab/server closed.
+No new tests or full-suite rerun for two static CSS overrides. Styling remains
+uncommitted/unpublished; Production, Live keys and corpus unchanged.
+
+Owner now explicitly approves Test-only publication of the already-verified
+Current plan/Popular CSS update. No new billing implementation is authorized.
+Owner challenges the commercial model: full-price immediate upgrades and paid
+queued lower-plan months do not match expected account-plan changes. Prior
+accounting acceptance proves the prepaid-period code executes its contract,
+not that this product policy is suitable for launch. O6 release is held pending
+discussion/reconfirmation of upgrade proration, credit adjustment and free
+downgrade scheduling; no contract rewrite, financial cleanup or refund here.
