@@ -7,11 +7,6 @@
 > either Done (with its commit or its operations record), waiting on one
 > named owner decision, in one of four later phases, or an accepted risk.
 
-- [ ] **Mandatory CI enforcement (2026-10-21).** Owner authorized required CI
-  before main merges and Vercel deployments. Native GitHub/Vercel gates under
-  verification; no Production release or key changes. Spec/plan:
-  2026-10-21-ci-enforcement.md.
-
 - [ ] **Production RAG acceptance (2026-10-19).** Implementation shipped on main
   8f72418 (clock-test prerequisite7a10c32), Vercel Production READY/exact commit,
   research-chat v68 exact36-file bundle and unauthenticated401 verified. Local
@@ -3063,6 +3058,15 @@ R7 execution update: the owner's remaining-270 review and single 182-document / 
 R7 wider-corpus continuation: [413-document release completed](../research/2026-10-11-corpus-wide-batch.md). All 413 passing sources from the fresh 500-source cohort were ingested in one frozen job: 7,493 complete context chunks, 6,661 contextual chunks, 3,033 independent scoped citation probes passed. The other 87 candidates remain held with evidence. Final live and planner totals: 3,434 documents / 3,431 indexed / 100,031 chunks / 2,143 covered listing bill keys, zero orphan chunks and null vectors. Actual embedding usage 706,730 tokens / USD 0.01413460; all 90 capacity samples passed, peak CPU 16.12%; 15 isolated slow health samples out of 437, no consecutive slow windows, final health passed. Runtime corpus-wide-20261011/job-wide500-v1/final-completion.json binds the full audit and exact SQL evidence. Manifest stage-01.release.json SHA256 b8a987362724afab31e157f01fae72b7f9cd9dec7667db269b4caed5864c2481 is COMPLETE; NEVER restart it. Supervisor exited 0 and locks released. The pre-write fetch recovery at 40 remains documented and preserved. Broader corpus candidates, nonbill scoping, the 87 held candidates and existing-source repair holds remain open; this is not completion of R7 as a whole.
 
 ## Done — 2026-10-19 homepage browser fixes
+
+- [x] **Mandatory CI enforcement (2026-10-21).** Policy commit d9595ab and native
+  GitHub/Vercel operations activated strict main PR checks (admins included)
+  and both CI jobs before Preview/Production domain assignment. Cancelled run
+  39508667078 kept Preview unpublished; attempt2 passed both jobs and assigned
+  its domains automatically. PR4 contains documentation only and stays unmerged;
+  no Production release or credential change by this task. Exact settings,
+  gate IDs and evidence:2026-10-21-ci-enforcement.md.
+
 
 - Homepage form identity and image dimensions released in a82bab8; exact production assets and Chrome checked. CSP report was absent in clean Incognito; no application CSP cause proved and no policy weakened. [Release evidence](2026-10-19-frontend-browser-issues.md).
 
