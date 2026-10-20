@@ -1,6 +1,6 @@
 # Billing UI clarity implementation
 
-> **Status: Living.** Sequential supervisor work, 2026-10-21.
+> **Status: Historical (2026-10-21).** Completed sequential supervisor work.
 
 Spec: ../specs/2026-10-21-billing-ui-clarity.md.
 
@@ -20,4 +20,14 @@ Spec: ../specs/2026-10-21-billing-ui-clarity.md.
 - npm run lint, npm run build, npm run check:bundle, git diff --check — passed. No new build warnings; initial JavaScript180773 bytes gzip within budget. SQL/router unchanged, so no SQL or router checks required.
 - Review: only display formatter changed in billing helper; checkout quote IDs, amounts and server/invoice generation untouched. Accessible table scopes/caption, original lots retained, expandable grant detail, native modal focus trap and focus return preserved. No new dependencies, timers, financial records or policy changes.
 
-Publication and authenticated browser acceptance pending below.
+## Test Preview verification
+
+- Runtime implementation2292928 pushed only to task/razorpay-plan. READY dpl_DSccXjZ4rT6DFbMVhjwGaRWqqtaN, exact2292928ec6214752065c4e578b92e26ceb5cb705. Stable Razorpay Test alias resolves to it. Advisory CI39488401975 completed successfully.
+- Signed-in real account: Pro active until20Nov, renew from13Nov with next period beginning20Nov. Balance86167, monthly64980, topup20000 remain unchanged. Original monthly20000+44980 grants expand under the combined monthly row; signup13Nov and topup20Oct2027 remain separate.
+- Real invoice00009 displays logo, service dates and exact599.74INR. Content click keeps it open; backdrop, Escape and X each close it and restore View invoice focus. OS print/export not executed.
+- Top-up selection shows exact499INR and Pay online, then local selection cancelled. No checkout/payment or schedule/cancel action submitted, no new purchase or balance adjustment.
+- Browser at320/390/768/1440 widths and dark mode: credit table fits and expiry/type values remain readable. Tablet account client/scroll widths equal738px. Browser console errors:0. Original light theme and viewport restored. Proof /private/tmp/billing-ui-clarity-preview.png (untracked local artifact).
+- Production nter.pro remains exactly dpl_54raBgMjb4oZbtXSWc1KBuDrK4xQ. No settings, database, Edge deployment, Production branch or Live credential change.
+- Final review correction: renewal footer applies only to active paid plans; Free says No monthly subscription. New Free-copy test fails before correction, passes after. Release-focused59 tests, lint/build/bundle pass; initialJavaScript180772bytes gzip. Final application suite and follow-up publication recorded below.
+
+Final application rerun after the Free-copy correction:416 files/6466 tests passed (106.52s). Earlier Edge suite1172 passed remains applicable; no Edge code changed. Publication authorized only for task/razorpay-plan Test Preview.

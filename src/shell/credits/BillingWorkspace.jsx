@@ -40,7 +40,7 @@ export default function BillingWorkspace({ ent,user,initialPlan,config,credits,c
         {credits.usedThisCycle != null ? <p className="billing-muted">Used this cycle: {creditsText(credits.usedThisCycle)}</p> : null}
         <BillingCreditBreakdown lots={credits.lots}/>
       </details> : null}
-      <div className="billing-account-foot"><span>Renew manually before expiry · 10% monthly rollover</span><span>Top-ups keep their own expiry dates</span></div>
+      <div className="billing-account-foot"><span>{active ? 'Renew manually before expiry · 10% monthly rollover' : 'No monthly subscription'}</span><span>Top-ups keep their own expiry dates</span></div>
       {planState?.scheduled ? <div className="billing-next-notice"><span className="billing-next-dot"/><div><strong>{label(planState.scheduled.planId)} selected for next month</strong><p>{planState.scheduled.planId === 'free' ? `Your paid access ends ${date(planState.scheduled.effectiveAt)}.` : `After ${date(planState.scheduled.effectiveAt)} · payment required to activate`}</p></div><button type="button" className="billing-text-button" onClick={() => setChoosing(true)}>Manage</button></div> : null}
       {notice ? <p role="status" className="billing-feedback">{notice}</p> : null}
     </section>

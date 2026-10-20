@@ -50,8 +50,6 @@
 - A new finding gets the next free `F` number (F236 is next) and goes in the
   right section.
 
-- [ ] **Billing UI clarity (2026-10-21).** Owner authorized display-only money cleanup, renewal copy, invoice dismissal and grouped credit breakdown; verify and deploy only Razorpay Test Preview. Spec/plan: 2026-10-21-billing-ui-clarity.md. Charges, Production and Live keys unchanged.
-
 ## Frontend follow-up
 
 - [ ] **F235 — Indian Sports redundant browser fallback.** Chrome shows direct Google News RSS canceled after same-origin feature-feed succeeds (200,227stories); console empty and publisher navigation works. Review unnecessary parallel fallback requests separately; no CORS failure proven by this observation. The long-open blank tab recovered on reload and was not reproduced in a fresh session; keep this limitation in browser evidence.
@@ -3420,3 +3418,7 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-21 Free plan card
 
 - `3c24882`: Free shown alongside Plus/Pro/Max in billing and profile choosers; current Free disabled/marked, no monthly or repeated welcome allowance promised. Paid Free choice hands off to existing zero-charge period-end confirmation; duplicate footer removed.6458unit tests, focused21, lint/build/bundle and responsive/dark fixture pass. Test Preview READY; authenticated profile→Free review verified without saving or paying. No backend/Production/Live changes. [Evidence](2026-10-21-free-plan-card.md).
+
+## Done — 2026-10-21 billing UI clarity
+
+- **Billing UI clarity:** implementation2292928 and closure follow-up: unnecessary .00 removed while genuine paise remain exact; Pay online actions; renewal payment-window/service-date distinction; invoice X/backdrop/Escape dismissal with focus restoration; compact grouped credit table retaining original grants. Free footer no longer implies a subscription. Full416-file/6466-test application run,1172 Edge tests,59 focused checks,lint/build/bundle pass. Causal RED/GREEN evidence and authenticated desktop/mobile/dark browser checks recorded in [plan](2026-10-21-billing-ui-clarity.md). Test-only branch publication; Production deployment and Live credentials unchanged.
