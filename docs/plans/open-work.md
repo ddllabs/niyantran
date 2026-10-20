@@ -39,7 +39,6 @@
 
 
 
-- [ ] **Billing initial-render flash and disclosure visibility (2026-10-21).** Runtime audit reproduced legacy→modern replacement (~84-139ms legacy visibility in sampled warm reloads) because pending config renders the legacy tree; credits arrival adds36px to the account card. Temporary legacy mounts also initiate redundant data reads; an inner cycleChanges branch is unreachable. Preserve the valid non-Test legacy flow. Proposed fix: explicit config loading/error state, one mounted billing implementation, stable disclosure space and a padded accent summary. Existing33 focused tests pass but do not guard the loading transition. Owner approved repair/Test Preview deployment. Pending/error gate, shared page credit props, fixed disclosure row and redundant-mount cleanup implemented; focused120 including admin/full6483/Edge1172/lint/build/bundle pass; browser/deployment verification underway. [Audit](../research/2026-10-21-billing-load-audit.md).
 
 - [ ] **Test browser-global isolation audit (2026-10-21, outside billing repair).** One full run hit AdminApp's `window.matchMedia` against a leaked browser stub; the isolated admin/billing120 checks and subsequent full6483 run passed. Removed obsolete window setup from modified billing tests; no admin source/test changes or skipped tests. Broader test-order/global cleanup should be audited if recurrence occurs. Evidence in2026-10-21-billing-loading.md.
 
@@ -3440,3 +3439,8 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-21 backend rollover retirement
 
 - **a8f040f:** removed rollover creation, fixed compatibility setting at0 with a validated constraint, retained historical refund/ledger provenance. Owner-approved shared NTER migration applied; frozen five-order Test graph for the named owner reset to Free with1186.132 signup credits and no debt. Auth/usage/signup/other-account hashes and invoice sequence unchanged. All51 SQL fixtures with causal/concurrency checks,6472 application tests,1172 Edge tests,lint/build/bundle/router pass; production dependency audit0 findings. Test Preview READY/exact implementation SHA; signed-in Free/empty-history UI verified. [Plan and activation evidence](2026-10-21-rollover-retirement.md). Production web/settings and Live keys unchanged; only the explicitly approved shared no-rollover policy changed globally.
+
+
+## Done — 2026-10-21 stable billing loading
+
+- **91f540f:** removed temporary legacy mounting/unreachable branch, reused page-owned credits with account guard, supplied existing config to top-ups, kept account/disclosure geometry through config and balance loading, explicit config-error retry, full-width44px accent native disclosure. Full6483 application/1172 Edge tests,focused120,lint/build/bundle/router pass; audit0 vulnerabilities. Test Preview READY/exact SHA; desktop339px/mobile479px account heights unchanged across balance arrival,no legacy DOM,no overflow,keyboard disclosure verified. Production deployment/settings and Live keys unchanged. [Plan and evidence](2026-10-21-billing-loading.md). Existing test-global order-sensitivity observation is tracked separately above.
