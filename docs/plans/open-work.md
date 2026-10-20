@@ -50,7 +50,7 @@
 - A new finding gets the next free `F` number (F236 is next) and goes in the
   right section.
 
-- [ ] **Rollover backend retirement (2026-10-21).** Owner requests no rollover; audit/plan2026-10-21-rollover-retirement.md. Current backend still mints10%; future additive migration/causal SQL fixtures and shared-NTER rollout approval needed. Preserve historical lot/ledger/refund provenance; cutover policy needs explicit handling.
+- [ ] **Rollover backend retirement (2026-10-21).** Owner requests no rollover; audit/plan2026-10-21-rollover-retirement.md. Migration20261020211953 and latest-chain causal SQL/reset fixtures implemented; owner approved shared no-rollover policy and bounded five-order Test reset. Focused SQL/application6472/Edge1172/lint/build/bundle pass; full SQL and activation/publication underway. Historical lot/ledger/refund provenance retained.
 
 ## Frontend follow-up
 
