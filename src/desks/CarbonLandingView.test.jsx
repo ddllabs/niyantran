@@ -7,7 +7,7 @@ describe('Carbon v6 coverage', () => {
     const html = render({});
     expect(html).toContain('data-desk="carbon"');
     expect(html).toContain('7 modules');
-    expect((html.match(/class="sector-card"/g)||[]).length).toBe(4);
+    expect((html.match(/class="sector-card sector-front"/g)||[]).length).toBe(4);
     for (const image of ['resources.jpg','trade.jpg','steel-web.jpg','earth.jpg']) expect(html).toContain(`data-image="${image}"`);
     expect(html).toContain('Loading summaries');
     expect(html).not.toContain('data-v6-count="52"');

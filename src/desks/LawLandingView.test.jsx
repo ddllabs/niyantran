@@ -10,7 +10,7 @@ describe('Law v6 adapter', () => {
     expect(html).toContain('data-desk="law"');
     expect(html).toContain('Every record matters.');
     expect(html).toContain('See the bigger picture.');
-    expect((html.match(/class="sector-card"/g) || []).length).toBe(4);
+    expect((html.match(/class="sector-card sector-front"/g) || []).length).toBe(4);
     for (const image of ['supreme-front-web', 'judicial-books', 'elections', 'insolvency']) expect(html).toContain(`data-image="${image}"`);
     expect(html).toContain('12 modules');
     expect(html).toContain('Loading summaries');

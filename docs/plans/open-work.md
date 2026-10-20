@@ -3386,6 +3386,15 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 
 ## Done — 2026-10-19 homepage browser fixes
 
+- [x] **Mandatory CI enforcement (2026-10-21).** Policy commit d9595ab and native
+  GitHub/Vercel operations activated strict main PR checks (admins included)
+  and both CI jobs before Preview/Production domain assignment. Cancelled run
+  39508667078 kept Preview unpublished; attempt2 passed both jobs and assigned
+  its domains automatically. PR4 contains documentation only and stays unmerged;
+  no Production release or credential change by this task. Exact settings,
+  gate IDs and evidence:2026-10-21-ci-enforcement.md.
+
+
 - Homepage form identity and image dimensions released in a82bab8; exact production assets and Chrome checked. CSP report was absent in clean Incognito; no application CSP cause proved and no policy weakened. [Release evidence](2026-10-19-frontend-browser-issues.md).
 
 ## Done — 2026-10-19 authenticated browser fixes
@@ -3444,3 +3453,10 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-21 stable billing loading
 
 - **91f540f:** removed temporary legacy mounting/unreachable branch, reused page-owned credits with account guard, supplied existing config to top-ups, kept account/disclosure geometry through config and balance loading, explicit config-error retry, full-width44px accent native disclosure. Full6483 application/1172 Edge tests,focused120,lint/build/bundle/router pass; audit0 vulnerabilities. Test Preview READY/exact SHA; desktop339px/mobile479px account heights unchanged across balance arrival,no legacy DOM,no overflow,keyboard disclosure verified. Production deployment/settings and Live keys unchanged. [Plan and evidence](2026-10-21-billing-loading.md). Existing test-global order-sensitivity observation is tracked separately above.
+## Done — 2026-10-21 desk sector flip cards
+
+- [x] Shared eight-desk flip cards, implementation `a51b07d`. Owner reviewed local Global and authorized push/merge. 6293 application and 1172 Edge tests passed; focused final CSS checks, lint/build/bundle and browser interactions passed. Billing untouched. Release status and verification limits: [plan](2026-10-21-desk-sector-flip.md).
+
+## Done — 2026-10-21 State sector grid parity
+
+- [x] `2954800` removes dense-sector layout exceptions; State shares desktop and responsive grids with other desks. All module links preserved. Owner authorized publication; 244 focused tests, lint/build and browser checks passed. [Plan](2026-10-21-state-sector-grid.md).
