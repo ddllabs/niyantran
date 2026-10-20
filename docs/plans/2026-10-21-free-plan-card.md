@@ -1,6 +1,6 @@
 # Free plan card plan
 
-> **Status: Living.** Sequential, no delegation. Spec: ../specs/2026-10-21-free-plan-card.md. Tracked under O6.
+> **Status: Historical (2026-10-21).** Completed sequentially, no delegation. Spec: ../specs/2026-10-21-free-plan-card.md. Tracked under O6.
 
 1. Add focused card/current/handoff regression cases in shell tests; observe RED against existing paid-only chooser.
 2. Add optional Free card in PlanChoices, enable in billing/profile chooser, accept paid-account Free deep link, remove footer duplicate and preserve explicit zero-charge confirmation. Scope shell components/tests and upgrade/billing CSS only.
@@ -18,3 +18,9 @@
 | --- | --- | --- |
 | Free hidden behind footer action | Free beside Plus/Pro/Max in both choosers | Matches the permanent-tier product model |
 | Disabled Free inherited low-contrast native text | Current Free remains legible with explicit current badge | Current state is useful information even when no action is needed |
+
+## Release evidence
+
+- Implementation `3c24882` published to task/razorpay-plan; Test deployment `dpl_G4JGKRrf2rq1MoSqp8mcfYa4jxGq` reached READY. Authenticated browser verified four cards and the actual profile Free→Review FREE change→billing ?plan=free handoff. Billing review shows zero due, Pro access until20Nov and a separate Schedule change to Free confirmation. Agent did not press that confirmation or initiate payment. Current Pro remains active.
+- No console errors in deployed verification. Actual account balance at observation86167 displayed; no balance/grant API was invoked by these UI tests. Current/new user states and lapsed state tested synthetically to avoid modifying real accounts.
+- Removed duplicate Free footer action. Free never enters the quote/Checkout path for an existing Free user, and paid-only legacy PlanChoices consumers retain their original default. No backend, payment rules, Production web or Live key changes. Full414files/6458tests, focused21, lint/build/bundle and diff checks pass. Edge/SQL not rerun (UI-only). CI is advisory and separate from executed local gates.

@@ -2955,7 +2955,6 @@ Earlier items, updated:
 
 
 - [ ] **O6.** After F6: the Razorpay keys on Vercel, then one real payment
-  - **2026-10-21 Free card:** [spec](../specs/2026-10-21-free-plan-card.md) / [plan](2026-10-21-free-plan-card.md). Permanent Free tier alongside paid choices; explicit existing period-end review, no new grants or backend changes. In progress.
   - **2026-10-20 owner-authorized cycle contract:** implement prorated price/credit upgrades, free next-plan scheduling, manual renewal and retained 10% rollover; delete frozen Test purchase graph for the owner-designated account only; verify and publish Test Preview. Sequential [spec](../specs/2026-10-20-billing-cycle-changes.md) / [plan](2026-10-20-billing-cycle-changes.md). Production web/settings/Live/corpus unchanged; shared additive migration separately approved/applied. Implementation71ee2cc is Test Preview READY; genuine new-flow payment acceptance remains under O6.
   end to end.
   - Added by F111 (2026-10-14; recommendations in the
@@ -3414,3 +3413,8 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-20 contextual plan chooser
 
 - `7ecc2d9`: below-card chooser now shows one contextual state: compact saved unpaid plan, current-plan renewal note, downgrade confirmation, or quote/loading/error. Free action moved to quiet footer; payment/schedule rules unchanged.6452unit tests and focused10cases pass; lint/build/bundle and responsive/dark/keyboard fixture pass. Test Preview READY and authenticated current/saved states verified; balance/schedule unchanged. No backend/Production/Live changes. [Evidence](2026-10-20-plan-chooser-context.md).
+
+
+## Done — 2026-10-21 Free plan card
+
+- `3c24882`: Free shown alongside Plus/Pro/Max in billing and profile choosers; current Free disabled/marked, no monthly or repeated welcome allowance promised. Paid Free choice hands off to existing zero-charge period-end confirmation; duplicate footer removed.6458unit tests, focused21, lint/build/bundle and responsive/dark fixture pass. Test Preview READY; authenticated profile→Free review verified without saving or paying. No backend/Production/Live changes. [Evidence](2026-10-21-free-plan-card.md).
