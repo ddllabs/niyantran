@@ -2955,7 +2955,7 @@ Earlier items, updated:
 
 
 - [ ] **O6.** After F6: the Razorpay keys on Vercel, then one real payment
-  - **2026-10-20 owner-authorized cycle contract:** implement prorated price/credit upgrades, free next-plan scheduling, manual renewal and retained 10% rollover; delete frozen Test purchase graph for the owner-designated account only; verify and publish Test Preview. Sequential [spec](../specs/2026-10-20-billing-cycle-changes.md) / [plan](2026-10-20-billing-cycle-changes.md). Production/Live/corpus unchanged; shared additive migration bounded separately. In progress.
+  - **2026-10-20 owner-authorized cycle contract:** implement prorated price/credit upgrades, free next-plan scheduling, manual renewal and retained 10% rollover; delete frozen Test purchase graph for the owner-designated account only; verify and publish Test Preview. Sequential [spec](../specs/2026-10-20-billing-cycle-changes.md) / [plan](2026-10-20-billing-cycle-changes.md). Production web/settings/Live/corpus unchanged; shared additive migration separately approved/applied. Implementation71ee2cc is Test Preview READY; genuine new-flow payment acceptance remains under O6.
   end to end.
   - Added by F111 (2026-10-14; recommendations in the
     [credits plan](2026-10-14-ai-credits.md), "After launch"):
@@ -3399,3 +3399,7 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-20 branch cleanup
 
 - [x] Non-payment documentation consolidated in `e11eae0`, original histories retained in `cef7849`, and local main updated. Removed 18 merged local and 8 merged remote branches after payment-agent coordination. All four payment local branches, both payment remote branches, shared working files and existing frontend checkout files preserved. Main documentation remains local, unpublished. [Execution record](2026-10-20-branch-cleanup.md).
+
+## Done — 2026-10-20 Test billing cycle implementation
+
+- Prorated Test upgrades, free replaceable downgrade preferences, explicit manual renewal and retained10% rollover implemented in71ee2cc. All6434 Vitest/1172 Edge tests,49 SQL fixtures and focused concurrency/vacuity/cleanup checks pass; lint/build/bundle/router pass. Owner-approved additive shared migration applied without replacing existing functions. Named owner's frozen Test purchase graph reset to Free; welcome balance/history preserved. Test Preview READY and authenticated browser review verified. [Plan and release evidence](2026-10-20-billing-cycle-changes.md). O6 stays open for genuine new-flow provider acceptance and remaining Live launch gates.

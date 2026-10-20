@@ -1,6 +1,6 @@
 # Billing cycle changes implementation
 
-> **Status: Living.** Sequential implementation; no delegation. Spec: ../specs/2026-10-20-billing-cycle-changes.md. Tasks tracked only under O6 in open-work.md.
+> **Status: Historical (2026-10-20).** Implementation and Test deployment complete; external payment acceptance remains under O6. Sequential implementation; no delegation. Spec: ../specs/2026-10-20-billing-cycle-changes.md. Tasks tracked only under O6 in open-work.md.
 
 ## Ordered tasks and write scopes
 1. Inventory exact Test account graph; prepare transactional deletion/reconciliation with row-count assertions and local fixture. Scope scripts/ and SQL fixture only; remote execution after frozen-target review. Preserve account/signup/usage and invoice counter.
@@ -30,3 +30,6 @@
 
 ## Remaining release acceptance
 Publish verified branch and confirm READY + real authenticated Free-account review. Genuine new Test payments and webhook delivery for the changed commercial flow require owner rehearsal; local/provider-mocked checks are not that evidence. Existing O6 duplicate replay/browser-close/refund/Live launch gates remain open. No Live switch authorized.
+
+## Test release evidence
+Implementation71ee2cc93fd27d7fd325f4ee06404b910c909de3 pushed only to task/razorpay-plan. Vercel dpl_5sysWd3QVJTTEP7Rb3njgr1WpVGc READY at the stable Razorpay Test alias. Authenticated in-app browser confirms Free,1286.87 stored welcome balance (rounded1287 in UI), no completed purchases/invoices, no future paid periods, and a real server Plus quote399INR/20000credits with20Oct–20Nov dates and manual-renewal/rollover wording. Browser errors empty. No Pay action or new provider order/payment. Provider-backed new-cycle rehearsal remains owner work; local synthetic checks are not reported as a new genuine captured payment. CI39452555920 running when this release evidence was recorded; all local gates passed. Production runtime identity remains the baseline above; no key/settings writes.
