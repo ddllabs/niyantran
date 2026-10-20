@@ -7,6 +7,11 @@
 > either Done (with its commit or its operations record), waiting on one
 > named owner decision, in one of four later phases, or an accepted risk.
 
+- [ ] **Mandatory CI enforcement (2026-10-21).** Owner authorized required CI
+  before main merges and Vercel deployments. Native GitHub/Vercel gates under
+  verification; no Production release or key changes. Spec/plan:
+  2026-10-21-ci-enforcement.md.
+
 - [ ] **Production RAG acceptance (2026-10-19).** Implementation shipped on main
   8f72418 (clock-test prerequisite7a10c32), Vercel Production READY/exact commit,
   research-chat v68 exact36-file bundle and unauthenticated401 verified. Local

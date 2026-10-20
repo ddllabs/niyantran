@@ -124,7 +124,11 @@ fail; a fixture that still passes is reported as VACUITY FAIL. `npm run lint`
 changes. There is no standalone type-check; do not
 claim one passed. `.github/workflows/ci.yml`
 runs lint, the build, both test suites and the SQL fixtures on every push; it is
-advisory (nothing is blocked on it). Record exact
+required by main branch protection and Vercel release checks. Both named jobs
+(`Build and tests` and `SQL fixtures (disposable Postgres)`) must pass. Main
+changes require up-to-date pull requests, including administrators. Vercel builds
+may run in parallel, but Preview/Production domain assignment waits for CI on
+the deployed commit. Never bypass these gates to publish a failed build. Record exact
 commands, outcomes, warnings and anything that could not be verified.
 
 When adding a guard or test, prove that it fails for the defect it is intended
