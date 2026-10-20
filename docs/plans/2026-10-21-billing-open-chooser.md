@@ -1,6 +1,6 @@
 # Open chooser/frontend rollover preparation
 
-> **Status: Living.** Sequential supervisor work,2026-10-21.
+> **Status: Historical (2026-10-21).** Completed frontend phase; backend tracked separately.
 
 1. Confirm/fetch clean task/razorpay-plan baseline0f00044. Audit modern/legacy headings and rollover source paths.
 2. RED tests: default chooser visibility, actual modern/legacy subsection scrolling, catalog/checkout no-rollover marketing.
@@ -17,4 +17,9 @@
 - Removed choosing/saved-summary state and dead toggle/summary CSS. PlanCycleReview still owns actual schedule/quote confirmation and existing financial flow. BillingHistory stays after top-ups.
 - Terms/Refund remove the two carry-forward promises and update only affected policy dates to21October. No cash/refund behavior change. Historical rollover renderer/segment/provenance retained. Backend read-only NTER setting10.00 confirmed; no database mutation.
 
-Test Preview publication and browser acceptance follow.
+## Test Preview acceptance
+
+- Sourcee1329f8 READY as dpl_4Srsgx8zMckJAkoso2LYgsi7eY6L. Bare /#/account/billing opens the chooser with currentMax badge and no toggle. History remains after top-ups.
+- Actual native sidebar clicks: Your plan heading126.8px,Choose your plan127px,Top-ups137.1px,History362px in1000px viewport. Terminal ancestor scrollTop remains0 for all native checks. Smooth-scroll intermediate positions are not final positions; Playwright locator auto-scroll can move a hidden-overflow ancestor,so native clicks were used for the header-preservation proof.
+- Main Overview/Usage/Activity/Plan and invoices links each show their correct route title. Mobile390px chooser visible,current badge present,history after top-ups. Browser console errors0. Viewport restored. Screenshot stored locally/untracked.
+- No payment/quote/schedule mutation,Production deployment,Live key or database change. Read-only setting10.00 evidence and backend retirement tasks in2026-10-21-rollover-retirement.md.

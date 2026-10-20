@@ -50,7 +50,6 @@
 - A new finding gets the next free `F` number (F236 is next) and goes in the
   right section.
 
-- [ ] **Always-open billing chooser/navigation (2026-10-21).** Frontend first: remove toggle,fix anchors,remove rollover benefit promises. Spec/plan2026-10-21-billing-open-chooser.md. Existing Test scope; no database writes.
 - [ ] **Rollover backend retirement (2026-10-21).** Owner requests no rollover; audit/plan2026-10-21-rollover-retirement.md. Current backend still mints10%; future additive migration/causal SQL fixtures and shared-NTER rollout approval needed. Preserve historical lot/ledger/refund provenance; cutover policy needs explicit handling.
 
 ## Frontend follow-up
@@ -3429,3 +3428,7 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-21 billing summary
 
 - **Billing summary allowance/balance separation:** c8d74f5 plus verification closure: Plan price, catalog Monthly allowance and Credits available. Actual period allocation/usage and all credit lots remain in breakdown; proration explained.416 files/6469 application tests,1172 Edge tests,14 focused tests,lint/build/bundle pass. Causal RED/GREEN and actual desktop/mobile Preview image in [plan](2026-10-21-billing-summary.md). Display only, existing Razorpay Test Preview scope; no financial data or Production/Live key changes.
+
+## Done — 2026-10-21 always-open billing chooser
+
+- **Frontend chooser/navigation and rollover-copy preparation:** e1329f8. Always-open cards/current badge,removed toggle/duplicated saved-summary state and dead CSS,repaired current and legacy anchors; history stays after top-ups. Removed rollover benefit promises from billing/pricing/Terms/Refund; preserved historical lot displays.417 files/6472 application tests,1172 Edge tests,56 focused tests,lint/build/bundle pass. Native sidebar and main-account navigation/browser checks pass. [Evidence](2026-10-21-billing-open-chooser.md). Backend rollover still10.00 and tracked separately above; no SQL/data/Production/Live key mutation.
