@@ -50,6 +50,8 @@
 - A new finding gets the next free `F` number (F236 is next) and goes in the
   right section.
 
+- [ ] **Billing summary allowance/balance separation (2026-10-21).** Owner approved three-metric summary and period allocation in breakdown. Spec/plan:2026-10-21-billing-summary.md. Display only; continue existing Test Preview scope.
+
 ## Frontend follow-up
 
 - [ ] **F235 — Indian Sports redundant browser fallback.** Chrome shows direct Google News RSS canceled after same-origin feature-feed succeeds (200,227stories); console empty and publisher navigation works. Review unnecessary parallel fallback requests separately; no CORS failure proven by this observation. The long-open blank tab recovered on reload and was not reproduced in a fresh session; keep this limitation in browser evidence.

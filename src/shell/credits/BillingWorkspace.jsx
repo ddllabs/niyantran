@@ -19,7 +19,6 @@ export default function BillingWorkspace({ ent,user,initialPlan,config,credits,c
   const active = ent?.status === 'active' && !ent.lapsed && PUBLIC_PLANS.some(p => p.id === ent.plan && p.monthly > 0);
   const plan = active ? ent.plan : 'free';
   const product = PUBLIC_PLANS.find(p => p.id === plan);
-  const topups = credits?.lots?.filter(l => l.kind === 'topup').reduce((n,l) => n + l.remaining,0) || 0;
   function updated() { setChoosing(false);setNotice('Billing updated.');onUpdated(); }
   return <div className="billing-modern">
     <section className="billing-surface billing-account" aria-labelledby="billing-current-title">
@@ -28,16 +27,18 @@ export default function BillingWorkspace({ ent,user,initialPlan,config,credits,c
         <button type="button" className="billing-primary" aria-expanded={choosing} aria-controls="billing-plan-picker" onClick={() => setChoosing(v => !v)}>{choosing ? 'Close plan options' : 'Change plan'}</button>
       </div>
       <dl className="billing-account-facts">
-        <div><dt>{active ? 'Monthly price' : 'Plan price'}</dt><dd>{formatInr(product?.monthly || 0)}{active ? <small> / month</small> : null}</dd></div>
-        <div><dt>{active ? 'Included this cycle' : 'Welcome credits remaining'}</dt><dd>{credits ? creditsText(active ? credits.allowance : credits.lots.filter(l => l.kind === 'signup').reduce((n,l) => n+l.remaining,0)) : '—'}</dd></div>
-        <div><dt>Available balance</dt><dd>{credits ? creditsText(credits.available) : '—'}</dd></div>
-        <div><dt>Top-up balance</dt><dd>{credits ? creditsText(topups) : '—'}</dd></div>
+        <div><dt>Plan price</dt><dd>{formatInr(product?.monthly || 0)}{active ? <small> / month</small> : null}</dd></div>
+        <div><dt>Monthly allowance</dt><dd>{active ? <>{creditsText(product.monthlyCredits)}<small> / month</small></> : 'No monthly allowance'}</dd></div>
+        <div><dt>Credits available</dt><dd>{credits ? creditsText(credits.available) : '—'}</dd></div>
       </dl>
       {creditsTried && !credits ? <p role="alert" className="billing-status billing-status-warn">Your balance could not be loaded. Refresh before buying credits.</p> : null}
+      <p className="billing-balance-note">Credits available includes your unexpired plan, welcome, rollover and top-up credits.</p>
       {credits?.held > 0 ? <p className="billing-muted">{creditsText(credits.held)} held for a running answer; excluded from your available balance.</p> : null}
       {credits?.debt > 0 ? <p className="billing-status billing-status-warn">{creditsText(credits.debt)} owed, taken from your next credits.</p> : null}
       {credits ? <details className="billing-credit-details"><summary>Credit breakdown &amp; expiry</summary>
-        {credits.usedThisCycle != null ? <p className="billing-muted">Used this cycle: {creditsText(credits.usedThisCycle)}</p> : null}
+        {active && credits.allowance != null ? <p className="billing-muted">Plan credits added this period: <strong>{creditsText(credits.allowance)}</strong>.</p> : null}
+        {active && credits.allowance != null && credits.allowance !== product.monthlyCredits ? <p className="billing-muted">A prorated upgrade adds credits for the remaining days, so this period’s allocation can differ from a full month’s allowance.</p> : null}
+        {credits.usedThisCycle != null ? <p className="billing-muted">Used this period: {creditsText(credits.usedThisCycle)}</p> : null}
         <BillingCreditBreakdown lots={credits.lots}/>
       </details> : null}
       <div className="billing-account-foot"><span>{active ? 'Renew manually before expiry · 10% monthly rollover' : 'No monthly subscription'}</span><span>Top-ups keep their own expiry dates</span></div>

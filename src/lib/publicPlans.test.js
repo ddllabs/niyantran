@@ -1,3 +1,4 @@
+import { paymentProduct } from '../../server/paymentCatalog.mjs';
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import { PUBLIC_PLANS, PRICING_COMPARE, PRICING_NOTES, purchaseKind } from './publicPlans.js';
@@ -79,4 +80,9 @@ it('names the models each plan gets and never calls Free AI "at no cost"', () =>
   const free = PUBLIC_PLANS.find(p => p.id === 'free');
   expect(free.tag).toBe('Every desk at no cost, plus 10,000 AI credits to try the research assistant.');
   expect(free.tag).not.toMatch(/assistant at no cost/i);
+});
+
+it('keeps displayed full-month allowances equal to the unchanged payment catalog',()=>{
+ for(const plan of PUBLIC_PLANS.filter(p=>p.monthly>0)) expect(plan.monthlyCredits).toBe(paymentProduct(plan.id).credits);
+ expect(PUBLIC_PLANS.find(p=>p.id==='free').monthlyCredits).toBe(0);
 });
