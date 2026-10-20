@@ -4,7 +4,7 @@ import {SportsLandingContent} from './SportsLandingView.jsx';
 const render=props=>renderToStaticMarkup(<SportsLandingContent summaries={{}} onFeature={()=>{}} {...props}/>);
 describe('Sports v6 coverage',()=>{
   it('keeps eight modules and four exact reference images without mock totals',()=>{
-    const html=render({});expect(html).toContain('data-desk="sports"');expect(html).toContain('8 modules');expect((html.match(/class="sector-card"/g)||[])).toHaveLength(4);
+    const html=render({});expect(html).toContain('data-desk="sports"');expect(html).toContain('8 modules');expect((html.match(/class="sector-card sector-front"/g)||[])).toHaveLength(4);
     for(const image of ['sports-hero.png','football-hero.png','press-cameras.jpg','sports-industry.png']) expect(html).toContain(`data-image="${image}"`);
     expect(html).toContain('Loading summaries');expect(html).not.toContain('data-v6-count="0"');
   });

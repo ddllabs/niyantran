@@ -22,7 +22,7 @@ export const deskMotionPaused = (reduced, manualPause, hidden) => reduced || man
 
 export function exploreDeskSectors(sectors, paused) {
   sectors?.scrollIntoView({ behavior: paused ? 'instant' : 'smooth', block: 'nearest' });
-  sectors?.querySelector('.sector-card')?.focus({ preventScroll: true });
+  sectors?.querySelector('.sector-card:not([inert]), .sector-back:not([inert]) a')?.focus({ preventScroll: true });
 }
 
 export function installHeroPan(root, paused, coarse) {

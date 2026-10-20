@@ -4,7 +4,7 @@ import { EntertainmentLandingContent } from './EntertainmentLandingView.jsx';
 const render=props=>renderToStaticMarkup(<EntertainmentLandingContent onFeature={()=>{}} {...props}/>);
 describe('Entertainment measured landing',()=>{
  it('shows eight modules and four exact reference images without invented counts',()=>{
-  const html=render({});expect(html).toContain('8 modules');expect((html.match(/class="sector-card"/g)||[]).length).toBe(4);
+  const html=render({});expect(html).toContain('8 modules');expect((html.match(/class="sector-card sector-front"/g)||[]).length).toBe(4);
   for(const image of ['entertainment-hero.png','press-cameras.jpg','music-hero.png'])expect(html).toContain(`data-image="${image}"`);
   expect(html).not.toContain('data-v6-count="0"');expect(html).toContain('India and US most-played');
  });

@@ -36,3 +36,15 @@ No admin save, refresh, upload, paid chat, permission or user-data mutation was 
 Release only these scoped commits from a82bab875521d17712a9cbb72313ce177d755946 after Chrome verification. No migration or Supabase function deployment required. Rollback target is the preceding Vercel production deployment dpl_CQLJLMk6xsmCD9WzHLMGZ7qWCnDY, or revert the scoped frontend commits; no data rollback needed. Verify exact commit and production Chrome smoke after release. Shared task/razorpay-plan files remain untouched.
 
 Verified code commits: 2593b09 (BBC) and a19e2a8 (form/admin semantics).
+
+## Production verification
+
+Published release commit 4a0c98109da97caba1fe312c8e9db056dfde7df5. Vercel deployment dpl_CmCWdRkJMWcskCJqPpABbCdqx7UY reports READY, production, exact commit, and www.nter.pro/nter.pro aliases with no alias error.
+
+Chrome signed-in production smoke passed: Football Wire 216 stories, zero direct BBC RSS requests and zero console messages; Usage, Activity, Fund Flow and all seven admin views inspected. Admin AI model controls expose descriptive labels; persona composer exposes Message as UPSC. Documents rendered Records, Documents without a record, Upload and Ingest jobs. The remaining entries under the non-200/304 Network filter are successful 204 No Content preflights, not failures. No paid request, admin save or production data mutation performed. Screenshots production-fixed-football.png and production-fixed-admin.png are in the same external evidence directory.
+
+CI run 39299397746 was still executing at the production smoke check; local full suites already passed. The explicit-team deployment-list connector returned 403 and the Vercel CLI was absent; project/deployment reads by exact IDs succeeded and verified the deployment. No credentials or access settings changed.
+
+## Follow-up — 2026-10-20
+
+CI39299397746 completed successfully: both Build and tests and disposable SQL fixtures passed. Fresh Chrome checks found no console messages or Issues on the affected account/admin views. One long-open tab blanked and recovered on reload; cause unproven. Indian Sports Wire separately showed a canceled direct Google News fallback while the same-origin API returned200/227stories; headline opened its publisher. Do not interpret the earlier scoped clean checks as a universal absence of canceled requests. See the open tracker for the remaining fallback review. No additional code or deployment in this follow-up.

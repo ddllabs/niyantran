@@ -12,7 +12,7 @@ describe('Global v6 adapter', () => {
     expect(html).toContain('A world of signals.');
     expect(html).toContain('One clear perspective.');
     expect(html).toContain('16 modules');
-    expect((html.match(/class="sector-card"/g) || []).length).toBe(5);
+    expect((html.match(/class="sector-card sector-front"/g) || []).length).toBe(5);
     for (const image of ['earth', 'elections', 'trade', 'energy-plants', 'global-trade']) expect(html).toContain(`data-image="${image}"`);
     expect(html).toContain('Open Fronts');
     expect(html).toContain('Loading summaries');
