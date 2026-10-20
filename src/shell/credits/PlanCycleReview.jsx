@@ -9,7 +9,7 @@ const date = iso => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', 
 
 // One contextual review. The server still owns every quote and confirmed change.
 export default function PlanCycleReview({ ent, user, initialPlan, onUpdated, onStateChange }) {
-  const [selected, setSelected] = useState(() => PUBLIC_PLANS.some(p => p.id === initialPlan && p.monthly > 0) ? initialPlan : null);
+  const [selected, setSelected] = useState(() => PUBLIC_PLANS.some(p => p.id === initialPlan && (p.monthly > 0 || (p.id === 'free' && ent?.status === 'active' && !ent.lapsed && ent.plan !== 'free'))) ? initialPlan : null);
   const [quote, setQuote] = useState(null);
   const [state, setState] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -66,7 +66,7 @@ export default function PlanCycleReview({ ent, user, initialPlan, onUpdated, onS
   }
   return <section className="cp-card" aria-labelledby="plan-change-title">
     <div className="billing-section-head"><div><h3 id="plan-change-title" className="cp-card-title">Choose your plan</h3><p>Upgrade this cycle, or select a lower plan for next month.</p></div></div>
-    <PlanChoices ent={ent} selected={selected} busy={busy} onSelect={choose} />
+    <PlanChoices ent={ent} selected={selected} busy={busy} includeFree onSelect={choose} />
     {resting && scheduled ? <section className="plan-context plan-context-saved" aria-label="Next plan selection">
       <div className="plan-context-heading"><div><span className="plan-context-eyebrow">Next period · {date(scheduled.effectiveAt)}</span><h4>{name(scheduled.planId)} selected <span className="plan-context-tag">{scheduled.planId === 'free' ? 'No payment needed' : 'Unpaid'}</span></h4></div>
         <div className="plan-context-tools">{(renewDue || !active) && scheduled.planId !== 'free' ? <button type="button" className="billing-secondary" disabled={busy} onClick={() => choose(scheduled.planId, 'renew')}>Review next month</button> : null}
@@ -94,6 +94,6 @@ export default function PlanCycleReview({ ent, user, initialPlan, onUpdated, onS
       </> : quoteStatus === 'error' ? <><h4>Price unavailable</h4><p role="alert">{message}</p><div className="plan-context-actions"><button type="button" className="billing-secondary" disabled={busy} onClick={retryQuote}>Try quote again</button><button type="button" className="billing-text-button" disabled={busy} onClick={() => choose(null)}>Back to plans</button></div></> : <div className="plan-context-loading" role="status"><span className="plan-context-loading-mark" aria-hidden="true"/><div><h4>Getting your price</h4><p>Calculating {name(selected)} for your account. Nothing has been charged.</p></div></div>}
     </section> : null}
     {message && !(selected && !downgrade && !renewalLater && quoteStatus === 'error') ? <p role="status" className="plan-context-message">{message}</p> : null}
-    <div className="plan-context-footer"><span>Manual renewal. No automatic charges.</span>{active && scheduled?.planId !== 'free' ? <button type="button" className="billing-text-button" aria-pressed={selected === 'free'} disabled={busy} onClick={() => choose(selected === 'free' ? null : 'free')}>{selected === 'free' ? 'Free selected for review' : 'Use Free after this period'}</button> : null}</div>
+    <div className="plan-context-footer"><span>Manual renewal. No automatic charges.</span></div>
   </section>;
 }

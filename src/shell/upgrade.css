@@ -432,3 +432,7 @@
 .plan-up-plan.billing-current em { background: #dcf4e9; color: #146b49; border: 1px solid #a5d8c0; border-radius: 6px; }
 .theme-dark .plan-up-plan.billing-current em { background: #173c30; color: #a9edce; border-color: #356b54; }
 @media (max-width: 600px) { .plan-picker { padding: 18px; } }
+/* Four tiers in the profile chooser; no recurring credits promised for Free. */
+.plan-picker .plan-up-choices.has-free { grid-template-columns: repeat(2,minmax(0,1fr)); }
+@media (max-width:560px) { .plan-picker .plan-up-choices.has-free { grid-template-columns: 1fr; } }
+.plan-up-choices.has-free .billing-current:disabled { opacity: 1; color: var(--fg); cursor: default; }

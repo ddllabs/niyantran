@@ -49,3 +49,9 @@ it('uses a native modal, closes on Escape and restores focus to the account trig
   cleanup();
   expect(fake.dialog.close).toHaveBeenCalledOnce(); expect(focus).toHaveBeenCalledOnce();
 });
+
+it('reviews Free as a no-payment future change rather than a purchase',()=>{
+ fake.selected='free';const onReview=vi.fn();const tree=PlanChangeDialog({ent:pro,onClose:vi.fn(),onReview});const out=renderToStaticMarkup(tree);
+ expect(out).toContain('No monthly credit allowance');expect(out).toContain('No payment is needed');expect(out).toContain('Review FREE change');expect(out).not.toContain('FREE purchase');
+ children(tree).at(-1).props.onClick();expect(onReview).toHaveBeenCalledWith('free');
+});

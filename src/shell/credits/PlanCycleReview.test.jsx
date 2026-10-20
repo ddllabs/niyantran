@@ -67,9 +67,16 @@ it('gives an actionable quote error without hiding the server reason',()=>{
 
 it('keeps Free as an explicit two-step future change without a payment',async()=>{
  f.states=[null,null,{ok:true},false,'',null,0];let tree=render();
- all(tree,n=>n.type==='button'&&text(n)==='Use Free after this period')[0].props.onClick();
+ all(tree,n=>n.type==='button'&&text(n).includes('No monthly credit allowance'))[0].props.onClick();
  expect(f.schedule).not.toHaveBeenCalled();expect(f.checkout).not.toHaveBeenCalled();
  tree=render();expect(text(tree)).toContain('Move to Free');expect(text(tree)).toContain('₹0.00');
  await all(tree,n=>n.type==='button'&&text(n)==='Schedule change to Free')[0].props.onClick();
  expect(f.schedule).toHaveBeenCalledWith('free');expect(f.checkout).not.toHaveBeenCalled();
+});
+
+it('accepts a paid account Free deep link as a schedule review only',()=>{
+ const tree=render({initialPlan:'free'});expect(text(tree)).toContain('Move to Free');expect(text(tree)).toContain('₹0.00');expect(f.checkout).not.toHaveBeenCalled();
+});
+it('does not preselect a Free schedule for an existing Free account',()=>{
+ const tree=render({initialPlan:'free',ent:{plan:'free',status:'free'}});expect(text(tree)).not.toContain('Move to Free');expect(f.quote).not.toHaveBeenCalled();
 });

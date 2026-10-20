@@ -9,7 +9,7 @@ export default function PlanChangeDialog({ ent, onClose, onReview }) {
   const active = ent?.status === 'active' && !ent?.lapsed;
   const current = PUBLIC_PLANS.find(p => p.id === (active ? ent.plan : 'free')) || PUBLIC_PLANS[0];
   const choice = PUBLIC_PLANS.find(p => p.id === selected);
-  const kind = choice ? purchaseKind(ent, choice.id) : null;
+  const kind = choice?.id === 'free' && current.id !== 'free' ? 'downgrade' : choice ? purchaseKind(ent, choice.id) : null;
   const end = active && ent.periodEnd ? new Date(ent.periodEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
 
   useEffect(() => {
@@ -26,16 +26,16 @@ export default function PlanChangeDialog({ ent, onClose, onReview }) {
       <button type="button" className="billing-secondary" onClick={onClose} aria-label="Close plan picker">Close</button>
     </div>
     <p className="plan-up-lead">Current plan: <strong>{current.name}</strong>{end ? ` · active until ${end}` : ''}</p>
-    <p className="plan-up-note">No automatic renewal. Review your purchase before opening Razorpay.</p>
-    <PlanChoices ent={ent} selected={selected} onSelect={setSelected} />
+    <p className="plan-up-note">No automatic renewal. Review your plan change before confirming.</p>
+    <PlanChoices ent={ent} selected={selected} includeFree onSelect={setSelected} />
     {choice ? <p role="status" className="plan-picker-timing">
-      {kind === 'downgrade' ? `Your ${current.name} access continues${end ? ` until ${end}` : ' through the current paid period'}. ${choice.name} starts after that period ends.`
+      {kind === 'downgrade' ? `Your ${current.name} access continues${end ? ` until ${end}` : ' through the current paid period'}. ${choice.name} starts after that period ends.${choice.id === 'free' ? ' No payment is needed.' : ''}`
         : kind === 'renew' ? `Adds one month of ${choice.name} after your current paid period.`
           : kind === 'upgrade' ? `${choice.name} starts now. Unused days of ${current.name} are not refunded.`
             : `One month of ${choice.name}, starting now.`}
     </p> : null}
     <button type="button" className="plan-up-pay" disabled={!choice} onClick={() => { if (choice) onReview(choice.id); }}>
-      {choice ? `Review ${choice.name} purchase` : 'Choose a plan'}
+      {choice ? `Review ${choice.name} ${choice.id === 'free' ? 'change' : 'purchase'}` : 'Choose a plan'}
     </button>
   </dialog>;
 }
