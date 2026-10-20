@@ -3403,3 +3403,8 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-20 Test billing cycle implementation
 
 - Prorated Test upgrades, free replaceable downgrade preferences, explicit manual renewal and retained10% rollover implemented in71ee2cc. All6434 Vitest/1172 Edge tests,49 SQL fixtures and focused concurrency/vacuity/cleanup checks pass; lint/build/bundle/router pass. Owner-approved additive shared migration applied without replacing existing functions. Named owner's frozen Test purchase graph reset to Free; welcome balance/history preserved. Test Preview READY and authenticated browser review verified. [Plan and release evidence](2026-10-20-billing-cycle-changes.md). O6 stays open for genuine new-flow provider acceptance and remaining Live launch gates.
+
+
+## Done — 2026-10-20 Test billing design and daily pricing
+
+- Scoped modern billing summary/chooser/topups, unified history with collapsed references, branded in-page invoice and IST daily upgrade quotes landed in `0649524`, `bc3b46c`, `f98203d`. Final6447 Vitest/1172 Deno tests and50 SQL fixtures pass; lint/build/bundle/router pass. Owner-approved additive shared migration applied; original functions and historical purchases unchanged. Test Preview READY; real plan/top-up invoices and daily quote verified in authenticated browser. Production/Live keys untouched. [Plan and evidence](2026-10-20-billing-design-daily-proration.md). O6 remains open for its separate Live launch gates.
