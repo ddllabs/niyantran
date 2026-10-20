@@ -40,6 +40,7 @@
 
 
 
+
 ## How to use this file
 
 - **This is the only list of open work.** Plans, specs, ADRs and
@@ -3089,3 +3090,7 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-21 desk sector flip cards
 
 - [x] Shared eight-desk flip cards, implementation `a51b07d`. Owner reviewed local Global and authorized push/merge. 6293 application and 1172 Edge tests passed; focused final CSS checks, lint/build/bundle and browser interactions passed. Billing untouched. Release status and verification limits: [plan](2026-10-21-desk-sector-flip.md).
+
+## Done — 2026-10-21 State sector grid parity
+
+- [x] `2954800` removes dense-sector layout exceptions; State shares desktop and responsive grids with other desks. All module links preserved. Owner authorized publication; 244 focused tests, lint/build and browser checks passed. [Plan](2026-10-21-state-sector-grid.md).

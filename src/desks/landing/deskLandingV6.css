@@ -678,12 +678,8 @@
 @media(prefers-reduced-motion:reduce){.desk-v6 .sector-turn{transition:none}}
 @media(max-width:600px){.desk-v6.desk-v6 .sector-grid{grid-template-columns:1fr!important}.desk-v6.desk-v6 .sector-front,.desk-v6 .sector-back{min-height:340px}}
 
-/* State has up to eleven modules in a sector; give those lists readable width. */
-.desk-v6.desk-v6 .sector-grid[data-dense="true"]{grid-template-columns:repeat(2,minmax(0,1fr))}
-.desk-v6 .sector-flip[data-dense="true"] .sector-modules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px}
-@media(max-width:600px){.desk-v6 .sector-flip[data-dense="true"] .sector-modules{grid-template-columns:1fr}}
 .desk-v6.desk-v6 .sector-front .card-desc{white-space:normal;overflow-wrap:break-word;color:var(--explorer-muted)}
-@media(min-width:601px) and (max-width:1150px){.desk-v6.desk-v6 .sector-grid:not([data-dense="true"]){grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(min-width:601px) and (max-width:1150px){.desk-v6.desk-v6 .sector-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
 /* The reverse background is a pointer shortcut; the visible Back button and Escape remain keyboard controls. */
 .desk-v6 .sector-back{position:relative}
