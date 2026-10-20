@@ -17,7 +17,7 @@
 .billing-account-facts dt { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
 .billing-account-facts dd { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
 .billing-balance-note { margin: -8px 0 18px; color: var(--muted); font-size: 12px; }
-.billing-account-facts small { font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+.billing-account-facts small { white-space: nowrap; font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--muted); }
 .billing-account-foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .billing-next-notice { display: flex; gap: 12px; align-items: center; padding: 16px 0 0; margin-top: 16px; border-top: 1px solid var(--line); }
 .billing-next-notice strong { font-size: 13px; font-weight: 600; }

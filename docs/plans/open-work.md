@@ -50,8 +50,6 @@
 - A new finding gets the next free `F` number (F236 is next) and goes in the
   right section.
 
-- [ ] **Billing summary allowance/balance separation (2026-10-21).** Owner approved three-metric summary and period allocation in breakdown. Spec/plan:2026-10-21-billing-summary.md. Display only; continue existing Test Preview scope.
-
 ## Frontend follow-up
 
 - [ ] **F235 — Indian Sports redundant browser fallback.** Chrome shows direct Google News RSS canceled after same-origin feature-feed succeeds (200,227stories); console empty and publisher navigation works. Review unnecessary parallel fallback requests separately; no CORS failure proven by this observation. The long-open blank tab recovered on reload and was not reproduced in a fresh session; keep this limitation in browser evidence.
@@ -3424,3 +3422,7 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-21 billing UI clarity
 
 - **Billing UI clarity:** implementation2292928 and closure follow-up: unnecessary .00 removed while genuine paise remain exact; Pay online actions; renewal payment-window/service-date distinction; invoice X/backdrop/Escape dismissal with focus restoration; compact grouped credit table retaining original grants. Free footer no longer implies a subscription. Full416-file/6466-test application run,1172 Edge tests,59 focused checks,lint/build/bundle pass. Causal RED/GREEN evidence and authenticated desktop/mobile/dark browser checks recorded in [plan](2026-10-21-billing-ui-clarity.md). Test-only branch publication; Production deployment and Live credentials unchanged.
+
+## Done — 2026-10-21 billing summary
+
+- **Billing summary allowance/balance separation:** c8d74f5 plus verification closure: Plan price, catalog Monthly allowance and Credits available. Actual period allocation/usage and all credit lots remain in breakdown; proration explained.416 files/6469 application tests,1172 Edge tests,14 focused tests,lint/build/bundle pass. Causal RED/GREEN and actual desktop/mobile Preview image in [plan](2026-10-21-billing-summary.md). Display only, existing Razorpay Test Preview scope; no financial data or Production/Live key changes.
