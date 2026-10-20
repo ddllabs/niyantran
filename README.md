@@ -30,8 +30,10 @@ available in a production host.
 
 `npm run lint` runs ESLint and fails on any error or warning. There is
 no standalone type-check. `.github/workflows/ci.yml` runs the build, lint, both
-test suites and the SQL fixtures on every push; it is advisory, and nothing is
-blocked on it. `npm run test:sql` runs the fixtures in
+test suites and the SQL fixtures on every push and pull request. Both CI jobs
+are required on up-to-date PRs before main merges, including administrators.
+Vercel builds may run in parallel; Preview and Production domain assignment
+waits for both jobs to pass on the deployed commit. `npm run test:sql` runs the fixtures in
 `supabase/tests/` against two disposable local Docker Postgres containers with the
 required Auth stubs and migrations; never run them against production.
 Build warnings about a large bundle and mixed static/dynamic imports remain.

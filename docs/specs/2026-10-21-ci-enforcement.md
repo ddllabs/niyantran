@@ -18,7 +18,7 @@ or failed CI must not release a deployment. Verify API readback and an isolated
 Preview execution; keep the existing Production deployment and keys unchanged.
 
 ## Scope and exclusions
-GitHub main protection, Vercel project CI checks, CI policy comments, and agent
+GitHub main protection, Vercel project CI checks, CI policy comments, and current README/agent
 workflow documentation only. No application, billing, database, environment,
 credential or Production release changes. Preserve task/razorpay-plan. Native
 provider limitations must be reported rather than hidden behind bypasses.
