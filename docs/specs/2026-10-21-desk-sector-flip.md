@@ -13,3 +13,5 @@ Owner refinement: images fill available front-face space above bottom-anchored t
 Second owner refinement: remove arrows from all sector front/back CTAs and module rows; remove the hover leading stripe; add balanced module-row padding with full-row accent highlight and existing shadow/font tokens. Hero/data actions are outside the card-arrow scope.
 
 Retain existing interaction language explicitly: slight outer hover lift with ink border; selected/open face deep-blue border; inner module hover follows the same restrained lift/border/type styling. Pause/reduced motion disable positional movement without losing state feedback.
+
+State layout correction: use the same sector-count desktop columns and responsive breakpoints as every other desk. Long reverse lists remain single-column and fully visible with page scrolling; no dense-sector grid exception.
