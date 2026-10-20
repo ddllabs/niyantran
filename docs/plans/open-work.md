@@ -2955,6 +2955,7 @@ Earlier items, updated:
 
 
 - [ ] **O6.** After F6: the Razorpay keys on Vercel, then one real payment
+  - **2026-10-20 owner-authorized cycle contract:** implement prorated price/credit upgrades, free next-plan scheduling, manual renewal and retained 10% rollover; delete frozen Test purchase graph for the owner-designated account only; verify and publish Test Preview. Sequential [spec](../specs/2026-10-20-billing-cycle-changes.md) / [plan](2026-10-20-billing-cycle-changes.md). Production/Live/corpus unchanged; shared additive migration bounded separately. In progress.
   end to end.
   - Added by F111 (2026-10-14; recommendations in the
     [credits plan](2026-10-14-ai-credits.md), "After launch"):

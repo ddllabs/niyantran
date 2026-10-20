@@ -197,7 +197,7 @@ async function openRazorpayCheckout({ keyId, orderId, purchaseId, amount, curren
  * Buy one month of a paid plan for the signed-in user.
  * @param {{ planId: string, user?: object, billing?: { buyerName? } }} opts
  */
-export async function completeCheckout({ planId, productId, requestId, user, billing = {} } = {}) {
+export async function completeCheckout({ planId, productId, requestId, quoteId, user, billing = {} } = {}) {
   const plan = normalizePlanId(planId);
   if (!productId && plan === 'free') {
     return { ok: false, reason: 'Free is the free plan; there is nothing to buy.', mode: 'free' };
@@ -216,7 +216,7 @@ export async function completeCheckout({ planId, productId, requestId, user, bil
   }
   const buyer = buyerPayload(seat, billing);
   const product = productId || `plan-${plan}`;
-  const intentKey = `billing-intent:${seat.id}:${product}`;
+  const intentKey = `billing-intent:${seat.id}:${product}${quoteId ? `:${quoteId}` : ''}`;
   let stableId = requestId;
   try { stableId ||= sessionStorage.getItem(intentKey); } catch { /* restricted storage */ }
   stableId ||= globalThis.crypto.randomUUID();
@@ -225,7 +225,7 @@ export async function completeCheckout({ planId, productId, requestId, user, bil
     const orderRes = await fetch('/api/billing/create-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-      body: JSON.stringify({ planId: productId ? undefined : plan, productId: product, requestId: stableId, name: buyer.name }),
+      body: JSON.stringify({ planId: productId ? undefined : plan, productId: product, requestId: stableId, quoteId, name: buyer.name }),
     });
     const order = await orderRes.json().catch(() => ({}));
     if (!orderRes.ok || !order.ok) {
@@ -292,3 +292,11 @@ export async function fetchBillingReviews() {
 }
 export async function reviewBillingAdjustment(body) { return paymentOperation('adjustments/review', body); }
 export async function runBillingRecovery() { return paymentOperation('recover', {}); }
+
+export async function fetchPlanQuote(planId, intent) {
+  const query = new URLSearchParams({ planId, ...(intent ? { intent } : {}) });
+  return paymentOperation(`plan-quote?${query}`);
+}
+export async function fetchPlanState() { return paymentOperation('plan-state'); }
+export async function scheduleNextPlan(planId) { return paymentOperation('plan-schedule', { planId }); }
+export async function cancelNextPlan() { return paymentOperation('plan-cancel', {}); }

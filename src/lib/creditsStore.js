@@ -128,7 +128,7 @@ async function readOnce() {
     const version = await readUnit();
     if (!version || started !== epoch) return null;
     const generation = unitGeneration;
-    const result = await supabase.rpc('my_credits');
+    const result = await supabase.rpc('my_credits_cycle');
     if (started !== epoch) return null;
     if (result.error) {
       const after = await supabase.auth.getSession();

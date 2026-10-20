@@ -104,7 +104,7 @@ describe('refreshCredits', () => {
     expect((await loadCreditEstimates()).constructor).toBe(Object);
     releaseOld({ data: { unit_version: 'credit-ten-paise-v1', inr_per_credit: 0.1 }, error: null });
     expect(await old).toBeNull();
-    expect(state.rpc).not.toHaveBeenCalledWith('my_credits');
+    expect(state.rpc).not.toHaveBeenCalledWith('my_credits_cycle');
   });
   it('drops an old cached wallet when the authoritative unit changes', async () => {
     await refreshCredits();
@@ -130,7 +130,7 @@ describe('refreshCredits', () => {
   });
   it('reads my_credits for the session user and keeps it in memory', async () => {
     const c = await refreshCredits();
-    expect(state.rpc).toHaveBeenCalledWith('my_credits');
+    expect(state.rpc).toHaveBeenCalledWith('my_credits_cycle');
     expect(c.balance).toBe(1520.4567);
     expect(serverCredits('u1')).toBe(c);
     expect(serverCredits('someone-else')).toBeNull();
@@ -425,7 +425,7 @@ describe('loadCreditEstimates (F151)', () => {
     const old = loadCreditEstimates();
     await entered;
     state.unit = { unit_version: 'credit-paise-v2', inr_per_credit: 0.01 };
-    state.rpc = vi.fn(async (name) => name === 'my_credits'
+    state.rpc = vi.fn(async (name) => name === 'my_credits_cycle'
       ? { data: { ...SERVER, unit_version: 'credit-paise-v2', inr_per_credit: 0.01 }, error: null }
       : { data: [{ model_id: 'anthropic/claude-sonnet-5', credits: 1704 }], error: null });
     expect((await refreshCredits()).unitVersion).toBe('credit-paise-v2');

@@ -1,10 +1,11 @@
+import PlanCycleReview from './credits/PlanCycleReview.jsx';
 import PlanPeriods from './credits/PlanPeriods.jsx';
 import BillingReviews from './credits/BillingReviews.jsx';
 import Purchases from './credits/Purchases.jsx';
 import PurchaseReview from './credits/PurchaseReview.jsx';
 import PlanChoices from './PlanChoices.jsx';
 import { useEffect, useRef, useState } from 'react';
-import { completeCheckout, fetchBillingConfig, fetchInvoices, openInvoice } from '../lib/billing.js';
+import { completeCheckout, fetchBillingConfig, fetchInvoices, openInvoice, formatInr } from '../lib/billing.js';
 import { creditsText, refreshCredits, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
 import { refreshEntitlement } from '../lib/entitlementStore.js';
 import { PUBLIC_PLANS, purchaseKind, rupees } from '../lib/publicPlans.js';
@@ -183,7 +184,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
 
       {user ? <Purchases key={userId} user={user} revision={revision} onUpdated={updated} /> : null}
       {user?.role === 'admin' ? <BillingReviews user={user} /> : null}
-      <section className="cp-card" aria-labelledby="plan-change-title">
+      {config?.cycleChanges ? <PlanCycleReview key={userId} ent={ent} user={user} initialPlan={initialPlan} onUpdated={updated} /> : <section className="cp-card" aria-labelledby="plan-change-title">
         <h3 id="plan-change-title" className="cp-card-title">Change plan</h3>
         <PlanChoices ent={ent} selected={selected} busy={busy} onSelect={id => { setSelected(id); setResult(null); }} />
 
@@ -222,7 +223,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
           </p>
         ) : null}
         {result && !result.ok ? <p className="plan-up-err" role="alert">{result.text}</p> : null}
-      </section>
+      </section>}
 
       <section className="cp-card" aria-labelledby="plan-invoices-title">
         <h3 id="plan-invoices-title" className="cp-card-title">Invoices</h3>
@@ -234,7 +235,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
               <li key={inv.id}>
                 <span>{inv.invoiceNo}</span>
                 <span>{inv.issuedAt ? day(inv.issuedAt) : ''} · {inv.description || inv.label || planLabel(inv.planId)}</span>
-                <span>{rupees(Math.round(Number(inv.total) || 0))}</span>
+                <span>{formatInr(Number(inv.total) || 0)}</span>
                 <button type="button" className="plan-up-inv-link" onClick={() => openInvoice(inv.id)}>
                   Open
                 </button>

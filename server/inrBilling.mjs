@@ -101,6 +101,7 @@ export function renderInvoiceHtml(inv, seller) {
       ${esc(inv.buyerEmail || inv.email || '')}
     </div>
   </div>
+  ${inv.cycleEndsAt ? `<p class="muted">Covered period: ${esc(inv.action === 'upgrade' ? inv.issuedAt : inv.cycleStartsAt)} – ${esc(inv.cycleEndsAt)}</p>` : ''}
   <table>
     <thead><tr><th>#</th><th>Description</th><th class="r">Amount</th></tr></thead>
     <tbody>

@@ -10,7 +10,7 @@ import { loadEnv } from './loadEnv.mjs';
 import { getSupabaseAdminClient } from './authEmailProvider.mjs';
 import { authorizeLocalUser, localClientForToken } from './usersApi.mjs';
 import { computeQuote, renderInvoiceHtml, sellerFromEnv } from './inrBilling.mjs';
-import { createPurchase, listPurchases, listPlanPeriods, verifyPurchase, purchaseStatus, receivePaymentWebhook, recoverPayments, paymentContext, paymentConfig, checkoutEnabled, billingRpc, readRawPaymentBody, TOPUP_PACKS } from './paymentService.mjs';
+import { createPurchase, listPurchases, listPlanPeriods, verifyPurchase, purchaseStatus, receivePaymentWebhook, recoverPayments, paymentContext, paymentConfig, checkoutEnabled, billingRpc, readRawPaymentBody, TOPUP_PACKS, planCycleOperation } from './paymentService.mjs';
 
 loadEnv();
 
@@ -87,6 +87,7 @@ export async function handleBillingApi(req, res, url, deps = {}) {
       keyId: enabled ? d.paymentConfig.keyId : '',
       topups: TOPUP_PACKS,
       currency: 'INR',
+      cycleChanges: Boolean(d.paymentConfig.cycleChanges && d.paymentConfig.mode === 'test'),
       gstRegistered: false,
       demoFallback: !enabled,
     });
@@ -100,6 +101,20 @@ export async function handleBillingApi(req, res, url, deps = {}) {
       return true;
     }
     json(res, { ok: true, quote, seller: sellerFromEnv() });
+    return true;
+  }
+
+  const cycleRoute = url.pathname.match(/^\/api\/billing\/plan-(quote|state|schedule|cancel)$/);
+  if (cycleRoute) {
+    try {
+      const action = cycleRoute[1];
+      if (req.method !== (['quote', 'state'].includes(action) ? 'GET' : 'POST')) { json(res, { ok: false, reason: 'Method not allowed.' }, 405); return true; }
+      const who = await caller(); if (!who) return true;
+      const body = req.method === 'GET' ? Object.fromEntries(url.searchParams)
+        : req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body) ? req.body : JSON.parse((await readRawPaymentBody(req, 16384)).toString('utf8'));
+      const result = await planCycleOperation(action, body, who, paymentContext(d));
+      json(res, { ok: true, ...(action === 'quote' ? { quote: result } : result) });
+    } catch (error) { json(res, { ok: false, reason: error.status ? error.message : 'Plan change could not be confirmed. Refresh before retrying.' }, error.status || 503); }
     return true;
   }
 
