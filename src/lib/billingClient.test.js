@@ -16,7 +16,7 @@ vi.mock('./productAnalytics.js', () => ({ trackProductEvent: () => {} }));
 const ent = vi.hoisted(() => ({ refresh: null }));
 vi.mock('./entitlementStore.js', () => ({ refreshEntitlement: (...args) => ent.refresh(...args) }));
 
-import { completeCheckout, openInvoice, fetchInvoiceHtml, fetchPurchases, fetchInvoices, fetchBillingReviews, fetchPlanPeriods } from './billing.js';
+import { formatInr, completeCheckout, openInvoice, fetchInvoiceHtml, fetchPurchases, fetchInvoices, fetchBillingReviews, fetchPlanPeriods } from './billing.js';
 
 let calls;
 function serve(routes) {
@@ -137,4 +137,11 @@ it('loads authenticated invoice HTML for an in-page viewer without opening a pop
  const open=vi.fn();vi.stubGlobal('window',{open});
  expect(await fetchInvoiceHtml('inv_inline')).toBe('<html>Invoice fixture</html>');
  expect(calls[0].init.headers.Authorization).toBe('Bearer access-1');expect(open).not.toHaveBeenCalled();
+});
+
+it('removes only zero paise from display without rounding genuine charges to rupees', () => {
+  expect(formatInr(999)).toBe('₹999');
+  expect(formatInr(0)).toBe('₹0');
+  expect(formatInr(599.74)).toBe('₹599.74');
+  expect(formatInr(599.7)).toBe('₹599.70');
 });

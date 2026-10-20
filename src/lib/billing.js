@@ -282,7 +282,7 @@ export function refreshSessionFromStore() {
 }
 
 export function formatInr(n) {
-  return `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: Number(n || 0) % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}`;
 }
 
 async function paymentOperation(path, body) {

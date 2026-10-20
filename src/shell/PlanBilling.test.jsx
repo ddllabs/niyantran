@@ -96,7 +96,8 @@ it('on an active Pro month: Plus queues, Pro renews, Max upgrades now without re
   tree = render(PRO, { config: OPEN });
   expect(text(tree)).toMatch(/Max month starts now/);
   expect(text(tree)).toMatch(/unused days of Pro are not refunded/i);
-  expect(text(pay(tree))).toContain('₹9,999');
+  expect(text(pay(tree))).toBe('Pay online');
+  expect(text(all(tree, n => n.props?.['aria-label'] === 'Review your purchase')[0])).toContain('₹9,999.00');
 });
 
 it('reminds the account to renew when its month ends within a week', () => {

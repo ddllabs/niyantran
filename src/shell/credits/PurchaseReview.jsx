@@ -12,7 +12,7 @@ export default function PurchaseReview({ label, amountPaise, credits, timing, cu
     {timing ? <p>{timing}</p> : null}
     <p>{topup ? 'Your plan and model access stay unchanged. Credits are valid for 12 months from fulfilment.' : 'One payment covers one month. No automatic renewal.'} No GST is charged.</p>
     <div className="billing-review-actions">
-      <button type="button" className="plan-up-pay" disabled={disabled || busy} onClick={onConfirm}>{busy ? 'Opening payment…' : `Pay ${formatInr(amountPaise / 100)} with Razorpay`}</button>
+      <button type="button" className="plan-up-pay" disabled={disabled || busy} onClick={onConfirm}>{busy ? 'Opening payment…' : 'Pay online'}</button>
       <button type="button" className="billing-secondary" disabled={busy} onClick={onCancel}>Cancel selection</button>
     </div>
   </section>;

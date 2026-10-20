@@ -80,3 +80,17 @@ it('accepts a paid account Free deep link as a schedule review only',()=>{
 it('does not preselect a Free schedule for an existing Free account',()=>{
  const tree=render({initialPlan:'free',ent:{plan:'free',status:'free'}});expect(text(tree)).not.toContain('Move to Free');expect(f.quote).not.toHaveBeenCalled();
 });
+
+it('distinguishes early payment availability from the next service period', () => {
+ f.states=['pro',null,{ok:true},false,'',null,0];
+ const tree=render({ent:{...ent,periodEnd:new Date(Date.now()+20*86400000).toISOString()}});
+ expect(text(tree)).toContain('Renew from');
+ expect(text(tree)).toContain('Your next month starts');
+ expect(text(tree)).toContain('returns to Free');
+});
+it('keeps the exact quoted total next to a provider-neutral payment action', () => {
+ f.states=['max',{quoteId:'quote-exact',action:'upgrade',credits:123,amountPaise:59974,cycleEndsAt:ent.periodEnd,expiresAt:new Date(Date.now()+60000).toISOString()},null,false,'',null,0];
+ const tree=render();
+ expect(text(tree)).toContain('₹599.74');
+ expect(all(tree,n=>n.type==='button'&&text(n)==='Pay online')).toHaveLength(1);
+});
