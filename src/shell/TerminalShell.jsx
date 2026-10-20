@@ -33,6 +33,7 @@ import { openInDesk, takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
 import PersonaChooser from './PersonaChooser.jsx';
 const CreditsPage = lazy(() => import('./credits/CreditsPage.jsx'));
+const PlanChangeDialog = lazy(() => import('./PlanChangeDialog.jsx'));
 import LazyView from './LazyView.jsx';
 import ProfileCredits from './credits/BalancePill.jsx';
 import { ACCOUNT_SECTIONS, deskRouteFor, goAccount, parseAccountHash } from './credits/accountRoute.js';
@@ -59,6 +60,7 @@ export default function TerminalShell({ onLogout }) {
   const [liveTvOpen, setLiveTvOpen] = useState(false);
   const [liveTvVisited, setLiveTvVisited] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [planPickerOpen, setPlanPickerOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
   // The credits page (F184): its section while open (#/account/<section>), else null.
   const [account, setAccount] = useState(() => parseAccountHash());
@@ -425,7 +427,7 @@ export default function TerminalShell({ onLogout }) {
           >
             {theme === 'light' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
           </button>
-          <ProfileCredits user={user} open={profileOpen} setOpen={setProfileOpen} onToggle={() => setLiveTvOpen(false)}>
+          <ProfileCredits user={user} open={profileOpen} setOpen={setProfileOpen} onToggle={() => setLiveTvOpen(false)} activePlan={ent.status === 'active' && !ent.lapsed ? ent.plan : null}>
             {(glance) => <>
                 <div className="profile-pop-head">
                   <span className="avatar lg">{(user?.name || user?.email || 'A').charAt(0).toUpperCase()}</span>
@@ -462,6 +464,9 @@ export default function TerminalShell({ onLogout }) {
                 {planMeta?.tag ? <p className="profile-pop-tag">{planMeta.tag}</p> : null}
                 {glance}
                 <div className="profile-pop-actions">
+                  <button type="button" className="profile-pop-upgrade" onClick={() => { setProfileOpen(false); setPlanPickerOpen(true); }}>
+                    Change plan
+                  </button>
                   <button
                     type="button"
                     className="profile-pop-upgrade"
@@ -494,6 +499,10 @@ export default function TerminalShell({ onLogout }) {
         </div>
         </div>
       </header>
+      {planPickerOpen ? <LazyView><PlanChangeDialog ent={ent} onClose={() => setPlanPickerOpen(false)} onReview={plan => {
+        setPlanPickerOpen(false);
+        goAccount('billing', { plan });
+      }} /></LazyView> : null}
       {/* F184: the credits page takes the work area; the desk stays mounted underneath, hidden, so the
           AI panel keeps its thread, draft and any answer still streaming (SidePanel.jsx). */}
       {account ? <LazyView><CreditsPage section={account} user={user} ent={ent} /></LazyView> : null}

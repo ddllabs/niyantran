@@ -3190,7 +3190,40 @@ Earlier items, updated:
       Local diagnostics verified:6408 app/1172 Deno, focused114, lint/build/
       bundle/router pass;5 causal failures before logging. Only fixed Test
       stage/status emitted; Live/unrelated silence and unexpected-error redaction
-      verified. Await Test push/deploy approval; signed failure remains unknown.
+      verified. Owner approved Test-only publication:6100095 pushed, Preview
+      dpl_izDrfEvZ4xyKfViHwvDxrHFse8mo READY; CI39321500694 green attempt1.
+      Unsigned control logs signature as expected; this is not a provider
+      delivery. At20:47 UTC October19 no natural retry had reached the new
+      deployment; actual signed failure remains unknown. Inbox0, fulfilled
+      Test orders2, captured payments2. Production commit/config/protection
+      unchanged. See diagnostics plan for release evidence.
+      **Natural retries20:51–20:52 UTC:**3 deliveries on6100095 log signature/400,
+      distinct from the unsigned control. Rejection stage confirmed before
+      merchant/inbox processing; secret mismatch versus raw-byte/signature input
+      difference remains to establish. No secret/provider/financial change.
+      Owner authorizes Test-only fix. Local signature/raw-byte replay checks
+      pass; no proven code defect. Branch-only Sensitive secret scope confirmed.
+      Owner has original webhook secret; secure re-entry into the one Vercel
+      Preview variable requested, awaiting save before redeployment and real
+      webhook acceptance. Production/Live unchanged; purchases remain paused.
+      **Customer history cleanup (owner approved local fix):** hide unpaid and
+      safe-to-retry checkout-only records, retain completed/refunded and unresolved
+      payments visibly, preserve all internal records and duplicate protections.
+      Spec/plan2026-10-20-checkout-history; local fix verified:2 causal red cases,
+      focused120/full6409 pass, lint/build/bundle and synthetic browser pass.
+      Source/test/task records remain uncommitted/unpublished; no stored attempt,
+      retry guard, backend, Production or Live change.
+      **Plan discovery UI (owner approved local):** show included credits on
+      plan cards, server-active paid badge under avatar and account Change plan
+      dialog with current plan and safe review handoff. Existing downgrade
+      scheduling/payment logic preserved. Spec/plan2026-10-20-plan-discovery;
+      local verified:4 causal red guards, focused74/107 and full6421 pass,
+      lint/build/bundle, disposable plan-period SQL+vacuity and desktop/mobile
+      synthetic dialog checks pass. Current plan/allowances/timing and explicit
+      review handoff confirmed; actual hosted payment rehearsal remains pending.
+      Uncommitted/unpublished; webhook secret re-entry separately pending.
+      Owner now approves publishing both UI fixes to task/razorpay-plan Test
+      Preview. Release verification in progress; Production/Live unchanged.
       **Previously observed operator-list defect:** billing/adjustments503; read-only reviews RPC
       reproduces42702 ambiguous pay.id (table alias versus PL/pgSQL variable).
       Resolved by6515956 and the separately approved shared migration above;

@@ -418,3 +418,15 @@
 .theme-dark .plan-credits-lot, .theme-dark .plan-credits-answer { border-color: var(--line); color: var(--text); }
 .theme-dark .plan-credits-open { color: var(--text); }
 .theme-dark .plan-credits-open:hover { background: var(--accent-soft); color: var(--fg); }
+
+.plan-up-allowance { display: block; margin: 8px 0; font-size: 13px; font-weight: 700; }
+.plan-picker { box-sizing: border-box; width: min(900px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 24px; border: 1px solid var(--line, #ddd); border-radius: 18px; background: var(--bg, #fff); color: var(--fg, #171717); overflow: auto; }
+.plan-picker::backdrop { background: rgb(0 0 0 / 45%); }
+.plan-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.plan-picker-head h2 { margin: 0; font-size: 24px; }
+.plan-picker .plan-up-choices { margin: 20px 0; }
+.plan-picker .plan-up-plan.billing-current { border-color: var(--accent); border-style: dashed; }
+.plan-picker .plan-up-plan.billing-current.on { border-style: solid; }
+.plan-picker .plan-up-pay { width: 100%; margin-top: 12px; }
+.plan-picker-timing { font-size: 14px; line-height: 1.6; }
+@media (max-width: 600px) { .plan-picker { padding: 18px; } }

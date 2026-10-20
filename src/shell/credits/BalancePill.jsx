@@ -169,7 +169,7 @@ export function CreditGlanceBody({ credits, failed, notice, onClose, extra = {} 
   );
 }
 
-export default function ProfileCredits({ user, open, setOpen, onToggle, children }) {
+export default function ProfileCredits({ user, open, setOpen, onToggle, activePlan = null, children }) {
   const { credits, failed } = useCredits(user?.id || null);
   const wrap = useRef(null);
   const button = useRef(null);
@@ -201,14 +201,18 @@ export default function ProfileCredits({ user, open, setOpen, onToggle, children
   const left = credits ? Math.max(Math.round(credits.balance - (credits.held || 0)), 0) : null;
   const words = state === 'unchecked' ? 'Credits unavailable' : state === 'loading' ? 'Credits' : `${formatCredits(left)} credits`;
   const tone = attentionTone(credits, failed, notice);
+  const paidBadge = ['plus', 'pro', 'max'].includes(activePlan) ? activePlan.toUpperCase() : null;
   const label = `${state === 'unchecked' ? 'Credits could not be checked.' : state === 'loading' ? 'Credits.' : `${words} left.`}${tone ? ' Needs attention.' : ''}`;
   return (
     <div className="profile-wrap cp-profile-wrap" ref={wrap}>
       <button type="button" ref={button} className={`avatar-btn cp-profile-trigger${open ? ' on' : ''}`} aria-haspopup="dialog" aria-expanded={open}
-        aria-controls={open ? id : undefined} aria-label={`${user.name || user.email || 'Profile'}. ${label} Open account.`} onClick={() => { onToggle?.(); setOpen((v) => !v); }}>
+        aria-controls={open ? id : undefined} aria-label={`${user.name || user.email || 'Profile'}. ${label}${paidBadge ? ` ${paidBadge} plan active.` : ''} Open account.`} onClick={() => { onToggle?.(); setOpen((v) => !v); }}>
+        <span className="cp-profile-face">
         <span className="cp-profile-ring"><BalanceRing credits={credits} failed={failed} size={48} /></span>
         <span className="avatar">{(user.name || user.email || 'A').charAt(0).toUpperCase()}</span>
         {tone ? <span className={`cp-pill-dot cp-dot-${tone}`} aria-hidden="true" /> : null}
+        </span>
+        {paidBadge ? <span className="cp-profile-plan" aria-hidden="true">{paidBadge}</span> : null}
       </button>
       {open ? <div id={id} className="profile-pop" role="dialog" aria-label="Account">
         {children(<Glance credits={credits} failed={failed} notice={notice} onClose={() => setOpen(false)} />)}

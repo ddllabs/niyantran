@@ -68,6 +68,15 @@ it('offers Plus, Pro and Max in rupees to a free account', () => {
   expect(text(tree)).toContain('Free');
 });
 
+it('shows the included monthly credits on every plan card before selection', () => {
+  const cards = tiles(render(FREE));
+  expect(cards.map(t => text(t))).toEqual([
+    expect.stringContaining('20,000 AI credits every month'),
+    expect.stringContaining('65,000 AI credits every month'),
+    expect.stringContaining('750,000 AI credits every month'),
+  ]);
+});
+
 it('says payments open soon and never pays while checkout is closed', () => {
   const tree = render(FREE, { config: CLOSED, selected: 'pro' });
   expect(pay(tree).props.disabled).toBe(true);

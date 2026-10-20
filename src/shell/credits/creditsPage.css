@@ -268,7 +268,9 @@
 }
 
 /* F230: one account control, with the existing remaining-credit ring around its avatar. */
-.cp-profile-trigger { position: relative; width: 48px; height: 48px; flex-shrink: 0; }
+.cp-profile-trigger { position: relative; width: 48px; height: auto; min-height: 48px; display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.cp-profile-face { position: relative; display: grid; place-items: center; width: 48px; height: 48px; flex-shrink: 0; }
+.cp-profile-plan { font-size: 9px; font-weight: 750; line-height: 12px; letter-spacing: .04em; padding: 0 6px; border-radius: 6px; background: var(--accent-soft, #e8edff); color: var(--accent, #073bb6); }
 .cp-profile-ring { position: absolute; inset: 0; pointer-events: none; }
 .cp-profile-ring .cp-ring-spark { display: none; }
 .cp-profile-trigger .avatar { position: relative; z-index: 1; }

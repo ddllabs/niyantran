@@ -21,6 +21,18 @@ it('uses the profile initial and balance ring as one accessible header control',
   expect(html).not.toContain('role="dialog"');
 });
 
+it.each(['plus', 'pro', 'max'])('shows the confirmed active %s plan below the avatar', plan => {
+  const html = renderToStaticMarkup(<ProfileCredits user={user} activePlan={plan} open={false} setOpen={vi.fn()} />);
+  expect(html).toContain('cp-profile-plan');
+  expect(html).toContain(`${plan.toUpperCase()}</span>`);
+  expect(html).toContain(`${plan.toUpperCase()} plan active`);
+});
+
+it.each([null, 'free', 'unknown'])('omits a paid badge without a confirmed paid plan (%s)', activePlan => {
+  const html = renderToStaticMarkup(<ProfileCredits user={user} activePlan={activePlan} open={false} setOpen={vi.fn()} />);
+  expect(html).not.toContain('cp-profile-plan');
+});
+
 it('embeds all existing summary sections inside one Account dialog', () => {
   const html = render(true);
   expect(html.match(/role="dialog"/g)).toHaveLength(1);

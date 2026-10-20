@@ -63,15 +63,33 @@ it('blocks repeated confirmation while the same Checkout is opening', async () =
   await first;
 });
 
-it('retains unpaid attempts behind a closed disclosure, with identifiable references', () => {
-  fake.states[1] = [{ id: 'purchase-unpaid', state: 'ready', created_at: '2026-10-19T12:00:00Z', snapshot: { label: '20,000 AI credits', amountPaise: 49900 } }];
+it('omits checkout-only attempts while retaining paid, refunded and unresolved purchases', () => {
+  const orders = [
+    { id: 'purchase-unpaid', state: 'ready' },
+    { id: 'purchase-retryable', state: 'reconciling', creation_retryable: true },
+    { id: 'purchase-paid', state: 'fulfilled' },
+    { id: 'purchase-refunded', state: 'refunded' },
+    { id: 'purchase-creating', state: 'creating' },
+    { id: 'purchase-uncertain', state: 'reconciling' },
+    { id: 'purchase-review', state: 'review' },
+  ];
+  fake.states[1] = orders;
   const html = renderToStaticMarkup(tree());
-  expect(html).toContain('<details');
-  expect(html).toContain('Unconfirmed checkout attempts');
-  expect(html).not.toMatch(/<details[^>]*\sopen/);
-  expect(html).toContain('purchase-unpaid');
+  expect(html).not.toContain('Unconfirmed checkout attempts');
+  expect(html).not.toContain('purchase-unpaid');
+  expect(html).not.toContain('purchase-retryable');
+  for (const id of ['purchase-paid', 'purchase-refunded', 'purchase-creating', 'purchase-uncertain', 'purchase-review']) expect(html).toContain(id);
+  expect(html).toContain('Needs confirmation');
+  expect(html).toContain('Support review required');
+  expect(orders).toHaveLength(7);
+});
+
+it('shows an honest empty purchase history when only unpaid attempts exist', () => {
+  fake.states[1] = [{ id: 'purchase-unpaid', state: 'ready' }];
+  const html = renderToStaticMarkup(tree());
   expect(html).toContain('No completed purchases yet.');
-  expect(html).not.toContain('Your recent purchases');
+  expect(html).not.toContain('purchase-unpaid');
+  expect(html).not.toContain('Needs confirmation');
 });
 
 it('keeps uncertain payment confirmations outside the unpaid-attempt disclosure', () => {

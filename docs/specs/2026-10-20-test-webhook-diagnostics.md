@@ -1,6 +1,6 @@
 # Test webhook rejection diagnostics
 
-> **Status: Living.** Local diagnostic preparation only. Test publication needs owner approval; Production/Live unchanged.
+> **Status: Living.** Owner-approved diagnostics released to Test Preview at6100095; signed-delivery investigation remains open. Production/Live unchanged.
 
 Question: which validation stage rejects real Razorpay Test deliveries? CDN logs prove requests reach api/router (streaming_func, WAF allow) with400; verified inbox is empty. Dashboard response is null, so exact reason is unknown. An unsigned probe reaches signature validation, which cannot prove the signed-delivery cause.
 

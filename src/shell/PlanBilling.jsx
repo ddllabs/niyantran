@@ -2,6 +2,7 @@ import PlanPeriods from './credits/PlanPeriods.jsx';
 import BillingReviews from './credits/BillingReviews.jsx';
 import Purchases from './credits/Purchases.jsx';
 import PurchaseReview from './credits/PurchaseReview.jsx';
+import PlanChoices from './PlanChoices.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { completeCheckout, fetchBillingConfig, fetchInvoices, openInvoice } from '../lib/billing.js';
 import { creditsText, refreshCredits, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
@@ -184,30 +185,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
       {user?.role === 'admin' ? <BillingReviews user={user} /> : null}
       <section className="cp-card" aria-labelledby="plan-change-title">
         <h3 id="plan-change-title" className="cp-card-title">Change plan</h3>
-        <div className="plan-up-choices">
-          {PAID.map((p) => {
-            const option = purchaseKind(ent, p.id);
-            const blocked = option === 'blocked';
-            return (
-              <button
-                type="button"
-                key={p.id}
-                className={`plan-up-plan${selected === p.id ? ' on' : ''}${current === p.id ? ' billing-current' : ''}`}
-                aria-pressed={selected === p.id}
-                disabled={blocked || busy}
-                onClick={() => {
-                  setSelected(p.id);
-                  setResult(null);
-                }}
-              >
-                {current === p.id ? <em>Current plan</em> : p.popular ? <em>Popular</em> : null}
-                <strong>{p.name}</strong>
-                <span className="amt">{rupees(p.monthly)}<small>/month</small></span>
-                <span className="who">{blocked ? `Not available while ${planLabel(current)} is active` : option === 'downgrade' ? 'Starts after your current paid period' : p.tag}</span>
-              </button>
-            );
-          })}
-        </div>
+        <PlanChoices ent={ent} selected={selected} busy={busy} onSelect={id => { setSelected(id); setResult(null); }} />
 
         {choice ? <PurchaseReview label={`${choice.name} plan — one month`} amountPaise={choice.monthly * 100}
           credits={choice.items[0]} currentPlan={planLabel(current)} busy={busy} disabled={!open}

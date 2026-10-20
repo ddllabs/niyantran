@@ -30,10 +30,5 @@ export default function PurchaseHistory({ orders }) {
       <p>Check these purchases before paying again. A pending status is not proof of payment.</p>
       <PurchaseRows orders={unresolved} />
     </section> : null}
-    {attempts.length ? <details className="billing-disclosure">
-      <summary>Unconfirmed checkout attempts ({attempts.length})</summary>
-      <p>These attempts have no confirmed purchase in the app. If you completed payment, refresh the status before paying again. Closing Checkout keeps the reference so a safe retry can reuse it.</p>
-      <PurchaseRows orders={attempts} />
-    </details> : null}
   </div>;
 }
