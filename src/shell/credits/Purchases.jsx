@@ -3,8 +3,8 @@ import { completeCheckout, fetchBillingConfig, fetchPurchases, formatInr } from 
 import PurchaseHistory from './PurchaseHistory.jsx';
 import PurchaseReview from './PurchaseReview.jsx';
 
-export default function Purchases({ user, onUpdated, revision = 0 }) {
-  const [config, setConfig] = useState(null);
+export default function Purchases({ user, onUpdated, revision = 0, showHistory = true, suppliedConfig = null }) {
+  const [config, setConfig] = useState(suppliedConfig);
   const [orders, setOrders] = useState([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -13,11 +13,11 @@ export default function Purchases({ user, onUpdated, revision = 0 }) {
   const buying = useRef(false);
   useEffect(() => {
     let live = true;
-    Promise.all([fetchBillingConfig(), fetchPurchases()]).then(([c, rows]) => {
+    Promise.all([suppliedConfig ? Promise.resolve(suppliedConfig) : fetchBillingConfig(), showHistory ? fetchPurchases() : Promise.resolve([])]).then(([c, rows]) => {
       if (live) { setConfig(c); setOrders(rows || []); }
     }).catch(() => { if (live) setError('Purchase history could not be loaded. Try refreshing.'); });
     return () => { live = false; };
-  }, [user?.id, revision]);
+  }, [user?.id, revision, showHistory, suppliedConfig]);
   async function buy(productId) {
     if (buying.current) return;
     buying.current = true;
@@ -26,7 +26,7 @@ export default function Purchases({ user, onUpdated, revision = 0 }) {
       const result = await completeCheckout({ productId, user });
       setMessage(result.ok ? 'Purchase confirmed. Your credits have been refreshed.' : result.reason || 'Confirmation is pending. Check purchases before paying again.');
       if (result.ok) { setSelected(null); onUpdated?.(); }
-      setOrders(await fetchPurchases());
+      if (showHistory) setOrders(await fetchPurchases());
       setError('');
     } catch { setError('Purchase status could not be loaded. Check before paying again.'); }
     finally { buying.current = false; setBusy(false); }
@@ -39,7 +39,7 @@ export default function Purchases({ user, onUpdated, revision = 0 }) {
   }
   return <section className="cp-card" aria-labelledby="topup-title">
     <h3 id="topup-title" className="cp-card-title">Credit top-ups</h3>
-    <p>Available on Free and paid accounts. Valid for 12 months. Model access follows your plan.</p>
+    <p className="billing-topup-note">Add credits to any plan. Valid for 12 months; model access follows your plan.</p>
     {!config?.enabled ? <p>Top-ups coming soon. Need more credits now? Write to <a href="mailto:niyantranai@gmail.com">niyantranai@gmail.com</a>.</p> : null}
     <div className="plan-up-choices">
       {(config?.topups || []).map(pack => <button type="button" className={`plan-up-plan${selected?.productId === pack.productId ? ' on' : ''}`} aria-pressed={selected?.productId === pack.productId} key={pack.productId} disabled={busy || !config?.enabled} onClick={() => { setSelected(pack); setMessage(''); }}>
@@ -49,7 +49,7 @@ export default function Purchases({ user, onUpdated, revision = 0 }) {
     {selected ? <PurchaseReview label={`${selected.credits.toLocaleString('en-IN')} AI credits`} amountPaise={selected.amountPaise} credits={selected.credits}
       topup busy={busy} disabled={!config?.enabled} onConfirm={() => buy(selected.productId)} onCancel={() => setSelected(null)} /> : null}
     {message ? <p role="status">{message}</p> : null}
-    {error ? <p role="alert">{error}</p> : <PurchaseHistory orders={orders} />}
-    <button type="button" className="billing-secondary" disabled={busy} onClick={refresh}>Refresh purchase status</button>
+    {error ? <p role="alert">{error}</p> : showHistory ? <PurchaseHistory orders={orders} /> : null}
+    {showHistory ? <button type="button" className="billing-secondary" disabled={busy} onClick={refresh}>Refresh purchase status</button> : null}
   </section>;
 }

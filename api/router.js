@@ -39,7 +39,7 @@ import { handleFeedRefresh } from '../server/feedStore.mjs';
 
 export const config = {
   maxDuration: 60,
-  includeFiles: ['{src/data/**,public/data/**}'],
+  includeFiles: ['{src/data/**,public/data/**,public/brand/logo-128.webp}'],
   // F169 (owner, 2026-10-14): no backup pack on the live function. server/backupFeed.mjs reads one
   // there only for a module on LIVE_BACKUP_PACKS (empty); the workbooks stay in the repository for
   // the local dev server.

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import PlanChoices from '../PlanChoices.jsx';
+import { creditsText } from '../../lib/creditsStore.js';
 import { cancelNextPlan, completeCheckout, fetchPlanQuote, fetchPlanState, formatInr, scheduleNextPlan } from '../../lib/billing.js';
 import { PUBLIC_PLANS, purchaseKind } from '../../lib/publicPlans.js';
 
@@ -7,7 +8,7 @@ const name = id => PUBLIC_PLANS.find(p => p.id === id)?.name || 'Free';
 const date = iso => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
 // One account-keyed review. Quotes are server-owned; card selection cannot pay.
-export default function PlanCycleReview({ ent, user, initialPlan, onUpdated }) {
+export default function PlanCycleReview({ ent, user, initialPlan, onUpdated, onStateChange }) {
   const [selected, setSelected] = useState(initialPlan || null);
   const [quote, setQuote] = useState(null);
   const [state, setState] = useState(null);
@@ -24,11 +25,11 @@ export default function PlanCycleReview({ ent, user, initialPlan, onUpdated }) {
     let live = true;
     fetchPlanState().then(value => {
       if (!live) return;
-      if (value.ok) setState(value);
+      if (value.ok) { setState(value); onStateChange?.(value); }
       else setMessage(value.reason || 'Plan schedule unavailable. Refresh before changing plans.');
     });
     return () => { live = false; };
-  }, [revision]);
+  }, [revision, onStateChange]);
   useEffect(() => {
     let live = true;
     setQuote(null);
@@ -55,7 +56,7 @@ export default function PlanCycleReview({ ent, user, initialPlan, onUpdated }) {
     finally { setBusy(false); lock.current = false; }
   }
   return <section className="cp-card" aria-labelledby="plan-change-title">
-    <h3 id="plan-change-title" className="cp-card-title">Change plan</h3>
+    <div className="billing-section-head"><div><h3 id="plan-change-title" className="cp-card-title">Choose your plan</h3><p>Upgrade this cycle, or select a lower plan for next month.</p></div></div>
     <PlanChoices ent={ent} selected={selected} busy={busy} onSelect={choose} />
     {active ? <button type="button" className="billing-secondary" disabled={busy} onClick={() => choose('free')}>Return to Free after this period</button> : null}
     {state?.scheduled ? <section className="billing-review" aria-label="Next plan selection">
@@ -70,21 +71,21 @@ export default function PlanCycleReview({ ent, user, initialPlan, onUpdated }) {
       <p>{name(ent.plan)} stays active until {date(ent.periodEnd)}. Nothing changes today.</p>
       <p><strong>Due today: {formatInr(0)}</strong></p>
       <p>{selected === 'free' ? 'No payment is needed to return to Free.' : 'Payment is required to start the next paid month. No automatic renewal.'} A new selection replaces your previous unpaid selection.</p>
-      <button type="button" className="plan-up-pay" disabled={busy || !state} onClick={() => perform(() => scheduleNextPlan(selected))}>Schedule change — {formatInr(0)} today</button>
-      <button type="button" className="billing-secondary" disabled={busy} onClick={() => choose(null)}>Cancel selection</button>
+      <div className="billing-review-actions"><button type="button" className="plan-up-pay" disabled={busy || !state} onClick={() => perform(() => scheduleNextPlan(selected))}>Schedule change — {formatInr(0)} today</button>
+      <button type="button" className="billing-secondary" disabled={busy} onClick={() => choose(null)}>Cancel selection</button></div>
     </section> : selected ? <section className="billing-review" aria-label="Review your purchase">
       <h4>{quote?.action === 'upgrade' ? 'Review prorated upgrade' : 'Review your purchase'}</h4>
       {quote ? <>
         <dl>
           <div><dt>Plan</dt><dd>{name(selected)}</dd></div>
-          <div><dt>{quote.action === 'upgrade' ? 'Additional credits this cycle' : 'Monthly credits'}</dt><dd>{Number(quote.credits).toLocaleString('en-IN', { maximumFractionDigits: 4 })}</dd></div>
+          <div><dt>{quote.action === 'upgrade' ? 'Additional credits this cycle' : 'Monthly credits'}</dt><dd>{creditsText(quote.credits)}</dd></div>
           <div><dt>Covered period</dt><dd>{quote.action === 'upgrade' ? 'Now' : date(quote.cycleStartsAt)} – {date(quote.cycleEndsAt)}</dd></div>
           <div><dt>Total payable today</dt><dd>{formatInr(quote.amountPaise / 100)}</dd></div>
         </dl>
-        {quote.action === 'upgrade' ? <p>{(Number(quote.fraction) * 100).toFixed(2)}% of this cycle remains. Both the price difference and additional credits are prorated. Your existing credits and cycle end stay unchanged. Any unpaid next-plan selection will be cancelled.</p> : null}
+        {quote.action === 'upgrade' ? <p>{quote.prorationBasis === 'ist-calendar-day-v1' ? `${quote.remainingDays} of ${quote.cycleDays} billing days remaining. Today's price is fixed until midnight IST or your cycle ends.` : 'Price and additional credits cover the rest of this cycle.'} Your existing credits and cycle end stay unchanged. Any unpaid next-plan selection will be cancelled.</p> : null}
         <p>Next full month: {formatInr(quote.monthlyAmountPaise / 100)} for {Number(quote.monthlyCredits).toLocaleString('en-IN')} credits. Renewal is manual. No GST is charged.</p>
         <p>10% of unused monthly credits rolls over for one month. Top-ups keep their own expiry.</p>
-        <button type="button" className="plan-up-pay" disabled={busy || Date.parse(quote.expiresAt) <= Date.now()} onClick={() => perform(() => completeCheckout({ planId: selected, quoteId: quote.quoteId, user }))}>Pay {formatInr(quote.amountPaise / 100)} with Razorpay</button>
+        <div className="billing-review-actions"><button type="button" className="plan-up-pay" disabled={busy || Date.parse(quote.expiresAt) <= Date.now()} onClick={() => perform(() => completeCheckout({ planId: selected, quoteId: quote.quoteId, user }))}>Pay {formatInr(quote.amountPaise / 100)} with Razorpay</button></div>
       </> : <p>Request a current server quote before paying. Same-plan renewal opens during the last seven days.</p>}
       <button type="button" className="billing-secondary" disabled={busy} onClick={() => { setMessage(''); setRevision(v => v + 1); }}>Refresh quote</button>
       <button type="button" className="billing-secondary" disabled={busy} onClick={() => choose(null)}>Cancel selection</button>

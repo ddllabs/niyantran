@@ -1,3 +1,4 @@
+import BillingWorkspace from './credits/BillingWorkspace.jsx';
 import PlanCycleReview from './credits/PlanCycleReview.jsx';
 import PlanPeriods from './credits/PlanPeriods.jsx';
 import BillingReviews from './credits/BillingReviews.jsx';
@@ -164,6 +165,9 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
     } catch { setResult({ ok: false, text: 'Purchase status is uncertain. Refresh purchases before paying again.' }); }
     finally { setBusy(false); paying.current = false; }
   }
+
+  if (config?.cycleChanges) return <BillingWorkspace key={userId} ent={ent} user={user} initialPlan={initialPlan} config={config}
+    credits={credits} creditsTried={creditsTried} invoices={invoices} invoiceError={invoiceError} revision={revision} onUpdated={updated} />;
 
   return (
     <div className="plan-billing-section">
