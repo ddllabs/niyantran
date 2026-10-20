@@ -51,7 +51,7 @@ export async function providerFetch(path, { method = 'GET', body } = {}, config 
 export async function billingRpc(client, name, args) {
   const { data, error } = await client.rpc(name, args);
   const cycleReasons = new Set(['Quote expired or plan changed; review again', 'Choose a lower next plan', 'Next period is already paid; contact support', 'Contact support to change this plan', 'Too close to cycle end to upgrade; choose a plan after expiry', 'Manual renewal opens in the last seven days; upgrades apply now', 'Schedule the lower next plan before renewal']);
-  if (error && name === 'billing_cycle' && cycleReasons.has(error.message)) throw paymentError(error.message, 409);
+  if (error && ['billing_cycle', 'billing_cycle_daily'].includes(name) && cycleReasons.has(error.message)) throw paymentError(error.message, 409);
   if (error) throw paymentError(error.code === '23505' ? 'Request conflicts with an existing purchase.' : 'Purchase processing is pending. Check its status or contact support.', error.code === '23505' ? 409 : 503);
   return data;
 }
@@ -107,7 +107,7 @@ export async function planCycleOperation(action, body, user, ctx) {
   }
   if (action === 'quote' && !ctx.config.open) throw paymentError('Online payments open soon.', 503);
   if (!['quote', 'state', 'schedule', 'cancel'].includes(action)) throw paymentError('Unknown plan operation.');
-  return billingRpc(ctx.client, 'billing_cycle', { p_action: action, p: {
+  return billingRpc(ctx.client, 'billing_cycle_daily', { p_action: action, p: {
     userId: user.id, account: ctx.config.account, mode: ctx.config.mode,
     planId: body.planId, intent: body.intent === 'renew' ? 'renew' : undefined,
   } });
@@ -127,7 +127,7 @@ export async function createPurchase(body, user, ctx) {
   const claim = { userId: user.id, requestId: body.requestId, requestHash,
     snapshot: { ...product, seller: sellerFromEnv(), buyerEmail: user.email, buyerName: String(body.name || '').slice(0, 200) } };
   let order = cycle
-    ? await billingRpc(ctx.client, 'billing_cycle', { p_action: 'claim', p: { ...claim, quoteId: body.quoteId, planId: product.planId, account: ctx.config.account, mode: ctx.config.mode } })
+    ? await billingRpc(ctx.client, 'billing_cycle_daily', { p_action: 'claim', p: { ...claim, quoteId: body.quoteId, planId: product.planId, account: ctx.config.account, mode: ctx.config.mode } })
     : await orderRpc(ctx, 'claim', claim);
   if (cycle && !['fulfilled', 'review', 'refunded'].includes(order.state) && Date.parse(order.snapshot?.expiresAt || '') <= Date.now()) {
     throw paymentError('This quote expired. Refresh the review before paying.', 409);
