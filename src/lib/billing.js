@@ -99,6 +99,15 @@ export function invoiceUrl(invoiceId) {
   return `/api/billing/invoice/${encodeURIComponent(invoiceId)}`;
 }
 
+/** Authenticated invoice content for the in-page Preview viewer. */
+export async function fetchInvoiceHtml(invoiceId) {
+  const url = invoiceUrl(invoiceId);
+  if (!url) throw new Error('No invoice.');
+  const res = await fetch(url, { headers: await authHeaders() });
+  if (!res.ok) throw new Error(res.status === 404 ? 'Invoice not found.' : 'Invoice unavailable.');
+  return res.text();
+}
+
 /**
  * Opens an invoice in a new tab. The route needs the bearer, which a plain
  * link cannot send, so the HTML is fetched and shown from a blob URL.
