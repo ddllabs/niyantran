@@ -2959,6 +2959,11 @@ Earlier items, updated:
 
 
 - [ ] **O6.** After F6: the Razorpay keys on Vercel, then one real payment
+  - **Live-capable approved contract (2026-10-21):** owner authorizes server/SQL
+    implementation, verification and Test Preview publication. Versioned mode-
+    scoped quote/capture/read functions preserve the approved plan behavior;
+    Production checkout and Live keys remain unchanged. Sequential spec/plan:
+    2026-10-21-billing-live-contract.md. Shared migration activation separately scoped.
   - **2026-10-20 owner-authorized cycle contract:** implement prorated price/credit upgrades, free next-plan scheduling, manual renewal and retained 10% rollover; delete frozen Test purchase graph for the owner-designated account only; verify and publish Test Preview. Sequential [spec](../specs/2026-10-20-billing-cycle-changes.md) / [plan](2026-10-20-billing-cycle-changes.md). Production web/settings/Live/corpus unchanged; shared additive migration separately approved/applied. Implementation71ee2cc is Test Preview READY; genuine new-flow payment acceptance remains under O6.
   end to end.
   - Added by F111 (2026-10-14; recommendations in the

@@ -24,7 +24,7 @@ export function paymentConfig(env = process.env) {
   const keyId = String(env.RAZORPAY_KEY_ID || '');
   const mode = /^rzp_test_/.test(keyId) ? 'test' : /^rzp_live_/.test(keyId) ? 'live' : null;
   return { keyId, keySecret: env.RAZORPAY_KEY_SECRET || '', webhookSecret: env.RAZORPAY_WEBHOOK_SECRET || '',
-    account: env.RAZORPAY_ACCOUNT_ID || '', mode, cycleChanges: mode === 'test',
+    account: env.RAZORPAY_ACCOUNT_ID || '', mode, cycleChanges: mode === 'test' || mode === 'live',
     testBuyerIds: String(env.BILLING_TEST_BUYER_IDS || '').trim().split(/[,\s]+/).filter(Boolean).map(id => id.toLowerCase()),
     open: env.BILLING_CHECKOUT_OPEN === '1', ready: Boolean(mode && env.RAZORPAY_KEY_SECRET && env.RAZORPAY_ACCOUNT_ID) };
 }
@@ -51,7 +51,7 @@ export async function providerFetch(path, { method = 'GET', body } = {}, config 
 export async function billingRpc(client, name, args) {
   const { data, error } = await client.rpc(name, args);
   const cycleReasons = new Set(['Quote expired or plan changed; review again', 'Choose a lower next plan', 'Next period is already paid; contact support', 'Contact support to change this plan', 'Too close to cycle end to upgrade; choose a plan after expiry', 'Manual renewal opens in the last seven days; upgrades apply now', 'Schedule the lower next plan before renewal']);
-  if (error && ['billing_cycle', 'billing_cycle_daily'].includes(name) && cycleReasons.has(error.message)) throw paymentError(error.message, 409);
+  if (error && ['billing_cycle', 'billing_cycle_daily', 'billing_cycle_v2'].includes(name) && cycleReasons.has(error.message)) throw paymentError(error.message, 409);
   if (error) throw paymentError(error.code === '23505' ? 'Request conflicts with an existing purchase.' : 'Purchase processing is pending. Check its status or contact support.', error.code === '23505' ? 409 : 503);
   return data;
 }
@@ -101,13 +101,14 @@ async function stalePlanReview(order, user, ctx) {
 }
 
 export async function planCycleOperation(action, body, user, ctx) {
-  if (!ctx.config.cycleChanges || ctx.config.mode !== 'test' || !ctx.config.ready || !validTestBuyers(ctx.config)
-    || !ctx.config.testBuyerIds.some(id => id.toLowerCase() === user.id.toLowerCase())) {
-    throw paymentError('Test plan changes are unavailable for this account.', 403);
+  if (!ctx.config.cycleChanges || !ctx.config.ready || !['test', 'live'].includes(ctx.config.mode)
+    || (ctx.config.mode === 'test' && (!validTestBuyers(ctx.config)
+      || !ctx.config.testBuyerIds.some(id => id.toLowerCase() === user.id.toLowerCase())))) {
+    throw paymentError('Plan changes are unavailable for this account.', 403);
   }
   if (action === 'quote' && !ctx.config.open) throw paymentError('Online payments open soon.', 503);
   if (!['quote', 'state', 'schedule', 'cancel'].includes(action)) throw paymentError('Unknown plan operation.');
-  return billingRpc(ctx.client, 'billing_cycle_daily', { p_action: action, p: {
+  return billingRpc(ctx.client, 'billing_cycle_v2', { p_action: action, p: {
     userId: user.id, account: ctx.config.account, mode: ctx.config.mode,
     planId: body.planId, intent: body.intent === 'renew' ? 'renew' : undefined,
   } });
@@ -121,13 +122,13 @@ export async function createPurchase(body, user, ctx) {
   if (!UUID.test(body.requestId || '')) throw paymentError('A stable purchase request ID is required. Reload and try again.');
   const product = paymentProduct(body.productId || body.planId);
   if (!product) throw paymentError('Unknown product.');
-  const cycle = ctx.config.cycleChanges && ctx.config.mode === 'test' && product.kind === 'plan';
+  const cycle = ctx.config.cycleChanges && product.kind === 'plan';
   if (cycle && !UUID.test(body.quoteId || '')) throw paymentError('Review a current plan quote before paying.');
   const requestHash = digest(JSON.stringify({ productId: product.productId, ...(cycle ? { quoteId: body.quoteId } : {}) }));
   const claim = { userId: user.id, requestId: body.requestId, requestHash,
     snapshot: { ...product, seller: sellerFromEnv(), buyerEmail: user.email, buyerName: String(body.name || '').slice(0, 200) } };
   let order = cycle
-    ? await billingRpc(ctx.client, 'billing_cycle_daily', { p_action: 'claim', p: { ...claim, quoteId: body.quoteId, planId: product.planId, account: ctx.config.account, mode: ctx.config.mode } })
+    ? await billingRpc(ctx.client, 'billing_cycle_v2', { p_action: 'claim', p: { ...claim, quoteId: body.quoteId, planId: product.planId, account: ctx.config.account, mode: ctx.config.mode } })
     : await orderRpc(ctx, 'claim', claim);
   if (cycle && !['fulfilled', 'review', 'refunded'].includes(order.state) && Date.parse(order.snapshot?.expiresAt || '') <= Date.now()) {
     throw paymentError('This quote expired. Refresh the review before paying.', 409);
@@ -185,11 +186,18 @@ export async function ownedPurchase(body, user, ctx) {
 }
 export async function reconcilePayment(order, paymentId, ctx) {
   if (!PAYMENT.test(paymentId || '')) throw paymentError('Invalid payment reference.');
+  const contract = order.snapshot?.contract;
+  if (contract && !['cycle-v1', 'cycle-v2'].includes(contract)) throw paymentError('Purchase contract requires support review.', 409);
+  if (contract === 'cycle-v2' && (order.account !== ctx.config.account || order.mode !== ctx.config.mode)) {
+    throw paymentError('Purchase environment mismatch.', 403);
+  }
   const pay = await ctx.fetch(`/payments/${encodeURIComponent(paymentId)}`);
   if (pay.id !== paymentId || pay.order_id !== order.provider_order_id || pay.amount !== Number(order.amount_paise) || pay.currency !== 'INR' || typeof pay.status !== 'string') throw paymentError('Payment does not match this purchase.');
   await orderRpc(ctx, 'payment', { purchaseId: order.id, payment: pay });
   if (pay.status !== 'captured') return { ok: false, pending: ['authorized', 'created'].includes(pay.status), status: pay.status, purchaseId: order.id };
-  const result = await billingRpc(ctx.client, order.snapshot?.contract === 'cycle-v1' ? 'billing_cycle_capture' : 'billing_capture', { p_order_id: order.id, p_payment: pay });
+  const capture = contract === 'cycle-v2' ? 'billing_cycle_capture_v2' : contract === 'cycle-v1' ? 'billing_cycle_capture' : 'billing_capture';
+  const result = await billingRpc(ctx.client, capture, { p_order_id: order.id, p_payment: pay,
+    ...(contract === 'cycle-v2' ? { p_context: { account: ctx.config.account, mode: ctx.config.mode } } : {}) });
   return { ...result, purchaseId: order.id, quote: order.snapshot };
 }
 export async function verifyPurchase(body, user, ctx) {

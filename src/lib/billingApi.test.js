@@ -338,3 +338,11 @@ it('emits no Test diagnostics for Live webhook errors or unrelated billing route
     expect(warn).not.toHaveBeenCalled();
   } finally { warn.mockRestore(); }
 });
+
+it('advertises mode-aware Live plan capability while checkout stays closed', async () => {
+  const d = purchaseDeps({ config: { mode: 'live', cycleChanges: true, open: false, testBuyerIds: [] } });
+  const out = await call(request('GET', '/api/billing/config'), d);
+  expect(out.body).toMatchObject({ cycleChanges: true, checkoutOpen: false, enabled: false, keyId: '' });
+  expect(out.body).not.toHaveProperty('testBuyerIds');
+  expect(d.calls).toEqual([]);
+});

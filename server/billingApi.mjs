@@ -87,7 +87,7 @@ export async function handleBillingApi(req, res, url, deps = {}) {
       keyId: enabled ? d.paymentConfig.keyId : '',
       topups: TOPUP_PACKS,
       currency: 'INR',
-      cycleChanges: Boolean(d.paymentConfig.cycleChanges && d.paymentConfig.mode === 'test'),
+      cycleChanges: Boolean(d.paymentConfig.cycleChanges && ['test', 'live'].includes(d.paymentConfig.mode)),
       gstRegistered: false,
       demoFallback: !enabled,
     });

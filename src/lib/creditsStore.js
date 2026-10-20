@@ -1,7 +1,7 @@
 /**
  * The signed-in user's AI credits (F111, docs/specs/2026-10-14-ai-credits.md §7, §8).
  *
- * my_credits_cycle() delegates wallet metering to my_credits() and supplies the purchased cycle allowance; it is the source of the wallet and my_conversation_credits() of
+ * my_credits_cycle_v2() delegates wallet metering to my_credits() and supplies the purchased cycle allowance; it is the source of the wallet and my_conversation_credits() of
  * each answer's charge. Values live in memory, keyed by the account they were read
  * for, never in browser storage. Credits only (F184): no amount is shown in money.
  */
@@ -128,7 +128,7 @@ async function readOnce() {
     const version = await readUnit();
     if (!version || started !== epoch) return null;
     const generation = unitGeneration;
-    const result = await supabase.rpc('my_credits_cycle');
+    const result = await supabase.rpc('my_credits_cycle_v2');
     if (started !== epoch) return null;
     if (result.error) {
       const after = await supabase.auth.getSession();
