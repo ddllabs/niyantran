@@ -1,6 +1,6 @@
 # Rollover retirement: backend inventory
 
-> **Status: Living.** Backend implementation and activation record, 2026-10-21. Tracked in open-work.md.
+> **Status: Historical (2026-10-21).** Completed backend implementation and activation record. See the current no-rollover spec.
 
 The original audit below describes the completed frontend-only phase. The implementation section supersedes its pending-work statements.
 
@@ -59,4 +59,9 @@ Approved migration applied successfully on2026-10-21. Source SHA25624693a580c5a8
 
 Executed the exact locally rehearsed operator definition in one transaction with lock timeout5s, frozen five-order UUID array and contract payments5/invoices4/periods3/lots4/ledger4/wallet749069.8477. Reset succeeded: planFree, orders0, periods0, invoices0, wallet1186.132 and debt0. Own signup hash, own34 draw rows, other wallets/profiles hashes, auth count12 and invoice counter10 match the baseline. No auth/chat/usage tables were mutated. Provider Test records remain outside this reset. Live orders0 before reset; no Live keys/settings accessed or altered.
 
-Test Preview publication and final browser evidence pending. Production baseline remains dpl_54raBgMjb4oZbtXSWc1KBuDrK4xQ /4a0c98109da97caba1fe312c8e9db056dfde7df5.
+Implementation a8f040f pushed to task/razorpay-plan; Test Preview dpl_Gd1QBmQyMB7CSq9AUa4C7fh6b1cv READY at exact a8f040fbaa27cf8bebd7ed2f7dfb4096b32570fa. Signed-in browser shows Free,1186 displayed credits, always-open four plan cards, and empty completed billing history. Screenshot saved at /private/tmp/no-rollover-test-preview.png. No payment was made by the agent. Production baseline remains dpl_54raBgMjb4oZbtXSWc1KBuDrK4xQ /4a0c98109da97caba1fe312c8e9db056dfde7df5.
+
+
+Hosted migration ledger version20261020213634/namecredit_no_rollover corresponds to local20261020211953 (same reviewed SQL; connector assigns application-time version). Security advisor:29 no-policy INFO findings and17 authenticated SECURITY DEFINER WARN findings on existing objects; the changed private expiry function is not flagged, remains postgres-only. Existing server-only/RPC advisor review is recorded under the tracker security baseline; no unrelated permission changes were made. Remediation reference: https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable.
+
+No outstanding rollover implementation/reset work remains. Live launch/provider acceptance remains under existing billing launch tracking, outside this release. Historical kinds and provenance are deliberately retained; they no longer grant a rollover benefit.

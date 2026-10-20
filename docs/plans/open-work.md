@@ -50,7 +50,6 @@
 - A new finding gets the next free `F` number (F236 is next) and goes in the
   right section.
 
-- [ ] **Rollover backend retirement (2026-10-21).** Owner requests no rollover; audit/plan2026-10-21-rollover-retirement.md. Migration20261020211953 and latest-chain causal SQL/reset fixtures implemented; owner approved shared no-rollover policy and bounded five-order Test reset. Focused SQL/application6472/Edge1172/lint/build/bundle pass; full SQL and activation/publication underway. Historical lot/ledger/refund provenance retained.
 
 ## Frontend follow-up
 
@@ -3432,3 +3431,8 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-21 always-open billing chooser
 
 - **Frontend chooser/navigation and rollover-copy preparation:** e1329f8. Always-open cards/current badge,removed toggle/duplicated saved-summary state and dead CSS,repaired current and legacy anchors; history stays after top-ups. Removed rollover benefit promises from billing/pricing/Terms/Refund; preserved historical lot displays.417 files/6472 application tests,1172 Edge tests,56 focused tests,lint/build/bundle pass. Native sidebar and main-account navigation/browser checks pass. [Evidence](2026-10-21-billing-open-chooser.md). Backend rollover still10.00 and tracked separately above; no SQL/data/Production/Live key mutation.
+
+
+## Done — 2026-10-21 backend rollover retirement
+
+- **a8f040f:** removed rollover creation, fixed compatibility setting at0 with a validated constraint, retained historical refund/ledger provenance. Owner-approved shared NTER migration applied; frozen five-order Test graph for the named owner reset to Free with1186.132 signup credits and no debt. Auth/usage/signup/other-account hashes and invoice sequence unchanged. All51 SQL fixtures with causal/concurrency checks,6472 application tests,1172 Edge tests,lint/build/bundle/router pass; production dependency audit0 findings. Test Preview READY/exact implementation SHA; signed-in Free/empty-history UI verified. [Plan and activation evidence](2026-10-21-rollover-retirement.md). Production web/settings and Live keys unchanged; only the explicitly approved shared no-rollover policy changed globally.
