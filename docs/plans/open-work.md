@@ -3060,6 +3060,15 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 
 ## Done — 2026-10-19 homepage browser fixes
 
+- [x] **Mandatory CI enforcement (2026-10-21).** Policy commit d9595ab and native
+  GitHub/Vercel operations activated strict main PR checks (admins included)
+  and both CI jobs before Preview/Production domain assignment. Cancelled run
+  39508667078 kept Preview unpublished; attempt2 passed both jobs and assigned
+  its domains automatically. PR4 contains documentation only and stays unmerged;
+  no Production release or credential change by this task. Exact settings,
+  gate IDs and evidence:2026-10-21-ci-enforcement.md.
+
+
 - Homepage form identity and image dimensions released in a82bab8; exact production assets and Chrome checked. CSP report was absent in clean Incognito; no application CSP cause proved and no policy weakened. [Release evidence](2026-10-19-frontend-browser-issues.md).
 
 ## Done — 2026-10-19 authenticated browser fixes

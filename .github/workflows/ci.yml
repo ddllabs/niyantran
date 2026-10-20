@@ -1,5 +1,5 @@
-# Advisory CI (plan task B6): runs on every push and pull request. A red run
-# is visible on the commit; nothing is blocked until branch protection says so.
+# Required CI: both named jobs are enforced by main branch protection and
+# Vercel project checks. Keep their names stable when changing this workflow.
 name: CI
 
 on:

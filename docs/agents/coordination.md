@@ -175,9 +175,11 @@ git rev-list --left-right --count main...origin/main
 - **Vercel Authentication protects all of these URLs.**
 - **Previews and production share the one live Supabase project (NTER).**
   A preview that writes data writes real data.
-- **After verification,** and with the owner's authorization for the push,
-  the supervisor merges the branch into `main`, pushes `main`, and deletes
-  the branch.
+- **After verification,** and with the owner's authorization for publication,
+  the supervisor opens an up-to-date pull request and merges it only after both
+  required CI jobs pass. Main protection includes administrators; direct pushes
+  are not the release workflow. Vercel Preview and Production domain assignment
+  waits for the same jobs on the deployed commit. Never force-promote around CI.
 
 Fetch updates references without changing working files. Fast-forward a clean
 local `main` when it is only behind `origin/main`. Review upstream changes as a
@@ -218,9 +220,12 @@ observations, not evidence that future warnings are harmless.
 The current recovery checkout defines `npm test` (Vitest) and Edge Function
 checks via `deno test -A --config supabase/functions/deno.json supabase/functions`.
 `npm run lint` (ESLint) fails on any error or warning; there is no standalone
-type-check. (corrected 2026-10-01: an advisory CI workflow,
-`.github/workflows/ci.yml`, runs lint, the build, both suites and
-`npm run test:sql` on every push; it blocks nothing.) Run lint, focused checks
+type-check. `.github/workflows/ci.yml` runs lint, the build, both suites and
+`npm run test:sql` on every push and pull request. Since 2026-10-21, main
+requires both jobs from GitHub Actions and an up-to-date PR, including admins.
+Native Vercel checks gate Preview/Production domain assignment on the exact
+deployed commit; builds may run in parallel. Missing or unsuccessful checks
+must not be bypassed. See docs/plans/2026-10-21-ci-enforcement.md. Run lint, focused checks
 and the production build for code changes, and both suites for src/lib/,
 src/admin/ or supabase/ changes. Use disposable local SQL targets for database
 write tests. Exercise rejection paths, report missing gates, and never translate
@@ -277,9 +282,9 @@ Correct this section when observations become stale.
 - The recovery checkout README.md and AGENTS.md were reconciled locally in
   22ef26b. The original checkout retains its prior versions until integration;
   final E3 status and cross-link reconciliation remain pending.
-- The repository has Vitest and Deno suites but no tracked GitHub workflow.
-  (corrected 2026-09-28: `.github/workflows/ci.yml` is an advisory workflow
-  running the build, both suites and the SQL fixtures on every push.)
+- The repository has Vitest and Deno suites and `.github/workflows/ci.yml`.
+  Its build/test and SQL jobs are required by main protection and Vercel
+  release checks (2026-10-21); keep both job names stable.
   `.oxlintrc.json` existed, but Oxlint was never a dependency or npm script
   (removed 2026-09-29; `npm run lint` is ESLint).
 - The 2026-09-20 clean build transformed 204 modules and emitted chunk-size

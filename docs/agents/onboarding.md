@@ -60,7 +60,10 @@ The repository has `npm test` (Vitest), Deno Edge Function tests and
 `npm run build`. Run both suites for src/lib/, src/admin/ or supabase/ changes,
 plus the focused checks in your plan. Use disposable local targets for SQL write
 tests. `.github/workflows/ci.yml` runs lint, the build, both suites and the
-SQL fixtures on every push; it is advisory and blocks nothing. Run
+SQL fixtures on every push and PR. Both named jobs are required by main
+protection, including administrators, and Vercel Preview/Production release
+checks. Keep job names stable and use up-to-date PRs; never bypass a failed
+check. Vercel can build in parallel, but domain assignment waits for CI. Run
 `npm run lint` for code changes; it fails on any error or warning. There is no
 standalone type-check. Never report a
 check you did not execute. An execution is evidence; reading code is a claim.
