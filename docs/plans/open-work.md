@@ -3408,3 +3408,8 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-20 Test billing design and daily pricing
 
 - Scoped modern billing summary/chooser/topups, unified history with collapsed references, branded in-page invoice and IST daily upgrade quotes landed in `0649524`, `bc3b46c`, `f98203d`. Final6447 Vitest/1172 Deno tests and50 SQL fixtures pass; lint/build/bundle/router pass. Owner-approved additive shared migration applied; original functions and historical purchases unchanged. Test Preview READY; real plan/top-up invoices and daily quote verified in authenticated browser. Production/Live keys untouched. [Plan and evidence](2026-10-20-billing-design-daily-proration.md). O6 remains open for its separate Live launch gates.
+
+
+## Done — 2026-10-20 contextual plan chooser
+
+- `7ecc2d9`: below-card chooser now shows one contextual state: compact saved unpaid plan, current-plan renewal note, downgrade confirmation, or quote/loading/error. Free action moved to quiet footer; payment/schedule rules unchanged.6452unit tests and focused10cases pass; lint/build/bundle and responsive/dark/keyboard fixture pass. Test Preview READY and authenticated current/saved states verified; balance/schedule unchanged. No backend/Production/Live changes. [Evidence](2026-10-20-plan-chooser-context.md).
