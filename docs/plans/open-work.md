@@ -39,6 +39,7 @@
 
 
 
+
 ## How to use this file
 
 - **This is the only list of open work.** Plans, specs, ADRs and
@@ -3075,3 +3076,7 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-20 branch cleanup
 
 - [x] Non-payment documentation consolidated in `e11eae0`, original histories retained in `cef7849`, and local main updated. Removed 18 merged local and 8 merged remote branches after payment-agent coordination. All four payment local branches, both payment remote branches, shared working files and existing frontend checkout files preserved. Main documentation remains local, unpublished. [Execution record](2026-10-20-branch-cleanup.md).
+
+## Done — 2026-10-21 desk sector flip cards
+
+- [x] Shared eight-desk flip cards, implementation `a51b07d`. Owner reviewed local Global and authorized push/merge. 6293 application and 1172 Edge tests passed; focused final CSS checks, lint/build/bundle and browser interactions passed. Billing untouched. Release status and verification limits: [plan](2026-10-21-desk-sector-flip.md).
