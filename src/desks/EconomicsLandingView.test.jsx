@@ -7,7 +7,7 @@ describe('Economics v6 adapter', () => {
   it('renders four exact reference sectors without mock totals or an old rail', () => {
     const html=render({});
     expect(html).toContain('data-desk="economics"');expect(html).toContain('Follow the economy.');
-    expect(html).toContain('11 modules');expect((html.match(/class="sector-card"/g)||[]).length).toBe(4);
+    expect(html).toContain('11 modules');expect((html.match(/class="sector-card sector-front"/g)||[]).length).toBe(4);
     for(const name of ['nse-bse','macro-indicators.png','trade.jpg','industry-machinery.png']) expect(html).toContain(`data-image="${name}"`);
     expect(html).toContain('Loading summaries');expect(html).not.toContain('Verified Records');
     expect(html).not.toContain('data-v6-count="500"');

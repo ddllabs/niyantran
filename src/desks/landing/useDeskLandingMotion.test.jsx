@@ -47,10 +47,11 @@ describe('v6 reference motion behavior', () => {
     expect(photo.style.setProperty).not.toHaveBeenCalled();
   });
   it('scrolls to sectors and focuses the first card without a second scroll', () => {
-    const first = { focus: vi.fn() }, sectors = { scrollIntoView: vi.fn(), querySelector: () => first };
+    const first = { focus: vi.fn() }, sectors = { scrollIntoView: vi.fn(), querySelector: vi.fn(() => first) };
     exploreDeskSectors(sectors, false);
     expect(sectors.scrollIntoView).toHaveBeenLastCalledWith({ behavior: 'smooth', block: 'nearest' });
     expect(first.focus).toHaveBeenLastCalledWith({ preventScroll: true });
+    expect(sectors.querySelector).toHaveBeenCalledWith('.sector-card:not([inert]), .sector-back:not([inert]) a');
     exploreDeskSectors(sectors, true);
     expect(sectors.scrollIntoView).toHaveBeenLastCalledWith({ behavior: 'instant', block: 'nearest' });
   });
