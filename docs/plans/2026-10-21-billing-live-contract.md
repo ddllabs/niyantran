@@ -38,8 +38,13 @@
   `git diff --check` passed. Initial JavaScript gzip180,710 bytes within budget.
 - `npm run test:sql`:all52 fixtures passed, including omission-vacuity guards;
   latest lifecycle additions also passed in a separate focused rerun.
-  Shared migration activation approval is pending;
-  dependent Preview publication and browser acceptance have not occurred.
+  Owner approved the narrow shared-NTER migration; applied
+  `20261020230745_billing_live_cycle.sql` successfully. Before/after hashes of
+  all8 original financial functions and all5 wallet rows match exactly;
+  orders/periods/invoices remain empty and rollover remains0. Readback confirms
+  the two mode constraints and all three explicit function ACLs. No hosted
+  financial fixtures or credentials changed. Preview publication/browser
+  acceptance follow this verified activation.
 - Reviewed correctness, ACLs/authentication, merchant/mode/quote binding,
   immutable dispatch compatibility and query bounds. Existing financial RPCs
   remain intact; no new packages or financial settings are introduced.
