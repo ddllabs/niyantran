@@ -42,3 +42,11 @@ it('ignores a late response after unmount and re-reads on a purchase revision', 
   await Promise.resolve(); expect(fake.states[0]).toBe(null);
   tree(1); fake.effects.at(-1)(); expect(fake.read).toHaveBeenCalledTimes(2);
 });
+
+it('does not insert a temporary compact period section that disappears after an empty read',async()=>{
+ fake.read.mockResolvedValue([]);
+ fake.cursor=0;
+ expect(PlanPeriods({compact:true})).toBeNull();
+ fake.effects[0](); await Promise.resolve(); fake.cursor=0;
+ expect(PlanPeriods({compact:true})).toBeNull();
+});

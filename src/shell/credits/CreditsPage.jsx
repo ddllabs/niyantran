@@ -182,7 +182,7 @@ export default function CreditsPage({ section = 'credits', user, ent }) {
 
         {activity ? <ActivitySection models={filterModels(lifetime.value)} onOpenChat={openChat} /> : null}
 
-        {section === 'billing' ? <PlanBilling key={plan || 'none'} ent={ent} user={user} initialPlan={plan} /> : null}
+        {section === 'billing' ? <PlanBilling key={userId + ':' + (plan || 'none')} ent={ent} user={user} initialPlan={plan} credits={credits} creditsTried={creditsTried} /> : null}
       </main>
     </div>
   );

@@ -16,7 +16,7 @@ vi.mock('./productAnalytics.js', () => ({ trackProductEvent: () => {} }));
 const ent = vi.hoisted(() => ({ refresh: null }));
 vi.mock('./entitlementStore.js', () => ({ refreshEntitlement: (...args) => ent.refresh(...args) }));
 
-import { formatInr, completeCheckout, openInvoice, fetchInvoiceHtml, fetchPurchases, fetchInvoices, fetchBillingReviews, fetchPlanPeriods } from './billing.js';
+import { formatInr, completeCheckout, openInvoice, fetchInvoiceHtml, fetchPurchases, fetchInvoices, fetchBillingReviews, fetchPlanPeriods, fetchBillingConfig } from './billing.js';
 
 let calls;
 function serve(routes) {
@@ -144,4 +144,19 @@ it('removes only zero paise from display without rounding genuine charges to rup
   expect(formatInr(0)).toBe('₹0');
   expect(formatInr(599.74)).toBe('₹599.74');
   expect(formatInr(599.7)).toBe('₹599.70');
+});
+
+it('distinguishes a failed configuration read from known disabled payments',async()=>{
+ serve({'/api/billing/config':[503,{}]});
+ expect(await fetchBillingConfig()).toMatchObject({enabled:false,unavailable:true});
+ serve({'/api/billing/config':[200,{enabled:false,cycleChanges:false}]});
+ expect(await fetchBillingConfig()).toEqual({enabled:false,cycleChanges:false});
+});
+
+it.each([null,{}])('fails closed with an explicit error for malformed billing configuration %s',async body=>{
+ serve({'/api/billing/config':[200,body]});
+ expect(await fetchBillingConfig()).toMatchObject({enabled:false,unavailable:true});
+ const result=await completeCheckout({planId:'pro'});
+ expect(result.reason).toContain('could not be loaded');
+ expect(calls.every(c=>c.url==='/api/billing/config')).toBe(true);
 });

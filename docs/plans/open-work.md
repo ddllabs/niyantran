@@ -39,6 +39,10 @@
 
 
 
+- [ ] **Billing initial-render flash and disclosure visibility (2026-10-21).** Runtime audit reproduced legacy→modern replacement (~84-139ms legacy visibility in sampled warm reloads) because pending config renders the legacy tree; credits arrival adds36px to the account card. Temporary legacy mounts also initiate redundant data reads; an inner cycleChanges branch is unreachable. Preserve the valid non-Test legacy flow. Proposed fix: explicit config loading/error state, one mounted billing implementation, stable disclosure space and a padded accent summary. Existing33 focused tests pass but do not guard the loading transition. Owner approved repair/Test Preview deployment. Pending/error gate, shared page credit props, fixed disclosure row and redundant-mount cleanup implemented; focused120 including admin/full6483/Edge1172/lint/build/bundle pass; browser/deployment verification underway. [Audit](../research/2026-10-21-billing-load-audit.md).
+
+- [ ] **Test browser-global isolation audit (2026-10-21, outside billing repair).** One full run hit AdminApp's `window.matchMedia` against a leaked browser stub; the isolated admin/billing120 checks and subsequent full6483 run passed. Removed obsolete window setup from modified billing tests; no admin source/test changes or skipped tests. Broader test-order/global cleanup should be audited if recurrence occurs. Evidence in2026-10-21-billing-loading.md.
+
 ## How to use this file
 
 - **This is the only list of open work.** Plans, specs, ADRs and

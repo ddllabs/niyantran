@@ -67,10 +67,12 @@ export async function fetchPlanPeriods() {
 export async function fetchBillingConfig() {
   try {
     const res = await fetch('/api/billing/config');
-    if (!res.ok) return { enabled: false, demoFallback: true, provider: 'razorpay' };
-    return await res.json();
+    if (!res.ok) throw new Error('Billing configuration unavailable.');
+    const config = await res.json();
+    if (!config || typeof config.enabled !== 'boolean') throw new Error('Invalid billing configuration.');
+    return config;
   } catch {
-    return { enabled: false, demoFallback: true, provider: 'razorpay' };
+    return { enabled: false, demoFallback: true, provider: 'razorpay', unavailable: true };
   }
 }
 
@@ -216,6 +218,7 @@ export async function completeCheckout({ planId, productId, requestId, quoteId, 
 
   const meta = planOf(plan);
   const config = await fetchBillingConfig();
+  if (config.unavailable) return { ok: false, reason: 'Billing options could not be loaded. Please try again.' };
   if (!config.enabled) {
     return {
       ok: false,

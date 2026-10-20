@@ -16,7 +16,7 @@ export default function PlanPeriods({ revision = 0, compact = false }) {
     return () => { live = false; };
   }, [revision]);
   const displayed = compact && periods ? periods.filter(p => p.status === 'scheduled') : periods;
-  if (compact && displayed && !displayed.length && !error) return null;
+  if (compact && !error && (!displayed || !displayed.length)) return null;
   return <section className="plan-periods" aria-labelledby="plan-periods-title">
     <h4 id="plan-periods-title" className="plan-credits-sub">{compact ? 'Next paid period' : 'Purchased plan periods'}</h4>
     {error ? <p role="alert">{error}</p> : periods === null ? <p className="plan-up-note">Loading purchased plan periods…</p>

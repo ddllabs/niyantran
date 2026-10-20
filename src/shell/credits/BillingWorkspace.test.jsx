@@ -26,3 +26,23 @@ it('keeps the chooser visible by default without an open or close toggle',()=>{
  expect(html).not.toContain('Close plan options');expect(html).not.toContain('>Change plan<');
  expect(html).not.toContain('10% monthly rollover');
 });
+
+it('reserves a native credit disclosure while the balance is loading',()=>{
+ const html=renderToStaticMarkup(<BillingWorkspace {...props} credits={null}/>);
+ expect(html).toContain('class="billing-credit-details"');
+ expect(html).toContain('Credit breakdown &amp; expiry');
+ expect(html).toContain('Loading your credit breakdown');
+});
+
+it('keeps billing child reads unmounted until configuration is known',()=>{
+ const html=renderToStaticMarkup(<BillingWorkspace {...props} config={null}/>);
+ expect(html).toContain('Loading plan options');
+ expect(html).not.toContain('Billing history');
+ expect(html).not.toContain('Available plans');
+});
+it('shows a retryable configuration error instead of legacy checkout',()=>{
+ const html=renderToStaticMarkup(<BillingWorkspace {...props} config={{unavailable:true}}/>);
+ expect(html).toContain('Billing options could not be loaded');
+ expect(html).toContain('Try again');
+ expect(html).not.toContain('Available plans');
+});

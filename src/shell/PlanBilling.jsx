@@ -1,5 +1,4 @@
 import BillingWorkspace from './credits/BillingWorkspace.jsx';
-import PlanCycleReview from './credits/PlanCycleReview.jsx';
 import PlanPeriods from './credits/PlanPeriods.jsx';
 import BillingReviews from './credits/BillingReviews.jsx';
 import Purchases from './credits/Purchases.jsx';
@@ -7,7 +6,7 @@ import PurchaseReview from './credits/PurchaseReview.jsx';
 import PlanChoices from './PlanChoices.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { completeCheckout, fetchBillingConfig, fetchInvoices, openInvoice, formatInr } from '../lib/billing.js';
-import { creditsText, refreshCredits, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
+import { creditsText, refreshCredits } from '../lib/creditsStore.js';
 import { refreshEntitlement } from '../lib/entitlementStore.js';
 import { PUBLIC_PLANS, purchaseKind, rupees } from '../lib/publicPlans.js';
 import CreditLots, { dayOrNull } from './CreditLots.jsx';
@@ -88,7 +87,7 @@ function CreditsSection({ credits, tried, checkoutOpen }) {
  * your plan with this period's credits, the plan choices and checkout, and the invoices. Checkout
  * reports only what the server verified, and says so plainly while it is closed.
  */
-export default function PlanBilling({ ent, user, initialPlan = null }) {
+export default function PlanBilling({ ent, user, initialPlan = null, credits: suppliedCredits = null, creditsTried = false }) {
   const [config, setConfig] = useState(null);
   const [invoices, setInvoices] = useState(null);
   const [selected, setSelected] = useState(() =>
@@ -97,11 +96,11 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const userId = user?.id || null;
-  const [credits, setCredits] = useState(() => serverCredits(userId));
-  const [creditsTried, setCreditsTried] = useState(false);
+  const credits = suppliedCredits?.userId === userId ? suppliedCredits : null;
   const [invoiceError, setInvoiceError] = useState('');
   const [revision, setRevision] = useState(0);
   const paying = useRef(false);
+  const [configAttempt, setConfigAttempt] = useState(0);
 
   function updated() {
     setRevision(value => value + 1);
@@ -112,31 +111,19 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
 
   useEffect(() => {
     let live = true;
+    setConfig(null);
     fetchBillingConfig().then((c) => live && setConfig(c));
+    return () => { live = false; };
+  }, [userId, configAttempt]);
+
+  useEffect(() => {
+    let live = true;
     setInvoices(null); setInvoiceError('');
     Promise.resolve(fetchInvoices()).then((list) => live && setInvoices(list || []))
       .catch(() => live && setInvoiceError('Invoices could not be loaded. Try refreshing purchases.'));
     refreshEntitlement();
     return () => {
       live = false;
-    };
-  }, [userId]);
-
-  // Credits are read the way the plan is: subscribe to the store, then refresh it.
-  useEffect(() => {
-    if (!userId) return undefined;
-    let live = true;
-    const sync = () => {
-      if (live) setCredits(serverCredits(userId));
-    };
-    const unsubscribe = subscribeCredits(sync);
-    Promise.resolve(refreshCredits()).then(() => {
-      sync();
-      if (live) setCreditsTried(true);
-    });
-    return () => {
-      live = false;
-      unsubscribe();
     };
   }, [userId]);
 
@@ -166,8 +153,8 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
     finally { setBusy(false); paying.current = false; }
   }
 
-  if (config?.cycleChanges) return <BillingWorkspace key={userId} ent={ent} user={user} initialPlan={initialPlan} config={config}
-    credits={credits} creditsTried={creditsTried} invoices={invoices} invoiceError={invoiceError} revision={revision} onUpdated={updated} />;
+  if (!config || config.unavailable || config.cycleChanges) return <BillingWorkspace key={userId} ent={ent} user={user} initialPlan={initialPlan} config={config}
+    credits={credits} creditsTried={creditsTried} invoices={invoices} invoiceError={invoiceError} revision={revision} onUpdated={updated} onRetryConfig={() => setConfigAttempt(value => value + 1)} />;
 
   return (
     <div className="plan-billing-section">
@@ -186,9 +173,9 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
         {userId ? <CreditsSection credits={credits} tried={creditsTried} checkoutOpen={open} /> : null}
       </section>
 
-      {user ? <Purchases key={userId} user={user} revision={revision} onUpdated={updated} /> : null}
+      {user ? <Purchases key={userId} user={user} revision={revision} onUpdated={updated} suppliedConfig={config} /> : null}
       {user?.role === 'admin' ? <BillingReviews user={user} /> : null}
-      {config?.cycleChanges ? <PlanCycleReview key={userId} ent={ent} user={user} initialPlan={initialPlan} onUpdated={updated} /> : <section className="cp-card" aria-labelledby="plan-change-title">
+      <section className="cp-card" aria-labelledby="plan-change-title">
         <h3 id="plan-change-title" className="cp-card-title">Change plan</h3>
         <PlanChoices ent={ent} selected={selected} busy={busy} onSelect={id => { setSelected(id); setResult(null); }} />
 
@@ -227,7 +214,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
           </p>
         ) : null}
         {result && !result.ok ? <p className="plan-up-err" role="alert">{result.text}</p> : null}
-      </section>}
+      </section>
 
       <section className="cp-card" aria-labelledby="plan-invoices-title">
         <h3 id="plan-invoices-title" className="cp-card-title">Invoices</h3>

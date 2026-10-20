@@ -12,8 +12,9 @@ import './billingWorkspace.css';
 
 const label = id => id ? id.charAt(0).toUpperCase() + id.slice(1) : 'Free';
 const date = iso => Number.isFinite(Date.parse(iso)) ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }) : '—';
-export default function BillingWorkspace({ ent,user,initialPlan,config,credits,creditsTried,invoices,invoiceError,revision,onUpdated }) {
+export default function BillingWorkspace({ ent,user,initialPlan,config,credits,creditsTried,invoices,invoiceError,revision,onUpdated,onRetryConfig }) {
   const [notice,setNotice] = useState('');
+  const ready = Boolean(config && !config.unavailable);
   const active = ent?.status === 'active' && !ent.lapsed && PUBLIC_PLANS.some(p => p.id === ent.plan && p.monthly > 0);
   const plan = active ? ent.plan : 'free';
   const product = PUBLIC_PLANS.find(p => p.id === plan);
@@ -32,20 +33,26 @@ export default function BillingWorkspace({ ent,user,initialPlan,config,credits,c
       <p className="billing-balance-note">Includes all your unexpired credits. Open the breakdown for their sources and expiry dates.</p>
       {credits?.held > 0 ? <p className="billing-muted">{creditsText(credits.held)} held for a running answer; excluded from your available balance.</p> : null}
       {credits?.debt > 0 ? <p className="billing-status billing-status-warn">{creditsText(credits.debt)} owed, taken from your next credits.</p> : null}
-      {credits ? <details className="billing-credit-details"><summary>Credit breakdown &amp; expiry</summary>
-        {active && credits.allowance != null ? <p className="billing-muted">Plan credits added this period: <strong>{creditsText(credits.allowance)}</strong>.</p> : null}
-        {active && credits.allowance != null && credits.allowance !== product.monthlyCredits ? <p className="billing-muted">A prorated upgrade adds credits for the remaining days, so this period’s allocation can differ from a full month’s allowance.</p> : null}
-        {credits.usedThisCycle != null ? <p className="billing-muted">Used this period: {creditsText(credits.usedThisCycle)}</p> : null}
-        <BillingCreditBreakdown lots={credits.lots}/>
-      </details> : null}
+      <details className="billing-credit-details"><summary><span>Credit breakdown &amp; expiry</span><span className="billing-disclosure-chevron" aria-hidden="true">⌄</span></summary>
+        {active && credits?.allowance != null ? <p className="billing-muted">Plan credits added this period: <strong>{creditsText(credits.allowance)}</strong>.</p> : null}
+        {active && credits?.allowance != null && credits.allowance !== product.monthlyCredits ? <p className="billing-muted">A prorated upgrade adds credits for the remaining days, so this period’s allocation can differ from a full month’s allowance.</p> : null}
+        {credits?.usedThisCycle != null ? <p className="billing-muted">Used this period: {creditsText(credits.usedThisCycle)}</p> : null}
+        {credits ? <BillingCreditBreakdown lots={credits.lots}/> : <p className="billing-muted" role="status">{creditsTried ? 'Your credit breakdown is unavailable. Please refresh.' : 'Loading your credit breakdown…'}</p>}
+      </details>
       <div className="billing-account-foot"><span>{active ? 'Renew manually before expiry' : 'No monthly subscription'}</span><span>Top-ups keep their own expiry dates</span></div>
       {notice ? <p role="status" className="billing-feedback">{notice}</p> : null}
     </section>
+    {ready ? <>
     <div id="billing-plan-picker"><PlanCycleReview ent={ent} user={user} initialPlan={initialPlan} onUpdated={updated}/></div>
-    <PlanPeriods revision={revision} compact />
+    {active ? <PlanPeriods revision={revision} compact /> : null}
     <Purchases user={user} onUpdated={onUpdated} revision={revision} showHistory={false} suppliedConfig={config}/>
     <BillingHistory invoices={invoices} invoiceError={invoiceError} revision={revision} onRefresh={onUpdated}/>
     <p className="billing-policy-note">Prices in INR. No GST is charged. Plans renew manually; top-up credits are valid for 12 months. <a href="/refunds">Refund &amp; cancellation policy</a></p>
     {user?.role === 'admin' ? <BillingReviews user={user}/> : null}
+    </> : <section className="billing-surface billing-options-loading" aria-busy={!config} aria-labelledby="billing-options-loading-title">
+      <h3 id="billing-options-loading-title">{config?.unavailable ? 'Billing options could not be loaded' : 'Loading plan options…'}</h3>
+      <p className="billing-muted" role="status">{config?.unavailable ? 'Your current plan is unchanged. Try again to view billing options.' : 'Your current plan and balance load independently.'}</p>
+      {config?.unavailable ? <button type="button" className="billing-secondary" onClick={onRetryConfig}>Try again</button> : <div className="billing-options-skeleton" aria-hidden="true">{[0,1,2,3].map(i => <span key={i}/>)}</div>}
+    </section>}
   </div>;
 }

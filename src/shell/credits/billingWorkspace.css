@@ -80,7 +80,6 @@
 @media (prefers-reduced-motion:reduce) { .billing-modern .billing-secondary { transition: none; } .billing-modern .billing-secondary:active { transform: none; } }
 
 .billing-credit-details { margin: 0 0 18px; font-size: 12px; color: var(--muted); }
-.billing-credit-details summary { cursor: pointer; width: fit-content; }
 .billing-credit-table-wrap { margin-top: 16px; }
 .billing-credit-table { width: 100%; border-collapse: collapse; color: var(--fg); font-size: 12px; text-align: left; }
 .billing-credit-table th, .billing-credit-table td { padding: 12px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -139,3 +138,33 @@
 .billing-modern [aria-label="Available plans"].has-free { grid-template-columns: repeat(4,minmax(0,1fr)); }
 @media (max-width:1100px) { .billing-modern [aria-label="Available plans"].has-free { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width:560px) { .billing-modern [aria-label="Available plans"].has-free { grid-template-columns: 1fr; } }
+
+/* Keep the credit disclosure present through balance loading: no insertion shift. */
+.billing-credit-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+.billing-credit-details > summary::-webkit-details-marker { display: none; }
+.billing-disclosure-chevron { font-size: 18px; line-height: 1; }
+.billing-credit-details[open] > summary .billing-disclosure-chevron { transform: rotate(180deg); }
+@media (hover:hover) and (pointer:fine) {
+  .billing-credit-details > summary:hover { border-color: var(--accent); }
+}
+.billing-options-loading h3 { margin: 0; font-size: 16px; }
+.billing-options-skeleton { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin-top: 20px; }
+.billing-options-skeleton > span { min-height: 190px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb,var(--line) 12%,var(--panel)); }
+@media (max-width:1100px) { .billing-options-skeleton { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width:560px) { .billing-options-skeleton { grid-template-columns: 1fr; } }
