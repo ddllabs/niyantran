@@ -212,7 +212,7 @@ export default function ProfileCredits({ user, open, setOpen, onToggle, activePl
         <span className="avatar">{(user.name || user.email || 'A').charAt(0).toUpperCase()}</span>
         {tone ? <span className={`cp-pill-dot cp-dot-${tone}`} aria-hidden="true" /> : null}
         </span>
-        {paidBadge ? <span className="cp-profile-plan" aria-hidden="true">{paidBadge}</span> : null}
+        {paidBadge ? <span className="cp-profile-plan" data-plan={activePlan} aria-hidden="true">{paidBadge}</span> : null}
       </button>
       {open ? <div id={id} className="profile-pop" role="dialog" aria-label="Account">
         {children(<Glance credits={credits} failed={failed} notice={notice} onClose={() => setOpen(false)} />)}

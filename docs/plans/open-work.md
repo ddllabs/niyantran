@@ -3223,7 +3223,15 @@ Earlier items, updated:
       review handoff confirmed; actual hosted payment rehearsal remains pending.
       Uncommitted/unpublished; webhook secret re-entry separately pending.
       Owner now approves publishing both UI fixes to task/razorpay-plan Test
-      Preview. Release verification in progress; Production/Live unchanged.
+      Preview. Released7aa3cc3, READY dpl_2EZ2aLSNLxQy9cLk7XGPiGCFHkr3;
+      authenticated badge/menu/picker/allowance/Plus-review handoff verified,
+      abandoned list absent, no payment initiated and browser errors0. CI39393838099
+      attempt1 app/Edge and database jobs green. Production/Live unchanged.
+      Post-release evidence edits remain local; webhook-secret re-entry pending.
+      Owner requests attached profile pill with distinct Plus/Pro/Max colours;
+      local follow-up verified:25 profile tests, lint/build/bundle,6 browser
+      overlap checks and light/dark contrast pass. Uncommitted/unpublished;
+      see plan-discovery record. Production/Live unchanged.
       **Previously observed operator-list defect:** billing/adjustments503; read-only reviews RPC
       reproduces42702 ambiguous pay.id (table alias versus PL/pgSQL variable).
       Resolved by6515956 and the separately approved shared migration above;

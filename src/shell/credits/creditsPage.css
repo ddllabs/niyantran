@@ -270,7 +270,13 @@
 /* F230: one account control, with the existing remaining-credit ring around its avatar. */
 .cp-profile-trigger { position: relative; width: 48px; height: auto; min-height: 48px; display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
 .cp-profile-face { position: relative; display: grid; place-items: center; width: 48px; height: 48px; flex-shrink: 0; }
-.cp-profile-plan { font-size: 9px; font-weight: 750; line-height: 12px; letter-spacing: .04em; padding: 0 6px; border-radius: 6px; background: var(--accent-soft, #e8edff); color: var(--accent, #073bb6); }
+.cp-profile-plan { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); z-index: 3; border: 2px solid var(--panel, #fff); font-size: 9px; font-weight: 750; line-height: 12px; letter-spacing: .04em; padding: 0 6px; border-radius: 8px; white-space: nowrap; }
+.cp-profile-plan[data-plan="plus"] { background: #e6efff; color: #174ea6; }
+.cp-profile-plan[data-plan="pro"] { background: #f0e8ff; color: #6b21a8; }
+.cp-profile-plan[data-plan="max"] { background: #fff0c2; color: #805500; }
+.theme-dark .cp-profile-plan[data-plan="plus"] { background: #172d53; color: #b6d2ff; }
+.theme-dark .cp-profile-plan[data-plan="pro"] { background: #35204d; color: #e2c4ff; }
+.theme-dark .cp-profile-plan[data-plan="max"] { background: #3b2c12; color: #ffdf8a; }
 .cp-profile-ring { position: absolute; inset: 0; pointer-events: none; }
 .cp-profile-ring .cp-ring-spark { display: none; }
 .cp-profile-trigger .avatar { position: relative; z-index: 1; }
