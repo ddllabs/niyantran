@@ -60,7 +60,7 @@
 
 ## Billing acceptance follow-up
 
-- [ ] **F238 — Refunded unused top-up provenance and customer status.** Fix05907f12 reviewed, pushed and both mandatory CI jobs passed; approved additive shared migration activated. Test Preview build READY but alias blocked by Vercel Git-provider checks remaining queued despite GitHub success. Exact approved20,000-credit refund review remains unsubmitted pending runtime release and end-to-end acceptance. No release-gate bypass. [Plan](2026-10-21-unused-topup-refund.md).
+- [ ] **F239 — Delayed Git-triggered Vercel processing.** F238 runtime released automatically after its Git deployment appeared with both gates passed; API-created retries retained stale queued checks. Git installation/permissions are intact. Cause of delayed event processing remains unproven; documentation commit7ec9e77e passed CI but no new Git deployment was visible at final inspection. Preserve gates; investigate recurrence without manual pass/alias overrides. [Evidence](2026-10-21-unused-topup-refund.md).
 
 ## Development toolchain follow-up
 
@@ -1437,6 +1437,8 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- **F238 — Refunded unused top-up provenance and customer status.** Runtime05907f12 released to Razorpay Test Preview through passing required CI checks. Approved migration activated; browser review removed only the original untouched20,000-credit lot once, companion acknowledgement changed no benefits, exact retry made no second debit. Other lots/invoice fingerprints and Max expiry unchanged. Browser history shows Refund recorded without pending review. Production checkout remains closed. [Evidence](2026-10-21-unused-topup-refund.md).
 
 - [x] **Frontend default icons (2026-10-19).** c748e26 deployed Production READY. Both icon paths200/image MIME;46 frontend asset checks pass; Chrome32 successful requests and empty Console after reload. Evidence and remaining unrelated DevTools issues: [release record](2026-10-19-frontend-icons.md).
 
