@@ -60,9 +60,7 @@
 
 ## Billing acceptance follow-up
 
-- [ ] **F240 — Restricted Live pilot and closed Production release.** Owner approved server-only Live owner allowlist, verification, CI-gated main release with checkout closed; Live keys unchanged. [Plan](2026-10-21-closed-live-pilot.md).
 
-- [ ] **F239 — Delayed Git-triggered Vercel processing.** F238 runtime released automatically after its Git deployment appeared with both gates passed; API-created retries retained stale queued checks. Git installation/permissions are intact. Cause of delayed event processing remains unproven; documentation commit7ec9e77e passed CI but no new Git deployment was visible at final inspection. Preserve gates; investigate recurrence without manual pass/alias overrides. [Evidence](2026-10-21-unused-topup-refund.md).
 
 ## Development toolchain follow-up
 
@@ -1439,6 +1437,10 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- [x] **F240 — Restricted Live pilot and closed Production release.** Gate `792aab3e`, PR #6 merged as `f8eabcbf`; both main CI jobs passed, Production deployment `dpl_2ozSNjA5VH4umSwqHfHqADQ3ZNaP` automatically assigned www.nter.pro. Runtime config enabled=false, checkoutOpen=false, empty key; unauthenticated order401. Owner-only Live UUID configured; Live credentials unchanged. [Evidence](2026-10-21-closed-live-pilot.md).
+- [x] **F239 — Git-triggered CI release path recovered and verified.** Preview `792aab3e` and Production `f8eabcbf` both observed pending alias while CI ran, then automatic assignment after both required checks passed. No bypass/settings changes. Original delayed-event cause remains unproven; no claim of a provider root-cause fix. [Evidence](2026-10-21-closed-live-pilot.md).
+
 
 - **F238 — Refunded unused top-up provenance and customer status.** Runtime05907f12 released to Razorpay Test Preview through passing required CI checks. Approved migration activated; browser review removed only the original untouched20,000-credit lot once, companion acknowledgement changed no benefits, exact retry made no second debit. Other lots/invoice fingerprints and Max expiry unchanged. Browser history shows Refund recorded without pending review. Production checkout remains closed. [Evidence](2026-10-21-unused-topup-refund.md).
 

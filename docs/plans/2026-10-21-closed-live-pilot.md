@@ -15,3 +15,12 @@
 - Independent Astra review: no P1/P2 findings in pilot guard and reviewed billing release boundaries; historical SQL verification not independently replayed by reviewer. Both CI jobs remain mandatory.
 - Production metadata had no Razorpay credentials. Added only `BILLING_CHECKOUT_OPEN=0` and owner UUID `BILLING_LIVE_BUYER_IDS`; no credentials read or changed.
 - Second normal Git deployment `dpl_FpBueWaiGpTrFUAhqaSPYz6NzXfV` for `7ec9e77e` is READY with automatic alias assignment. The normal Git release path has recovered; delayed provider processing cause is still unproven. No gate bypass or manual alias used.
+
+## Release acceptance
+
+- PR https://github.com/ddllabs/niyantran/pull/6 merged as `f8eabcbf3da7795d4204e4959c7d6cf0d23aa279` after push and PR CI succeeded; strict main protections remained enforced for administrators.
+- Main CI `39638877797`: Build and tests and SQL fixtures (disposable Postgres) both success.
+- Preview `dpl_2y5BNFwCTTeydFEeh7uagBA2CL19` and Production `dpl_2ozSNjA5VH4umSwqHfHqADQ3ZNaP` observed READY/aliasAssigned=false during CI, then aliasAssigned=true/checks succeeded automatically. Production aliases include www.nter.pro and nter.pro. No overrides used.
+- Public Production config executed: enabled=false, checkoutOpen=false, keyId empty, no allowlist exposure. Unauthenticated create-order POST returned401. In-app browser confirmed the same public config. Production browser was signed out; no authenticated Production purchase was attempted. Test Preview UI retained Max,769738 displayed credits and refund-recorded history.
+- Live credentials were neither read nor modified. Owner may now configure Production RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_ACCOUNT_ID and a distinct RAZORPAY_WEBHOOK_SECRET for https://www.nter.pro/api/billing/webhook. Keep BILLING_CHECKOUT_OPEN=0 and owner allowlist unchanged during configuration; credential verification and restricted real-payment pilot remain next steps. AutoPay remains deferred.
+- Original provider event-delay root cause remains unproven; normal Git CI release worked end-to-end for this release.
