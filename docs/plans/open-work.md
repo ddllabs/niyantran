@@ -60,7 +60,7 @@
 
 ## Billing acceptance follow-up
 
-- [ ] **F238 — Refunded unused top-up provenance and customer status.** Full Test refund recorded; reviewed debit uses unrelated FIFO lots and history still says Paid. Narrow versioned RPC/projection, local checks, independent review, separate shared activation and exact Test review approval required. [Plan](2026-10-21-unused-topup-refund.md).
+- [ ] **F238 — Refunded unused top-up provenance and customer status.** Fix05907f12 reviewed, pushed and both mandatory CI jobs passed; approved additive shared migration activated. Test Preview build READY but alias blocked by Vercel Git-provider checks remaining queued despite GitHub success. Exact approved20,000-credit refund review remains unsubmitted pending runtime release and end-to-end acceptance. No release-gate bypass. [Plan](2026-10-21-unused-topup-refund.md).
 
 ## Development toolchain follow-up
 

@@ -31,3 +31,21 @@ Migration `20261021150010_billing_unused_topup_refund.sql` SHA256 `802ead788028b
 - Shared security-advisor baseline retains29 intentional RLS/no-policy information findings and20 authenticated SECURITY DEFINER warnings on existing functions. Neither new RPC is activated yet. No changes to those existing interfaces.
 
 Hosted activation, Test publication and exact reviewed debit remain pending owner approval. Proposed operation: process refund adjustment5417da89-1036-4528-aaec-295d08e174bb with20000 credits removed, no restoration or period action, reason identifying processed full Test refund; then acknowledge purchase_review5326eb5c-f90f-45b6-8c26-4e82765ef92b with zero benefit change. Recheck lot/hold eligibility before acting and compare the frozen baseline afterward. No provider cash action, automatic reversal, Production checkout/key change or Live switch.
+
+## Owner-approved activation (2026-10-21)
+
+Owner approved the exact additive shared migration, Test Preview publication and bounded Test refund review. Applied local migration20261021150010 as hosted20261021154431_billing_unused_topup_refund. Both functions owned by postgres, executable only by service_role (anon/authenticated denied). Original review/list definition hashes remain d94f857d2a5effd56e36d3ced89c1a0c / e1fb9b3ccfb8f3f8de4c0e7fbe410228. Wallet remains789737.8665 immediately after DDL. Security advisor groups/counts unchanged (29 info/20 existing authenticated-definer warnings); neither new function flagged.
+
+Published exact runtime05907f123ed0f6f336a8b4fba2510ff254f22762 to task/razorpay-plan. CI39628495879 is running; Previewdpl_2m9SYxq1cbdvrAEBLeVsdTDbt8YU created from exact Git SHA with target omitted (Preview), no settings overrides. Release/financial acceptance remains pending.
+
+CI provider discrepancy: attempt1 workflow completed success at15:50:52Z and SQL job passed, but Build and tests job/check119320072243 remained in_progress with no conclusion despite all steps, including Complete job, success. Preview correctly stayed STAGED/aliasAssignedfalse. Reran only that stuck job on the unchanged exact SHA; no bypass or configuration change. Final CI/alias result pending.
+
+## Release gate reconciliation (2026-10-21)
+
+Attempt2 of CI39628495879 passed both required checks on05907f123ed0f6f336a8b4fba2510ff254f22762: Build and tests119324793147 and SQL fixtures119324796328. Direct GitHub checks API reconfirmed completed/success after the owner signed in.
+
+A fresh same-SHA Previewdpl_EnRgSpCSm6Ba2gKrbhsWxRDKDoML built READY but still has aliasAssignedfalse. Vercel retained stale running Git-provider results. Requested normal reevaluation of the existing two check definitions via the documented create-check-run endpoint; replacement runs ckr_44177b78-9c77-4bf9-95fe-75a083d51076 and ckr_957b77f8-90dc-4e5f-8a67-d6e2ebdba0d6 remain queued. No definition, status override, manual alias assignment or Production setting change. Further repeated builds are not justified; provider check synchronization needs resolution. GitHub integration/event delivery is a hypothesis, not a confirmed root cause.
+
+Read-only financial reconciliation after owner sign-in: wallet789737.8665/debt0, target lot20000 untouched with0 draws,0 unswept holds, both exact adjustments unreviewed. Deferred financial submission through the older deployed UI; hosted migration is active, but runtime publication and end-to-end refund acceptance remain incomplete. Owner approval for the bounded review remains valid.
+
+Owner requested synchronization repair. In-app browser inspection confirms Vercel installation163314252 is active, scoped to ddllabs/niyantran, with actions read and checks/status permissions; project Git connection is intact. No permissions changed. Earlier verified deploymentdpl_CvdwvjTMbNT67cSLUWjibvRJsutL used source=git and released automatically; blocked retries use source=cli with matching Git SHA metadata. This difference is diagnostic evidence, not a proven cause. Publish these evidence-only notes through the authorized Test branch to exercise a fresh Git-triggered release and fresh CI checks. Preserve both mandatory checks and all Production settings.
