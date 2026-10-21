@@ -8,7 +8,7 @@ import { DESK_CATALOGUE } from '../desks/landing/deskCatalogue.js';
  */
 const rss = (items) =>
   `<?xml version="1.0"?><rss><channel>${items
-    .map(([t, link]) => `<item><title>${t}</title><link>${link}</link><pubDate>Tue, 14 Oct 2026 10:00:00 GMT</pubDate></item>`)
+    .map(([t, link]) => `<item><title>${t}</title><link>${link}</link><pubDate>${new Date(Date.now() - 60000).toUTCString()}</pubDate></item>`)
     .join('')}</channel></rss>`;
 
 function stub(routes = []) {
