@@ -270,3 +270,10 @@ Shared activation approved and executed: hosted migration20261021140246,
 research-chatv70; ACLs/trigger, unchanged legacy hashes and37 runtime bundle files
 verified. Original financial/access end for active Pro retained. Test Preview
 publication and exact-SHA mandatory CI still pending. See manual-grace evidence.
+
+Runtime a2bd59b published to Test Preview only; CI39613814829 both required jobs
+passed attempt1, exact-SHA Vercel READY/aliasAssigned. Authenticated v3Max upgrade
+and its payment/invoice/webhook reconciled; owner confirms Captured9000/HTTP200.
+Checkoutclose/retry passed. Dedicated499 Test refund and a separate deliberate
+Test failure remain owner handoffs, detailed in manual-grace evidence. Main and
+Production checkout/Live keys remain unchanged.

@@ -2962,7 +2962,7 @@ Earlier items, updated:
 
 
 - [ ] **O6.** After F6: the Razorpay keys on Vercel, then one real payment
-  - **2026-10-21 local verification:**6522 application/1174 Edge tests,53 SQL fixtures+53 omission checks, concurrent grace capture, lint/build/bundle/router pass. Independent Astra review has no remaining P1/P2 findings. In-app browser isolated UI actions pass; shared SQL/trigger/Edge activation approved and verified (migration20261021140246,research-chatv70). Exact-SHA CI/Test Preview acceptance remain pending. [Evidence](../research/2026-10-21-manual-grace-evidence.md).
+  - **2026-10-21 local verification:**6522 application/1174 Edge tests,53 SQL fixtures+53 omission checks, concurrent grace capture, lint/build/bundle/router pass. Independent Astra review has no remaining P1/P2 findings. In-app browser isolated UI actions pass; shared SQL/trigger/Edge activation approved and verified (migration20261021140246,research-chatv70). Runtime a2bd59b passed both required CI jobs39613814829 and is Preview READY/exact-SHA. Owner confirmed newv3Max Captured9000/webhook200. Checkoutclose/retry passes; dedicatedTestrefund and deliberateTestdecline await owner simulator/dashboard actions. [Evidence](../research/2026-10-21-manual-grace-evidence.md).
   - **2026-10-21 priority: manual billing +48-hour access-only grace first.**
     Owner defers AutoPay integration/reminders to a later release and directs
     planning toward Live. Grace implementation, manual expiry/renewal notices,

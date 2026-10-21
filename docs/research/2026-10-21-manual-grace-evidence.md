@@ -1,7 +1,7 @@
 # Manual renewal and access-only grace verification
 
-> **Status: Living.** Local verification2026-10-21. Hosted activation, exact-SHA
-> CI and Test Preview acceptance remain pending. This does not authorize Live.
+> **Status: Living.** Verified Test release2026-10-21; decline/refund owner
+> handoffs remain open. Production checkout and Live keys unchanged.
 
 ## Result and scope
 
@@ -96,3 +96,42 @@ logic change from prior deployed v69. The included deno.json is formatting/test
 configuration and is not returned as a runtime bundle file. No unrelated Edge
 function or Production checkout/key configuration changed. Exact-SHA Preview
 publication and authenticated browser/payment acceptance remain pending.
+
+## CI and Test Preview acceptance
+
+Runtime commit `a2bd59bab9b2aac13e3406e44b81e8aa1ba1faa1` is published to
+`task/razorpay-plan`. CI39613814829 passed both required jobs on attempt1.
+Vercel `dpl_8VeoKfrnjq9r99AorYVP37Hooc9o` is READY at that exact commit;
+aliasAssigned changed from false while CI ran to true after both jobs passed.
+Preview alias remains niyantran-git-task-razorpay-plan-ddl-labs.vercel.app.
+No main/Production web publication occurred.
+
+In-app authenticated execution:
+- Pro renewal correctly opens14Nov for the21Nov original cycle end, with
+  qualified grace wording and no early payment button.
+- Max quote is server-stored cycle-v3:900000paise,685000 additional credits,
+  original21Nov08:39:30.252932Z end. Test netbanking succeeded as payment
+  pay_TqaVDueWU4cW4S / order_TqaUdpRWHM0EvJ. Exactly one new period/grant/invoice
+  (NIY/2627/00014), Max total allowance750000, unchanged original cycle anchor.
+  Owner independently confirms Captured9000 and payment.captured HTTP200.
+- Test checkout close shows Payment cancelled, no allocation/invoice. Retry
+  reused the same unpaid499 order and then succeeded when owner chose Success:
+  pay_TqaaE9syBgc2qt / order_TqaXXgBLxbyxf2, one20000-credit lot and invoice00015.
+- A dedicated full499 Test refund of that untouched lot is awaiting owner action.
+  A separate499 Test attempt order_TqahE2CD902zC1 awaits deliberate mock-bank
+  Failure. Neither is claimed passed. No Test bank window was exposed to the
+  in-app tab inventory, so the owner performs its simulator action.
+
+The owner balance difference before these purchases was a pre-existing495.1305
+AI charge at12:26UTC, rather than this migration. Bounded Preview scan found
+zero5xx requests and zero error/fatal runtime entries in the20-minute window.
+Unauthenticated research-chat POST returns401/missing bearer token.
+
+Post-DDL security advisors show the expected deny-by-default private-table RLS
+information and intentional authenticated SECURITY DEFINER own-read warnings.
+The two new own-read wrappers use auth.uid and have no caller-supplied user ID;
+fixtures test cross-owner denial. No unrelated advisor remediation performed.
+[Supabase advisor context](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable).
+
+These publication records are retained locally until the two owner handoffs
+close; no duplicate runtime release is required merely to rewrite this evidence.
