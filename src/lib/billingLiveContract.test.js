@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { createPurchase, paymentConfig, planCycleOperation, reconcilePayment } from '../../server/paymentService.mjs';
+import { createPurchase, checkoutEnabled, paymentConfig, planCycleOperation, reconcilePayment } from '../../server/paymentService.mjs';
 
 const buyer = { id: 'd0000000-0000-4000-8000-000000000001', email: 'fixture@example.test' };
 const quoteId = 'd0000000-0000-4000-8000-000000000002';
@@ -86,4 +86,31 @@ it('keeps Live capture available when the pilot list is removed', async () => {
   const ctx = context(); ctx.config.liveBuyerIds = []; ctx.config.open = false;
   await reconcilePayment(ctx.order, 'pay_A1', ctx);
   expect(ctx.client.rpc).toHaveBeenCalledWith('billing_cycle_capture_v2', expect.anything());
+});
+
+
+it('opens public Live checkout only through the explicit server flag', async () => {
+  const ctx = context(); ctx.config.liveBuyerIds = []; ctx.config.livePublic = true;
+  expect(checkoutEnabled(ctx.config)).toBe(true);
+  for (const action of ['quote', 'state', 'schedule', 'cancel']) {
+    await planCycleOperation(action, { planId: 'plus', userId: 'foreign' }, buyer, ctx);
+  }
+  await createPurchase({ planId: 'pro', quoteId, requestId: buyer.id }, buyer, ctx);
+  expect(ctx.fetch).toHaveBeenCalledWith('/orders', expect.objectContaining({ body: expect.objectContaining({ amount: 30000 }) }));
+});
+it.each([undefined, '', '0', 'true', '1'])('parses public Live flag strictly: %s', value => {
+  expect(paymentConfig({ BILLING_LIVE_PUBLIC: value }).livePublic).toBe(value === '1');
+});
+it('public Live flag cannot open Test checkout', async () => {
+  const ctx = context('test'); ctx.config.livePublic = true; ctx.config.testBuyerIds = [];
+  expect(checkoutEnabled(ctx.config)).toBe(false);
+  await expect(createPurchase({ planId: 'pro', quoteId, requestId: buyer.id }, buyer, ctx)).rejects.toMatchObject({ status: 403 });
+  await expect(planCycleOperation('quote', { planId: 'plus' }, buyer, ctx)).rejects.toMatchObject({ status: 403 });
+  expect(ctx.client.rpc).not.toHaveBeenCalled(); expect(ctx.fetch).not.toHaveBeenCalled();
+});
+it.each(['open', 'ready'])('public Live checkout still requires %s', async field => {
+  const ctx = context(); ctx.config.livePublic = true; ctx.config.liveBuyerIds = []; ctx.config[field] = false;
+  expect(checkoutEnabled(ctx.config)).toBe(false);
+  await expect(createPurchase({ planId: 'pro', quoteId, requestId: buyer.id }, buyer, ctx)).rejects.toMatchObject({ status: 503 });
+  expect(ctx.client.rpc).not.toHaveBeenCalled(); expect(ctx.fetch).not.toHaveBeenCalled();
 });
