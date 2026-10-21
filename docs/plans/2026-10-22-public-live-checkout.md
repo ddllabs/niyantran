@@ -21,3 +21,11 @@ Explicit flag enables new authenticated Live buyers; absent/invalid flag retains
 - Independent reviewer live_pilot_review: no blockers; verified bearer/active-account authorization, immutable identity, Test isolation and retained recovery. Independently reproduced focused155.
 - Main branch protection inspected: strict, administrators enforced, both Build and tests and SQL fixtures required.
 - Real Live payment and signed webhook delivery are not yet executed. User explicitly directs public launch after this limitation was explained.
+
+## Production release evidence
+- Runtime e7317a8d; PR #7 merged as d74798bef145187a2b04695504f83a667f066dc4 after branch CI39685281112 and PR CI39685310597 passed both required jobs.
+- Production nonsecret BILLING_LIVE_PUBLIC=1 and BILLING_CHECKOUT_OPEN=1 set for the new deployment. Existing pilot list retained for rollback. Keys, Preview and webhook events unchanged.
+- Main CI39686094204 passed both jobs. Vercel dpl_7nu9FCu5vH6XGppSMPzKsoufD9DY READY and automatically aliasAssigned=true, including www.nter.pro and nter.pro.
+- Actual www.nter.pro API: config200, enabled=true, checkoutOpen=true, Live key prefix=true, cycleChanges=true, demoFallback=false. No credential values printed.
+- Unauthenticated create-order and plan-schedule both401; unsigned webhook400; apex308 to canonical www domain. Browser loads signed-out site and protects billing behind sign-in.
+- Public authenticated eligibility is verified by server tests and deployed configuration. No real Live purchase or successful signed Live webhook delivery was performed; end-to-end settlement remains unverified. No claim of completed real payment acceptance.

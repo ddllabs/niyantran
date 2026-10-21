@@ -42,7 +42,7 @@
 
 - [ ] **Test browser-global isolation audit (2026-10-21, outside billing repair).** One full run hit AdminApp's `window.matchMedia` against a leaked browser stub; the isolated admin/billing120 checks and subsequent full6483 run passed. Removed obsolete window setup from modified billing tests; no admin source/test changes or skipped tests. Broader test-order/global cleanup should be audited if recurrence occurs. Evidence in2026-10-21-billing-loading.md.
 
-- [ ] **F241 — Public Live checkout.** Owner explicitly authorized launch for all signed-in customers. Preserve Test restrictions, payment validation and CI gates; no credential or webhook event changes. [Plan](2026-10-22-public-live-checkout.md).
+
 
 ## How to use this file
 
@@ -1439,6 +1439,8 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- [x] **F241 — Public Live checkout.** Runtime e7317a8d, PR #7 merged d74798be; branch/PR/main CI both required jobs pass. Production dpl_7nu9FCu5vH6XGppSMPzKsoufD9DY READY and domain assigned. Live config enabled/open; unauthenticated401, unsigned webhook400. Keys and webhook events unchanged. Real Live payment and signed delivery remain unverified under O6. [Evidence](2026-10-22-public-live-checkout.md).
 
 - [x] **F240 — Restricted Live pilot and closed Production release.** Gate `792aab3e`, PR #6 merged as `f8eabcbf`; both main CI jobs passed, Production deployment `dpl_2ozSNjA5VH4umSwqHfHqADQ3ZNaP` automatically assigned www.nter.pro. Runtime config enabled=false, checkoutOpen=false, empty key; unauthenticated order401. Owner-only Live UUID configured; Live credentials unchanged. [Evidence](2026-10-21-closed-live-pilot.md).
 - [x] **F239 — Git-triggered CI release path recovered and verified.** Preview `792aab3e` and Production `f8eabcbf` both observed pending alias while CI ran, then automatic assignment after both required checks passed. No bypass/settings changes. Original delayed-event cause remains unproven; no claim of a provider root-cause fix. [Evidence](2026-10-21-closed-live-pilot.md).
