@@ -143,7 +143,7 @@ export async function handleBillingApi(req, res, url, deps = {}) {
         const body = req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body) ? req.body : JSON.parse((await readRawPaymentBody(req, 16384)).toString('utf8'));
         if (Buffer.byteLength(JSON.stringify(body)) > 16384) { json(res, { ok: false, reason: 'Request too large.' }, 413); return true; }
         if (url.pathname.endsWith('/create-order')) result = await createPurchase(body, who, ctx);
-        else if (url.pathname.endsWith('/review')) result = { ok: true, adjustment: await billingRpc(ctx.client, 'billing_review_adjustment', { p: { ...body, actorId: who.id } }) };
+        else if (url.pathname.endsWith('/review')) result = { ok: true, adjustment: await billingRpc(ctx.client, 'billing_review_adjustment_v2', { p: { ...body, actorId: who.id, account: ctx.config.account, mode: ctx.config.mode } }) };
         else result = await verifyPurchase(body, who, ctx);
       }
       if (result.invoice) result.invoice = rowToInvoice(result.invoice);

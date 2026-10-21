@@ -50,13 +50,17 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F238 is next) and goes in the
+- A new finding gets the next free `F` number (F239 is next) and goes in the
   right section.
 
 
 ## Frontend follow-up
 
 - [ ] **F235 — Indian Sports redundant browser fallback.** Chrome shows direct Google News RSS canceled after same-origin feature-feed succeeds (200,227stories); console empty and publisher navigation works. Review unnecessary parallel fallback requests separately; no CORS failure proven by this observation. The long-open blank tab recovered on reload and was not reproduced in a fresh session; keep this limitation in browser evidence.
+
+## Billing acceptance follow-up
+
+- [ ] **F238 — Refunded unused top-up provenance and customer status.** Full Test refund recorded; reviewed debit uses unrelated FIFO lots and history still says Paid. Narrow versioned RPC/projection, local checks, independent review, separate shared activation and exact Test review approval required. [Plan](2026-10-21-unused-topup-refund.md).
 
 ## Development toolchain follow-up
 

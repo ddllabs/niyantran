@@ -288,6 +288,32 @@ describe('durable Razorpay order and verification routes',()=>{
 });
 
 
+it('reads refund-aware purchases for only the verified buyer and configured environment', async () => {
+  const data = [{ ...stored(), refunded_paise: 49900, refund_review_pending: true }];
+  const rpc = vi.fn(async () => ({ data, error: null }));
+  const result = await call(request('GET', `/api/billing/purchases?userId=${B.id}&account=foreign&mode=live`, { as: A }), deps({
+    adminClient: () => ({ rpc }), paymentConfig: { account: 'acc_fixture', mode: 'test' },
+  }));
+  expect(result.status).toBe(200);expect(result.body.purchases).toEqual(data);
+  expect(rpc).toHaveBeenCalledWith('billing_purchases_v2', { p: { userId: A.id, account: 'acc_fixture', mode: 'test' } });
+});
+it.each([{ error: { code: 'XX000' } }, { data: { ok: true } }])('fails closed when refund-aware purchase data is unavailable', async response => {
+  const result = await call(request('GET', '/api/billing/purchases', { as: A }), deps({ adminClient: () => ({ rpc: async () => response }) }));
+  expect(result.status).toBe(503);expect(result.body.purchases).toBeUndefined();
+});
+it('binds reviewed adjustments to the verified admin and server environment', async () => {
+  const d = purchaseDeps();
+  const body = { adjustmentId: PURCHASE, requestId: REQUEST, actorId: A.id, account: 'foreign', mode: 'live', decision: { creditsToRemove: 20000, reason: 'Full unused Test refund' } };
+  const result = await call(request('POST', '/api/billing/adjustments/review', { as: ADMIN, body }), d);
+  expect(result.status).toBe(200);
+  expect(d.calls).toEqual([['billing_review_adjustment_v2', { p: { ...body, actorId: ADMIN.id, account: 'acc_fixture', mode: 'test' } }]]);
+});
+it('shows a safe unsupported-refund conflict without leaking arbitrary database errors', async () => {
+  const reason = 'Unused top-up review requires support: purchase is not fully refunded and unused';
+  const rpc = vi.fn(async () => ({ error: { code: '23514', message: reason } }));
+  const result = await call(request('POST', '/api/billing/adjustments/review', { as: ADMIN, body: {} }), deps({ adminClient: () => ({ rpc }) }));
+  expect(result.status).toBe(409);expect(result.body.reason).toBe(reason);
+});
 it('reads paid periods for the verified buyer and configured scope, ignoring URL identities', async () => {
   const rpc = vi.fn(async () => ({ data: [{ id: 'period-1', plan: 'plus', status: 'scheduled' }], error: null }));
   const result = await call(request('GET', `/api/billing/plan-periods?userId=${B.id}&mode=live&account=foreign`, { as: A }), deps({

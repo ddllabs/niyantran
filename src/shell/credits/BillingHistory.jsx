@@ -8,6 +8,11 @@ const title = order => {
   const plan = s.planId ? s.planId.charAt(0).toUpperCase() + s.planId.slice(1) : '';
   return s.action === 'upgrade' ? `Upgrade to ${plan}` : s.kind === 'topup' ? `${Number(s.credits).toLocaleString('en-IN')} AI credits` : s.label || (plan ? `${plan} plan` : 'Purchase');
 };
+function purchaseStatus(order) {
+  const refunded = Number(order.refunded_paise);
+  if (refunded > 0) return refunded >= Number(order.amount_paise ?? order.snapshot?.amountPaise) ? 'refunded' : 'partial_refund';
+  return order.state;
+}
 function TransactionDetails({ reference, providerOrder }) {
   const [copied, setCopied] = useState('');
   async function copy() {
@@ -27,11 +32,11 @@ export function BillingHistoryTable({ orders, invoices, invoiceError = '', onOpe
   const rows = visible.map(order => {
     const invoice = invoices.find(i => i.orderId && i.orderId === order.provider_order_id);
     if (invoice) usedInvoices.add(invoice.id);
-    return { id: order.id, reference: order.id, providerOrder: order.provider_order_id, date: order.created_at, title: title(order), amount: Number(order.snapshot?.amountPaise) / 100, status: order.state, invoice };
+    return { id: order.id, reference: order.id, providerOrder: order.provider_order_id, date: order.created_at, title: title(order), amount: Number(order.snapshot?.amountPaise) / 100, status: purchaseStatus(order), refundReviewPending: Number(order.refunded_paise) > 0 && order.refund_review_pending === true, invoice };
   });
-  for (const invoice of invoices) if (!usedInvoices.has(invoice.id)) rows.push({ id: invoice.id, date: invoice.issuedAt, title: invoice.description || invoice.label || `${invoice.planId || ''} plan`, amount: Number(invoice.total), status: 'fulfilled', invoice });
+  for (const invoice of invoices) if (!usedInvoices.has(invoice.id)) rows.push({ id: invoice.id, date: invoice.issuedAt, title: invoice.description || invoice.label || `${invoice.planId || ''} plan`, amount: Number(invoice.total), status: 'invoiced', invoice });
   rows.sort((a,b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0));
-  const uncertain = rows.some(r => !['fulfilled','refunded'].includes(r.status));
+  const uncertain = rows.some(r => !['fulfilled','refunded','partial_refund','invoiced'].includes(r.status));
   return <>
     {uncertain ? <p className="billing-status billing-status-warn" role="status">Check before paying again: a purchase still needs confirmation or support review.</p> : null}
     {invoiceError ? <p role="alert" className="billing-status billing-status-warn">{invoiceError}</p> : null}
@@ -42,7 +47,7 @@ export function BillingHistoryTable({ orders, invoices, invoiceError = '', onOpe
         <td><time dateTime={row.date}>{date(row.date)}</time></td>
         <td><strong>{row.title}</strong>{row.reference ? <TransactionDetails reference={row.reference} providerOrder={row.providerOrder} /> : null}</td>
         <td className="billing-number">{Number.isFinite(row.amount) ? formatInr(row.amount) : '—'}</td>
-        <td><span className={`billing-status-pill ${row.status === 'fulfilled' ? 'is-paid' : row.status === 'refunded' ? 'is-neutral' : 'is-pending'}`}>{({fulfilled:'Paid',refunded:'Refund recorded',review:'Support review'}[row.status] || 'Confirming')}</span></td>
+        <td><span className={`billing-status-pill ${row.status === 'fulfilled' ? 'is-paid' : ['refunded','partial_refund','invoiced'].includes(row.status) ? 'is-neutral' : 'is-pending'}`}>{({fulfilled:'Paid',invoiced:'Invoice issued',refunded:'Refund recorded',partial_refund:'Partial refund recorded',review:'Support review'}[row.status] || 'Confirming')}</span>{row.refundReviewPending ? <small>Credit adjustment under review</small> : null}</td>
         <td>{row.invoice ? <><button type="button" className="billing-text-button" onClick={() => onOpenInvoice(row.invoice.id)}>View invoice</button><small>{row.invoice.invoiceNo}</small></> : <span className="billing-muted">{invoiceError ? 'Unavailable' : 'Pending'}</span>}</td>
       </tr>)}</tbody>
     </table></div> : <p className="billing-empty">No completed purchases yet. Your payments and invoices will appear here.</p>}

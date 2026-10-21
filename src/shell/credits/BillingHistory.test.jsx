@@ -16,4 +16,16 @@ it('hides abandoned checkouts but preserves warnings for uncertain payment',()=>
 it('keeps an invoice when an older purchase has no order-list row',()=>{
  const html=renderToStaticMarkup(<BillingHistoryTable orders={[]} invoices={[{id:'inv_old',invoiceNo:'NIY/2627/00001',total:399,description:'Plus plan',issuedAt:'2026-10-20'}]}/>);
  expect(html).toContain('Plus plan');expect(html).toContain('NIY/2627/00001');
+ expect(html).toContain('Invoice issued');expect(html).not.toContain('>Paid<');expect(html).not.toContain('Check before paying again');
+});
+it.each([[59974, 'Refund recorded'], [10000, 'Partial refund recorded']])('shows observed refund %s separately from the immutable sale', (refunded, label) => {
+ const html=renderToStaticMarkup(<BillingHistoryTable orders={[{...order,refunded_paise:refunded,refund_review_pending:true}]} invoices={[{id:'inv_fixture',orderId:'order_fixture',invoiceNo:'NIY/2627/00009',total:599.74}]}/>);
+ expect(html).toContain(label);expect(html).not.toContain('>Paid<');
+ expect(html).toContain('Credit adjustment under review');expect(html).toContain('599.74');expect(html).toContain('NIY/2627/00009');
+});
+it('does not show a completed credit review as pending or invent a refund for a paid row',()=>{
+ const html=renderToStaticMarkup(<BillingHistoryTable orders={[{...order,refunded_paise:59974,refund_review_pending:false}]} invoices={[]}/>);
+ expect(html).toContain('Refund recorded');expect(html).not.toContain('Credit adjustment under review');
+ const paid=renderToStaticMarkup(<BillingHistoryTable orders={[{...order,refunded_paise:0,refund_review_pending:true}]} invoices={[]}/>);
+ expect(paid).toContain('>Paid<');expect(paid).not.toContain('Refund recorded');expect(paid).not.toContain('Credit adjustment under review');
 });

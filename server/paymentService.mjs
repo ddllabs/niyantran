@@ -52,6 +52,8 @@ export async function billingRpc(client, name, args) {
   const { data, error } = await client.rpc(name, args);
   const cycleReasons = new Set(['Quote expired or plan changed; review again', 'Choose a lower next plan', 'Next period is already paid; contact support', 'Contact support to change this plan', 'Too close to cycle end to upgrade; choose a plan after expiry', 'Manual renewal opens in the last seven days; upgrades apply now', 'Schedule the lower next plan before renewal', 'Free selection already took effect; choose a paid plan to restart']);
   if (error && ['billing_cycle', 'billing_cycle_daily', 'billing_cycle_v2', 'billing_cycle_v3'].includes(name) && cycleReasons.has(error.message)) throw paymentError(error.message, 409);
+  if (error && name === 'billing_review_adjustment_v2' && error.code === '23514' &&
+    error.message === 'Unused top-up review requires support: purchase is not fully refunded and unused') throw paymentError(error.message, 409);
   if (error) throw paymentError(error.code === '23505' ? 'Request conflicts with an existing purchase.' : 'Purchase processing is pending. Check its status or contact support.', error.code === '23505' ? 409 : 503);
   return data;
 }
@@ -176,7 +178,11 @@ export async function listPlanPeriods(user, ctx) {
   return periods;
 }
 export async function listPurchases(user, ctx) {
-  return retryRpc(ctx, 'list', { userId: user.id });
+  const purchases = await billingRpc(ctx.client, 'billing_purchases_v2', { p: {
+    userId: user.id, account: ctx.config.account, mode: ctx.config.mode,
+  } });
+  if (!Array.isArray(purchases)) throw paymentError('Payment history unavailable.', 503);
+  return purchases;
 }
 export async function ownedPurchase(body, user, ctx) {
   if ((!body.purchaseId || !UUID.test(body.purchaseId)) && (!body.orderId || !ORDER.test(body.orderId))) throw paymentError('Invalid purchase reference.');

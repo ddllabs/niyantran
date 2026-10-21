@@ -45,6 +45,7 @@ export default function BillingReviews({ user }) {
   return <section className="cp-card" aria-labelledby="billing-reviews-title">
     <details className="billing-disclosure"><summary id="billing-reviews-title">Payment operations · Admin only</summary>
     <p>Purchase exceptions require a confirmed full provider refund before they can be closed. Provider events are recorded automatically. This action changes benefits only; it does not initiate a cash refund.</p>
+    <p>Top-up removal requires a full refund and the entire unused original credit allocation. Used, reserved or partially refunded credits require support review; unrelated credits are never substituted.</p>
     <button type="button" disabled={busy} onClick={recover}>Run bounded payment recovery</button>
     {loadError ? <p role="alert">{loadError}</p> : rows.length ? <form onSubmit={review}>
       <label>Adjustment <select required value={selected} disabled={busy} onChange={e => {setSelected(e.target.value);changed();}}>
