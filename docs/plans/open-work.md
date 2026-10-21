@@ -42,6 +42,8 @@
 
 - [ ] **Test browser-global isolation audit (2026-10-21, outside billing repair).** One full run hit AdminApp's `window.matchMedia` against a leaked browser stub; the isolated admin/billing120 checks and subsequent full6483 run passed. Removed obsolete window setup from modified billing tests; no admin source/test changes or skipped tests. Broader test-order/global cleanup should be audited if recurrence occurs. Evidence in2026-10-21-billing-loading.md.
 
+- [ ] **F241 — Public Live checkout.** Owner explicitly authorized launch for all signed-in customers. Preserve Test restrictions, payment validation and CI gates; no credential or webhook event changes. [Plan](2026-10-22-public-live-checkout.md).
+
 ## How to use this file
 
 - **This is the only list of open work.** Plans, specs, ADRs and
@@ -50,7 +52,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F241 is next) and goes in the
+- A new finding gets the next free `F` number (F242 is next) and goes in the
   right section.
 
 

@@ -17,11 +17,14 @@ function checkoutBuyers(config) {
   const ids = config.mode === 'test' ? config.testBuyerIds : config.mode === 'live' ? config.liveBuyerIds : null;
   return Array.isArray(ids) && ids.length > 0 && ids.every(id => typeof id === 'string' && UUID.test(id)) ? ids : [];
 }
+function publicLiveCheckout(config) {
+  return config.mode === 'live' && config.livePublic === true;
+}
 function checkoutBuyerAllowed(config, user) {
-  return checkoutBuyers(config).some(id => id.toLowerCase() === String(user.id).toLowerCase());
+  return publicLiveCheckout(config) || checkoutBuyers(config).some(id => id.toLowerCase() === String(user.id).toLowerCase());
 }
 export function checkoutEnabled(config) {
-  return Boolean(config.ready && config.open && checkoutBuyers(config).length);
+  return Boolean(config.ready && config.open && (publicLiveCheckout(config) || checkoutBuyers(config).length));
 }
 export function paymentConfig(env = process.env) {
   const keyId = String(env.RAZORPAY_KEY_ID || '');
@@ -30,6 +33,7 @@ export function paymentConfig(env = process.env) {
     account: env.RAZORPAY_ACCOUNT_ID || '', mode, cycleChanges: mode === 'test' || mode === 'live',
     testBuyerIds: String(env.BILLING_TEST_BUYER_IDS || '').trim().split(/[,\s]+/).filter(Boolean).map(id => id.toLowerCase()),
     liveBuyerIds: String(env.BILLING_LIVE_BUYER_IDS || '').trim().split(/[,\s]+/).filter(Boolean).map(id => id.toLowerCase()),
+    livePublic: env.BILLING_LIVE_PUBLIC === '1',
     open: env.BILLING_CHECKOUT_OPEN === '1', ready: Boolean(mode && env.RAZORPAY_KEY_SECRET && env.RAZORPAY_ACCOUNT_ID) };
 }
 export async function providerFetch(path, { method = 'GET', body } = {}, config = paymentConfig()) {
