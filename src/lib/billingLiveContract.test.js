@@ -7,7 +7,7 @@ function context(mode = 'live') {
   const order = { id: buyer.id, user_id: buyer.id, account: 'acc_fixture', mode,
     provider_order_id: 'order_A1', state: 'ready', fresh: true, amount_paise: 30000, currency: 'INR',
     snapshot: { kind: 'plan', contract: 'cycle-v2', planId: 'pro', quoteId, expiresAt: new Date(Date.now() + 60000).toISOString() } };
-  return { order, config: { open: true, ready: true, mode, account: 'acc_fixture', cycleChanges: true, testBuyerIds: mode === 'test' ? [buyer.id] : [] },
+  return { order, config: { open: true, ready: true, mode, account: 'acc_fixture', cycleChanges: true, testBuyerIds: mode === 'test' ? [buyer.id] : [], liveBuyerIds: mode === 'live' ? [buyer.id] : [] },
     client: { rpc: vi.fn(async (name, args) => ({ data: ['billing_cycle_v3', 'billing_cycle_daily'].includes(name)
       ? args.p_action === 'claim' ? order : { ok: true, quoteId } : name === 'billing_order' ? order : { ok: true } })) },
     fetch: vi.fn(async path => path.startsWith('/payments')
@@ -70,4 +70,20 @@ it.each(['test', 'live'])('%s dispatches new grace contracts without changing ol
   const ctx = context(mode); ctx.order.snapshot.contract = 'cycle-v3';
   await reconcilePayment(ctx.order, 'pay_A1', ctx);
   expect(ctx.client.rpc).toHaveBeenCalledWith('billing_cycle_capture_v3', { p_order_id: buyer.id, p_payment: expect.objectContaining({ amount: 30000 }), p_context: { account: 'acc_fixture', mode } });
+});
+
+it.each([undefined, [], ['*'], [buyer.email], [buyer.id, 'invalid'], ['d0000000-0000-4000-8000-000000000003']].map(ids => [ids]))('denies Live pilot operations for missing, malformed or nonmatching buyers %j', async ids => {
+  const ctx = context(); ctx.config.liveBuyerIds = ids;
+  for (const action of ['quote', 'state', 'schedule', 'cancel']) {
+    await expect(planCycleOperation(action, { planId: 'plus', userId: buyer.id }, buyer, ctx)).rejects.toMatchObject({ status: 403 });
+  }
+  for (const productId of ['pro', 'topup-20000']) {
+    await expect(createPurchase({ productId, quoteId, requestId: buyer.id, userId: ids?.[0] }, buyer, ctx)).rejects.toMatchObject({ status: 403 });
+  }
+  expect(ctx.client.rpc).not.toHaveBeenCalled(); expect(ctx.fetch).not.toHaveBeenCalled();
+});
+it('keeps Live capture available when the pilot list is removed', async () => {
+  const ctx = context(); ctx.config.liveBuyerIds = []; ctx.config.open = false;
+  await reconcilePayment(ctx.order, 'pay_A1', ctx);
+  expect(ctx.client.rpc).toHaveBeenCalledWith('billing_cycle_capture_v2', expect.anything());
 });

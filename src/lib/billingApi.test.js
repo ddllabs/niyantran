@@ -372,3 +372,10 @@ it('advertises mode-aware Live plan capability while checkout stays closed', asy
   expect(out.body).not.toHaveProperty('testBuyerIds');
   expect(d.calls).toEqual([]);
 });
+
+it('hides unconfigured Live pilot checkout and never exposes its buyer list', async () => {
+  const d = purchaseDeps({ config: { mode: 'live', liveBuyerIds: [] } });
+  const out = await call(request('GET','/api/billing/config'),d);
+  expect(out.body.enabled).toBe(false); expect(out.body.keyId).toBe('');
+  expect(out.body).not.toHaveProperty('liveBuyerIds');
+});

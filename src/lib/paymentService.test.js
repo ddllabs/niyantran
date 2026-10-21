@@ -94,7 +94,7 @@ describe('payment purchase boundaries', () => {
     expect(ctx.client.rpc).not.toHaveBeenCalled();
   });
   it('does not restrict Live buyers with a Test allowlist', async () => {
-    const ctx=context();ctx.config.mode='live';ctx.config.testBuyerIds=[];
+    const ctx=context();ctx.config.mode='live';ctx.config.testBuyerIds=[];ctx.config.liveBuyerIds=[user.id];
     expect(await createPurchase({productId:'topup-20000',requestId:id},user,ctx)).toMatchObject({ok:true});
   });
   it('keeps existing purchase verification and recovery available after a Test buyer is removed', async () => {
@@ -102,9 +102,10 @@ describe('payment purchase boundaries', () => {
     expect(await verifyPurchase({orderId:'order_A1',paymentId:'pay_A1',signature:signature(ctx.config.keySecret)},user,ctx)).toMatchObject({ok:true});
     expect(await recoverPayments(ctx)).toMatchObject({ok:true});
   });
-  it('parses server Test buyer UUIDs without exposing them through browser input', () => {
-    const configured=paymentConfig({BILLING_TEST_BUYER_IDS:` ${user.id.toUpperCase()},\n${id} `});
+  it('parses independent server Test and Live buyer UUIDs', () => {
+    const configured=paymentConfig({BILLING_TEST_BUYER_IDS:` ${user.id.toUpperCase()},\n${id} `, BILLING_LIVE_BUYER_IDS:` ${id.toUpperCase()} `});
     expect(configured.testBuyerIds).toEqual([user.id,id]);
+    expect(configured.liveBuyerIds).toEqual([id]);
   });
   it('rejects a signed webhook from a different merchant before persistence', async () => {
     const ctx=context();const raw=Buffer.from(JSON.stringify({account_id:'acc_other',event:'payment.captured',payload:{payment:{entity:payment}}}));

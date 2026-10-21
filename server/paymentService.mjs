@@ -12,13 +12,16 @@ export function signatureMatches(raw, signature, secret) {
   const expected = crypto.createHmac('sha256', secret).update(raw).digest();
   return crypto.timingSafeEqual(expected, Buffer.from(signature, 'hex'));
 }
-// This controls new Test orders only. Existing paid orders must remain recoverable.
-function validTestBuyers(config) {
-  return Array.isArray(config.testBuyerIds) && config.testBuyerIds.length > 0
-    && config.testBuyerIds.every(id => typeof id === 'string' && UUID.test(id));
+// Eligibility gates new purchases/plan operations, never paid recovery.
+function checkoutBuyers(config) {
+  const ids = config.mode === 'test' ? config.testBuyerIds : config.mode === 'live' ? config.liveBuyerIds : null;
+  return Array.isArray(ids) && ids.length > 0 && ids.every(id => typeof id === 'string' && UUID.test(id)) ? ids : [];
+}
+function checkoutBuyerAllowed(config, user) {
+  return checkoutBuyers(config).some(id => id.toLowerCase() === String(user.id).toLowerCase());
 }
 export function checkoutEnabled(config) {
-  return Boolean(config.ready && config.open && (config.mode === 'live' || (config.mode === 'test' && validTestBuyers(config))));
+  return Boolean(config.ready && config.open && checkoutBuyers(config).length);
 }
 export function paymentConfig(env = process.env) {
   const keyId = String(env.RAZORPAY_KEY_ID || '');
@@ -26,6 +29,7 @@ export function paymentConfig(env = process.env) {
   return { keyId, keySecret: env.RAZORPAY_KEY_SECRET || '', webhookSecret: env.RAZORPAY_WEBHOOK_SECRET || '',
     account: env.RAZORPAY_ACCOUNT_ID || '', mode, cycleChanges: mode === 'test' || mode === 'live',
     testBuyerIds: String(env.BILLING_TEST_BUYER_IDS || '').trim().split(/[,\s]+/).filter(Boolean).map(id => id.toLowerCase()),
+    liveBuyerIds: String(env.BILLING_LIVE_BUYER_IDS || '').trim().split(/[,\s]+/).filter(Boolean).map(id => id.toLowerCase()),
     open: env.BILLING_CHECKOUT_OPEN === '1', ready: Boolean(mode && env.RAZORPAY_KEY_SECRET && env.RAZORPAY_ACCOUNT_ID) };
 }
 export async function providerFetch(path, { method = 'GET', body } = {}, config = paymentConfig()) {
@@ -104,8 +108,7 @@ async function stalePlanReview(order, user, ctx) {
 
 export async function planCycleOperation(action, body, user, ctx) {
   if (!ctx.config.cycleChanges || !ctx.config.ready || !['test', 'live'].includes(ctx.config.mode)
-    || (ctx.config.mode === 'test' && (!validTestBuyers(ctx.config)
-      || !ctx.config.testBuyerIds.some(id => id.toLowerCase() === user.id.toLowerCase())))) {
+    || !checkoutBuyerAllowed(ctx.config, user)) {
     throw paymentError('Plan changes are unavailable for this account.', 403);
   }
   if (action === 'quote' && !ctx.config.open) throw paymentError('Online payments open soon.', 503);
@@ -118,8 +121,8 @@ export async function planCycleOperation(action, body, user, ctx) {
 
 export async function createPurchase(body, user, ctx) {
   if (!ctx.config.open || !ctx.config.ready) throw paymentError('Online payments open soon.', 503);
-  if (ctx.config.mode !== 'live' && (!validTestBuyers(ctx.config) || !ctx.config.testBuyerIds.some(id => id.toLowerCase() === String(user.id).toLowerCase()))) {
-    throw paymentError('Test checkout is restricted to designated test accounts.', 403);
+  if (!checkoutBuyerAllowed(ctx.config, user)) {
+    throw paymentError('Checkout is restricted to designated accounts.', 403);
   }
   if (!UUID.test(body.requestId || '')) throw paymentError('A stable purchase request ID is required. Reload and try again.');
   const product = paymentProduct(body.productId || body.planId);
