@@ -1,7 +1,7 @@
 # Manual renewal and access-only grace verification
 
 > **Status: Living.** Verified Test release2026-10-21; decline/refund owner
-> handoffs remain open. Production checkout and Live keys unchanged.
+> refund handoff remains open. Production checkout and Live keys unchanged.
 
 ## Result and scope
 
@@ -135,3 +135,19 @@ fixtures test cross-owner denial. No unrelated advisor remediation performed.
 
 These publication records are retained locally until the two owner handoffs
 close; no duplicate runtime release is required merely to rewrite this evidence.
+
+## Decline accepted; refund navigation handoff
+
+Owner selected Failure for the separate499 attempt. The in-app browser shows
+the bank-declined message. Database verification:order_TqahE2CD902zC1 remains
+ready, payment pay_Tqaicsr5RNL9Ww is failed, invoice_count0,credit_lot_count0.
+Max and the displayed789738 balance are unchanged. This closes deliberate
+payment-decline acceptance; no new grace was created.
+
+Owner needs help finding refund target pay_TqaaE9syBgc2qt. Direct in-app
+Razorpay navigation encountered an updated Terms and Conditions prompt; no
+terms were accepted. Owner reports Razorpay is open in Arc. Automatic review
+rejected inspecting Arc because the prior browser constraint requires in-app
+checks. No workaround attempted. Owner received Testmode → Transactions →
+Payments → exact payment ID → full499refund instructions. Refund acceptance
+remains pending; no refund or financial adjustment performed by the agent.
