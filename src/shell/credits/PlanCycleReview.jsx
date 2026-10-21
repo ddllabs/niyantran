@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { MANUAL_EXPIRY_COPY } from '../../lib/manualRenewalNotice.js';
 import PlanChoices from '../PlanChoices.jsx';
 import { creditsText } from '../../lib/creditsStore.js';
 import { cancelNextPlan, completeCheckout, fetchPlanQuote, fetchPlanState, formatInr, scheduleNextPlan } from '../../lib/billing.js';
@@ -21,9 +22,12 @@ export default function PlanCycleReview({ ent, user, initialPlan, onUpdated, onS
   const action = selected === 'free' ? 'downgrade' : selected ? purchaseKind(ent, selected) : null;
   const downgrade = action === 'downgrade' && intent !== 'renew';
   const active = ent?.status === 'active' && !ent.lapsed;
+  const inGrace = active && ent.inGrace === true;
+  const freeNow = inGrace && selected === 'free';
   const renewDue = active && ent.periodEnd && Date.parse(ent.periodEnd) - Date.now() <= 7 * 86400000;
   const renewalLater = action === 'renew' && !renewDue;
   const scheduled = state?.scheduled;
+  const appliedFree = scheduled?.planId === 'free' && Date.parse(scheduled.effectiveAt) <= Date.now();
   const savedChoice = downgrade && selected === scheduled?.planId;
   const resting = !selected || savedChoice;
   const target = PUBLIC_PLANS.find(p => p.id === selected);
@@ -58,33 +62,33 @@ export default function PlanCycleReview({ ent, user, initialPlan, onUpdated, onS
     try {
       const result = await operation();
       if (result?.ok) {
-        setMessage(confirmation || (downgrade ? 'Next-plan selection saved. Nothing was charged. A paid plan requires manual renewal.' : 'Confirmed. Your plan and credits have been refreshed.'));
+        setMessage(confirmation || (downgrade ? freeNow ? 'Your account is now Free. Nothing was charged.' : 'Next-plan selection saved. Nothing was charged. A paid plan requires manual renewal.' : 'Confirmed. Your plan and credits have been refreshed.'));
         setSelected(null); setQuote(null); setRevision(v => v + 1); onUpdated();
       } else { setMessage(result?.reason || 'Could not confirm this operation. Refresh before retrying.'); setQuote(null); setQuoteStatus('error'); }
     } catch { setMessage('Could not confirm this operation. Refresh before retrying.'); setQuote(null); setQuoteStatus('error'); }
     finally { setBusy(false); lock.current = false; }
   }
   return <section className="cp-card" aria-labelledby="plan-change-title">
-    <div className="billing-section-head"><div><h3 id="plan-change-title" className="cp-card-title">Choose your plan</h3><p>Upgrade this cycle, or select a lower plan for next month.</p></div></div>
+    <div className="billing-section-head"><div><h3 id="plan-change-title" className="cp-card-title">Choose your plan</h3><p>{inGrace ? 'Renew any paid plan at its full monthly price, or switch to Free now.' : 'Upgrade this cycle, or select a lower plan for next month.'}</p></div></div>
     <PlanChoices ent={ent} selected={selected} busy={busy} includeFree onSelect={choose} />
-    {resting && scheduled ? <section className="plan-context plan-context-saved" aria-label="Next plan selection">
-      <div className="plan-context-heading"><div><span className="plan-context-eyebrow">Next period · {date(scheduled.effectiveAt)}</span><h4>{name(scheduled.planId)} selected <span className="plan-context-tag">{scheduled.planId === 'free' ? 'No payment needed' : 'Unpaid'}</span></h4></div>
+    {resting && scheduled && !inGrace ? <section className="plan-context plan-context-saved" aria-label="Next plan selection">
+      <div className="plan-context-heading"><div><span className="plan-context-eyebrow">{appliedFree ? 'Applied' : 'Next period'} · {date(scheduled.effectiveAt)}</span><h4>{name(scheduled.planId)} {appliedFree ? 'applied' : 'selected'} <span className="plan-context-tag">{scheduled.planId === 'free' ? 'No payment needed' : 'Unpaid'}</span></h4></div>
         <div className="plan-context-tools">{(renewDue || !active) && scheduled.planId !== 'free' ? <button type="button" className="billing-secondary" disabled={busy} onClick={() => choose(scheduled.planId, 'renew')}>Review next month</button> : null}
-        <button type="button" className="billing-text-button" disabled={busy} onClick={() => perform(cancelNextPlan, 'Next-plan selection removed. Nothing was charged.')}>Cancel next selection</button></div></div>
-      <p>{scheduled.planId === 'free' ? `Your ${name(ent?.plan)} access continues until ${date(scheduled.effectiveAt)}, then your account returns to Free.` : 'This is an unpaid selection. Pay manually to activate it; otherwise your account returns to Free at expiry.'}</p>
+        {!appliedFree ? <button type="button" className="billing-text-button" disabled={busy} onClick={() => perform(cancelNextPlan, 'Next-plan selection removed. Nothing was charged.')}>Cancel next selection</button> : null}</div></div>
+      <p>{appliedFree ? 'Your account is now Free. Valid welcome and top-up credits remain usable with Free models. Choose a paid plan to restore paid model access.' : scheduled.planId === 'free' ? `Your ${name(ent?.plan)} access continues until ${date(scheduled.effectiveAt)}, then your account returns to Free.` : `This is an unpaid selection. Pay manually to activate it; otherwise your account returns to Free after any eligible grace. ${MANUAL_EXPIRY_COPY}`}</p>
     </section> : renewalLater ? <section className="plan-context plan-context-current" aria-label="Current plan renewal">
       <div className="plan-context-heading"><div><h4>You're on {name(selected)}</h4><p>{ent?.periodEnd ? `Renew from ${date(new Date(Date.parse(ent.periodEnd) - 7 * 86400000).toISOString())}. Your next month starts ${date(ent.periodEnd)}; paying early does not change your current period.` : 'Manual renewal opens during the last seven days of your paid period.'}</p></div><button type="button" className="billing-text-button" disabled={busy} onClick={() => choose(null)}>Back to plan options</button></div>
-      {scheduled ? <p>{name(scheduled.planId)} is selected for your next period. <button type="button" className="billing-text-button" disabled={busy} onClick={() => choose(scheduled.planId)}>View next selection</button></p> : <p>No payment is needed today. Without manual renewal, your account returns to Free when this period ends.</p>}
-    </section> : selected && !savedChoice && downgrade ? <section className="plan-context plan-context-review" aria-label="Review plan change">
-      <div className="plan-context-heading"><div><span className="plan-context-eyebrow">Change at period end</span><h4>Move to {name(selected)}</h4></div><div className="plan-context-total"><span>Due today</span><strong>{formatInr(0)}</strong></div></div>
-      <div className="plan-context-timeline"><div><span className="plan-context-eyebrow">Until {date(ent.periodEnd)}</span><strong>{name(ent.plan)} stays active</strong></div><span className="plan-context-arrow" aria-hidden="true">→</span><div><span className="plan-context-eyebrow">After this period</span><strong>{name(selected)}{selected === 'free' ? ' · no payment needed' : ` · ${formatInr(target.monthly)} / month`}</strong></div></div>
-      <p>{selected === 'free' ? 'Your paid access continues until this period ends. Your top-up credits keep their expiry dates.' : 'Save this choice now. Pay manually to activate the next paid month; nothing is charged or changed today.'}{scheduled ? ` This replaces your saved ${name(scheduled.planId)} selection.` : ''}</p>
-      <div className="plan-context-actions"><button type="button" className="plan-up-pay" disabled={busy || !state} onClick={() => perform(() => scheduleNextPlan(selected))}>Schedule change to {name(selected)}</button><button type="button" className="billing-text-button" disabled={busy} onClick={() => choose(null)}>Cancel selection</button></div>
+      {scheduled ? <p>{name(scheduled.planId)} is selected for your next period. <button type="button" className="billing-text-button" disabled={busy} onClick={() => choose(scheduled.planId)}>View next selection</button></p> : <p>No payment is needed today. {MANUAL_EXPIRY_COPY}</p>}
+    </section> : selected && (!savedChoice || freeNow) && downgrade ? <section className="plan-context plan-context-review" aria-label="Review plan change">
+      <div className="plan-context-heading"><div><span className="plan-context-eyebrow">{freeNow ? 'Change immediately' : 'Change at period end'}</span><h4>Move to {name(selected)}{freeNow ? ' now' : ''}</h4></div><div className="plan-context-total"><span>Due today</span><strong>{formatInr(0)}</strong></div></div>
+      {!freeNow ? <div className="plan-context-timeline"><div><span className="plan-context-eyebrow">Until {date(ent.periodEnd)}</span><strong>{name(ent.plan)} stays active</strong></div><span className="plan-context-arrow" aria-hidden="true">→</span><div><span className="plan-context-eyebrow">After this period</span><strong>{name(selected)}{selected === 'free' ? ' · no payment needed' : ` · ${formatInr(target.monthly)} / month`}</strong></div></div> : null}
+      <p>{freeNow ? 'Paid model access ends immediately. Your valid welcome and top-up credits remain usable with Free models.' : selected === 'free' ? 'Your paid access continues until this period ends. Your top-up credits keep their expiry dates.' : 'Save this choice now. Pay manually to activate the next paid month; nothing is charged or changed today.'}{scheduled ? ` This replaces your saved ${name(scheduled.planId)} selection.` : ''}</p>
+      <div className="plan-context-actions"><button type="button" className="plan-up-pay" disabled={busy || !state} onClick={() => perform(() => scheduleNextPlan(selected))}>{freeNow ? 'Switch to Free now' : `Schedule change to ${name(selected)}`}</button><button type="button" className="billing-text-button" disabled={busy} onClick={() => choose(null)}>Cancel selection</button></div>
     </section> : selected && !savedChoice ? <section className="plan-context plan-context-review" aria-label="Review your purchase" aria-busy={!quote && quoteStatus !== 'error'}>
       {quote ? <>
         <div className="plan-context-heading"><div><span className="plan-context-eyebrow">{quote.action === 'upgrade' ? 'Upgrade now' : quote.action === 'renew' ? 'Manual renewal' : 'Start your plan'}</span><h4>{quote.action === 'upgrade' ? `Upgrade to ${name(selected)}` : `${name(selected)} · one month`}</h4></div><div className="plan-context-total"><span>Due today</span><strong>{formatInr(quote.amountPaise / 100)}</strong></div></div>
         <dl className="plan-context-facts"><div><dt>{quote.action === 'upgrade' ? 'Additional credits' : 'Included credits'}</dt><dd>{creditsText(quote.credits)}</dd></div><div><dt>{quote.action === 'upgrade' ? 'Available until' : 'Plan period'}</dt><dd>{quote.action === 'upgrade' ? '' : `${date(quote.cycleStartsAt)} – `}{date(quote.cycleEndsAt)}</dd></div></dl>
-        <p>{quote.action === 'upgrade' ? 'Applies immediately. Your existing credits and cycle end stay unchanged.' : quote.action === 'renew' ? 'Your current access continues. This payment covers your next monthly period.' : 'Your plan starts after confirmed payment for the period shown above.'}{quote.action === 'upgrade' && scheduled ? ` On payment, your saved ${name(scheduled.planId)} selection will be cancelled.` : ''}</p>
+        <p>{quote.action === 'upgrade' ? 'Applies immediately. Your existing credits and cycle end stay unchanged.' : quote.action === 'renew' ? inGrace ? 'This full-price payment covers the monthly period starting at your original paid expiry. Your original monthly anchor stays unchanged; it does not start a new month from today.' : 'Your current access continues. This payment covers your next monthly period.' : 'Your plan starts after confirmed payment for the period shown above.'}{quote.action === 'upgrade' && scheduled ? ` On payment, your saved ${name(scheduled.planId)} selection will be cancelled.` : ''}</p>
         <details className="plan-context-details"><summary>{quote.action === 'upgrade' ? 'How this upgrade is calculated' : 'Renewal & credit details'}</summary>
           {quote.action === 'upgrade' ? <p>{quote.prorationBasis === 'ist-calendar-day-v1' ? `${quote.remainingDays} of ${quote.cycleDays} billing days remaining. Today's price is fixed until midnight IST or your cycle ends.` : 'Price and additional credits cover the rest of this cycle.'}</p> : null}
           <p>Next full month: {formatInr(quote.monthlyAmountPaise / 100)} for {creditsText(quote.monthlyCredits)}. Renewal is manual. No GST is charged.</p><p>Top-up credits keep their own expiry dates.</p>

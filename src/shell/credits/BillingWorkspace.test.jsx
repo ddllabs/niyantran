@@ -46,3 +46,11 @@ it('shows a retryable configuration error instead of legacy checkout',()=>{
  expect(html).toContain('Try again');
  expect(html).not.toContain('Available plans');
 });
+
+it('shows access-only grace once without presenting a new monthly allocation',()=>{
+ const html=renderToStaticMarkup(<BillingWorkspace {...props} ent={{...props.ent,inGrace:true,periodEnd:'2026-10-21T12:00:00Z',graceUntil:'2026-10-23T12:00:00Z',accessUntil:'2026-10-23T12:00:00Z'}}/>);
+ expect(html).toContain('Renew now');expect(html).toContain('23 Oct 2026, 5:30 pm IST');
+ expect(html).toContain('No new monthly credits');expect(html).toContain('original monthly anchor');
+ expect(html).not.toContain('Plan credits added this period');expect(html).not.toContain('Active until');
+ expect(html.match(/aria-label="Manual renewal notice"/g)).toHaveLength(1);
+});

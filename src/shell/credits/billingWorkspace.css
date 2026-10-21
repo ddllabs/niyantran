@@ -168,3 +168,11 @@
 .billing-options-skeleton > span { min-height: 190px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb,var(--line) 12%,var(--panel)); }
 @media (max-width:1100px) { .billing-options-skeleton { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width:560px) { .billing-options-skeleton { grid-template-columns: 1fr; } }
+
+.billing-renewal-notice { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 16px; padding: 16px; margin: 0 0 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--accent-soft); }
+.billing-renewal-notice > div { flex: 1 1 240px; min-width: 0; }
+.billing-renewal-notice h4 { margin: 0; font-size: 14px; }
+.billing-renewal-notice p { margin: 8px 0 0; font-size: 12px; line-height: 1.65; }
+.billing-renewal-grace, .billing-renewal-due-soon { background: var(--warn-bg); }
+.billing-renewal-notice button { min-height: 44px; }
+.billing-renewal-notice button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

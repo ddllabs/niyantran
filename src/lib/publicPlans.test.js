@@ -86,3 +86,8 @@ it('keeps displayed full-month allowances equal to the unchanged payment catalog
  for(const plan of PUBLIC_PLANS.filter(p=>p.monthly>0)) expect(plan.monthlyCredits).toBe(paymentProduct(plan.id).credits);
  expect(PUBLIC_PLANS.find(p=>p.id==='free').monthlyCredits).toBe(0);
 });
+
+it('treats every paid target during authoritative grace as a full renewal',()=>{
+ for(const target of ['plus','pro','max']) expect(purchaseKind({plan:'pro',status:'active',inGrace:true},target)).toBe('renew');
+ expect(purchaseKind({plan:'pro',status:'active',inGrace:true},'free')).toBe('blocked');
+});

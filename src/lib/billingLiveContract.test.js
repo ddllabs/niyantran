@@ -8,7 +8,7 @@ function context(mode = 'live') {
     provider_order_id: 'order_A1', state: 'ready', fresh: true, amount_paise: 30000, currency: 'INR',
     snapshot: { kind: 'plan', contract: 'cycle-v2', planId: 'pro', quoteId, expiresAt: new Date(Date.now() + 60000).toISOString() } };
   return { order, config: { open: true, ready: true, mode, account: 'acc_fixture', cycleChanges: true, testBuyerIds: mode === 'test' ? [buyer.id] : [] },
-    client: { rpc: vi.fn(async (name, args) => ({ data: ['billing_cycle_v2', 'billing_cycle_daily'].includes(name)
+    client: { rpc: vi.fn(async (name, args) => ({ data: ['billing_cycle_v3', 'billing_cycle_daily'].includes(name)
       ? args.p_action === 'claim' ? order : { ok: true, quoteId } : name === 'billing_order' ? order : { ok: true } })) },
     fetch: vi.fn(async path => path.startsWith('/payments')
       ? { id: 'pay_A1', order_id: 'order_A1', amount: 30000, currency: 'INR', status: 'captured' } : { id: 'order_A1' }) };
@@ -17,10 +17,10 @@ it('makes Live plan capability available without opening checkout or needing Tes
   expect(paymentConfig({ RAZORPAY_KEY_ID: 'rzp_live_fixture', RAZORPAY_KEY_SECRET: 'fixture', RAZORPAY_ACCOUNT_ID: 'acc_fixture' }))
     .toMatchObject({ mode: 'live', cycleChanges: true, open: false });
 });
-it.each(['test', 'live'])('%s uses the scoped v2 server quote and immutable amount', async mode => {
+it.each(['test', 'live'])('%s uses the scoped v3 server quote and immutable amount', async mode => {
   const ctx = context(mode);
   await createPurchase({ planId: 'pro', quoteId, requestId: buyer.id, mode: 'foreign', account: 'foreign', amount: 1, credits: 1 }, buyer, ctx);
-  expect(ctx.client.rpc).toHaveBeenCalledWith('billing_cycle_v2', expect.objectContaining({ p_action: 'claim', p: expect.objectContaining({ userId: buyer.id, mode, account: 'acc_fixture', quoteId }) }));
+  expect(ctx.client.rpc).toHaveBeenCalledWith('billing_cycle_v3', expect.objectContaining({ p_action: 'claim', p: expect.objectContaining({ userId: buyer.id, mode, account: 'acc_fixture', quoteId }) }));
   expect(ctx.fetch).toHaveBeenCalledWith('/orders', expect.objectContaining({ body: expect.objectContaining({ amount: 30000 }) }));
 });
 it('requires a reviewed quote for Live plans before any order write', async () => {
@@ -31,7 +31,7 @@ it('requires a reviewed quote for Live plans before any order write', async () =
 it.each(['test', 'live'])('%s schedules freely from authenticated identity without a payment', async mode => {
   const ctx = context(mode); ctx.config.open = false;
   await planCycleOperation('schedule', { planId: 'plus', userId: 'foreign', mode: 'foreign' }, buyer, ctx);
-  expect(ctx.client.rpc).toHaveBeenCalledWith('billing_cycle_v2', { p_action: 'schedule', p: { userId: buyer.id, account: 'acc_fixture', mode, planId: 'plus', intent: undefined } });
+  expect(ctx.client.rpc).toHaveBeenCalledWith('billing_cycle_v3', { p_action: 'schedule', p: { userId: buyer.id, account: 'acc_fixture', mode, planId: 'plus', intent: undefined } });
   expect(ctx.fetch).not.toHaveBeenCalled();
 });
 it.each(['test', 'live'])('%s keeps new quotes and paid orders closed', async mode => {
@@ -64,4 +64,10 @@ it('refuses an unknown versioned financial contract instead of legacy fulfilment
   const ctx = context(); ctx.order.snapshot.contract = 'cycle-future';
   await expect(reconcilePayment(ctx.order, 'pay_A1', ctx)).rejects.toMatchObject({ status: 409 });
   expect(ctx.fetch).not.toHaveBeenCalled(); expect(ctx.client.rpc).not.toHaveBeenCalled();
+});
+
+it.each(['test', 'live'])('%s dispatches new grace contracts without changing old capture routes', async mode => {
+  const ctx = context(mode); ctx.order.snapshot.contract = 'cycle-v3';
+  await reconcilePayment(ctx.order, 'pay_A1', ctx);
+  expect(ctx.client.rpc).toHaveBeenCalledWith('billing_cycle_capture_v3', { p_order_id: buyer.id, p_payment: expect.objectContaining({ amount: 30000 }), p_context: { account: 'acc_fixture', mode } });
 });

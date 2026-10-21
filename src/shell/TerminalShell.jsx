@@ -25,8 +25,8 @@ import {
   navTabsForUser,
   planOf,
 } from '../lib/planEntitlements.js';
-import { refreshEntitlement, subscribeEntitlement } from '../lib/entitlementStore.js';
-import { OPEN_CONVERSATION_EVENT, clearCredits } from '../lib/creditsStore.js';
+import { refreshEntitlement, watchEntitlementTransitions } from '../lib/entitlementStore.js';
+import { OPEN_CONVERSATION_EVENT, clearCredits, refreshCredits } from '../lib/creditsStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
 import { applyInterfaceLang } from './interfaceLang.js';
 import { openInDesk, takePendingDeskRow } from '../ai/openRowSource.js';
@@ -118,7 +118,7 @@ export default function TerminalShell({ onLogout }) {
   // The plan comes from the server (F2). Re-read it when the terminal opens,
   // and re-render whenever it changes (a payment, a lapse).
   useEffect(() => {
-    const unsubscribe = subscribeEntitlement(() => setUserTick((n) => n + 1));
+    const unsubscribe = watchEntitlementTransitions(() => setUserTick((n) => n + 1), refreshCredits);
     refreshEntitlement();
     return unsubscribe;
   }, []);
@@ -344,7 +344,7 @@ export default function TerminalShell({ onLogout }) {
     if (restricted) { setFeed(null); setSelected(null); setLoading(false); }
   }, [restricted]);
   const planLabel = planMeta?.name || String(ent.plan || 'free').toUpperCase();
-  const statusLabel = ent.status === 'active' ? 'Active' : 'Free';
+  const statusLabel = ent.inGrace ? 'Renewal grace' : ent.status === 'active' ? 'Active' : 'Free';
 
   function doLogout() {
     clearSessionUser();
@@ -445,7 +445,7 @@ export default function TerminalShell({ onLogout }) {
                     <dt>Package</dt>
                     <dd>
                       {planLabel}
-                      {ent.status === 'active' && ent.periodEnd
+                      {ent.inGrace && ent.graceUntil ? ` · access until ${new Date(ent.graceUntil).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST` : ent.status === 'active' && ent.periodEnd
                         ? ` · to ${new Date(ent.periodEnd).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
                         : ''}
                     </dd>

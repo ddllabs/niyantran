@@ -56,6 +56,7 @@ export function purchaseKind(entitlement, target) {
   const active = entitlement?.status === 'active' && !entitlement?.lapsed;
   const have = active ? PLAN_RANK[normalizePlanId(entitlement.plan)] : 0;
   if (!have) return 'choose';
+  if (entitlement.inGrace === true) return 'renew';
   if (want === have) return 'renew';
   return want > have ? 'upgrade' : 'downgrade';
 }

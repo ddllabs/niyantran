@@ -38,7 +38,7 @@ function userClient(token) {
   return {
     auth: { getUser: vi.fn(async () => (who ? { data: { user: { id: who.id, email: who.email } }, error: null } : { data: { user: null }, error: { message: 'bad jwt' } })) },
     rpc: vi.fn(async (name) => {
-      if (name === 'my_entitlement') return { data: entitlements[who?.id] || { plan: 'free', status: 'free' }, error: null };
+      if (name === 'my_entitlement_manual') return { data: entitlements[who?.id] || { plan: 'free', status: 'free' }, error: null };
       return { data: name === 'is_platform_admin' ? Boolean(who?.admin) : { user_id: who?.id, role: who?.admin ? 'admin' : 'user', status: 'active' }, error: null };
     }),
     from: vi.fn(() => {

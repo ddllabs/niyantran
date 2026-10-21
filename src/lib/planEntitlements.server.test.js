@@ -14,7 +14,7 @@ vi.mock('./supabaseClient.js', () => ({
 import {
   canAccessDesk, canExport, entitlementOf, rowCapForUser, canCopy, applyRowCap,
 } from './planEntitlements.js';
-import { clearEntitlement, refreshEntitlement, serverEntitlement } from './entitlementStore.js';
+import { clearEntitlement, refreshEntitlement, serverEntitlement, watchEntitlementTransitions } from './entitlementStore.js';
 
 function memoryStorage() {
   const values = new Map();
@@ -35,7 +35,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 function serve(data) {
-  auth.rpc = vi.fn(async (name) => (name === 'my_entitlement' ? { data, error: null } : { data: null, error: { message: 'no' } }));
+  auth.rpc = vi.fn(async (name) => (name === 'my_entitlement_manual' ? { data, error: null } : { data: null, error: { message: 'no' } }));
 }
 
 describe('a session user cannot grant itself a plan', () => {
@@ -67,6 +67,18 @@ describe('a session user cannot grant itself a plan', () => {
 });
 
 describe('subscription facts remain accurate without commercial desk locks', () => {
+  it('retains only server-authorized model access through the exact grace deadline', async () => {
+    const paidEnd = new Date(Date.now() - 1000).toISOString();
+    const accessUntil = new Date(Date.now() + 1000).toISOString();
+    auth.rpc = vi.fn(async () => ({ data: { plan: 'pro', status: 'active', period_end: paidEnd,
+      access_until: accessUntil, grace_until: accessUntil, in_grace: true }, error: null }));
+    await refreshEntitlement();
+    expect(auth.rpc).toHaveBeenCalledWith('my_entitlement_manual');
+    expect(entitlementOf({ id: 'u1' })).toMatchObject({ plan: 'pro', periodEnd: paidEnd, accessUntil, inGrace: true });
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse(accessUntil));
+    try { expect(entitlementOf({ id: 'u1' })).toMatchObject({ plan: 'free', status: 'free', lapsed: true }); }
+    finally { clock.mockRestore(); }
+  });
   it('a paid plan unlocks every desk and export, with no row cap', async () => {
     serve({ plan: 'pro', status: 'active', period_end: new Date(Date.now() + 30 * DAY).toISOString(), lapsed: false });
     await refreshEntitlement();
@@ -139,5 +151,93 @@ describe('free desk capabilities', () => {
       expect(canCopy(user)).toBe(false);
       expect(canExport(user)).toBe(false);
     }
+  });
+});
+
+
+describe('open-session renewal transitions', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('refreshes at paid expiry and clamps model access at the grace deadline without polling', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-21T12:00:00Z'));
+    const paidEnd = Date.now() + 1000;
+    const graceEnd = paidEnd + 48 * 3600000;
+    auth.rpc = vi.fn(async () => ({ data: { plan: 'pro', status: 'active',
+      period_end: new Date(paidEnd).toISOString(), access_until: new Date(graceEnd).toISOString(),
+      grace_until: new Date(graceEnd).toISOString(), in_grace: Date.now() >= paidEnd }, error: null }));
+    await refreshEntitlement();
+    const changed = vi.fn();
+    const refreshWallet = vi.fn();
+    const stop = watchEntitlementTransitions(changed, refreshWallet);
+    try {
+      await vi.advanceTimersByTimeAsync(999);
+      expect(auth.rpc).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(2);
+      expect(auth.rpc).toHaveBeenCalledTimes(2);
+      expect(refreshWallet).toHaveBeenCalledTimes(1);
+      expect(entitlementOf({ id: 'u1' })).toMatchObject({ plan: 'pro', inGrace: true });
+      await vi.advanceTimersByTimeAsync(48 * 3600000);
+      expect(entitlementOf({ id: 'u1' }).plan).toBe('free');
+      expect(changed).toHaveBeenCalled();
+      expect(auth.rpc).toHaveBeenCalledTimes(3);
+    } finally { stop(); }
+  });
+
+  it('recovers from a failed expiry read without navigation or polling', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-21T12:00:00Z'));
+    const paidEnd = Date.now() + 1000;
+    const graceEnd = paidEnd + 48 * 3600000;
+    const paid = { plan: 'pro', status: 'active', period_end: new Date(paidEnd).toISOString() };
+    auth.rpc = vi.fn().mockResolvedValueOnce({ data: paid, error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: 'offline' } })
+      .mockResolvedValue({ data: { ...paid, access_until: new Date(graceEnd).toISOString(),
+        grace_until: new Date(graceEnd).toISOString(), in_grace: true }, error: null });
+    await refreshEntitlement();
+    const stop = watchEntitlementTransitions(vi.fn());
+    try {
+      await vi.advanceTimersByTimeAsync(1001);
+      expect(entitlementOf({ id: 'u1' }).plan).toBe('free');
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(entitlementOf({ id: 'u1' })).toMatchObject({ plan: 'pro', inGrace: true });
+      expect(auth.rpc).toHaveBeenCalledTimes(3);
+    } finally { stop(); }
+  });
+
+  it('bounds failed retries and recovers when the connection returns', async () => {
+    vi.useFakeTimers();
+    const paid = { plan: 'pro', status: 'active', period_end: new Date(Date.now() + 1000).toISOString() };
+    serve(paid);
+    await refreshEntitlement();
+    auth.rpc = vi.fn(async () => ({ data: null, error: { message: 'offline' } }));
+    const stop = watchEntitlementTransitions(vi.fn());
+    try {
+      await vi.advanceTimersByTimeAsync(120000);
+      const attempts = auth.rpc.mock.calls.length;
+      expect(attempts).toBeGreaterThan(1);
+      expect(attempts).toBeLessThanOrEqual(4);
+      await vi.advanceTimersByTimeAsync(120000);
+      expect(auth.rpc).toHaveBeenCalledTimes(attempts);
+      serve({ ...paid, access_until: new Date(Date.now() + 10000).toISOString(), in_grace: true });
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(entitlementOf({ id: 'u1' })).toMatchObject({ plan: 'pro', inGrace: true });
+    } finally { stop(); }
+  });
+
+  it('cancels deadlines and focus refreshes when the shell unmounts', async () => {
+    vi.useFakeTimers();
+    serve({ plan: 'pro', status: 'active', period_end: new Date(Date.now() + 1000).toISOString() });
+    await refreshEntitlement();
+    const changed = vi.fn();
+    const refreshWallet = vi.fn();
+    const stop = watchEntitlementTransitions(changed, refreshWallet);
+    stop();
+    window.dispatchEvent(new Event('focus'));
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(changed).not.toHaveBeenCalled();
+    expect(refreshWallet).not.toHaveBeenCalled();
+    expect(auth.rpc).toHaveBeenCalledTimes(1);
   });
 });

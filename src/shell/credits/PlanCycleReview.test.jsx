@@ -94,3 +94,46 @@ it('keeps the exact quoted total next to a provider-neutral payment action', () 
  expect(text(tree)).toContain('₹599.74');
  expect(all(tree,n=>n.type==='button'&&text(n)==='Pay online')).toHaveLength(1);
 });
+
+it('quotes a lower paid plan as renewal during grace rather than saving a downgrade',async()=>{
+ f.states=['plus',null,{ok:true},false,'',null,0];const tree=render({ent:{...ent,inGrace:true,periodEnd:new Date(Date.now()-1000).toISOString()}});
+ expect(text(tree)).not.toContain('Save this choice now');
+ for(const effect of f.effects)effect();await Promise.resolve();
+ expect(f.quote).toHaveBeenCalledWith('plus',null);expect(f.schedule).not.toHaveBeenCalled();
+});
+it('reviews Free during grace as an immediate end to paid access',async()=>{
+ f.states=['free',null,{ok:true},false,'',null,0];const tree=render({ent:{...ent,inGrace:true}});
+ expect(text(tree)).toContain('Move to Free now');expect(text(tree)).not.toContain('stays active');
+ await all(tree,n=>n.type==='button'&&text(n)==='Switch to Free now')[0].props.onClick();
+ expect(f.schedule).toHaveBeenCalledWith('free');expect(f.checkout).not.toHaveBeenCalled();
+});
+
+it('keeps the full server price and original renewal anchor visible during grace',()=>{
+ f.states=['plus',{quoteId:'grace-quote',action:'renew',credits:20000,amountPaise:39900,monthlyAmountPaise:39900,monthlyCredits:20000,cycleStartsAt:'2026-10-21T12:00:00Z',cycleEndsAt:'2026-11-21T12:00:00Z',expiresAt:new Date(Date.now()+60000).toISOString()},null,false,'',null,0];
+ const tree=render({ent:{...ent,inGrace:true,periodEnd:new Date(Date.now()-1000).toISOString()}});
+ expect(text(tree)).toContain('₹399.00');expect(text(tree)).toContain('20,000');
+ expect(text(tree)).toContain('original paid expiry');expect(text(tree)).toContain('does not start a new month from today');
+ expect(text(tree)).not.toContain('Save this choice');expect(text(tree)).not.toContain('Upgrade now');
+});
+
+it('describes possible grace before expiry without needing a grace deadline',()=>{
+ f.states=['pro',null,{ok:true},false,'',null,0];
+ const tree=render({ent:{...ent,graceUntil:null,periodEnd:new Date(Date.now()+20*86400000).toISOString()}});
+ expect(text(tree)).toContain('Unless you choose Free, eligible paid model access may continue for up to 48 hours');
+ expect(text(tree)).toContain('no new monthly credits');
+ expect(text(tree)).not.toContain('returns to Free when this period ends');
+});
+it('does not promise Free at paid expiry for an unpaid lower selection',()=>{
+ f.states=[null,null,{scheduled:{planId:'plus',effectiveAt:ent.periodEnd}},false,'',null,0];
+ const tree=render({ent:{...ent,graceUntil:null}});
+ expect(text(tree)).toContain('Unless you choose Free, eligible paid model access may continue for up to 48 hours');
+ expect(text(tree)).not.toContain('returns to Free at expiry');
+});
+it('shows an effective Free selection as applied without an impossible cancellation',()=>{
+ f.states=[null,null,{scheduled:{planId:'free',effectiveAt:new Date(Date.now()-1000).toISOString()}},false,'',null,0];
+ const tree=render({ent:{plan:'free',status:'free'}});
+ expect(text(tree)).toContain('Free applied');expect(text(tree)).toContain('Your account is now Free');
+ expect(text(tree)).not.toContain('access continues until');
+ expect(all(tree,n=>n.type==='button'&&text(n)==='Cancel next selection')).toHaveLength(0);
+ expect(f.cancel).not.toHaveBeenCalled();
+});

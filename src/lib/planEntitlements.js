@@ -2,6 +2,7 @@ import { TABS } from '../desks/tabs.js';
 import { serverEntitlement } from './entitlementStore.js';
 import { PUBLIC_PLANS, normalizePlanId } from './publicPlans.js';
 import { userTypeOf } from './userTypes.js';
+import { accessDeadline } from './accessDeadline.js';
 
 /** Persona → 5 core desks (always includes home). */
 const CORE_BY_PERSONA = {
@@ -35,7 +36,7 @@ export { normalizePlanId };
 /**
  * The live entitlement for a signed-in user: status free | active.
  *
- * Read only from the server (my_entitlement(), via entitlementStore.js),
+ * Read only from the server (my_entitlement_manual(), via entitlementStore.js),
  * for this user's id. Plan fields on the user record come from
  * sessionStorage and are ignored, so editing them unlocks nothing (F2).
  * Until the server has answered, the account is treated as free.
@@ -46,16 +47,19 @@ export function entitlementOf(user) {
     plan: 'free',
     status: 'free',
     periodEnd: server?.periodEnd || null,
+    accessUntil: server?.accessUntil || null,
+    graceUntil: server?.graceUntil || null,
+    inGrace: false,
+    lapsed: server?.lapsed === true,
     loaded: Boolean(server),
   };
   if (!server) return free;
   const plan = normalizePlanId(server.plan);
   if (plan === 'free' || server.status !== 'active') return free;
-  // A period that ends while the terminal is open reads as free straight away,
-  // as the server will on its next read.
-  const end = server.periodEnd ? Date.parse(server.periodEnd) : NaN;
-  if (Number.isFinite(end) && end <= Date.now()) return free;
-  return { ...free, plan, status: 'active' };
+  // Access clamps at its server-issued deadline even while the terminal stays open.
+  const end = accessDeadline(server);
+  if (Number.isFinite(end) && end <= Date.now()) return { ...free, lapsed: true };
+  return { ...free, plan, status: 'active', inGrace: server.inGrace === true };
 }
 
 export function isFree(user) {

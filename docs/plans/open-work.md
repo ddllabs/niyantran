@@ -50,7 +50,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F236 is next) and goes in the
+- A new finding gets the next free `F` number (F238 is next) and goes in the
   right section.
 
 
@@ -59,6 +59,9 @@
 - [ ] **F235 — Indian Sports redundant browser fallback.** Chrome shows direct Google News RSS canceled after same-origin feature-feed succeeds (200,227stories); console empty and publisher navigation works. Review unnecessary parallel fallback requests separately; no CORS failure proven by this observation. The long-open blank tab recovered on reload and was not reproduced in a fresh session; keep this limitation in browser evidence.
 
 ## Development toolchain follow-up
+
+- [ ] **F237 — Local manual-grant bootstrap authority.** The existing credits_on_plan_grant manual branch is owned by nter_migrator in the disposable bootstrap and hits the profile guard. Grace tests seed provenance with the trigger disabled inside a rolled-back fixture; no existing trigger was altered. Audit separately before relying on manual grants as a fixture path.
+
 
 - [ ] **F234 — Development toolchain advisories.** Read-only npm audit on 2026-10-19 reports existing Vite/Vitest dependency advisories (2 moderate, 2 high, 2 critical; esbuild, source-map-js, @vitest/mocker, tinypool and dependents). Production dependency audit reports zero. Review compatible upgrades separately; no dependency changes in the scoped BBC/form fix.
 
@@ -2959,6 +2962,19 @@ Earlier items, updated:
 
 
 - [ ] **O6.** After F6: the Razorpay keys on Vercel, then one real payment
+  - **2026-10-21 local verification:**6522 application/1174 Edge tests,53 SQL fixtures+53 omission checks, concurrent grace capture, lint/build/bundle/router pass. Independent Astra review has no remaining P1/P2 findings. In-app browser isolated UI actions pass; shared SQL/trigger/Edge activation approved and verified (migration20261021140246,research-chatv70). Exact-SHA CI/Test Preview acceptance remain pending. [Evidence](../research/2026-10-21-manual-grace-evidence.md).
+  - **2026-10-21 priority: manual billing +48-hour access-only grace first.**
+    Owner defers AutoPay integration/reminders to a later release and directs
+    planning toward Live. Grace implementation, manual expiry/renewal notices,
+    expiry/renewal/refund/recovery acceptance and exact-SHA CI/Test Preview gates
+    remain open. Grace must not issue/extend credits or financial paid periods;
+    anchor and explicit-Free semantics freeze before code. [Current contract](../specs/2026-10-21-billing-autopay.md)
+    / [revised ordered plan](2026-10-21-billing-autopay.md).
+    Standalone Test card and UPI enrollment/first payments verified; recurring
+    collection, plan-change handoff and Live capability remain unverified.
+    UPI access Request clicked with owner approval but no submission confirmation;
+    Settings disabled text conflicts with successful Test mandate execution.
+    No AutoPay application implementation or Production activation claimed.
   - **Live-capable approved contract (2026-10-21):** owner authorizes server/SQL
     implementation, verification and Test Preview publication. Versioned mode-
     scoped quote/capture/read functions preserve the approved plan behavior;
@@ -3388,6 +3404,10 @@ F88/F90/F91/F92 application work is verified through ca70175. Final native share
 R7 execution update: the owner's remaining-270 review and single 182-document / 3,611-chunk ingestion job are complete and independently audited. All 88 source-specific exclusions remain aside. See [270-source final run evidence](../research/2026-10-11-corpus-270-reviewed-run.md) and the latest R7 entry above. Never restart this completed manifest or earlier completed releases. Remaining cohorts and existing-source repairs retain their documented review/authorization requirements.
 
 R7 wider-corpus continuation: [413-document release completed](../research/2026-10-11-corpus-wide-batch.md). All 413 passing sources from the fresh 500-source cohort were ingested in one frozen job: 7,493 complete context chunks, 6,661 contextual chunks, 3,033 independent scoped citation probes passed. The other 87 candidates remain held with evidence. Final live and planner totals: 3,434 documents / 3,431 indexed / 100,031 chunks / 2,143 covered listing bill keys, zero orphan chunks and null vectors. Actual embedding usage 706,730 tokens / USD 0.01413460; all 90 capacity samples passed, peak CPU 16.12%; 15 isolated slow health samples out of 437, no consecutive slow windows, final health passed. Runtime corpus-wide-20261011/job-wide500-v1/final-completion.json binds the full audit and exact SQL evidence. Manifest stage-01.release.json SHA256 b8a987362724afab31e157f01fae72b7f9cd9dec7667db269b4caed5864c2481 is COMPLETE; NEVER restart it. Supervisor exited 0 and locks released. The pre-write fetch recovery at 40 remains documented and preserved. Broader corpus candidates, nonbill scoping, the 87 held candidates and existing-source repair holds remain open; this is not completion of R7 as a whole.
+
+## Done — 2026-10-21 CI fixture maintenance
+
+- [x] **F236 — RSS test fixtures age out.** Local commit `bd7bc92` uses fresh dates relative to the test clock in four routing-test files. Six baseline failures reproduced;28 focused and6522 full application checks pass. Runtime feed behavior is unchanged. Publication awaits the manual-grace release.
 
 ## Done — 2026-10-19 homepage browser fixes
 
