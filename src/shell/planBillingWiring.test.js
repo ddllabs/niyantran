@@ -12,7 +12,7 @@ it('opens the credits page from the profile menu and Plan and invoices from a pr
   expect(shell).toContain('<CreditsPage section={account}');
   expect(shell).toContain("sessionStorage.getItem('niyOpenBilling')");
   expect(shell).toContain("goAccount('billing', { plan: plan || null });");
-  expect(read('./credits/CreditsPage.jsx')).toContain('<PlanBilling key={plan || \'none\'} ent={ent} user={user} initialPlan={plan} />');
+  expect(read('./credits/CreditsPage.jsx')).toContain('<PlanBilling key={userId + \':\' + (plan || \'none\')} ent={ent} user={user} initialPlan={plan} credits={credits} creditsTried={creditsTried} />');
 });
 
 it('opens Plan & billing live when the chat asks (Upgrade or Buy credits, F111)', () => {
@@ -43,7 +43,9 @@ it("sends a signed-in visitor's pricing choice to the panel instead of signup", 
 it('reads credits from the shared store and keeps the panel free of dollars', () => {
   const panel = read('./PlanBilling.jsx');
   expect(panel).toMatch(/from '\.\.\/lib\/creditsStore\.js'/);
-  for (const name of ['refreshCredits', 'serverCredits', 'subscribeCredits', 'creditsText']) expect(panel).toContain(name);
+  for (const name of ['refreshCredits', 'creditsText']) expect(panel).toContain(name);
+  for (const name of ['serverCredits', 'subscribeCredits']) expect(read('./credits/CreditsPage.jsx')).toContain(name);
+  expect(panel).not.toContain('subscribeCredits');
   expect(panel).not.toMatch(/USD|dollar|\$\d/i);
 });
 

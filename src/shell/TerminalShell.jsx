@@ -25,14 +25,15 @@ import {
   navTabsForUser,
   planOf,
 } from '../lib/planEntitlements.js';
-import { refreshEntitlement, subscribeEntitlement } from '../lib/entitlementStore.js';
-import { OPEN_CONVERSATION_EVENT, clearCredits } from '../lib/creditsStore.js';
+import { refreshEntitlement, watchEntitlementTransitions } from '../lib/entitlementStore.js';
+import { OPEN_CONVERSATION_EVENT, clearCredits, refreshCredits } from '../lib/creditsStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
 import { applyInterfaceLang } from './interfaceLang.js';
 import { openInDesk, takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
 import PersonaChooser from './PersonaChooser.jsx';
 const CreditsPage = lazy(() => import('./credits/CreditsPage.jsx'));
+const PlanChangeDialog = lazy(() => import('./PlanChangeDialog.jsx'));
 import LazyView from './LazyView.jsx';
 import ProfileCredits from './credits/BalancePill.jsx';
 import { ACCOUNT_SECTIONS, deskRouteFor, goAccount, parseAccountHash } from './credits/accountRoute.js';
@@ -59,6 +60,7 @@ export default function TerminalShell({ onLogout }) {
   const [liveTvOpen, setLiveTvOpen] = useState(false);
   const [liveTvVisited, setLiveTvVisited] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [planPickerOpen, setPlanPickerOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
   // The credits page (F184): its section while open (#/account/<section>), else null.
   const [account, setAccount] = useState(() => parseAccountHash());
@@ -116,7 +118,7 @@ export default function TerminalShell({ onLogout }) {
   // The plan comes from the server (F2). Re-read it when the terminal opens,
   // and re-render whenever it changes (a payment, a lapse).
   useEffect(() => {
-    const unsubscribe = subscribeEntitlement(() => setUserTick((n) => n + 1));
+    const unsubscribe = watchEntitlementTransitions(() => setUserTick((n) => n + 1), refreshCredits);
     refreshEntitlement();
     return unsubscribe;
   }, []);
@@ -342,7 +344,7 @@ export default function TerminalShell({ onLogout }) {
     if (restricted) { setFeed(null); setSelected(null); setLoading(false); }
   }, [restricted]);
   const planLabel = planMeta?.name || String(ent.plan || 'free').toUpperCase();
-  const statusLabel = ent.status === 'active' ? 'Active' : 'Free';
+  const statusLabel = ent.inGrace ? 'Renewal grace' : ent.status === 'active' ? 'Active' : 'Free';
 
   function doLogout() {
     clearSessionUser();
@@ -425,7 +427,7 @@ export default function TerminalShell({ onLogout }) {
           >
             {theme === 'light' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
           </button>
-          <ProfileCredits user={user} open={profileOpen} setOpen={setProfileOpen} onToggle={() => setLiveTvOpen(false)}>
+          <ProfileCredits user={user} open={profileOpen} setOpen={setProfileOpen} onToggle={() => setLiveTvOpen(false)} activePlan={ent.status === 'active' && !ent.lapsed ? ent.plan : null}>
             {(glance) => <>
                 <div className="profile-pop-head">
                   <span className="avatar lg">{(user?.name || user?.email || 'A').charAt(0).toUpperCase()}</span>
@@ -443,7 +445,7 @@ export default function TerminalShell({ onLogout }) {
                     <dt>Package</dt>
                     <dd>
                       {planLabel}
-                      {ent.status === 'active' && ent.periodEnd
+                      {ent.inGrace && ent.graceUntil ? ` · access until ${new Date(ent.graceUntil).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST` : ent.status === 'active' && ent.periodEnd
                         ? ` · to ${new Date(ent.periodEnd).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
                         : ''}
                     </dd>
@@ -462,6 +464,9 @@ export default function TerminalShell({ onLogout }) {
                 {planMeta?.tag ? <p className="profile-pop-tag">{planMeta.tag}</p> : null}
                 {glance}
                 <div className="profile-pop-actions">
+                  <button type="button" className="profile-pop-upgrade" onClick={() => { setProfileOpen(false); setPlanPickerOpen(true); }}>
+                    Change plan
+                  </button>
                   <button
                     type="button"
                     className="profile-pop-upgrade"
@@ -494,6 +499,10 @@ export default function TerminalShell({ onLogout }) {
         </div>
         </div>
       </header>
+      {planPickerOpen ? <LazyView><PlanChangeDialog ent={ent} onClose={() => setPlanPickerOpen(false)} onReview={plan => {
+        setPlanPickerOpen(false);
+        goAccount('billing', { plan });
+      }} /></LazyView> : null}
       {/* F184: the credits page takes the work area; the desk stays mounted underneath, hidden, so the
           AI panel keeps its thread, draft and any answer still streaming (SidePanel.jsx). */}
       {account ? <LazyView><CreditsPage section={account} user={user} ent={ent} /></LazyView> : null}

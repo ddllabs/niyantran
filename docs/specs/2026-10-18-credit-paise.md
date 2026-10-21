@@ -2,7 +2,8 @@
 
 > **Status: Living.** Owner approved local implementation and production
 > rollout on 2026-10-18 IST. Production conversion and reconciliation are
-> complete. Suggested payment prices remain unapproved.
+> complete. The owner subsequently confirmed the one-paisa top-up catalogue;
+> payment implementation remains separately gated.
 
 ## Objective and decisions
 
@@ -184,11 +185,12 @@ units. Recovery is a tested forward correction preserving audit history;
 test an inverse only while no post-cutover activity exists. An ordinary client
 rollback must keep schema/RPC compatibility and the current denomination.
 
-## Payment consequences and decisions still open
+## Payment consequences and remaining launch inputs
 
-Proposed packs preserving the prior suggested economics:
+Owner-confirmed packs preserving the prior suggested economics (confirmation
+in this chat after the production conversion; reconciled2026-10-18):
 
-| New credits | Suggested INR price, not approved |
+| New credits | Confirmed INR price |
 |---:|---:|
 | 20,000 | 499 |
 | 50,000 | 1,199 |
@@ -197,14 +199,16 @@ Proposed packs preserving the prior suggested economics:
 | 500,000 | 10,499 |
 
 Top-ups are available to all account plans, including Free. Existing proposed
-prices are not final by implication of this conversion. Require a server-owned
+prices were not approved merely by this conversion; they were subsequently
+confirmed explicitly. Require a server-owned
 versioned catalogue and a stored order snapshot for eventual fulfilment.
 No order, capture, refund, webhook registration or payment activation is
 authorized merely by installing the MCP.
 
-Remaining owner inputs before live activation: full registered address,
-current GST status, intended lawyer review, merchant readiness and final pack
-prices. Earlier renewal/rollover/refund-exception/court questions already have
+Remaining owner inputs before live activation: policy review status and merchant
+readiness. Owner supplied the registered seller name/address and reconfirmed no
+GST registration; final pack prices are confirmed.
+Detailed payment spec/plan: [Razorpay integration](2026-10-18-razorpay-integration.md). Earlier renewal/rollover/refund-exception/court questions already have
 decisions and should be reconciled in living documents, not reopened.
 
 ## Acceptance evidence

@@ -10,7 +10,8 @@ vi.mock('react', async original => ({ ...(await original()), useState: initial =
   return [fake.states[index], value => { fake.states[index] = typeof value === 'function' ? value(fake.states[index]) : value; }];
 }, useEffect: effect => { fake.effects.push(effect); }, useRef: () => ({ current: null }) }));
 vi.mock('../lib/billing.js', () => ({
-  fetchBillingConfig: vi.fn(), fetchInvoices: vi.fn(),
+  fetchBillingConfig: vi.fn(), fetchInvoices: vi.fn().mockResolvedValue([]),
+  formatInr: n => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
   completeCheckout: (...args) => fake.checkout(...args), openInvoice: (...args) => fake.open(...args),
 }));
 vi.mock('../lib/entitlementStore.js', () => ({ refreshEntitlement: (...args) => fake.refresh(...args) }));
@@ -21,6 +22,7 @@ vi.mock('../lib/creditsStore.js', async original => ({
   subscribeCredits: (...args) => fake.subscribeCredits(...args),
   serverCredits: (...args) => fake.serverCredits(...args),
 }));
+vi.mock('./credits/PlanPeriods.jsx', () => ({ default: () => null }));
 import PlanBilling from './PlanBilling.jsx';
 
 const DAY = 86400000;
@@ -36,12 +38,11 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks());
 
 const USER = { id: 'u1', email: 'a@example.test', name: 'A' };
-// state order in PlanBilling: config, invoices, selected, busy, result, credits, creditsTried; then, once the
-// credits section is expanded, the small usage version's reports (UsageMiniCard, F153) at index 7
+// Legacy checkout state follows config/invoices; credits are supplied by CreditsPage.
 function render(ent, { config = CLOSED, invoices = [], selected = null, busy = false, result = null, credits = null, tried = false, user = USER, onClose = vi.fn() } = {}) {
   fake.cursor = 0;
-  if (!fake.states.length) fake.states = [config, invoices, selected, busy, result, credits, tried];
-  return PlanBilling({ ent, user, onClose });
+  if (!fake.states.length) fake.states = [config, invoices, selected, busy, result];
+  return PlanBilling({ ent, user, onClose, credits, creditsTried: tried });
 }
 // Hook-free function components (the credits section) are expanded in place.
 const expand = node => {
@@ -66,6 +67,15 @@ it('offers Plus, Pro and Max in rupees to a free account', () => {
   expect(text(tree)).toContain('Free');
 });
 
+it('shows the included monthly credits on every plan card before selection', () => {
+  const cards = tiles(render(FREE));
+  expect(cards.map(t => text(t))).toEqual([
+    expect.stringContaining('20,000 AI credits every month'),
+    expect.stringContaining('65,000 AI credits every month'),
+    expect.stringContaining('750,000 AI credits every month'),
+  ]);
+});
+
 it('says payments open soon and never pays while checkout is closed', () => {
   const tree = render(FREE, { config: CLOSED, selected: 'pro' });
   expect(pay(tree).props.disabled).toBe(true);
@@ -73,17 +83,20 @@ it('says payments open soon and never pays while checkout is closed', () => {
   expect(text(tree)).toContain('niyantranai@gmail.com');
 });
 
-it('on an active Pro month: Plus is unavailable, Pro renews, Max upgrades now without refunding Pro', () => {
+it('on an active Pro month: Plus queues, Pro renews, Max upgrades now without refunding Pro', () => {
   let tree = render(PRO, { config: OPEN });
   const [plus, pro, max] = tiles(tree);
-  expect(plus.props.disabled).toBe(true);
+  expect(plus.props.disabled).toBe(false);
   expect(text(pro)).toMatch(/Current/);
+  expect(pro.props.className).toContain('billing-current');
+  expect(text(pro)).toContain('Current plan');
   expect(max.props.disabled).toBeFalsy();
   max.props.onClick();
   tree = render(PRO, { config: OPEN });
   expect(text(tree)).toMatch(/Max month starts now/);
   expect(text(tree)).toMatch(/unused days of Pro are not refunded/i);
-  expect(text(pay(tree))).toContain('₹9,999');
+  expect(text(pay(tree))).toBe('Pay online');
+  expect(text(all(tree, n => n.props?.['aria-label'] === 'Review your purchase')[0])).toContain('₹9,999.00');
 });
 
 it('reminds the account to renew when its month ends within a week', () => {
@@ -98,6 +111,16 @@ it('pays through checkout and shows only the server-verified result', async () =
   expect(fake.checkout).toHaveBeenCalledWith(expect.objectContaining({ planId: 'plus' }));
   tree = render(FREE, { config: OPEN });
   expect(text(tree)).toMatch(/Payment verified/);
+});
+
+it('reviews a plan with current access and no automatic renewal before paying', () => {
+  const tree = render(PRO, { config: OPEN, selected: 'plus' });
+  expect(text(tree)).toContain('Review your purchase');
+  expect(text(tree)).toContain('Current planPro');
+  expect(text(tree)).toContain('20,000 AI credits every month');
+  expect(text(tree)).toContain('starts after the current paid period');
+  expect(text(tree)).toContain('No automatic renewal');
+  expect(fake.checkout).not.toHaveBeenCalled();
 });
 
 it('shows the reason when a payment fails or is cancelled', async () => {
@@ -215,12 +238,11 @@ it('is a section of the credits page: no dialog, scrim or close button', () => {
 
 // F161 (owner approved 2026-10-14): top-ups are not on sale until O6, whatever the state of plan
 // checkout, so the note and the address to write to always show.
-it('says top-ups are coming soon and where to write for credits, whether checkout is open or not', () => {
+it('keeps the coming-soon note only while checkout is closed', () => {
   const note = config => { fake.states = []; return text(section(render(PRO, { config, credits: credits() }))); };
-  for (const config of [CLOSED, OPEN, null]) {
-    expect(note(config)).toMatch(/Top-ups coming soon\. Need more credits now\? Write to/);
-    expect(note(config)).toContain('niyantranai@gmail.com');
-  }
+  expect(note(CLOSED)).toMatch(/Top-ups coming soon\. Need more credits now\? Write to/);
+  expect(note(CLOSED)).toContain('niyantranai@gmail.com');
+  expect(note(OPEN)).not.toMatch(/Top-ups coming soon/);
 });
 
 // F162: credits set aside for an answer still running are shown, in the muted style, not as debt.
@@ -258,37 +280,49 @@ it('never shows a dollar figure or a dollar word anywhere in the panel', () => {
   expect(t).not.toMatch(/\$|USD|dollar/i);
 });
 
-it('reads credits like the plan: subscribes, refreshes, and lets go on unmount', async () => {
-  const off = vi.fn();
-  fake.subscribeCredits.mockReturnValue(off);
-  fake.serverCredits.mockReturnValue(credits());
-  fake.refreshCredits.mockResolvedValue(credits());
+it.each([USER, null])('uses the page balance without a second subscription or initial refresh, user=%s', async user => {
   vi.mocked((await import('../lib/billing.js')).fetchBillingConfig).mockResolvedValue(CLOSED);
-  vi.mocked((await import('../lib/billing.js')).fetchInvoices).mockResolvedValue([]);
-  globalThis.window = { addEventListener: vi.fn(), removeEventListener: vi.fn() };
-  try {
-    render(PRO);
-    const cleanups = fake.effects.map(effect => effect()).filter(Boolean);
-    expect(fake.refreshCredits).toHaveBeenCalledTimes(1);
-    expect(fake.subscribeCredits).toHaveBeenCalledTimes(1);
-    await Promise.resolve();
-    cleanups.forEach(c => c());
-    expect(off).toHaveBeenCalledTimes(1);
-  } finally {
-    delete globalThis.window;
-  }
+  fake.refresh.mockResolvedValue(null);
+  render(PRO, { user, credits: credits() });
+  fake.effects.forEach(effect => effect());
+  await Promise.resolve();
+  expect(fake.refreshCredits).not.toHaveBeenCalled();
+  expect(fake.subscribeCredits).not.toHaveBeenCalled();
 });
 
-it('does not read credits when signed out', async () => {
-  vi.mocked((await import('../lib/billing.js')).fetchBillingConfig).mockResolvedValue(CLOSED);
-  vi.mocked((await import('../lib/billing.js')).fetchInvoices).mockResolvedValue([]);
-  globalThis.window = { addEventListener: vi.fn(), removeEventListener: vi.fn() };
-  try {
-    render(FREE, { user: null });
-    fake.effects.forEach(effect => effect());
-    expect(fake.refreshCredits).not.toHaveBeenCalled();
-    expect(fake.subscribeCredits).not.toHaveBeenCalled();
-  } finally {
-    delete globalThis.window;
-  }
+it('keeps the legacy flow unmounted while billing configuration is pending', () => {
+  const tree = render(FREE, { config: null });
+  expect(tree.type.name).toBe('BillingWorkspace');
+  expect(tree.props.config).toBeNull();
+  expect(tree.props.onRetryConfig).toBeTypeOf('function');
+});
+
+it('does not mistake unavailable configuration for disabled legacy checkout', () => {
+  const tree = render(FREE, { config: { unavailable: true } });
+  expect(tree.type.name).toBe('BillingWorkspace');
+  expect(tree.props.config.unavailable).toBe(true);
+  tree.props.onRetryConfig();
+  expect(fake.states.at(-1)).toBe(1);
+});
+
+it('resolves deferred configuration without ever mounting legacy children', async () => {
+  let resolve;
+  vi.mocked((await import('../lib/billing.js')).fetchBillingConfig).mockReturnValue(new Promise(done => { resolve = done; }));
+  fake.refresh.mockResolvedValue(null);
+  const pending = render(FREE, { config: null });
+  expect(pending.type.name).toBe('BillingWorkspace');
+  const stop = fake.effects[0]();
+  expect(fake.states[0]).toBeNull();
+  resolve({enabled:true,cycleChanges:true});
+  await Promise.resolve();
+  const ready = render(FREE);
+  expect(ready.type).toBe(pending.type);
+  expect(ready.props.config.cycleChanges).toBe(true);
+  stop();
+});
+
+it('never renders a supplied balance belonging to the previous account',()=>{
+ const tree=render(PRO,{credits:credits({userId:'previous',balance:999999})});
+ expect(text(section(tree))).toContain('Loading credits');
+ expect(text(section(tree))).not.toContain('999,999');
 });

@@ -80,6 +80,9 @@ m() { echo "$MIG/$1"; }
 # fixture name -> container, then the ordered bootstrap files.
 chain() {
   case "$1" in
+    billing_unused_topup_refund)
+      chain billing_manual_grace
+      FILES+=("$(as_non_superuser 20261021150010_billing_unused_topup_refund.sql)") ;;
     profile_authority)
       CONTAINER=$PLAIN
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$WORK/0001_email_only.sql" "$(m 20260921000012_profile_authority.sql)") ;;
@@ -89,7 +92,7 @@ chain() {
     corpus_revision_integrity)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)" "$(m 20260921000003_corpus_and_desk.sql)" "$(m 20260921000009_rag_rpcs.sql)" "$(m 20260921000014_corpus_revision_integrity.sql)") ;;
-    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|credit_paise_contract|credit_paise_convert|credit_paise_empty|admin_model_plan|feed_records|feed_admin|feed_register_page|feed_nothing_new|feed_empty_outcome|feed_latest_run_page|unscoped_ef_search|rls_initplan_fk_indexes|desk_rows_date_range|handbook_period_ranges|record_briefs|record_brief_format)
+    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|credit_paise_contract|credit_paise_convert|credit_paise_empty|billing_purchases|billing_creation_retry|billing_checkout_preflight|billing_plan_period_display|billing_cycle_changes|billing_daily_proration|credit_no_rollover|billing_live_cycle|billing_manual_grace|admin_model_plan|feed_records|feed_admin|feed_register_page|feed_nothing_new|feed_empty_outcome|feed_latest_run_page|unscoped_ef_search|rls_initplan_fk_indexes|desk_rows_date_range|handbook_period_ranges|record_briefs|record_brief_format)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql
              "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)"
@@ -210,7 +213,7 @@ chain() {
                   "$(as_non_superuser 20261014200000_ai_credits.sql)" "$TESTS/bootstrap_credit_estimates_seed.sql"
                   "$(as_non_superuser 20261014230000_credit_estimates_and_effort.sql)"
                   "$(as_non_superuser 20261014233000_credit_usage_reports.sql)") ;;
-        credit_paise_contract|credit_paise_convert|credit_paise_empty)
+        credit_paise_contract|credit_paise_convert|credit_paise_empty|billing_purchases|billing_creation_retry|billing_checkout_preflight|billing_plan_period_display|billing_cycle_changes|billing_daily_proration|credit_no_rollover|billing_live_cycle|billing_manual_grace)
           FILES+=("$(m 20260922121946_reasoning_efforts_from_catalogue.sql)" "$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)" "$(as_non_superuser 20261012120000_inr_plans.sql)"
                   "$(as_non_superuser 20261013140000_web_search.sql)" "$TESTS/bootstrap_ai_credits_seed.sql"
                   "$(as_non_superuser 20261014200000_ai_credits.sql)" "$TESTS/bootstrap_credit_estimates_seed.sql"
@@ -218,9 +221,18 @@ chain() {
                   "$(as_non_superuser 20261014233000_credit_usage_reports.sql)"
                   "$(as_non_superuser 20261017194626_credit_paise_contract.sql)")
           [ "$1" = credit_paise_convert ] && FILES+=("$TESTS/credit_paise_seed.sql")
-          if [ "$1" = credit_paise_convert ] || [ "$1" = credit_paise_empty ]; then
+          if [ "$1" = credit_paise_convert ] || [ "$1" = credit_paise_empty ] || [ "$1" = billing_purchases ] || [ "$1" = billing_creation_retry ] || [ "$1" = billing_checkout_preflight ] || [ "$1" = billing_plan_period_display ] || [ "$1" = billing_cycle_changes ] || [ "$1" = billing_daily_proration ] || [ "$1" = credit_no_rollover ] || [ "$1" = billing_live_cycle ] || [ "$1" = billing_manual_grace ]; then
             FILES+=("$(as_non_superuser 20261017194628_credit_paise_convert.sql)")
-          fi ;;
+          fi
+          [[ "$1" = billing_purchases || "$1" = billing_creation_retry || "$1" = billing_checkout_preflight || "$1" = billing_plan_period_display || "$1" = billing_cycle_changes || "$1" = billing_daily_proration || "$1" = credit_no_rollover || "$1" = billing_live_cycle || "$1" = billing_manual_grace ]] && FILES+=("$(m 20260928140000_invoices.sql)" "$(as_non_superuser 20261018160700_billing_purchases.sql)")
+          [[ "$1" = billing_creation_retry || "$1" = billing_checkout_preflight || "$1" = billing_plan_period_display || "$1" = billing_cycle_changes || "$1" = billing_daily_proration || "$1" = credit_no_rollover || "$1" = billing_live_cycle || "$1" = billing_manual_grace ]] && FILES+=("$(as_non_superuser 20261019000000_billing_creation_retry.sql)")
+          [[ "$1" = billing_checkout_preflight || "$1" = billing_plan_period_display || "$1" = billing_cycle_changes || "$1" = billing_daily_proration || "$1" = credit_no_rollover || "$1" = billing_live_cycle || "$1" = billing_manual_grace ]] && FILES+=("$(as_non_superuser 20261019191550_billing_checkout_preflight.sql)")
+          [[ "$1" = billing_plan_period_display || "$1" = billing_cycle_changes || "$1" = billing_daily_proration || "$1" = credit_no_rollover || "$1" = billing_live_cycle || "$1" = billing_manual_grace ]] && FILES+=("$(as_non_superuser 20261019194527_billing_plan_period_display.sql)")
+          [[ "$1" = billing_cycle_changes || "$1" = billing_daily_proration || "$1" = credit_no_rollover || "$1" = billing_live_cycle || "$1" = billing_manual_grace ]] && FILES+=("$(as_non_superuser 20261020152221_billing_cycle_changes.sql)")
+          [[ "$1" = billing_daily_proration || "$1" = credit_no_rollover || "$1" = billing_live_cycle || "$1" = billing_manual_grace ]] && FILES+=("$(as_non_superuser 20261020165347_billing_daily_proration.sql)")
+          [[ "$1" = credit_no_rollover || "$1" = billing_live_cycle || "$1" = billing_manual_grace ]] && FILES+=("$(as_non_superuser 20261020211953_credit_no_rollover.sql)")
+          [[ "$1" = billing_live_cycle || "$1" = billing_manual_grace ]] && FILES+=("$(as_non_superuser 20261020230745_billing_live_cycle.sql)")
+          [ "$1" = billing_manual_grace ] && FILES+=("$(as_non_superuser 20261021123000_billing_manual_grace.sql)") ;;
         # The admin sets a model's plan (F155): credit_estimates_and_effort's chain (ai_models.min_plan
         # and its seeded plans), then admin_models_upsert with min_plan, as a non-superuser.
         admin_model_plan)
@@ -271,7 +283,7 @@ vacuity_check() {
     i=$((i+1)); [ $i -eq ${#FILES[@]} ] && break
     psql_in "$db" < "$f" >/dev/null 2>&1 || { echo "  VACUITY: bootstrap broke at $(basename "$f")"; return 1; }
   done
-  if psql_in "$db" < "$TESTS/$name.sql" >/dev/null 2>&1; then
+  if fixture_sql "$name" | psql_in "$db" >/dev/null 2>&1; then
     echo "  VACUITY FAIL - fixture still passes without $(basename "$guard")"
     rc=1
   else
@@ -755,6 +767,18 @@ credit_paise_atomic_check() {
   fi
 }
 
+# Expand the one operator-script include into the same psql session. Docker
+# receives SQL on stdin and cannot read workspace paths itself.
+fixture_sql() {
+  while IFS= read -r line; do
+    if [ "$line" = '\i backend/sql/operations/reset_test_billing.sql' ]; then
+      cat backend/sql/operations/reset_test_billing.sql
+    else
+      printf '%s\n' "$line"
+    fi
+  done < "$TESTS/$1.sql"
+}
+
 run_fixture() {
   local name="$1" db="niyantran_${1}_test" rc=0
   chain "$name"
@@ -771,8 +795,13 @@ run_fixture() {
     fi
   done
 
-  if psql_in "$db" < "$TESTS/$name.sql" > "$WORK/out.txt" 2>&1; then
+  if fixture_sql "$name" | psql_in "$db" > "$WORK/out.txt" 2>&1; then
     echo "  PASS  ($(grep -c . "$WORK/out.txt") lines of output)"
+    [ "$name" = billing_creation_retry ] && { bash "$TESTS/billing_retry_concurrency.sh" || rc=1; }
+    [ "$name" = billing_cycle_changes ] && { bash "$TESTS/billing_cycle_concurrency.sh" || rc=1; }
+    [ "$name" = billing_live_cycle ] && { bash "$TESTS/billing_live_cycle_concurrency.sh" || rc=1; }
+    [ "$name" = billing_manual_grace ] && { bash "$TESTS/billing_manual_grace_concurrency.sh" || rc=1; }
+    [ "$name" = billing_purchases ] && { bash "$TESTS/billing_concurrency.sh" || rc=1; }
     [ "$name" = credit_paise_contract ] && { credit_paise_atomic_check "$db" || rc=1; }
     [ "${VACUITY:-1}" = 1 ] && { vacuity_check "$name" || rc=1; }
     [ "$name" = corpus_records ] && { corpus_records_checks || rc=1; }

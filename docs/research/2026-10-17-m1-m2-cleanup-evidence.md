@@ -897,3 +897,63 @@ unchanged; no completion/failure notification warranted. Documentation-only
 `git diff --check` passes; runtime suites not rerun for prose. No push/deploy,
 production mutation, timer/serve change, refresh invocation, credential/dotenv
 read, corpus operation or Razorpay work.
+
+
+## Scheduled closure observation — 2026-10-18 15:14 UTC
+
+Read-only observations at15:15–15:16 UTC. Started clean on main3ccdf8a; fetched
+origin, main/remote match3ccdf8a343070d5365a6093c84230afaf0e1e441. Local
+observation documentation isolated on task/closure-observation-20261018-1514.
+
+- Cron5 remains active */5 with expected niyantran-six Vercel
+  /api/feeds/refresh target confirmed boolean-only. Six recent cron executions
+  succeeded. Last30-minute feed outcomes5 ok/6 unchanged, no failures.
+-70 serving modules/257 variants, zero positive failure counters, zero sources
+  above3 consecutive failures, zero whole-feed empty availability labels.
+- Fixtures and both charts have26 successful/unchanged checks since October17
+  11:40, latest October18 14:30. Hourly schedule drift is reflected in actual
+  checked/next_due timestamps; no retry counts toward outstanding daily gates.
+  Charts retain25 each, fixtures24. Coverage metadata: Premier League/NBA/
+  La Liga next and past ok; IPL past ok, next explicitly empty; limited sample
+  disclosure preserved. No empty result is treated as an upstream outage.
+- MLA reference remains2/3 genuine daily opportunities, October17/18 10:45.
+  Store500 distinct keys:400 mla-profile and100 url coverage records; zero
+  failures. Next eligible October19 10:45:19.121837 UTC.
+- Constitutions remains1/3, sole October17 15:45 unchanged188 run.188 distinct
+  constitute keys; sorted newline-joined MD5 c14635ffbc17cef3a5ace4fc74273578
+  matches approved inventory. Next eligible October18 15:45:01.351775 UTC;
+  this poll precedes eligibility, so no missing/new opportunity is inferred.
+- Growth20/zero failures, post-F224 scheduled writer acceptance still pending
+  October18 after15:55:02 UTC, normally16:00 poll. October17 timeouts/recovery
+  remain pre-fix history and are not independent daily successes.
+- Exact-scope authenticated Vercel API confirms production
+  dpl_BWbdtJKedAHu8ttuGuR9vnRSijpV READY at exact main3ccdf8a. Latest three
+  genuine main CI runs39135672936,39138686342,39139165726 individually read:
+  attempt1, app and SQL jobs success. No retries, cancellations or empty commits.
+  F233 real production password re-login acceptance is separately recorded in
+  its release plan; it does not replace T15 source observations.
+- Approved behavioral evaluation already executed as earlier recorded; no calls
+  or temporary functions created during this observation. No new blocker found.
+
+T15 remains open; earliest reference completion is still October19 after the
+third constitution daily opportunity, conditional on real success/final checks.
+Hourly monitor unchanged; no completion/failure notification warranted. Only
+existing evidence/tracker documentation changed locally, git diff --check passed.
+No push/deploy, production mutation, timers/serve changes, forced refresh,
+credential/dotenv reads, corpus operation or payment work. Runtime suites not
+rerun for prose.
+
+
+## 2026-10-18 billing foundation observation (read-only)
+
+During the separately authorized local billing implementation, reference sources
+remain 2/3 genuine daily opportunities: MLA next expected 2026-10-19 10:45:19 UTC;
+World Constitutions next 2026-10-19 15:50 UTC (188 rows retained). Growth's ordinary
+16:00 UTC writer attempt failed on World Bank GDP after 12,006 ms, retaining 20
+rows. Its 16:05 UTC retry recovered and reset failures to zero; that retry is not
+an independent expected daily opportunity. No serving source exceeded three
+consecutive failures. Active cron job5 remains every five minutes and its command
+was checked for the existing Vercel /api/feeds/refresh destination without printing
+headers or secrets. No refresh was forced and no production state changed.
+T15 remains open; scheduled follow-up unchanged. This observation does not claim
+new behavioral evaluation or replace the separately recorded evaluation evidence.

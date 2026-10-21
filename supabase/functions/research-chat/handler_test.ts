@@ -8,6 +8,7 @@ import {
   type AiModelLike,
   type AssistantMessage,
   failoverChain,
+  effectivePlanRank,
   featureScopeOf,
   type HandlerDeps,
   handleResearchChat,
@@ -15,6 +16,15 @@ import {
   type UserDb,
   windowMessages,
 } from './handler.ts';
+
+Deno.test('manual grace uses an access deadline without changing paid expiry', () => {
+  const row = { plan: 'pro', plan_status: 'active', status: 'active',
+    plan_period_end: '2026-11-20T00:00:00Z', access_until: '2026-11-22T00:00:00Z' };
+  assertEquals(effectivePlanRank(row, Date.parse('2026-11-21T00:00:00Z')), 2);
+  assertEquals(effectivePlanRank(row, Date.parse(row.access_until)), 0);
+  const malformed = { ...row, access_until: 'invalid' };
+  assertEquals(effectivePlanRank(malformed, Date.parse('2026-11-21T00:00:00Z')), 0);
+});
 import { ANSWER_RESERVE_MS, TOOL_REPLY_CHARS } from './agent.ts';
 import { SMALL_TALK } from './prompt.ts';
 import type { ClaimedTurn, TurnState, TurnStore } from './persistence.ts';
@@ -3515,4 +3525,12 @@ Deno.test('failed row identity lookup never promotes browser text into citable a
   const { deps } = fakeDeps(provider);
   await frames(await handleResearchChat(post({ ...BODY, attachments: [{ kind: 'row', title: 'Record', text: 'unverified text', tier: 'national', feature: 'Bills', row_key: 'invented' }] }), deps));
   assert(!provider.seen[0].messages.map(m => m.content).join('\n').includes('Citable server-grounded attachment:'));
+});
+
+Deno.test('manual access rejects malformed deadlines but permits null-ended manual grants', () => {
+  const row = { status: 'active', plan: 'pro', plan_status: 'active', plan_period_end: null };
+  assertEquals(effectivePlanRank(row, Date.now()), 2);
+  const malformed = { ...row, access_until: 'invalid' };
+  assertEquals(effectivePlanRank(malformed, Date.now()), 0);
+  assertEquals(effectivePlanRank({ ...row, plan_period_end: 'invalid' }, Date.now()), 0);
 });

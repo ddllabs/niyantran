@@ -1,6 +1,7 @@
 import { supabase as defaultClient } from './supabaseClient.js';
 import { normalizePlanId } from './publicPlans.js';
 import { modelLabel, modelName } from './creditUsage.js';
+import { accessDeadline } from './accessDeadline.js';
 
 /**
  * The model allowlist as the browser sees it (foundation spec §C): enabled
@@ -79,7 +80,7 @@ export function modelAvailable(model, plan) {
 export function effectivePlan(entitlement, now = Date.now(), { admin = false } = {}) {
   if (admin) return 'max';
   if (!entitlement || entitlement.status !== 'active' || entitlement.lapsed === true) return 'free';
-  const end = entitlement.periodEnd ? Date.parse(entitlement.periodEnd) : NaN;
+  const end = accessDeadline(entitlement);
   if (Number.isFinite(end) && end <= now) return 'free';
   return normalizePlanId(entitlement.plan);
 }

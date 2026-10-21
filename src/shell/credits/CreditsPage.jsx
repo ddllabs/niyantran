@@ -30,8 +30,19 @@ export const SECTION_PARTS = {
   credits: [['cp-left-title', 'This period'], ['cp-pace-title', 'Pace'], ['cp-where-title', 'Where credits went'], ['cp-recent-title', 'Recent answers'], ['cp-lots-title', 'Credits by expiry']],
   usage: [['cu-analytics-title', 'Chart and legend'], ['cp-heat', 'Daily use'], ['cu-highlights', 'Highlights and features']],
   activity: [],
-  billing: [['plan-billing-title', 'Your plan'], ['plan-change-title', 'Change plan'], ['plan-invoices-title', 'Invoices']],
+  billing: [['billing-current-title', 'Your plan'], ['plan-change-title', 'Choose your plan'], ['topup-title', 'Credit top-ups'], ['billing-history-title', 'Billing history']],
 };
+
+// Scroll only the credits page, keeping the Terminal header fixed. Legacy targets
+// remain available when the original billing layout is serving outside Test Preview.
+export function jumpToPart(page, id, doc = document, win = window) {
+  const legacy = { 'billing-current-title': 'plan-billing-title', 'billing-history-title': 'plan-invoices-title' }[id];
+  const el = doc.getElementById(id) || (legacy && doc.getElementById(legacy));
+  if (!page || !el) return;
+  const still = win?.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  const top = page.scrollTop + el.getBoundingClientRect().top - page.getBoundingClientRect().top - 12;
+  page.scrollTo({ top, behavior: still ? 'auto' : 'smooth' });
+}
 
 /** One report while `enabled`: loading, then ready with its value, or error. Idle while not enabled. */
 function useReport(enabled, load, deps) {
@@ -107,16 +118,7 @@ export default function CreditsPage({ section = 'credits', user, ent }) {
   const failed = creditsTried && !credits;
   const meta = ACCOUNT_SECTIONS.find((s) => s.id === section) || ACCOUNT_SECTIONS[0];
   const openChat = (id) => openConversation(id);
-  // Scrolls the page itself only. scrollIntoView would also scroll the terminal frame, which hides
-  // its overflow, and push the header off screen (owner, 2026-10-15).
-  const jump = (id) => {
-    const page = pageRef.current;
-    const el = document.getElementById(id);
-    if (!page || !el) return;
-    const still = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const top = page.scrollTop + el.getBoundingClientRect().top - page.getBoundingClientRect().top - 12;
-    page.scrollTo({ top, behavior: still ? 'auto' : 'smooth' });
-  };
+  const jump = (id) => jumpToPart(pageRef.current, id);
 
   if (!userId) return <main className="cp-page"><p className="cu-note">Sign in to see your credits.</p></main>;
 
@@ -180,7 +182,7 @@ export default function CreditsPage({ section = 'credits', user, ent }) {
 
         {activity ? <ActivitySection models={filterModels(lifetime.value)} onOpenChat={openChat} /> : null}
 
-        {section === 'billing' ? <PlanBilling key={plan || 'none'} ent={ent} user={user} initialPlan={plan} /> : null}
+        {section === 'billing' ? <PlanBilling key={userId + ':' + (plan || 'none')} ent={ent} user={user} initialPlan={plan} credits={credits} creditsTried={creditsTried} /> : null}
       </main>
     </div>
   );

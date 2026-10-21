@@ -169,7 +169,7 @@ describe('the page', () => {
   it('points every menu part at an element the section renders', () => {
     expect(SECTION_PARTS.credits.map(([id]) => id)).toEqual(['cp-left-title', 'cp-pace-title', 'cp-where-title', 'cp-recent-title', 'cp-lots-title']);
     expect(SECTION_PARTS.usage.map(([id]) => id)).toEqual(['cu-analytics-title', 'cp-heat', 'cu-highlights']);
-    expect(SECTION_PARTS.billing.map(([id]) => id)).toEqual(['plan-billing-title', 'plan-change-title', 'plan-invoices-title']);
+    expect(SECTION_PARTS.billing.map(([id]) => id)).toEqual(['billing-current-title', 'plan-change-title', 'topup-title', 'billing-history-title']);
   });
 
   it('shows the status bar above the section', () => {

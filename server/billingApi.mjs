@@ -1,38 +1,26 @@
 /**
- * Razorpay billing API and invoices for the INR monthly plans (open-work F109).
- *
- *   GET  /api/billing/config
- *   GET  /api/billing/quote?planId=
- *   POST /api/billing/create-order   { planId, name? }
- *   POST /api/billing/verify        { orderId, paymentId, signature, planId, name? }
- *   POST /api/billing/invoice       { planId, name? }  // local demo record only
- *   GET  /api/billing/invoices
- *   GET  /api/billing/invoice/:id   HTML invoice
- *
- * Plans are Plus, Pro and Max at their rupee prices, one month per payment,
- * with no GST (the seller is not GST-registered). Checkout opens only when the
- * Razorpay keys exist and BILLING_CHECKOUT_OPEN=1 (owner, F110: closed until AI
- * credits exist), and while a plan is active only a renewal or an upgrade can
- * be bought.
- *
- * A verified payment grants its paid period through grant_paid_plan() (F2,
- * docs/specs/2026-09-29-f2-entitlements.md); nothing else here grants a plan.
- *
- * Invoices live in Supabase public.invoices (T5, ADR 0005). Every route but
- * config and quote needs a verified bearer, and the buyer's identity comes
- * from it, never from the body. Reads run as the caller, so RLS decides what
- * they may see; writes go through issue_invoice() with the server key, which
- * numbers the invoice gaplessly per financial year.
+ * Server-owned Razorpay purchases: immutable order snapshots, captured-only
+ * fulfilment, signed raw-byte webhooks and owned status/invoice reads.
+ * Recovery and reviewed adjustments require a verified platform administrator.
+ * New checkout is closed by default; disabling it never disables paid recovery.
+ * Customer financial effects use atomic service-only billing RPCs. Demo writes
+ * are disabled, including local previews which could share the live database.
  */
-import crypto from 'crypto';
 import { loadEnv } from './loadEnv.mjs';
 import { getSupabaseAdminClient } from './authEmailProvider.mjs';
 import { authorizeLocalUser, localClientForToken } from './usersApi.mjs';
-import { isServerlessHost } from './writableRoot.mjs';
-import { computeQuote, newInvoiceId, renderInvoiceHtml, sellerFromEnv } from './inrBilling.mjs';
-import { purchaseKind } from '../src/lib/publicPlans.js';
+import { computeQuote, renderInvoiceHtml, sellerFromEnv } from './inrBilling.mjs';
+import { createPurchase, listPurchases, listPlanPeriods, verifyPurchase, purchaseStatus, receivePaymentWebhook, recoverPayments, paymentContext, paymentConfig, checkoutEnabled, billingRpc, readRawPaymentBody, TOPUP_PACKS, planCycleOperation } from './paymentService.mjs';
 
 loadEnv();
+
+// Fixed categories only: provider requests and arbitrary exception text are private.
+const WEBHOOK_REJECTION_STAGE = new Map([
+  ['Webhook raw body unavailable.', 'raw_body'], ['Incomplete request body.', 'raw_body'],
+  ['Request too large.', 'body_size'], ['Invalid webhook signature.', 'signature'],
+  ['Invalid webhook JSON.', 'json'], ['Webhook merchant mismatch.', 'merchant_payload'],
+  ['Invalid event identity.', 'event_identity'], ['Webhook not configured.', 'configuration'],
+]);
 
 function json(res, body, status = 200) {
   res.statusCode = status;
@@ -46,73 +34,6 @@ function html(res, body, status = 200) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
   res.end(body);
-}
-
-function readBody(req) {
-  if (req.body && typeof req.body === 'object') return Promise.resolve(req.body);
-  if (typeof req.body === 'string') {
-    try {
-      return Promise.resolve(req.body ? JSON.parse(req.body) : {});
-    } catch (err) {
-      return Promise.reject(err);
-    }
-  }
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on('data', (c) => chunks.push(c));
-    req.on('end', () => {
-      try {
-        const raw = Buffer.concat(chunks).toString('utf8');
-        resolve(raw ? JSON.parse(raw) : {});
-      } catch (err) {
-        reject(err);
-      }
-    });
-    req.on('error', reject);
-  });
-}
-
-function keys() {
-  const keyId = String(process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || '').trim();
-  const keySecret = String(process.env.RAZORPAY_KEY_SECRET || '').trim();
-  return { keyId, keySecret, enabled: Boolean(keyId && keySecret) };
-}
-
-async function razorpayFetch(path, { method = 'GET', body } = {}) {
-  const { keyId, keySecret } = keys();
-  if (!keyId || !keySecret) throw new Error('Razorpay keys are not configured.');
-  const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-  const res = await fetch(`https://api.razorpay.com/v1${path}`, {
-    method,
-    headers: {
-      Authorization: `Basic ${auth}`,
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const msg = data?.error?.description || data?.error?.reason || `Razorpay ${res.status}`;
-    const err = new Error(msg);
-    err.status = res.status;
-    err.data = data;
-    throw err;
-  }
-  return data;
-}
-
-function verifySignature(orderId, paymentId, signature) {
-  const { keySecret } = keys();
-  const expected = crypto.createHmac('sha256', keySecret).update(`${orderId}|${paymentId}`).digest('hex');
-  try {
-    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(String(signature || '')));
-  } catch {
-    return false;
-  }
-}
-
-function quoteFromBody(body) {
-  return computeQuote({ planId: body.planId });
 }
 
 function num(v) {
@@ -143,72 +64,12 @@ function bearerToken(req) {
   return match ? match[1] : '';
 }
 
-/** Issues one invoice for a verified buyer. The database assigns the number. */
-// No GST is collected: the GST columns keep their zero defaults and the
-// taxable value equals the total.
-async function persistInvoice({ quote, buyer, payment }, deps) {
-  const { data, error } = await deps.adminClient().rpc('issue_invoice', {
-    p: {
-      id: newInvoiceId(),
-      user_id: buyer.userId,
-      user_email: buyer.email,
-      plan_id: quote.planId,
-      taxable: quote.total,
-      total: quote.total,
-      buyer_name: buyer.name || '',
-      payment_id: payment?.paymentId || '',
-      order_id: payment?.orderId || '',
-      provider: payment?.provider || 'razorpay',
-      payload: { planLabel: quote.planLabel, period: quote.period, buyerEmail: buyer.email },
-    },
-  });
-  if (error) {
-    const err = new Error(error.code === '23505' ? 'An invoice already exists for this payment.' : 'Could not record the invoice.');
-    err.status = error.code === '23505' ? 409 : 503;
-    throw err;
-  }
-  return rowToInvoice(data);
-}
-
-/** Records the paid period on the profile (service role only). Returns my_entitlement's shape. */
-async function grantPaidPlan({ userId, quote, paymentId }, deps) {
-  const { data, error } = await deps.adminClient().rpc('grant_paid_plan', {
-    p_user: userId,
-    p_plan: quote.planId,
-    p_period: 'month',
-    p_payment_id: paymentId,
-  });
-  if (error) {
-    const err = new Error('The payment was verified but the plan could not be recorded. Try again, or contact support with the payment id.');
-    err.status = 503;
-    throw err;
-  }
-  return data;
-}
-
-function buyerFrom(body, caller) {
-  return { email: caller.email, userId: caller.id, name: body.name };
-}
-
-/** The Razorpay order must be the caller's, for this plan, at the plan's price. */
-function orderMatches(order, quote, caller) {
-  const notes = order?.notes || {};
-  return (
-    String(notes.userId || '') === caller.id &&
-    String(notes.planId || '') === quote.planId &&
-    Number(order?.amount) === quote.amountPaise
-  );
-}
-
 function resolveDeps(deps = {}) {
   return {
     adminClient: deps.adminClient || getSupabaseAdminClient,
     clientForToken: deps.clientForToken || localClientForToken,
-    razorpayFetch: deps.razorpayFetch || razorpayFetch,
-    verifySignature: deps.verifySignature || verifySignature,
-    serverless: deps.serverless ?? isServerlessHost(),
-    razorpayEnabled: deps.razorpayEnabled ?? keys().enabled,
-    checkoutOpen: deps.checkoutOpen ?? process.env.BILLING_CHECKOUT_OPEN === '1',
+    razorpayFetch: deps.razorpayFetch,
+    paymentConfig: deps.paymentConfig || paymentConfig(),
   };
 }
 
@@ -218,13 +79,15 @@ export async function handleBillingApi(req, res, url, deps = {}) {
   const caller = () => authorizeLocalUser(req, res, { clientForToken: d.clientForToken });
 
   if (url.pathname === '/api/billing/config' && req.method === 'GET') {
-    const enabled = d.razorpayEnabled && d.checkoutOpen;
+    const enabled = checkoutEnabled(d.paymentConfig);
     json(res, {
       provider: 'razorpay',
       enabled,
-      checkoutOpen: d.checkoutOpen,
-      keyId: enabled ? keys().keyId : '',
+      checkoutOpen: d.paymentConfig.open,
+      keyId: enabled ? d.paymentConfig.keyId : '',
+      topups: TOPUP_PACKS,
       currency: 'INR',
+      cycleChanges: Boolean(d.paymentConfig.cycleChanges && ['test', 'live'].includes(d.paymentConfig.mode)),
       gstRegistered: false,
       demoFallback: !enabled,
     });
@@ -241,134 +104,65 @@ export async function handleBillingApi(req, res, url, deps = {}) {
     return true;
   }
 
-  if (url.pathname === '/api/billing/create-order' && req.method === 'POST') {
-    const who = await caller();
-    if (!who) return true;
+  const cycleRoute = url.pathname.match(/^\/api\/billing\/plan-(quote|state|schedule|cancel)$/);
+  if (cycleRoute) {
     try {
-      const body = await readBody(req);
-      const quote = quoteFromBody(body);
-      if (!quote) {
-        json(res, { ok: false, reason: 'Unknown plan.' }, 400);
-        return true;
+      const action = cycleRoute[1];
+      if (req.method !== (['quote', 'state'].includes(action) ? 'GET' : 'POST')) { json(res, { ok: false, reason: 'Method not allowed.' }, 405); return true; }
+      const who = await caller(); if (!who) return true;
+      const body = req.method === 'GET' ? Object.fromEntries(url.searchParams)
+        : req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body) ? req.body : JSON.parse((await readRawPaymentBody(req, 16384)).toString('utf8'));
+      const result = await planCycleOperation(action, body, who, paymentContext(d));
+      json(res, { ok: true, ...(action === 'quote' ? { quote: result } : result) });
+    } catch (error) { json(res, { ok: false, reason: error.status ? error.message : 'Plan change could not be confirmed. Refresh before retrying.' }, error.status || 503); }
+    return true;
+  }
+
+  const purchaseRoute = ['/api/billing/create-order', '/api/billing/verify', '/api/billing/order-status', '/api/billing/purchases', '/api/billing/plan-periods', '/api/billing/webhook', '/api/billing/recover', '/api/billing/adjustments', '/api/billing/adjustments/review'].includes(url.pathname);
+  if (purchaseRoute) {
+    try {
+      const webhook = url.pathname === '/api/billing/webhook';
+      if (req.method !== (url.pathname.endsWith('order-status') || url.pathname.endsWith('/purchases') || url.pathname.endsWith('/plan-periods') || url.pathname.endsWith('/adjustments') ? 'GET' : 'POST')) {
+        json(res, { ok: false, reason: 'Method not allowed.' }, 405); return true;
       }
-      if (!d.checkoutOpen) {
-        json(res, { ok: false, reason: 'Online payments open soon.', checkoutOpen: false, quote }, 503);
-        return true;
+      const who = webhook ? null : await caller();
+      if (!webhook && !who) return true;
+      if (/\/(recover|adjustments)(\/review)?$/.test(url.pathname)) {
+        const admin = await d.clientForToken(bearerToken(req)).rpc('is_platform_admin');
+        if (admin.error || admin.data !== true) { json(res, { ok: false, reason: 'Administrator required.' }, 403); return true; }
       }
-      if (!d.razorpayEnabled) {
-        json(res, { ok: false, reason: 'Razorpay is not configured on this server.', demoFallback: true, quote }, 503);
-        return true;
+      const ctx = paymentContext(d);
+      let result;
+      if (webhook) result = await receivePaymentWebhook(req, ctx);
+      else if (url.pathname.endsWith('/plan-periods')) result = { ok: true, periods: await listPlanPeriods(who, ctx) };
+      else if (url.pathname.endsWith('/purchases')) result = { ok: true, purchases: await listPurchases(who, ctx) };
+      else if (url.pathname.endsWith('/order-status')) result = await purchaseStatus(Object.fromEntries(url.searchParams), who, ctx);
+      else if (url.pathname.endsWith('/recover')) result = await recoverPayments(ctx);
+      else if (url.pathname.endsWith('/adjustments')) result = { ok: true, adjustments: await billingRpc(ctx.client, 'billing_event', { p_action: 'reviews', p: { account: ctx.config.account, mode: ctx.config.mode } }) };
+      else {
+        const body = req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body) ? req.body : JSON.parse((await readRawPaymentBody(req, 16384)).toString('utf8'));
+        if (Buffer.byteLength(JSON.stringify(body)) > 16384) { json(res, { ok: false, reason: 'Request too large.' }, 413); return true; }
+        if (url.pathname.endsWith('/create-order')) result = await createPurchase(body, who, ctx);
+        else if (url.pathname.endsWith('/review')) result = { ok: true, adjustment: await billingRpc(ctx.client, 'billing_review_adjustment_v2', { p: { ...body, actorId: who.id, account: ctx.config.account, mode: ctx.config.mode } }) };
+        else result = await verifyPurchase(body, who, ctx);
       }
-      // Read as the caller: my_entitlement() returns only their own plan.
-      const current = await d.clientForToken(bearerToken(req)).rpc('my_entitlement');
-      if (current.error) {
-        json(res, { ok: false, reason: 'Your current plan could not be read. Try again.' }, 503);
-        return true;
-      }
-      if (purchaseKind(current.data, quote.planId) === 'blocked') {
-        json(res, { ok: false, reason: 'While a plan is active you can renew it or upgrade to a higher plan.' }, 409);
-        return true;
-      }
-      const receipt = `niy_${quote.planId}_${Date.now()}`.slice(0, 40);
-      const order = await d.razorpayFetch('/orders', {
-        method: 'POST',
-        body: {
-          amount: quote.amountPaise,
-          currency: 'INR',
-          receipt,
-          notes: { planId: quote.planId, userId: who.id, email: who.email },
-        },
-      });
-      json(res, {
-        ok: true,
-        keyId: keys().keyId,
-        orderId: order.id,
-        amount: order.amount,
-        currency: order.currency || 'INR',
-        planId: quote.planId,
-        quote,
-      });
+      if (result.invoice) result.invoice = rowToInvoice(result.invoice);
+      json(res, result, result.pending ? 202 : 200);
     } catch (err) {
-      json(res, { ok: false, reason: err.message || 'Could not create order.' }, err.status || 500);
+      if (url.pathname === '/api/billing/webhook' && d.paymentConfig.mode === 'test') {
+        console.warn('billing_webhook_rejected', {
+          stage: WEBHOOK_REJECTION_STAGE.get(err.message) || 'processing',
+          status: Number.isInteger(err.status) && err.status >= 400 && err.status <= 599 ? err.status : 503,
+        });
+      }
+      json(res, { ok: false, reason: err.status ? err.message : 'Purchase processing is pending. Check purchase status before retrying.' }, err.status || 503);
     }
     return true;
   }
 
-  if (url.pathname === '/api/billing/verify' && req.method === 'POST') {
-    const who = await caller();
-    if (!who) return true;
-    try {
-      const body = await readBody(req);
-      const orderId = String(body.orderId || '');
-      const paymentId = String(body.paymentId || '');
-      const signature = String(body.signature || '');
-      if (!orderId || !paymentId || !signature) {
-        json(res, { ok: false, reason: 'Missing payment fields.' }, 400);
-        return true;
-      }
-      if (!d.verifySignature(orderId, paymentId, signature)) {
-        json(res, { ok: false, reason: 'Payment signature mismatch.' }, 400);
-        return true;
-      }
-      const quote = quoteFromBody(body);
-      if (!quote) {
-        json(res, { ok: false, reason: 'Unknown plan.' }, 400);
-        return true;
-      }
-      // The signature proves the payment belongs to this order; the order
-      // proves who it was for, which plan, and how much was paid.
-      const order = await d.razorpayFetch(`/orders/${encodeURIComponent(orderId)}`);
-      if (!orderMatches(order, quote, who)) {
-        json(res, { ok: false, reason: 'Payment does not match the order.' }, 400);
-        return true;
-      }
-      const payment = await d.razorpayFetch(`/payments/${encodeURIComponent(paymentId)}`);
-      if (payment?.status && payment.status !== 'captured' && payment.status !== 'authorized') {
-        json(res, { ok: false, reason: `Payment status is ${payment.status}.` }, 400);
-        return true;
-      }
-      // Grant first (F2): the grant is idempotent per payment id, and the
-      // invoice is refused for a payment it has already covered, so a retry
-      // after either step fails completes both and never extends twice.
-      const entitlement = await grantPaidPlan({ userId: who.id, quote, paymentId }, d);
-      let invoice = null;
-      try {
-        invoice = await persistInvoice({
-          quote,
-          buyer: buyerFrom(body, who),
-          payment: { paymentId, orderId, provider: 'razorpay' },
-        }, d);
-      } catch (err) {
-        if (err.status !== 409) throw err;
-      }
-      json(res, { ok: true, planId: quote.planId, orderId, paymentId, invoice, quote, entitlement });
-    } catch (err) {
-      json(res, { ok: false, reason: err.message || 'Verification failed.' }, err.status || 500);
-    }
-    return true;
-  }
-
-  // Demo record, for local development without Razorpay keys. A serverless
-  // host (production or a preview, both on the live database) refuses it.
   if (url.pathname === '/api/billing/invoice' && req.method === 'POST') {
-    const who = await caller();
-    if (!who) return true;
-    if (d.serverless) {
-      json(res, { ok: false, reason: 'Online payments are not enabled on this deployment yet.', paymentsDisabled: true }, 403);
-      return true;
-    }
-    try {
-      const body = await readBody(req);
-      const quote = quoteFromBody(body);
-      if (!quote) {
-        json(res, { ok: false, reason: 'Unknown plan.' }, 400);
-        return true;
-      }
-      const invoice = await persistInvoice({ quote, buyer: buyerFrom(body, who), payment: { provider: 'demo' } }, d);
-      json(res, { ok: true, invoice, quote });
-    } catch (err) {
-      json(res, { ok: false, reason: err.message || 'Could not create invoice.' }, err.status || 500);
-    }
+    if (!(await caller())) return true;
+    json(res, { ok: false, reason: 'Demo invoices are disabled.', paymentsDisabled: true }, 403);
     return true;
   }
 
@@ -410,7 +204,7 @@ export async function handleBillingApi(req, res, url, deps = {}) {
       html(res, '<p>Invoice not found.</p>', 404);
       return true;
     }
-    html(res, renderInvoiceHtml(rowToInvoice(found.data), sellerFromEnv()));
+    html(res, renderInvoiceHtml(rowToInvoice(found.data)));
     return true;
   }
 

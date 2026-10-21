@@ -1,6 +1,12 @@
-import { useEffect, useState } from 'react';
-import { completeCheckout, fetchBillingConfig, fetchInvoices, openInvoice } from '../lib/billing.js';
-import { creditsText, refreshCredits, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
+import BillingWorkspace from './credits/BillingWorkspace.jsx';
+import PlanPeriods from './credits/PlanPeriods.jsx';
+import BillingReviews from './credits/BillingReviews.jsx';
+import Purchases from './credits/Purchases.jsx';
+import PurchaseReview from './credits/PurchaseReview.jsx';
+import PlanChoices from './PlanChoices.jsx';
+import { useEffect, useRef, useState } from 'react';
+import { completeCheckout, fetchBillingConfig, fetchInvoices, openInvoice, formatInr } from '../lib/billing.js';
+import { creditsText, refreshCredits } from '../lib/creditsStore.js';
 import { refreshEntitlement } from '../lib/entitlementStore.js';
 import { PUBLIC_PLANS, purchaseKind, rupees } from '../lib/publicPlans.js';
 import CreditLots, { dayOrNull } from './CreditLots.jsx';
@@ -26,7 +32,7 @@ function day(iso) {
  * allowance and the lots; it is left out when there is no cycle (null). On the credits page (F184) it
  * sits in the plan card with this period's bar; usage and activity have their own sections.
  */
-function CreditsSection({ credits, tried }) {
+function CreditsSection({ credits, tried, checkoutOpen }) {
   if (!credits) {
     return (
       <section className="plan-credits" aria-labelledby="plan-credits-title">
@@ -68,10 +74,10 @@ function CreditsSection({ credits, tried }) {
       <PeriodBar credits={credits} compact />
 
       {/* F161: top-ups are not on sale until O6, whatever the state of plan checkout. */}
-      <p className="plan-up-note plan-credits-note">
+      {!checkoutOpen ? <p className="plan-up-note plan-credits-note">
         Top-ups coming soon. Need more credits now? Write to{' '}
         <a href="mailto:niyantranai@gmail.com">niyantranai@gmail.com</a>.
-      </p>
+      </p> : null}
     </section>
   );
 }
@@ -81,7 +87,7 @@ function CreditsSection({ credits, tried }) {
  * your plan with this period's credits, the plan choices and checkout, and the invoices. Checkout
  * reports only what the server verified, and says so plainly while it is closed.
  */
-export default function PlanBilling({ ent, user, initialPlan = null }) {
+export default function PlanBilling({ ent, user, initialPlan = null, credits: suppliedCredits = null, creditsTried = false }) {
   const [config, setConfig] = useState(null);
   const [invoices, setInvoices] = useState(null);
   const [selected, setSelected] = useState(() =>
@@ -90,38 +96,38 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const userId = user?.id || null;
-  const [credits, setCredits] = useState(() => serverCredits(userId));
-  const [creditsTried, setCreditsTried] = useState(false);
+  const credits = suppliedCredits?.userId === userId ? suppliedCredits : null;
+  const [invoiceError, setInvoiceError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const paying = useRef(false);
+  const [configAttempt, setConfigAttempt] = useState(0);
+
+  function updated() {
+    setRevision(value => value + 1);
+    Promise.allSettled([refreshCredits(), refreshEntitlement()]);
+    fetchInvoices().then(list => { setInvoices(list); setInvoiceError(''); })
+      .catch(() => setInvoiceError('Invoices could not be loaded. Try refreshing purchases.'));
+  }
 
   useEffect(() => {
     let live = true;
+    setConfig(null);
     fetchBillingConfig().then((c) => live && setConfig(c));
-    Promise.resolve(fetchInvoices()).then((list) => live && setInvoices(list || []));
+    return () => { live = false; };
+  }, [userId, configAttempt]);
+
+  useEffect(() => {
+    let live = true;
+    setInvoices(null); setInvoiceError('');
+    Promise.resolve(fetchInvoices()).then((list) => live && setInvoices(list || []))
+      .catch(() => live && setInvoiceError('Invoices could not be loaded. Try refreshing purchases.'));
     refreshEntitlement();
     return () => {
       live = false;
     };
-  }, []);
-
-  // Credits are read the way the plan is: subscribe to the store, then refresh it.
-  useEffect(() => {
-    if (!userId) return undefined;
-    let live = true;
-    const sync = () => {
-      if (live) setCredits(serverCredits(userId));
-    };
-    const unsubscribe = subscribeCredits(sync);
-    Promise.resolve(refreshCredits()).then(() => {
-      sync();
-      if (live) setCreditsTried(true);
-    });
-    return () => {
-      live = false;
-      unsubscribe();
-    };
   }, [userId]);
 
-  const active = ent?.status === 'active';
+  const active = ent?.status === 'active' && !ent?.lapsed;
   const current = active ? ent.plan : 'free';
   const end = active ? ent.periodEnd : null;
   const renewDue = Boolean(end) && Date.parse(end) - Date.now() <= RENEW_WINDOW_MS;
@@ -130,19 +136,25 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
   const open = Boolean(config?.enabled);
 
   async function pay() {
-    if (!choice) return;
+    if (!choice || !open || paying.current) return;
+    paying.current = true;
     setBusy(true);
     setResult(null);
-    const outcome = await completeCheckout({ planId: choice.id, user });
-    setBusy(false);
-    if (outcome?.ok) {
-      setResult({ ok: true, invoice: outcome.invoice || null });
-      setSelected(null);
-      Promise.resolve(fetchInvoices()).then((list) => setInvoices(list || []));
-    } else {
-      setResult({ ok: false, text: outcome?.reason || 'The payment could not be completed.' });
-    }
+    try {
+      const outcome = await completeCheckout({ planId: choice.id, user });
+      if (outcome?.ok) {
+        setResult({ ok: true, invoice: outcome.invoice || null });
+        setSelected(null);
+        updated();
+      } else {
+        setResult({ ok: false, pending: outcome?.pending, text: outcome?.reason || 'The payment could not be completed.' });
+      }
+    } catch { setResult({ ok: false, text: 'Purchase status is uncertain. Refresh purchases before paying again.' }); }
+    finally { setBusy(false); paying.current = false; }
   }
+
+  if (!config || config.unavailable || config.cycleChanges) return <BillingWorkspace key={userId} ent={ent} user={user} initialPlan={initialPlan} config={config}
+    credits={credits} creditsTried={creditsTried} invoices={invoices} invoiceError={invoiceError} revision={revision} onUpdated={updated} onRetryConfig={() => setConfigAttempt(value => value + 1)} />;
 
   return (
     <div className="plan-billing-section">
@@ -153,54 +165,35 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
             ? `${planLabel(current)} is active ${end ? `until ${day(end)}` : 'with no end date'}.`
             : 'You are on Free: every desk at no cost, with 10,000 AI credits to start.'}
         </p>
+        <p className="plan-up-note">No automatic renewal. Top-ups do not change your plan.</p>
         {renewDue ? (
           <p className="plan-up-renew">Your {planLabel(current)} month ends on {day(end)}. Renew to keep it.</p>
         ) : null}
-        {userId ? <CreditsSection credits={credits} tried={creditsTried} /> : null}
+        {userId ? <PlanPeriods key={userId} revision={revision} /> : null}
+        {userId ? <CreditsSection credits={credits} tried={creditsTried} checkoutOpen={open} /> : null}
       </section>
 
+      {user ? <Purchases key={userId} user={user} revision={revision} onUpdated={updated} suppliedConfig={config} /> : null}
+      {user?.role === 'admin' ? <BillingReviews user={user} /> : null}
       <section className="cp-card" aria-labelledby="plan-change-title">
         <h3 id="plan-change-title" className="cp-card-title">Change plan</h3>
-        <div className="plan-up-choices">
-          {PAID.map((p) => {
-            const option = purchaseKind(ent, p.id);
-            const blocked = option === 'blocked';
-            return (
-              <button
-                type="button"
-                key={p.id}
-                className={`plan-up-plan${selected === p.id ? ' on' : ''}`}
-                aria-pressed={selected === p.id}
-                disabled={blocked || busy}
-                onClick={() => {
-                  setSelected(p.id);
-                  setResult(null);
-                }}
-              >
-                {option === 'renew' ? <em>Current</em> : p.popular ? <em>Popular</em> : null}
-                <strong>{p.name}</strong>
-                <span className="amt">{rupees(p.monthly)}<small>/month</small></span>
-                <span className="who">{blocked ? `Not available while ${planLabel(current)} is active` : p.tag}</span>
-              </button>
-            );
-          })}
-        </div>
+        <PlanChoices ent={ent} selected={selected} busy={busy} onSelect={id => { setSelected(id); setResult(null); }} />
 
-        {choice ? (
-          <p className="plan-up-selnote">
-            {kind === 'upgrade'
+        {choice ? <PurchaseReview label={`${choice.name} plan — one month`} amountPaise={choice.monthly * 100}
+          credits={choice.items[0]} currentPlan={planLabel(current)} busy={busy} disabled={!open}
+          onConfirm={pay} onCancel={() => setSelected(null)} timing={kind === 'upgrade'
               ? `Your ${planLabel(choice.id)} month starts now. Unused days of ${planLabel(current)} are not refunded.`
               : kind === 'renew'
                 ? `Adds one month after ${day(end)}.`
-                : `One month of ${planLabel(choice.id)}, starting now.`}
-          </p>
-        ) : null}
+                : kind === 'downgrade'
+                  ? `Your ${planLabel(choice.id)} month starts after the current paid period. Your current access continues until then.`
+                  : `One month of ${planLabel(choice.id)}, starting now.`} /> : null}
 
-        <div className="plan-up-actions">
+        {!choice ? <div className="plan-up-actions">
           <button type="button" className="plan-up-pay" disabled={!choice || busy || !open} onClick={pay}>
             {busy ? 'Opening payment…' : choice ? `Pay ${rupees(choice.monthly)} for one month` : 'Choose a plan'}
           </button>
-        </div>
+        </div> : null}
         {config && !open ? (
           <p className="plan-up-note">
             Online payments open soon. To upgrade now, write to{' '}
@@ -209,7 +202,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
         ) : null}
         {result?.ok ? (
           <p className="plan-up-ok" role="status">
-            Payment verified. Your plan is updated.
+            Payment verified. Your paid period has been recorded.
             {result.invoice ? (
               <>
                 {' '}
@@ -225,15 +218,15 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
 
       <section className="cp-card" aria-labelledby="plan-invoices-title">
         <h3 id="plan-invoices-title" className="cp-card-title">Invoices</h3>
-        {invoices === null ? (
+        {invoiceError ? <p role="alert">{invoiceError}</p> : invoices === null ? (
           <p className="plan-up-note">Loading invoices…</p>
         ) : invoices.length ? (
           <ul className="plan-up-invoices">
             {invoices.map((inv) => (
               <li key={inv.id}>
                 <span>{inv.invoiceNo}</span>
-                <span>{inv.issuedAt ? day(inv.issuedAt) : ''}{inv.planId ? ` · ${planLabel(inv.planId)}` : ''}</span>
-                <span>{rupees(Math.round(Number(inv.total) || 0))}</span>
+                <span>{inv.issuedAt ? day(inv.issuedAt) : ''} · {inv.description || inv.label || planLabel(inv.planId)}</span>
+                <span>{formatInr(Number(inv.total) || 0)}</span>
                 <button type="button" className="plan-up-inv-link" onClick={() => openInvoice(inv.id)}>
                   Open
                 </button>
@@ -245,7 +238,7 @@ export default function PlanBilling({ ent, user, initialPlan = null }) {
         )}
 
         <p className="plan-up-note">
-          Prices in Indian rupees; no GST is charged. Each payment covers one month. See the{' '}
+          Prices in Indian rupees; no GST is charged. Plans cover one month; top-up credits are valid for 12 months. See the{' '}
           <a href="/refunds">Refund &amp; Cancellation Policy</a>.
         </p>
       </section>

@@ -1,6 +1,7 @@
 // T5 (docs/specs/2026-09-28-t5-invoices-to-supabase.md): invoices live in
 // Supabase, every billing route but config and quote needs a verified bearer,
 // identity comes from that bearer, and verify checks the Razorpay order.
+import crypto from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -37,7 +38,7 @@ function userClient(token) {
   return {
     auth: { getUser: vi.fn(async () => (who ? { data: { user: { id: who.id, email: who.email } }, error: null } : { data: { user: null }, error: { message: 'bad jwt' } })) },
     rpc: vi.fn(async (name) => {
-      if (name === 'my_entitlement') return { data: entitlements[who?.id] || { plan: 'free', status: 'free' }, error: null };
+      if (name === 'my_entitlement_manual') return { data: entitlements[who?.id] || { plan: 'free', status: 'free' }, error: null };
       return { data: name === 'is_platform_admin' ? Boolean(who?.admin) : { user_id: who?.id, role: who?.admin ? 'admin' : 'user', status: 'active' }, error: null };
     }),
     from: vi.fn(() => {
@@ -148,7 +149,7 @@ describe('INR plans, monthly, no GST (open-work F109)', () => {
 
   it('renders a plain invoice from the company, not a tax invoice', async () => {
     const { body } = await call(request('GET', '/api/billing/invoice/inv_a_one', { as: A }));
-    expect(body).toContain('Niyantran Strategy Consulting Private Limited');
+    expect(body).toContain('Niyantran Consulting Pvt. Ltd.');
     expect(body).toContain('Not registered under GST');
     expect(body).not.toMatch(/TAX INVOICE|CGST|SGST|IGST|USD/);
   });
@@ -189,11 +190,10 @@ describe('the demo invoice record', () => {
     expect(issued).toEqual([]);
   });
 
-  it('locally, issues to the verified caller whatever the body says', async () => {
+  it('also refuses local demo invoice writes', async () => {
     const response = await call(request('POST', '/api/billing/invoice', { as: A, body: { planId: 'pro', email: B.email, userId: B.id } }));
-    expect(response.status).toBe(200);
-    expect(issued).toHaveLength(1);
-    expect(issued[0]).toMatchObject({ user_id: A.id, user_email: A.email, provider: 'demo', plan_id: 'pro' });
+    expect(response.status).toBe(403);
+    expect(issued).toHaveLength(0);
   });
 
   it('never grants a plan (F2: only a verified payment does)', async () => {
@@ -202,142 +202,180 @@ describe('the demo invoice record', () => {
   });
 });
 
-describe('Razorpay orders and verification', () => {
-  it('stamps the verified caller into the order notes', async () => {
-    const rz = razorpay();
-    const response = await call(request('POST', '/api/billing/create-order', { as: A, body: { planId: 'pro', userId: B.id, email: B.email } }), deps({ razorpayFetch: rz }));
-    expect(response.status).toBe(200);
-    const [, init] = rz.mock.calls.find(([path]) => path === '/orders');
-    expect(init.body.notes).toMatchObject({ userId: A.id, email: A.email, planId: 'pro' });
-    expect(init.body.notes).not.toHaveProperty('gst');
-    expect(init.body.notes).not.toHaveProperty('yearly');
-    expect(init.body).toMatchObject({ amount: 99900, currency: 'INR' });
+
+const PURCHASE = 'a0000000-0000-4000-8000-000000000009';
+const REQUEST = 'a0000000-0000-4000-8000-000000000008';
+const CONFIG = { ready:true, open:true, testBuyerIds:[A.id], mode:'test', account:'acc_fixture',keyId:'rzp_test_fixture',keySecret:'fixture-secret' };
+const stored = () => ({ id:PURCHASE,user_id:A.id,amount_paise:99900,currency:'INR',provider_order_id:'order_9',state:'ready',snapshot:{productId:'plan-pro',kind:'plan',planId:'pro',credits:65000,amountPaise:99900,currency:'INR',creditUnit:'credit-paise-v2',buyerEmail:A.email} });
+const signed = () => crypto.createHmac('sha256',CONFIG.keySecret).update('order_9|pay_9').digest('hex');
+function purchaseDeps(extra={}) {
+  const calls=[];
+  const order = extra.order === null ? null : { ...stored(),...extra.order };
+  const saved = row('inv_atomic',A,3);
+  let fulfilled=false;
+  const admin={rpc:vi.fn(async(name,args)=>{
+    calls.push([name,args]);
+    if(name==='billing_order') {
+      if(args.p_action==='get') return {data:order?.user_id===args.p.userId?order:null};
+      if(args.p_action==='claim') return {data:{...stored(),snapshot:args.p.snapshot,fresh:true}};
+      if(args.p_action==='bind') return {data:stored()};
+      return {data:{ok:true}};
+    }
+    if(name==='billing_checkout_preflight') return {data:{stale:false,version:'0',observedPayment:false}};
+    if(name==='billing_capture') {
+      if(extra.captureError)return {error:{code:'XX000'}};
+      if(!fulfilled){granted.push(args);issued.push(saved);fulfilled=true;}
+      return {data:{ok:true,invoice:saved,status:'fulfilled'}};
+    }
+    return {data:[]};
+  })};
+  const rz=vi.fn(async(path,init)=> path==='/orders'?{id:'order_9',receipt:PURCHASE,amount:init.body.amount,currency:'INR'}:{id:'pay_9',order_id:'order_9',amount:99900,currency:'INR',status:'captured',...extra.payment});
+  return {...deps(),paymentConfig:{...CONFIG,...extra.config},adminClient:()=>admin,razorpayFetch:rz,calls};
+}
+const verifyRequest=()=>request('POST','/api/billing/verify',{as:A,body:{purchaseId:PURCHASE,orderId:'order_9',paymentId:'pay_9',signature:signed(),planId:'max',userId:B.id,email:B.email}});
+describe('durable Razorpay order and verification routes',()=>{
+  it('hides Test checkout availability when its buyer list is absent without leaking the list',async()=>{
+    const d=purchaseDeps({config:{testBuyerIds:[]}});
+    const out=await call(request('GET','/api/billing/config'),d);
+    expect(out.body.enabled).toBe(false);expect(out.body.keyId).toBe('');
+    expect(out.body).not.toHaveProperty('testBuyerIds');
   });
-
-  async function verifyWith(order, body = {}) {
-    const d = deps({ razorpayFetch: razorpay({ order }), verifySignature: () => true });
-    return call(request('POST', '/api/billing/verify', {
-      as: A,
-      body: { orderId: 'order_9', paymentId: 'pay_9', signature: 'sig', planId: 'pro', email: B.email, userId: B.id, ...body },
-    }), d);
-  }
-
-  async function goodOrder() {
-    const q = await call(request('GET', '/api/billing/quote?planId=pro'));
-    return { amount: q.body.quote.amountPaise, notes: { userId: A.id, planId: 'pro' } };
-  }
-
-  it('issues the invoice to the verified caller when the order matches', async () => {
-    const response = await verifyWith(await goodOrder());
-    expect(response.status).toBe(200);
-    expect(issued).toHaveLength(1);
-    expect(issued[0]).toMatchObject({ user_id: A.id, user_email: A.email, provider: 'razorpay', payment_id: 'pay_9', order_id: 'order_9', plan_id: 'pro' });
+  it('rejects a non-allowlisted verified Test buyer before creating an order',async()=>{
+    const d=purchaseDeps({config:{testBuyerIds:[B.id]}});
+    const out=await call(request('POST','/api/billing/create-order',{as:A,body:{planId:'pro',requestId:REQUEST,userId:B.id}}),d);
+    expect(out.status).toBe(403);expect(d.calls).toEqual([]);expect(d.razorpayFetch).not.toHaveBeenCalled();
   });
-
-  it('refuses an order whose amount differs from the quote', async () => {
-    const order = await goodOrder();
-    const response = await verifyWith({ ...order, amount: order.amount - 100 });
-    expect(response.status).toBe(400);
-    expect(issued).toEqual([]);
+  it('takes buyer from verified bearer and product amount from server',async()=>{
+    const d=purchaseDeps();const r=await call(request('POST','/api/billing/create-order',{as:A,body:{planId:'pro',requestId:REQUEST,userId:B.id,email:B.email,amount:1}}),d);
+    expect(r.status).toBe(202); // ready order is pending fulfilment
+    const p=d.calls.find(c=>c[1].p_action==='claim')[1].p;
+    expect(p.userId).toBe(A.id);expect(p.snapshot).toMatchObject({buyerEmail:A.email,amountPaise:99900});
+    expect(d.razorpayFetch.mock.calls[0][1].body.notes).toEqual({purchaseId:PURCHASE});
   });
-
-  it('refuses an order made for another plan', async () => {
-    const order = await goodOrder();
-    expect((await verifyWith({ ...order, notes: { ...order.notes, planId: 'max' } })).status).toBe(400);
-    expect(issued).toEqual([]);
+  it('fulfils captured payments through one atomic RPC rather than separate grant/invoice',async()=>{
+    const d=purchaseDeps();const r=await call(verifyRequest(),d);expect(r.status).toBe(200);expect(r.body).toMatchObject({ok:true,status:'fulfilled'});
+    expect(d.calls.map(c=>c[0])).toEqual(['billing_order','billing_order','billing_capture']);
+    expect(issued).toHaveLength(1);expect(granted).toHaveLength(1);
   });
-
-  it("refuses another user's order", async () => {
-    const order = await goodOrder();
-    const response = await verifyWith({ ...order, notes: { ...order.notes, userId: B.id } });
-    expect(response.status).toBe(400);
-    expect(issued).toEqual([]);
+  it.each([{amount:1},{currency:'USD'},{order_id:'order_wrong'},{id:'pay_wrong'},{status:undefined}])('rejects mismatched provider payment %j',async payment=>{
+    const d=purchaseDeps({payment});expect((await call(verifyRequest(),d)).status).toBe(400);expect(issued).toHaveLength(0);expect(granted).toHaveLength(0);
   });
-
-  // F2: a verified payment is the only thing that grants a paid plan.
-  it('grants the paid plan to the verified caller, for the paid period, after every check', async () => {
-    const response = await verifyWith(await goodOrder());
-    expect(response.status).toBe(200);
-    expect(granted).toEqual([{ p_user: A.id, p_plan: 'pro', p_period: 'month', p_payment_id: 'pay_9' }]);
-    expect(response.body.entitlement).toMatchObject({ plan: 'pro', status: 'active' });
-    expect(issued[0]).toMatchObject({ taxable: 999, total: 999 });
-    expect(issued[0]).not.toHaveProperty('cgst');
+  it('leaves authorization pending without granting',async()=>{
+    const d=purchaseDeps({payment:{status:'authorized'}});const r=await call(verifyRequest(),d);expect(r.status).toBe(202);expect(r.body.pending).toBe(true);expect(granted).toHaveLength(0);
   });
-
-  it('grants one month even when the body asks for a year', async () => {
-    const response = await verifyWith(await goodOrder(), { yearly: true });
-    expect(response.status).toBe(200);
-    expect(granted[0]).toMatchObject({ p_period: 'month' });
+  it('rejects foreign/missing purchases before provider fetch',async()=>{
+    const d=purchaseDeps({order:{user_id:B.id}});expect((await call(verifyRequest(),d)).status).toBe(404);expect(d.razorpayFetch).not.toHaveBeenCalled();
   });
-
-  it('grants nothing when a check fails', async () => {
-    const order = await goodOrder();
-    await verifyWith({ ...order, amount: order.amount - 100 });
-    await verifyWith({ ...order, notes: { ...order.notes, userId: B.id } });
-    await verifyWith({ ...order, notes: { ...order.notes, planId: 'max' } });
-    const badSignature = deps({ razorpayFetch: razorpay({ order }), verifySignature: () => false });
-    expect((await call(request('POST', '/api/billing/verify', { as: A, body: { orderId: 'order_9', paymentId: 'pay_9', signature: 'x', planId: 'pro' } }), badSignature)).status).toBe(400);
-    const failed = deps({ razorpayFetch: razorpay({ order, payment: { status: 'failed' } }), verifySignature: () => true });
-    expect((await call(request('POST', '/api/billing/verify', { as: A, body: { orderId: 'order_9', paymentId: 'pay_9', signature: 's', planId: 'pro' } }), failed)).status).toBe(400);
-    expect(granted).toEqual([]);
-    expect(issued).toEqual([]);
+  it('rejects a bad signature before provider fetch',async()=>{
+    const d=purchaseDeps();const req=verifyRequest();req.body.signature='x';expect((await call(req,d)).status).toBe(400);expect(d.razorpayFetch).not.toHaveBeenCalled();
   });
-
-  it('issues no invoice when the grant fails, so a retry can complete both', async () => {
-    grantError = { code: 'XX000', message: 'down' };
-    const response = await verifyWith(await goodOrder());
-    expect(response.status).toBe(503);
-    expect(response.body.ok).toBe(false);
-    expect(issued).toEqual([]);
+  it('keeps verified payment evidence when atomic fulfilment is temporarily unavailable',async()=>{
+    const d=purchaseDeps({captureError:true});expect((await call(verifyRequest(),d)).status).toBe(503);expect(d.calls.some(c=>c[1].p_action==='payment')).toBe(true);expect(issued).toHaveLength(0);
   });
-
-  it('still answers ok when the invoice already exists for a granted payment (a retry)', async () => {
-    const d = deps({ razorpayFetch: razorpay({ order: await goodOrder() }), verifySignature: () => true });
-    const first = await call(request('POST', '/api/billing/verify', { as: A, body: { orderId: 'order_9', paymentId: 'pay_9', signature: 's', planId: 'pro' } }), d);
-    expect(first.status).toBe(200);
-    const original = d.adminClient;
-    d.adminClient = () => {
-      const client = original();
-      const rpc = client.rpc;
-      client.rpc = vi.fn(async (name, args) => (name === 'issue_invoice' ? { data: null, error: { code: '23505' } } : rpc(name, args)));
-      return client;
-    };
-    const retry = await call(request('POST', '/api/billing/verify', { as: A, body: { orderId: 'order_9', paymentId: 'pay_9', signature: 's', planId: 'pro' } }), d);
-    expect(retry.status).toBe(200);
-    expect(retry.body).toMatchObject({ ok: true, invoice: null });
-    expect(granted).toHaveLength(2);
+  it('retries return the same invoice without an additional grant',async()=>{
+    const d=purchaseDeps();const first=await call(verifyRequest(),d);const again=await call(verifyRequest(),d);
+    expect(again.body.invoice.id).toBe(first.body.invoice.id);expect(issued).toHaveLength(1);expect(granted).toHaveLength(1);
+  });
+  it('keeps new checkout closed but continues verification/recovery',async()=>{
+    const d=purchaseDeps({config:{open:false}});
+    expect((await call(request('POST','/api/billing/create-order',{as:A,body:{planId:'pro',requestId:REQUEST}}),d)).status).toBe(503);
+    expect((await call(verifyRequest(),d)).body.ok).toBe(true);
+  });
+  it('requires admin for recovery and reviewed adjustments',async()=>{
+    const d=purchaseDeps();expect((await call(request('POST','/api/billing/recover',{as:A,body:{}}),d)).status).toBe(403);
+    expect((await call(request('POST','/api/billing/adjustments/review',{as:A,body:{}}),d)).status).toBe(403);
   });
 });
 
-describe('checkout stays closed until the owner opens it (F110)', () => {
-  it('reports checkout closed even with Razorpay keys, and creates no order', async () => {
-    const rz = razorpay();
-    const closed = deps({ checkoutOpen: false, razorpayFetch: rz });
-    expect((await call(request('GET', '/api/billing/config'), closed)).body).toMatchObject({ enabled: false, checkoutOpen: false });
-    const response = await call(request('POST', '/api/billing/create-order', { as: A, body: { planId: 'pro' } }), closed);
-    expect(response.status).toBe(503);
-    expect(response.body.reason).toMatch(/open soon/i);
-    expect(rz).not.toHaveBeenCalled();
-  });
 
-  it('reports checkout open only when keys exist and the switch is on', async () => {
-    expect((await call(request('GET', '/api/billing/config'))).body).toMatchObject({ enabled: true, checkoutOpen: true });
-    expect((await call(request('GET', '/api/billing/config'), deps({ razorpayEnabled: false }))).body).toMatchObject({ enabled: false });
-  });
+it('reads refund-aware purchases for only the verified buyer and configured environment', async () => {
+  const data = [{ ...stored(), refunded_paise: 49900, refund_review_pending: true }];
+  const rpc = vi.fn(async () => ({ data, error: null }));
+  const result = await call(request('GET', `/api/billing/purchases?userId=${B.id}&account=foreign&mode=live`, { as: A }), deps({
+    adminClient: () => ({ rpc }), paymentConfig: { account: 'acc_fixture', mode: 'test' },
+  }));
+  expect(result.status).toBe(200);expect(result.body.purchases).toEqual(data);
+  expect(rpc).toHaveBeenCalledWith('billing_purchases_v2', { p: { userId: A.id, account: 'acc_fixture', mode: 'test' } });
+});
+it.each([{ error: { code: 'XX000' } }, { data: { ok: true } }])('fails closed when refund-aware purchase data is unavailable', async response => {
+  const result = await call(request('GET', '/api/billing/purchases', { as: A }), deps({ adminClient: () => ({ rpc: async () => response }) }));
+  expect(result.status).toBe(503);expect(result.body.purchases).toBeUndefined();
+});
+it('binds reviewed adjustments to the verified admin and server environment', async () => {
+  const d = purchaseDeps();
+  const body = { adjustmentId: PURCHASE, requestId: REQUEST, actorId: A.id, account: 'foreign', mode: 'live', decision: { creditsToRemove: 20000, reason: 'Full unused Test refund' } };
+  const result = await call(request('POST', '/api/billing/adjustments/review', { as: ADMIN, body }), d);
+  expect(result.status).toBe(200);
+  expect(d.calls).toEqual([['billing_review_adjustment_v2', { p: { ...body, actorId: ADMIN.id, account: 'acc_fixture', mode: 'test' } }]]);
+});
+it('shows a safe unsupported-refund conflict without leaking arbitrary database errors', async () => {
+  const reason = 'Unused top-up review requires support: purchase is not fully refunded and unused';
+  const rpc = vi.fn(async () => ({ error: { code: '23514', message: reason } }));
+  const result = await call(request('POST', '/api/billing/adjustments/review', { as: ADMIN, body: {} }), deps({ adminClient: () => ({ rpc }) }));
+  expect(result.status).toBe(409);expect(result.body.reason).toBe(reason);
+});
+it('reads paid periods for the verified buyer and configured scope, ignoring URL identities', async () => {
+  const rpc = vi.fn(async () => ({ data: [{ id: 'period-1', plan: 'plus', status: 'scheduled' }], error: null }));
+  const result = await call(request('GET', `/api/billing/plan-periods?userId=${B.id}&mode=live&account=foreign`, { as: A }), deps({
+    adminClient: () => ({ rpc }), paymentConfig: { account: 'acc_fixture', mode: 'test' },
+  }));
+  expect(result.status).toBe(200);
+  expect(result.body.periods).toEqual([{ id: 'period-1', plan: 'plus', status: 'scheduled' }]);
+  expect(rpc).toHaveBeenCalledWith('billing_plan_periods', { p: { userId: A.id, account: 'acc_fixture', mode: 'test' } });
+});
+it('denies unsigned period reads and rejects writes', async () => {
+  expect((await call(request('GET', '/api/billing/plan-periods'))).status).toBe(401);
+  expect((await call(request('POST', '/api/billing/plan-periods', { as: A }))).status).toBe(405);
+});
+it('does not turn a failed period read into an empty paid schedule', async () => {
+  const result = await call(request('GET', '/api/billing/plan-periods', { as: A }), deps({
+    adminClient: () => ({ rpc: async () => ({ error: { code: 'XX000' } }) }),
+  }));
+  expect(result.status).toBe(503);
+  expect(result.body.periods).toBeUndefined();
 });
 
-describe('upgrades only while a plan is active (owner, F110)', () => {
-  it('refuses a lower plan, allows the same plan and a higher one', async () => {
-    entitlements[A.id] = { plan: 'pro', status: 'active', period_end: '2099-01-01T00:00:00Z' };
-    const lower = await call(request('POST', '/api/billing/create-order', { as: A, body: { planId: 'plus' } }));
-    expect(lower.status).toBe(409);
-    expect(lower.body.reason).toMatch(/upgrade/i);
-    expect((await call(request('POST', '/api/billing/create-order', { as: A, body: { planId: 'pro' } }))).status).toBe(200);
-    expect((await call(request('POST', '/api/billing/create-order', { as: A, body: { planId: 'max' } }))).status).toBe(200);
-  });
 
-  it('lets a free or lapsed account choose any paid plan', async () => {
-    entitlements[A.id] = { plan: 'free', status: 'free', lapsed: true, granted_plan: 'max' };
-    expect((await call(request('POST', '/api/billing/create-order', { as: A, body: { planId: 'plus' } }))).status).toBe(200);
-  });
+it.each([
+  ['signature', Buffer.from('{"private":"fixture-sensitive-payload"}'), false],
+  ['raw_body', { private: 'fixture-sensitive-payload' }, false],
+  ['merchant_payload', Buffer.from('{"account_id":"wrong","event":"payment.captured","payload":{}}'), true],
+  ['json', Buffer.from('not-json-sensitive-fixture'), true],
+  ['event_identity', Buffer.from('{"account_id":"acc_test","event":"payment.captured","payload":{}}'), true],
+])('logs only a fixed Test webhook %s rejection category', async (stage, body, signedBody) => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    const d = purchaseDeps({ config: { account: 'acc_test', webhookSecret: 'fixture-sensitive-hook-secret' } });
+    const req = request('POST', '/api/billing/webhook', { body });
+    if (signedBody) req.headers['x-razorpay-signature'] = crypto.createHmac('sha256', d.paymentConfig.webhookSecret).update(body).digest('hex');
+    const result = await call(req, d);
+    expect(result.status).toBe(400);
+    expect(warn.mock.calls).toEqual([['billing_webhook_rejected', { stage, status: 400 }]]);
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/fixture-sensitive|wrong|account_id|razorpay-signature/);
+    expect(d.calls).toEqual([]);
+    expect(d.razorpayFetch).not.toHaveBeenCalled();
+  } finally { warn.mockRestore(); }
+});
+it('emits no Test diagnostics for Live webhook errors or unrelated billing routes', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    await call(request('POST', '/api/billing/webhook', { body: Buffer.from('{}') }), purchaseDeps({ config: { mode: 'live', webhookSecret: 'fixture-secret' } }));
+    await call(request('GET', '/api/billing/plan-periods', { as: A }), deps({adminClient: () => ({ rpc: async () => ({error:{code:'XX000'}}) })}));
+    expect(warn).not.toHaveBeenCalled();
+  } finally { warn.mockRestore(); }
+});
+
+it('advertises mode-aware Live plan capability while checkout stays closed', async () => {
+  const d = purchaseDeps({ config: { mode: 'live', cycleChanges: true, open: false, testBuyerIds: [] } });
+  const out = await call(request('GET', '/api/billing/config'), d);
+  expect(out.body).toMatchObject({ cycleChanges: true, checkoutOpen: false, enabled: false, keyId: '' });
+  expect(out.body).not.toHaveProperty('testBuyerIds');
+  expect(d.calls).toEqual([]);
+});
+
+it('hides unconfigured Live pilot checkout and never exposes its buyer list', async () => {
+  const d = purchaseDeps({ config: { mode: 'live', liveBuyerIds: [] } });
+  const out = await call(request('GET','/api/billing/config'),d);
+  expect(out.body.enabled).toBe(false); expect(out.body.keyId).toBe('');
+  expect(out.body).not.toHaveProperty('liveBuyerIds');
 });

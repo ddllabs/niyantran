@@ -1,3 +1,4 @@
+import { paymentProduct } from '../../server/paymentCatalog.mjs';
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import { PUBLIC_PLANS, PRICING_COMPARE, PRICING_NOTES, purchaseKind } from './publicPlans.js';
@@ -46,26 +47,26 @@ it('presents the billing facts as styled chips, not a bordered paragraph box', (
   expect(page).not.toContain('mkt-pr-notes');
 });
 
-it('allows upgrades and renewals while a plan is active, never a lower plan (owner, F110)', () => {
+it('allows upgrades and renewals while a plan is active, queues lower plans at the next cycle', () => {
   expect(purchaseKind({ plan: 'free', status: 'free' }, 'plus')).toBe('choose');
   expect(purchaseKind({ plan: 'pro', status: 'active' }, 'max')).toBe('upgrade');
   expect(purchaseKind({ plan: 'pro', status: 'active' }, 'pro')).toBe('renew');
-  expect(purchaseKind({ plan: 'pro', status: 'active' }, 'plus')).toBe('blocked');
+  expect(purchaseKind({ plan: 'pro', status: 'active' }, 'plus')).toBe('downgrade');
   expect(purchaseKind({ plan: 'max', status: 'free' }, 'plus')).toBe('choose');
   expect(purchaseKind({ plan: 'pro', status: 'active' }, 'free')).toBe('blocked');
   expect(purchaseKind(null, 'enterprise')).toBe('blocked');
 });
 
 // F111 owner-approved wording (spec §10.1, approved 2026-10-14).
-it('states each plan\'s AI credits and the 10% rollover, never "carry forward"', () => {
+it('states each plan\'s AI credits without advertising rollover', () => {
   const items = Object.fromEntries(PUBLIC_PLANS.map(p => [p.id, p.items]));
   expect(items.free).toContain('10,000 AI credits to start, valid 30 days');
-  expect(items.plus).toEqual(['20,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', '10% of unused credits roll over for a month']);
+  expect(items.plus).toEqual(['20,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra']);
   expect(items.pro).toContain('65,000 AI credits every month');
   expect(items.max).toContain('750,000 AI credits every month');
-  for (const id of ['plus', 'pro', 'max']) expect(items[id]).toContain('10% of unused credits roll over for a month');
+  for (const id of ['plus', 'pro', 'max']) expect(items[id].join(' ')).not.toMatch(/roll.?over|roll over/i);
   expect(PRICING_COMPARE.find(r => r[0] === 'Monthly AI credits').slice(1)).toEqual(['10,000 to start', '20,000', '65,000', '750,000']);
-  expect(PRICING_COMPARE.find(r => r[0] === 'Unused credits roll over').slice(1)).toEqual(['—', '10% for a month', '10% for a month', '10% for a month']);
+  expect(PRICING_COMPARE.find(r => r[0] === 'Unused credits roll over')).toBeUndefined();
   const all = JSON.stringify([PUBLIC_PLANS, PRICING_COMPARE, PRICING_NOTES]);
   expect(all).not.toMatch(/carry forward|starter credits|allowances published/i);
   expect(PRICING_NOTES.find(n => n.title === 'AI credits').text).toBe('a typical answer uses about 200 credits; larger models use more');
@@ -79,4 +80,14 @@ it('names the models each plan gets and never calls Free AI "at no cost"', () =>
   const free = PUBLIC_PLANS.find(p => p.id === 'free');
   expect(free.tag).toBe('Every desk at no cost, plus 10,000 AI credits to try the research assistant.');
   expect(free.tag).not.toMatch(/assistant at no cost/i);
+});
+
+it('keeps displayed full-month allowances equal to the unchanged payment catalog',()=>{
+ for(const plan of PUBLIC_PLANS.filter(p=>p.monthly>0)) expect(plan.monthlyCredits).toBe(paymentProduct(plan.id).credits);
+ expect(PUBLIC_PLANS.find(p=>p.id==='free').monthlyCredits).toBe(0);
+});
+
+it('treats every paid target during authoritative grace as a full renewal',()=>{
+ for(const target of ['plus','pro','max']) expect(purchaseKind({plan:'pro',status:'active',inGrace:true},target)).toBe('renew');
+ expect(purchaseKind({plan:'pro',status:'active',inGrace:true},'free')).toBe('blocked');
 });

@@ -10,7 +10,7 @@ import { isCabinetDecision } from './parliament.js';
  */
 const rss = (items) =>
   `<?xml version="1.0"?><rss><channel>${items
-    .map(([t, link, date = 'Tue, 14 Oct 2026 10:00:00 GMT']) => `<item><title>${t}</title><link>${link}</link><pubDate>${date}</pubDate></item>`)
+    .map(([t, link, date = new Date(Date.now() - 60000).toUTCString()]) => `<item><title>${t}</title><link>${link}</link><pubDate>${date}</pubDate></item>`)
     .join('')}</channel></rss>`;
 
 function stub(routes) {

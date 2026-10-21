@@ -411,8 +411,8 @@ redeploy. The build that removes shadow mode always enforces.
 | Item | Recommendation | Owner decision needed |
 |---|---|---|
 | O6 Razorpay: plans | One-month orders without an auto-renew mandate at launch (RBI e-mandates add pre-debit notices and failure handling); add auto-renew once payments are stable | Confirm no mandate at launch |
-| O6: top-up packs | Three packs, each dearer per credit than Plus (₹0.20), with about a 50% margin over AI cost (₹0.10): **1,000 for ₹249**, **5,000 for ₹1,149**, **20,000 for ₹4,299**; valid 12 months; bought in Plan & billing | The pack sizes and prices |
-| O6: downgrade at the next cycle | `grant_paid_plan` queues a lower plan from the current `plan_period_end` (needs a pending-plan column); the credits trigger then mints at the new cycle | None (already decided) |
+| O6: top-up packs | Superseded by owner-confirmed one-paisa catalogue:20,000/50,000/100,000/200,000/500,000 credits for ₹499/1,199/2,299/4,399/10,499, valid12 months, Free and paid buyers. See [current Razorpay spec](../specs/2026-10-18-razorpay-integration.md). | Prices confirmed; external acceptance/release pending |
+| O6: downgrade at the next cycle | New billing fulfilment records a scheduled `billing_plan_periods` window after the current period; credits mint only when due. Legacy `grant_paid_plan` is not the new checkout path. See current Razorpay spec. | Decided; local implementation exists, external acceptance pending |
 | O6: renewal-date drift | Compute each renewal end from the first paid day, clamped to the month's last day (31 Jan → 28 Feb → 31 Mar), not from the previous end | None |
 | F6 server plan gating | Close as superseded: plans now differ only in credits and storage, and desks are free to signed-in users (owner, 2026-10-12). Credits are already enforced on the server | Confirm closing |
 | P3 metering and credits | Done by F111; the effort column `model_call_logs.reasoning_effort` is built (migration `20261014230000`), so P3 can move to Done when it lands | None |

@@ -40,6 +40,7 @@
 
 
 
+- [ ] **Test browser-global isolation audit (2026-10-21, outside billing repair).** One full run hit AdminApp's `window.matchMedia` against a leaked browser stub; the isolated admin/billing120 checks and subsequent full6483 run passed. Removed obsolete window setup from modified billing tests; no admin source/test changes or skipped tests. Broader test-order/global cleanup should be audited if recurrence occurs. Evidence in2026-10-21-billing-loading.md.
 
 ## How to use this file
 
@@ -49,14 +50,24 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F236 is next) and goes in the
+- A new finding gets the next free `F` number (F241 is next) and goes in the
   right section.
+
 
 ## Frontend follow-up
 
 - [ ] **F235 — Indian Sports redundant browser fallback.** Chrome shows direct Google News RSS canceled after same-origin feature-feed succeeds (200,227stories); console empty and publisher navigation works. Review unnecessary parallel fallback requests separately; no CORS failure proven by this observation. The long-open blank tab recovered on reload and was not reproduced in a fresh session; keep this limitation in browser evidence.
 
+## Billing acceptance follow-up
+
+- [ ] **F240 — Restricted Live pilot and closed Production release.** Owner approved server-only Live owner allowlist, verification, CI-gated main release with checkout closed; Live keys unchanged. [Plan](2026-10-21-closed-live-pilot.md).
+
+- [ ] **F239 — Delayed Git-triggered Vercel processing.** F238 runtime released automatically after its Git deployment appeared with both gates passed; API-created retries retained stale queued checks. Git installation/permissions are intact. Cause of delayed event processing remains unproven; documentation commit7ec9e77e passed CI but no new Git deployment was visible at final inspection. Preserve gates; investigate recurrence without manual pass/alias overrides. [Evidence](2026-10-21-unused-topup-refund.md).
+
 ## Development toolchain follow-up
+
+- [ ] **F237 — Local manual-grant bootstrap authority.** The existing credits_on_plan_grant manual branch is owned by nter_migrator in the disposable bootstrap and hits the profile guard. Grace tests seed provenance with the trigger disabled inside a rolled-back fixture; no existing trigger was altered. Audit separately before relying on manual grants as a fixture path.
+
 
 - [ ] **F234 — Development toolchain advisories.** Read-only npm audit on 2026-10-19 reports existing Vite/Vitest dependency advisories (2 moderate, 2 high, 2 critical; esbuild, source-map-js, @vitest/mocker, tinypool and dependents). Production dependency audit reports zero. Review compatible upgrades separately; no dependency changes in the scoped BBC/form fix.
 
@@ -238,6 +249,16 @@ have moved to Done with hashes; do not infer the remaining scheduled-observation
   Hourly checks continue; F231/F232 remain local/unpublished; payment held.
 
 
+  Read-only October18 15:15 UTC: unchanged daily gates, MLA2/3 and
+  Constitutions1/3; Growth post-F224 writer acceptance pending after15:55 UTC.
+  All257 serving variants zero failures; */5 cron active, six recent successes.
+  Fixtures24 with all four league windows accounted for; constitution188-key
+  inventory unchanged. Production3ccdf8a READY; latest three main CI runs
+  39135672936/39138686342/39139165726 individually green attempt1, app+SQL.
+  [Observation](../research/2026-10-17-m1-m2-cleanup-evidence.md#scheduled-closure-observation--2026-10-18-1514-utc).
+  No new blocker or closure; hourly checks continue; Razorpay held, corpus excluded.
+
+
 Current production evidence: all 120 modules HTTP 200; World Constitutions 188 stable keys,
 fixtures 7 rows and failures reset, MLA reference 400 profiles + 100 coverage records serving
 from storage. No source above three consecutive failures. Supabase pg_cron feed-refresh job
@@ -257,6 +278,11 @@ orientation list is compared item by item in the
 [closure comparison](../research/2026-10-17-orientation-closure-comparison.md).
 
 ## Documentation follow-up
+
+  Latest read-only billing-foundation observation2026-10-18: both daily references
+  remain2/3; Growth16:00UTC timeout recovered on16:05 retry (not a new expected
+  opportunity). Cron remains active every five minutes; no serving source above
+  three failures. Detailed evidence in the existing cleanup execution record.
 
 - [ ] **F219. Reconcile living architecture claims with current implementation.**
   The owner's orientation-list comparison on 2026-10-17 reconfirmed the architecture
@@ -1414,6 +1440,8 @@ orientation list is compared item by item in the
 
 ## 1. Done
 
+- **F238 — Refunded unused top-up provenance and customer status.** Runtime05907f12 released to Razorpay Test Preview through passing required CI checks. Approved migration activated; browser review removed only the original untouched20,000-credit lot once, companion acknowledgement changed no benefits, exact retry made no second debit. Other lots/invoice fingerprints and Max expiry unchanged. Browser history shows Refund recorded without pending review. Production checkout remains closed. [Evidence](2026-10-21-unused-topup-refund.md).
+
 - [x] **Frontend default icons (2026-10-19).** c748e26 deployed Production READY. Both icon paths200/image MIME;46 frontend asset checks pass; Chrome32 successful requests and empty Console after reload. Evidence and remaining unrelated DevTools issues: [release record](2026-10-19-frontend-icons.md).
 
 - [x] **Research citation/web repair implementation (2026-10-19).** 4a1c978:
@@ -1520,8 +1548,10 @@ orientation list is compared item by item in the
   [Spec](../specs/2026-10-18-credit-paise.md),
   [plan](2026-10-18-credit-paise.md),
   [production reconciliation evidence](../research/2026-10-18-credit-paise-evidence.md).
-  Final top-up prices and Razorpay implementation remain unapproved/on hold;
-  all-account eligibility is the later payment requirement. Corpus excluded;
+  Top-up prices were subsequently confirmed by the owner; the catalogue is
+  recorded under O6 in current one-paisa units. Razorpay planning authorized
+  2026-10-18; local implementation and later Test-branch publication separately
+  approved; hosted migration/activation still gated. Corpus excluded;
   M1/M2 T15 remains independent/open.
 
 
@@ -2940,19 +2970,344 @@ Earlier items, updated:
 
 
 - [ ] **O6.** After F6: the Razorpay keys on Vercel, then one real payment
+  - **2026-10-21 local verification:**6522 application/1174 Edge tests,53 SQL fixtures+53 omission checks, concurrent grace capture, lint/build/bundle/router pass. Independent Astra review has no remaining P1/P2 findings. In-app browser isolated UI actions pass; shared SQL/trigger/Edge activation approved and verified (migration20261021140246,research-chatv70). Runtime a2bd59b passed both required CI jobs39613814829 and is Preview READY/exact-SHA. Owner confirmed newv3Max Captured9000/webhook200. Checkoutclose/retry passes; deliberateTestdecline verified (failedpayment,zeroinvoice/lot,Maxunchanged). DedicatedTestrefund remains owner dashboard handoff; in-app terms block and Arc inspection rejected by automatic review under the existing in-app-only constraint. [Evidence](../research/2026-10-21-manual-grace-evidence.md).
+  - **2026-10-21 priority: manual billing +48-hour access-only grace first.**
+    Owner defers AutoPay integration/reminders to a later release and directs
+    planning toward Live. Grace implementation, manual expiry/renewal notices,
+    expiry/renewal/refund/recovery acceptance and exact-SHA CI/Test Preview gates
+    remain open. Grace must not issue/extend credits or financial paid periods;
+    anchor and explicit-Free semantics freeze before code. [Current contract](../specs/2026-10-21-billing-autopay.md)
+    / [revised ordered plan](2026-10-21-billing-autopay.md).
+    Standalone Test card and UPI enrollment/first payments verified; recurring
+    collection, plan-change handoff and Live capability remain unverified.
+    UPI access Request clicked with owner approval but no submission confirmation;
+    Settings disabled text conflicts with successful Test mandate execution.
+    No AutoPay application implementation or Production activation claimed.
+  - **Live-capable approved contract (2026-10-21):** owner authorizes server/SQL
+    implementation, verification and Test Preview publication. Versioned mode-
+    scoped quote/capture/read functions preserve the approved plan behavior;
+    Production checkout and Live keys remain unchanged. Sequential spec/plan:
+    2026-10-21-billing-live-contract.md. Shared migration activation separately scoped.
+  - **2026-10-20 owner-authorized cycle contract:** implement prorated price/credit upgrades, free next-plan scheduling, manual renewal and retained 10% rollover; delete frozen Test purchase graph for the owner-designated account only; verify and publish Test Preview. Sequential [spec](../specs/2026-10-20-billing-cycle-changes.md) / [plan](2026-10-20-billing-cycle-changes.md). Production web/settings/Live/corpus unchanged; shared additive migration separately approved/applied. Implementation71ee2cc is Test Preview READY; genuine new-flow payment acceptance remains under O6.
   end to end.
   - Added by F111 (2026-10-14; recommendations in the
     [credits plan](2026-10-14-ai-credits.md), "After launch"):
     - **Owner amendment 2026-10-18:** Free and paid accounts can buy top-ups;
       buying credits does not grant paid-model access. One-paisa denomination
-      F225 precedes payment implementation. The equivalent proposed pack sizes
-      become 20,000 / 50,000 / 100,000 / 200,000 / 500,000; INR prices below
-      remain suggestions, not approved. The older quantities below describe
-      ten-paisa credits and must not feed a new payment catalogue.
-    - **Top-up packs (owner, 2026-10-14):** 2,000, 5,000, 10,000, 20,000 and 50,000 credits,
-      valid 12 months. Prices set with Razorpay (suggested ₹499 / 1,199 / 2,299 / 4,399 /
-      10,499). Until then there is no way to buy credits in the app; an admin can grant a top-up.
-    - **Downgrade at the next cycle:** `grant_paid_plan` queues a lower plan
+      F225 production conversion is complete. Owner subsequently confirmed the
+      top-up prices:20,000/50,000/100,000/200,000/500,000 credits for
+      ₹499/1,199/2,299/4,399/10,499 respectively, valid12 months. Older pack
+      quantities were ten-paisa units and must not feed a new payment catalogue.
+    - **Planning authorized2026-10-18:** [spec](../specs/2026-10-18-razorpay-integration.md),
+      [ordered plan](2026-10-18-razorpay-integration.md). React Standard Checkout,
+      existing Vercel Node REST adapter, Supabase atomic fulfilment/invoice and
+      durable webhook recovery. Fix authorized-only/missing-status acceptance,
+      add immutable orders/catalogue, captured-only checks, payment top-up RPC,
+      raw-byte webhook validation and deduplication before enabling checkout.
+      Current previews share NTER. Owner confirms no customers/paid users and
+      launch intended within two days. Recommended pre-launch rehearsal can use
+      existing NTER with dedicated test buyers and restricted Test preview;
+      a second hosted DB is optional, not a mandatory blocker.
+      Expanded schema proposal: five private tables (orders, payments, event inbox,
+      adjustments, paid periods), additive links on invoices/plan_grants/profile/
+      lots/ledger; existing wallet/credit engine retained. Ordered A-O slices and
+      local Docker execution evidence is linked below. Five-table migration and application changes implemented locally.
+      Owner-generated key is Live mode; no GST registration reconfirmed; seller
+      name/address supplied. Merchant/website approval remains unconfirmed.
+      Context7 works; Razorpay MCP is not callable/connection unverified here.
+      Separate Test-mode credentials/secure provisioning, enforced test-buyer
+      allowlist configuration and merchant/legal readiness required. The allowlist
+      now exists locally with causal tests and independent review; not deployed.
+      Test mode does not isolate
+      credit wallets/invoice records. Existing Docker containers are PostgreSQL
+      fixtures, not a running full Supabase Auth/PostgREST stack. Owner explicitly approved local implementation/Docker testing before T15.
+      Local implementation and Test-branch push/Preview build are approved before
+      T15. Hosted migrations, provider writes and Live activation remain separately
+      gated. Seller name/address supplied; reviewed adjustments chosen.
+    - **Local implementation 2026-10-18:** five private billing tables, atomic
+      capture/invoice, signed webhook inbox, leased recovery, anchored periods,
+      reviewed adjustments and account purchase UI implemented and independently
+      reviewed. [Execution evidence](../research/2026-10-18-razorpay-local-evidence.md).
+      Final full SQL:all45 fixtures passed; Deno1,155 passed; lint/build/bundle/router passed.
+      Preparation follow-up SQL:all45 fixtures passed, including added replay,
+      overpayment, refund-ordering, debt and paid-top-up checks.
+      Latest follow-up full Vitest:403 files/6,324 tests passed; the formerly
+      timing-out paging file also passed46 isolated tests unchanged. Earlier
+      failure retained in evidence; root cause unproven, no threshold/code change.
+      Secure handoff prepared: pending separate Test-mode key pair and dedicated
+      buyers; Preview task/razorpay-plan only, never broad Preview/Production.
+      Owner confirms Test keys ready; no values provisioned. Connector403 persists
+      but authenticated CLI fallback now verifies project/link/Production READY
+      at3ccdf8a and no billing/Razorpay environment entries. GitHub lacks the local
+      task/razorpay-plan branch; Vercel rejected its scoped closed-checkout setting
+      with400 and created nothing. Owner now approves the recommended narrow Test
+      branch push/Preview build before T15; no main/Production/database/Live changes.
+      Published implementation6a749b6/docs24d51d4 on task/razorpay-plan. Preview
+      dpl_GxGydDNFEv1By8T6x5WjpM1eboJX READY; CI39151639554 green attempt1 app+SQL.
+      Verified Preview-only branch-scoped BILLING_CHECKOUT_OPEN=0 and deployed
+      enabled=false/checkoutOpen=false/five packs; main/Production still3ccdf8a.
+      **Latest closed Preview refresh:** owner-saved API variables verified Sensitive,
+      Preview/task/razorpay-plan only; values/mode not read or authenticated.
+      Authorized same-commit24d51d4 redeploy dpl_2D72ZQmN9hmLytECecJNYH97HXPm
+      READY. App/config/Plus quote pass; Checkout closed; unauthenticated order401;
+      unconfigured webhook503. Public webhook302 to Vercel login; protection unchanged.
+      Account ID, independent webhook secret, dedicated test-buyer list and approved
+      ingress/migration/Test execution remain pending. Production target
+      dpl_VTPtwrTtawEMkvKyq9WgfAGtQV2m/source3ccdf8a unchanged before/after.
+      No provider write, database/Edge deployment, source push or corpus operation.
+      **2026-10-19:** approved owner buyer UUID saved to branch-only Sensitive
+      BILLING_TEST_BUYER_IDS; removed broad Preview webhook-secret duplicate only.
+      All six billing settings now Preview/task/razorpay-plan; Checkout0. Refreshed
+      same source24d51d4 Preview dpl_HRHCghckTkLp5Jzqcp8uDvhunGzC READY. Config
+      closed; Production/protection unchanged. New hosted JSON webhook blocker400
+      `Webhook raw body unavailable.` reproduced locally with a Vercel-style lazy
+      body getter. Scoped original-byte transport fix and causal host-helper test
+      required before provider acceptance; no source fix/push yet. Public webhook
+      still302; secure ingress and shared DB migration require explicit scope.
+      Owner screenshot proves Test registration enabled55 subscriptions; exact
+      event list/secret matching not independently verified. No provider write,
+      database/Edge/corpus operation. See latest billing execution evidence.
+      **Local raw-body fix2026-10-19:** own body descriptor avoids lazy parser;
+      replayed data/end reader preserves Vercel original bytes. Causal lazy and
+      restored-stream regressions failed before passing; real localhost HTTP
+      proves exact UTF-8/whitespace and HMAC, no getter access. Focused80 and
+      Deno1,155 tests, lint/build/bundle/router pass. Final full-suite result in
+      billing execution evidence. No source commit/push/deploy; current Preview
+      still pre-fix24d51d4. Existing ingress/subscription/migration/acceptance gates
+      remain; Checkout, Production, Live keys and corpus unchanged.
+      Final local verification:403 application files/6,333 tests pass108.48s;
+      all other listed checks pass. Raw-body correction remains local/uncommitted.
+      Owner approves Test-branch-only publication of this verified raw-body fix
+      and closed Preview verification2026-10-19; no Production/DB/Live changes.
+      **Published raw-body fix:**18db302 pushed only to task/razorpay-plan;
+      Preview dpl_HtZeAsvc2oVEpSPj7Po9u77n6inf READY/exact SHA. Hosted JSON and
+      malformed JSON reach signature rejection400; oversized413; unauthenticated
+      order401; app/config pass, Checkout0/no exposed key. Production target and
+      protection unchanged. CI39160473575 app+SQL green attempt1; raw-body
+      correction published/verified18db302. Post-deployment evidence notes local.
+      Public webhook302 remains; no valid event/provider/DB/Live/corpus operation.
+      Owner authorizes controlled hosted Test rehearsal2026-10-19: reviewed
+      additive NTER migration, allowlisted Test flow and reconciliation before
+      Live; public checkout/Live/corpus gates retained. Financial baseline captured;
+      browser UI handoff requested due unavailable automation. See billing plan.
+      **Hosted foundation2026-10-19:** approved migration applied to NTER as
+      20261018200238/billing_purchases, reviewed local20261018160700 SHA recorded.
+      Five private RLS tables/service-only RPCs verified; all original profile/
+      financial fingerprints and balance preserved; new billing tables empty.
+      Test Checkout still closed. Temporary Test share token revoked after307
+      cookie handshake; non-expiring alias exception blocked before execution by
+      automatic approval review. Explicit Test-alias exception approval pending;
+      owner agrees to guided Test UI steps. No payment/Live/Edge/corpus change.
+      **Approved Test ingress / pilot ready2026-10-19:** owner explicitly approved
+      alias-only protection exception until manual revocation after testing; applied
+      and unsigned public webhook400 verified after redeploy. No paid add-on.
+      Branch-only Checkout1; Preview dpl_7Z3ZA131HxYPektqosTJ7tUgF5Ws READY18db302,
+      runtime Test prefix/enabled confirmed without printing key. Test-buyer guard
+      retained. Production target/protection unchanged; no Live/Edge/corpus action.
+      Orders/payments/events/invoices0 before guided owner20k/499INR simulated pilot.
+      Genuine provider acceptance/reconciliation pending. Close Test Checkout and
+      manually revoke alias exception after testing; detailed billing evidence linked.
+      **Test pilot blocked2026-10-19:** two Plus399INR intents reconciling with
+      no provider order ID; payments/events/invoices0; owner reports Test Orders
+      empty. Do not retry payment. Local safe order-stage/provider-status
+      diagnostics verified locally:8causal red cases,88focused/6341full/1155Deno
+      pass; lint/build/bundle/router pass. Root cause unconfirmed; code uncommitted
+      and owner approved Test-only diagnostic publication2026-10-19.
+      Published runtime895b7a0/recordcd1413c only Test branch; Preview
+      dpl_8ouxfCPPnQ2zQMrE7Zh3Vtr9B26g READY/exactcd1413c, Test config and
+      unsigned webhook400 verified. Production target/protection unchanged.
+      CI39164169136 attempt1 initially in progress. Controlled owner top-up
+      order-only reproduction completed: provider_create/http401 in safe hosted
+      log20:39:36UTC. Razorpay rejected API authentication; exact credential fault
+      unconfirmed. New top-up intent reconciling/unbound; payments/events/invoices0.
+      Owner must securely correct matching Test key pair (branch-only), then Test
+      redeploy and bounded recovery before further purchase attempts. Webhook
+      secret and Production/Live remain unchanged. O6 acceptance still blocked.
+      Owner-reported API-secret update followed by approved Test redeploy:
+      dpl_AMXGYdcbnso3kdKugsZhSC6rqMKh READY/exactcd1413c. Metadata shows
+      WEBHOOK_SECRET updated02:29IST; KEY_SECRET remains Oct18 23:55IST.
+      Pause order attempts; owner must correct API-secret field and preserve
+      matching webhook secret. Later metadata confirms correct API pair updates
+      02:36/02:37IST; Test redeployed dpl_93oRKJG9xbUEVFby77Jr1Pi1JJhJ READY
+      cd1413c, runtime Test mode. Fresh50k order-only owner reproduction requested;
+      credential acceptance subsequently confirmed: fresh50k and Pro Test provider
+      orders created/bound ready; payments/events/invoices0. Earlier20k/Plus stuck
+      because stable browser intent reuses unbound reconciling rows, and nonfresh
+      claims never retry. Open recovery defect: distinguish definitive rejected
+      creation from uncertain outcomes; safe explicit retry with causal duplicate/
+      timeout safeguards and controlled reconciliation of older intents required.
+      Owner approved local fix plus Test publication2026-10-19. Implementing
+      durable rejection metadata/atomic same-intent retry; timeout/unknown remains
+      pending. Additive shared-DB migration and legacy operator decisions require
+      separate concrete approval; main/Production/Live/corpus excluded.
+      Local recovery verified:6351Vitest/1155Deno/46SQL fixtures pass;102focused,
+      causal service/client red, vacuity, retry and capture concurrency, original
+      billing fixture with new migration, lint/build/bundle/router pass.
+      Ready for release; awaiting shared-Supabase two-column/service-only-RPC
+      migration approval and reviewed classification of the three old Test
+      intents. No hosted schema/row mutation or Test publication yet; preserve
+      working Preview until dependency can be applied.
+      Owner approved shared additive migration and reviewed Test repairs. Hosted
+      migration20261018214242/billing_creation_retry applied exact08fb2591 hash;
+      service-only grants verified; financial fingerprints unchanged. Actual
+      Razorpay Test All Orders complete1-2 inventory contains only new Pro/50k;
+      old three receipts absent, zero captured payments. Reviewed three exact
+      old Test intents:retryable=true, one operator audit each; no grants/invoices.
+      Ready for authorized Test-only publication; Production web/Live/corpus
+      unchanged.
+      CI39164169136 app+SQL green attempt1. Separately
+      observed Production redeploy dpl_3jVL7ikUYANELS4Jt94vDF1Sqckj from same
+      main3ccdf8a; protection unchanged, initiator unknown, no agent Production action.
+      Recovery releasef96863f/recordsd709ecb pushed only Test; Preview
+      dpl_CnpXP4qtm4HgnKarC3SuUF7uPzHE READY/exactd709ecb. Config Test mode,
+      webhook400, signed-in purchases/invoices200; Production web/protection
+      unchanged. CI39169346694 app+SQL green attempt1. Owner Checkout retry
+      succeeded: original Plus5af59ea0 and topup734e8f1c now ready/bound to Test
+      orders, retry permission consumed, review audit retained; five intents total,
+      zero payments/invoices and unchanged financial fingerprints. Oldest Plus
+      remains retryable. No payment initiated by agent.
+      **Purchase-status wording follow-up approved:** display-only ready orders
+      now Awaiting payment; uncertain/retryable/terminal labels retained. Causal
+      rendering test failed before fix; 58 focused tests, lint/build/bundle pass.
+      Full suite 404 files/6,358 tests green; commit10fd50a pushed only Test,
+      Preview dpl_DHpUe1gv4isyHGpLRkbELS4BW81v READY/exact10fd50a;
+      deployed CreditsPage asset verifies both labels. Arc history data remains
+      loading; owner refresh verification pending. CI39170163103 in progress.
+      Production target/protection unchanged; spec2026-10-19-purchase-status-wording.
+      No stable intent/API/SQL changes. Actual captured Test payment and signed
+      provider webhook acceptance remain pending.
+      **Billing purchase experience — local 2026-10-20:** owner authorized UI
+      cleanup after screenshot. Review before payment, current-plan distinction,
+      collapsed identifiable unconfirmed attempts/admin tools, honest read errors
+      and cross-section refresh implemented locally; audit rows unchanged.
+      Spec/plan2026-10-20-billing-purchase-experience. Focused136 and Deno1155
+      pass; lint/build/bundle/router pass, synthetic browser desktop/320px checked.
+      Full app6363 pass/5 fail: four publisher fixture clocks already fixed on
+      newer main, one feedStore timing case passes in isolation. No publication;
+      main integration/full green and hosted payment acceptance still pending.
+      **2026-10-20 Test continuation:** UI89bab64 preserved; latest main9d89c1b
+      integrated via dc9a5e7. Operator alias and stale-plan preflight6515956;
+      shared migration separately approved/applied, canonical hashes and service-
+      only grants verified. All financial fingerprints unchanged. Full6386 app,
+      1172 Deno,47 SQL fixtures pass, plus lint/build/bundle/router. New review
+      requires explicit confirmation and never auto-replaces uncertain payments.
+      Test publication/remote acceptance in2026-10-20-billing-preflight-release.md.
+      **Test release verified:**6182686 Preview READY; CI39311346794 attempt1
+      both jobs green. Deployed review/current-plan/history assets and API guards
+      verified. Production deployment/protection unchanged and billing disabled.
+      Hosted migration history20261019192743; actual captured Test top-up,
+      signed webhook/invoice and plan lifecycle rehearsal still pending.
+      **Purchased plan periods — 2026-10-20:** canonical active/future display
+      implemented with confirmed dates, allowances and invoice links, no early
+      balance/access change. New read-only service RPC separately approved and
+      applied (local20261019194527/hosted20261019195351); canonical hash matches,
+      financial fingerprints identical, advisor counts unchanged. Full6402 app/
+      1172 Deno/48 SQL fixtures plus lint/build/bundle/router pass. Accounting
+      matrix covers9 paid transitions and5 packs on all4 plans; no denomination
+      or commercial rule changes. Test publication authorized; final deployed
+      SHA/remote CI reported in chat. Actual owner capture/reconciliation and
+      plan lifecycle rehearsal remain open. Spec/plan2026-10-20-billing-plan-period-display.
+      **Owner Test payments reconciled — 2026-10-20:**500k topup₹10,499
+      and Pro₹999 captured/fulfilled,1 invoice/lot/grant each. Balance566460.511
+      reconciles exactly. No confirmed₹499 in account records. **Open blocker:**
+      signed webhook delivery returns400 (42 observed POSTs), verified inbox empty;
+      callback worked but webhook acceptance has not passed. Owner asked for
+      dashboard response text; cause not yet established. Invoice rendering in
+      IAB unverified (Open produced no tab); stored invoice facts verified.
+      UI polish proposed only. See purchased-period execution record. No code,
+      config, provider/payment or Live mutation in this read-only investigation.
+      **Webhook diagnostic follow-up:** Razorpay response body null; Test
+      requests reach api/router (WAF allow), exact rejection stage unknown.
+      Prepare local Test-only allowlisted category logging; no secrets/bodies/
+      headers/identifiers. Spec/plan2026-10-20-test-webhook-diagnostics. New
+      Test publication approval required; no schema/provider/financial mutation.
+      Local diagnostics verified:6408 app/1172 Deno, focused114, lint/build/
+      bundle/router pass;5 causal failures before logging. Only fixed Test
+      stage/status emitted; Live/unrelated silence and unexpected-error redaction
+      verified. Owner approved Test-only publication:6100095 pushed, Preview
+      dpl_izDrfEvZ4xyKfViHwvDxrHFse8mo READY; CI39321500694 green attempt1.
+      Unsigned control logs signature as expected; this is not a provider
+      delivery. At20:47 UTC October19 no natural retry had reached the new
+      deployment; actual signed failure remains unknown. Inbox0, fulfilled
+      Test orders2, captured payments2. Production commit/config/protection
+      unchanged. See diagnostics plan for release evidence.
+      **Natural retries20:51–20:52 UTC:**3 deliveries on6100095 log signature/400,
+      distinct from the unsigned control. Rejection stage confirmed before
+      merchant/inbox processing; secret mismatch versus raw-byte/signature input
+      difference remains to establish. No secret/provider/financial change.
+      Owner authorizes Test-only fix. Local signature/raw-byte replay checks
+      pass; no proven code defect. Branch-only Sensitive secret scope confirmed.
+      Owner has original webhook secret; secure re-entry into the one Vercel
+      Preview variable requested, awaiting save before redeployment and real
+      webhook acceptance. Production/Live unchanged; purchases remain paused.
+      **Customer history cleanup (owner approved local fix):** hide unpaid and
+      safe-to-retry checkout-only records, retain completed/refunded and unresolved
+      payments visibly, preserve all internal records and duplicate protections.
+      Spec/plan2026-10-20-checkout-history; local fix verified:2 causal red cases,
+      focused120/full6409 pass, lint/build/bundle and synthetic browser pass.
+      Source/test/task records remain uncommitted/unpublished; no stored attempt,
+      retry guard, backend, Production or Live change.
+      **Plan discovery UI (owner approved local):** show included credits on
+      plan cards, server-active paid badge under avatar and account Change plan
+      dialog with current plan and safe review handoff. Existing downgrade
+      scheduling/payment logic preserved. Spec/plan2026-10-20-plan-discovery;
+      local verified:4 causal red guards, focused74/107 and full6421 pass,
+      lint/build/bundle, disposable plan-period SQL+vacuity and desktop/mobile
+      synthetic dialog checks pass. Current plan/allowances/timing and explicit
+      review handoff confirmed; actual hosted payment rehearsal remains pending.
+      Uncommitted/unpublished; webhook secret re-entry separately pending.
+      Owner now approves publishing both UI fixes to task/razorpay-plan Test
+      Preview. Released7aa3cc3, READY dpl_2EZ2aLSNLxQy9cLk7XGPiGCFHkr3;
+      authenticated badge/menu/picker/allowance/Plus-review handoff verified,
+      abandoned list absent, no payment initiated and browser errors0. CI39393838099
+      attempt1 app/Edge and database jobs green. Production/Live unchanged.
+      Post-release evidence edits remain local; webhook-secret re-entry pending.
+      Owner requests attached profile pill with distinct Plus/Pro/Max colours;
+      local follow-up verified:25 profile tests, lint/build/bundle,6 browser
+      overlap checks and light/dark contrast pass. Uncommitted/unpublished;
+      see plan-discovery record. Production/Live unchanged.
+      Subsequently owner-approved badge release caa3212 READY as
+      dpl_8pp5Soxo6nhdkQAU8XeLvJskQNhp, CI39410686188 both jobs green attempt1;
+      live Pro pill overlap/colour verified. Fresh readiness read shows inbox0,
+      adjustments0 and only2 fulfilled Test products (500k/Pro). Signed webhook,
+      remaining provider lifecycle/recovery/refund/invoice-view acceptance and
+      launch/Live gates remain open; details in plan-discovery release record.
+      Owner saved original webhook secret: metadata update verified; exactcaa3212
+      redeployed Test-only as dpl_BhTpje1R95zM18MVSHn3rCEa4EoZ READY. Inbox0
+      before delivery; no webhook requests in preceding hour. Await natural or
+      owner-replayed existing Test captured event before claiming signature
+      acceptance. No new payment; Production runtime/closed Checkout retained.
+      **Webhook blocker resolved for new Test events —20Oct19:54 IST:** owner
+      completes499INR top-up; authorized/captured/order.paid each200 and inbox
+      done attempt1. Exactly1 captured payment/invoice NIY/2627/00003/20000-credit
+      lot/grant; wallet586286.87 equals lots, debt0, Pro period unchanged.
+      Original durable intent reused. Three distinct events are not duplicate
+      replay/browser-close acceptance; those and plan/refund/invoice-view/Live
+      gates remain open. Full evidence in webhook-diagnostics record.
+      Owner Pro->Max Test upgrade verified: captured9999INR, invoice00004,
+      one750000 monthly grant, unusedPro65000 replaced; topups/signup preserved,
+      wallet1271286.87 debt0, all3 events done attempt1. Downgrade pending.
+      Owner requests distinct Current plan/Popular badge styling: scoped local
+      green current state versus purple recommendation verified:31 tests,
+      lint/build/bundle and both-theme browser comparison pass; local/unpublished.
+      Subsequent owner Plus Test399 purchase also verified: invoice00005, future
+      period20Nov–20Dec, zero early lots/ledger entries, Max/balance unchanged;
+      all3 events done attempt1/HTTP200. Real future activation remains pending,
+      not forced. Recovery/duplicate/refund/invoice-view and Live gates stay open.
+      **Commercial policy reopened by owner:** full-price upgrades and purchasing
+      future lower-plan months are rejected as the intended change-plan UX.
+      Discuss proration, unused-paid value/credits and no-charge downgrade
+      scheduling before further implementation or Live opening. Previous Test
+      checks establish mechanical accounting only. Owner requests publication of
+      existing label CSS first; no new billing coding or financial changes.
+      **Previously observed operator-list defect:** billing/adjustments503; read-only reviews RPC
+      reproduces42702 ambiguous pay.id (table alias versus PL/pgSQL variable).
+      Resolved by6515956 and the separately approved shared migration above;
+      real read-only reviews RPC now succeeds. Full adjustment/refund acceptance
+      still needs actual Test events; an empty list alone does not prove it.
+      O6 remains open for restricted external Test-mode acceptance and release gates;
+      no main/Production push/deployment, provider write, key provisioning or payment.
+    - **Downgrade at the next cycle:** the new billing fulfilment queues a lower plan
       until the current `plan_period_end`.
     - **Renewal dates anchored to the first paid day,** so they do not drift
       after the 31st.
@@ -3058,6 +3413,10 @@ R7 execution update: the owner's remaining-270 review and single 182-document / 
 
 R7 wider-corpus continuation: [413-document release completed](../research/2026-10-11-corpus-wide-batch.md). All 413 passing sources from the fresh 500-source cohort were ingested in one frozen job: 7,493 complete context chunks, 6,661 contextual chunks, 3,033 independent scoped citation probes passed. The other 87 candidates remain held with evidence. Final live and planner totals: 3,434 documents / 3,431 indexed / 100,031 chunks / 2,143 covered listing bill keys, zero orphan chunks and null vectors. Actual embedding usage 706,730 tokens / USD 0.01413460; all 90 capacity samples passed, peak CPU 16.12%; 15 isolated slow health samples out of 437, no consecutive slow windows, final health passed. Runtime corpus-wide-20261011/job-wide500-v1/final-completion.json binds the full audit and exact SQL evidence. Manifest stage-01.release.json SHA256 b8a987362724afab31e157f01fae72b7f9cd9dec7667db269b4caed5864c2481 is COMPLETE; NEVER restart it. Supervisor exited 0 and locks released. The pre-write fetch recovery at 40 remains documented and preserved. Broader corpus candidates, nonbill scoping, the 87 held candidates and existing-source repair holds remain open; this is not completion of R7 as a whole.
 
+## Done — 2026-10-21 CI fixture maintenance
+
+- [x] **F236 — RSS test fixtures age out.** Local commit `bd7bc92` uses fresh dates relative to the test clock in four routing-test files. Six baseline failures reproduced;28 focused and6522 full application checks pass. Runtime feed behavior is unchanged. Publication awaits the manual-grace release.
+
 ## Done — 2026-10-19 homepage browser fixes
 
 - [x] **Mandatory CI enforcement (2026-10-21).** Policy commit d9595ab and native
@@ -3087,6 +3446,46 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 
 - [x] Non-payment documentation consolidated in `e11eae0`, original histories retained in `cef7849`, and local main updated. Removed 18 merged local and 8 merged remote branches after payment-agent coordination. All four payment local branches, both payment remote branches, shared working files and existing frontend checkout files preserved. Main documentation remains local, unpublished. [Execution record](2026-10-20-branch-cleanup.md).
 
+## Done — 2026-10-20 Test billing cycle implementation
+
+- Prorated Test upgrades, free replaceable downgrade preferences, explicit manual renewal and retained10% rollover implemented in71ee2cc. All6434 Vitest/1172 Edge tests,49 SQL fixtures and focused concurrency/vacuity/cleanup checks pass; lint/build/bundle/router pass. Owner-approved additive shared migration applied without replacing existing functions. Named owner's frozen Test purchase graph reset to Free; welcome balance/history preserved. Test Preview READY and authenticated browser review verified. [Plan and release evidence](2026-10-20-billing-cycle-changes.md). O6 stays open for genuine new-flow provider acceptance and remaining Live launch gates.
+
+
+## Done — 2026-10-20 Test billing design and daily pricing
+
+- Scoped modern billing summary/chooser/topups, unified history with collapsed references, branded in-page invoice and IST daily upgrade quotes landed in `0649524`, `bc3b46c`, `f98203d`. Final6447 Vitest/1172 Deno tests and50 SQL fixtures pass; lint/build/bundle/router pass. Owner-approved additive shared migration applied; original functions and historical purchases unchanged. Test Preview READY; real plan/top-up invoices and daily quote verified in authenticated browser. Production/Live keys untouched. [Plan and evidence](2026-10-20-billing-design-daily-proration.md). O6 remains open for its separate Live launch gates.
+
+
+## Done — 2026-10-20 contextual plan chooser
+
+- `7ecc2d9`: below-card chooser now shows one contextual state: compact saved unpaid plan, current-plan renewal note, downgrade confirmation, or quote/loading/error. Free action moved to quiet footer; payment/schedule rules unchanged.6452unit tests and focused10cases pass; lint/build/bundle and responsive/dark/keyboard fixture pass. Test Preview READY and authenticated current/saved states verified; balance/schedule unchanged. No backend/Production/Live changes. [Evidence](2026-10-20-plan-chooser-context.md).
+
+
+## Done — 2026-10-21 Free plan card
+
+- `3c24882`: Free shown alongside Plus/Pro/Max in billing and profile choosers; current Free disabled/marked, no monthly or repeated welcome allowance promised. Paid Free choice hands off to existing zero-charge period-end confirmation; duplicate footer removed.6458unit tests, focused21, lint/build/bundle and responsive/dark fixture pass. Test Preview READY; authenticated profile→Free review verified without saving or paying. No backend/Production/Live changes. [Evidence](2026-10-21-free-plan-card.md).
+
+## Done — 2026-10-21 billing UI clarity
+
+- **Billing UI clarity:** implementation2292928 and closure follow-up: unnecessary .00 removed while genuine paise remain exact; Pay online actions; renewal payment-window/service-date distinction; invoice X/backdrop/Escape dismissal with focus restoration; compact grouped credit table retaining original grants. Free footer no longer implies a subscription. Full416-file/6466-test application run,1172 Edge tests,59 focused checks,lint/build/bundle pass. Causal RED/GREEN evidence and authenticated desktop/mobile/dark browser checks recorded in [plan](2026-10-21-billing-ui-clarity.md). Test-only branch publication; Production deployment and Live credentials unchanged.
+
+## Done — 2026-10-21 billing summary
+
+- **Billing summary allowance/balance separation:** c8d74f5 plus verification closure: Plan price, catalog Monthly allowance and Credits available. Actual period allocation/usage and all credit lots remain in breakdown; proration explained.416 files/6469 application tests,1172 Edge tests,14 focused tests,lint/build/bundle pass. Causal RED/GREEN and actual desktop/mobile Preview image in [plan](2026-10-21-billing-summary.md). Display only, existing Razorpay Test Preview scope; no financial data or Production/Live key changes.
+
+## Done — 2026-10-21 always-open billing chooser
+
+- **Frontend chooser/navigation and rollover-copy preparation:** e1329f8. Always-open cards/current badge,removed toggle/duplicated saved-summary state and dead CSS,repaired current and legacy anchors; history stays after top-ups. Removed rollover benefit promises from billing/pricing/Terms/Refund; preserved historical lot displays.417 files/6472 application tests,1172 Edge tests,56 focused tests,lint/build/bundle pass. Native sidebar and main-account navigation/browser checks pass. [Evidence](2026-10-21-billing-open-chooser.md). Backend rollover still10.00 and tracked separately above; no SQL/data/Production/Live key mutation.
+
+
+## Done — 2026-10-21 backend rollover retirement
+
+- **a8f040f:** removed rollover creation, fixed compatibility setting at0 with a validated constraint, retained historical refund/ledger provenance. Owner-approved shared NTER migration applied; frozen five-order Test graph for the named owner reset to Free with1186.132 signup credits and no debt. Auth/usage/signup/other-account hashes and invoice sequence unchanged. All51 SQL fixtures with causal/concurrency checks,6472 application tests,1172 Edge tests,lint/build/bundle/router pass; production dependency audit0 findings. Test Preview READY/exact implementation SHA; signed-in Free/empty-history UI verified. [Plan and activation evidence](2026-10-21-rollover-retirement.md). Production web/settings and Live keys unchanged; only the explicitly approved shared no-rollover policy changed globally.
+
+
+## Done — 2026-10-21 stable billing loading
+
+- **91f540f:** removed temporary legacy mounting/unreachable branch, reused page-owned credits with account guard, supplied existing config to top-ups, kept account/disclosure geometry through config and balance loading, explicit config-error retry, full-width44px accent native disclosure. Full6483 application/1172 Edge tests,focused120,lint/build/bundle/router pass; audit0 vulnerabilities. Test Preview READY/exact SHA; desktop339px/mobile479px account heights unchanged across balance arrival,no legacy DOM,no overflow,keyboard disclosure verified. Production deployment/settings and Live keys unchanged. [Plan and evidence](2026-10-21-billing-loading.md). Existing test-global order-sensitivity observation is tracked separately above.
 ## Done — 2026-10-21 desk sector flip cards
 
 - [x] Shared eight-desk flip cards, implementation `a51b07d`. Owner reviewed local Global and authorized push/merge. 6293 application and 1172 Edge tests passed; focused final CSS checks, lint/build/bundle and browser interactions passed. Billing untouched. Release status and verification limits: [plan](2026-10-21-desk-sector-flip.md).

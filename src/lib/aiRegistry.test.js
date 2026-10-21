@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { effectivePlan, loadRegistry, minPlanOf, modelAvailable, planNeededLabel, planNeededReason } from './aiRegistry.js';
 
+it('uses a server access deadline without extending the financial paid period', () => {
+  const ent = { plan: 'pro', status: 'active', periodEnd: '2026-11-20T00:00:00Z', accessUntil: '2026-11-22T00:00:00Z' };
+  expect(effectivePlan(ent, Date.parse('2026-11-21T00:00:00Z'))).toBe('pro');
+  expect(effectivePlan(ent, Date.parse(ent.accessUntil))).toBe('free');
+  expect(effectivePlan({ ...ent, accessUntil: 'invalid' }, Date.parse('2026-11-21T00:00:00Z'))).toBe('free');
+});
+
+it('rejects malformed deadlines while preserving explicitly unlimited manual access', () => {
+  const ent = { plan: 'pro', status: 'active', periodEnd: null };
+  expect(effectivePlan(ent)).toBe('pro');
+  expect(effectivePlan({ ...ent, accessUntil: 'invalid' })).toBe('free');
+  expect(effectivePlan({ ...ent, periodEnd: 'invalid' })).toBe('free');
+});
+
 /** A minimal fake of the PostgREST builder: every method chains, awaiting resolves the rows. */
 function fakeClient(tables, seen = []) {
   return {

@@ -1,0 +1,57 @@
+-- Atomic retry permission, explicit rejection evidence and private authorization.
+-- Vacuity: must fail without 20261019000000_billing_creation_retry.sql.
+\set ON_ERROR_STOP on
+BEGIN;
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz;
+CREATE FUNCTION pg_temp.assert(ok boolean,why text) RETURNS void LANGUAGE plpgsql AS $$ BEGIN IF ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'FAIL: %',why; END IF; END $$;
+INSERT INTO auth.users(id,email) VALUES('c0000000-0000-4000-8000-000000000001','retry@fixture.test'),('c0000000-0000-4000-8000-000000000002','operator@fixture.test');
+UPDATE public.user_profiles SET status='active' WHERE user_id::text LIKE 'c0000000%';
+UPDATE public.user_profiles SET role='admin' WHERE user_id='c0000000-0000-4000-8000-000000000002';
+SELECT pg_temp.assert(NOT has_function_privilege('anon','public.billing_creation_retry(text,jsonb)','EXECUTE'),'anon denied');
+SELECT pg_temp.assert(NOT has_function_privilege('authenticated','public.billing_creation_retry(text,jsonb)','EXECUTE'),'customer denied');
+SELECT pg_temp.assert(has_function_privilege('service_role','public.billing_creation_retry(text,jsonb)','EXECUTE'),'service enabled');
+DO $$ DECLARE o jsonb; r jsonb; p jsonb; token text;
+BEGIN
+ o:=public.billing_order('claim','{"userId":"c0000000-0000-4000-8000-000000000001","requestId":"c0000000-0000-4000-8000-000000000003","requestHash":"retry","account":"acc_retry","mode":"test","snapshot":{"kind":"topup","productId":"topup-20000","credits":20000,"amountPaise":49900,"currency":"INR","creditUnit":"credit-paise-v2","buyerEmail":"retry@fixture.test"}}');
+ p:=jsonb_build_object('purchaseId',o->>'id','userId','c0000000-0000-4000-8000-000000000001','account','acc_retry','mode','test');
+ r:=public.billing_creation_retry('claim',p);
+ PERFORM pg_temp.assert(r->>'canCreate'='false','unclassified creation never repeats POST');
+ BEGIN PERFORM public.billing_creation_retry('reject',p||'{"providerStatus":500}'); RAISE EXCEPTION 'FAIL: accepted 500'; EXCEPTION WHEN raise_exception THEN IF SQLERRM='FAIL: accepted 500' THEN RAISE; END IF; END;
+ BEGIN PERFORM public.billing_creation_retry('reject',p||'{"providerStatus":401,"account":"acc_other"}'); RAISE EXCEPTION 'FAIL: account bypass'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ BEGIN PERFORM public.billing_creation_retry('reject',p||'{"providerStatus":401,"mode":"live"}'); RAISE EXCEPTION 'FAIL: mode bypass'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ BEGIN PERFORM public.billing_creation_retry('reject',p||'{"providerStatus":401,"userId":"c0000000-0000-4000-8000-000000000002"}'); RAISE EXCEPTION 'FAIL: buyer bypass'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ BEGIN PERFORM public.billing_creation_retry('review_rejection',p||'{"actorId":"c0000000-0000-4000-8000-000000000002","reason":"Reviewed exact Test provider receipt and confirmed no order","providerAbsenceConfirmed":true}'); RAISE EXCEPTION 'FAIL: recent review accepted'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ r:=public.billing_creation_retry('reject',p||'{"providerStatus":401}');
+ PERFORM pg_temp.assert(r->>'creation_retryable'='true','401 is durable retry permission');
+ PERFORM pg_temp.assert(jsonb_array_length(r->'creation_failures')=1,'one rejection audit');
+ r:=public.billing_creation_retry('reject',p||'{"providerStatus":401}');
+ PERFORM pg_temp.assert(jsonb_array_length(r->'creation_failures')=1,'duplicate rejection is idempotent');
+ r:=public.billing_creation_retry('claim',p);token:=r->'order'->>'lease_token';
+ PERFORM pg_temp.assert(r->>'canCreate'='true' AND token IS NOT NULL,'one worker claims retry');
+ PERFORM pg_temp.assert(r->'order'->>'creation_retryable'='false','permission consumed BEFORE network POST');
+ PERFORM pg_temp.assert(r->'order'->>'amount_paise'='49900','immutable quote retained');
+ PERFORM pg_temp.assert(public.billing_creation_retry('claim',p)->>'canCreate'='false','second worker cannot create');
+ BEGIN PERFORM public.billing_creation_retry('reject',p||'{"providerStatus":401}'); RAISE EXCEPTION 'FAIL: stale worker accepted'; EXCEPTION WHEN serialization_failure THEN NULL; END;
+ PERFORM public.billing_order('defer',p||jsonb_build_object('leaseToken',token));
+ PERFORM pg_temp.assert(public.billing_creation_retry('claim',p)->>'canCreate'='false','unknown retry remains uncertain after lease release');
+ UPDATE private.billing_orders SET mode='live' WHERE id=(o->>'id')::uuid;
+ BEGIN PERFORM public.billing_creation_retry('review_rejection',p||'{"mode":"live","actorId":"c0000000-0000-4000-8000-000000000002","reason":"Reviewed exact provider receipt and confirmed no order","providerAbsenceConfirmed":true}'); RAISE EXCEPTION 'FAIL: Live review accepted'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ UPDATE private.billing_orders SET mode='test' WHERE id=(o->>'id')::uuid;
+ UPDATE private.billing_orders SET created_at=now()-interval '10 minutes' WHERE id=(o->>'id')::uuid;
+ BEGIN PERFORM public.billing_creation_retry('review_rejection',p||'{"actorId":"c0000000-0000-4000-8000-000000000001","reason":"Reviewed exact Test provider receipt and confirmed no order","providerAbsenceConfirmed":true}'); RAISE EXCEPTION 'FAIL: nonadmin review accepted'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ BEGIN PERFORM public.billing_creation_retry('review_rejection',p||'{"actorId":"c0000000-0000-4000-8000-000000000002","reason":"Reviewed exact Test provider receipt and confirmed no order"}'); RAISE EXCEPTION 'FAIL: missing confirmation'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ r:=public.billing_creation_retry('review_rejection',p||'{"actorId":"c0000000-0000-4000-8000-000000000002","reason":"Reviewed exact Test provider receipt and confirmed no order","providerAbsenceConfirmed":true}');
+ PERFORM pg_temp.assert(r->>'creation_retryable'='true' AND r->'creation_failures'->1->>'source'='operator','reviewed legacy repair is audited');
+ r:=public.billing_creation_retry('claim',p);token:=r->'order'->>'lease_token';
+ PERFORM public.billing_order('bind',p||jsonb_build_object('order',jsonb_build_object('id','order_retry','amount',49900,'currency','INR','receipt',o->>'id')));
+ PERFORM pg_temp.assert(public.billing_creation_retry('claim',p)->>'canCreate'='false','bound order cannot create another');
+ r:=public.billing_creation_retry('reject',p||jsonb_build_object('providerStatus',401,'leaseToken',token));
+ PERFORM pg_temp.assert(r->>'provider_order_id'='order_retry','late rejection cannot erase bound order');
+ PERFORM pg_temp.assert((SELECT provider_order_id='order_retry' FROM private.billing_orders WHERE id=(o->>'id')::uuid),'provider binding retained');
+ PERFORM pg_temp.assert(jsonb_array_length(public.billing_creation_retry('list',p))=1,'owned history includes rejection status without audit reasons');
+ PERFORM pg_temp.assert(public.billing_creation_retry('list',p||'{"userId":"c0000000-0000-4000-8000-000000000002"}')='[]','foreign history denied');
+END $$;
+SELECT pg_temp.assert((SELECT count(*) FROM public.invoices)=0,'retry alone issues no invoice');
+SELECT pg_temp.assert((SELECT count(*) FROM public.credit_lots WHERE billing_order_id IS NOT NULL)=0,'retry alone grants no credits');
+ROLLBACK;
