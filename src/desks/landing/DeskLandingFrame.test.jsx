@@ -89,7 +89,7 @@ describe('sector flip discovery', () => {
       expect(html).not.toContain('class="explorer');
       expect(html).not.toContain('Select a sector');
       expect((html.match(/class="sector-back"/g) || []).length).toBe(presentation.groups.length);
-      expect((html.match(/aria-expanded="false"/g) || []).length).toBe(presentation.groups.length);
+      expect((html.match(/class="sector-card sector-front"[^>]*aria-expanded="false"/g) || []).length).toBe(presentation.groups.length);
       expect((html.match(/inert=""/g) || []).length).toBe(presentation.groups.length);
       for (const module of DESK_CATALOGUE.filter(item => item.tab === presentation.id)) {
         expect(html).toContain(`href="/${deskHash(module.tab, module.feature).replaceAll("'", "&#x27;")}"`);
