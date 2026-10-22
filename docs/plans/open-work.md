@@ -44,6 +44,8 @@
 
 - [ ] **F241 — Public Live checkout.** Owner explicitly authorized launch for all signed-in customers. Preserve Test restrictions, payment validation and CI gates; no credential or webhook event changes. [Plan](2026-10-22-public-live-checkout.md).
 
+- [ ] **Consistent desk cards (2026-10-22).** Implemented locally: four-module preview, explicit expansion and aligned image/text regions; application tests, lint, build and browser sizing checks passed. Owner approved production release; protected PR/CI integration in progress. Local task/desk-card-sizing; see 2026-10-22-desk-card-sizing.md.
+
 ## How to use this file
 
 - **This is the only list of open work.** Plans, specs, ADRs and

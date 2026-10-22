@@ -1,8 +1,8 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {SectorCard} from './DeskLandingFrame.jsx';
 import {GLOBAL_PRESENTATION} from './globalPresentation.js';
-const hooks = vi.hoisted(() => ({refs:[],index:0,effects:[]}));
-vi.mock('react', async original => ({...await original(),useRef: initial => {const i=hooks.index++;return hooks.refs[i] ||= {current:initial}},useEffect: run => hooks.effects.push(run)}));
+const hooks = vi.hoisted(() => ({refs:[],index:0,effects:[],expanded:false}));
+vi.mock('react', async original => ({...await original(),useState: initial => [hooks.expanded ?? initial, value => {hooks.expanded=value}],useRef: initial => {const i=hooks.index++;return hooks.refs[i] ||= {current:initial}},useEffect: run => hooks.effects.push(run)}));
 const find = (node, predicate) => {
   if (!node || typeof node !== 'object') return null;
   if (predicate(node)) return node;
@@ -10,11 +10,11 @@ const find = (node, predicate) => {
   return null;
 };
 const group=GLOBAL_PRESENTATION.groups[0];
-const render = (open,onToggle=vi.fn(),onFeature=vi.fn()) => {
+const render = (open,onToggle=vi.fn(),onFeature=vi.fn(),cardGroup=group) => {
   hooks.index=0;hooks.effects=[];
-  return SectorCard({presentation:GLOBAL_PRESENTATION,group,summaries:{},onFeature,id:'security',index:0,open,onToggle});
+  return SectorCard({presentation:GLOBAL_PRESENTATION,group:cardGroup,summaries:{},onFeature,id:'security',index:0,open,onToggle});
 };
-beforeEach(()=>{hooks.refs=[]});
+beforeEach(()=>{hooks.refs=[];hooks.expanded=false});
 describe('sector interactions',()=>{
   it('provides a background close target separate from module navigation',()=>{
     const toggle=vi.fn(),navigate=vi.fn();const card=render(true,toggle,navigate);
@@ -49,4 +49,22 @@ describe('sector interactions',()=>{
     for(const keys of [{metaKey:true},{ctrlKey:true},{shiftKey:true},{altKey:true},{button:1}]){const event={button:0,preventDefault:vi.fn(),...keys};link.props.onClick(event);expect(event.preventDefault).not.toHaveBeenCalled();}
     expect(navigate).not.toHaveBeenCalled();
   });
+});
+
+it('shows four modules, expands the rest, and resets after closing or switching sectors',()=>{
+  const large={...group,modules:Array.from({length:7},(_,i)=>({...group.modules[0],feature:`module-${i}`}))};
+  let card=render(true,vi.fn(),vi.fn(),large);
+  const extra=n=>n.type==='a'&&n.props.hidden===true;
+  expect(find(card,extra)).not.toBeNull();
+  let control=find(card,n=>n.props?.className==='sector-more');
+  expect(control.props['aria-expanded']).toBe(false);
+  control.props.onClick();
+  card=render(true,vi.fn(),vi.fn(),large);
+  expect(find(card,extra)).toBeNull();
+  expect(find(card,n=>n.props?.className==='sector-more').props['aria-expanded']).toBe(true);
+  find(card,n=>n.props?.className==='sector-action sector-back-action').props.onClick();
+  expect(hooks.expanded).toBe(false);
+  hooks.expanded=true;
+  render(false,vi.fn(),vi.fn(),large);hooks.effects.forEach(run=>run());
+  expect(hooks.expanded).toBe(false);
 });

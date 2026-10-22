@@ -702,3 +702,26 @@
 }
 .desk-v6.motion-paused .sector-flip:hover,.desk-v6.motion-paused .sector-modules .module-item:hover{transform:none}
 @media(prefers-reduced-motion:reduce){.desk-v6 .sector-flip:hover,.desk-v6 .sector-modules .module-item:hover{transform:none}}
+
+/* A shared baseline keeps hidden lists and copy length from stretching front images. */
+.desk-v6 .sector-grid{align-items:start}
+.desk-v6 .sector-flip{--sector-height:520px;--sector-image-height:326px}
+.desk-v6.desk-v6 .sector-front{height:var(--sector-height);min-height:var(--sector-height);align-self:start}
+.desk-v6.desk-v6 .sector-front .card-picture{height:var(--sector-image-height);min-height:var(--sector-image-height);flex:0 0 var(--sector-image-height)}
+.desk-v6.desk-v6 .sector-front .card-body{box-sizing:border-box;flex:1;min-height:0;width:100%;display:grid;grid-template-rows:40px 54px 18px 44px;gap:4px;padding:12px 16px;align-content:end}
+.desk-v6.desk-v6 .sector-front .card-title-row h3{margin:0}
+.desk-v6.desk-v6 .sector-front .card-bottom{align-self:center;border:0;padding:0;gap:6px;flex-wrap:nowrap;font-size:10px}
+.desk-v6 .sector-front .card-bottom .status{font-size:10px;white-space:nowrap}
+.desk-v6 .sector-front .card-total small{font-size:10px}
+.desk-v6 .sector-front .sector-action{border:0;padding:0;min-height:44px}
+.desk-v6 .sector-back{min-height:var(--sector-height);box-sizing:border-box;gap:5px;padding:12px 16px}
+.desk-v6 .sector-modules .module-item[hidden]{display:none}
+.desk-v6 .sector-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:auto;border-top:1px solid var(--border);padding-top:4px}
+.desk-v6 .sector-footer .sector-back-action{margin-top:0;border-top:0;padding:0;min-height:44px}
+.desk-v6 .sector-back .sector-more{pointer-events:auto;min-height:40px;padding:8px 0;border:0;background:none;color:var(--blue);font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer}
+.desk-v6 .sector-more:hover{text-decoration:underline}
+.desk-v6 .sector-modules .module-item{box-sizing:border-box;padding:6px;gap:8px}
+.desk-v6 .sector-modules .module-icon{width:20px;height:20px}
+.desk-v6 .sector-modules .module-item{min-height:64px}
+.desk-v6 .sector-modules .module-copy b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.desk-v6 .sector-modules .module-copy>span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
