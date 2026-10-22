@@ -715,13 +715,17 @@
 .desk-v6 .sector-front .card-total small{font-size:10px}
 .desk-v6 .sector-front .sector-action{border:0;padding:0;min-height:44px}
 .desk-v6 .sector-back{min-height:var(--sector-height);box-sizing:border-box;gap:5px;padding:12px 16px}
-.desk-v6 .sector-modules .module-item[hidden]{display:none}
 .desk-v6 .sector-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:auto;border-top:1px solid var(--border);padding-top:4px}
 .desk-v6 .sector-footer .sector-back-action{margin-top:0;border-top:0;padding:0;min-height:44px}
-.desk-v6 .sector-back .sector-more{pointer-events:auto;min-height:40px;padding:8px 0;border:0;background:none;color:var(--blue);font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer}
-.desk-v6 .sector-more:hover{text-decoration:underline}
 .desk-v6 .sector-modules .module-item{box-sizing:border-box;padding:6px;gap:8px}
 .desk-v6 .sector-modules .module-icon{width:20px;height:20px}
 .desk-v6 .sector-modules .module-item{min-height:64px}
 .desk-v6 .sector-modules .module-copy b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .desk-v6 .sector-modules .module-copy>span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Keep headings and Back fixed while the native module list scrolls. */
+.desk-v6 .sector-back{height:var(--sector-height);overflow:hidden}
+.desk-v6 .sector-back>:not(.sector-modules){flex-shrink:0}
+.desk-v6 .sector-back .sector-modules{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;pointer-events:auto;scrollbar-width:thin;scrollbar-color:var(--blue) transparent;scrollbar-gutter:stable;padding:3px 4px;overscroll-behavior-y:contain;background:linear-gradient(var(--paper) 30%,transparent) center top,linear-gradient(transparent,var(--paper) 70%) center bottom,linear-gradient(#2b466f20,transparent) center top,linear-gradient(transparent,#2b466f20) center bottom;background-size:100% 24px,100% 24px,100% 12px,100% 12px;background-repeat:no-repeat;background-attachment:local,local,scroll,scroll}
+.desk-v6 .sector-modules .module-item{flex-shrink:0}
+.desk-v6 .sector-modules:focus-visible{outline:2px solid var(--blue);outline-offset:2px}

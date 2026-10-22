@@ -44,7 +44,6 @@
 
 - [ ] **F241 — Public Live checkout.** Owner explicitly authorized launch for all signed-in customers. Preserve Test restrictions, payment validation and CI gates; no credential or webhook event changes. [Plan](2026-10-22-public-live-checkout.md).
 
-- [ ] **Consistent desk cards (2026-10-22).** Implemented locally: four-module preview, explicit expansion and aligned image/text regions; application tests, lint, build and browser sizing checks passed. Owner approved production release; protected PR/CI integration in progress. Local task/desk-card-sizing; see 2026-10-22-desk-card-sizing.md.
 
 ## How to use this file
 
@@ -3499,3 +3498,9 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-21 State sector grid parity
 
 - [x] `2954800` removes dense-sector layout exceptions; State shares desktop and responsive grids with other desks. All module links preserved. Owner authorized publication; 244 focused tests, lint/build and browser checks passed. [Plan](2026-10-21-state-sector-grid.md).
+
+## Done — 2026-10-22 compact desk cards
+
+- [x] Shared compact fronts, four-module previews and More/Less footer across eight desks. PR #8 merged at `1d64416b3591caf1242147ef57343908f0c277bb`; production deployment successful. Both main CI jobs passed; live eight-desk dimensions and State expansion/collapse verified. See [release evidence](2026-10-22-desk-card-sizing.md).
+
+- [ ] **Desk module scrolling (2026-10-22).** Replace More/Less with a fixed-height native scrolling list; local review before deployment. Scope shared desk component/CSS/tests.
