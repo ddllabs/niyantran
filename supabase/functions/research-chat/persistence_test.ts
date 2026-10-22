@@ -1,3 +1,4 @@
+import { FakeTime } from 'jsr:@std/testing@1.0.21/time';
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
 import {
   type ClaimedTurn,
@@ -208,3 +209,63 @@ Deno.test('canonical fingerprint orders Unicode-distinct keys independently of i
   };
   assertEquals(await fingerprintRequest(first), await fingerprintRequest(reordered));
 });
+
+Deno.test('F242: a new lease allows a streamed answer to complete after the old cutoff', async () => {
+  using time = new FakeTime(0);
+  const c = claim();
+  c.assistant.execution_expires_at = '2026-01-01T00:05:00.000Z';
+  const writes: TerminalResult[] = [];
+  const pending = executeClaimedTurn({
+    claim: c, ownerId: 'owner', turnKey: 'long-answer',
+    store: { finalize: (_owner, _key, _token, value) => {
+      writes.push(value);
+      return Promise.resolve({ kind: 'deleted' });
+    } },
+    execute: async ({ checkpoint }) => {
+      checkpoint({ content: 'Beginning', model_served: 'deepseek' });
+      await new Promise((resolve) => setTimeout(resolve, 130_000));
+      return { ...result, content: 'Beginning and complete answer', model_served: 'deepseek' };
+    },
+  });
+  await time.tickAsync(130_000);
+  await pending;
+  assertEquals(writes.length, 1);
+  assertEquals(writes[0].status, 'complete');
+  assertEquals(writes[0].content, 'Beginning and complete answer');
+});
+
+for (const [leaseSeconds, cutoffSeconds] of [[120, 115], [300, 295], [600, 295]]) {
+  Deno.test(`F242: lease ${leaseSeconds}s stops at ${cutoffSeconds}s and finalizes partial output once`, async () => {
+    using time = new FakeTime(0);
+    const c = claim();
+    c.assistant.execution_expires_at = new Date(Date.parse(c.server_now) + leaseSeconds * 1000).toISOString();
+    const writes: TerminalResult[] = [];
+    let finish!: (value: TerminalResult) => void;
+    let signal!: AbortSignal;
+    const pending = executeClaimedTurn({
+      claim: c, ownerId: 'owner', turnKey: 'bounded',
+      store: { finalize: (_owner, _key, _token, value) => {
+        writes.push(value);
+        return Promise.resolve({ kind: 'deleted' });
+      } },
+      execute: (context) => {
+        signal = context.signal;
+        context.checkpoint({ content: 'Visible partial', model_served: 'deepseek' });
+        return new Promise((resolve) => { finish = resolve; });
+      },
+    });
+    await time.tickAsync(cutoffSeconds * 1000 - 1);
+    assertEquals(writes.length, 0);
+    assertEquals(signal.aborted, false);
+    await time.tickAsync(1);
+    await pending;
+    assertEquals(signal.aborted, true);
+    assertEquals(writes.length, 1);
+    assertEquals(writes[0].status, 'interrupted');
+    assertEquals(writes[0].content, 'Visible partial');
+    assertEquals(writes[0].model_served, 'deepseek');
+    finish(result);
+    await time.runMicrotasks();
+    assertEquals(writes.length, 1);
+  });
+}

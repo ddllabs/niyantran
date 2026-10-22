@@ -1,3 +1,4 @@
+import { FakeTime } from 'jsr:@std/testing@1.0.21/time';
 import { assert, assertEquals, assertRejects, assertStringIncludes } from 'jsr:@std/assert@1';
 import type { ChatFrame } from '../_shared/chatStream.ts';
 import { HttpError } from '../_shared/http.ts';
@@ -76,7 +77,7 @@ function byPhase(
 const finish = (
   reason = 'stop',
   usage: Usage | null = { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, cost: 0.0001 },
-): ModelEvent => ({
+): Extract<ModelEvent, { type: 'finish' }> => ({
   type: 'finish',
   reason,
   usage,
@@ -485,9 +486,9 @@ Deno.test('a research reply that is already the grounded answer is shown and acc
 });
 
 Deno.test('503 on the first model hands over to the next in the chain and says so', async () => {
-  const swap = scripted([new ProviderError(503, 'upstream unavailable'), ...DECLINES, [
+  const swap = scripted([new ProviderError(503, 'upstream unavailable'), ...[NO_RESEARCH, NO_RESEARCH].map(events => events.map(e => e.type === 'finish' ? { ...e, served: 'deepseek/deepseek-v4-flash' } : e)), [
     text(envelope('Answered by the second model.')),
-    finish(),
+    { ...finish(), served: 'deepseek/deepseek-v4-flash' },
   ]]);
   const { deps, rec } = fakeDeps(swap);
   const got = await frames(await handleResearchChat(post(BODY), deps));
@@ -513,7 +514,7 @@ Deno.test('a failure after answer text has reached the reader never swaps model'
   const { deps, rec } = fakeDeps(provider);
   const got = await frames(await handleResearchChat(post(BODY), deps));
   assert(got.some((f) => 'chunk' in f), 'some answer text did reach the reader');
-  assertEquals(got.filter((f) => 'model' in f).length, 0, 'no swap once text has reached the reader');
+  assertEquals(got.filter((f) => 'model' in f && f.model.served && f.model.requested !== f.model.served).length, 0, 'no swap once text has reached the reader');
   assert(got.find((f) => 'error' in f), 'the turn reports the failure instead of answering with another model');
   assertEquals(rec.messages.length, 1);
   assertEquals(rec.messages[0].status, 'error');
@@ -535,7 +536,7 @@ Deno.test('a response_format rejection retries the same model once with the sche
   assertEquals(provider.seen[0].model, provider.seen[1].model, 'the same model');
   assert(provider.seen[0].response_format, 'the first attempt asked for the envelope');
   assertEquals(provider.seen[1].response_format, undefined, 'the retry dropped it');
-  assertEquals(got.filter((f) => 'model' in f).length, 0, 'not a model swap');
+  assertEquals(got.filter((f) => 'model' in f && f.model.served && f.model.requested !== f.model.served).length, 0, 'not a model swap');
   assertEquals(rec.messages[0].content, 'Answered without the schema.');
 });
 
@@ -935,7 +936,7 @@ Deno.test('D4: malformed, empty and trailing-garbage completed envelopes are err
     assertEquals(rec.messages[0].status, 'error', answer);
     assertEquals(rendered(got), rec.messages[0].content);
     assert(got.some((frame) => 'error' in frame));
-    assertEquals(got.some((frame) => 'model' in frame), false);
+    assertEquals(got.some((frame) => 'model' in frame && frame.model.served && frame.model.requested !== frame.model.served), false);
   }
 });
 Deno.test('D4: filtered and unexpected provider finishes cannot complete an answer', async () => {
@@ -1320,6 +1321,7 @@ Deno.test('D5: accounting flush runs after durable finalization and still runs w
   }
 });
 Deno.test('D5: hung pricing, model logging and traces cannot delay durable finalization or hang response', async () => {
+  using time = new FakeTime();
   const noCost: ModelEvent = {
     type: 'finish',
     reason: 'stop',
@@ -1352,23 +1354,29 @@ Deno.test('D5: hung pricing, model logging and traces cannot delay durable final
   console.log = (message) => {
     notices.push(String(message));
   };
-  const started = Date.now();
-  let watchdog: ReturnType<typeof setTimeout> | undefined;
   try {
-    const got = await Promise.race([
-      frames(await handleResearchChat(post(BODY), deps)),
-      new Promise<never>((_, reject) => {
-        watchdog = setTimeout(() => reject(new Error('telemetry drain exceeded bound')), 1200);
-      }),
-    ]);
+    const response = await handleResearchChat(post(BODY), deps);
+    const reader = response.body!.getReader();
+    let received = '';
+    // The answer's terminal frame arrives before any hung telemetry timeout.
+    while (!received.includes('"done"')) {
+      const next = await reader.read();
+      assert(!next.done);
+      received += new TextDecoder().decode(next.value);
+    }
+    assert(finalized);
+    const draining = (async () => {
+      while (true) { const next = await reader.read(); if (next.done) break; received += new TextDecoder().decode(next.value); }
+    })();
+    for (let stage = 0; stage < 3; stage++) await time.tickAsync(5_000);
+    await draining;
+    const got = received.split('\n').filter(line => line.startsWith('data: {')).map(line => JSON.parse(line.slice(6)));
     assertEquals(rec.messages[0].status, 'complete');
     assert(got.some((f) => 'done' in f));
     assertEquals(got.some((f) => 'saveFailed' in f), false);
-    assert(Date.now() - started < 1500, 'bounded log drain must not hang');
     assert(notices.some((line) => line.includes('telemetry_failed')));
     assertEquals(rec.calls.length, 3);
   } finally {
-    clearTimeout(watchdog);
     console.log = log;
   }
 });
@@ -3533,4 +3541,81 @@ Deno.test('manual access rejects malformed deadlines but permits null-ended manu
   const malformed = { ...row, access_until: 'invalid' };
   assertEquals(effectivePlanRank(malformed, Date.now()), 0);
   assertEquals(effectivePlanRank({ ...row, plan_period_end: 'invalid' }, Date.now()), 0);
+});
+
+Deno.test('F242: multi-hop fallback retains the original selection and announces only a responding model', async () => {
+  let count = 0;
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    if (++count <= 2) throw new ProviderError(count === 1 ? 429 : 500, 'unavailable');
+    req.onAttemptMetadata?.({ served: req.model, generationId: null, usage: null });
+    yield text(envelope('Hello.'));
+    yield { ...finish(), served: req.model };
+  };
+  const { deps, rec } = fakeDeps({ stream });
+  const selected = 'anthropic/claude-sonnet-5';
+  const got = await frames(await handleResearchChat(post({ ...BODY, message: 'Hello', model: selected }), deps));
+  const models = got.filter((f): f is Extract<ChatFrame, {model: unknown}> => 'model' in f);
+  assertEquals(models.map(f => f.model.requested), [selected, selected]);
+  assertEquals(models.map(f => f.model.served), ['deepseek/deepseek-v4-flash', 'deepseek/deepseek-v4-flash']);
+  assertEquals(rec.messages[0].model_served, 'deepseek/deepseek-v4-flash');
+});
+
+Deno.test('F242: a partial answer keeps its actual serving model when the provider disconnects', async () => {
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    req.onAttemptMetadata?.({ served: 'deepseek/deepseek-v4-flash', generationId: null, usage: null });
+    if (researching(req)) { yield { ...finish(), served: req.model }; return; }
+    yield text('{"answer":"A partial answer');
+    throw new Error('connection closed');
+  };
+  const { deps, rec } = fakeDeps({ stream });
+  const got = await frames(await handleResearchChat(post({ ...BODY, message: 'Hello', model: 'deepseek/deepseek-v4-flash' }), deps));
+  assertEquals(rec.messages[0].content, 'A partial answer');
+  assertEquals(rec.messages[0].model_served, 'deepseek/deepseek-v4-flash');
+  assert(got.some(f => 'model' in f && f.model.served === 'deepseek/deepseek-v4-flash'));
+});
+
+Deno.test('F242: silent generation emits transport keepalives and stops them at completion', async () => {
+  using time = new FakeTime();
+  let release!: () => void;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    await waiting;
+    yield text(envelope('Hello.'));
+    yield { ...finish(), served: req.model };
+  };
+  const { deps } = fakeDeps({ stream });
+  const response = await handleResearchChat(post({ ...BODY, message: 'Hello' }), deps);
+  let received = '';
+  const draining = (async () => {
+    const reader = response.body!.getReader();
+    while (true) { const next = await reader.read(); if (next.done) break; received += new TextDecoder().decode(next.value); }
+  })();
+  try {
+    await time.tickAsync(15_000);
+    assertStringIncludes(received, ': keepalive\n\n');
+    assert(!received.includes('"done"'));
+  } finally {
+    release();
+    await draining;
+  }
+  const finished = received;
+  await time.tickAsync(30_000);
+  assertEquals(received, finished);
+});
+
+Deno.test('F242: replay restores authoritative selected and served identities, including unknown service', async () => {
+  for (const served of ['deepseek/deepseek-v4-flash', null]) {
+    const { deps } = fakeDeps(scripted([]));
+    deps.executeTurn = async () => ({ content: served ? 'Saved answer' : 'Partial', status: served ? 'complete' : 'interrupted',
+      sources: [], follow_ups: [], activity: [], model_served: served, error_message: null, usage: null, timing: null });
+    const body = { ...BODY, model: 'anthropic/claude-sonnet-5', turn_key: `model-replay-${served}` };
+    const first = await frames(await handleResearchChat(post(body), deps));
+    const replay = await frames(await handleResearchChat(post(body), deps));
+    for (const got of [first, replay]) {
+      const frame = got.find((f): f is Extract<ChatFrame, {model: unknown}> => 'model' in f);
+      assert(frame, 'terminal and replay must restore model identity');
+      assertEquals(frame.model.requested, body.model);
+      assertEquals(frame.model.served, served);
+    }
+  }
 });

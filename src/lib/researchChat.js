@@ -27,7 +27,7 @@ const EVENT = 'niy-research-stream';
  * `signal` aborts. The reader holds a lock on the body, so an abort has to
  * cancel the reader — cancelling the body itself would throw.
  */
-export async function* readSseFrames(response, signal) {
+export async function* readSseFrames(response, signal, onActivity) {
   const body = response?.body;
   if (!body) return;
   const reader = body.getReader();
@@ -42,6 +42,8 @@ export async function* readSseFrames(response, signal) {
     for (;;) {
       const { value, done } = await reader.read();
       if (signal?.aborted) return;
+      // SSE comments keep the connection alive without becoming application frames.
+      if (!done && value?.byteLength) onActivity?.();
       buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
       buffer = buffer.replace(/\r\n/g, '\n');
       let split = buffer.indexOf('\n\n');
@@ -600,7 +602,9 @@ async function run(entry, opts) {
     const reading = new AbortController();
     controller.signal.addEventListener('abort', () => reading.abort(), { once: true });
     if (controller.signal.aborted) reading.abort();
-    const frames = readSseFrames(response, reading.signal);
+    const frames = readSseFrames(response, reading.signal, () => {
+      if (!doneSeen && bound(entry, attempt)) bump();
+    });
     let handedOn = false;
     const source = { [Symbol.asyncIterator]: () => ({
       next: () => frames.next(),
@@ -628,7 +632,9 @@ async function run(entry, opts) {
       else if (frame.patch) {
         if (!Number.isInteger(frame.patch.from) || frame.patch.from < 0 || frame.patch.from > coalescer.text.length || typeof frame.patch.text !== 'string') throw new Error('Invalid answer patch.');
         coalescer.patch(frame.patch.from, frame.patch.text);
-      } else if (frame.model) await publish(entry, { model: frame.model }, attempt);
+      } else if (frame.model) await publish(entry, { model: {
+        ...frame.model, requested: entry.state.model?.requested || entry.request?.model || frame.model.requested,
+      } }, attempt);
       else if (Array.isArray(frame.sources)) { sawSources = true; await publish(entry, { sources: frame.sources }, attempt); }
       // The pages the turn searched, kept apart from `sources`: a web page is never a citation.
       else if (Array.isArray(frame.webSources)) await publish(entry, { webSources: frame.webSources }, attempt);

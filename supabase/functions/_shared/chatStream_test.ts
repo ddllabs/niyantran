@@ -158,3 +158,37 @@ Deno.test('credits: the credits frame is written after done, null included, and 
   gone.done();
   assertEquals(gone.sent, 1, 'the frame is skipped, and nothing throws');
 });
+
+Deno.test('keepalive uses an SSE comment, adds no frame and stops after done', async () => {
+  const { sender, text } = harness();
+  sender.heartbeat();
+  sender.send({ chunk: 'Answer' });
+  sender.heartbeat();
+  sender.done();
+  sender.heartbeat();
+  const body = await text();
+  assertEquals(body, ': keepalive\n\ndata: {"chunk":"Answer"}\n\n: keepalive\n\ndata: [DONE]\n\n');
+  assertEquals(body.split('\n\n').filter((block) => block.startsWith('data:')), ['data: {"chunk":"Answer"}', 'data: [DONE]']);
+  assertEquals(sender.sent, 4);
+});
+
+Deno.test('keepalive respects the bounded queue and safely detaches a closed reader', async () => {
+  let sender!: ReturnType<typeof createChatSender>;
+  const stream = new ReadableStream<Uint8Array>({ start(controller) { sender = createChatSender(controller); } }, {
+    highWaterMark: 1, size: (bytes) => bytes.byteLength,
+  });
+  sender.heartbeat();
+  assertEquals(sender.closed, true);
+  assertEquals(sender.sent, 0);
+  sender.heartbeat();
+  sender.done();
+  await assertRejects(() => new Response(stream).text(), Error, 'reader buffer limit');
+
+  let gone!: ReturnType<typeof createChatSender>;
+  const cancelled = new ReadableStream<Uint8Array>({ start(controller) { gone = createChatSender(controller); } }, CHAT_STREAM_QUEUE);
+  await cancelled.cancel();
+  gone.heartbeat();
+  gone.heartbeat();
+  assertEquals(gone.closed, true);
+  assertEquals(gone.sent, 0);
+});

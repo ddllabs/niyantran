@@ -146,6 +146,10 @@ export default function ActivityTicker({
     ? (last ? stepLabel(last) : (hi ? 'शुरू हो रहा है…' : 'Starting…'))
     : finishedSummary({ steps, sourceCount, timing, hi });
   const modelId = model?.served || model?.requested;
+  const switched = model?.requested && model?.served && model.requested !== model.served;
+  const fallbackNotice = switched ? (hi
+    ? `चुना गया मॉडल ${labelOf(model.requested)}; ${labelOf(model.served)} का उपयोग हो रहा है क्योंकि चुना गया मॉडल यह अनुरोध पूरा नहीं कर सका।`
+    : `Selected ${labelOf(model.requested)}; using ${labelOf(model.served)} because the selected model could not complete this request.`) : '';
   const head = [modelId && labelOf(modelId), effort && effortLabel(effort,hi), summary].filter(Boolean).join(' · ');
 
   return (
@@ -168,6 +172,8 @@ export default function ActivityTicker({
         {active && startedAt > 0 ? <span className="ai-ticker-clock">{clock(now - startedAt)}</span> : null}
         <ChevronDown className="ai-ticker-caret" size={16} aria-hidden="true" />
       </button>
+
+      {fallbackNotice ? <p className="ai-ticker-fallback" role="status" aria-live="polite">{fallbackNotice}</p> : null}
 
       {open ? <ResearchFlow steps={steps} active={active} timing={timing} lang={lang} /> : null}
 

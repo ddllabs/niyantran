@@ -7,6 +7,8 @@
 > either Done (with its commit or its operations record), waiting on one
 > named owner decision, in one of four later phases, or an accepted risk.
 
+- [ ] **F242 — RAG fallback reliability (2026-10-22).** Fix explicit model-switch notices, premature DeepSeek cutoff and false telemetry timeouts; independent review and CI-gated deployment authorized. Billing unchanged. [Plan](2026-10-22-rag-fallback-reliability.md).
+
 - [ ] **Production RAG acceptance (2026-10-19).** Implementation shipped on main
   8f72418 (clock-test prerequisite7a10c32), Vercel Production READY/exact commit,
   research-chat v68 exact36-file bundle and unauthenticated401 verified. Local
@@ -53,7 +55,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F242 is next) and goes in the
+- A new finding gets the next free `F` number (F243 is next) and goes in the
   right section.
 
 

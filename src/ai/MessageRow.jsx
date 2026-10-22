@@ -49,7 +49,7 @@ function MessageRow({ m, lang, labelOf, onOpenSource, selectedSource, credits })
     <div className={`ai-msg ai-msg-${m.role}${m.error ? ' err' : ''}`}>
       {m.role === 'assistant' ? (
         <>
-          {(m.activity?.length || m.timing || m.model_served || m.model || m.model_requested) ? <ActivityTicker activity={m.activity} timing={m.timing} effort={m.reasoning_effort} usage={m.usage} model={{ requested: m.model_requested || m.model, served: m.model_served || m.model }} labelOf={labelOf} sourceCount={readable.length} lang={lang} /> : null}
+          {(m.activity?.length || m.timing || m.model_served || m.model || m.model_requested) ? <ActivityTicker activity={m.activity} timing={m.timing} effort={m.reasoning_effort} usage={m.usage} model={{ requested: m.model_requested || m.model, served: Object.hasOwn(m, 'model_served') ? m.model_served : m.model }} labelOf={labelOf} sourceCount={readable.length} lang={lang} /> : null}
           {/* F131 §3: the pages searched, at the top of the answer, as on the live turn. */}
           {Array.isArray(m.webSources) && m.webSources.length ? <WebSourceStrip sources={m.webSources} searches={webSearchCount(m.activity)} messageId={m.id} onOpen={onOpenSource} /> : null}
           <AiMarkdown text={m.content} sources={m.sources || []} webSources={m.webSources} allowedLinks={linksOf(m)} onOpenSource={onOpenSource} selectedSource={selectedSource} />

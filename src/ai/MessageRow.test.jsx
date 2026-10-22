@@ -175,3 +175,16 @@ describe('credits used by an answer', () => {
     expect(sameRow({ ...base }, { ...base, credits: 2 })).toBe(false);
   });
 });
+
+
+it('shows the selected and actual fallback models on a saved answer', () => {
+  const html = renderToStaticMarkup(<MessageRow {...base} m={{ ...m, model_requested: 'google/selected', model_served: 'anthropic/fallback' }} />);
+  expect(html).toContain('Selected google/selected; using anthropic/fallback');
+});
+
+it('does not use a legacy model alias as served when interrupted metadata says unknown', () => {
+  const html = renderToStaticMarkup(<MessageRow {...base} m={{ ...m, status: 'interrupted', model: 'anthropic/unrelated', model_requested: 'deepseek/selected', model_served: null }} />);
+  expect(html).toContain('deepseek/selected');
+  expect(html).not.toContain('anthropic/unrelated');
+  expect(html).not.toContain('ai-ticker-fallback');
+});

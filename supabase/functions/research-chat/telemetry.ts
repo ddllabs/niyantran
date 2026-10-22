@@ -263,7 +263,12 @@ export interface TelemetryDb {
   saveGenerationCost?(id: string, cost: number, rawUsage: Record<string, unknown>): Promise<void>;
 }
 
-export const TELEMETRY_TIMEOUT_MS = 250;
+// The database adapter aborts each query after 4 s. Give it time to return the
+// inserted id (or its failure) before this last-resort bound: racing it at 250 ms
+// discarded ids even when the insert committed. Flush runs after the answer is
+// finalized and delivered, so this budget does not delay the visible response.
+// Never retry an insert after either timeout: its commit outcome may be unknown.
+export const TELEMETRY_TIMEOUT_MS = 5_000;
 /** One lookup of OpenRouter's cost for a generation: null when it has none (yet). */
 export type GenerationCost = (generationId: string, signal: AbortSignal) => Promise<number | null>;
 type ProviderStream = (request: StreamRequest) => AsyncGenerator<ModelEvent>;

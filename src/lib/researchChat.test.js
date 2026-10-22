@@ -105,6 +105,58 @@ describe('sendTurn', () => {
   beforeEach(() => clearStream('new'));
   afterEach(() => vi.restoreAllMocks());
 
+  it('retains the original selection across multiple fallback model frames', async () => {
+    await sendTurn({ ...body, model: 'selected/a' }, { send: async () => sse([
+      { model: { requested: 'selected/a', served: null } },
+      { model: { requested: 'selected/a', served: 'fallback/b', reason: 'unavailable (429)' } },
+      { model: { requested: 'fallback/b', served: 'fallback/c', reason: 'unavailable (500)' } },
+      { chunk: 'Answer' }, { done: { message_id: 'fallback-answer' } },
+    ]) });
+    expect(streamState('new').model).toEqual({ requested: 'selected/a', served: 'fallback/c', reason: 'unavailable (500)' });
+  });
+
+  it('keeps a slow provider connected through comment heartbeats beyond the inactivity limit', async () => {
+    vi.useFakeTimers();
+    try {
+      let wire;
+      const pending = sendTurn({ ...body, turn_key: 'heartbeats' }, { send: async () => new Response(new ReadableStream({ start(c) { wire = c; } })), schedule: fn => fn() });
+      await vi.advanceTimersByTimeAsync(0);
+      for (let n = 0; n < 10; n++) {
+        await vi.advanceTimersByTimeAsync(15_000);
+        wire.enqueue(new TextEncoder().encode(': heartbeat\n\n'));
+        await vi.advanceTimersByTimeAsync(0);
+      }
+      expect(streamState('new').isStreaming).toBe(true);
+      expect(streamState('new').activity).toEqual([]);
+      expect(streamState('new').streamingText).toBe('');
+      wire.enqueue(frame({ conversation: { id: 'slow-conversation' } }));
+      wire.enqueue(frame({ chunk: 'Finally answered' }));
+      wire.enqueue(frame({ sources: [] }));
+      wire.enqueue(frame({ done: { message_id: 'slow-answer' } }));
+      wire.close();
+      await pending;
+      expect(streamState('new').streamingText).toBe('Finally answered');
+      expect(streamState('new').status).toBe('complete');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('still bounds network inactivity after the last comment heartbeat', async () => {
+    vi.useFakeTimers();
+    try {
+      let wire;
+      const pending = sendTurn({ ...body, turn_key: 'heartbeat-stalls' }, { send: async () => new Response(new ReadableStream({ start(c) { wire = c; } })) });
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(100_000);
+      wire.enqueue(new TextEncoder().encode(': heartbeat\n\n'));
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(119_999);
+      expect(streamState('new').isStreaming).toBe(true);
+      await vi.advanceTimersByTimeAsync(1);
+      expect((await pending).endReason).toBe('timeout');
+      expect(streamState('new').status).toBe('unknown');
+    } finally { vi.useRealTimers(); }
+  });
+
   it('streams text into the state, records sources and follow-ups, and ends not streaming', async () => {
     const q = frameQueue();
     const send = () =>

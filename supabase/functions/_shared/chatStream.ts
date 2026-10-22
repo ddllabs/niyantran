@@ -25,7 +25,7 @@ export type ChatFrame =
   | { tool: { name: string; phase: ToolPhase; input?: unknown; step: number; resultCount?: number; searches?: number; latencyMs?: number; status?: 'ok' | 'error' | 'cancelled'; requestedTopK?: number; embeddingMs?: number; retrievalMs?: number; found?: { document_id: string; title: string; pages: number[] }[] } }
   | { chunk: string }
   | { patch: { from: number; text: string } }
-  | { model: { requested: string; served: string; reason: string } }
+  | { model: { requested: string; served: string | null; reason: string } }
   | { sources: CitationSource[] }
   /** The pages searched this turn, from the provider's annotations; never in `sources`. */
   | { webSources: WebSource[] }
@@ -93,6 +93,8 @@ export const CHAT_STREAM_QUEUE: QueuingStrategy<Uint8Array> = {
 export interface ChatSender {
   /** Write one frame. A closed reader is not an error: the turn must still finish and persist. */
   send(frame: ChatFrame): void;
+  /** Send transport activity without a user-visible frame. Safe after closure. */
+  heartbeat(): void;
   /** Write the terminator and close. Safe to call twice. */
   done(): void;
   readonly closed: boolean;
@@ -133,6 +135,9 @@ export function createChatSender(controller: ReadableStreamDefaultController<Uin
     send(frame) {
       frameKey(frame);
       write(`data: ${JSON.stringify(frame)}\n\n`);
+    },
+    heartbeat() {
+      write(': keepalive\n\n');
     },
     done() {
       if (closed) return;

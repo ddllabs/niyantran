@@ -3,7 +3,9 @@ import type { WebSource } from '../_shared/webSearch.ts';
 import { log } from '../_shared/logging.ts';
 import type { ResearchRequest } from './validate.ts';
 
-export const TURN_DEADLINE_MS = 120_000;
+// Paid Edge workers allow 400 s; leave headroom for setup and post-answer work.
+// The database claim uses the same 300 s lease. Older, shorter leases still win.
+export const TURN_DEADLINE_MS = 300_000;
 export type TerminalStatus = 'complete' | 'error' | 'cancelled' | 'truncated' | 'interrupted';
 export interface TerminalResult {
   content: string;
@@ -23,6 +25,7 @@ export interface TurnSnapshot {
   user_message_id: string;
   assistant: Omit<TerminalResult, 'status'> & {
     id: string;
+    model_requested?: string;
     status: 'running' | TerminalStatus;
     execution_expires_at: string;
   };

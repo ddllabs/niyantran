@@ -145,3 +145,23 @@ describe('web search step', () => {
     for (const searches of [0, -1, 1.5, '3', null]) expect(stepLabel({ ...web, searches })).toBe('Searched the web · 5 pages');
   });
 });
+
+
+describe('fallback disclosure', () => {
+  const model = { requested: 'google/selected', served: 'anthropic/fallback', reason: 'unavailable (500)' };
+  const labelOf = id => id === model.requested ? 'Gemini' : 'Claude';
+  it('explains the switch outside the disclosure for live and saved answers', () => {
+    for (const active of [true, false]) {
+      const html = renderToStaticMarkup(<ActivityTicker active={active} model={model} labelOf={labelOf} />);
+      expect(html).toContain('Selected Gemini; using Claude because the selected model could not complete this request.');
+      expect(html).toMatch(/class="ai-ticker-fallback" role="status" aria-live="polite"/);
+      expect(html).not.toContain('unavailable (500)');
+    }
+  });
+  it('does not claim a switch without a confirmed different served model', () => {
+    for (const served of [null, undefined, model.requested]) {
+      const html = renderToStaticMarkup(<ActivityTicker model={{ ...model, served }} />);
+      expect(html).not.toContain('ai-ticker-fallback');
+    }
+  });
+});
