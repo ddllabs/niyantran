@@ -37,3 +37,14 @@ F254/F255/F256 are complete; F252 is explicitly deferred future work in the
 sole tracker. No larger ingestion batch or re-ingestion is authorized here.
 The last verified research-chat deployment is v104; this cleanup changes no
 Edge Function. Follow required CI gates for any new PR.
+
+## Subsequent local consolidation
+
+A second pass proved all three credit-paise-plan commits patch-equivalent to
+main. The newer credit-paise spec and open-work catalogue already record the
+approved top-up prices, superseding the older top-up-price-approval wording.
+The RAG implementation was merged, but its local release receipt was missing;
+that receipt is now incorporated and F242 moved to Done. The three local
+branches can therefore be retired without losing current implementation or
+approved decisions. The remote client ingestion branch and all worktree files
+remain preserved. Closed PRs remain on GitHub as review history.
