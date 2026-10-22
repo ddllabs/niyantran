@@ -10,9 +10,9 @@ const find = (node, predicate) => {
   return null;
 };
 const group=GLOBAL_PRESENTATION.groups[0];
-const render = (open,onToggle=vi.fn(),onFeature=vi.fn()) => {
+const render = (open,onToggle=vi.fn(),onFeature=vi.fn(),cardGroup=group) => {
   hooks.index=0;hooks.effects=[];
-  return SectorCard({presentation:GLOBAL_PRESENTATION,group,summaries:{},onFeature,id:'security',index:0,open,onToggle});
+  return SectorCard({presentation:GLOBAL_PRESENTATION,group:cardGroup,summaries:{},onFeature,id:'security',index:0,open,onToggle});
 };
 beforeEach(()=>{hooks.refs=[]});
 describe('sector interactions',()=>{
@@ -49,4 +49,15 @@ describe('sector interactions',()=>{
     for(const keys of [{metaKey:true},{ctrlKey:true},{shiftKey:true},{altKey:true},{button:1}]){const event={button:0,preventDefault:vi.fn(),...keys};link.props.onClick(event);expect(event.preventDefault).not.toHaveBeenCalled();}
     expect(navigate).not.toHaveBeenCalled();
   });
+});
+
+it('exposes every module in a keyboard-scrollable region without expansion controls',()=>{
+  const large={...group,modules:Array.from({length:11},(_,i)=>({...group.modules[0],feature:`module-${i}`}))};
+  const card=render(true,vi.fn(),vi.fn(),large);
+  const list=find(card,n=>n.props?.className==='sector-modules');
+  expect(list.props.role).toBe('region');
+  expect(list.props.tabIndex).toBe(0);
+  expect(list.props.children.flat().length).toBe(11);
+  expect(find(card,n=>n.type==='a'&&n.props.hidden)).toBeNull();
+  expect(find(card,n=>n.props?.className==='sector-more')).toBeNull();
 });

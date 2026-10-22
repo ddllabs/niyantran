@@ -41,6 +41,10 @@ export function SectorCard({ presentation, group, summaries, onFeature, id, inde
   const focusBack = useRef(false);
   const restoreFront = useRef(false);
   useEffect(() => {
+    if (!open && back.current) {
+      const list = back.current.querySelector('.sector-modules');
+      if (list) list.scrollTop = 0;
+    }
     if (open && focusBack.current) back.current?.querySelector('.module-item, .sector-back-action')?.focus({ preventScroll: true });
     if (!open && restoreFront.current) front.current?.focus({ preventScroll: true });
     focusBack.current = false;
@@ -56,7 +60,7 @@ export function SectorCard({ presentation, group, summaries, onFeature, id, inde
       <button ref={front} type="button" className="sector-card sector-front" inert={open} aria-hidden={open} aria-expanded={open} aria-controls={`${id}-modules`} aria-label={`Explore ${group.name}: ${group.modules.length} modules`} onClick={() => { focusBack.current = true; onToggle(group.id); }}>
         <div className={`card-picture picture-${group.image}`} data-image={group.image}><V6Photo name={group.image} /><span className="card-number">{String(index + 1).padStart(2, '0')}</span><span className="card-count">{group.modules.length} modules</span></div>
         <div className="card-body"><div className="card-title-row"><h3>{group.title[0]}<br />{group.title[1]}</h3></div><p className="card-desc">{group.cardDescription || group.description}</p>
-          <div className="card-bottom"><span className="card-total">{formatCount(presentation.coverageCounts ? totals.pending && !totals.knownModules ? null : totals.knownModules : totals.count)}{totals.pending && (presentation.coverageCounts ? totals.knownModules > 0 : totals.count != null) ? '+' : ''}<small>{presentation.coverageCounts ? 'measured modules' : 'records'}</small></span><span className="status">{modes.length > 1 ? 'Mixed sources' : modes[0] === 'stored' ? 'Stored register' : modes[0] === 'feed-backed' ? 'News & feeds' : modes[0] === 'curated' ? 'Curated records' : modes[0] === 'simulated' ? 'Illustrative simulation' : totals.pending ? 'Loading' : 'Coverage unavailable'}</span></div>
+          <div className="card-bottom"><span className="card-total">{formatCount(presentation.coverageCounts ? totals.pending && !totals.knownModules ? null : totals.knownModules : totals.count)}{totals.pending && (presentation.coverageCounts ? totals.knownModules > 0 : totals.count != null) ? '+' : ''}<small>{presentation.coverageCounts ? 'measured' : 'records'}</small></span><span className="status">{modes.length > 1 ? 'Mixed sources' : modes[0] === 'stored' ? 'Stored register' : modes[0] === 'feed-backed' ? 'News & feeds' : modes[0] === 'curated' ? 'Curated records' : modes[0] === 'simulated' ? 'Illustrative simulation' : totals.pending ? 'Loading' : 'Coverage unavailable'}</span></div>
           <span className="sector-action">Explore {group.modules.length} modules</span>
         </div>
       </button>
@@ -64,13 +68,15 @@ export function SectorCard({ presentation, group, summaries, onFeature, id, inde
         <button type="button" className="sector-dismiss" tabIndex={-1} aria-hidden="true" onClick={close} />
         <span className="eyebrow">INSIDE THIS SECTOR</span><h3 id={`${id}-heading`}>{group.name}</h3><p className="sector-instruction">Choose a module to open in Terminal</p>
         <span className="sector-coverage">{group.modules.length} modules · {group.modules.filter(module => hasSource(summaries[module.feature])).length} with sources</span>
-        <div className="sector-modules">
-      {group.modules.map((module, index) => <a className="module-item" key={module.feature} style={{ '--i': index }} href={`/${deskHash(presentation.id, module.feature)}`} aria-label={`${module.title}: ${moduleNote(module, summaries[module.feature])}`} onClick={event => {
+        <div className="sector-modules" id={`${id}-module-list`} role="region" aria-label={`${group.name} modules`} tabIndex={0} onClick={event => { if (event.target === event.currentTarget) close(); }}>
+      {group.modules.map((module, index) => <a className="module-item" title={`${module.title}: ${moduleNote(module, summaries[module.feature])}`} key={module.feature} style={{ '--i': index }} href={`/${deskHash(presentation.id, module.feature)}`} aria-label={`${module.title}: ${moduleNote(module, summaries[module.feature])}`} onClick={event => {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault(); onFeature(module.feature);
       }}><span className="module-icon"><ModuleIcon module={module} summary={summaries[module.feature]} /></span><span className="module-copy"><b>{module.title}</b><span>{moduleNote(module, summaries[module.feature])}</span></span></a>)}
         </div>
-        <button type="button" className="sector-action sector-back-action" onClick={close}>Back to sector</button>
+        <div className="sector-footer">
+          <button type="button" className="sector-action sector-back-action" aria-label="Back to sector" onClick={close}>Back</button>
+        </div>
       </div>
     </div>
   </article>;

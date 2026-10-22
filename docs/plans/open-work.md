@@ -44,6 +44,7 @@
 
 
 
+
 ## How to use this file
 
 - **This is the only list of open work.** Plans, specs, ADRs and
@@ -3499,3 +3500,9 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-21 State sector grid parity
 
 - [x] `2954800` removes dense-sector layout exceptions; State shares desktop and responsive grids with other desks. All module links preserved. Owner authorized publication; 244 focused tests, lint/build and browser checks passed. [Plan](2026-10-21-state-sector-grid.md).
+
+## Done — 2026-10-22 compact desk cards
+
+- [x] Shared compact fronts, four-module previews and More/Less footer across eight desks. PR #8 merged at `1d64416b3591caf1242147ef57343908f0c277bb`; production deployment successful. Both main CI jobs passed; live eight-desk dimensions and State expansion/collapse verified. See [release evidence](2026-10-22-desk-card-sizing.md).
+
+- [ ] **Desk module scrolling (2026-10-22).** Replace More/Less with a fixed-height native scrolling list; local review before deployment. Scope shared desk component/CSS/tests.
