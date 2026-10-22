@@ -80,6 +80,9 @@ m() { echo "$MIG/$1"; }
 # fixture name -> container, then the ordered bootstrap files.
 chain() {
   case "$1" in
+    research_turn_deadline)
+      chain research_turn_persistence
+      FILES+=("$(as_non_superuser 20261022172302_research_turn_deadline.sql)") ;;
     billing_unused_topup_refund)
       chain billing_manual_grace
       FILES+=("$(as_non_superuser 20261021150010_billing_unused_topup_refund.sql)") ;;

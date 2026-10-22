@@ -1,3 +1,4 @@
+import { FakeTime } from 'jsr:@std/testing@1.0.21/time';
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
 import type { Usage } from '../_shared/openrouterStream.ts';
 import {
@@ -640,4 +641,79 @@ Deno.test('the recorder writes the turn\'s reasoning effort on answer and embedd
   await recorder.flush();
   assert(rows.length >= 2);
   assertEquals(rows.map((r) => r.reasoning_effort), rows.map(() => 'medium'));
+});
+
+
+Deno.test('F242: post-answer telemetry retains slow successful writes and their trace links', async () => {
+  using time = new FakeTime(0);
+  const calls: ReturnType<typeof modelCallRow>[] = [];
+  const traces: TurnTraceRow[][] = [];
+  const delay = <T>(value: T) => new Promise<T>((resolve) => setTimeout(() => resolve(value), 600));
+  const { recorder } = recorderWith({
+    pricing: () => delay({ prompt_usd: 0.001, completion_usd: 0.002 }),
+    db: {
+      logModelCall: (row) => { calls.push(row); return delay(`id-${calls.length}`); },
+      logTurnTraces: async (rows) => { await delay(undefined); traces.push(rows); },
+    },
+  });
+  const wrapped = recorder.wrap(async function* () {
+    yield { type: 'finish', reason: 'stop', served: 'model', generationId: 'generation',
+      usage: usage({ prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }) };
+  }, 'chat_answer');
+  for await (const _event of wrapped({ model: 'model', messages: [] })) { /* consume */ }
+  recorder.addTraces(turnTraceRows({ userId: 'u', conversationId: 'c', messageId: 'm', steps: [],
+    answer: { latencyMs: 100, aborted: false } }));
+  const lines = await logged(async () => {
+    const pending = recorder.flush();
+    assertEquals(recorder.flush(), pending, 'concurrent flushes share one write');
+    for (let step = 0; step < 3; step++) await time.tickAsync(600);
+    await pending;
+    await recorder.flush();
+  });
+  assertEquals(calls.length, 1);
+  assertEquals(calls[0].cost_usd, 0.008, 'completed pricing lookup is retained');
+  assertEquals(traces.length, 1);
+  assertEquals(traces[0][0].model_call_log_id, 'id-1');
+  assertEquals(lines.filter((line) => line.includes('telemetry_failed')), []);
+});
+
+Deno.test('F242: slow aborted-attempt insert retains its late-cost recovery link', async () => {
+  using time = new FakeTime(0);
+  const { recorder } = recorderWith({
+    db: { logModelCall: () => new Promise((resolve) => setTimeout(() => resolve('saved-row'), 600)),
+      logTurnTraces: () => Promise.resolve() },
+  });
+  await cutOff(recorder, 'gen-cut');
+  const lines = await logged(async () => {
+    const pending = recorder.flush();
+    await time.tickAsync(600);
+    await pending;
+  });
+  assertEquals(recorder.lateCosts().map((row) => [row.id, row.generationId]), [['saved-row', 'gen-cut']]);
+  assertEquals(lines.filter((line) => line.includes('telemetry_failed') || line.includes('aborted_cost_unknown')), []);
+});
+
+Deno.test('F242: a hung telemetry insert stays bounded and is never retried', async () => {
+  using time = new FakeTime(0);
+  let writes = 0;
+  let resolveWrite!: (id: string) => void;
+  const { recorder } = recorderWith({
+    db: { logModelCall: () => { writes++; return new Promise((resolve) => { resolveWrite = resolve; }); },
+      logTurnTraces: () => Promise.resolve() },
+  });
+  recorder.beginEmbeddingAttempt('embed').finish('success');
+  let finished = false;
+  const lines = await logged(async () => {
+    const pending = recorder.flush().then(() => { finished = true; });
+    await time.tickAsync(4_000);
+    await time.runMicrotasks();
+    assertEquals(finished, false, 'allow the database adapter its full four-second deadline');
+    await time.tickAsync(1_000);
+    await pending;
+    resolveWrite('late-row');
+    await recorder.flush();
+  });
+  assertEquals(finished, true);
+  assertEquals(writes, 1, 'unknown commit outcome must not cause a duplicate insert');
+  assertEquals(lines.filter((line) => line.includes('"reason":"timeout"')).length, 1);
 });

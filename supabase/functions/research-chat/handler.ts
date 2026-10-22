@@ -537,6 +537,8 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
     db: deps.telemetry,
     now: deps.now,
   });
+  // Transport activity only: silent reasoning must not look like a dead connection.
+  const heartbeat = setInterval(() => sender.heartbeat(), 15_000);
   const work = executeClaimedTurn({
     store: deps.persistence,
     ownerId: caller.userId,
@@ -567,6 +569,7 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
       if (awaitingCost) log('research_chat.credits_pending', { stage: 'late_cost' });
       sender.send({ credits: awaitingCost ? null : settled });
     } finally {
+      clearInterval(heartbeat);
       sender.done();
     }
     // With the stream closed: the rounds Stop cut off have no cost yet, and OpenRouter has it only
@@ -709,6 +712,9 @@ function sendTerminal(
   forcePatch = false,
 ): void {
   const row = saved.assistant;
+  if (row.model_requested) sender.send({ model: {
+    requested: row.model_requested, served: row.model_served, reason: 'saved',
+  } });
   if (forcePatch || row.content !== visible) {
     const from = forcePatch ? 0 : firstDifference(visible, row.content);
     sender.send({ patch: { from, text: row.content.slice(from) } });
@@ -1022,6 +1028,28 @@ async function runTurnBody(
     context.checkpoint({ activity: [...activity] });
   };
 
+  let served: string | null = null;
+  let attemptModel = t.chosen.model_id;
+  let responseModel: string | null = null;
+  let fallbackReason = 'selected';
+  let announcedModel: string | null = null;
+  const recordServingModel = (model: string) => {
+    if (signal.aborted) return;
+    served = model;
+    context.checkpoint({ model_served: model });
+    if (announcedModel === model) return;
+    announcedModel = model;
+    sender.send({ model: { requested: t.chosen.model_id, served: model, reason: fallbackReason } });
+  };
+  // Observe the provider's identity without changing telemetry or retry ownership.
+  const observedStream: HandlerDeps['stream'] = async function* (req) {
+    responseModel = null;
+    yield* deps.stream({ ...req, onAttemptMetadata(metadata) {
+      if (metadata.served) responseModel = metadata.served;
+      req.onAttemptMetadata?.(metadata);
+    } });
+  };
+
   const onEvent = (e: AgentEvent) => {
     if (signal.aborted) return;
     if ('internalReasoning' in e) return;
@@ -1046,6 +1074,8 @@ async function runTurnBody(
       // each of its six rounds, which is why every label is said once (F46).
       if (e.attempt.phase === 'research') stage(researchRounds++ === 0 ? READING_QUESTION : READING_RESULTS);
       else stage(WRITING);
+    } else if ('finish' in e) {
+      recordServingModel(e.finish.served || responseModel || attemptModel);
     } else if ('outOfTime' in e) {
       // F199: how often the reserve decides a turn is a question only the logs can answer.
       log('research.out_of_time', { phase: e.outOfTime.phase, cut: e.outOfTime.cut, rounds });
@@ -1150,6 +1180,7 @@ async function runTurnBody(
         if (!firstAnswerAt) firstAnswerAt = now();
         writingEnd = now();
         streamed += shown;
+        recordServingModel(responseModel || attemptModel);
         context.checkpoint({ content: safeText(streamed) });
         sender.send({ chunk: shown });
       }
@@ -1181,10 +1212,10 @@ async function runTurnBody(
   let result: AgentResult | null = null;
   let schemaDropped = false;
   let structureRetried = false;
-  let served: string | null = null;
 
   for (let i = 0; i < chain.length; i++) {
     const model = chain[i];
+    attemptModel = model;
     try {
       checkpoint ??= createAgentCheckpoint(input, handles, budget);
       result = await runAgent(
@@ -1200,7 +1231,7 @@ async function runTurnBody(
             ...(effortOf(t, model) ? { reasoning: { effort: effortOf(t, model)! } } : {}),
             ...(schemaDropped ? { response_format: undefined } : {}),
           },
-          model: attempts.wrap(deps.stream, 'chat_answer'),
+          model: attempts.wrap(observedStream, 'chat_answer'),
           searchDocuments: (args, ids, topK, onTiming) =>
             deps.searchDocuments(args, ids, {
               signal,
@@ -1228,7 +1259,7 @@ async function runTurnBody(
         },
         input,
       );
-      served = result.served;
+      served = result.served || served;
       if (!structureRetried && !signal.aborted && !streamed && result.finish === 'stop' &&
           !parseEnvelope(result.text) && budget.modelAttempts < BUDGET.maxSteps &&
           (!context.timeLeft || context.timeLeft() > 0)) {
@@ -1273,7 +1304,7 @@ async function runTurnBody(
       }
       if (e instanceof ProviderError && e.retryable) {
         const next = chain[i + 1];
-        if (next) sender.send({ model: { requested: model, served: next, reason: `unavailable (${e.status})` } });
+        if (next) fallbackReason = `unavailable (${e.status})`;
         continue;
       }
       break;
