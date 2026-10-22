@@ -36,19 +36,21 @@ function Insight({ items, count, onOpen, national, highlight }) {
 }
 
 export function SectorCard({ presentation, group, summaries, onFeature, id, index, open, onToggle }) {
-  const [expanded, setExpanded] = useState(false);
   const front = useRef(null);
   const back = useRef(null);
   const focusBack = useRef(false);
   const restoreFront = useRef(false);
   useEffect(() => {
-    if (!open) setExpanded(false);
+    if (!open && back.current) {
+      const list = back.current.querySelector('.sector-modules');
+      if (list) list.scrollTop = 0;
+    }
     if (open && focusBack.current) back.current?.querySelector('.module-item, .sector-back-action')?.focus({ preventScroll: true });
     if (!open && restoreFront.current) front.current?.focus({ preventScroll: true });
     focusBack.current = false;
     restoreFront.current = false;
   }, [open]);
-  const close = () => { setExpanded(false); restoreFront.current = true; onToggle(null); };
+  const close = () => { restoreFront.current = true; onToggle(null); };
   const totals = summarizeModules(group.modules, summaries);
   const modes = [...new Set(group.modules.map(module => summaries[module.feature]?.sourceMode).filter(mode => mode && mode !== 'unknown'))];
   return <article className="sector-flip" data-dense={group.modules.length > 6} data-open={open} style={{ '--i': index }} onKeyDown={event => {
@@ -66,15 +68,14 @@ export function SectorCard({ presentation, group, summaries, onFeature, id, inde
         <button type="button" className="sector-dismiss" tabIndex={-1} aria-hidden="true" onClick={close} />
         <span className="eyebrow">INSIDE THIS SECTOR</span><h3 id={`${id}-heading`}>{group.name}</h3><p className="sector-instruction">Choose a module to open in Terminal</p>
         <span className="sector-coverage">{group.modules.length} modules · {group.modules.filter(module => hasSource(summaries[module.feature])).length} with sources</span>
-        <div className="sector-modules" id={`${id}-module-list`}>
-      {group.modules.map((module, index) => <a className="module-item" hidden={index >= 4 && !(open && expanded)} title={`${module.title}: ${moduleNote(module, summaries[module.feature])}`} key={module.feature} style={{ '--i': index }} href={`/${deskHash(presentation.id, module.feature)}`} aria-label={`${module.title}: ${moduleNote(module, summaries[module.feature])}`} onClick={event => {
+        <div className="sector-modules" id={`${id}-module-list`} role="region" aria-label={`${group.name} modules`} tabIndex={0} onClick={event => { if (event.target === event.currentTarget) close(); }}>
+      {group.modules.map((module, index) => <a className="module-item" title={`${module.title}: ${moduleNote(module, summaries[module.feature])}`} key={module.feature} style={{ '--i': index }} href={`/${deskHash(presentation.id, module.feature)}`} aria-label={`${module.title}: ${moduleNote(module, summaries[module.feature])}`} onClick={event => {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault(); onFeature(module.feature);
       }}><span className="module-icon"><ModuleIcon module={module} summary={summaries[module.feature]} /></span><span className="module-copy"><b>{module.title}</b><span>{moduleNote(module, summaries[module.feature])}</span></span></a>)}
         </div>
         <div className="sector-footer">
           <button type="button" className="sector-action sector-back-action" aria-label="Back to sector" onClick={close}>Back</button>
-          {group.modules.length > 4 && <button type="button" className="sector-more" aria-label={expanded ? 'Show fewer modules' : `Show ${group.modules.length - 4} more modules`} aria-expanded={open && expanded} aria-controls={`${id}-module-list`} onClick={() => setExpanded(!expanded)}>{expanded ? 'Less' : `More (${group.modules.length - 4})`}</button>}
         </div>
       </div>
     </div>

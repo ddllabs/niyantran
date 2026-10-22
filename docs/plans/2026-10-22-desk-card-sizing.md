@@ -37,3 +37,8 @@ Owner approved compact front copy while preserving overall/reverse dimensions. I
 
 ## Release authorization
 Owner approved push, merge to main and deployment on nter.pro. Final scope reviewed: shared presentation only, no dependencies, secrets, billing, API or data changes. Local preview harnesses excluded. Protected PR and both required CI jobs must pass before production. Rollback is a reviewed revert of this UI change.
+
+## Production verification — 2026-10-22
+PR https://github.com/ddllabs/niyantran/pull/8 merged as `1d64416b3591caf1242147ef57343908f0c277bb` (implementation `a954bae9`). Local full suite 6,548 tests and Edge suite 1,174 tests passed. Branch/PR and main Build and tests + SQL fixtures (disposable Postgres) passed. Main run 39789466095 succeeded. Production deployment 7254003960 reports success, URL https://niyantran-flp16xjym-ddl-labs.vercel.app.
+
+Live nter.pro verified all eight desks at 520px front heights; Global images 326px. State Government expands to all eleven links (selected height 966px, siblings 520px) and collapses to four with all heights 520px. No captured console warnings/errors. No billing/data/schema changes. Release bookkeeping appended locally after deployment, pending documentation integration; preview harnesses remain untracked.
