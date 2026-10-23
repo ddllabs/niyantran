@@ -1626,3 +1626,21 @@ Deno.test('supplied text: non-admin and unsigned requests cannot register; confl
   const d=deps(w); d.db.registerText=async()=>({data:null,error:{message:'supplied text: conflict'}});
   assertEquals((await handleAdminIngest(post(body),d)).status,422); assertEquals(w.workerStarts,0);
 });
+
+Deno.test('law publication actions validate bounds and route only after platform admin', async () => {
+  const w = world();
+  const d = deps(w);
+  const calls: unknown[] = [];
+  d.db.lawListing = async (action, p) => { calls.push({ action, p }); return { data: { status: 'ready' }, error: null }; };
+  const response = await handleAdminIngest(post({ action: 'law-reconcile', document_id: DOC, text_sha256: SHA_A }), d);
+  assertEquals(response.status, 200);
+  assertEquals(calls.length, 1);
+  assertEquals(w.workerStarts, 0);
+  const invalid = await handleAdminIngest(post({ action: 'law-publish', document_id: DOC, text_sha256: SHA_A, expected_fingerprint: 'bad' }), d);
+  assertEquals(invalid.status, 400);
+  assertEquals(calls.length, 1);
+  d.isAdmin = async () => false;
+  const denied = await handleAdminIngest(post({ action: 'law-status', document_id: DOC }), d);
+  assertEquals(denied.status, 403);
+  assertEquals(calls.length, 1);
+});

@@ -108,6 +108,10 @@ export function supabaseAdminDb(client: () => SupabaseClient): AdminIngestDb {
   }
 
   return {
+    async lawListing(action, p) {
+      if (action === 'law-status') return await rpc('law_publication_status', { p_document: p.document_id });
+      return await rpc(action === 'law-reconcile' ? 'law_reconcile' : 'law_publish', { p });
+    },
     async registerText(p) { return await rpc('ingest_register_text', { p }); },
     async documentsBySha(fileSha256) {
       const { data, error } = await client()

@@ -79,7 +79,11 @@ export interface RegisterPart extends DeclaredPart {
 export type RecordStatus = 'processing' | 'failed' | 'full_text' | 'full_text_legacy' | 'record_only';
 
 export type Request =
-  | { action: 'register_text'; record: Record<string, unknown>; dry_run?: boolean; confirm_sha256?: string }
+  | { action: 'law-reconcile'; record: Record<string, unknown> }
+  | { action: 'law-reconcile'; document_id: string; text_sha256: string }
+  | { action: 'law-status'; document_id: string }
+  | { action: 'law-publish'; document_id: string; text_sha256: string; expected_fingerprint: string; decision_id: string; approver: string; evidence_sha256: string }
+  | { action: 'register_text'; record: Record<string, unknown>; dry_run?: boolean; confirm_sha256?: string; expected_mapping_fingerprint?: string }
   | {
     action: 'prepare';
     file_sha256: string;
