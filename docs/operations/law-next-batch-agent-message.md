@@ -4,9 +4,11 @@
 
 ## Paste-ready message
 
-You are preparing the next Law corpus cohort for NTER from the shared legal pack. Aim for up to 1,000 eligible NEW documents within the supported IBBI_NCLT collection; this is a preparation target, not permission to ingest. Report legal-record, immutable-document and chunk counts separately. If fewer eligible records exist, report the real count. Do not relax checks or mix other forums to fill a quota.
+You are preparing the next Law corpus cohort for NTER from the shared legal pack. First prepare up to 100 eligible NEW documents within the supported IBBI_NCLT collection; this is a preparation target, not permission to ingest. Report legal-record, immutable-document and chunk counts separately. If fewer eligible records exist, report the real count. Do not relax checks or mix other forums to fill a quota.
 
-Repository: https://github.com/ddllabs/niyantran. Fetch current main and create your own `task/client-law-next-1000-<agent>-<date>` branch. Inspect pwd, branch, status and remotes before working. Never push to main, force-push, reset/stash another worker's changes, or modify a different agent's branch. Follow AGENTS.md: task agents leave scoped edits for supervisor review; commits, PRs and pushes require the applicable owner/supervisor authority. An ingestion run normally needs no code changes.
+This supersedes the earlier 1,000-document preparation target. If you already started, preserve your branch, staging evidence and checkpoints. Fetch main and inspect changes since your last checkpoint before continuing. Reuse valid screening work; select a bounded 100-document subset and regenerate live mapping proposals when fingerprints changed. Do not rerun completed ingestion. A later 1,000-document cohort requires a separate authorization after the 100-document run has passed its gates.
+
+Repository: https://github.com/ddllabs/niyantran. If starting fresh, fetch current main and create your own `task/client-law-next-100-<agent>-<date>` branch. If resuming, retain your existing isolated task branch and integrate current main only after inspecting and preserving your work; do not create a second competing run. Inspect pwd, branch, status and remotes before working. Never push to main, force-push, reset/stash another worker's changes, or modify a different agent's branch. Follow AGENTS.md: task agents leave scoped edits for supervisor review; commits, PRs and pushes require the applicable owner/supervisor authority. An ingestion run normally needs no code changes.
 
 Read these documents in order:
 
@@ -26,7 +28,7 @@ Use the existing scripts and chunker:
 
 Mapping rules: match verified source associations or exact official order URLs, then verify forum, type, case number and date. Company titles and PDF basenames are not identities. Keep an IBBI announcement separate from an NCLT order even if the company name matches. New eligible orders absent from the register get canonical listings; existing indexed documents get metadata-only links. Revisions, translations, ambiguous aliases, unsupported forums, policy failures and stale mappings remain held. Never mutate original document metadata or completed manifests to force a match.
 
-Known release acceptance findings: F247 tracks incorrect attribution of party submissions as tribunal findings in a Globiz answer; F248 tracks the legacy record panel ignoring structured case_number. Do not claim these passed or repair them by re-ingestion. The ten documents are already published and remain excluded from the next cohort.
+Check F247/F248 fix and website acceptance evidence in docs/plans/2026-10-24-law-answer-attribution-fields.md before claiming either passed. Earlier release evidence is historical. Do not repair either defect by re-ingestion. The ten documents are already published and remain excluded from the next cohort.
 
 For preparation now:
 
@@ -38,9 +40,13 @@ For preparation now:
 After a future explicit owner authorization covers the exact cohort, decision ID/approver and resource limits:
 
 - Finalize the approved keys only, run the importer offline, then `--reconcile` against `https://vfgcppstyzjarlzyqdac.supabase.co`. Recheck exact chunk totals, conservative spend and live mappings. If evidence changed, bounds are exceeded or new holds appear, stop that scope and report it.
-- Submit only within that authorization using `--submit --approval <exact-decision-manifest-sha256> --max-chunks <approved-count> --max-estimated-cost-usd <approved-ceiling>`. A 1,000-document cohort is not 1,000 concurrent jobs. Preserve current worker concurrency/retries and per-document limits; split into reviewed submanifests if needed. The cost option is a client admission estimate, not a provider-enforced hard cap.
+- Submit only within that authorization using `--submit --approval <exact-decision-manifest-sha256> --max-chunks <approved-count> --max-estimated-cost-usd <approved-ceiling>`. A 100-document validation cohort is not 100 concurrent jobs. Preserve current worker concurrency/retries and per-document limits; split into reviewed submanifests if needed. The cost option is a client admission estimate, not a provider-enforced hard cap.
 - Save intent/result checkpoints and both ingestion and publication receipts. After a lost acknowledgement, inspect remote status before replay. Already-registered documents must not be resubmitted to repair listings. Use the metadata-only script for pending publication after fresh reconciliation.
 - Completion requires confirmed indexing AND publication: exact document/chunk counts, vectors, source/citation offsets, canonical listing identity, module/global search, correct selected-record attachment, realistic natural-language retrieval and website citations. Vector self-lookup alone is insufficient. Sample reruns must create no duplicate jobs/chunks/records or embedding cost.
 - Report successes, held/pending/uncertain outcomes, actual costs, verification limits and before/after deltas. Do not expand into another cohort, another collection, or all remaining corpus without a new bounded authorization.
 
 The earlier scanner mistake was comparing raw JSON bytes before decoding identities, skipping malformed rows and trusting declared hashes. Those could hide a competing revision. The schema 3 fix fails closed and has causal regression tests. This does not establish that the completed ten documents were wrong, and it does not authorize re-ingesting them.
+
+## Gate from 100 to 1,000
+
+After explicit authorization and completion of the first 100 (or the smaller actually eligible cohort), verify every indexed document has the correct published listing, immutable source/text hashes, expected chunk/vector counts, no duplicated identities and no unexpected spend. Check all 100 publication states, with a stratified citation and natural-language sample covering new listings, existing source-only listings, long/short orders and any publication retry. Test party-submission versus tribunal-finding attribution and final relief/costs. A sampled answer must not be described as verification of all 100 answers. Test a repeat subset and checkpoint recovery without duplicate jobs/chunks or paid re-indexing. Report measured throughput, pending/held failures and cost. Only then propose 1,000 with measured resource limits; 100 passing is not automatic permission to submit 1,000.

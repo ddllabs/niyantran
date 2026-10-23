@@ -16,6 +16,23 @@ const tile = (m, label) => m.glance.tiles.find((t) => t.label === label);
 const board = (m) => Object.fromEntries(m.glance.visual2.rows.map((r) => [r.label, r.value]));
 
 describe('NCLT / IBBI record panel (F128)', () => {
+  it('F248: uses the canonical case number across the panel without title brackets', () => {
+    const row = { court: 'NCLT', title: 'In the matter of Future Consumer Limited', case_number: ' C.P. (IB)/914/MB/2025 ' };
+    const before = structuredClone(row);
+    const m = lawInsolvency(row, ctx);
+    expect(tile(m, 'Forum').sub).toBe('C.P. (IB)/914/MB/2025');
+    expect(board(m)['Case number']).toBe('On the row');
+    expect(m.about.rows).toContainEqual(['Case', 'C.P. (IB)/914/MB/2025']);
+    expect(row).toEqual(before);
+  });
+
+  it('F248: canonical case number takes precedence; blank or malformed fields retain legacy fallback', () => {
+    expect(tile(lawInsolvency({ ...order, case_number: 'CANONICAL/2026' }, ctx), 'Forum').sub).toBe('CANONICAL/2026');
+    for (const case_number of ['', '   ', null, {}, 123]) {
+      expect(tile(lawInsolvency({ ...order, case_number }, ctx), 'Forum').sub).toBe('C.P. (IB)/1231(MB)2025');
+    }
+  });
+
   it('honours the contract for every real row', () => {
     expect(rows).toHaveLength(434);
     for (const r of rows) expect(contractProblems(lawInsolvency(r, ctx)), r.title).toEqual([]);

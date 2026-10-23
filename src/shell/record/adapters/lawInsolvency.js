@@ -192,7 +192,7 @@ function announcement(row, ctx) {
 function order(row, ctx) {
   const debtor = clean(row.entity);
   const remarks = clean(row.remarks);
-  const caseNo = caseNumberOf(row.subject || row.title);
+  const caseNo = (typeof row.case_number === 'string' ? clean(row.case_number) : '') || caseNumberOf(row.subject || row.title);
   const dated = dateLabel(row.date);
   return {
     title: clean(row.title),
