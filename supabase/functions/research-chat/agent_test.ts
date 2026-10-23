@@ -2189,3 +2189,92 @@ Deno.test('a provider declining required web cannot loop or promote its unsearch
   assertEquals(f.requests.at(-1)?.tool_choice, 'none');
   assertEquals(result.webPages, []);
 });
+
+Deno.test('F247: Law presearch requires a bounded same-document context pass before drafting', async () => {
+  const calls: { query: string; ids?: string[] }[] = [];
+  const law = { ...chunk('law'), desk_tier: 'law' };
+  const f = fake([answer()], { searchDocuments: (args, ids) => {
+    calls.push({ query: args.query, ids });
+    return Promise.resolve([law]);
+  } });
+  await runAgent(f.deps, { ...input, presearch: 'debt', focus: 'attached', scopedDocumentIds: ['doc-law'] });
+  assertEquals(calls.length, 2);
+  assertEquals(calls[1].ids, ['doc-law']);
+  assert(calls[1].query.includes('submissions'));
+  assertEquals(f.requests.length, 1);
+  assertEquals(f.deps.budget!.searches, 2);
+  const transcript = JSON.stringify(f.requests[0].messages);
+  assert(transcript.includes('Attribution is not established'));
+  assert(transcript.includes('law-context-1'));
+  assert(!renderChunk('ref:abc123-1', chunk('national')).includes('Attribution is not established'));
+});
+
+Deno.test('F247: empty Law context stays scoped and explicitly unresolved', async () => {
+  let calls = 0;
+  const f = fake([answer()], { searchDocuments: (_args, ids) => {
+    calls++;
+    if (calls === 2) { assertEquals(ids, ['doc-law']); return Promise.resolve([]); }
+    return Promise.resolve([{ ...chunk('law'), desk_tier: 'law' }]);
+  } });
+  await runAgent(f.deps, { ...input, presearch: 'debt', focus: 'broad' });
+  assertEquals(calls, 2);
+  assert(JSON.stringify(f.requests[0].messages).includes('Attribution remains unresolved'));
+});
+
+Deno.test('F247: deadline skips extra Law search and discloses unresolved attribution', async () => {
+  const f = fake([answer()], { timeLeft: () => 1, searchDocuments: () => Promise.resolve([{ ...chunk('law'), desk_tier: 'law' }]) });
+  await runAgent(f.deps, { ...input, presearch: 'debt' });
+  assertEquals(f.deps.budget!.searches, 1);
+  assert(JSON.stringify(f.requests[0].messages).includes('Attribution remains unresolved'));
+});
+
+Deno.test('F247: failed context is recorded and is not replayed on model failover', async () => {
+  let searches = 0;
+  const f = fake([answer()], { searchDocuments: () => {
+    searches++;
+    if (searches > 1) throw new Error('private backend detail');
+    return Promise.resolve([{ ...chunk('law'), desk_tier: 'law' }]);
+  } });
+  const failing: AgentDeps = { ...f.deps, model: async function* () { throw new Error('provider failure'); } };
+  const turn = { ...input, presearch: 'debt' };
+  await assertRejects(() => runAgent(failing, turn));
+  const result = await runAgent({ ...f.deps, checkpoint: failing.checkpoint }, turn);
+  assertEquals(searches, 2);
+  assertEquals(result.steps[1].status, 'error');
+  const transcript = JSON.stringify(f.requests[0].messages);
+  assert(transcript.includes('Attribution remains unresolved'));
+  assert(!transcript.includes('private backend detail'));
+});
+
+Deno.test('F247: model-requested Law retrieval gets context before its first draft', async () => {
+  let searches = 0;
+  const f = fake([[docCall(), finish('tool_calls')], answer()], {
+    searchDocuments: () => { searches++; return Promise.resolve([{ ...chunk('law'), desk_tier: 'law' }]); },
+  });
+  await runAgent(f.deps, input);
+  assertEquals(searches, 2);
+  assert(JSON.stringify(f.requests[1].messages).includes('law-context-1'));
+  assertEquals(f.requests[0].messages.some(m => String(m.content).includes('Attribution remains unresolved')), false);
+});
+
+Deno.test('F247: exhausted search budget cannot silently satisfy the context gate', async () => {
+  const budget = createAgentBudget();
+  budget.searches = BUDGET.maxSearches - 1;
+  const f = fake([[docCall(), finish('tool_calls')], answer()], {
+    budget, searchDocuments: () => Promise.resolve([{ ...chunk('law'), desk_tier: 'law' }]),
+  });
+  await runAgent(f.deps, input);
+  assertEquals(budget.searches, BUDGET.maxSearches);
+  assert(JSON.stringify(f.requests[1].messages).includes('Attribution remains unresolved'));
+});
+
+Deno.test('F247: context result outside the pinned document set is never rendered or handled', async () => {
+  let searches = 0;
+  const f = fake([answer()], { searchDocuments: () => Promise.resolve(++searches === 1
+    ? [{ ...chunk('law'), desk_tier: 'law' }]
+    : [{ ...chunk('outside'), desk_tier: 'law', content: 'OUTSIDE_SECRET_TEXT' }]) });
+  const result = await runAgent(f.deps, { ...input, presearch: 'q' });
+  assertEquals(result.chunks.map(c => c.id), ['law']);
+  assert(!JSON.stringify(f.requests[0].messages).includes('OUTSIDE_SECRET_TEXT'));
+  assert(JSON.stringify(f.requests[0].messages).includes('Attribution remains unresolved'));
+});
