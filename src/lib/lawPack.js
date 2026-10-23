@@ -1,3 +1,5 @@
+import { withNcltListingCorrections } from './lawListingCorrections.js';
+
 /**
  * Extracted judiciary tables. GDELT news searches and GitHub listings are not court orders.
  */
@@ -141,7 +143,7 @@ export function wtoRows(raw) {
 export function lawRows(slice, packs) {
   if (slice === 'sc') return scOrderRows(packs?.sc);
   if (slice === 'archive') return archiveOrderRows(packs?.sc);
-  if (slice === 'nclt') return insolvencyRows(packs?.nclt, packs?.ibbi);
+  if (slice === 'nclt') return withNcltListingCorrections(insolvencyRows(packs?.nclt, packs?.ibbi));
   if (slice === 'wto') return wtoRows(packs?.wto);
   return [];
 }
