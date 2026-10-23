@@ -1,5 +1,10 @@
 # Open work: the one list
 
+- [ ] **F244 — PR #13 escaped-identity conflict-scan blocker (2026-10-24).** Re-review of `c9533bf` confirmed the original three fixes and passing 10 screener/7 importer tests, but independently reproduced a competing revision bypass using a JSON-escaped source key. Finalize incorrectly permits it. Hold merge; require decoded-identity-safe scanning, explicit malformed-row completeness policy, causal regression and exact-head re-review/CI. [Evidence](../research/2026-10-24-law-listing-review.md). No re-ingestion requested.
+
+- [ ] **F245 — Automatic Law listing publication (2026-10-24).** Proposed [specification and ordered plan](../specs/2026-10-24-law-listing-publication.md) prepared at owner request; implementation approved 2026-10-24; batches and production activation remain excluded. Canonical listing identities, separate immutable-document relationships, live reconciliation, durable publication-only retries, refresh ownership, unified paged search/attachments and client contract are required. Current 435 insolvency rows are mixed source metadata, not 435 indexed documents. Nine of ten indexed Law documents match listings; Future Consumer needs a distinct order listing. Existing-ten reconciliation must preserve 527 chunks with zero paid re-indexing. [Source/DB evidence](../research/2026-10-24-law-listing-review.md).
+
+
 
 
 
@@ -64,7 +69,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F244 is next) and goes in the
+- A new finding gets the next free `F` number (F246 is next) and goes in the
   right section.
 
 
