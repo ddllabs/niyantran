@@ -3650,7 +3650,7 @@ for (const lawHint of [true, false]) for (const valid of [true, false]) Deno.tes
     const handle = /ref:[a-z0-9]{6}-\d+/.exec(JSON.stringify(req.messages))?.[0] ?? '';
     if (String(req.messages[0].content).startsWith('Check a legal answer')) {
       reviewed = true;
-      yield text(JSON.stringify({ claims: [{statement:'The tribunal rejected the application with no order as to cost.',source:handle,quote: valid ? original : original.replace('No order','Exemplary order')}], uncertain:false }));
+      yield text(JSON.stringify({ claims: [{statement:'The tribunal rejected the application with no order as to cost.',source:handle,quote_id: valid ? JSON.parse(String(req.messages[1].content)).passages.find((p: {source:string})=>p.source===handle).excerpts[0].id : 'invented-excerpt'}], uncertain:false }));
       yield finish();
     } else if (!handle) {
       yield {type:'tool-call',id:'find',name:'search_documents',args:'{"query":"operative order"}'}; yield finish('tool_calls');
