@@ -3619,3 +3619,50 @@ Deno.test('F242: replay restores authoritative selected and served identities, i
     }
   }
 });
+
+Deno.test('F249: placeholder answer is corrected before any placeholder is displayed', async () => {
+  const provider = scripted([...DECLINES,
+    [text(envelope('llm_result')), finish()],
+    [text(envelope('A complete supported answer.')), finish()],
+  ]);
+  const { deps, rec } = fakeDeps(provider);
+  const events = await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.messages[0].status, 'complete');
+  assertEquals(rec.messages[0].content, 'A complete supported answer.');
+  assert(!JSON.stringify(events).includes('llm_result'));
+});
+
+Deno.test('F249: repeated placeholder cannot become a completed response', async () => {
+  const provider = scripted([...DECLINES,
+    [text(envelope('llm_result')), finish()],
+    [text(envelope('llm_result')), finish()],
+  ]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.messages[0].status, 'error');
+  assertEquals(rec.messages[0].content, '');
+});
+
+for (const lawHint of [true, false]) for (const valid of [true, false]) Deno.test(`F247: ${lawHint ? 'Law hint' : 'broad retrieval'} draft is held until source review (${valid ? 'valid' : 'fabricated quote'})`, async () => {
+  const original = '7.34 The application is rejected and disposed of. No order as to cost.';
+  let reviewed = false;
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    const handle = /ref:[a-z0-9]{6}-\d+/.exec(JSON.stringify(req.messages))?.[0] ?? '';
+    if (String(req.messages[0].content).startsWith('Check a legal answer')) {
+      reviewed = true;
+      yield text(JSON.stringify({ claims: [{statement:'The tribunal rejected the application with no order as to cost.',source:handle,quote: valid ? original : original.replace('No order','Exemplary order')}], uncertain:false }));
+      yield finish();
+    } else if (!handle) {
+      yield {type:'tool-call',id:'find',name:'search_documents',args:'{"query":"operative order"}'}; yield finish('tool_calls');
+    } else {
+      yield text(envelope('Unsupported tribunal finding [1].',[{id:1,source:handle}])); yield finish();
+    }
+  };
+  const {deps,rec}=fakeDeps({stream},{searchDocuments:()=>Promise.resolve([{...chunk('law'),desk_tier:'law',content:original,char_to:original.length}])});
+  const events=await frames(await handleResearchChat(post({...BODY,...(lawHint ? {desk_context:{tier:'law'}} : {})}),deps));
+  assert(reviewed);
+  assert(!JSON.stringify(events).includes('Unsupported tribunal finding'));
+  assertEquals(rec.messages[0].status,valid?'complete':'error');
+  if(valid) { assertStringIncludes(rec.messages[0].content,original); assertEquals(rec.messages[0].sources.length,1); }
+  else assertEquals(rec.messages[0].content,'');
+});
