@@ -1,0 +1,314 @@
+{
+  "status": "Historical (2026-10-24)",
+  "project": "vfgcppstyzjarlzyqdac",
+  "releases": [
+    {
+      "pr": 17,
+      "merge": "5a8f7a456d29c415cc106dc4bac2c66f90e86439",
+      "functionVersion": 73,
+      "attributionAcceptance": "failed"
+    },
+    {
+      "pr": 18,
+      "merge": "bb5f4f10982721b03478056945778982e0567473",
+      "functionVersion": 74,
+      "attributionAcceptance": "failed"
+    },
+    {
+      "pr": 19,
+      "merge": "7e5038eaeeae058e323822a67e3e0c6031fab2e0",
+      "functionVersion": 75,
+      "originalQuestionAttribution": "passed then-tested debt-attribution check only",
+      "followupCitation": "failed; addressed as an F247 acceptance dependency in PR20"
+    },
+    {
+      "pr": 20,
+      "merge": "c5b37675b73c2d91f4b31b754575a670a915e5d6",
+      "functionVersion": 76,
+      "originalQuestionAttribution": "partial; unsupported adoption of respondent limitation calculation remains",
+      "followupCitation": "passed; 3 fresh searches,4 citations; para7.34 correct",
+      "originalDurationSeconds": 72,
+      "followupDurationSeconds": 29,
+      "originalCredits": 48.2,
+      "followupCredits": 32
+    },
+    {
+      "pr": 21,
+      "merge": "9e36adf989a6d55ff7b605cb7b82d8a9d1b89245",
+      "functionVersion": 77,
+      "functionSha256": "77efe32b6b295d5a8a7701369e515cecb9e1b059c76abc0b2161219dd3f32a48",
+      "deployedFilesMatch": true,
+      "unauthenticatedStatus": 401,
+      "originalAttempt": "failed: literal llm_result,2 searches,9 seconds,122 credits",
+      "originalRetry": "failed broader attribution: wrong commencement date and unsupported adoption/citation; debt/cost distinction improved",
+      "originalRetryCredits": 20.5,
+      "f247": "open",
+      "f248": "passed",
+      "f249": "open",
+      "followup": "correct debt/cost attribution wording, but operative/costs citation opens desk row rather than original passage; full citation acceptance failed",
+      "followupSearches": 2,
+      "followupCitations": 4,
+      "followupSeconds": 52,
+      "followupCredits": 20.1
+    }
+  ],
+  "before": {
+    "law_jobs": 10,
+    "documents": [
+      {
+        "title": "In the matter of JRN PHARMA AND LABORATORIES LLP",
+        "chunks": 53,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-078f589727146592",
+        "document_id": "760a2222-7a56-49e6-b7ab-bd91db90247a",
+        "text_sha256": "0deb331e98782060733163f4e24e74dd59de13a51dd4a64ade883716613aae72",
+        "jobs_fingerprint": "c14a59e5191ff2008f5ea313215c947c",
+        "input_fingerprint": "a3ca4daf53df8925f146598f6afa64bd",
+        "chunks_fingerprint": "467ad54a8310a57b4a9f4d0719d7d72f",
+        "document_fingerprint": "16779ae5d3e5b98764aaae435bf74fc5"
+      },
+      {
+        "title": "In the matter of FNM PROPERTY SERVICES PRIVATE LIMITED",
+        "chunks": 40,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-6ebdc4363316bb97",
+        "document_id": "3c1d9c7e-c1ed-4aa4-afaa-c49355b2f4ae",
+        "text_sha256": "2d907ec9dff5e39a559260b23a15d8ea46f0910cdf3d86451fe860ce66a84106",
+        "jobs_fingerprint": "a204b8524e44e7661751486a9fd5449c",
+        "input_fingerprint": "f466ad2d5032c42d74604a52b6227dd4",
+        "chunks_fingerprint": "6bb0f9cff8fa2e9c3250c4a3d8dafe77",
+        "document_fingerprint": "89c930aa424c1d36d28a0d7fbaa0e3d5"
+      },
+      {
+        "title": "In the matter of SUNIMA STEEL MARKETING PRIVATE LIMITED",
+        "chunks": 35,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-96b36e83a18fb8bc",
+        "document_id": "85c9fadf-aeb0-418b-b9cf-588c13a66e3f",
+        "text_sha256": "18bbbe0b0e31936575ef28f137ebc014babe66042313b08ab13fa4005b0849f6",
+        "jobs_fingerprint": "ce6ca867168aa3c73617856570b8d1ed",
+        "input_fingerprint": "006ec7e3f2cfca63d63f3a7f93c22687",
+        "chunks_fingerprint": "9f318d67a4e9117d69cdbc938724c912",
+        "document_fingerprint": "d01f5a389e872fdc26b8ba199b3b44f1"
+      },
+      {
+        "title": "In the matter of Globiz Exim Private Limited",
+        "chunks": 80,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-29f626f45865bd4a",
+        "document_id": "1597c9df-162a-4d74-860d-1cbf8f5a3bb2",
+        "text_sha256": "ee4bf7251aa037c9d358c5433f77b00dc5ff6beebee2976fd813f57b481deddc",
+        "jobs_fingerprint": "ddcafec1bff9b0ad4cdf9f2164f6e26e",
+        "input_fingerprint": "c3f4285506d96bbf460afba811b9de81",
+        "chunks_fingerprint": "538595f2b9d4af8625a2b7da3ebfb9b0",
+        "document_fingerprint": "535e3c5c4205b78cd37b72c9af6fd48b"
+      },
+      {
+        "title": "In the matter of Samata Nagari Sahkari Patsanstha Maryadit v. Satish Suresh Sawai,",
+        "chunks": 29,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-dc33a5004b2451f7",
+        "document_id": "b94fcf61-15a3-456a-836d-5e295d5c619f",
+        "text_sha256": "825f4420f17f390d494647d0a03e2558bfaa9e9cd6a791fb584d2f0006cbfd2a",
+        "jobs_fingerprint": "d33bd259728c768b83f3be341a76a964",
+        "input_fingerprint": "9ede8a6c36eb2bc23a46e8be1a8b3237",
+        "chunks_fingerprint": "649ad70bde3093ec0d46915b9016426d",
+        "document_fingerprint": "e07d3415930af16971be6241f7ccc9c9"
+      },
+      {
+        "title": "In the matter of SWADESH GREEN INFRA LIMITED",
+        "chunks": 38,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-3ba8779ec3d364ef",
+        "document_id": "b4dda8c9-a93e-416a-88ed-e7384566d983",
+        "text_sha256": "a3033d031e730f1199ee849be260d5fa8c0d351e49a955f30e96d23984807475",
+        "jobs_fingerprint": "4c571199037b87e557c3d1176aafe9f5",
+        "input_fingerprint": "d0631f76bb8ff3545f294aadf41b98b0",
+        "chunks_fingerprint": "edb8e3d52a5ddbd1fc7b31555f99a6cb",
+        "document_fingerprint": "46f4b46e086ee41c8c5fcb8b4d9d0b72"
+      },
+      {
+        "title": "In the matter of Coastal Automobiles Private Limited",
+        "chunks": 75,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-8b07cefd73faeaf1",
+        "document_id": "5ce2009c-6c96-4f99-9d74-3d40e836c039",
+        "text_sha256": "13ebd14d47117b53c264b357304a54303e426e2b19439c6508dd03ace1ed180d",
+        "jobs_fingerprint": "d5b6a22787dcaaf45a35cfdedff292ff",
+        "input_fingerprint": "9533e489779f1422c3758bd099b61ea9",
+        "chunks_fingerprint": "170b52b12c3204d650f79d609320e6fe",
+        "document_fingerprint": "672a6aebe83aa13361e676e1aa220525"
+      },
+      {
+        "title": "In the matter of Future Consumer Limited",
+        "chunks": 95,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-c159d713bbe8a10b",
+        "document_id": "daae642b-443a-4c33-b6ec-a0de1a462fb8",
+        "text_sha256": "58273956b0e4471b0201fd0a64a8a689b883eb4b1724763925b19b34da0eb17d",
+        "jobs_fingerprint": "5e8e1a19734fd4be14cf5cfa1c33b6a9",
+        "input_fingerprint": "978df3216e5e23909ccb826c39fd2184",
+        "chunks_fingerprint": "fff9a0fa71ca9bbbf8c9fb0e8b79c542",
+        "document_fingerprint": "d5cf720fb6424a031b8cd0804c3d06ca"
+      },
+      {
+        "title": "In the matter of Jet Airways (India) Ltd.",
+        "chunks": 40,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-d6674663fafe2827",
+        "document_id": "dea784ed-a6c9-49cb-8544-ec9e1f87c5f4",
+        "text_sha256": "f37be28ef3e0e6775f40522353267cbe10a1063163622a1ca96de3c4ca9965cc",
+        "jobs_fingerprint": "1ea2cacf9450cf8f43dc386a1bc902ca",
+        "input_fingerprint": "a149bdf7768dca637ea5494610c49eec",
+        "chunks_fingerprint": "bc40b9abf6cfac57242e23e988b7a3ed",
+        "document_fingerprint": "1fb266130ee78ca1d9171e261d6c513c"
+      },
+      {
+        "title": "In the matter of Bigmoon Buildcon Private Limited",
+        "chunks": 42,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-d196e088bd46ae26",
+        "document_id": "3daf7b8b-2822-4fc0-8bf7-15ff49b7859c",
+        "text_sha256": "065a4107a097a679505bbb088dcf047fb21bda60340a3a97146ef30e1c62f555",
+        "jobs_fingerprint": "cbc792faac9fc0b47dfb7eb90f290d95",
+        "input_fingerprint": "1cbd35ac55bcd43769bf92e2238e1cee",
+        "chunks_fingerprint": "a41d9d7f02be4a65543ddaf76d43269d",
+        "document_fingerprint": "d2dfdba8bba05dc37f697a2b7904ec7b"
+      }
+    ],
+    "law_ocr_cost": 0,
+    "global_chunks": 101243,
+    "listing_count": 436,
+    "law_embed_cost": 0.00232816,
+    "global_documents": 3469
+  },
+  "after": {
+    "law_jobs": 10,
+    "documents": [
+      {
+        "title": "In the matter of JRN PHARMA AND LABORATORIES LLP",
+        "chunks": 53,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-078f589727146592",
+        "document_id": "760a2222-7a56-49e6-b7ab-bd91db90247a",
+        "text_sha256": "0deb331e98782060733163f4e24e74dd59de13a51dd4a64ade883716613aae72",
+        "jobs_fingerprint": "c14a59e5191ff2008f5ea313215c947c",
+        "input_fingerprint": "a3ca4daf53df8925f146598f6afa64bd",
+        "chunks_fingerprint": "467ad54a8310a57b4a9f4d0719d7d72f",
+        "document_fingerprint": "16779ae5d3e5b98764aaae435bf74fc5"
+      },
+      {
+        "title": "In the matter of FNM PROPERTY SERVICES PRIVATE LIMITED",
+        "chunks": 40,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-6ebdc4363316bb97",
+        "document_id": "3c1d9c7e-c1ed-4aa4-afaa-c49355b2f4ae",
+        "text_sha256": "2d907ec9dff5e39a559260b23a15d8ea46f0910cdf3d86451fe860ce66a84106",
+        "jobs_fingerprint": "a204b8524e44e7661751486a9fd5449c",
+        "input_fingerprint": "f466ad2d5032c42d74604a52b6227dd4",
+        "chunks_fingerprint": "6bb0f9cff8fa2e9c3250c4a3d8dafe77",
+        "document_fingerprint": "89c930aa424c1d36d28a0d7fbaa0e3d5"
+      },
+      {
+        "title": "In the matter of SUNIMA STEEL MARKETING PRIVATE LIMITED",
+        "chunks": 35,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-96b36e83a18fb8bc",
+        "document_id": "85c9fadf-aeb0-418b-b9cf-588c13a66e3f",
+        "text_sha256": "18bbbe0b0e31936575ef28f137ebc014babe66042313b08ab13fa4005b0849f6",
+        "jobs_fingerprint": "ce6ca867168aa3c73617856570b8d1ed",
+        "input_fingerprint": "006ec7e3f2cfca63d63f3a7f93c22687",
+        "chunks_fingerprint": "9f318d67a4e9117d69cdbc938724c912",
+        "document_fingerprint": "d01f5a389e872fdc26b8ba199b3b44f1"
+      },
+      {
+        "title": "In the matter of Globiz Exim Private Limited",
+        "chunks": 80,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-29f626f45865bd4a",
+        "document_id": "1597c9df-162a-4d74-860d-1cbf8f5a3bb2",
+        "text_sha256": "ee4bf7251aa037c9d358c5433f77b00dc5ff6beebee2976fd813f57b481deddc",
+        "jobs_fingerprint": "ddcafec1bff9b0ad4cdf9f2164f6e26e",
+        "input_fingerprint": "c3f4285506d96bbf460afba811b9de81",
+        "chunks_fingerprint": "538595f2b9d4af8625a2b7da3ebfb9b0",
+        "document_fingerprint": "535e3c5c4205b78cd37b72c9af6fd48b"
+      },
+      {
+        "title": "In the matter of Samata Nagari Sahkari Patsanstha Maryadit v. Satish Suresh Sawai,",
+        "chunks": 29,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-dc33a5004b2451f7",
+        "document_id": "b94fcf61-15a3-456a-836d-5e295d5c619f",
+        "text_sha256": "825f4420f17f390d494647d0a03e2558bfaa9e9cd6a791fb584d2f0006cbfd2a",
+        "jobs_fingerprint": "d33bd259728c768b83f3be341a76a964",
+        "input_fingerprint": "9ede8a6c36eb2bc23a46e8be1a8b3237",
+        "chunks_fingerprint": "649ad70bde3093ec0d46915b9016426d",
+        "document_fingerprint": "e07d3415930af16971be6241f7ccc9c9"
+      },
+      {
+        "title": "In the matter of SWADESH GREEN INFRA LIMITED",
+        "chunks": 38,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-3ba8779ec3d364ef",
+        "document_id": "b4dda8c9-a93e-416a-88ed-e7384566d983",
+        "text_sha256": "a3033d031e730f1199ee849be260d5fa8c0d351e49a955f30e96d23984807475",
+        "jobs_fingerprint": "4c571199037b87e557c3d1176aafe9f5",
+        "input_fingerprint": "d0631f76bb8ff3545f294aadf41b98b0",
+        "chunks_fingerprint": "edb8e3d52a5ddbd1fc7b31555f99a6cb",
+        "document_fingerprint": "46f4b46e086ee41c8c5fcb8b4d9d0b72"
+      },
+      {
+        "title": "In the matter of Coastal Automobiles Private Limited",
+        "chunks": 75,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-8b07cefd73faeaf1",
+        "document_id": "5ce2009c-6c96-4f99-9d74-3d40e836c039",
+        "text_sha256": "13ebd14d47117b53c264b357304a54303e426e2b19439c6508dd03ace1ed180d",
+        "jobs_fingerprint": "d5b6a22787dcaaf45a35cfdedff292ff",
+        "input_fingerprint": "9533e489779f1422c3758bd099b61ea9",
+        "chunks_fingerprint": "170b52b12c3204d650f79d609320e6fe",
+        "document_fingerprint": "672a6aebe83aa13361e676e1aa220525"
+      },
+      {
+        "title": "In the matter of Future Consumer Limited",
+        "chunks": 95,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-c159d713bbe8a10b",
+        "document_id": "daae642b-443a-4c33-b6ec-a0de1a462fb8",
+        "text_sha256": "58273956b0e4471b0201fd0a64a8a689b883eb4b1724763925b19b34da0eb17d",
+        "jobs_fingerprint": "5e8e1a19734fd4be14cf5cfa1c33b6a9",
+        "input_fingerprint": "978df3216e5e23909ccb826c39fd2184",
+        "chunks_fingerprint": "fff9a0fa71ca9bbbf8c9fb0e8b79c542",
+        "document_fingerprint": "d5cf720fb6424a031b8cd0804c3d06ca"
+      },
+      {
+        "title": "In the matter of Jet Airways (India) Ltd.",
+        "chunks": 40,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-d6674663fafe2827",
+        "document_id": "dea784ed-a6c9-49cb-8544-ec9e1f87c5f4",
+        "text_sha256": "f37be28ef3e0e6775f40522353267cbe10a1063163622a1ca96de3c4ca9965cc",
+        "jobs_fingerprint": "1ea2cacf9450cf8f43dc386a1bc902ca",
+        "input_fingerprint": "a149bdf7768dca637ea5494610c49eec",
+        "chunks_fingerprint": "bc40b9abf6cfac57242e23e988b7a3ed",
+        "document_fingerprint": "1fb266130ee78ca1d9171e261d6c513c"
+      },
+      {
+        "title": "In the matter of Bigmoon Buildcon Private Limited",
+        "chunks": 42,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-d196e088bd46ae26",
+        "document_id": "3daf7b8b-2822-4fc0-8bf7-15ff49b7859c",
+        "text_sha256": "065a4107a097a679505bbb088dcf047fb21bda60340a3a97146ef30e1c62f555",
+        "jobs_fingerprint": "cbc792faac9fc0b47dfb7eb90f290d95",
+        "input_fingerprint": "1cbd35ac55bcd43769bf92e2238e1cee",
+        "chunks_fingerprint": "a41d9d7f02be4a65543ddaf76d43269d",
+        "document_fingerprint": "d2dfdba8bba05dc37f697a2b7904ec7b"
+      }
+    ],
+    "law_ocr_cost": 0,
+    "global_chunks": 101243,
+    "listing_count": 436,
+    "law_embed_cost": 0.00232816,
+    "global_documents": 3469
+  },
+  "unchanged": true,
+  "verification": {
+    "appTests": 6575,
+    "edgeTests": 1222,
+    "promptTests": 46,
+    "lint": "passed",
+    "build": "passed",
+    "corpusPreservation": "all ten document/input/job/chunk fingerprints identical after v77",
+    "noIngestion": true
+  },
+  "production": {
+    "commit": "9e36adf989a6d55ff7b605cb7b82d8a9d1b89245",
+    "deployment": "dpl_FjF5f16ZQWjyPHGpw5f6tMLUG889",
+    "ready": true,
+    "aliasAssigned": true,
+    "domain": "www.nter.pro",
+    "mainCiRun": 40024488428,
+    "mainCi": "success"
+  }
+}
