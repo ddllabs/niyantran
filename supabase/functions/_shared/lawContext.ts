@@ -1,5 +1,5 @@
 // Read-time source context only: never classify a speaker or rewrite a chunk.
-import type { Chunk } from './retrieval.ts';
+import { type Chunk, rowToChunk } from './retrieval.ts';
 
 export interface LawContextRow {
   id: string;
@@ -8,12 +8,17 @@ export interface LawContextRow {
   char_from: number;
   char_to: number;
   content: string;
+  source_kind?: string;
+  page_number?: number | null;
+  block_ids?: string[] | null;
+  image_ids?: string[] | null;
 }
 export const LAW_CONTEXT_CHUNKS = 256;
 
 export async function hydrateLawContext(
   chunks: Chunk[], read: (id: string) => Promise<LawContextRow[]>,
 ): Promise<Chunk[]> {
+  const enriched = [...chunks];
   const contexts = new Map<string, NonNullable<Chunk['preceding_heading']>>();
   const ids = [...new Set(chunks.filter(c => c.desk_tier === 'law').map(c => c.document_id))].slice(0, 4);
   for (const id of ids) {
@@ -24,6 +29,21 @@ export async function hydrateLawContext(
     if (rows.some((r,i)=>r.document_id !== id || r.chunk_index !== i || !r.id || typeof r.content !== 'string' ||
       !Number.isSafeInteger(r.char_from) || !Number.isSafeInteger(r.char_to) || r.char_from < 0 || r.char_to <= r.char_from ||
       (i > 0 && r.char_from < rows[i-1].char_from))) continue;
+    const verified = chunks.filter(c => c.desk_tier === 'law' && c.document_id === id &&
+      rows[c.chunk_index]?.id === c.id && rows[c.chunk_index].content === c.content &&
+      rows[c.chunk_index].char_from === c.char_from && rows[c.chunk_index].char_to === c.char_to);
+    if (!verified.length) continue;
+    // Fewer rows than the requested prefix limit proves this authorized read
+    // reached the end. These are original chunks, not an inferred operative order.
+    if (rows.length < LAW_CONTEXT_CHUNKS) {
+      const exemplar = verified[0];
+      for (const row of rows.slice(-2)) {
+        if (enriched.some(c => c.id === row.id)) continue;
+        enriched.push(await rowToChunk({ ...row, title: exemplar.title, file_name: exemplar.file_name,
+          file_url: exemplar.file_url, desk_tier: exemplar.desk_tier, desk_feature: exemplar.desk_feature,
+          document_role: exemplar.document_role }));
+      }
+    }
     const headings: { text: string; chunkId: string; charFrom: number; recognized: boolean }[] = [];
     for (const row of rows) {
       // Conservative typography only, quoted literally. Never infer a speaker
@@ -35,14 +55,14 @@ export async function hydrateLawContext(
         headings.push({ text, chunkId: row.id, charFrom, recognized });
       }
     }
-    for (const hit of chunks.filter(c=>c.desk_tier === 'law' && c.document_id === id)) {
+    for (const hit of enriched.filter(c=>c.desk_tier === 'law' && c.document_id === id)) {
       const same = rows[hit.chunk_index];
       if (!same || same.id !== hit.id || same.content !== hit.content || same.char_from !== hit.char_from || same.char_to !== hit.char_to) continue;
       const preceding = headings.filter(h=>h.charFrom < hit.char_from).sort((a,b)=>b.charFrom-a.charFrom)[0];
       if (preceding?.recognized) contexts.set(hit.id,{text:preceding.text,chunkId:preceding.chunkId,charFrom:preceding.charFrom});
     }
   }
-  return chunks.map(c=>{
+  return enriched.map(c=>{
     const { preceding_heading: _untrusted, ...rest } = c;
     const heading = contexts.get(c.id);
     return { ...rest, ...(heading ? { preceding_heading: heading } : {}) };

@@ -53,3 +53,31 @@ Deno.test('An unrecognized numbered section boundary blocks inheriting an earlie
   const hit = await rowToChunk({...changed[3],desk_tier:'law'});
   assertEquals((await hydrateLawContext([hit],()=>Promise.resolve(changed)))[0].preceding_heading,undefined);
 });
+
+Deno.test('A complete Law prefix contributes deduplicated original tail evidence with its own hash', async () => {
+  const hit = await rowToChunk({...rows[1],desk_tier:'law',title:'Order',source_kind:'document'});
+  const result = await hydrateLawContext([hit],()=>Promise.resolve(rows));
+  assertEquals(new Set(result.map(c=>c.id)), new Set(['b','c','d']));
+  const tail=result.find(c=>c.id==='d')!;
+  assertEquals(tail.content, rows[3].content);
+  assertEquals(tail.char_from,rows[3].char_from);
+  assertEquals(tail.text_hash,(await rowToChunk(rows[3])).text_hash);
+  const repeated = await hydrateLawContext(result,()=>Promise.resolve(rows));
+  assertEquals(new Set(repeated.map(c=>c.id)).size,repeated.length);
+});
+
+Deno.test('An exactly full bounded prefix is not proof of document end', async () => {
+  const prefix=Array.from({length:256},(_,i)=>({id:`x${i}`,document_id:'law',chunk_index:i,char_from:i*20,char_to:i*20+10,content:'plain text'}));
+  const hit=await rowToChunk({...prefix[2],desk_tier:'law'});
+  assertEquals((await hydrateLawContext([hit],()=>Promise.resolve(prefix))).map(c=>c.id),['x2']);
+});
+
+Deno.test('Tail citations retain their own page and block coordinates, never those of a relevance hit', async () => {
+  const paged = rows.map((r,i)=>({...r,source_kind:'pdf_page',page_number:i+1,block_ids:[`block-${i}`],image_ids:[`image-${i}`]}));
+  const hit=await rowToChunk({...paged[1],desk_tier:'law'});
+  const tail=(await hydrateLawContext([hit],()=>Promise.resolve(paged))).find(c=>c.id==='d')!;
+  assertEquals(tail.source_kind,'pdf_page');
+  assertEquals(tail.page_number,4);
+  assertEquals(tail.block_ids,['block-3']);
+  assertEquals(tail.image_ids,['image-3']);
+});

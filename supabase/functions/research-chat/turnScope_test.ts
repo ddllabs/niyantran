@@ -18,3 +18,8 @@ Deno.test('current selection outranks an older pinned bill for a deictic questio
   assertEquals(presearchFor({ ...request, focus: 'selection', selection: { tier: 'national', feature: 'Bills', row: { bill_name: 'Current selected bill' } },
     attachments: [{ kind: 'record', title: 'Previous bill', text: 'record' }] }, true), 'Current selected bill — tell me about this bill');
 });
+Deno.test('Law follow-ups retrieve current attached evidence despite prior conversation history', () => {
+  const law = { ...request, message:'Did the tribunal award costs?', desk_context:{tier:'law',feature:'NCLT'}, attachments:[{kind:'record' as const,title:'Current order',text:'record',tier:'law'}] };
+  assertEquals(presearchFor(law,true),'Current order — Did the tribunal award costs?');
+  assertEquals(presearchFor({...law,focus:'broad'},true),'Did the tribunal award costs?');
+});
