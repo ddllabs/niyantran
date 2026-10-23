@@ -121,3 +121,60 @@ test('malformed and oversized lines fail before any network writes', async (t) =
     }), /line limit/);
   assert.equal(calls, 0);
 });
+async function ncltFixture(t) {
+ const r=await input();r.source_key='law:trib:IBBI_NCLT:test';r.review.source_key=r.source_key;r.desk_feature='NCLT / NCLAT (Insolvency)';
+ r.doc_type='tribunal_order';r.file_url='https://ibbi.gov.in/uploads/order/test.pdf';r.citation={...r.citation,kind:'tribunal_order',forum:'NCLT',source:'IBBI_NCLT'};
+ const f=await fixture(t,[r]);
+ const d={source_key:r.source_key,text_sha256:r.text_sha256,file_sha256:hash(await readFile(f.files[0])),desk_feature:r.desk_feature,review:r.review};
+ const bytes=JSON.stringify(d)+'\n';await writeFile(f.decisions,bytes);return {...f,approval:hash(bytes)};
+}
+const lawReply=v=>new Response(JSON.stringify({ok:true,contract_version:1,fingerprint:'b'.repeat(64),reasons:[],...v}),{status:200});
+test('NCLT submission reconciles live state before registration and preserves publication status separately',async t=>{
+ const f=await ncltFixture(t);const calls=[];
+ const result=await runImport({...f,maxEstimatedCostUsd:1,submit:true,target:'https://fixture.supabase.co',token:'admin-token',publishableKey:'public'},async(url,opts)=>{
+ const b=JSON.parse(opts.body);calls.push(b.action);
+ if(b.action==='law-reconcile')return lawReply({status:'ready',action:'create-listing',document_id:null,indexed:false});
+ if(b.action==='law-status')return lawReply({status:'pending',document_id:'doc'});
+ assert.equal(b.expected_mapping_fingerprint,'b'.repeat(64));
+ return new Response(JSON.stringify({ok:true,status:'queued',document_id:'doc',job_id:'job',payload_sha256:b.confirm_sha256}));
+ });
+ assert.deepEqual(calls,['law-reconcile','register_text','law-status']);assert.equal(result.publication_pending,1);assert.equal(result.published,0);
+ assert.match(await readFile(f.report,'utf8'),/text_sha256/);
+});
+test('NCLT mapping hold makes no registration call',async t=>{
+ const f=await ncltFixture(t);const calls=[];
+ const result=await runImport({...f,maxEstimatedCostUsd:1,submit:true,target:'https://fixture.supabase.co',token:'admin-token',publishableKey:'public'},async(url,opts)=>{
+ const b=JSON.parse(opts.body);calls.push(b.action);return lawReply({status:'held',reasons:['identity conflict']});
+ });assert.deepEqual(calls,['law-reconcile']);assert.equal(result.submitted,0);assert.equal(result.held,1);
+});
+test('NCLT already registered document skips ingestion and reads publication receipt',async t=>{
+ const f=await ncltFixture(t);const calls=[];
+ const result=await runImport({...f,maxEstimatedCostUsd:1,submit:true,target:'https://fixture.supabase.co',token:'admin-token',publishableKey:'public'},async(url,opts)=>{
+ const b=JSON.parse(opts.body);calls.push(b.action);return lawReply(b.action==='law-reconcile'?{status:'ready',document_id:'existing-doc',indexed:true}:{status:'pending',document_id:'existing-doc'});
+ });assert.deepEqual(calls,['law-reconcile','law-status']);assert.equal(result.submitted,0);assert.equal(result.already_registered,1);
+});
+test('online reconciliation mode never registers a source',async t=>{
+ const f=await ncltFixture(t);const calls=[];
+ const result=await runImport({...f,reconcile:true,target:'https://fixture.supabase.co',token:'admin-token',publishableKey:'public'},async(url,opts)=>{calls.push(JSON.parse(opts.body).action);return lawReply({status:'ready',document_id:null,indexed:false});});
+ assert.deepEqual(calls,['law-reconcile']);assert.equal(result.submitted,0);
+});
+test('NCLT cost envelope refuses before registration when missing or exceeded',async t=>{
+ const f=await ncltFixture(t);const o={...f,submit:true,target:'https://fixture.supabase.co',token:'admin-token',publishableKey:'public'};
+ const request=async(url,opts)=>{assert.equal(JSON.parse(opts.body).action,'law-reconcile');return lawReply({status:'ready',document_id:null});};
+ await assert.rejects(()=>runImport(o,request),/cost/);
+ await assert.rejects(()=>runImport({...o,maxEstimatedCostUsd:1e-12},request),/cost/);
+});
+test('CLI returns incomplete for live mapping holds and pending publication',async t=>{
+ const {createServer}=await import('node:http');const {execFile}=await import('node:child_process');const {promisify}=await import('node:util');const run=promisify(execFile);
+ let mode='held';const server=createServer(async(req,res)=>{
+  let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw);let value;
+  if(body.action==='law-reconcile')value={ok:true,contract_version:1,status:mode==='held'?'held':'ready',fingerprint:'b'.repeat(64),reasons:[],document_id:null};
+  else if(body.action==='law-status')value={ok:true,contract_version:1,status:'pending',document_id:'doc'};
+  else value={ok:true,status:'queued',document_id:'doc',job_id:'job',payload_sha256:body.confirm_sha256};
+  res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify(value));
+ });await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
+ for(const state of ['held','pending']){
+  mode=state;const f=await ncltFixture(t);
+  await assert.rejects(()=>run(process.execPath,['--experimental-strip-types','scripts/corpus-text-import.mjs','--corpus',f.files[0],'--decisions',f.decisions,'--report',f.report,'--submit','--approval',f.approval,'--target',`http://127.0.0.1:${server.address().port}`,'--max-estimated-cost-usd','1'],{env:{...process.env,NTER_INGEST_ACCESS_TOKEN:'admin-test',SUPABASE_PUBLISHABLE_KEY:'public'}}),e=>{assert.equal(e.code,state==='held'?3:2);return true;});
+ }
+});
