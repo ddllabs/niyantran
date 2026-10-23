@@ -11,10 +11,12 @@ export function presearchFor(request: ResearchRequest, hasHistory: boolean): str
     const row = request.selection?.row;
     const selected = row && (row.bill_name || row.title || row.name || row.subject);
     const subject = request.focus === 'selection' && selected ? selected : titles.length === 1 ? titles[0] : undefined;
-    if (subject && isContextQuestion(request.message)) {
+    const law = request.desk_context?.tier === 'law' || request.selection?.tier === 'law' || request.attachments.some(a => a.tier === 'law');
+    if (subject && (isContextQuestion(request.message) || law)) {
       return `${subject} — ${request.message}`.slice(0, 300);
     }
   }
+  if (request.desk_context?.tier === 'law' || request.selection?.tier === 'law' || request.attachments.some(a => a.tier === 'law')) return request.message;
   return hasHistory ? undefined : request.message;
 }
 

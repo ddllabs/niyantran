@@ -515,7 +515,7 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
       }, { query: args.query, deskTier: args.desk_tier, deskFeature: args.desk_feature, documentIds: ids, topK: context.topK });
       return await hydrateLawContext(chunks, async id =>
         await query<LawContextRow[] | null>((signal) => caller().from('document_chunks')
-          .select('id,document_id,chunk_index,char_from,char_to,content').eq('document_id', id)
+          .select('id,document_id,chunk_index,char_from,char_to,content,source_kind,page_number,block_ids,image_ids').eq('document_id', id)
           .order('chunk_index', { ascending: true }).limit(LAW_CONTEXT_CHUNKS)
           .abortSignal(signal), context.signal) ?? []);
     },
