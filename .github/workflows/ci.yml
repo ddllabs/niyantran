@@ -31,6 +31,8 @@ jobs:
       - name: Router import
         run: node -e "import('./api/router.js').then(() => console.log('router import ok'))"
       - run: npm test
+      - name: Supplied-text client tests
+        run: node --experimental-strip-types --test scripts/corpus-text-import.test.mjs
       - name: Tests leave committed data untouched
         run: git diff --exit-code -- public/
       - uses: denoland/setup-deno@v2

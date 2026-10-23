@@ -537,3 +537,9 @@ export async function chunkPages(input: PageChunkInput): Promise<{ rows: PageChu
   }
   return { rows, pageVersion: PAGE_CHUNK_VERSION };
 }
+
+/** One stored identity per document; shared by legacy text and durable supplied text. */
+export function dedupeChunkRows<T extends ChunkRow>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  return rows.filter((r) => (seen.has(r.chunkHash) ? false : (seen.add(r.chunkHash), true)));
+}

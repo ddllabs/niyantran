@@ -179,7 +179,7 @@ interface Spend {
 async function embedSlice(
   deps: WorkerDeps,
   job: IngestJob,
-  chunks: PageChunkRow[],
+  chunks: EmbeddingChunk[],
   spend: Spend,
 ): Promise<number[][]> {
   const started = deps.now();
@@ -242,6 +242,25 @@ export const indexStep: Step = async (deps, job, deadline): Promise<StepOutcome>
   // 2. Pages, blocks and images; ids mapped onto the commit rows.
   const rows = await writeExtraction(deps, documentId, extractHash, plan);
 
+  return runIndexPlan(deps, job, deadline, plan.chunks, rows, async (spend) => {
+    await db.activate(job.id, job.claim_token, {
+      extract_hash: extractHash, ocr_text: plan.document.ocrText,
+      content_sha256: await sha256Hex(plan.document.ocrText), page_count: job.pages_total,
+      embed_tokens: spend.tokens, embed_cost_usd: spend.cost,
+    });
+  });
+};
+
+export type EmbeddingChunk = Pick<PageChunkRow, 'chunk_hash' | 'chunk_index' | 'embed_hash' | 'embedding_input'>;
+/** Shared index loop for PDF extraction and supplied text. No OCR or re-chunking here. */
+export async function runIndexPlan(
+  deps: WorkerDeps, job: IngestJob, deadline: number, chunks: EmbeddingChunk[],
+  rows: Array<Omit<PageCommitRow, 'embedding'>>, activate: (spend: Spend) => Promise<void>,
+): Promise<StepOutcome> {
+  const { db } = deps;
+  const documentId = job.document_id;
+  const commitRows = (slice: PageCommitRow[], keep: string[]) => job.input_kind === 'supplied_text'
+    ? db.textCommit!(job.id, job.claim_token, slice) : db.chunkCommit(documentId, slice, keep);
   // 3. What is already stored for this document.
   const storedEmbed = new Map(
     (await readAll((from, to) => db.storedChunks(documentId, from, to))).map((c) => [c.chunk_hash, c.embed_hash]),
@@ -249,12 +268,12 @@ export const indexStep: Step = async (deps, job, deadline): Promise<StepOutcome>
 
   // 4. Slices in chunk order. chunk_commit deletes every chunk absent from its keep list, so each call
   // carries the whole document's list, or it would delete the slices committed before it.
-  const keep = plan.chunks.map((c) => c.chunk_hash);
+  const keep = chunks.map((c) => c.chunk_hash);
   let committed = false;
   const spend: Spend = { tokens: 0, cost: 0 };
   try {
     for (let from = 0; from < rows.length; from += INGEST.commitSlice) {
-      const slice = plan.chunks.slice(from, from + INGEST.commitSlice);
+      const slice = chunks.slice(from, from + INGEST.commitSlice);
       const stale = slice.filter((c) => storedEmbed.get(c.chunk_hash) !== c.embed_hash);
       // A slice stored whole with equal embed_hash values was committed by an earlier claim of this same
       // extract_hash from the same deterministic rows, so it is skipped (no embedding, no call).
@@ -272,23 +291,16 @@ export const indexStep: Step = async (deps, job, deadline): Promise<StepOutcome>
         const embedding = vectors.get(r.chunk_hash);
         return embedding ? { ...r, embedding } : r;
       });
-      await db.chunkCommit(documentId, commit, keep);
+      await commitRows(commit, keep);
       committed = true;
     }
     // With every slice skipped, no call above removed chunks outside the keep list: one empty commit
     // does. (Any committed slice already did, and nothing else writes this document's chunks.)
-    if (!committed) await db.chunkCommit(documentId, [], keep);
+    if (!committed) await commitRows([], keep);
 
     // 6. Activation: the last write. It sets indexed_at, which makes the chunks visible. A failure here
     // is reported like any other, so this claim's spend still reaches the job (I7 finding).
-    await db.activate(job.id, job.claim_token, {
-      extract_hash: extractHash,
-      ocr_text: plan.document.ocrText,
-      content_sha256: await sha256Hex(plan.document.ocrText),
-      page_count: job.pages_total,
-      embed_tokens: spend.tokens,
-      embed_cost_usd: spend.cost,
-    });
+    await activate(spend);
   } catch (err) {
     // Reported rather than thrown, so the spend of this claim reaches the job's totals as well as
     // model_call_logs. Slices committed before the failure stay committed.
@@ -298,7 +310,8 @@ export const indexStep: Step = async (deps, job, deadline): Promise<StepOutcome>
         progressed: committed,
         embed_tokens: spend.tokens,
         embed_cost_usd: spend.cost,
-        error: { code: e.code, message: e.message, permanent: e.permanent },
+        // Supplied text stops on an uncertain paid/write outcome; an operator reconciles before retry.
+        error: { code: e.code, message: e.message, permanent: job.input_kind === 'supplied_text' || e.permanent },
       },
     };
   }

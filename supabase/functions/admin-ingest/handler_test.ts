@@ -1596,3 +1596,33 @@ Deno.test('refusals of the new actions log the action, the admin id and the ids,
   assertFalse(all.includes(TOKEN));
   assertFalse(all.includes('caller-secret-payload'));
 });
+
+Deno.test('supplied text: dry run uses existing admin auth and never registers or starts worker', async () => {
+  const { input } = await import('../_shared/suppliedText_fixture.ts');
+  const w = world();
+  const res = await handleAdminIngest(post({ action: 'register_text', record: await input(), dry_run: true }),deps(w));
+  assertEquals(res.status,200); assertEquals((await res.json()).status,'dry_run'); assertEquals(touched(w),0);
+});
+
+Deno.test('supplied text: authenticated confirmation queues a job; caller cannot forge actor or expected chunks', async () => {
+  const { input } = await import('../_shared/suppliedText_fixture.ts');
+  const { prepareSuppliedText } = await import('../_shared/suppliedText.ts');
+  const record = await input(); const p = await prepareSuppliedText(record); const w = world(); const d = deps(w);
+  let payload: Record<string, unknown> = {};
+  d.db.registerText = async p => { payload=p; return {data:{document_id:DOC,job_id:JOB,status:'queued',existing:false},error:null}; };
+  const result = await handleAdminIngest(post({action:'register_text',record,confirm_sha256:p.payload_sha256,actor:'forged',expected:[]}),d);
+  assertEquals(result.status,200); assertEquals(payload.actor,ADMIN); assertEquals(w.workerStarts,1);
+  assertEquals((payload.expected as unknown[]).length,p.chunks.length);
+  assertEquals((await result.json()).job_id,JOB);
+  const rejected = await handleAdminIngest(post({action:'register_text',record,confirm_sha256:'wrong'}),d);
+  assertEquals(rejected.status,400); assertEquals(w.workerStarts,1);
+});
+Deno.test('supplied text: non-admin and unsigned requests cannot register; conflicts do not start workers', async () => {
+  const { input } = await import('../_shared/suppliedText_fixture.ts');
+  const { prepareSuppliedText } = await import('../_shared/suppliedText.ts');
+  const record=await input(); const p=await prepareSuppliedText(record); const w=world();
+  const body={action:'register_text',record,confirm_sha256:p.payload_sha256};
+  assertEquals((await call(w,body,{isAdmin:false})).res.status,403);
+  const d=deps(w); d.db.registerText=async()=>({data:null,error:{message:'supplied text: conflict'}});
+  assertEquals((await handleAdminIngest(post(body),d)).status,422); assertEquals(w.workerStarts,0);
+});

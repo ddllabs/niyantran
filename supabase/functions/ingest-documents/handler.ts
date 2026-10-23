@@ -11,7 +11,7 @@ import { corsHeaders, preflight } from '../_shared/cors.ts';
 import { errorResponse, HttpError, json } from '../_shared/http.ts';
 import { log } from '../_shared/logging.ts';
 import { sha256Hex } from '../_shared/textNormalise.ts';
-import { CHUNK, chunkDocument, type ChunkRow } from '../_shared/chunking.ts';
+import { CHUNK, chunkDocument, dedupeChunkRows, type ChunkRow } from '../_shared/chunking.ts';
 import { chunkTextWithContext, TEXT_CONTEXT_VERSION, type ContextChunk } from '../_shared/textContext.ts';
 import { EMBED_MODEL, EmbeddingError, type EmbedResult } from '../_shared/embed.ts';
 
@@ -254,12 +254,6 @@ function toCommitRow(r: ChunkRow | ContextChunk, version: number, embedding?: nu
   };
 }
 
-/** Drop a repeated chunk (same hash twice in one document) so the unique key holds. */
-function dedupe<T extends ChunkRow>(rows: T[]): T[] {
-  const seen = new Set<string>();
-  return rows.filter((r) => (seen.has(r.chunkHash) ? false : (seen.add(r.chunkHash), true)));
-}
-
 export async function ingestOne(deps: IngestDeps, doc: IngestDocument, dryRun: boolean): Promise<DocumentResult> {
   const now = deps.now ?? (() => Date.now());
   const base: DocumentResult = { source_key: doc.source_key, status: 'indexed', chunks: 0, inserted: 0, kept: 0, deleted: 0, embedded_tokens: 0, cost_usd: 0 };
@@ -273,6 +267,7 @@ export async function ingestOne(deps: IngestDeps, doc: IngestDocument, dryRun: b
   if (existing && (existing.extract_hash != null || existing.storage_path != null)) {
     return { ...base, status: 'refused', reason: PAGE_AWARE_REFUSAL };
   }
+  if (existing?.metadata.origin === 'supplied-text') return { ...base, status: 'refused', reason: 'supplied-text document: managed by durable ingestion' };
   const version = doc.chunking_mode === 'section_context_v1' ? TEXT_CONTEXT_VERSION : CHUNK.version;
   if ((existing?.chunker_version === TEXT_CONTEXT_VERSION || existing?.metadata.text_chunking_mode === 'section_context_v1') && version !== TEXT_CONTEXT_VERSION) {
     return { ...base, status: 'refused', reason: 'section-context document: explicit section_context_v1 mode required' };
@@ -302,7 +297,7 @@ export async function ingestOne(deps: IngestDeps, doc: IngestDocument, dryRun: b
     return { ...base, status: 'unchanged', chunks: hashes.size, kept: hashes.size };
   }
 
-  const rows = dedupe(doc.chunking_mode === 'section_context_v1' ? await chunkTextWithContext(doc.ocr_text) : await chunkDocument(doc.ocr_text));
+  const rows = dedupeChunkRows(doc.chunking_mode === 'section_context_v1' ? await chunkTextWithContext(doc.ocr_text) : await chunkDocument(doc.ocr_text));
   base.chunks = rows.length;
 
   if (dryRun) {
