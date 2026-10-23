@@ -1380,7 +1380,7 @@ async function runTurnBody(
           budget.modelAttempts++;
           reviewed = await auditLawAnswer(attempts.wrap(observedStream, 'chat_answer'), {
             model: attemptModel, candidate: reviewed, evidence, signal,
-            ...lawReviewReasoning(t.models.find(m => m.model_id === attemptModel)?.efforts ?? []),
+            ...(effortOf(t, attemptModel) ? { reasoning: { effort: effortOf(t, attemptModel)! } } : lawReviewReasoning(t.models.find(m => m.model_id === attemptModel)?.efforts ?? [])),
           });
         } else reviewed = null;
       } catch { reviewed = null; log('research.law_review_failed', { aborted: signal.aborted }); }
