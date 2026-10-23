@@ -765,7 +765,7 @@
       "feature": "NCLT / NCLAT (Insolvency)",
       "bucket": "Tribunals",
       "pack": "judiciary_nclt_orders.csv",
-      "rows": 434,
+      "rows": 435,
       "note": "Rewritten: never query GDELT for the product name; News RSS first."
     },
     {
