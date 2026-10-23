@@ -1,5 +1,5 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
-import { lawReviewEvidence, parseLawReview, reviewLawAnswer } from './lawAnswer.ts';
+import { lawReviewEvidence, parseLawReview, reviewLawAnswer, lawReviewReasoning } from './lawAnswer.ts';
 import type { EvidenceMap } from './sources.ts';
 import type { ModelEvent } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
@@ -98,4 +98,10 @@ Deno.test('Excerpt partition preserves full original text within bounded pieces'
   yield {type:'text',text:JSON.stringify({claims:[{statement:'The source contains an original date.',source:'ref:abcdef-1',quote_id:parts[1].id}],uncertain:false})};
   yield {type:'finish',reason:'stop',usage:null,served:null,generationId:null};
  },{model:'test',question:'q',draft:'d',evidence:source,signal:new AbortController().signal});
+});
+Deno.test('Reviewer reasoning never silently inherits high when off is supported',()=>{
+ assertEquals(lawReviewReasoning(['off','high','xhigh']),{reasoning:{effort:'none'}});
+ assertEquals(lawReviewReasoning(['off','low','high']),{reasoning:{effort:'low'}});
+ assertEquals(lawReviewReasoning(['minimal','high']),{reasoning:{effort:'minimal'}});
+ assertEquals(lawReviewReasoning(['high']),{});
 });

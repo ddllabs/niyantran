@@ -130,3 +130,8 @@ export async function reviewLawAnswer(
   }
   return parseLawReview(JSON.stringify({ claims, uncertain: selected.uncertain }), evidence, request.report);
 }
+
+export function lawReviewReasoning(efforts: string[]): { reasoning?: { effort: string } } {
+ const effort = ['low', 'minimal', 'none', 'off'].find(e => efforts.includes(e));
+ return effort ? { reasoning: { effort: effort === 'off' ? 'none' : effort } } : {};
+}
