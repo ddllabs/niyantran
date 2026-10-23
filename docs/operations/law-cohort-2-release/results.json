@@ -1,0 +1,166 @@
+{
+ "status": "Historical (2026-10-23)",
+ "target": "vfgcppstyzjarlzyqdac",
+ "repo_revision": "3246d521a58acd477d7cf4c43d735a0ba9788a37",
+ "manifest_sha256": "79760acea597716f6bf295a44479d3ac60d0c8ebf4f1725908bffab8074054ef",
+ "chunks": 286,
+ "ocr_pages": 0,
+ "ocr_cost_usd": 0,
+ "embedding_calls": 5,
+ "embedding_tokens": 63759,
+ "embedding_cost_usd": "0.00127518",
+ "model_logs_cost_usd": "0.001275",
+ "query_embedding_calls": 0,
+ "before": {
+  "documents": 3464,
+  "indexed": 3461,
+  "chunks": 100957,
+  "law_documents": 5
+ },
+ "after": {
+  "documents": 3469,
+  "indexed": 3466,
+  "chunks": 101243,
+  "law_documents": 10,
+  "active_jobs": 0
+ },
+ "delta": {
+  "documents": 5,
+  "indexed": 5,
+  "chunks": 286,
+  "law_documents": 5
+ },
+ "submit": {
+  "selected": 5,
+  "ready": 5,
+  "held": 0,
+  "submitted": 5,
+  "uncertain": 0,
+  "registration_held": 0,
+  "chunks": 286
+ },
+ "rerun": {
+  "submit_summary": {
+   "selected": 5,
+   "ready": 5,
+   "held": 0,
+   "submitted": 5,
+   "uncertain": 0,
+   "registration_held": 0,
+   "chunks": 286
+  },
+  "new_documents": 0,
+  "new_jobs": 0,
+  "new_chunks": 0,
+  "embedding_calls_after_15_32_utc": 0,
+  "ids_indexed_at_fingerprints_unchanged": true
+ },
+ "analyze": {
+  "ran_at_utc": "2026-10-23T15:43:32Z",
+  "documents": 3469,
+  "document_chunks": 101243,
+  "desk_rows": 136752,
+  "planner_equals_actual": true
+ },
+ "source_records": [
+  {
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-29f626f45865bd4a",
+   "title": "In the matter of Globiz Exim Private Limited",
+   "document_id": "1597c9df-162a-4d74-860d-1cbf8f5a3bb2",
+   "job_id": "bcb15a37-ab9a-44de-ba79-9f759ad2e5a7",
+   "indexed_at": "2026-10-23 15:30:50.57766+00",
+   "chunks": 80,
+   "embed_tokens": 18430,
+   "embed_cost_usd": "0.0003686",
+   "fingerprint": "7940e49f808f17be5dd3c1dc519e81d7210a8fa0288f078dbd4514a2bcee621b",
+   "local_plan_fingerprint_match": true,
+   "offsets_reproduce_content": true
+  },
+  {
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-c159d713bbe8a10b",
+   "title": "In the matter of Future Consumer Limited",
+   "document_id": "daae642b-443a-4c33-b6ec-a0de1a462fb8",
+   "job_id": "75efdfe2-b7c6-4fb6-983b-09ca7797e277",
+   "indexed_at": "2026-10-23 15:30:52.252291+00",
+   "chunks": 95,
+   "embed_tokens": 21444,
+   "embed_cost_usd": "0.00042888",
+   "fingerprint": "1b9454943f3fa511c2c13e3b159a48f96bfd1b543212b50dc5bde813edc471b0",
+   "local_plan_fingerprint_match": true,
+   "offsets_reproduce_content": true
+  },
+  {
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-d196e088bd46ae26",
+   "title": "In the matter of Bigmoon Buildcon Private Limited",
+   "document_id": "3daf7b8b-2822-4fc0-8bf7-15ff49b7859c",
+   "job_id": "6412efe6-1dd8-461e-855a-df280085f3e4",
+   "indexed_at": "2026-10-23 15:30:54.794336+00",
+   "chunks": 42,
+   "embed_tokens": 9170,
+   "embed_cost_usd": "0.0001834",
+   "fingerprint": "c6611272ce7357f934ce205689d6f35955d236ba4d3614e207955e247dc8cdf3",
+   "local_plan_fingerprint_match": true,
+   "offsets_reproduce_content": true
+  },
+  {
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-d6674663fafe2827",
+   "title": "In the matter of Jet Airways (India) Ltd.",
+   "document_id": "dea784ed-a6c9-49cb-8544-ec9e1f87c5f4",
+   "job_id": "951427ac-010f-48cb-b884-6aa23a9975c9",
+   "indexed_at": "2026-10-23 15:31:24.986219+00",
+   "chunks": 40,
+   "embed_tokens": 8607,
+   "embed_cost_usd": "0.00017214",
+   "fingerprint": "b56b0ab6ca484de9a3d80691213efe43dc2c9ec119109b90e84016feac2839e1",
+   "local_plan_fingerprint_match": true,
+   "offsets_reproduce_content": true
+  },
+  {
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-dc33a5004b2451f7",
+   "title": "In the matter of Samata Nagari Sahkari Patsanstha Maryadit v. Satish Suresh Sawai",
+   "document_id": "b94fcf61-15a3-456a-836d-5e295d5c619f",
+   "job_id": "c41ca1db-a6b9-4e8f-b5be-1f91eb81d2ae",
+   "indexed_at": "2026-10-23 15:31:58.875177+00",
+   "chunks": 29,
+   "embed_tokens": 6108,
+   "embed_cost_usd": "0.00012216",
+   "fingerprint": "d5026f305be54fcfe4caf2efc8c5cdefbdd6b7845e14eb830bee854fb31d37e7",
+   "local_plan_fingerprint_match": true,
+   "offsets_reproduce_content": true
+  }
+ ],
+ "checks": {
+  "status": "succeeded/done",
+  "attempts": 0,
+  "ocr_pages": 0,
+  "ocr_cost_usd": 0,
+  "text_hash": true,
+  "stored_text_rehash": true,
+  "file_url": true,
+  "attribution": "National Company Law Tribunal, official website",
+  "citation_fields": 15,
+  "chunk_fingerprint_vs_local_plan": true,
+  "chunk_count": true,
+  "span_mismatches": 0,
+  "bad_vectors": 0,
+  "chunker_version": 4,
+  "storage_path_null": true,
+  "document_files": 0
+ },
+ "retrieval": {
+  "broad_top1_self": "5/5 (similarity 1.0000)",
+  "feature_scoped_top1_self": "5/5",
+  "scoped_results_all_in_feature": true,
+  "citation_fields_returned_correct": true,
+  "span_equals_stored_text": true,
+  "transaction": "rolled back"
+ },
+ "citation_builder": "rowToChunk -> textCitation: title, file_url, span, kind text/document correct 5/5",
+ "fingerprint_definition": "sha256 of newline-joined 'chunk_index|char_from|char_to|chunk_hash|embed_hash|sha256(content)' ordered by chunk_index",
+ "not_verified": [
+  "natural-language query retrieval with fresh query embeddings (needs the server-side embedding key; self-vector probes used instead)",
+  "generated chat answers",
+  "PDF page highlighting/boxes",
+  "current desk-row attachment"
+ ]
+}
