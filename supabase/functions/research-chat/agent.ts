@@ -276,6 +276,8 @@ export interface AgentCheckpoint {
   forceWebSearch: boolean;
   /** The pre-search runs once per turn; a resumed checkpoint (failover) does not repeat it. */
   presearched: boolean;
+  /** One bounded Law context pass, retained across provider failover. */
+  lawContextAttempted: boolean;
   /** Announced at most once per turn, and kept across failover so a retry that
    * does not widen again cannot un-say it. */
   widened: WidenedScope | null;
@@ -332,6 +334,7 @@ export function createAgentCheckpoint(
     webFallbackAttempted: false,
     forceWebSearch: false,
     presearched: false,
+    lawContextAttempted: false,
     widened: null,
     webPages: [],
     webSearches: 0,
@@ -371,7 +374,8 @@ export function renderChunk(handle: string, c: Chunk): string {
     const section = [sectionText(c.section?.heading), sectionText(c.section?.note)].filter(Boolean).join(' › ');
     if (section) fields.push(section);
   }
-  return `${fields.join(' | ')}\n${c.content}`;
+  const attribution = c.desk_tier === 'law' ? 'Attribution is not established by an excerpt appearing in an order. Verify the governing party-submission, quoted-authority or tribunal-reasoning context before attributing a claim.\n' : '';
+  return `${fields.join(' | ')}\n${attribution}${c.content}`;
 }
 
 /**
@@ -720,6 +724,34 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
   await completeToolReplies();
   while (state.phase !== 'complete' && budget.modelAttempts < BUDGET.maxSteps) {
     checkAbort();
+    // The first relevance search can omit the heading governing a submission.
+    // Fetch context before any Law draft; it is evidence, never a role classifier.
+    const lawIds = [...new Set(state.chunks.filter(c => c.desk_tier === 'law').map(c => c.document_id))];
+    if (!a.conversational && !state.lawContextAttempted && lawIds.length) {
+      state.lawContextAttempted = true;
+      const unresolved = 'Attribution remains unresolved: the contextual search was unavailable or returned no passages. Do not present disputed statements as tribunal findings without explicit governing evidence; state the attribution limitation.';
+      if (state.phase !== 'research' || budget.searches >= BUDGET.maxSearches ||
+          state.answerReserveReached || (deps.timeLeft?.() ?? Infinity) <= ANSWER_RESERVE_MS) {
+        messages.push({ role: 'user', content: unresolved });
+      } else {
+        const args = { query: 'party submissions contentions of applicant respondent corporate debtor tribunal analysis findings reasons operative order disposition costs', desk_tier: 'law' };
+        const call: ToolCall = { type: 'tool-call', id: 'law-context-1', name: 'search_documents', args: JSON.stringify(args) };
+        messages.push({ role: 'assistant', content: null, tool_calls: [{ id: call.id, type: 'function', function: { name: call.name, arguments: call.args } }] });
+        let reply = unresolved;
+        try {
+          const found = await searchAttempt(call, args, lawIds) as Chunk[] | null;
+          checkAbort();
+          const kept = withinReply((found ?? []).filter(c => lawIds.includes(c.document_id)), deps.toolReplyChars ?? null, UNTRUSTED);
+          state.chunks = accumulate(state.chunks, kept);
+          if (kept.length) reply = UNTRUSTED + kept.map(c => renderChunk(deps.handles.assign(c.id), c)).join('\n\n');
+        } catch {
+          checkAbort();
+          // The trace records failure; private errors never enter the prompt.
+        }
+        messages.push({ role: 'tool', tool_call_id: call.id, content: reply });
+        messages.push({ role: 'user', content: 'Context search attempted, not attribution verified. Identify the governing headings and distinguish the parties’ submissions from the deciding tribunal’s own analysis. A statement recorded in an order is not necessarily adopted. Verify operative relief and costs separately. If a claim lacks governing context, leave its speaker unresolved rather than calling it a finding.' });
+      }
+    }
     if (
       state.phase === 'research' &&
       (budget.searches >= BUDGET.maxSearches || budget.modelAttempts >= BUDGET.maxSteps - 1)
