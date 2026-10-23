@@ -168,5 +168,6 @@
  ],
  "licence_basis": "Each record declares 'public order of a tribunal' and NCLT official-website attribution; retained unchanged, not independent legal advice",
  "scope": "Text-only citations and original URLs; no page highlights or automatic current-row linking",
- "screener": "scripts/law-cohort-screen.py (uncommitted on task/client-law-ingestion-claude-2026-10-23), sha256 763cfaeb5e11af00f62746f3791899ce880a117635d80e5c6f4c1ca8edba219d"
+ "screener": "scripts/law-cohort-screen.py at PR #13 commit 09e6db24 (screen schema 1, before the review fixes), sha256 763cfaeb5e11af00f62746f3791899ce880a117635d80e5c6f4c1ca8edba219d",
+ "review_defects_effect_on_this_run": "The three review defects did not affect cohort-2: all three internal policy files matched the pilot hashes (matches_pilot_evidence true); the full subtree scan ran (367 members, every candidate found exactly once); and the pack's repeated central-directory names are byte-identical per the 2026-10-23 reconciliation report, so skipping repeats lost no rows. A schema-2 screen.json from the fixed screener is required for any new cohort."
 }

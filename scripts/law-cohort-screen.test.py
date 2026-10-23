@@ -59,7 +59,8 @@ def gz_csv(header, rows):
     return gzip.compress(buf.getvalue().encode('utf-8'))
 
 
-def build_zip(path):
+def build_zip(path, extra=()):
+    """`extra` appends (name, bytes) entries after the normal ones; a repeated name makes a duplicate entry."""
     base = [
         rec(1),                                              # clean
         rec(2),                                              # sensitivity flag
@@ -91,7 +92,88 @@ def build_zip(path):
         for name, data in members:
             z.writestr(f'{ROOT}/{name}', data)
         z.writestr(f'{ROOT}/{MEMBER}', members[0][1])  # a byte-identical repeated member name
+        for name, data in extra:
+            z.writestr(f'{ROOT}/{name}', data)
     return {name: hashlib.sha256(data).hexdigest() for name, data in members}
+
+
+SENS_HEADER = ['source_key', 'file', 'doc_type', 'court', 'year', 'tier', 'categories', 'evidence']
+
+
+class ReviewRegressionTests(unittest.TestCase):
+    """PR #13 review findings: each test failed on 09e6db24 before the fix."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp(prefix='law-cohort-review-'))
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def screen(self, extra=(), evidence='match', flags=()):
+        pack = self.dir / 'pack.zip'
+        hashes = build_zip(pack, extra)
+        out = self.dir / 'cohort'
+        args = ['screen', '--archive', str(pack), '--member', MEMBER, '--output-dir', str(out),
+                '--feature', FEATURE, '--count', '3', *flags]
+        if evidence is not None:
+            policy = {k: v for k, v in hashes.items() if k.endswith('.csv.gz')}
+            if evidence == 'wrong':
+                policy = {k: '0' * 64 for k in policy}
+            ev = self.dir / 'evidence.json'
+            ev.write_text(json.dumps({'member_hashes': policy}))
+            args += ['--expect-policy-hashes', str(ev)]
+        screen_mod.main(args)
+        return out, json.loads((out / 'screen.json').read_text('utf-8'))
+
+    def finalize(self, out):
+        screen_mod.main(['finalize', '--screen', str(out / 'screen.json'), '--output', str(out / 'decisions.jsonl'),
+                         '--decision-id', 'review-test', '--approved-by', 'reviewer'])
+
+    def ready_lines(self, s):
+        return [c['line'] for c in s['candidates'] if c['disposition'] == 'ready_for_review']
+
+    # Finding 1: mismatched or missing policy hashes must stop finalization.
+    def test_wrong_policy_hashes_refuse_finalize(self):
+        out, s = self.screen(evidence='wrong')
+        self.assertFalse(any(v['matches_pilot_evidence'] for v in s['policy_members'].values()))
+        with self.assertRaises(ValueError):
+            self.finalize(out)
+        self.assertFalse((out / 'decisions.jsonl').exists())
+
+    def test_missing_policy_expectation_refuses_finalize(self):
+        out, s = self.screen(evidence=None)
+        with self.assertRaises(ValueError):
+            self.finalize(out)
+
+    # Finding 2: every repeated ZIP entry must be checked, or the ambiguity held.
+    def test_hidden_conflicting_document_revision_in_repeated_entry_is_held(self):
+        name = 'documents/tribunals/IBBI_NCLT/2026__part-00003.jsonl.gz'
+        extra = [(name, gz_jsonl([rec(20)])),
+                 (name, gz_jsonl([rec(1, text='# Order 1\n\nA hidden competing revision of order 1.')]))]
+        out, s = self.screen(extra=extra)
+        self.assertNotIn(1, self.ready_lines(s))
+        with self.assertRaises(ValueError):
+            screen_mod.main(['finalize', '--screen', str(out / 'screen.json'), '--output', str(out / 'd.jsonl'),
+                             '--decision-id', 'x', '--approved-by', 'y', '--keys', rec(1)['source_key']])
+
+    def test_hidden_sensitivity_flag_in_repeated_policy_entry_is_held(self):
+        hidden = gz_csv(SENS_HEADER, [[rec(1)['source_key'], MEMBER, 'order', 'NCLT', '2026', 'statute', 'pocso', 'POCSO']])
+        out, s = self.screen(extra=[('flags/sensitive_cases_v1.csv.gz', hidden)])
+        self.assertNotIn(1, self.ready_lines(s))
+        with self.assertRaises(ValueError):
+            self.finalize(out)
+
+    # Finding 3: an incomplete conflict scan must not finalize as "dedupe passed".
+    def test_no_scan_subtree_refuses_finalize(self):
+        out, s = self.screen(flags=['--no-scan-subtree'])
+        with self.assertRaises(ValueError):
+            self.finalize(out)
+        self.assertFalse((out / 'decisions.jsonl').exists())
+
+    def test_complete_screen_still_finalizes(self):
+        out, s = self.screen()
+        self.finalize(out)
+        self.assertEqual(len((out / 'decisions.jsonl').read_text().splitlines()), 3)
 
 
 class ScreenTests(unittest.TestCase):

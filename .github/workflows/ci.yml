@@ -33,6 +33,8 @@ jobs:
       - run: npm test
       - name: Supplied-text client tests
         run: node --experimental-strip-types --test scripts/corpus-text-import.test.mjs
+      - name: Law cohort screener tests
+        run: python3 -I scripts/law-cohort-screen.test.py
       - name: Tests leave committed data untouched
         run: git diff --exit-code -- public/
       - uses: denoland/setup-deno@v2

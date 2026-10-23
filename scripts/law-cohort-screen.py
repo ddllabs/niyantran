@@ -12,7 +12,12 @@ writes an eligible decision by itself. Two commands:
             not eligible.
   finalize  after the owner has approved the screened cohort, turn screen.json into a
             content-bound decisions.jsonl: one row per approved source, bound to its text hash,
-            the exact candidates.jsonl hash and the evidence hash. Held sources are refused.
+            the exact candidates.jsonl hash and the evidence hash. Held sources are refused, and
+            so is any screen whose policy hashes were not verified against --expect-policy-hashes
+            or whose conflict scan was skipped (--no-scan-subtree is exploratory only).
+
+Every central-directory occurrence of a repeated name is hashed and checked (policy files and
+the collection subtree); only byte-identical repeats are skipped.
 
 The importer (scripts/corpus-text-import.mjs) then runs its own dry run and, only with a
 separately authorized submission, registers the sources.
@@ -36,6 +41,7 @@ POLICY_MEMBERS = (
     'not_in_pack/still_not_in_pack_v1.csv.gz',
 )
 MAX_CHARS = 600_000  # SUPPLIED_TEXT.maxChars in supabase/functions/_shared/suppliedText.ts
+SCREEN_SCHEMA = 2  # 2: every repeated entry checked; finalize requires verified policy hashes and a complete scan
 SHA = re.compile(r'^[a-f0-9]{64}$')
 
 
@@ -209,17 +215,34 @@ def screen(args):
         for rel in POLICY_MEMBERS:
             infos = find_members(pack, f'{root}/{rel}')
             if not infos:
-                policy[rel] = {'present': False}
+                policy[rel] = {'present': False, 'verified': False}
                 for c in candidates:
                     c['reasons'].append(f'policy file missing from archive: {rel}')
                 continue
-            h = member_sha256(pack, infos[0])
-            policy[rel] = {'present': True, 'sha256': h, 'matches_pilot_evidence': (expected.get(rel) == h) if expected else None}
+            # Every central-directory occurrence is hashed and read: a repeated name may hide different rows.
+            occ_hashes = [member_sha256(pack, i) for i in infos]
+            want = expected.get(rel)
+            verified = bool(want) and all(h == want for h in occ_hashes)
+            policy[rel] = {
+                'present': True, 'sha256': occ_hashes[0], 'occurrences': len(infos), 'occurrence_sha256': occ_hashes,
+                'conflicting_occurrences': len(set(occ_hashes)) > 1, 'expected_sha256': want,
+                'matches_pilot_evidence': (all(h == want for h in occ_hashes)) if expected else None, 'verified': verified,
+            }
+            if not verified:
+                why = ('no expected hash supplied' if not want else
+                       'repeated entries differ' if len(set(occ_hashes)) > 1 else 'hash differs from expected')
+                for c in candidates:
+                    c['reasons'].append(f'policy file not verified ({rel}: {why})')
             hits = defaultdict(list)
-            for row in gz_csv_rows(pack, infos[0]):
-                k = row.get('source_key') or row.get('doc_id') or row.get('id')
-                if k in keys or any(v in keys for v in row.values() if isinstance(v, str)):
-                    hits[k if k in keys else next(v for v in row.values() if v in keys)].append(row)
+            seen_policy = set()
+            for info, h in zip(infos, occ_hashes):
+                if h in seen_policy:
+                    continue  # byte-identical repeat: same rows
+                seen_policy.add(h)
+                for row in gz_csv_rows(pack, info):
+                    k = row.get('source_key') or row.get('doc_id') or row.get('id')
+                    if k in keys or any(v in keys for v in row.values() if isinstance(v, str)):
+                        hits[k if k in keys else next(v for v in row.values() if v in keys)].append(row)
             policy[rel]['candidate_rows'] = sum(len(v) for v in hits.values())
             for c in candidates:
                 rows = hits.get(c.get('source_key'))
@@ -239,17 +262,22 @@ def screen(args):
                     c['reasons'].append('listed in still_not_in_pack')
         # 3. replacement (__full) and repeated-occurrence scan across the collection subtree
         subtree = full_name.rsplit('/', 1)[0] + '/'
-        scan = {'subtree': subtree, 'members_scanned': 0, 'occurrences': 0, 'skipped_repeated_names': 0}
-        seen_names = set()
+        scan = {'subtree': subtree, 'complete': not args.no_scan_subtree, 'members_scanned': 0, 'occurrences': 0,
+                'skipped_identical_repeats': 0, 'conflicting_repeated_members': []}
+        name_hashes = defaultdict(set)
         occurrences = defaultdict(list)
         if not args.no_scan_subtree:
-            for info in pack.infolist():
+            for index, info in enumerate(pack.infolist()):
                 if not info.filename.startswith(subtree) or not info.filename.endswith('.jsonl.gz'):
                     continue
-                if info.filename in seen_names:
-                    scan['skipped_repeated_names'] += 1
+                # Repeated names are scanned per occurrence; only byte-identical repeats are skipped.
+                h = member_sha256(pack, info)
+                if h in name_hashes[info.filename]:
+                    scan['skipped_identical_repeats'] += 1
                     continue
-                seen_names.add(info.filename)
+                if name_hashes[info.filename]:
+                    scan['conflicting_repeated_members'].append(info.filename)
+                name_hashes[info.filename].add(h)
                 scan['members_scanned'] += 1
                 for line_no, raw in gz_lines(pack, info):
                     if not any(kb in raw for kb in key_bytes):
@@ -261,7 +289,7 @@ def screen(args):
                     if r.get('source_key') in keys:
                         scan['occurrences'] += 1
                         occurrences[r['source_key']].append({
-                            'member': info.filename, 'line': line_no, 'text_sha256': r.get('text_sha256'),
+                            'member': info.filename, 'entry_index': index, 'line': line_no, 'text_sha256': r.get('text_sha256'),
                             'full': '__full' in os.path.basename(info.filename),
                         })
             for c in candidates:
@@ -291,8 +319,13 @@ def screen(args):
             if c['disposition'] == 'held':
                 for r in c['reasons']:
                     held[r] += 1
+        production_checks = {
+            'policy_hashes_verified': all(p.get('verified') for p in policy.values()) and len(policy) == len(POLICY_MEMBERS),
+            'subtree_scan_complete': not args.no_scan_subtree,
+        }
         result = {
-            'status': 'screened-not-approved', 'production_eligible': False, 'database_writes': 0,
+            'status': 'screened-not-approved', 'screen_schema': SCREEN_SCHEMA, 'production_eligible': False, 'database_writes': 0,
+            'production_checks': production_checks, 'finalizable': all(production_checks.values()),
             'network_requests': 0, 'archive': {'name': archive.name, 'bytes': archive.stat().st_size, 'root': root},
             'member': member_info, 'feature': args.feature, 'source_prefix': args.source_prefix,
             'start_line': args.start_line, 'lines_scanned': scanned, 'excluded_keys': sorted(excluded),
@@ -319,7 +352,17 @@ def finalize(args):
     body = cand.read_bytes()
     if sha256(body) != evidence['candidates_jsonl_sha256']:
         raise ValueError('candidates.jsonl changed since screening')
+    # A decision manifest attests identity/completeness/sensitivity/dedupe/rights; refuse any screen that did not
+    # run every check those attestations depend on. Exploratory screens may skip work but cannot be finalized.
+    if evidence.get('status') != 'screened-not-approved' or evidence.get('screen_schema') != SCREEN_SCHEMA:
+        raise ValueError(f'screen evidence is not schema {SCREEN_SCHEMA}; re-screen with this version')
+    checks = evidence.get('production_checks') or {}
+    incomplete = [k for k in ('policy_hashes_verified', 'subtree_scan_complete') if checks.get(k) is not True]
+    if incomplete:
+        raise ValueError(f'screen evidence incomplete, refused: {incomplete}')
     chosen = [c for c in evidence['candidates'] if c['disposition'] == 'ready_for_review']
+    if any(not c.get('occurrences') for c in chosen):
+        raise ValueError('a ready candidate has no recorded conflict-scan occurrences; refused')
     if args.keys:
         wanted = set(args.keys)
         missing = wanted - {c['source_key'] for c in chosen}
@@ -367,8 +410,10 @@ def main(argv=None):
                    help='screen at most this many records from --start-line; the first --count that pass are selected')
     s.add_argument('--exclude-decisions', action='append', help='decision manifests whose keys are already decided')
     s.add_argument('--expect-member-sha256')
-    s.add_argument('--expect-policy-hashes', help='eligibility-evidence.json carrying pilot member_hashes')
-    s.add_argument('--no-scan-subtree', action='store_true')
+    s.add_argument('--expect-policy-hashes',
+                   help='JSON with member_hashes for the three policy files; required for a finalizable screen')
+    s.add_argument('--no-scan-subtree', action='store_true',
+                   help='exploratory only: skips the conflict scan, and the screen cannot be finalized')
     s.set_defaults(func=screen)
     f = sub.add_parser('finalize', help='write a content-bound decisions.jsonl from an approved screen.json')
     f.add_argument('--screen', required=True)
