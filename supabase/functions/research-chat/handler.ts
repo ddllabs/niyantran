@@ -1,4 +1,4 @@
-import { reviewLawAnswer, LAW_REVIEW_RESERVE_MS } from './lawAnswer.ts';
+import { reviewLawAnswer, lawReviewReasoning, LAW_REVIEW_RESERVE_MS } from './lawAnswer.ts';
 import { placeholderAnswer, placeholderPrefix } from './answerValidation.ts';
 // The research turn (streaming spec §E). Framework-free and dependency
 // injected: nothing here touches Deno.env or the network, so the same code
@@ -1372,7 +1372,7 @@ async function runTurnBody(
         reviewed = await reviewLawAnswer(attempts.wrap(observedStream, 'chat_answer'), {
           model: attemptModel, question: request.message, draft: envelope.answer, evidence, signal,
           report: reason => log('research.law_review_rejected', { reason, attempt: budget.modelAttempts }),
-          ...(t.models.find(m => m.model_id === attemptModel)?.efforts?.includes('low') ? { reasoning: { effort: 'low' } } : {}),
+          ...lawReviewReasoning(t.models.find(m => m.model_id === attemptModel)?.efforts ?? []),
         });
       } catch { log('research.law_review_failed', { aborted: signal.aborted }); }
     }
