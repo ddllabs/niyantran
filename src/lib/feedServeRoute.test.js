@@ -13,7 +13,7 @@ const page = (over = {}) => ({
   tier: 'finance', feature: 'AI & the Tech Industry', variant: '', class: 'news', kind: 'news', serve: true,
   fetched_at: FETCHED, interval_minutes: 30, total: 1,
   meta: { note: 'Google News topic search.', links: ['https://news.google.com/rss/search?q=ai'], coverage: { from: '', through: '7d', exhaustive: false }, adapter: 'news-search', kind: '', fetched_at: FETCHED },
-  items: [{ item_key: 'url:a.example/1', row: { title: 'Stored story', date: '2026-10-15', source_url: 'https://a.example/1' } }],
+  items: [{ item_key: 'url:a.example/1', row: { title: 'Stored story', date: FETCHED.slice(0, 10), source_url: 'https://a.example/1' } }],
   ...over,
 });
 
@@ -66,7 +66,7 @@ describe('/api/feature-feed reads a scheduled module from the store (F169 C4)', 
     for (const res of [router, local]) {
       expect(res.statusCode).toBe(200);
       expect(res.body).toMatchObject({ ok: true, served: 'store', fallback: false, fetchedAt: FETCHED });
-      expect(res.body.rows).toEqual([{ title: 'Stored story', date: '2026-10-15', source_url: 'https://a.example/1' }]);
+      expect(res.body.rows).toEqual([{ title: 'Stored story', date: FETCHED.slice(0, 10), source_url: 'https://a.example/1' }]);
       expect(JSON.stringify(res.body)).not.toContain(SECRET);
     }
     expect(router.body).toEqual(local.body);
