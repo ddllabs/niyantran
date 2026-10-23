@@ -133,3 +133,16 @@ Deno.test('Numeric dates bind to own excerpt with equivalent date normalization 
  // Presence is necessary, not semantic proof: the auditor must reject wrong event attribution.
  assert(numericDatesSupported('Commenced 01.09.2018.','Notice 01.09.2018; commenced 06.09.2018.'));
 });
+
+Deno.test('Law output contains original excerpts, never an auditor-approved unsupported paraphrase',async()=>{
+ const statement='The tribunal made no conclusive finding on debt validity or quantum.';
+ const candidate=parseLawReview(raw({statement}),lawReviewEvidence(evidence))!;
+ const result=await auditLawAnswer(async function*(){yield {type:'text',text:'{"supported":[1]}'};yield {type:'finish',reason:'stop',usage:null,served:null,generationId:null};},{model:'test',candidate,evidence,signal:new AbortController().signal});
+ assert(result);assert(!result.answer.includes(statement));assert(result.answer.includes(quote));
+ assert(result.answer.includes('Original passages'));assert(result.answer.includes('not a complete legal interpretation'));
+});
+Deno.test('Repeated excerpt selections render once with one source citation',()=>{
+ const parsed=JSON.parse(raw());parsed.claims.push({...parsed.claims[0],statement:'Another generated conclusion about the same passage.'});
+ const result=parseLawReview(JSON.stringify(parsed),lawReviewEvidence(evidence))!;
+ assertEquals(result.answer.split(quote).length-1,1);assertEquals(result.sources.length,1);
+});

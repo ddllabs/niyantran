@@ -55,6 +55,7 @@ export function parseLawReview(raw: string, evidence: ReturnType<typeof lawRevie
       !parsed.claims.length || parsed.claims.length > 4) return reject('invalid_shape');
   const sources: LawAnswer['sources'] = [];
   const paragraphs: string[] = [];
+  const seen = new Set<string>();
   for (const claim of parsed.claims) {
     if (!claim || Object.keys(claim).sort().join() !== 'quote,source,statement' ||
         typeof claim.statement !== 'string' || claim.statement.trim().length < 12 || claim.statement.length > 800 ||
@@ -70,10 +71,17 @@ export function parseLawReview(raw: string, evidence: ReturnType<typeof lawRevie
     let id = sources.find(s => s.source === claim.source)?.id;
     if (!id) { id = sources.length + 1; sources.push({ id, source: claim.source }); }
     const quote = normalize(claim.quote).replace(/[\[\]<>]/g, c => ({ '[': '&#91;', ']': '&#93;', '<': '&lt;', '>': '&gt;' }[c]!));
-    paragraphs.push(`${claim.statement.trim()} [${id}]\n\n> ${quote} [${id}]`);
+    // A model audit cannot prove paraphrase support. Publish only source text,
+    // with neutral, explicitly qualified positional context rather than a speaker label.
+    const key = JSON.stringify([claim.source, normalize(claim.quote)]);
+    if (!seen.has(key)) {
+      seen.add(key);
+      const context = source.context.replace(/[\[\]<>*_`]/g, '');
+      paragraphs.push(`${context}\n\n> ${quote} [${id}]`);
+    }
   }
   return {
-    answer: paragraphs.join('\n\n') + (parsed.uncertain ? '\n\n**Evidence limit:** The retrieved passages do not establish every part of the requested conclusion.' : ''),
+    answer: '**Original passages**\n\nThese are selected excerpts, not a complete legal interpretation. They may contain party submissions or quoted precedent; inclusion does not make them tribunal findings. Open each citation for context.\n\n' + paragraphs.join('\n\n') + (parsed.uncertain ? '\n\n**Evidence limit:** The retrieved passages do not establish every part of the requested conclusion.' : ''),
     sources, followUps: [], support: parsed.claims, uncertain: parsed.uncertain,
   };
 }
