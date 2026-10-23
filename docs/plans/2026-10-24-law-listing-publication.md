@@ -57,7 +57,7 @@ The development server emitted the existing public embedded-manifest import warn
 
 At the end of local implementation, no listing feature push, migration, Edge deployment, seed, existing-ten publication or activation had occurred. The ten documents/527 chunks were not mutated by this task. Production listing/search/natural-language acceptance remains a release gate; successful vector self-lookup is not substituted for it.
 
-Local implementation commits: `a04eec63` backend, `76f6391f` canonical serving/attachments, `a9449fdf` clients/CI. They are on `task/law-listing-spec`; the feature has not been pushed or released. PR13 alone is merged on GitHub. Task worktree cleanup was requested through managed archival after integration; recoverable snapshots preserve delegated work.
+Local implementation commits: `a04eec63` backend, `76f6391f` canonical serving/attachments, `a9449fdf` clients/CI. At that local checkpoint they were on `task/law-listing-spec`, unpublished; PR13 alone had merged. The subsequent authorized release is recorded below. Task worktree cleanup was requested through managed archival after integration; recoverable snapshots preserve delegated work.
 
 ## Authorized release — 2026-10-24
 
