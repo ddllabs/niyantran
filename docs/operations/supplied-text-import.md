@@ -2,6 +2,10 @@
 
 > **Status: Living.** Connector released to NTER on 2026-10-23 after owner authorization. Exactly five Law sources are authorized for the hosted pilot; larger batches remain excluded. Hosted acceptance is recorded in the pilot guide. See [implementation evidence](../plans/2026-10-23-supplied-text-connection.md) and [corpus reconciliation](../research/2026-10-23-corpus-reconciliation.md).
 
+## Listing publication update (implementation pending production activation)
+
+For the approved NCLT listing extension, follow [the client guide](law-listing-client-guide.md) and [backend contract](law-listing-backend-contract.md). The updated importer performs live reconciliation before NCLT submission, binds the mapping fingerprint, skips registered sources and reports publication separately. New NCLT submissions require `--max-estimated-cost-usd`. Use `--reconcile` for read-only live mapping; `law-listing-reconcile.mjs` repairs metadata only. These actions require the new server contract to be released first. No larger batch is authorized. Older receipts/manifests remain immutable.
+
 ## What this connects
 
 `corpus-text-import.mjs` → authenticated `admin-ingest/register_text` → existing `ingest_jobs` → existing `ingest-worker` index loop → existing section-context chunker, embeddings and `chunk_commit` → verified activation in `documents` and `document_chunks`.

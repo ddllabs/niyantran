@@ -22,3 +22,39 @@ Read RPC supplies bounded pages plus exact filtered/total counts, stable keys an
 ## Verification and release boundaries
 
 Production corpus and existing ten documents/527 chunks untouched. No new paid queries, indexing or OCR. SQL tests use local disposable containers only. Real production website acceptance and metadata-only reconciliation require separately authorized activation after review; they are not simulated by local green tests. Track exact commands, regression outcomes and review findings below.
+
+## Execution evidence
+
+PR13 fix `91254514`, updated head `bd4a9060`, merged as `e651b7f0` after independent review and CI40006075188: Build and tests and SQL fixtures both success. Supervisor reran16 Python/7 importer tests, lint/build. Original scanner regression RED is documented in operations handoff. No corpus writes.
+
+Client review found incomplete CLI states returning0 and preflight fingerprint not bound to registration. CLI regression failed before correction; pending now exits2 and holds3. Registration sends the expected fingerprint for atomic server comparison. Client tests use synthetic fixtures and localhost only.
+
+## Implemented handoff
+
+- Additive canonical tables, scoped admin actions, atomic admission and durable publication intent/activation are implemented. New unsupported Law sources hold before indexing. Historical exact retries remain compatible.
+- Canonical NCLT pagination/search and record-key attachment resolution are wired through module, selection/pins, coverage and research-chat. The source-register count is explicitly distinct from indexed-document coverage.
+- Updated `corpus-text-import.mjs` uses live reconciliation and passes the expected mapping fingerprint. New `law-listing-reconcile.mjs` plans, publishes and verifies metadata only; private fsynced reports record uncertain outcomes and stop automatic replay.
+- Independent backend review found a publication/document lock inversion. The original ordering reproduced an actual PostgreSQL deadlock; activation now takes the publication lock first. A projection trigger's unrelated DELETE passthrough also failed a regression before correction. No remaining concrete blocker was found in the final read review.
+- Baseline source-membership refresh is intentionally separate and tracked as F246. The first adapter holds unsupported forums, revisions/translations and compound-only matches. No production-scale throughput claim is made.
+
+Client entry point: [Law listing client guide](../operations/law-listing-client-guide.md). Server interface/release sequence: [backend contract](../operations/law-listing-backend-contract.md). Scanner explanation: [review repair](../operations/law-cohort-screen-review-fix.md).
+
+## Local browser evidence
+
+Isolated headless Chrome loaded the real DeskView component through local Vite with a synthetic 102-record canonical response. Assertions passed for 100+2 pagination, two same-title order/announcement selections remaining distinct, server search finding the last-page Globiz fixture and resetting to page1, empty results, and a503 error without stale rows. Zero browser page errors. All API/external requests were intercepted; no production corpus or provider calls occurred. This is component/browser integration evidence, not authenticated production website or natural-language RAG acceptance.
+
+The development server emitted the existing public embedded-manifest import warning while loading the fixture; production build and browser assertions passed. No unrelated asset-import refactor was made.
+
+## Integrated verification
+
+- `npm test`: 423 files,6573 tests passed.
+- `deno test -A --config supabase/functions/deno.json supabase/functions`:1203 passed.
+- `python3 -I scripts/law-cohort-screen.test.py`:16 passed.
+- `node --experimental-strip-types --test scripts/corpus-text-import.test.mjs scripts/law-listing-reconcile.test.mjs`:21 passed, including real localhost CLI exit checks. A service-role credential in the publishable-key slot failed the added regression before the transport guard; both credential slots now refuse service credentials.
+- `npm run lint`, `npm run build`, router import and `npm run check:bundle`:passed. The final credential-only delta also passed focused ESLint. Bundle check reports181170 bytes gzip initial JavaScript across two assets, within its budget.
+- Backend causal checks cover concurrent publishers, actual activation/exact-retry lock contention, stale mapping, aliases, unrelated deletion and projection/visibility guard removal.
+- `bash supabase/tests/run.sh`:all57 disposable SQL fixtures passed, including omission/vacuity controls, Law concurrent publishers and activation/exact-retry overlap. No live database was used as a fixture.
+
+No listing feature push, migration, Edge deployment, seed, existing-ten publication or activation occurred. The ten documents/527 chunks were not mutated by this task. Production listing/search/natural-language acceptance remains a release gate; successful vector self-lookup is not substituted for it.
+
+Local implementation commits: `a04eec63` backend, `76f6391f` canonical serving/attachments, `a9449fdf` clients/CI. They are on `task/law-listing-spec`; the feature has not been pushed or released. PR13 alone is merged on GitHub. Task worktree cleanup was requested through managed archival after integration; recoverable snapshots preserve delegated work.
