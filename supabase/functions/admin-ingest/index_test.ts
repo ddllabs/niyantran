@@ -638,3 +638,16 @@ Deno.test('the served handler answers preflight and 401 without creating the ser
   assertEquals(res.headers.get('access-control-allow-origin'), 'http://localhost:5173');
   assertEquals(service, 0);
 });
+
+Deno.test('Law endpoints map only to the scoped RPC contracts', async () => {
+  const { client, log } = recordingClient(() => ({ data: { status: 'ready' }, error: null }));
+  const db = supabaseAdminDb(() => client);
+  await db.lawListing!('law-reconcile', { record: { source_key: 'law:trib:IBBI_NCLT:one' } });
+  await db.lawListing!('law-publish', { document_id: 'doc', expected_fingerprint: SHA });
+  await db.lawListing!('law-status', { document_id: 'doc' });
+  assertEquals(log.map((r) => [r.rpc, r.args]), [
+    ['law_reconcile', { p: { record: { source_key: 'law:trib:IBBI_NCLT:one' } } }],
+    ['law_publish', { p: { document_id: 'doc', expected_fingerprint: SHA } }],
+    ['law_publication_status', { p_document: 'doc' }],
+  ]);
+});

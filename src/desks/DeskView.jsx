@@ -2,9 +2,10 @@ import { rowSelectionProps } from '../shell/rowSelection.js';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchFeature, fetchFeaturePage } from '../lib/featureFeed.js';
 import { featureFeedApiEnabled } from '../lib/apiMode.js';
-import { canonicalQ, isPagedFeature } from '../lib/pagedFeatures.js';
+import { canonicalQ, isPagedFeature, LAW_LISTING_FEATURE } from '../lib/pagedFeatures.js';
 import { fetchPendingDeskRow } from '../ai/openRowSource.js';
 import { openAiResearch, rowDragProps } from '../lib/aiDrop.js';
+import { deskRowKey } from '../lib/deskRows.js';
 import { cellText, filterRows, isArticleHref, sortRows } from '../lib/normalise.js';
 import { buildTableSearchIndex, searchTableRows, shouldIndexSearch } from '../lib/tableSearch.js';
 import { formatCell, formatDate, formatStatus, getStatusToneClass, truncateTwoLines } from '../lib/format.js';
@@ -341,7 +342,14 @@ export default function DeskView({
     const view = { tier, feature: featureName, q: pagedQ, sort: sort.key, dir: sort.dir, filter: vizFilter, answer: questionsDesk ? hasAnswerFilter : '' };
     fetchFeaturePage({ ...view, page: page + 1, signal: ac.signal })
       .catch((e) => {
-        if (e?.name === 'AbortError') throw e;
+        if (e?.name === 'AbortError' || ac.signal.aborted) throw e;
+        if (featureName === LAW_LISTING_FEATURE) {
+          setErrOffline(readerOffline(e));
+          setErr(MODULE_UNAVAILABLE_TEXT);
+          setFeed(null); onFeed(null);
+          setPaging(false); setLoading(false); onLoading?.(false);
+          throw e;
+        }
         return null;
       })
       .then((body) => {
@@ -353,6 +361,7 @@ export default function DeskView({
           return;
         }
         loadedFor.current = loadKey;
+        setErr('');
         setFeed(body);
         onFeed(body);
         if (!fresh) return;
@@ -938,10 +947,10 @@ export default function DeskView({
                       const rowId = `${cellOf(row, cols[0] || { key: 'title' })}|${safePage}|${i}`;
                       const on =
                         selected === row ||
-                        (selected &&
+                        (featureName === LAW_LISTING_FEATURE ? Boolean(selected && deskRowKey(selected) === deskRowKey(row)) : (selected &&
                           (selected.conflict_name || selected.title || selected.subject) &&
                           (selected.conflict_name || selected.title || selected.subject) ===
-                            (row.conflict_name || row.title || row.subject));
+                            (row.conflict_name || row.title || row.subject)));
                       const close = /central tender/i.test(featureName) ? tenderCloseBand(row) : null;
                       const rowClass = [on ? 'on' : '', close?.tone ? `close-${close.tone}` : ''].filter(Boolean).join(' ');
                       return (

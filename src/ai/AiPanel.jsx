@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { setChatAttachments } from '../lib/aiThreads.js';
 import { filesFromDrop, handOffAiDrop, materializeAiDrop, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
-import { billDocumentKey, deskRowKey } from '../lib/deskRows.js';
+import { documentKey, deskRowKey } from '../lib/deskRows.js';
 import { COVERAGE_TTL_MS, coverageOf, recheckCoverage, refreshCoverage } from '../lib/corpusCoverage.js';
 import useResearchThread from './useResearchThread.js';
 import './research.css';
@@ -134,12 +134,13 @@ function rowTitle(row) {
  */
 export function rowIsPinned(pins, row) {
   if (!row) return false;
-  const doc = billDocumentKey(row);
+  const doc = documentKey(row);
   const key = rowPinKey(row);
   const title = row.bill_name || row.title || row.name;
   return (pins || []).some((a) => {
     if (a?.kind !== 'row') return false;
     if (doc && a.document_key) return a.document_key === doc;
+    if (doc?.startsWith('law-record:')) return Boolean(key && rowPinKey(a.preview || {}) === key);
     return Boolean((key && rowPinKey(a.preview || {}) === key) || (title && a.title === title));
   });
 }
@@ -198,7 +199,7 @@ export function webPredictionRecords(pins, selected) {
   let selection = null;
   try { selection = selected && selected.status !== 'source_status' ? researchSelection(selected) : null; }
   catch { selection = null; } // the send itself refuses this row and says why
-  const key = selection ? billDocumentKey(selected) : null;
+  const key = selection ? documentKey(selected) : null;
   return {
     attachments: requestAttachments(pins),
     selectedRecord: selection && !rowIsPinned(pins, selected) ? { kind: 'row', ...(key ? { document_key: key } : {}) } : null,
@@ -708,7 +709,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               tier: tab || '',
               feature: featureName,
               row: selection,
-              ...(billDocumentKey(selected) ? { document_key: billDocumentKey(selected) } : {}),
+              ...(documentKey(selected) ? { document_key: documentKey(selected) } : {}),
             },
           }
         : {}),

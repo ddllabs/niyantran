@@ -126,6 +126,7 @@ export interface StagedObject {
 }
 
 export interface AdminIngestDb {
+  lawListing?(action: string, p: Record<string, unknown>): Promise<DbResult<Record<string, unknown>>>;
   registerText?(p: Record<string, unknown>): Promise<DbResult<{ document_id: string; job_id: string; status: string; existing: boolean }>>;
   /** Documents whose file_sha256 is this, with the status of each one's latest job. */
   documentsBySha(fileSha256: string): Promise<ExistingDocument[]>;
@@ -424,7 +425,7 @@ async function readBody(req: Request): Promise<Body> {
     throw bad('body must be JSON');
   }
   const body = object(parsed, 'body');
-  if (total > LIMITS.bodyMaxBytes && body.action !== 'register_text') throw new Refusal('too_large', 'large body only allowed for supplied text');
+  if (total > LIMITS.bodyMaxBytes && body.action !== 'register_text' && body.action !== 'law-reconcile') throw new Refusal('too_large', 'large body only allowed for supplied text');
   return body;
 }
 
@@ -787,6 +788,31 @@ async function register(ctx: Ctx, body: Body): Promise<unknown> {
   return { ok: true, document_id: documentId, job_id: jobId };
 }
 
+async function lawListing(ctx: Ctx, body: Body): Promise<unknown> {
+  if (!ctx.deps.db.lawListing) throw new Refusal('unavailable', 'Law listing publication is unavailable');
+  let p: Record<string, unknown>;
+  if (body.action === 'law-reconcile' && body.record !== undefined) {
+    if (body.document_id !== undefined) throw bad('choose record or document_id');
+    try { p = { record: JSON.parse((await prepareSuppliedText(body.record)).payload) }; }
+    catch (e) { throw bad(messageOf(e)); }
+  } else {
+    p = { document_id: uuid(body.document_id, 'document_id') };
+    if (body.action !== 'law-status') p.text_sha256 = sha(body.text_sha256, 'text_sha256');
+  }
+  if (body.action === 'law-publish') Object.assign(p, {
+    expected_fingerprint: sha(body.expected_fingerprint, 'expected_fingerprint'),
+    decision_id: text(body.decision_id, 'decision_id', 200),
+    approver: text(body.approver, 'approver', 200),
+    evidence_sha256: sha(body.evidence_sha256, 'evidence_sha256'), actor: ctx.userId,
+  });
+  const { data, error } = await ctx.deps.db.lawListing(String(body.action), p);
+  if (error) {
+    if (error.message.startsWith('law listing:')) throw new Refusal(error.message.includes('stale') ? 'stale' : 'refused', error.message);
+    throw new Refusal('unavailable', UNAVAILABLE);
+  }
+  return { ok: true, ...data };
+}
+
 async function registerText(ctx: Ctx, body: Body): Promise<unknown> {
   let prepared;
   try { prepared = await prepareSuppliedText(body.record); }
@@ -795,8 +821,10 @@ async function registerText(ctx: Ctx, body: Body): Promise<unknown> {
   if (body.confirm_sha256 !== prepared.payload_sha256) throw bad('confirm_sha256 must match the reviewed payload');
   if (!ctx.deps.db.registerText) throw new Refusal('unavailable', 'supplied-text registration is unavailable');
   const { data, error } = await ctx.deps.db.registerText({ payload: prepared.payload, payload_sha256: prepared.payload_sha256,
-    expected: suppliedCommitRows(prepared.chunks), pages: prepared.pages, sections: prepared.sections, actor: ctx.userId });
+    expected: suppliedCommitRows(prepared.chunks), pages: prepared.pages, sections: prepared.sections, actor: ctx.userId,
+    ...(body.expected_mapping_fingerprint !== undefined ? { mapping_fingerprint: sha(body.expected_mapping_fingerprint, 'expected_mapping_fingerprint') } : {}) });
   if (error) {
+    if (error.message.startsWith('law listing:')) throw new Refusal(error.message.includes('stale') ? 'stale' : 'refused', error.message);
     if (error.message.startsWith('supplied text:') || error.code === '23505') throw new Refusal('refused', 'source conflict or invalid supplied-text registration; no source replaced');
     throw new Refusal('unavailable', UNAVAILABLE);
   }
@@ -1013,6 +1041,11 @@ export async function handleAdminIngest(req: Request, deps: AdminIngestDeps): Pr
     const ctx: Ctx = { deps, userId: caller.userId, log, hubs: new Map() };
     let result: unknown;
     switch (body.action) {
+      case 'law-reconcile':
+      case 'law-publish':
+      case 'law-status':
+        result = await lawListing(ctx, body);
+        break;
       case 'prepare':
         result = await prepare(ctx, body);
         break;

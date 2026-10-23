@@ -7,7 +7,8 @@
 // A module is paged when its whole answer is over either limit (src/lib/featurePage.test.js checks
 // the list against every module's stored register).
 export const PAGED_THRESHOLD = { gzipBytes: 250 * 1024, rows: 5000 };
-export const PAGED_FEATURES = ['Bill Passage Probability Index', 'Parliamentary Question Database'];
+export const LAW_LISTING_FEATURE = 'NCLT / NCLAT (Insolvency)';
+export const PAGED_FEATURES = ['Bill Passage Probability Index', 'Parliamentary Question Database', LAW_LISTING_FEATURE];
 // Over the threshold but kept whole: the graph draws every bill (spec section 5).
 export const UNPAGED_LARGE_FEATURES = ['Policy Intelligence Graph'];
 

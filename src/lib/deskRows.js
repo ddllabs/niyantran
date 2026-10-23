@@ -100,6 +100,13 @@ export function billDocumentKey(row) {
   return year ? `bill:${year}:${number}` : null;
 }
 
+/** Verified Law links are resolved server-side; a key is only a lookup pointer. */
+export function documentKey(row) {
+  const key = row?.document_key;
+  if (typeof key === 'string' && /^law-record:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)) return key.toLowerCase();
+  return billDocumentKey(row);
+}
+
 /** Scalars as strings, empties and nested values dropped — the `row` column. */
 export function slimDeskRow(flat) {
   const out = {};

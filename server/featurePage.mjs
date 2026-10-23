@@ -15,6 +15,8 @@ import { feedOverview, tableFilterGroups } from '../src/lib/analytics.js';
 import { deskRowKey } from '../src/lib/deskRows.js';
 import { isPagedFeature, parsePageQuery } from '../src/lib/pagedFeatures.js';
 
+import { serveLawListingPage } from './lawListingPage.mjs';
+
 const MAX_LINKS = 20;
 // Recent searches, filters and sort orders kept per register, so a page change costs a slice.
 const RESULTS_KEPT = 16;
@@ -97,7 +99,9 @@ function matching(reg, opts) {
  * Answers a page request: `{ status: 400, body }` for a bad parameter; the module's ordinary answer
  * when it has no rows (the browser then falls back as it does today); otherwise one page.
  */
-export async function serveFeaturePage(searchParams, load) {
+export async function serveFeaturePage(searchParams, load, options) {
+  const canonical = await serveLawListingPage(searchParams, options);
+  if (canonical) return canonical;
   const opts = parsePageQuery(searchParams);
   if (!opts.ok) return { status: 400, body: { ok: false, error: opts.error } };
   const moduleParams = new URLSearchParams();

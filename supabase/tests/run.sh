@@ -80,6 +80,9 @@ m() { echo "$MIG/$1"; }
 # fixture name -> container, then the ordered bootstrap files.
 chain() {
   case "$1" in
+    law_listing)
+      chain supplied_text
+      FILES+=("$(as_non_superuser 20261023184450_law_listing_publication.sql)") ;;
     supplied_text)
       chain corpus_records
       FILES+=("$(as_non_superuser 20261022230537_supplied_text_connection.sql)") ;;
@@ -803,6 +806,7 @@ run_fixture() {
 
   if fixture_sql "$name" | psql_in "$db" > "$WORK/out.txt" 2>&1; then
     echo "  PASS  ($(grep -c . "$WORK/out.txt") lines of output)"
+    [ "$name" = law_listing ] && { bash "$TESTS/law_listing_concurrency.sh" || rc=1; }
     [ "$name" = billing_creation_retry ] && { bash "$TESTS/billing_retry_concurrency.sh" || rc=1; }
     [ "$name" = billing_cycle_changes ] && { bash "$TESTS/billing_cycle_concurrency.sh" || rc=1; }
     [ "$name" = billing_live_cycle ] && { bash "$TESTS/billing_live_cycle_concurrency.sh" || rc=1; }

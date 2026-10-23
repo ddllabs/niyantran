@@ -6,6 +6,8 @@ import { createGunzip } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { EMBED_PRICE_USD_PER_TOKEN } from '../supabase/functions/_shared/embed.ts';
+import { lawAdminApi } from './law-client-api.mjs';
 import { prepareSuppliedText } from '../supabase/functions/_shared/suppliedText.ts';
 
 const MAX_LINE = 8_000_000;
@@ -63,7 +65,9 @@ export async function runImport(options, request = fetch) {
   const decisionBytes = await readFile(decisions);
   const manifestHash = hash(decisionBytes);
   if (submit && approval !== manifestHash) throw Error('approval must equal the dry-run decision manifest SHA-256');
-  const url = submit ? endpoint(target) : null;
+  const online = submit || options.reconcile === true;
+  const url = online ? endpoint(target) : null;
+  const lawCall = online ? lawAdminApi({ target, token, publishableKey }, request) : null;
   if (submit && (!token || !publishableKey || token.startsWith('sb_secret_'))) {
     throw Error('admin access token and publishable key required');
   }
@@ -100,6 +104,7 @@ export async function runImport(options, request = fetch) {
     submitted: 0,
     uncertain: 0,
     registration_held: 0,
+    already_registered: 0, published: 0, publication_pending: 0, publication_held: 0,
   };
   try {
     for (const file of files) {
@@ -124,6 +129,8 @@ export async function runImport(options, request = fetch) {
           }
           entry.payload_sha256 = p.payload_sha256;
           entry.chunks = p.chunks.length;
+          entry.costCeiling = p.chunks.reduce((n,c) => n + Buffer.byteLength(c.embedding_input, 'utf8'), 0) * EMBED_PRICE_USD_PER_TOKEN * 3;
+          entry.lawListing = r.source_key.startsWith('law:trib:IBBI_NCLT:') || d.desk_feature === 'NCLT / NCLAT (Insolvency)';
           entry.file_sha256 = sha;
           entry.line = line;
           entry.path = join(dir, hash(r.source_key) + '.json');
@@ -138,6 +145,17 @@ export async function runImport(options, request = fetch) {
       }
       if (await fileHash(file) !== sha) throw Error('corpus file changed during scan');
     }
+    // Complete live mapping checks for every selected NCLT input before any registration.
+    if (online) {
+      for (const e of selected.values()) {
+        if (e.status !== 'ready' || !e.lawListing) continue;
+        const record = JSON.parse(await readFile(e.path, 'utf8'));
+        const mapping = await lawCall({ action: 'law-reconcile', record });
+        if (!['ready', 'held', 'published'].includes(mapping.status) || !/^[a-f0-9]{64}$/.test(mapping.fingerprint ?? '')) throw Error('unconfirmed mapping');
+        e.mapping = mapping;
+        if (mapping.status === 'held') { e.status = 'held'; e.reason = (mapping.reasons || ['mapping held']).join('; '); }
+      }
+    }
     const totalChunks = [...selected.values()].filter((e) => e.status === 'ready').reduce((n, e) => n + e.chunks, 0);
     const maxChunks = options.maxChunks ?? 10_000;
     if (!Number.isSafeInteger(maxChunks) || maxChunks < 1 || maxChunks > 800_000) {
@@ -145,6 +163,9 @@ export async function runImport(options, request = fetch) {
     }
     if (submit && totalChunks > maxChunks) throw Error('cohort exceeds max-chunks budget; split the reviewed manifest');
     summary.chunks = totalChunks;
+    const lawNew = [...selected.values()].filter(e => e.status === 'ready' && e.lawListing && !e.mapping?.document_id);
+    summary.estimated_cost_ceiling_usd = lawNew.reduce((n,e) => n + e.costCeiling, 0);
+    if (submit && lawNew.length && (!Number.isFinite(options.maxEstimatedCostUsd) || options.maxEstimatedCostUsd <= 0 || summary.estimated_cost_ceiling_usd > options.maxEstimatedCostUsd)) throw Error('explicit max-estimated-cost-usd required and must cover the conservative cost estimate');
     output = await open(report, 'wx', 0o600);
     const append = async (value) => {
       await output.write(JSON.stringify(value) + '\n');
@@ -153,8 +174,8 @@ export async function runImport(options, request = fetch) {
     await append({
       type: 'manifest',
       manifest_sha256: manifestHash,
-      mode: submit ? 'submit' : 'offline-dry-run',
-      target: submit ? new URL(url).origin : null,
+      mode: submit ? 'submit' : online ? 'live-reconciliation' : 'offline-dry-run',
+      target: online ? new URL(url).origin : null,
     });
     let stopped = false;
     for (const [source_key, e] of selected) {
@@ -165,11 +186,17 @@ export async function runImport(options, request = fetch) {
         status: e.status,
         reason: e.reason,
         payload_sha256: e.payload_sha256,
+        text_sha256: e.decision.text_sha256,
+        mapping: e.mapping,
+        document_id: e.mapping?.document_id ?? undefined,
         chunks: e.chunks,
         file_sha256: e.file_sha256,
         line: e.line,
       };
-      if (submit && e.status === 'ready') {
+      if (submit && e.status === 'ready' && e.mapping?.document_id) {
+        row.document_id = e.mapping.document_id; row.existing = true; row.status = 'already_registered';
+        summary.already_registered++;
+      } else if (submit && e.status === 'ready') {
         if (stopped) {
           row.status = 'not_submitted';
           row.reason = 'earlier_request_uncertain_or_unauthorized';
@@ -184,7 +211,7 @@ export async function runImport(options, request = fetch) {
               redirect: 'error',
               signal: AbortSignal.timeout(30_000),
               headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, apikey: publishableKey },
-              body: JSON.stringify({ action: 'register_text', record, confirm_sha256: e.payload_sha256 }),
+              body: JSON.stringify({ action: 'register_text', record, confirm_sha256: e.payload_sha256, ...(e.mapping ? { expected_mapping_fingerprint: e.mapping.fingerprint } : {}) }),
             });
             if (!response.ok) {
               row.status = [400, 413, 422].includes(response.status) ? 'held' : 'uncertain';
@@ -214,6 +241,18 @@ export async function runImport(options, request = fetch) {
           }
         }
       }
+      if (submit && e.lawListing && row.document_id) {
+        try {
+          const publication = await lawCall({ action: 'law-status', document_id: row.document_id });
+          if (publication.document_id !== row.document_id || !['pending', 'published', 'held', 'unmapped'].includes(publication.status)) throw Error('unconfirmed publication');
+          row.publication = publication;
+          if (publication.status === 'published') summary.published++;
+          else if (publication.status === 'held' || publication.status === 'unmapped') summary.publication_held++;
+          else summary.publication_pending++;
+        } catch {
+          row.publication = { status: 'uncertain' }; summary.uncertain++; stopped = true;
+        }
+      }
       await append(row);
     }
     await append({ type: 'summary', ...summary });
@@ -237,7 +276,7 @@ async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help')) {
     console.log(
-      'node --experimental-strip-types scripts/corpus-text-import.mjs --corpus shard.jsonl.gz [--corpus ...] --decisions reviewed.jsonl --report new-report.jsonl [--submit --approval <manifest-sha256> --target https://PROJECT.supabase.co --max-chunks 10000]',
+      'node --experimental-strip-types scripts/corpus-text-import.mjs --corpus shard.jsonl.gz [--corpus ...] --decisions reviewed.jsonl --report new-report.jsonl [--submit --approval <manifest-sha256> --target https://PROJECT.supabase.co --max-chunks 10000 --max-estimated-cost-usd <ceiling>] [--reconcile (read-only live mapping)]',
     );
     return;
   }
@@ -247,9 +286,11 @@ async function main() {
     '--approval': 'approval',
     '--target': 'target',
     '--max-chunks': 'maxChunks',
+    '--max-estimated-cost-usd': 'maxEstimatedCostUsd',
   };
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--submit') opts.submit = true;
+    else if (args[i] === '--reconcile') opts.reconcile = true;
     else if (args[i] === '--corpus') opts.files.push(resolve(args[++i]));
     else if (names[args[i]]) {
       const name = names[args[i]];
@@ -258,11 +299,12 @@ async function main() {
       opts[name] = value;
     } else throw Error('unknown argument');
   }
+  if (opts.maxEstimatedCostUsd !== undefined) opts.maxEstimatedCostUsd = Number(opts.maxEstimatedCostUsd);
   if (opts.maxChunks !== undefined) opts.maxChunks = Number(opts.maxChunks);
   const result = await runImport(opts);
   console.log(JSON.stringify(result));
-  if (result.uncertain) process.exitCode = 2;
-  else if (result.registration_held) process.exitCode = 3;
+  if (result.held || result.registration_held || result.publication_held) process.exitCode = 3;
+  else if (result.uncertain || result.publication_pending) process.exitCode = 2;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main().catch(() => {

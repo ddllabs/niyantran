@@ -33,6 +33,21 @@ Title and case searches return exactly one Globiz order in shared listing; sourc
 - `docs/operations/globiz-listing-correction.sql` is the exact guarded one-row insert for release. Validated against minimal disposable Postgres tables: initial run and exact rerun left 1 listing / 1 document / 80 chunks; deliberately wrong document hash refused. This is syntax/guard/idempotency evidence, not a production-schema migration test. No live writes executed.
 - Source packs under public/data and backup unchanged. Existing document_key remains null; source_key and official URL provide explicit provenance, not a newly implemented corpus attachment capability. No ingestion or paid calls performed. No live browser verification or production release performed.
 
-## Release remaining
+## Release prerequisites (completed below)
 
 The local fix is ready. AGENTS.md requires exact prior authorization for push/PR/deploy and production operations. Release requires CI-gated branch/PR publication and merge, verification of the deployed NCLT listing/API, then the scoped one-row mirror insert and ANALYZE desk_rows. Re-check live search, and preserve the original Globiz document/chunk/job IDs, fingerprints and spend. The changed catalogue count can remain a recorded stale count in already-deployed Edge bundles until an authorized Edge release; no ingestion function deployment is needed for the listing correction.
+
+
+## Production release — 2026-10-23
+
+Owner explicitly authorized push, PR, CI-gated merge/deployment and one-row production correction. Runtime commit `6b5d138804294f7bb66a0a71d6946dbd7dc6b35a`, PR https://github.com/ddllabs/niyantran/pull/14, merge `258827a0649401fe02ea5d1507ed3b0aa7fd9134`. Branch CI40001442944 and PR CI40001450300 passed both required jobs; main CI40002312605 also passed. Production `dpl_EoCgcSUURY3u1icG2wmqA2U1AxpN` READY at merge SHA; www.nter.pro and nter.pro assigned after the main gate. Previous deployment `dpl_VXXzpeXsfZbSQSoPCZv5Yg5hLtJb` is the rollback reference (rollback requires owner authorization).
+
+Live feature-feed API: before 434 rows / zero Globiz; after 435 / exactly one Globiz. The browser's two search implementations run against the actual deployed API response each returned exactly one result for Globiz Exim and C.P. (IB)/595/MB/2025. Applied the committed guarded SQL once, then ANALYZE desk_rows. Live search_desk_rows returns exactly one result for both terms, including a read-only authenticated-role query. No ingestion function or provider called.
+
+Before/after MD5 of complete JSON rows, with stable aggregation order:
+- Existing 434 listing rows: fb11d5869438fd1e673a85c17eeee80d (unchanged).
+- Globiz document: 535e3c5c4205b78cd37b72c9af6fd48b (unchanged).
+- All 80 chunks, including vectors: 6fa4d4bce5f9b3cc46cc7a2141cae092 (unchanged).
+- Ingestion jobs, including spend: 4a96f8222d7dbfafe7044e30cc9418d1 (unchanged).
+
+Browser limitation: in-app session signed out; Chrome connection timed out. No signed-in visual verification claimed. Verification covers the production API, real response through both UI search functions, and authenticated database search. Source-key/URL provenance is present; formal document_key attachment remains out of scope. PR13 and broader ingestion untouched.

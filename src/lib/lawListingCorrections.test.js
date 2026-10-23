@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { handleFeatureFeedRequest } from '../../server/featureFeed.mjs';
 import nclt from '../../public/data/embedded_csv/judiciary_nclt_orders.json';
 import ibbi from '../../public/data/embedded_csv/national_ibbi_announcements.json';
@@ -13,10 +13,15 @@ const source = 'law:trib:IBBI_NCLT:ibbi_nclt-29f626f45865bd4a';
 const url = 'https://ibbi.gov.in/uploads/order/7c2928dab0f907c71d2c2aa47f13b6ce.pdf';
 const prepare = rows => prepareDeskFeed({ tier: 'judiciary', feature, rows }).rows;
 
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+
 describe('Globiz listing correction (F243)', () => {
-  it('serves the correction through the feature-feed API', async () => {
+  it('serves the correction through paged search while canonical serving is explicitly inactive', async () => {
+    vi.stubEnv('SUPABASE_URL', 'https://db.invalid');
+    vi.stubEnv('SUPABASE_ANON_KEY', 'public-test-key');
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ active: false }) })));
     const res = { setHeader() {}, end(raw) { this.body = JSON.parse(raw); } };
-    const query = new URLSearchParams({ tier: 'judiciary', feature });
+    const query = new URLSearchParams({ tier: 'judiciary', feature, q: 'Globiz Exim' });
     await handleFeatureFeedRequest({ method: 'GET', url: `/api/feature-feed?${query}`, headers: { host: 'localhost' } }, res, () => {});
     expect(res.body.rows.filter(row => row.source_url === url)).toHaveLength(1);
     expect(res.body.rows.find(row => row.source_url === url).source_key).toBe(source);
