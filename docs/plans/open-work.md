@@ -1,8 +1,8 @@
 # Open work: the one list
 
 
-- [ ] **F247 — Law answer attribution acceptance.** Fix/release authorized; [active correction plan](2026-10-24-law-answer-attribution-fields.md). Production Globiz selected-record retrieval works, but DeepSeek Flash attributed corporate-debtor submissions (section 3, including paragraph 3.31) to tribunal findings and overstated confidence; the costs caveat only partly corrected it. Add causal answer/evaluation coverage distinguishing submissions, findings and operative relief before declaring legal-answer acceptance or larger-batch autopilot. Preserve existing corpus; this is not an ingestion/mapping repair. [Release evidence](../operations/law-listing-release.md).
-- [ ] **F248 — Canonical Law record-panel fields.** Fix/release authorized in the same correction plan. Future Consumer listing correctly carries `case_number`, but the legacy insolvency panel parses brackets in the title and displays “case number not on the row”. Prefer structured canonical fields with legacy fallback and a regression test. Listing identity, full-text attachment and RAG work; do not mutate the title or re-ingest to repair presentation.
+- [ ] **F247 — Law answer attribution acceptance (partially corrected, still open).** PR17–21 released through merge `9e36adf989a6d55ff7b605cb7b82d8a9d1b89245`, research-chat v77. Fresh Law follow-up retrieval, bounded original final passages and source-heading context improve debt/costs separation. However the v77 original answer still gives 1 September instead of source paragraph 7.29’s 6 September commencement and supports a tribunal suppression claim with submissions paragraph 3.9. The final follow-up also cites the desk row for costs, although those fields do not establish costs. Independent source review rejects full acceptance. Prompt wiring tests are not semantic proof. Next work needs claim-to-evidence attribution/date verification and a repeatable evaluation set, not corpus re-ingestion or more unsupported confidence. Larger-batch answer-quality/autopilot gate remains unmet. [Release receipt](../operations/law-answer-release/README.md).
+- [ ] **F249 — Malformed research answer accepted as content.** During v77 Globiz live acceptance, DeepSeek Flash returned only `llm_result` after two searches (9s, 122 credits), with no usable answer/citations. Preserve this failure in the Law answer release receipt; investigate provider response validation/fallback separately. A later retry is not proof this failure cannot recur. No corpus repair or re-ingestion.
 - [ ] **F246 — Law baseline source-membership refresh.** Canonical seeding captures a reviewed snapshot; protected legacy refreshes cannot add, change or remove its source-only memberships. Before claiming ongoing official-register coverage, specify and implement a provenance-checked membership refresh with stable identities, explicit retirement policy, audit evidence and tests preserving corpus attachments. This is separate from automatic publication of newly admitted supported corpus documents. Other forum adapters, revisions/translations and compound fallback also remain outside the first NCLT adapter. No current ingestion authorization.
 
 
@@ -73,7 +73,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F249 is next) and goes in the
+- A new finding gets the next free `F` number (F250 is next) and goes in the
   right section.
 
 
@@ -3540,3 +3540,7 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-24 Law listing release
 
 - [x] **F245 — Automatic Law listing publication.** Implemented and released through PR15, merge `2173b95be8dc785ac0c04b7291b6c38c25b45162`, required PR/main CI green. Seeded435 baseline records, linked9 existing orders and created1 distinct Future Consumer order, activated436 listings/10 indexed attachments. All10 documents/527 chunks and ingestion-job fingerprints unchanged; metadata rerun identical. Website retrieval/citation plumbing verified with answer-quality and record-panel follow-ups F247/F248 explicitly open. [Evidence](../operations/law-listing-release.md). No larger batch or re-ingestion.
+
+## Done — 2026-10-24 canonical Law case number
+
+- [x] **F248 — Canonical Law record-panel fields.** PR17, merge `5a8f7a456d29c415cc106dc4bac2c66f90e86439`: structured nonempty string `case_number` takes precedence, with legacy title fallback. Future Consumer visibly shows `C.P. (IB)/914/MB/2025` in Forum and Case details, and Case number “On the row”. Regression tests and signed-in NTER verification passed; no source/title/data mutation. [Receipt](../operations/law-answer-release/README.md).
