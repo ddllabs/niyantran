@@ -624,3 +624,13 @@ it('sends the pinned desk identity needed for authoritative row citations', asyn
  expect(attachment.feature).toBe(pin.feature);
  expect(attachment.row_key).toBeTruthy();
 });
+
+it('Law orders and announcements with the same company title remain distinct pins', async () => {
+ const {rowIsPinned,webPredictionRecords}=await import('./AiPanel.jsx');
+ const key='law-record:12345678-1234-1234-1234-123456789abc';
+ const order={id:'order-1',title:'Future Consumer',document_key:key};
+ const announcement={kind:'row',title:'Future Consumer',preview:{id:'announcement-1'}};
+ expect(rowIsPinned([announcement],order)).toBe(false);
+ expect(rowIsPinned([{kind:'row',title:order.title,document_key:key}],order)).toBe(true);
+ expect(webPredictionRecords([],order).selectedRecord.document_key).toBe(key);
+});

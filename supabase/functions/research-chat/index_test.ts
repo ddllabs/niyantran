@@ -905,3 +905,35 @@ Deno.test('plans: canonical billing eligibility is read with the service client 
   const models = f.calls.find((c) => c.table === 'ai_models');
   assert(models?.columns?.split(',').includes('min_plan'), 'min_plan is selected');
 });
+
+Deno.test('Law attachment resolution uses verified links under the caller and preserves bill resolution', async () => {
+  const f = fixture();
+  const key = 'law-record:12345678-1234-1234-1234-123456789abc';
+  f.setReply((_side, table) => {
+    if (table === 'law_resolve_document_keys') return { data: [{ document_key: key, document_id: DOC_A }], error: null };
+    if (table === 'documents') return { data: [{ id: DOC_B, document_key: 'bill:2026:1' }], error: null };
+    return { data: [], error: null };
+  });
+  const d = createDependencies(request(), f.runtime);
+  await d.requireUser(request());
+  assertEquals(new Set(await d.db.resolveDocumentIds({ keys: [key, 'bill:2026:1'], ids: [] })), new Set([DOC_A, DOC_B]));
+  assertEquals(new Set(await d.db.indexedDocumentKeys([key, 'bill:2026:1'])), new Set([key, 'bill:2026:1']));
+  const lookups = f.calls.filter(c => c.table === 'law_resolve_document_keys');
+  assertEquals(lookups.length, 2);
+  assert(lookups.every(c => c.side === 'caller'));
+  assert(lookups.every(c => JSON.stringify(c.value) === JSON.stringify({ p_keys: [key] })));
+  assert(f.calls.filter(c => c.table === 'documents').every(c => !JSON.stringify(c.filters).includes(key)));
+});
+
+Deno.test('Law resolution stays within twelve keys per RPC and never substitutes a metadata query on failure', async () => {
+  const f = fixture();
+  const keys = Array.from({ length: 13 }, (_, i) => `law-record:12345678-1234-1234-1234-${String(i).padStart(12, '0')}`);
+  f.setReply((_side, table, _op, value) => ({ data: table === 'law_resolve_document_keys' ? (value as { p_keys: string[] }).p_keys.map(document_key => ({ document_key, document_id: DOC_A })) : [], error: null }));
+  const d = createDependencies(request(), f.runtime);
+  await d.requireUser(request());
+  assertEquals(await d.db.resolveDocumentIds({ keys, ids: [] }), [DOC_A]);
+  assertEquals(f.calls.filter(c => c.table === 'law_resolve_document_keys').map(c => (c.value as { p_keys: string[] }).p_keys.length), [12, 1]);
+  f.setReply(() => ({ data: null, error: { message: 'Denied' } }));
+  await assertRejects(() => d.db.resolveDocumentIds({ keys: [keys[0]], ids: [] }), Error, 'Research service unavailable');
+  assertEquals(f.calls.filter(c => c.table === 'documents').length, 0);
+});

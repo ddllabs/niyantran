@@ -265,3 +265,17 @@ describe('a failed live attempt stays marked (F159 review)', () => {
     expect(body.source.liveFailed).toBe(true);
   });
 });
+
+describe('canonical Law register never hides a serving failure', () => {
+  const feature = 'NCLT / NCLAT (Insolvency)';
+  it('refuses an API error instead of falling back to the archive', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 503, json: async () => ({ error: 'unavailable' }) })));
+    await expect(fetchFeaturePage({ tier: 'judiciary', feature, page: 1 })).rejects.toThrow();
+    await expect(fetchFeature({ tier: 'judiciary', feature })).rejects.toThrow();
+  });
+  it('keeps an authoritative empty result', async () => {
+    const body = { ok: true, paged: true, rows: [], total: 0, totalAll: 436 };
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => body })));
+    expect(await fetchFeature({ tier: 'judiciary', feature })).toEqual(body);
+  });
+});

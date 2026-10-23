@@ -77,6 +77,7 @@ import * as resourcesLive from './resourcesApi.mjs';
 import * as financeLive from './financeApi.mjs';
 import * as sportsLive from './sportsApi.mjs';
 import { loadBackupForFeature } from './backupFeed.mjs';
+import { LAW_LISTING_FEATURE } from '../src/lib/pagedFeatures.js';
 import { serveFeaturePage, wantsPage } from './featurePage.mjs';
 import { isStoreServed, mlaStateVariant } from './feedSchedule.mjs';
 import { liveAnswerIsUsable, serveFromStore } from './feedServe.mjs';
@@ -4111,7 +4112,7 @@ export async function handleFeatureFeedRequest(req, res, next) {
       const loadFeed = (url.pathname === '/api/national-landing' && url.searchParams.get('feature') === 'Policy Pipeline Tracker (Draft-to-Gazette)') || (global && url.searchParams.get('feature') === 'Satellite Infrastructure') || (state && stateSummaryUsesStore(url.searchParams.get('feature')))
         ? serveFeatureFeedStoredFirst
         : (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : serveFeatureFeedWithBackup;
-      const body = await (state ? serveStateLanding : entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, loadFeed);
+      const body = await (state ? serveStateLanding : entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, loadFeed, { authorization: req.headers?.authorization });
       res.statusCode = body.ok ? 200 : 502;
       res.end(JSON.stringify(body));
     } catch (err) {
@@ -4154,8 +4155,9 @@ export async function handleFeatureFeedRequest(req, res, next) {
   }
   try {
     // F156: a page of a large module when `page` is asked for; otherwise the whole answer, as before.
+    if (url.searchParams.get('feature') === LAW_LISTING_FEATURE && !url.searchParams.has('page')) url.searchParams.set('page', '1');
     const { status, body } = wantsPage(url.searchParams)
-      ? await serveFeaturePage(url.searchParams, serveFeatureFeedWithBackup)
+      ? await serveFeaturePage(url.searchParams, serveFeatureFeedWithBackup, { authorization: req.headers?.authorization })
       : { status: 200, body: await serveFeatureFeedStoredFirst(url.searchParams) };
     const json = JSON.stringify(body);
     res.statusCode = status;

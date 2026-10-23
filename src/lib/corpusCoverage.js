@@ -56,13 +56,21 @@ function fresh(key, now) {
 async function lookUp(keys, client, now) {
   if (!keys.length || !client) return;
   const at = now();
-  const { data, error } = await client
+  const law = keys.filter(k => k.startsWith('law-record:'));
+  const legacy = keys.filter(k => !k.startsWith('law-record:'));
+  const answers = [];
+  for (let i = 0; i < law.length; i += 12) {
+    const result = await client.rpc('law_resolve_document_keys', { p_keys: law.slice(i, i + 12) });
+    if (result.error) return;
+    answers.push(...(result.data || []));
+  }
+  const { data, error } = legacy.length ? await client
     .from('documents')
     .select('metadata->>document_key')
-    .in('metadata->>document_key', keys)
-    .not('indexed_at', 'is', null);
+    .in('metadata->>document_key', legacy)
+    .not('indexed_at', 'is', null) : { data: [], error: null };
   if (error) return;
-  const found = new Set((data || []).map((r) => r.document_key).filter(Boolean));
+  const found = new Set([...answers, ...(data || [])].map((r) => r.document_key).filter(Boolean));
   for (const k of keys) {
     const prev = known.get(k);
     if (!prev || prev.at <= at) known.set(k, { value: found.has(k), at });

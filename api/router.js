@@ -4,6 +4,7 @@
  */
 import { getCachedDeskBrief, runDeskBrief } from '../server/deskBrief.mjs';
 import { serveFeatureFeedStoredFirst, serveFeatureFeedWithBackup, serveFeatureFeedWithinLimit } from '../server/featureFeed.mjs';
+import { LAW_LISTING_FEATURE } from '../src/lib/pagedFeatures.js';
 import { serveFeaturePage, wantsPage } from '../server/featurePage.mjs';
 import { serveNationalLanding } from '../server/nationalLandingSummary.mjs';
 import { serveLawLanding } from '../server/lawLandingSummary.mjs';
@@ -208,7 +209,8 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   const path = routePath(req);
   const method = String(req.method || 'GET').toUpperCase();
-  if (cachePolicyFor(path, method) === 'edge') cacheAtEdgeOnSuccess(res);
+  const canonicalLaw = ['/api/feature-feed', '/api/law-landing'].includes(path) && q(req).get('feature') === LAW_LISTING_FEATURE;
+  if (!canonicalLaw && cachePolicyFor(path, method) === 'edge') cacheAtEdgeOnSuccess(res);
 
   try {
     if (path === '/api/national-landing' || path === '/api/global-landing' || path === '/api/law-landing' || path === '/api/economics-landing' || path === '/api/carbon-landing' || path === '/api/sports-landing' || path === '/api/entertainment-landing' || path === '/api/state-landing') {
@@ -225,7 +227,7 @@ export default async function handler(req, res) {
         const loadFeed = (path === '/api/national-landing' && params.get('feature') === 'Policy Pipeline Tracker (Draft-to-Gazette)') || (global && params.get('feature') === 'Satellite Infrastructure') || (state && stateSummaryUsesStore(params.get('feature')))
           ? serveFeatureFeedStoredFirst
           : (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : serveFeatureFeedWithBackup;
-        const body = await (state ? serveStateLanding : entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(params, loadFeed);
+        const body = await (state ? serveStateLanding : entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(params, loadFeed, { authorization: req.headers?.authorization });
         res.status(body.ok ? 200 : 502).json(body);
       } catch (err) {
         res.status(err.message === `Unknown ${state ? 'State' : entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} module` ? 400 : 502).json({ ok: false, error: `${state ? 'State' : entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} summary unavailable` });
@@ -239,8 +241,9 @@ export default async function handler(req, res) {
       }
       // F156: a page of a large module when `page` is asked for; otherwise the whole answer, as before.
       const params = q(req);
+      if (canonicalLaw && !params.has('page')) params.set('page', '1');
       const { status, body } = wantsPage(params)
-        ? await serveFeaturePage(params, serveFeatureFeedWithBackup)
+        ? await serveFeaturePage(params, serveFeatureFeedWithBackup, { authorization: req.headers?.authorization })
         : { status: 200, body: await serveFeatureFeedStoredFirst(params) };
       if (method === 'HEAD') {
         res.status(status).end();

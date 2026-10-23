@@ -12,7 +12,9 @@ export function projectLawSummary(raw, retrievedAt = new Date().toISOString()) {
   const failed = raw.ok === false || (!rows.length && raw.rows?.some(row => row.status === 'source_status'));
   const adapter = raw.source?.adapter;
   const reporting = adapter === 'news-search' || rows.some(row => present(row.reporting_search));
-  const stored = adapter === 'embedded' && !reporting;
+  const canonical = adapter === 'law-canonical' && raw.paged && Number.isInteger(raw.totalAll);
+  const count = canonical ? raw.totalAll : rows.length;
+  const stored = (adapter === 'embedded' || canonical) && !reporting;
   const sourceMode = failed ? 'unknown' : stored ? 'stored' : ['news-search', 'api', 'live'].includes(adapter) ? 'feed-backed' : 'unknown';
   const shared = stored && LAW_FEATURES.slice(0, 2).includes(feature);
   const limitations = reporting
@@ -26,7 +28,7 @@ export function projectLawSummary(raw, retrievedAt = new Date().toISOString()) {
   const columns = failed ? [] : fields.filter(c => rows.some(row => present(row[c.key]) || (c.fallback && present(row[c.fallback])))).slice(0, 16).map(({ key, label }) => ({ key, label }));
   const links = [...(raw.source?.links || []), ...rows.map(row => row.source_url)].map(safeUrl).filter(Boolean);
   const sources = [...new Map(links.map(url => [new URL(url).hostname, url])).values()].slice(0, 4).map(url => ({ name: new URL(url).hostname.replace(/^www\./, ''), url }));
-  return { ok: !failed, version: 1, feature, resourceKey: shared ? 'judiciary-sc-orders' : feature, count: failed ? null : rows.length, countBasis: 'prepared-feed', availability: failed ? 'error' : rows.length ? 'ready' : 'empty', sourceMode, unit: reporting ? 'reports' : 'entries', asOf, retrievedAt, columns, sources, limitations };
+  return { ok: !failed, version: 1, feature, resourceKey: shared ? 'judiciary-sc-orders' : feature, count: failed ? null : count, countBasis: canonical ? 'canonical-register' : 'prepared-feed', availability: failed ? 'error' : count ? 'ready' : 'empty', sourceMode, unit: reporting ? 'reports' : 'entries', asOf, retrievedAt, columns, sources, limitations };
 }
 
 export function aggregateLawSummaries(summaries) {

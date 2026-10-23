@@ -245,6 +245,15 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
     }
     return result.data;
   }
+  async function resolveLawKeys(keys: string[]) {
+    const rows: { document_key: string; document_id: string }[] = [];
+    // Twelve pins plus a selected record can exceed the RPC's per-call bound.
+    for (let i = 0; i < keys.length; i += 12) {
+      const data = await query((signal) => caller().rpc('law_resolve_document_keys', { p_keys: keys.slice(i, i + 12) }).abortSignal(signal));
+      rows.push(...(data ?? []));
+    }
+    return rows;
+  }
   const persistence = rpcTurnStore({
     rpc: (fn, args) => {
       if (!owner || args.p_user_id !== owner) throw new HttpError(403, 'Turn owner mismatch');
@@ -399,18 +408,25 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
                 .abortSignal(signal)
             )
             : Promise.resolve([] as { id: string }[]);
-        const [byKey, byId] = await Promise.all([indexed('metadata->>document_key', keys), indexed('id', ids)]);
-        return [...new Set([...(byKey ?? []), ...(byId ?? [])].map((d) => String(d.id)))];
+        const lawKeys = keys.filter((key) => key.startsWith('law-record:'));
+        const [byKey, byId, law] = await Promise.all([
+          indexed('metadata->>document_key', keys.filter((key) => !key.startsWith('law-record:'))), indexed('id', ids),
+          resolveLawKeys(lawKeys),
+        ]);
+        return [...new Set([...(byKey ?? []), ...(byId ?? []), ...(law ?? []).map((row: { document_id: string }) => ({ id: row.document_id }))].map((d) => String(d.id)))];
       },
       indexedDocumentKeys: async (keys) => {
         // web-search spec §1: the keys that name an indexed document. Same filter as
         // resolveDocumentIds, so "has embeddings" and "is searchable" cannot disagree.
         if (!keys.length) return [];
-        const data = await query((signal) =>
-          caller().from('documents').select('document_key:metadata->>document_key').in('metadata->>document_key', keys)
-            .not('indexed_at', 'is', null).abortSignal(signal)
-        );
-        return [...new Set((data ?? []).map((d) => String((d as { document_key: unknown }).document_key ?? '')).filter(Boolean))];
+        const lawKeys = keys.filter((key) => key.startsWith('law-record:'));
+        const legacyKeys = keys.filter((key) => !key.startsWith('law-record:'));
+        const [legacy, law] = await Promise.all([
+          legacyKeys.length ? query((signal) => caller().from('documents').select('document_key:metadata->>document_key')
+            .in('metadata->>document_key', legacyKeys).not('indexed_at', 'is', null).abortSignal(signal)) : Promise.resolve([]),
+          resolveLawKeys(lawKeys),
+        ]);
+        return [...new Set([...legacy ?? [], ...law ?? []].map((d) => String((d as { document_key: unknown }).document_key ?? '')).filter(Boolean))];
       },
       webSearchOverride: async (conversationId, requested) => {
         // The reader's own client: conversations RLS limits both the read and the write to the

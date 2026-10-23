@@ -15,7 +15,7 @@ import { matchesChoice } from './choiceFilter.js';
 import { feedColumns } from './columns.js';
 import { feedOverview, tableFilterGroups } from './analytics.js';
 import { deskRowKey } from './deskRows.js';
-import { PAGED_FEATURES, PAGED_THRESHOLD, UNPAGED_LARGE_FEATURES, pageQuery, parsePageQuery } from './pagedFeatures.js';
+import { PAGED_FEATURES, LAW_LISTING_FEATURE, PAGED_THRESHOLD, UNPAGED_LARGE_FEATURES, pageQuery, parsePageQuery } from './pagedFeatures.js';
 
 const BILLS = 'Bill Passage Probability Index';
 const QUESTIONS = 'Parliamentary Question Database';
@@ -203,7 +203,7 @@ describe('the page URL (F156)', () => {
 });
 
 describe('which modules are paged (F156)', () => {
-  it('exactly the modules over 250 KB compressed or 5,000 rows, apart from the graph', async () => {
+  it('large static registers plus explicitly canonical Law use pagination', async () => {
     const modules = JSON.parse(readFileSync(new URL('../data/html-feature-map.json', import.meta.url), 'utf8'));
     const fail = async () => { throw new Error('stored register only'); };
     const over = [];
@@ -212,6 +212,6 @@ describe('which modules are paged (F156)', () => {
       const rows = (body.rows || []).length;
       if (rows > PAGED_THRESHOLD.rows || gzipSync(JSON.stringify(body)).length > PAGED_THRESHOLD.gzipBytes) over.push(m.htmlFeature);
     }
-    expect([...new Set(over)].sort()).toEqual([...PAGED_FEATURES, ...UNPAGED_LARGE_FEATURES].sort());
+    expect([...new Set(over)].sort()).toEqual([...PAGED_FEATURES.filter(f => f !== LAW_LISTING_FEATURE), ...UNPAGED_LARGE_FEATURES].sort());
   });
 });

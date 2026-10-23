@@ -4,7 +4,7 @@ import { isHtmlOnlyModule } from '../desks/catalog.js';
 import features from '../data/html-feature-map.json';
 import { fetchArchiveFeature, hasRealRows } from './archiveFeed.js';
 import { isTransitFeature, rowFromAir } from './transit.js';
-import { isPagedFeature, pageQuery } from './pagedFeatures.js';
+import { isPagedFeature, pageQuery, LAW_LISTING_FEATURE } from './pagedFeatures.js';
 
 function featureMapRow(tier, feature) {
   const want = String(feature || '').trim().toLowerCase();
@@ -239,6 +239,10 @@ export async function fetchFeature({ tier, feature, signal, onUpdate, params } =
     };
   }
 
+  if (feature === LAW_LISTING_FEATURE && featureFeedApiEnabled()) {
+    return fetchFeaturePage({ tier, feature, signal, page: 1 });
+  }
+
   // Prefer /api/feature-feed when deployed (local Vite + Vercel). Still fall
   // through to the shipped archive when the API misses or returns empty.
   if (!featureFeedApiEnabled()) {
@@ -283,5 +287,8 @@ export async function fetchFeature({ tier, feature, signal, onUpdate, params } =
 export async function fetchFeaturePage({ signal, ...view } = {}) {
   if (!featureFeedApiEnabled() || !isPagedFeature(view.feature)) return null;
   const api = await requestFeatureFeed(`/api/feature-feed?${pageQuery(view)}`, signal);
+  if (view.feature === LAW_LISTING_FEATURE && (!api.ok || !api.body?.paged || api.body.ok === false)) {
+    throw new Error('Law listings unavailable. Please retry.');
+  }
   return api.ok && api.body?.paged ? api.body : null;
 }

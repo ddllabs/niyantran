@@ -142,3 +142,25 @@ describe('what a paged module asks for (F156)', () => {
     expect(api.whole).toHaveBeenCalledTimes(1);
   });
 });
+
+it('Law errors retain bounded paging and clear stale rows instead of switching to whole-feed mode', async () => {
+  api.page.mockRejectedValue(new Error('Law listings unavailable'));
+  hooks.runEffects = true;
+  const onFeed = vi.fn(), onLoading = vi.fn();
+  render({ featureName: 'NCLT / NCLAT (Insolvency)', tier: 'judiciary', onFeed, onLoading });
+  await tick();
+  expect(hooks.setters[9]).not.toHaveBeenCalledWith(false);
+  expect(onFeed).toHaveBeenCalledWith(null);
+  expect(onLoading).toHaveBeenCalledWith(false);
+  expect(api.whole).not.toHaveBeenCalled();
+});
+
+it('Law table selection identifies the record, never another order or announcement with the same title', () => {
+  const feature = 'NCLT / NCLAT (Insolvency)';
+  const order = { id: 'order-1', title: 'Future Consumer' };
+  const announcement = { id: 'announcement-1', title: 'Future Consumer' };
+  hooks.overrides = { 2: paged({ feature, rows: [order, announcement], columns: [{ key: 'title', label: 'Title' }] }), 4: false };
+  const tree = render({ featureName: feature, tier: 'judiciary', selected: order });
+  const body = nodes(tree).filter(n => n.type === 'tr' && n.props.onClick);
+  expect(body.map(n => n.props.className)).toEqual(['on', '']);
+});

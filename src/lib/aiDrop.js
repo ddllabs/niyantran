@@ -2,7 +2,7 @@ import { TABS, catalogModules, modulesForTier } from '../desks/catalog.js';
 import { fetchFeature } from './featureFeed.js';
 import { githubCsvUrl } from './githubCsv.js';
 import { collectRowUrls, isHubListingUrl, rowRecordText, sourceKindHint } from './sourceUrls.js';
-import { billDocumentKey } from './deskRows.js';
+import { documentKey } from './deskRows.js';
 import { authHeaders } from './authHeaders.js';
 import { DROP_LIMIT_BYTES, FILE_LIMIT_BYTES, fileText } from './fileText.js';
 
@@ -297,7 +297,7 @@ export async function materializeAiDrop(payload, extras = {}) {
       // (validate.ts documentKeysOf) and the selection was sending one while
       // attachments were not - so a bill dropped into the chat could not be
       // scoped to its own text even when that text was indexed.
-      ...(billDocumentKey(payload.row) ? { document_key: billDocumentKey(payload.row) } : {}),
+      ...(documentKey(payload.row) ? { document_key: documentKey(payload.row) } : {}),
       preview: {
         ...rowPreview(payload.row),
         related_records: related.related_records,

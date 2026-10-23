@@ -137,3 +137,12 @@ describe('dragging to AI', () => {
     expect(opened).toEqual([]);
   });
 });
+
+it('a Law record pin preserves the verified lookup key without fetching source text', async () => {
+  const key = 'law-record:12345678-1234-1234-1234-123456789abc';
+  const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+  const [chip] = await materializeAiDrop({ kind: 'row', row: { id: 'legacy-order', title: 'Future Consumer', document_key: key, source_url: 'https://ibbi.gov.in/uploads/order/test.pdf' }, feature: 'NCLT / NCLAT (Insolvency)' }, { hydrate: false });
+  expect(chip.document_key).toBe(key);
+  expect(chip.preview.id).toBe('legacy-order');
+  expect(fetch).not.toHaveBeenCalled();
+});
