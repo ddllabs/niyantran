@@ -11,6 +11,7 @@ import { log } from '../_shared/logging.ts';
 import { personaPrompt } from '../_shared/personas.ts';
 import { type AttemptMetadata, streamChat } from '../_shared/openrouterStream.ts';
 import { hydrateDocumentRoles, search } from '../_shared/retrieval.ts';
+import { hydrateLawContext, LAW_CONTEXT_CHUNKS, type LawContextRow } from '../_shared/lawContext.ts';
 import { serviceClient, userClient } from '../_shared/supabase.ts';
 import { type DeskRow, executeSearchDeskRows } from '../_shared/tools/searchDeskRows.ts';
 import {
@@ -499,7 +500,7 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
     searchDocuments: async (args, ids, context) => {
       caller();
       if (!context) throw new Error('Retrieval context required');
-      return await search({
+      const chunks = await search({
         onTiming: context.onTiming,
         embed: (q) => embedQuery(q, context, r, r.env('OPENROUTER_API_KEY') ?? ''),
         rpc: async (fn, a) => {
@@ -512,6 +513,11 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
           return { data, error: null };
         },
       }, { query: args.query, deskTier: args.desk_tier, deskFeature: args.desk_feature, documentIds: ids, topK: context.topK });
+      return await hydrateLawContext(chunks, async id =>
+        await query<LawContextRow[] | null>((signal) => caller().from('document_chunks')
+          .select('id,document_id,chunk_index,char_from,char_to,content').eq('document_id', id)
+          .order('chunk_index', { ascending: true }).limit(LAW_CONTEXT_CHUNKS)
+          .abortSignal(signal), context.signal) ?? []);
     },
     searchDeskRows: async (args, context) => {
       caller();

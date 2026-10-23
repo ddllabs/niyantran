@@ -71,6 +71,8 @@ export interface Chunk {
   /** document_page_images ids whose placeholder lies inside this chunk. */
   image_ids?: string[];
   section?: CitationSection;
+  /** Exact positional source text, hydrated under caller authorization; not a role label. */
+  preceding_heading?: { text: string; chunkId: string; charFrom: number };
 }
 
 export interface RetrievalTrace {
