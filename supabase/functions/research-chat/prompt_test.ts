@@ -565,3 +565,8 @@ Deno.test('F216: a paginated result supports its counts, not an invented coverag
   assertStringIncludes(SYSTEM_PROMPT_STATIC, 'Neither count establishes complete coverage of all states');
   assertStringIncludes(SYSTEM_PROMPT_STATIC, 'Do not discard those returned facts because the question uses this or it');
 });
+
+Deno.test('F247: an analysis heading or matching result cannot prove adoption', () => {
+  const p = buildSystemPrompt({ persona: 'analyst', focus: 'attached', today: '2026-10-24', catalogue: '' });
+  for (const rule of ['An ANALYSIS AND FINDINGS heading does not turn reported submissions into findings', 'Never infer adoption merely because the final outcome is compatible with a submission', 'quote the deciding tribunal’s own adoption language', 'Keep the requesting party explicit']) assertStringIncludes(p, rule);
+});
