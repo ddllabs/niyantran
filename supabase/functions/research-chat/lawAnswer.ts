@@ -33,23 +33,26 @@ export function lawReviewEvidence(evidence: EvidenceMap): Map<string, { text: st
 
 /** Quote identity is deterministic. Semantic support is reviewed by the model
  * and must still be evaluated against real sources; this is not a proof engine. */
-export function parseLawReview(raw: string, evidence: ReturnType<typeof lawReviewEvidence>): LawAnswer | null {
+export function parseLawReview(raw: string, evidence: ReturnType<typeof lawReviewEvidence>, report: (reason: string) => void = () => {}): LawAnswer | null {
+  const reject = (reason: string): null => { report(reason); return null; };
   let parsed;
-  try { parsed = JSON.parse(raw); } catch { return null; }
+  try { parsed = JSON.parse(raw); } catch { return reject('invalid_json'); }
   if (!parsed || Object.keys(parsed).sort().join() !== 'claims,uncertain' ||
       typeof parsed.uncertain !== 'boolean' || !Array.isArray(parsed.claims) ||
-      !parsed.claims.length || parsed.claims.length > 8) return null;
+      !parsed.claims.length || parsed.claims.length > 8) return reject('invalid_shape');
   const sources: LawAnswer['sources'] = [];
   const paragraphs: string[] = [];
   for (const claim of parsed.claims) {
     if (!claim || Object.keys(claim).sort().join() !== 'quote,source,statement' ||
         typeof claim.statement !== 'string' || claim.statement.trim().length < 12 || claim.statement.length > 800 ||
         placeholderAnswer(claim.statement) || typeof claim.quote !== 'string' ||
-        normalize(claim.quote).length < 32 || claim.quote.length > 1600 || typeof claim.source !== 'string') return null;
+        claim.quote.length > 1600 || typeof claim.source !== 'string') return reject('invalid_claim_shape');
+    if (!/[\p{L}\p{N}]/u.test(normalize(claim.quote))) return reject('empty_quote');
     const source = evidence.get(claim.source);
-    if (!source || !normalize(source.text).includes(normalize(claim.quote))) return null;
+    if (!source) return reject('unknown_source');
+    if (!normalize(source.text).includes(normalize(claim.quote))) return reject('quote_not_found');
     // The server owns every marker. Do not accept model-invented citations or links.
-    if (/\[[^\]]*\]|ref:|https?:\/\//i.test(claim.statement)) return null;
+    if (/\[[^\]]*\]|ref:|https?:\/\//i.test(claim.statement)) return reject('model_citation');
     let id = sources.find(s => s.source === claim.source)?.id;
     if (!id) { id = sources.length + 1; sources.push({ id, source: claim.source }); }
     const quote = normalize(claim.quote).replace(/[\[\]<>]/g, c => ({ '[': '&#91;', ']': '&#93;', '<': '&lt;', '>': '&gt;' }[c]!));
@@ -70,11 +73,11 @@ Answer the question, not every possible issue. Prefer a few precise claims over 
 
 export async function reviewLawAnswer(
   model: (request: StreamRequest) => AsyncGenerator<ModelEvent>,
-  request: { model: string; question: string; draft: string; evidence: EvidenceMap; signal: AbortSignal; reasoning?: { effort: string } },
+  request: { model: string; question: string; draft: string; evidence: EvidenceMap; signal: AbortSignal; reasoning?: { effort: string }; report?: (reason: string) => void },
 ): Promise<LawAnswer | null> {
   request.signal.throwIfAborted();
   const evidence = lawReviewEvidence(request.evidence);
-  if (!evidence.size) return null;
+  if (!evidence.size) { request.report?.('no_evidence'); return null; }
   let raw = '', finish = '', invalid = false;
   for await (const event of model({ model: request.model, signal: request.signal,
     reasoning: request.reasoning, max_tokens: 6000,
@@ -85,10 +88,11 @@ export async function reviewLawAnswer(
   })) {
     request.signal.throwIfAborted();
     if (finish) invalid = true;
-    if (event.type === 'text') { raw += event.text; if (raw.length > 24000) return null; }
+    if (event.type === 'text') { raw += event.text; if (raw.length > 24000) { request.report?.('oversized_response'); return null; } }
     else if (event.type === 'tool-call') invalid = true;
     else if (event.type === 'finish') finish = event.reason;
   }
   request.signal.throwIfAborted();
-  return finish === 'stop' && !invalid ? parseLawReview(raw, evidence) : null;
+  if (finish !== 'stop' || invalid) { request.report?.('invalid_stream'); return null; }
+  return parseLawReview(raw, evidence, request.report);
 }
