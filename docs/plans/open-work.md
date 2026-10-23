@@ -1,7 +1,8 @@
 # Open work: the one list
 
 
-- [ ] **F245 — Automatic Law listing publication (2026-10-24).** Approved [specification and ordered plan](../specs/2026-10-24-law-listing-publication.md) prepared at owner request; implementation approved 2026-10-24 and implemented locally in `a04eec63`, `76f6391f`, `a9449fdf`. Integrated6573 app/1203 Edge/57 SQL/21 client/16 scanner checks pass; production release and existing-ten acceptance remain open in the plan. Batches and production activation remain excluded. Canonical listing identities, separate immutable-document relationships, live reconciliation, durable publication-only retries, refresh ownership, unified paged search/attachments and client contract are required. Current 435 insolvency rows are mixed source metadata, not 435 indexed documents. Nine of ten indexed Law documents match listings; Future Consumer needs a distinct order listing. Existing-ten reconciliation must preserve 527 chunks with zero paid re-indexing. [Source/DB evidence](../research/2026-10-24-law-listing-review.md).
+- [ ] **F247 — Law answer attribution acceptance.** Production Globiz selected-record retrieval works, but DeepSeek Flash attributed corporate-debtor submissions (section 3, including paragraph 3.31) to tribunal findings and overstated confidence; the costs caveat only partly corrected it. Add causal answer/evaluation coverage distinguishing submissions, findings and operative relief before declaring legal-answer acceptance or larger-batch autopilot. Preserve existing corpus; this is not an ingestion/mapping repair. [Release evidence](../operations/law-listing-release.md).
+- [ ] **F248 — Canonical Law record-panel fields.** Future Consumer listing correctly carries `case_number`, but the legacy insolvency panel parses brackets in the title and displays “case number not on the row”. Prefer structured canonical fields with legacy fallback and a regression test. Listing identity, full-text attachment and RAG work; do not mutate the title or re-ingest to repair presentation.
 - [ ] **F246 — Law baseline source-membership refresh.** Canonical seeding captures a reviewed snapshot; protected legacy refreshes cannot add, change or remove its source-only memberships. Before claiming ongoing official-register coverage, specify and implement a provenance-checked membership refresh with stable identities, explicit retirement policy, audit evidence and tests preserving corpus attachments. This is separate from automatic publication of newly admitted supported corpus documents. Other forum adapters, revisions/translations and compound fallback also remain outside the first NCLT adapter. No current ingestion authorization.
 
 
@@ -72,7 +73,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F247 is next) and goes in the
+- A new finding gets the next free `F` number (F249 is next) and goes in the
   right section.
 
 
@@ -3535,3 +3536,7 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-24 Law screener repair
 
 - [x] **F244 — Semantic conflict scan.** PR #13 merged `e651b7f076ba149e62fdb477fb2798fde3904d09`; fix `91254514`, reviewed/up-to-date head `bd4a9060`. Sixteen screener and seven original importer tests passed; independent review, lint/build and both required CI jobs on run40006075188 passed. Schema3 rejects incomplete/ambiguous scans and computes occurrence hashes. [Client explanation](../operations/law-cohort-screen-review-fix.md). No ingestion or corpus writes.
+
+## Done — 2026-10-24 Law listing release
+
+- [x] **F245 — Automatic Law listing publication.** Implemented and released through PR15, merge `2173b95be8dc785ac0c04b7291b6c38c25b45162`, required PR/main CI green. Seeded435 baseline records, linked9 existing orders and created1 distinct Future Consumer order, activated436 listings/10 indexed attachments. All10 documents/527 chunks and ingestion-job fingerprints unchanged; metadata rerun identical. Website retrieval/citation plumbing verified with answer-quality and record-panel follow-ups F247/F248 explicitly open. [Evidence](../operations/law-listing-release.md). No larger batch or re-ingestion.

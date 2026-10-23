@@ -1,0 +1,967 @@
+{
+  "status": "Historical (2026-10-24)",
+  "baseline": {
+    "law_jobs": 10,
+    "documents": [
+      {
+        "title": "In the matter of JRN PHARMA AND LABORATORIES LLP",
+        "chunks": 53,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-078f589727146592",
+        "document_id": "760a2222-7a56-49e6-b7ab-bd91db90247a",
+        "text_sha256": "0deb331e98782060733163f4e24e74dd59de13a51dd4a64ade883716613aae72",
+        "jobs_fingerprint": "c14a59e5191ff2008f5ea313215c947c",
+        "input_fingerprint": "a3ca4daf53df8925f146598f6afa64bd",
+        "chunks_fingerprint": "467ad54a8310a57b4a9f4d0719d7d72f",
+        "document_fingerprint": "16779ae5d3e5b98764aaae435bf74fc5"
+      },
+      {
+        "title": "In the matter of FNM PROPERTY SERVICES PRIVATE LIMITED",
+        "chunks": 40,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-6ebdc4363316bb97",
+        "document_id": "3c1d9c7e-c1ed-4aa4-afaa-c49355b2f4ae",
+        "text_sha256": "2d907ec9dff5e39a559260b23a15d8ea46f0910cdf3d86451fe860ce66a84106",
+        "jobs_fingerprint": "a204b8524e44e7661751486a9fd5449c",
+        "input_fingerprint": "f466ad2d5032c42d74604a52b6227dd4",
+        "chunks_fingerprint": "6bb0f9cff8fa2e9c3250c4a3d8dafe77",
+        "document_fingerprint": "89c930aa424c1d36d28a0d7fbaa0e3d5"
+      },
+      {
+        "title": "In the matter of SUNIMA STEEL MARKETING PRIVATE LIMITED",
+        "chunks": 35,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-96b36e83a18fb8bc",
+        "document_id": "85c9fadf-aeb0-418b-b9cf-588c13a66e3f",
+        "text_sha256": "18bbbe0b0e31936575ef28f137ebc014babe66042313b08ab13fa4005b0849f6",
+        "jobs_fingerprint": "ce6ca867168aa3c73617856570b8d1ed",
+        "input_fingerprint": "006ec7e3f2cfca63d63f3a7f93c22687",
+        "chunks_fingerprint": "9f318d67a4e9117d69cdbc938724c912",
+        "document_fingerprint": "d01f5a389e872fdc26b8ba199b3b44f1"
+      },
+      {
+        "title": "In the matter of Globiz Exim Private Limited",
+        "chunks": 80,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-29f626f45865bd4a",
+        "document_id": "1597c9df-162a-4d74-860d-1cbf8f5a3bb2",
+        "text_sha256": "ee4bf7251aa037c9d358c5433f77b00dc5ff6beebee2976fd813f57b481deddc",
+        "jobs_fingerprint": "ddcafec1bff9b0ad4cdf9f2164f6e26e",
+        "input_fingerprint": "c3f4285506d96bbf460afba811b9de81",
+        "chunks_fingerprint": "538595f2b9d4af8625a2b7da3ebfb9b0",
+        "document_fingerprint": "535e3c5c4205b78cd37b72c9af6fd48b"
+      },
+      {
+        "title": "In the matter of Samata Nagari Sahkari Patsanstha Maryadit v. Satish Suresh Sawai,",
+        "chunks": 29,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-dc33a5004b2451f7",
+        "document_id": "b94fcf61-15a3-456a-836d-5e295d5c619f",
+        "text_sha256": "825f4420f17f390d494647d0a03e2558bfaa9e9cd6a791fb584d2f0006cbfd2a",
+        "jobs_fingerprint": "d33bd259728c768b83f3be341a76a964",
+        "input_fingerprint": "9ede8a6c36eb2bc23a46e8be1a8b3237",
+        "chunks_fingerprint": "649ad70bde3093ec0d46915b9016426d",
+        "document_fingerprint": "e07d3415930af16971be6241f7ccc9c9"
+      },
+      {
+        "title": "In the matter of SWADESH GREEN INFRA LIMITED",
+        "chunks": 38,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-3ba8779ec3d364ef",
+        "document_id": "b4dda8c9-a93e-416a-88ed-e7384566d983",
+        "text_sha256": "a3033d031e730f1199ee849be260d5fa8c0d351e49a955f30e96d23984807475",
+        "jobs_fingerprint": "4c571199037b87e557c3d1176aafe9f5",
+        "input_fingerprint": "d0631f76bb8ff3545f294aadf41b98b0",
+        "chunks_fingerprint": "edb8e3d52a5ddbd1fc7b31555f99a6cb",
+        "document_fingerprint": "46f4b46e086ee41c8c5fcb8b4d9d0b72"
+      },
+      {
+        "title": "In the matter of Coastal Automobiles Private Limited",
+        "chunks": 75,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-8b07cefd73faeaf1",
+        "document_id": "5ce2009c-6c96-4f99-9d74-3d40e836c039",
+        "text_sha256": "13ebd14d47117b53c264b357304a54303e426e2b19439c6508dd03ace1ed180d",
+        "jobs_fingerprint": "d5b6a22787dcaaf45a35cfdedff292ff",
+        "input_fingerprint": "9533e489779f1422c3758bd099b61ea9",
+        "chunks_fingerprint": "170b52b12c3204d650f79d609320e6fe",
+        "document_fingerprint": "672a6aebe83aa13361e676e1aa220525"
+      },
+      {
+        "title": "In the matter of Future Consumer Limited",
+        "chunks": 95,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-c159d713bbe8a10b",
+        "document_id": "daae642b-443a-4c33-b6ec-a0de1a462fb8",
+        "text_sha256": "58273956b0e4471b0201fd0a64a8a689b883eb4b1724763925b19b34da0eb17d",
+        "jobs_fingerprint": "5e8e1a19734fd4be14cf5cfa1c33b6a9",
+        "input_fingerprint": "978df3216e5e23909ccb826c39fd2184",
+        "chunks_fingerprint": "fff9a0fa71ca9bbbf8c9fb0e8b79c542",
+        "document_fingerprint": "d5cf720fb6424a031b8cd0804c3d06ca"
+      },
+      {
+        "title": "In the matter of Jet Airways (India) Ltd.",
+        "chunks": 40,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-d6674663fafe2827",
+        "document_id": "dea784ed-a6c9-49cb-8544-ec9e1f87c5f4",
+        "text_sha256": "f37be28ef3e0e6775f40522353267cbe10a1063163622a1ca96de3c4ca9965cc",
+        "jobs_fingerprint": "1ea2cacf9450cf8f43dc386a1bc902ca",
+        "input_fingerprint": "a149bdf7768dca637ea5494610c49eec",
+        "chunks_fingerprint": "bc40b9abf6cfac57242e23e988b7a3ed",
+        "document_fingerprint": "1fb266130ee78ca1d9171e261d6c513c"
+      },
+      {
+        "title": "In the matter of Bigmoon Buildcon Private Limited",
+        "chunks": 42,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-d196e088bd46ae26",
+        "document_id": "3daf7b8b-2822-4fc0-8bf7-15ff49b7859c",
+        "text_sha256": "065a4107a097a679505bbb088dcf047fb21bda60340a3a97146ef30e1c62f555",
+        "jobs_fingerprint": "cbc792faac9fc0b47dfb7eb90f290d95",
+        "input_fingerprint": "1cbd35ac55bcd43769bf92e2238e1cee",
+        "chunks_fingerprint": "a41d9d7f02be4a65543ddaf76d43269d",
+        "document_fingerprint": "d2dfdba8bba05dc37f697a2b7904ec7b"
+      }
+    ],
+    "law_ocr_cost": 0,
+    "global_chunks": 101243,
+    "listing_count": 435,
+    "law_embed_cost": 0.00232816,
+    "global_documents": 3469
+  },
+  "after": {
+    "law_jobs": 10,
+    "documents": [
+      {
+        "title": "In the matter of JRN PHARMA AND LABORATORIES LLP",
+        "chunks": 53,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-078f589727146592",
+        "document_id": "760a2222-7a56-49e6-b7ab-bd91db90247a",
+        "text_sha256": "0deb331e98782060733163f4e24e74dd59de13a51dd4a64ade883716613aae72",
+        "jobs_fingerprint": "c14a59e5191ff2008f5ea313215c947c",
+        "input_fingerprint": "a3ca4daf53df8925f146598f6afa64bd",
+        "chunks_fingerprint": "467ad54a8310a57b4a9f4d0719d7d72f",
+        "document_fingerprint": "16779ae5d3e5b98764aaae435bf74fc5"
+      },
+      {
+        "title": "In the matter of FNM PROPERTY SERVICES PRIVATE LIMITED",
+        "chunks": 40,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-6ebdc4363316bb97",
+        "document_id": "3c1d9c7e-c1ed-4aa4-afaa-c49355b2f4ae",
+        "text_sha256": "2d907ec9dff5e39a559260b23a15d8ea46f0910cdf3d86451fe860ce66a84106",
+        "jobs_fingerprint": "a204b8524e44e7661751486a9fd5449c",
+        "input_fingerprint": "f466ad2d5032c42d74604a52b6227dd4",
+        "chunks_fingerprint": "6bb0f9cff8fa2e9c3250c4a3d8dafe77",
+        "document_fingerprint": "89c930aa424c1d36d28a0d7fbaa0e3d5"
+      },
+      {
+        "title": "In the matter of SUNIMA STEEL MARKETING PRIVATE LIMITED",
+        "chunks": 35,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-96b36e83a18fb8bc",
+        "document_id": "85c9fadf-aeb0-418b-b9cf-588c13a66e3f",
+        "text_sha256": "18bbbe0b0e31936575ef28f137ebc014babe66042313b08ab13fa4005b0849f6",
+        "jobs_fingerprint": "ce6ca867168aa3c73617856570b8d1ed",
+        "input_fingerprint": "006ec7e3f2cfca63d63f3a7f93c22687",
+        "chunks_fingerprint": "9f318d67a4e9117d69cdbc938724c912",
+        "document_fingerprint": "d01f5a389e872fdc26b8ba199b3b44f1"
+      },
+      {
+        "title": "In the matter of Globiz Exim Private Limited",
+        "chunks": 80,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-29f626f45865bd4a",
+        "document_id": "1597c9df-162a-4d74-860d-1cbf8f5a3bb2",
+        "text_sha256": "ee4bf7251aa037c9d358c5433f77b00dc5ff6beebee2976fd813f57b481deddc",
+        "jobs_fingerprint": "ddcafec1bff9b0ad4cdf9f2164f6e26e",
+        "input_fingerprint": "c3f4285506d96bbf460afba811b9de81",
+        "chunks_fingerprint": "538595f2b9d4af8625a2b7da3ebfb9b0",
+        "document_fingerprint": "535e3c5c4205b78cd37b72c9af6fd48b"
+      },
+      {
+        "title": "In the matter of Samata Nagari Sahkari Patsanstha Maryadit v. Satish Suresh Sawai,",
+        "chunks": 29,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-dc33a5004b2451f7",
+        "document_id": "b94fcf61-15a3-456a-836d-5e295d5c619f",
+        "text_sha256": "825f4420f17f390d494647d0a03e2558bfaa9e9cd6a791fb584d2f0006cbfd2a",
+        "jobs_fingerprint": "d33bd259728c768b83f3be341a76a964",
+        "input_fingerprint": "9ede8a6c36eb2bc23a46e8be1a8b3237",
+        "chunks_fingerprint": "649ad70bde3093ec0d46915b9016426d",
+        "document_fingerprint": "e07d3415930af16971be6241f7ccc9c9"
+      },
+      {
+        "title": "In the matter of SWADESH GREEN INFRA LIMITED",
+        "chunks": 38,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-3ba8779ec3d364ef",
+        "document_id": "b4dda8c9-a93e-416a-88ed-e7384566d983",
+        "text_sha256": "a3033d031e730f1199ee849be260d5fa8c0d351e49a955f30e96d23984807475",
+        "jobs_fingerprint": "4c571199037b87e557c3d1176aafe9f5",
+        "input_fingerprint": "d0631f76bb8ff3545f294aadf41b98b0",
+        "chunks_fingerprint": "edb8e3d52a5ddbd1fc7b31555f99a6cb",
+        "document_fingerprint": "46f4b46e086ee41c8c5fcb8b4d9d0b72"
+      },
+      {
+        "title": "In the matter of Coastal Automobiles Private Limited",
+        "chunks": 75,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-8b07cefd73faeaf1",
+        "document_id": "5ce2009c-6c96-4f99-9d74-3d40e836c039",
+        "text_sha256": "13ebd14d47117b53c264b357304a54303e426e2b19439c6508dd03ace1ed180d",
+        "jobs_fingerprint": "d5b6a22787dcaaf45a35cfdedff292ff",
+        "input_fingerprint": "9533e489779f1422c3758bd099b61ea9",
+        "chunks_fingerprint": "170b52b12c3204d650f79d609320e6fe",
+        "document_fingerprint": "672a6aebe83aa13361e676e1aa220525"
+      },
+      {
+        "title": "In the matter of Future Consumer Limited",
+        "chunks": 95,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-c159d713bbe8a10b",
+        "document_id": "daae642b-443a-4c33-b6ec-a0de1a462fb8",
+        "text_sha256": "58273956b0e4471b0201fd0a64a8a689b883eb4b1724763925b19b34da0eb17d",
+        "jobs_fingerprint": "5e8e1a19734fd4be14cf5cfa1c33b6a9",
+        "input_fingerprint": "978df3216e5e23909ccb826c39fd2184",
+        "chunks_fingerprint": "fff9a0fa71ca9bbbf8c9fb0e8b79c542",
+        "document_fingerprint": "d5cf720fb6424a031b8cd0804c3d06ca"
+      },
+      {
+        "title": "In the matter of Jet Airways (India) Ltd.",
+        "chunks": 40,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-d6674663fafe2827",
+        "document_id": "dea784ed-a6c9-49cb-8544-ec9e1f87c5f4",
+        "text_sha256": "f37be28ef3e0e6775f40522353267cbe10a1063163622a1ca96de3c4ca9965cc",
+        "jobs_fingerprint": "1ea2cacf9450cf8f43dc386a1bc902ca",
+        "input_fingerprint": "a149bdf7768dca637ea5494610c49eec",
+        "chunks_fingerprint": "bc40b9abf6cfac57242e23e988b7a3ed",
+        "document_fingerprint": "1fb266130ee78ca1d9171e261d6c513c"
+      },
+      {
+        "title": "In the matter of Bigmoon Buildcon Private Limited",
+        "chunks": 42,
+        "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-d196e088bd46ae26",
+        "document_id": "3daf7b8b-2822-4fc0-8bf7-15ff49b7859c",
+        "text_sha256": "065a4107a097a679505bbb088dcf047fb21bda60340a3a97146ef30e1c62f555",
+        "jobs_fingerprint": "cbc792faac9fc0b47dfb7eb90f290d95",
+        "input_fingerprint": "1cbd35ac55bcd43769bf92e2238e1cee",
+        "chunks_fingerprint": "a41d9d7f02be4a65543ddaf76d43269d",
+        "document_fingerprint": "d2dfdba8bba05dc37f697a2b7904ec7b"
+      }
+    ],
+    "law_ocr_cost": 0,
+    "global_chunks": 101243,
+    "listing_count": 436,
+    "law_embed_cost": 0.00232816,
+    "global_documents": 3469
+  },
+  "plan": [
+    {
+      "document_id": "1597c9df-162a-4d74-860d-1cbf8f5a3bb2",
+      "text_sha256": "ee4bf7251aa037c9d358c5433f77b00dc5ff6beebee2976fd813f57b481deddc",
+      "mapping": {
+        "action": "link-existing",
+        "status": "ready",
+        "indexed": true,
+        "reasons": [],
+        "row_key": "law:trib:ibbi_nclt:ibbi_nclt-29f626f45865bd4a",
+        "record_id": "51c3a5e3-f81d-4d40-b9df-d6ffc74b5581",
+        "document_id": "1597c9df-162a-4d74-860d-1cbf8f5a3bb2",
+        "fingerprint": "cce2229dad612a1a9ee67419cf8856ddf15b83b9e8dbffe96401eda1be7ae971",
+        "document_key": "law-record:51c3a5e3-f81d-4d40-b9df-d6ffc74b5581",
+        "contract_version": 1
+      }
+    },
+    {
+      "document_id": "3c1d9c7e-c1ed-4aa4-afaa-c49355b2f4ae",
+      "text_sha256": "2d907ec9dff5e39a559260b23a15d8ea46f0910cdf3d86451fe860ce66a84106",
+      "mapping": {
+        "action": "link-existing",
+        "status": "ready",
+        "indexed": true,
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-fnm-property-services-private-l:238",
+        "record_id": "0afc1499-cf68-43b9-9275-f5c74a4be85e",
+        "document_id": "3c1d9c7e-c1ed-4aa4-afaa-c49355b2f4ae",
+        "fingerprint": "04a95d7ac119bd9a5e9552f138ff97e0240e9fbd739b5dfb1c62bca98993c5c2",
+        "document_key": "law-record:0afc1499-cf68-43b9-9275-f5c74a4be85e",
+        "contract_version": 1
+      }
+    },
+    {
+      "document_id": "3daf7b8b-2822-4fc0-8bf7-15ff49b7859c",
+      "text_sha256": "065a4107a097a679505bbb088dcf047fb21bda60340a3a97146ef30e1c62f555",
+      "mapping": {
+        "action": "link-existing",
+        "status": "ready",
+        "indexed": true,
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-bigmoon-buildcon-private-limite:237",
+        "record_id": "5ebb69a7-1d1b-4a63-a45f-ce2879d983a8",
+        "document_id": "3daf7b8b-2822-4fc0-8bf7-15ff49b7859c",
+        "fingerprint": "33831f6e60af0b0119dec833367bfb5d7a8761ec67edf417b18be6972c9351b0",
+        "document_key": "law-record:5ebb69a7-1d1b-4a63-a45f-ce2879d983a8",
+        "contract_version": 1
+      }
+    },
+    {
+      "document_id": "5ce2009c-6c96-4f99-9d74-3d40e836c039",
+      "text_sha256": "13ebd14d47117b53c264b357304a54303e426e2b19439c6508dd03ace1ed180d",
+      "mapping": {
+        "action": "link-existing",
+        "status": "ready",
+        "indexed": true,
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-coastal-automobiles-private-lim:241",
+        "record_id": "4fc22758-70c1-47c6-a9a6-804eaccd76db",
+        "document_id": "5ce2009c-6c96-4f99-9d74-3d40e836c039",
+        "fingerprint": "7debc12dc3d936185c23d545ab8555c7cf8a0580ff25992aca20fbfdd0eebe72",
+        "document_key": "law-record:4fc22758-70c1-47c6-a9a6-804eaccd76db",
+        "contract_version": 1
+      }
+    },
+    {
+      "document_id": "760a2222-7a56-49e6-b7ab-bd91db90247a",
+      "text_sha256": "0deb331e98782060733163f4e24e74dd59de13a51dd4a64ade883716613aae72",
+      "mapping": {
+        "action": "link-existing",
+        "status": "ready",
+        "indexed": true,
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-jrn-pharma-and-laboratories-llp:235",
+        "record_id": "27560847-0f06-4921-a778-b25ac6599482",
+        "document_id": "760a2222-7a56-49e6-b7ab-bd91db90247a",
+        "fingerprint": "79ef044c9b1a2b647499a76be997138f5c73533b8f323568377c2070a8ceef35",
+        "document_key": "law-record:27560847-0f06-4921-a778-b25ac6599482",
+        "contract_version": 1
+      }
+    },
+    {
+      "document_id": "85c9fadf-aeb0-418b-b9cf-588c13a66e3f",
+      "text_sha256": "18bbbe0b0e31936575ef28f137ebc014babe66042313b08ab13fa4005b0849f6",
+      "mapping": {
+        "action": "link-existing",
+        "status": "ready",
+        "indexed": true,
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-sunima-steel-marketing-private-:239",
+        "record_id": "2ced5ed8-6e85-4157-9738-932e8c43831c",
+        "document_id": "85c9fadf-aeb0-418b-b9cf-588c13a66e3f",
+        "fingerprint": "22605f7f7ad199829c0519ac81772b4c57a75445abb455da051e31ea04c13483",
+        "document_key": "law-record:2ced5ed8-6e85-4157-9738-932e8c43831c",
+        "contract_version": 1
+      }
+    },
+    {
+      "document_id": "b4dda8c9-a93e-416a-88ed-e7384566d983",
+      "text_sha256": "a3033d031e730f1199ee849be260d5fa8c0d351e49a955f30e96d23984807475",
+      "mapping": {
+        "action": "link-existing",
+        "status": "ready",
+        "indexed": true,
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-swadesh-green-infra-limited-ib-:244",
+        "record_id": "7ad1f3e0-f3ba-4a04-a1f5-1fb443a4b9a5",
+        "document_id": "b4dda8c9-a93e-416a-88ed-e7384566d983",
+        "fingerprint": "61de05f58e0a0d5a082e77932fd492f00e1e1fbee01a6cc517a8d8d8ed1c6d59",
+        "document_key": "law-record:7ad1f3e0-f3ba-4a04-a1f5-1fb443a4b9a5",
+        "contract_version": 1
+      }
+    },
+    {
+      "document_id": "b94fcf61-15a3-456a-836d-5e295d5c619f",
+      "text_sha256": "825f4420f17f390d494647d0a03e2558bfaa9e9cd6a791fb584d2f0006cbfd2a",
+      "mapping": {
+        "action": "link-existing",
+        "status": "ready",
+        "indexed": true,
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-samata-nagari-sahkari-patsansth:236",
+        "record_id": "09e864cd-53be-4f85-917c-3cde8c93bedc",
+        "document_id": "b94fcf61-15a3-456a-836d-5e295d5c619f",
+        "fingerprint": "eed19d0459b38cd409313d5357ea7fc24a420008f67927ec4b7ad0983d74f703",
+        "document_key": "law-record:09e864cd-53be-4f85-917c-3cde8c93bedc",
+        "contract_version": 1
+      }
+    },
+    {
+      "document_id": "daae642b-443a-4c33-b6ec-a0de1a462fb8",
+      "text_sha256": "58273956b0e4471b0201fd0a64a8a689b883eb4b1724763925b19b34da0eb17d",
+      "mapping": {
+        "action": "create-listing",
+        "status": "ready",
+        "indexed": true,
+        "reasons": [],
+        "row_key": null,
+        "record_id": null,
+        "document_id": "daae642b-443a-4c33-b6ec-a0de1a462fb8",
+        "fingerprint": "e77d19415a8c38a73f89fcc2fd62d37afa5acecc2e5e11e7314ae5eca5730196",
+        "document_key": null,
+        "contract_version": 1
+      }
+    },
+    {
+      "document_id": "dea784ed-a6c9-49cb-8544-ec9e1f87c5f4",
+      "text_sha256": "f37be28ef3e0e6775f40522353267cbe10a1063163622a1ca96de3c4ca9965cc",
+      "mapping": {
+        "action": "link-existing",
+        "status": "ready",
+        "indexed": true,
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-jet-airways-india-ltd-ia-no-546:240",
+        "record_id": "ccad5188-b6ef-46e0-b747-026cb85ca9cb",
+        "document_id": "dea784ed-a6c9-49cb-8544-ec9e1f87c5f4",
+        "fingerprint": "3223ac7061ea041adef15d76a76acda35cb521d9fd92fd3941665f4b2c4e1397",
+        "document_key": "law-record:ccad5188-b6ef-46e0-b747-026cb85ca9cb",
+        "contract_version": 1
+      }
+    }
+  ],
+  "requests": [
+    {
+      "document_id": "1597c9df-162a-4d74-860d-1cbf8f5a3bb2",
+      "text_sha256": "ee4bf7251aa037c9d358c5433f77b00dc5ff6beebee2976fd813f57b481deddc",
+      "expected_fingerprint": "cce2229dad612a1a9ee67419cf8856ddf15b83b9e8dbffe96401eda1be7ae971",
+      "decision_id": "owner-authorized-20261024-law-existing-ten-listings",
+      "approver": "Vighnesh Shukla",
+      "evidence_sha256": "5092e6a621321afbdb506b7a0182075a82ec257d7dc363ac6f1c80876b24bb16"
+    },
+    {
+      "document_id": "3c1d9c7e-c1ed-4aa4-afaa-c49355b2f4ae",
+      "text_sha256": "2d907ec9dff5e39a559260b23a15d8ea46f0910cdf3d86451fe860ce66a84106",
+      "expected_fingerprint": "04a95d7ac119bd9a5e9552f138ff97e0240e9fbd739b5dfb1c62bca98993c5c2",
+      "decision_id": "owner-authorized-20261024-law-existing-ten-listings",
+      "approver": "Vighnesh Shukla",
+      "evidence_sha256": "5092e6a621321afbdb506b7a0182075a82ec257d7dc363ac6f1c80876b24bb16"
+    },
+    {
+      "document_id": "3daf7b8b-2822-4fc0-8bf7-15ff49b7859c",
+      "text_sha256": "065a4107a097a679505bbb088dcf047fb21bda60340a3a97146ef30e1c62f555",
+      "expected_fingerprint": "33831f6e60af0b0119dec833367bfb5d7a8761ec67edf417b18be6972c9351b0",
+      "decision_id": "owner-authorized-20261024-law-existing-ten-listings",
+      "approver": "Vighnesh Shukla",
+      "evidence_sha256": "5092e6a621321afbdb506b7a0182075a82ec257d7dc363ac6f1c80876b24bb16"
+    },
+    {
+      "document_id": "5ce2009c-6c96-4f99-9d74-3d40e836c039",
+      "text_sha256": "13ebd14d47117b53c264b357304a54303e426e2b19439c6508dd03ace1ed180d",
+      "expected_fingerprint": "7debc12dc3d936185c23d545ab8555c7cf8a0580ff25992aca20fbfdd0eebe72",
+      "decision_id": "owner-authorized-20261024-law-existing-ten-listings",
+      "approver": "Vighnesh Shukla",
+      "evidence_sha256": "5092e6a621321afbdb506b7a0182075a82ec257d7dc363ac6f1c80876b24bb16"
+    },
+    {
+      "document_id": "760a2222-7a56-49e6-b7ab-bd91db90247a",
+      "text_sha256": "0deb331e98782060733163f4e24e74dd59de13a51dd4a64ade883716613aae72",
+      "expected_fingerprint": "79ef044c9b1a2b647499a76be997138f5c73533b8f323568377c2070a8ceef35",
+      "decision_id": "owner-authorized-20261024-law-existing-ten-listings",
+      "approver": "Vighnesh Shukla",
+      "evidence_sha256": "5092e6a621321afbdb506b7a0182075a82ec257d7dc363ac6f1c80876b24bb16"
+    },
+    {
+      "document_id": "85c9fadf-aeb0-418b-b9cf-588c13a66e3f",
+      "text_sha256": "18bbbe0b0e31936575ef28f137ebc014babe66042313b08ab13fa4005b0849f6",
+      "expected_fingerprint": "22605f7f7ad199829c0519ac81772b4c57a75445abb455da051e31ea04c13483",
+      "decision_id": "owner-authorized-20261024-law-existing-ten-listings",
+      "approver": "Vighnesh Shukla",
+      "evidence_sha256": "5092e6a621321afbdb506b7a0182075a82ec257d7dc363ac6f1c80876b24bb16"
+    },
+    {
+      "document_id": "b4dda8c9-a93e-416a-88ed-e7384566d983",
+      "text_sha256": "a3033d031e730f1199ee849be260d5fa8c0d351e49a955f30e96d23984807475",
+      "expected_fingerprint": "61de05f58e0a0d5a082e77932fd492f00e1e1fbee01a6cc517a8d8d8ed1c6d59",
+      "decision_id": "owner-authorized-20261024-law-existing-ten-listings",
+      "approver": "Vighnesh Shukla",
+      "evidence_sha256": "5092e6a621321afbdb506b7a0182075a82ec257d7dc363ac6f1c80876b24bb16"
+    },
+    {
+      "document_id": "b94fcf61-15a3-456a-836d-5e295d5c619f",
+      "text_sha256": "825f4420f17f390d494647d0a03e2558bfaa9e9cd6a791fb584d2f0006cbfd2a",
+      "expected_fingerprint": "eed19d0459b38cd409313d5357ea7fc24a420008f67927ec4b7ad0983d74f703",
+      "decision_id": "owner-authorized-20261024-law-existing-ten-listings",
+      "approver": "Vighnesh Shukla",
+      "evidence_sha256": "5092e6a621321afbdb506b7a0182075a82ec257d7dc363ac6f1c80876b24bb16"
+    },
+    {
+      "document_id": "daae642b-443a-4c33-b6ec-a0de1a462fb8",
+      "text_sha256": "58273956b0e4471b0201fd0a64a8a689b883eb4b1724763925b19b34da0eb17d",
+      "expected_fingerprint": "e77d19415a8c38a73f89fcc2fd62d37afa5acecc2e5e11e7314ae5eca5730196",
+      "decision_id": "owner-authorized-20261024-law-existing-ten-listings",
+      "approver": "Vighnesh Shukla",
+      "evidence_sha256": "5092e6a621321afbdb506b7a0182075a82ec257d7dc363ac6f1c80876b24bb16"
+    },
+    {
+      "document_id": "dea784ed-a6c9-49cb-8544-ec9e1f87c5f4",
+      "text_sha256": "f37be28ef3e0e6775f40522353267cbe10a1063163622a1ca96de3c4ca9965cc",
+      "expected_fingerprint": "3223ac7061ea041adef15d76a76acda35cb521d9fd92fd3941665f4b2c4e1397",
+      "decision_id": "owner-authorized-20261024-law-existing-ten-listings",
+      "approver": "Vighnesh Shukla",
+      "evidence_sha256": "5092e6a621321afbdb506b7a0182075a82ec257d7dc363ac6f1c80876b24bb16"
+    }
+  ],
+  "receipts": [
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "law:trib:ibbi_nclt:ibbi_nclt-29f626f45865bd4a",
+        "attempts": 1,
+        "record_id": "51c3a5e3-f81d-4d40-b9df-d6ffc74b5581",
+        "last_error": null,
+        "document_id": "1597c9df-162a-4d74-860d-1cbf8f5a3bb2",
+        "fingerprint": "cce2229dad612a1a9ee67419cf8856ddf15b83b9e8dbffe96401eda1be7ae971",
+        "document_key": "law-record:51c3a5e3-f81d-4d40-b9df-d6ffc74b5581",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-fnm-property-services-private-l:238",
+        "attempts": 1,
+        "record_id": "0afc1499-cf68-43b9-9275-f5c74a4be85e",
+        "last_error": null,
+        "document_id": "3c1d9c7e-c1ed-4aa4-afaa-c49355b2f4ae",
+        "fingerprint": "04a95d7ac119bd9a5e9552f138ff97e0240e9fbd739b5dfb1c62bca98993c5c2",
+        "document_key": "law-record:0afc1499-cf68-43b9-9275-f5c74a4be85e",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-bigmoon-buildcon-private-limite:237",
+        "attempts": 1,
+        "record_id": "5ebb69a7-1d1b-4a63-a45f-ce2879d983a8",
+        "last_error": null,
+        "document_id": "3daf7b8b-2822-4fc0-8bf7-15ff49b7859c",
+        "fingerprint": "33831f6e60af0b0119dec833367bfb5d7a8761ec67edf417b18be6972c9351b0",
+        "document_key": "law-record:5ebb69a7-1d1b-4a63-a45f-ce2879d983a8",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-coastal-automobiles-private-lim:241",
+        "attempts": 1,
+        "record_id": "4fc22758-70c1-47c6-a9a6-804eaccd76db",
+        "last_error": null,
+        "document_id": "5ce2009c-6c96-4f99-9d74-3d40e836c039",
+        "fingerprint": "7debc12dc3d936185c23d545ab8555c7cf8a0580ff25992aca20fbfdd0eebe72",
+        "document_key": "law-record:4fc22758-70c1-47c6-a9a6-804eaccd76db",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-jrn-pharma-and-laboratories-llp:235",
+        "attempts": 1,
+        "record_id": "27560847-0f06-4921-a778-b25ac6599482",
+        "last_error": null,
+        "document_id": "760a2222-7a56-49e6-b7ab-bd91db90247a",
+        "fingerprint": "79ef044c9b1a2b647499a76be997138f5c73533b8f323568377c2070a8ceef35",
+        "document_key": "law-record:27560847-0f06-4921-a778-b25ac6599482",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-sunima-steel-marketing-private-:239",
+        "attempts": 1,
+        "record_id": "2ced5ed8-6e85-4157-9738-932e8c43831c",
+        "last_error": null,
+        "document_id": "85c9fadf-aeb0-418b-b9cf-588c13a66e3f",
+        "fingerprint": "22605f7f7ad199829c0519ac81772b4c57a75445abb455da051e31ea04c13483",
+        "document_key": "law-record:2ced5ed8-6e85-4157-9738-932e8c43831c",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-swadesh-green-infra-limited-ib-:244",
+        "attempts": 1,
+        "record_id": "7ad1f3e0-f3ba-4a04-a1f5-1fb443a4b9a5",
+        "last_error": null,
+        "document_id": "b4dda8c9-a93e-416a-88ed-e7384566d983",
+        "fingerprint": "61de05f58e0a0d5a082e77932fd492f00e1e1fbee01a6cc517a8d8d8ed1c6d59",
+        "document_key": "law-record:7ad1f3e0-f3ba-4a04-a1f5-1fb443a4b9a5",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-samata-nagari-sahkari-patsansth:236",
+        "attempts": 1,
+        "record_id": "09e864cd-53be-4f85-917c-3cde8c93bedc",
+        "last_error": null,
+        "document_id": "b94fcf61-15a3-456a-836d-5e295d5c619f",
+        "fingerprint": "eed19d0459b38cd409313d5357ea7fc24a420008f67927ec4b7ad0983d74f703",
+        "document_key": "law-record:09e864cd-53be-4f85-917c-3cde8c93bedc",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "law-order:35f91d92-3f9c-4c46-9c64-460c0f58f478",
+        "attempts": 1,
+        "record_id": "35f91d92-3f9c-4c46-9c64-460c0f58f478",
+        "last_error": null,
+        "document_id": "daae642b-443a-4c33-b6ec-a0de1a462fb8",
+        "fingerprint": "e77d19415a8c38a73f89fcc2fd62d37afa5acecc2e5e11e7314ae5eca5730196",
+        "document_key": "law-record:35f91d92-3f9c-4c46-9c64-460c0f58f478",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-jet-airways-india-ltd-ia-no-546:240",
+        "attempts": 1,
+        "record_id": "ccad5188-b6ef-46e0-b747-026cb85ca9cb",
+        "last_error": null,
+        "document_id": "dea784ed-a6c9-49cb-8544-ec9e1f87c5f4",
+        "fingerprint": "3223ac7061ea041adef15d76a76acda35cb521d9fd92fd3941665f4b2c4e1397",
+        "document_key": "law-record:ccad5188-b6ef-46e0-b747-026cb85ca9cb",
+        "contract_version": 1
+      }
+    }
+  ],
+  "rerun": [
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "law:trib:ibbi_nclt:ibbi_nclt-29f626f45865bd4a",
+        "attempts": 1,
+        "record_id": "51c3a5e3-f81d-4d40-b9df-d6ffc74b5581",
+        "last_error": null,
+        "document_id": "1597c9df-162a-4d74-860d-1cbf8f5a3bb2",
+        "fingerprint": "cce2229dad612a1a9ee67419cf8856ddf15b83b9e8dbffe96401eda1be7ae971",
+        "document_key": "law-record:51c3a5e3-f81d-4d40-b9df-d6ffc74b5581",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-fnm-property-services-private-l:238",
+        "attempts": 1,
+        "record_id": "0afc1499-cf68-43b9-9275-f5c74a4be85e",
+        "last_error": null,
+        "document_id": "3c1d9c7e-c1ed-4aa4-afaa-c49355b2f4ae",
+        "fingerprint": "04a95d7ac119bd9a5e9552f138ff97e0240e9fbd739b5dfb1c62bca98993c5c2",
+        "document_key": "law-record:0afc1499-cf68-43b9-9275-f5c74a4be85e",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-bigmoon-buildcon-private-limite:237",
+        "attempts": 1,
+        "record_id": "5ebb69a7-1d1b-4a63-a45f-ce2879d983a8",
+        "last_error": null,
+        "document_id": "3daf7b8b-2822-4fc0-8bf7-15ff49b7859c",
+        "fingerprint": "33831f6e60af0b0119dec833367bfb5d7a8761ec67edf417b18be6972c9351b0",
+        "document_key": "law-record:5ebb69a7-1d1b-4a63-a45f-ce2879d983a8",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-coastal-automobiles-private-lim:241",
+        "attempts": 1,
+        "record_id": "4fc22758-70c1-47c6-a9a6-804eaccd76db",
+        "last_error": null,
+        "document_id": "5ce2009c-6c96-4f99-9d74-3d40e836c039",
+        "fingerprint": "7debc12dc3d936185c23d545ab8555c7cf8a0580ff25992aca20fbfdd0eebe72",
+        "document_key": "law-record:4fc22758-70c1-47c6-a9a6-804eaccd76db",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-jrn-pharma-and-laboratories-llp:235",
+        "attempts": 1,
+        "record_id": "27560847-0f06-4921-a778-b25ac6599482",
+        "last_error": null,
+        "document_id": "760a2222-7a56-49e6-b7ab-bd91db90247a",
+        "fingerprint": "79ef044c9b1a2b647499a76be997138f5c73533b8f323568377c2070a8ceef35",
+        "document_key": "law-record:27560847-0f06-4921-a778-b25ac6599482",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-sunima-steel-marketing-private-:239",
+        "attempts": 1,
+        "record_id": "2ced5ed8-6e85-4157-9738-932e8c43831c",
+        "last_error": null,
+        "document_id": "85c9fadf-aeb0-418b-b9cf-588c13a66e3f",
+        "fingerprint": "22605f7f7ad199829c0519ac81772b4c57a75445abb455da051e31ea04c13483",
+        "document_key": "law-record:2ced5ed8-6e85-4157-9738-932e8c43831c",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-swadesh-green-infra-limited-ib-:244",
+        "attempts": 1,
+        "record_id": "7ad1f3e0-f3ba-4a04-a1f5-1fb443a4b9a5",
+        "last_error": null,
+        "document_id": "b4dda8c9-a93e-416a-88ed-e7384566d983",
+        "fingerprint": "61de05f58e0a0d5a082e77932fd492f00e1e1fbee01a6cc517a8d8d8ed1c6d59",
+        "document_key": "law-record:7ad1f3e0-f3ba-4a04-a1f5-1fb443a4b9a5",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-samata-nagari-sahkari-patsansth:236",
+        "attempts": 1,
+        "record_id": "09e864cd-53be-4f85-917c-3cde8c93bedc",
+        "last_error": null,
+        "document_id": "b94fcf61-15a3-456a-836d-5e295d5c619f",
+        "fingerprint": "eed19d0459b38cd409313d5357ea7fc24a420008f67927ec4b7ad0983d74f703",
+        "document_key": "law-record:09e864cd-53be-4f85-917c-3cde8c93bedc",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "law-order:35f91d92-3f9c-4c46-9c64-460c0f58f478",
+        "attempts": 1,
+        "record_id": "35f91d92-3f9c-4c46-9c64-460c0f58f478",
+        "last_error": null,
+        "document_id": "daae642b-443a-4c33-b6ec-a0de1a462fb8",
+        "fingerprint": "e77d19415a8c38a73f89fcc2fd62d37afa5acecc2e5e11e7314ae5eca5730196",
+        "document_key": "law-record:35f91d92-3f9c-4c46-9c64-460c0f58f478",
+        "contract_version": 1
+      }
+    },
+    {
+      "receipt": {
+        "status": "published",
+        "reasons": [],
+        "row_key": "nclt-nclat-insolvency-:in-the-matter-of-jet-airways-india-ltd-ia-no-546:240",
+        "attempts": 1,
+        "record_id": "ccad5188-b6ef-46e0-b747-026cb85ca9cb",
+        "last_error": null,
+        "document_id": "dea784ed-a6c9-49cb-8544-ec9e1f87c5f4",
+        "fingerprint": "3223ac7061ea041adef15d76a76acda35cb521d9fd92fd3941665f4b2c4e1397",
+        "document_key": "law-record:ccad5188-b6ef-46e0-b747-026cb85ca9cb",
+        "contract_version": 1
+      }
+    }
+  ],
+  "listings": [
+    {
+      "id": "law-order:35f91d92-3f9c-4c46-9c64-460c0f58f478",
+      "date": "2026-07-08",
+      "court": "NCLT",
+      "title": "In the matter of Future Consumer Limited",
+      "subject": "In the matter of Future Consumer Limited",
+      "record_id": "35f91d92-3f9c-4c46-9c64-460c0f58f478",
+      "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-c159d713bbe8a10b",
+      "source_url": "https://ibbi.gov.in/uploads/order/439812925378cc8ca4275463a63997d5.pdf",
+      "case_number": "C.P. (IB)/914/MB/2025",
+      "record_type": "tribunal_order",
+      "availability": "indexed",
+      "document_key": "law-record:35f91d92-3f9c-4c46-9c64-460c0f58f478"
+    },
+    {
+      "id": "law:trib:ibbi_nclt:ibbi_nclt-29f626f45865bd4a",
+      "date": "2026-07-08",
+      "court": "NCLT",
+      "title": "In the matter of Globiz Exim Private Limited [C.P. (IB)/595/MB/2025]",
+      "entity": "Globiz Exim Private Limited",
+      "remarks": "Rejected",
+      "subject": "In the matter of Globiz Exim Private Limited [C.P. (IB)/595/MB/2025]",
+      "eventDate": "2026-07-08",
+      "record_id": "51c3a5e3-f81d-4d40-b9df-d6ffc74b5581",
+      "entityName": "In the matter of Globiz Exim Private Limited [C.P. (IB)/595/MB/2025]",
+      "sourceName": "ibbi.gov.in",
+      "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-29f626f45865bd4a",
+      "source_url": "https://ibbi.gov.in/uploads/order/7c2928dab0f907c71d2c2aa47f13b6ce.pdf",
+      "case_number": "C.P. (IB)/595/MB/2025",
+      "record_type": "tribunal_order",
+      "availability": "indexed",
+      "document_key": "law-record:51c3a5e3-f81d-4d40-b9df-d6ffc74b5581",
+      "sourcePublishedAt": "2026-07-08"
+    },
+    {
+      "id": "nclt-nclat-insolvency-:in-the-matter-of-bigmoon-buildcon-private-limite:237",
+      "date": "2026-07-08",
+      "court": "NCLT",
+      "title": "In the matter of Bigmoon Buildcon Private Limited [IA No. 1258 of 2025 in C.P.(IB) No. 572(PB)/2019]",
+      "entity": "Bigmoon Buildcon Private Limited",
+      "remarks": "Others",
+      "subject": "In the matter of Bigmoon Buildcon Private Limited [IA No. 1258 of 2025 in C.P.(IB) No. 572(PB)/2019]",
+      "eventDate": "2026-07-08",
+      "record_id": "5ebb69a7-1d1b-4a63-a45f-ce2879d983a8",
+      "entityName": "In the matter of Bigmoon Buildcon Private Limited [IA No. 1258 of 2025 in C.P.(IB) No. 572(PB)/2019]",
+      "sourceName": "ibbi.gov.in",
+      "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-d196e088bd46ae26",
+      "source_url": "https://ibbi.gov.in/uploads/order/3d0e487fae6d02230bb789156332d41a.pdf",
+      "case_number": "IA No. 1258 of 2025 in C.P.(IB) No. 572(PB)/2019",
+      "record_type": "tribunal_order",
+      "availability": "indexed",
+      "document_key": "law-record:5ebb69a7-1d1b-4a63-a45f-ce2879d983a8",
+      "sourcePublishedAt": "2026-07-08"
+    },
+    {
+      "id": "nclt-nclat-insolvency-:in-the-matter-of-coastal-automobiles-private-lim:241",
+      "date": "2026-07-08",
+      "court": "NCLT",
+      "title": "In the matter of Coastal Automobiles Private Limited [IA (IBC)(Dis)/1/2026 in CP(IB)/07/7/AMR/2020]",
+      "entity": "Coastal Automobiles Private Limited",
+      "remarks": "Dissolution",
+      "subject": "In the matter of Coastal Automobiles Private Limited [IA (IBC)(Dis)/1/2026 in CP(IB)/07/7/AMR/2020]",
+      "eventDate": "2026-07-08",
+      "record_id": "4fc22758-70c1-47c6-a9a6-804eaccd76db",
+      "entityName": "In the matter of Coastal Automobiles Private Limited [IA (IBC)(Dis)/1/2026 in CP(IB)/07/7/AMR/2020]",
+      "sourceName": "ibbi.gov.in",
+      "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-8b07cefd73faeaf1",
+      "source_url": "https://ibbi.gov.in/uploads/order/bb38f31efabb9b7a9ac1ce3e4b25c588.pdf",
+      "case_number": "IA (IBC)(Dis)/1/2026 in CP(IB)/07/7/AMR/2020",
+      "record_type": "tribunal_order",
+      "availability": "indexed",
+      "document_key": "law-record:4fc22758-70c1-47c6-a9a6-804eaccd76db",
+      "sourcePublishedAt": "2026-07-08"
+    },
+    {
+      "id": "nclt-nclat-insolvency-:in-the-matter-of-fnm-property-services-private-l:238",
+      "date": "2026-07-08",
+      "court": "NCLT",
+      "title": "In the matter of FNM PROPERTY SERVICES PRIVATE LIMITED [C.P. (IB)/393/ND/2025]",
+      "entity": "FNM PROPERTY SERVICES PRIVATE LIMITED",
+      "remarks": "Admission - Final Order",
+      "subject": "In the matter of FNM PROPERTY SERVICES PRIVATE LIMITED [C.P. (IB)/393/ND/2025]",
+      "eventDate": "2026-07-08",
+      "record_id": "0afc1499-cf68-43b9-9275-f5c74a4be85e",
+      "entityName": "In the matter of FNM PROPERTY SERVICES PRIVATE LIMITED [C.P. (IB)/393/ND/2025]",
+      "sourceName": "ibbi.gov.in",
+      "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-6ebdc4363316bb97",
+      "source_url": "https://ibbi.gov.in/uploads/order/2026-07-10-194937-pdv19-2443b87e82f33a9f691224b99d095003.pdf",
+      "case_number": "C.P. (IB)/393/ND/2025",
+      "record_type": "tribunal_order",
+      "availability": "indexed",
+      "document_key": "law-record:0afc1499-cf68-43b9-9275-f5c74a4be85e",
+      "sourcePublishedAt": "2026-07-08"
+    },
+    {
+      "id": "nclt-nclat-insolvency-:in-the-matter-of-jet-airways-india-ltd-ia-no-546:240",
+      "date": "2026-07-08",
+      "court": "NCLT",
+      "title": "In the matter of Jet Airways (India) Ltd. [IA No. 5460 of 2025 in CP (IB) No. 2205 of 2019]",
+      "entity": "Jet Airways (India) Ltd.",
+      "remarks": "Others",
+      "subject": "In the matter of Jet Airways (India) Ltd. [IA No. 5460 of 2025 in CP (IB) No. 2205 of 2019]",
+      "eventDate": "2026-07-08",
+      "record_id": "ccad5188-b6ef-46e0-b747-026cb85ca9cb",
+      "entityName": "In the matter of Jet Airways (India) Ltd. [IA No. 5460 of 2025 in CP (IB) No. 2205 of 2019]",
+      "sourceName": "ibbi.gov.in",
+      "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-d6674663fafe2827",
+      "source_url": "https://ibbi.gov.in/uploads/order/536edbfa2d239ecb9ef35f8ec95f1689.pdf",
+      "case_number": "IA No. 5460 of 2025 in CP (IB) No. 2205 of 2019",
+      "record_type": "tribunal_order",
+      "availability": "indexed",
+      "document_key": "law-record:ccad5188-b6ef-46e0-b747-026cb85ca9cb",
+      "sourcePublishedAt": "2026-07-08"
+    },
+    {
+      "id": "nclt-nclat-insolvency-:in-the-matter-of-jrn-pharma-and-laboratories-llp:235",
+      "date": "2026-07-08",
+      "court": "NCLT",
+      "title": "In the matter of JRN PHARMA AND LABORATORIES LLP [CP (IB)/7/GB/2024]",
+      "entity": "JRN PHARMA AND LABORATORIES LLP",
+      "remarks": "Admission - Final Order",
+      "subject": "In the matter of JRN PHARMA AND LABORATORIES LLP [CP (IB)/7/GB/2024]",
+      "eventDate": "2026-07-08",
+      "record_id": "27560847-0f06-4921-a778-b25ac6599482",
+      "entityName": "In the matter of JRN PHARMA AND LABORATORIES LLP [CP (IB)/7/GB/2024]",
+      "sourceName": "ibbi.gov.in",
+      "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-078f589727146592",
+      "source_url": "https://ibbi.gov.in/uploads/order/2026-07-10-170206-sv8k7-f53dd26908f18a8a6620903037615c0c.pdf",
+      "case_number": "CP (IB)/7/GB/2024",
+      "record_type": "tribunal_order",
+      "availability": "indexed",
+      "document_key": "law-record:27560847-0f06-4921-a778-b25ac6599482",
+      "sourcePublishedAt": "2026-07-08"
+    },
+    {
+      "id": "nclt-nclat-insolvency-:in-the-matter-of-samata-nagari-sahkari-patsansth:236",
+      "date": "2026-07-08",
+      "court": "NCLT",
+      "title": "In the matter of Samata Nagari Sahkari Patsanstha Maryadit vs. Satish Suresh Sawai, [C.P. (IB) NO. 346 of 2026]",
+      "entity": "Samata Nagari Sahkari Patsanstha Maryadit",
+      "remarks": "Admission of Application in PG case",
+      "subject": "In the matter of Samata Nagari Sahkari Patsanstha Maryadit vs. Satish Suresh Sawai, [C.P. (IB) NO. 346 of 2026]",
+      "eventDate": "2026-07-08",
+      "record_id": "09e864cd-53be-4f85-917c-3cde8c93bedc",
+      "entityName": "In the matter of Samata Nagari Sahkari Patsanstha Maryadit vs. Satish Suresh Sawai, [C.P. (IB) NO. 346 of 2026]",
+      "sourceName": "ibbi.gov.in",
+      "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-dc33a5004b2451f7",
+      "source_url": "https://ibbi.gov.in/uploads/order/28132f1175ee52b805255da17a2ac083.pdf",
+      "case_number": "C.P. (IB) NO. 346 of 2026",
+      "record_type": "tribunal_order",
+      "availability": "indexed",
+      "document_key": "law-record:09e864cd-53be-4f85-917c-3cde8c93bedc",
+      "sourcePublishedAt": "2026-07-08"
+    },
+    {
+      "id": "nclt-nclat-insolvency-:in-the-matter-of-sunima-steel-marketing-private-:239",
+      "date": "2026-07-08",
+      "court": "NCLT",
+      "title": "In the matter of SUNIMA STEEL MARKETING PRIVATE LIMITED [Company Petition (IB) No. 43/KB/2025]",
+      "entity": "SUNIMA STEEL MARKETING PRIVATE LIMITED",
+      "remarks": "Admission - Final Order",
+      "subject": "In the matter of SUNIMA STEEL MARKETING PRIVATE LIMITED [Company Petition (IB) No. 43/KB/2025]",
+      "eventDate": "2026-07-08",
+      "record_id": "2ced5ed8-6e85-4157-9738-932e8c43831c",
+      "entityName": "In the matter of SUNIMA STEEL MARKETING PRIVATE LIMITED [Company Petition (IB) No. 43/KB/2025]",
+      "sourceName": "ibbi.gov.in",
+      "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-96b36e83a18fb8bc",
+      "source_url": "https://ibbi.gov.in/uploads/order/3b0d0b3be7df950183f37dc582a7eced.pdf",
+      "case_number": "Company Petition (IB) No. 43/KB/2025",
+      "record_type": "tribunal_order",
+      "availability": "indexed",
+      "document_key": "law-record:2ced5ed8-6e85-4157-9738-932e8c43831c",
+      "sourcePublishedAt": "2026-07-08"
+    },
+    {
+      "id": "nclt-nclat-insolvency-:in-the-matter-of-swadesh-green-infra-limited-ib-:244",
+      "date": "2026-07-08",
+      "court": "NCLT",
+      "title": "In the matter of SWADESH GREEN INFRA LIMITED [IB-394(ND)/2025]",
+      "entity": "SWADESH GREEN INFRA LIMITED",
+      "remarks": "Admission - Final Order",
+      "subject": "In the matter of SWADESH GREEN INFRA LIMITED [IB-394(ND)/2025]",
+      "eventDate": "2026-07-08",
+      "record_id": "7ad1f3e0-f3ba-4a04-a1f5-1fb443a4b9a5",
+      "entityName": "In the matter of SWADESH GREEN INFRA LIMITED [IB-394(ND)/2025]",
+      "sourceName": "ibbi.gov.in",
+      "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-3ba8779ec3d364ef",
+      "source_url": "https://ibbi.gov.in/uploads/order/af7474a2e37ce0bb987e9ee2fd0d2f45.pdf",
+      "case_number": "IB-394(ND)/2025",
+      "record_type": "tribunal_order",
+      "availability": "indexed",
+      "document_key": "law-record:7ad1f3e0-f3ba-4a04-a1f5-1fb443a4b9a5",
+      "sourcePublishedAt": "2026-07-08"
+    }
+  ]
+}

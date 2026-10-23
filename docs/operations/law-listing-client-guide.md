@@ -1,6 +1,6 @@
 # Law listing client workflow
 
-> **Status: Living.** Implementation handoff, 2026-10-24. Production activation and larger batches are not authorized by this guide. Check the implementation plan for verification/release state before using new server actions.
+> **Status: Living.** Released client handoff, 2026-10-24. See [production evidence and limitations](law-listing-release.md) and [next-cohort agent message](law-next-batch-agent-message.md). No larger batch is authorized by this guide.
 
 ## Read before operating
 

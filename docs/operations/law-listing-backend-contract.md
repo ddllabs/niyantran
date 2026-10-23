@@ -1,6 +1,6 @@
 # Law listing backend contract
 
-> **Status: Living.** Implemented locally for review on 2026-10-24; not deployed or activated. No ingestion/backfill authorization is implied.
+> **Status: Living.** Released and activated on 2026-10-24; see [release evidence](law-listing-release.md). No new cohort authorization is implied.
 
 The additive migration separates canonical `law_records`, owned `law_source_memberships`, immutable `law_document_links`, and durable `law_publications`. Original supplied-text payloads and hashes remain unchanged. The first adapter admits only `law:trib:IBBI_NCLT:` source keys with tribunal_order/NCLT/IBBI_NCLT citations, case number, valid order date, eligible hash-bound review, and an exact official HTTPS ibbi.gov.in/uploads/order PDF URL. Company-name matching is prohibited. Date/forum/type conflicts, duplicate URL aliases, competing revisions, ambiguous listings, and unsupported provenance hold.
 
@@ -29,7 +29,7 @@ Each row contains its preserved `id` row key, `record_id`, `document_key=law-rec
 
 ## Explicit operator release sequence
 
-No migration, seed, activation or reconciliation has run on production during implementation.
+Implementation used local fixtures only. The separately authorized production sequence below is now complete; release evidence records the operator RPC path and its verification limits.
 
 0. Deploy the additive migration first (inactive, unseeded), then the matching admin-ingest/research-chat handlers and web readers. Do not seed while older readers still lack `law-record:` attachment resolution. Confirm the pre-activation RPC response and legacy serving before continuing.
 1. After all matching readers/handlers are deployed, call service-only `law_seed_listings()` against the reviewed baseline. It preserves all existing NCLT/IBBI row keys and projects canonical keys; sets seeded=true but **does not activate serving**.
@@ -48,4 +48,4 @@ Seeding captures the reviewed baseline register; legacy feed refresh cannot over
 - Stale admission fingerprints, concurrent URL aliases, missing Law endpoint, and non-Law refresh deletion regressions each failed before their corrections.
 - Temporary-copy mutation controls removing alias, admission fingerprint, projection key/text, and visibility guards each fail their intended assertions. No production test fixtures or corpus writes were used.
 
-These checks are local evidence, not proof of production website/RAG acceptance. Production migration, baseline seed, existing-ten metadata reconciliation and activation remain unexecuted.
+These checks are local evidence, not proof of production website/RAG acceptance. Production migration, baseline seed, existing-ten metadata reconciliation and activation are recorded separately in the release evidence.
