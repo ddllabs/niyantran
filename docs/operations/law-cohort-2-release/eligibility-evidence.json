@@ -1,0 +1,172 @@
+{
+ "status": "reviewed-for-owner-authorized-cohort-2",
+ "decision_id": "owner-authorized-20261023-law-cohort-2",
+ "approved_by": "Vighnesh Shukla",
+ "target": "vfgcppstyzjarlzyqdac",
+ "source_keys": [
+  "law:trib:IBBI_NCLT:ibbi_nclt-29f626f45865bd4a",
+  "law:trib:IBBI_NCLT:ibbi_nclt-c159d713bbe8a10b",
+  "law:trib:IBBI_NCLT:ibbi_nclt-d196e088bd46ae26",
+  "law:trib:IBBI_NCLT:ibbi_nclt-d6674663fafe2827",
+  "law:trib:IBBI_NCLT:ibbi_nclt-dc33a5004b2451f7"
+ ],
+ "archive": {
+  "name": "NTER_legal_pack_v1.1_FULL_2026-10-18.zip",
+  "bytes": 79418376315,
+  "internal_root": "NTER_legal_pack_v1.2_FULL_2026-10-18"
+ },
+ "member": {
+  "name": "NTER_legal_pack_v1.2_FULL_2026-10-18/documents/tribunals/IBBI_NCLT/2026__part-00006.jsonl.gz",
+  "index": 16966,
+  "sha256": "ac10758f54d75a93cf71f1be45f09ed20adefd7d32174bfe839e70b8652c841a",
+  "occurrences": 1
+ },
+ "screened_lines": "62-81",
+ "excluded_pilot_keys": [
+  "law:trib:IBBI_NCLT:ibbi_nclt-078f589727146592",
+  "law:trib:IBBI_NCLT:ibbi_nclt-3ba8779ec3d364ef",
+  "law:trib:IBBI_NCLT:ibbi_nclt-6ebdc4363316bb97",
+  "law:trib:IBBI_NCLT:ibbi_nclt-8b07cefd73faeaf1",
+  "law:trib:IBBI_NCLT:ibbi_nclt-96b36e83a18fb8bc"
+ ],
+ "candidates_jsonl_sha256": "bc374a90f1c60313d68015845cbe1d2a5583c86c03ea0c4ab3b04f41f324d5f6",
+ "evidence_screen_json_sha256": "1b3b9154e852fb56b79786ce8a1c06f9a6a869c64c76cad7a3af11f2fc1360d0",
+ "policy_members": {
+  "flags/sensitive_cases_v1.csv.gz": "801f37cff770d0799219c2550987b0200db0559f7e8b264f82733731399c5318",
+  "dedupe/duplicate_documents_v1.csv.gz": "26dc1a5741b7e25fe8a0f81300f33224d3c001dade08e6e570f41d6589e3cc68",
+  "not_in_pack/still_not_in_pack_v1.csv.gz": "e9b899d6db2269e93e6a44cb96bac6e14794aa9a08b5bf31b6db91e2f95f6487"
+ },
+ "policy_members_match_pilot_evidence": true,
+ "policy_hits": {
+  "sensitive": 0,
+  "dedupe_keep0": 0,
+  "not_in_pack": 0
+ },
+ "subtree_scan": {
+  "subtree": "NTER_legal_pack_v1.2_FULL_2026-10-18/documents/tribunals/IBBI_NCLT/",
+  "members_scanned": 367,
+  "occurrences": 20,
+  "skipped_repeated_names": 0
+ },
+ "per_source": [
+  {
+   "line": 63,
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-29f626f45865bd4a",
+   "title": "In the matter of Globiz Exim Private Limited",
+   "record_sha256": "594b4ed704789df038e652a600c974a942047a28413fc485676e92ee5896dc41",
+   "text_sha256": "ee4bf7251aa037c9d358c5433f77b00dc5ff6beebee2976fd813f57b481deddc",
+   "n_pages": 35,
+   "file_url": "https://ibbi.gov.in/uploads/order/7c2928dab0f907c71d2c2aa47f13b6ce.pdf",
+   "licence": "public order of a tribunal",
+   "attribution": "National Company Law Tribunal, official website",
+   "page_split": "exact",
+   "text_quality": "ok"
+  },
+  {
+   "line": 68,
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-c159d713bbe8a10b",
+   "title": "In the matter of Future Consumer Limited",
+   "record_sha256": "b7c328eb885f9ab57bc9677ce28045668b06491f834127e06a94079139d7f41e",
+   "text_sha256": "58273956b0e4471b0201fd0a64a8a689b883eb4b1724763925b19b34da0eb17d",
+   "n_pages": 34,
+   "file_url": "https://ibbi.gov.in/uploads/order/439812925378cc8ca4275463a63997d5.pdf",
+   "licence": "public order of a tribunal",
+   "attribution": "National Company Law Tribunal, official website",
+   "page_split": "exact",
+   "text_quality": "ok"
+  },
+  {
+   "line": 69,
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-d196e088bd46ae26",
+   "title": "In the matter of Bigmoon Buildcon Private Limited",
+   "record_sha256": "4ff4ec7478da1918a71d2ff6a04e69c600e834a6e5136e90dc3affc6000498a8",
+   "text_sha256": "065a4107a097a679505bbb088dcf047fb21bda60340a3a97146ef30e1c62f555",
+   "n_pages": 14,
+   "file_url": "https://ibbi.gov.in/uploads/order/3d0e487fae6d02230bb789156332d41a.pdf",
+   "licence": "public order of a tribunal",
+   "attribution": "National Company Law Tribunal, official website",
+   "page_split": "exact",
+   "text_quality": "ok"
+  },
+  {
+   "line": 70,
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-d6674663fafe2827",
+   "title": "In the matter of Jet Airways (India) Ltd.",
+   "record_sha256": "f45656a19ac92c9a995f5d0e60fadf575ca5f18fe58e9990358fd870a50abd55",
+   "text_sha256": "f37be28ef3e0e6775f40522353267cbe10a1063163622a1ca96de3c4ca9965cc",
+   "n_pages": 15,
+   "file_url": "https://ibbi.gov.in/uploads/order/536edbfa2d239ecb9ef35f8ec95f1689.pdf",
+   "licence": "public order of a tribunal",
+   "attribution": "National Company Law Tribunal, official website",
+   "page_split": "exact",
+   "text_quality": "ok"
+  },
+  {
+   "line": 71,
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-dc33a5004b2451f7",
+   "title": "In the matter of Samata Nagari Sahkari Patsanstha Maryadit v. Satish Suresh Sawai,",
+   "record_sha256": "c5137c40cd5337f3766ca3a15b3fe416af3b444d668db595e6192eabdf9c07a8",
+   "text_sha256": "825f4420f17f390d494647d0a03e2558bfaa9e9cd6a791fb584d2f0006cbfd2a",
+   "n_pages": 11,
+   "file_url": "https://ibbi.gov.in/uploads/order/28132f1175ee52b805255da17a2ac083.pdf",
+   "licence": "public order of a tribunal",
+   "attribution": "National Company Law Tribunal, official website",
+   "page_split": "exact",
+   "text_quality": "ok"
+  }
+ ],
+ "held_in_screen_window": [
+  {
+   "line": 62,
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-078f589727146592",
+   "reasons": [
+    "already decided in an earlier manifest (pilot); not a new source"
+   ]
+  },
+  {
+   "line": 64,
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-3ba8779ec3d364ef",
+   "reasons": [
+    "already decided in an earlier manifest (pilot); not a new source"
+   ]
+  },
+  {
+   "line": 65,
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-6ebdc4363316bb97",
+   "reasons": [
+    "already decided in an earlier manifest (pilot); not a new source"
+   ]
+  },
+  {
+   "line": 66,
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-8b07cefd73faeaf1",
+   "reasons": [
+    "already decided in an earlier manifest (pilot); not a new source"
+   ]
+  },
+  {
+   "line": 67,
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-96b36e83a18fb8bc",
+   "reasons": [
+    "already decided in an earlier manifest (pilot); not a new source"
+   ]
+  },
+  {
+   "line": 76,
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-4af4c595ad3a2e8a",
+   "reasons": [
+    "declared duplicate alias (keep=0); not a second searchable document"
+   ]
+  },
+  {
+   "line": 81,
+   "source_key": "law:trib:IBBI_NCLT:ibbi_nclt-9c89b76c7fcd33af",
+   "reasons": [
+    "declared duplicate alias (keep=0); not a second searchable document"
+   ]
+  }
+ ],
+ "licence_basis": "Each record declares 'public order of a tribunal' and NCLT official-website attribution; retained unchanged, not independent legal advice",
+ "scope": "Text-only citations and original URLs; no page highlights or automatic current-row linking",
+ "screener": "scripts/law-cohort-screen.py (uncommitted on task/client-law-ingestion-claude-2026-10-23), sha256 763cfaeb5e11af00f62746f3791899ce880a117635d80e5c6f4c1ca8edba219d"
+}
