@@ -1,3 +1,5 @@
+import { reviewLawAnswer, LAW_REVIEW_RESERVE_MS } from './lawAnswer.ts';
+import { placeholderAnswer, placeholderPrefix } from './answerValidation.ts';
 // The research turn (streaming spec §E). Framework-free and dependency
 // injected: nothing here touches Deno.env or the network, so the same code
 // runs under the edge runtime and under `deno test` with fakes.
@@ -320,7 +322,7 @@ function parseEnvelope(text: string): { answer: string; sources: unknown; follow
     const parsed = JSON.parse(text.trim());
     if (
       !parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
-      typeof parsed.answer !== 'string' || !parsed.answer.trim()
+      typeof parsed.answer !== 'string' || !parsed.answer.trim() || placeholderAnswer(parsed.answer)
     ) return null;
     const followUps = Array.isArray(parsed.follow_up_questions)
       ? parsed.follow_up_questions.filter((q: unknown) => typeof q === 'string' && q.trim()).slice(0, MAX_FOLLOW_UPS)
@@ -1050,8 +1052,10 @@ async function runTurnBody(
     } });
   };
 
+  let lawTurn = !conversational && (request.desk_context?.tier === 'law' || request.selection?.tier === 'law' || request.attachments.some(a => a.tier === 'law'));
   const onEvent = (e: AgentEvent) => {
     if (signal.aborted) return;
+    if ('lawEvidence' in e) { lawTurn = true; return; }
     if ('internalReasoning' in e) return;
     else if ('retract' in e) {
       // A research draft that was not the answer: take it back from the reader, the checkpoint
@@ -1172,7 +1176,8 @@ async function runTurnBody(
       activity.push({ type: 'tool', ...step, phase: 'end' });
       context.checkpoint({ activity: [...activity] });
     } else if ('text' in e || 'draftText' in e) {
-      const shown = decoder.push('text' in e ? e.text : e.draftText);
+      decoder.push('text' in e ? e.text : e.draftText);
+      const shown = lawTurn || placeholderPrefix(decoder.text) ? '' : decoder.text.slice(streamed.length);
       if (shown) {
         // A research reply promoted to the answer has no answer round to announce it.
         stage(WRITING);
@@ -1253,7 +1258,7 @@ async function runTurnBody(
           // starts inside it runs at the model's low effort. At high effort a document search
           // hands the answer one reply budget of passages, not forty: Gemini Flash at high read
           // forty and was still thinking when the deadline cut it at 108.7 s.
-          ...(context.timeLeft ? { timeLeft: context.timeLeft } : {}),
+          ...(context.timeLeft ? { timeLeft: () => Math.max(0, context.timeLeft!() - (lawTurn ? LAW_REVIEW_RESERVE_MS : 0)) } : {}),
           ...lateReasoningOf(t, model),
           ...(HIGH_EFFORTS.has(effortOf(t, model) ?? '') ? { toolReplyChars: TOOL_REPLY_CHARS } : {}),
         },
@@ -1325,7 +1330,7 @@ async function runTurnBody(
     });
   }
 
-  const envelope = parseEnvelope(result.text);
+  let envelope = parseEnvelope(result.text);
   if (
     signal.aborted || (result.finish !== 'stop' && result.finish !== 'length') ||
     (result.finish === 'stop' && !envelope) || (result.finish === 'length' && !streamed.trim())
@@ -1353,6 +1358,37 @@ async function runTurnBody(
     evidence.set(handle, { kind: 'text', chunk: c });
   }
   for (const row of result.rows) evidence.set(handles.assign(rowSourceKey(row)), { kind: 'row', row });
+
+  if (lawTurn && result.chunks.some(c => c.desk_tier === 'law')) {
+    let reviewed = null;
+    if (envelope && !signal.aborted && budget.modelAttempts < BUDGET.maxSteps &&
+        (!context.timeLeft || context.timeLeft() > 1000)) {
+      try {
+        stage('Checking source support');
+        writingStart = now();
+        rounds++;
+        budget.modelAttempts++;
+        // Stay on the actual attempt model; provider "served" may be a version alias.
+        reviewed = await reviewLawAnswer(attempts.wrap(observedStream, 'chat_answer'), {
+          model: attemptModel, question: request.message, draft: envelope.answer, evidence, signal,
+          ...(t.models.find(m => m.model_id === attemptModel)?.efforts?.includes('low') ? { reasoning: { effort: 'low' } } : {}),
+        });
+      } catch { log('research.law_review_failed', { aborted: signal.aborted }); }
+    }
+    if (!reviewed) {
+      attempts.rejectLast('chat_answer', 'Legal answer declined: original-source support verification failed or unavailable.');
+      return makeAssistantMessage({ content: '', sources: [], followUps: [], activity, served,
+        status: signal.aborted ? 'interrupted' : 'error',
+        error: 'The legal answer could not be verified against original source passages. Please try again.',
+        usage: attempts.summary(), timing: timingOf(startedAt, now(), searchMs, writingStart, writingEnd, { firstModelAt, firstAnswerAt, rounds }),
+      });
+    }
+    attempts.markLastAnswer('chat_answer');
+    recordServingModel(responseModel || attemptModel);
+    writingEnd = now();
+    firstAnswerAt = writingEnd;
+    envelope = reviewed;
+  }
 
   // F132: the saved answer, and by the terminal patch the streamed one, get their line breaks back.
   const rawAnswer = undoDoubleEscapes(envelope?.answer ?? decoder.text ?? '');

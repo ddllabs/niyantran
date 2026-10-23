@@ -19,6 +19,7 @@ export async function hydrateLawContext(
   chunks: Chunk[], read: (id: string) => Promise<LawContextRow[]>,
 ): Promise<Chunk[]> {
   const enriched = [...chunks];
+  const finalPassages = new Set<string>();
   const contexts = new Map<string, NonNullable<Chunk['preceding_heading']>>();
   const ids = [...new Set(chunks.filter(c => c.desk_tier === 'law').map(c => c.document_id))].slice(0, 4);
   for (const id of ids) {
@@ -38,6 +39,7 @@ export async function hydrateLawContext(
     if (rows.length < LAW_CONTEXT_CHUNKS) {
       const exemplar = verified[0];
       for (const row of rows.slice(-2)) {
+        finalPassages.add(row.id);
         if (enriched.some(c => c.id === row.id)) continue;
         enriched.push(await rowToChunk({ ...row, title: exemplar.title, file_name: exemplar.file_name,
           file_url: exemplar.file_url, desk_tier: exemplar.desk_tier, desk_feature: exemplar.desk_feature,
@@ -62,7 +64,9 @@ export async function hydrateLawContext(
       if (preceding?.recognized) contexts.set(hit.id,{text:preceding.text,chunkId:preceding.chunkId,charFrom:preceding.charFrom});
     }
   }
-  return enriched.map(c=>{
+  // Preserve the best relevance hit, then complete-document endings before lower-ranked hits.
+  const ordered = enriched.length ? [enriched[0], ...enriched.slice(1).filter(c=>finalPassages.has(c.id)), ...enriched.slice(1).filter(c=>!finalPassages.has(c.id))] : [];
+  return ordered.map(c=>{
     const { preceding_heading: _untrusted, ...rest } = c;
     const heading = contexts.get(c.id);
     return { ...rest, ...(heading ? { preceding_heading: heading } : {}) };

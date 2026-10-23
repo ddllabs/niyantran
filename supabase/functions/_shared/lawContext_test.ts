@@ -81,3 +81,11 @@ Deno.test('Tail citations retain their own page and block coordinates, never tho
   assertEquals(tail.block_ids,['block-3']);
   assertEquals(tail.image_ids,['image-3']);
 });
+
+Deno.test('Original final passages precede lower-ranked hits so reply bounds do not discard them first',async()=>{
+ const prefix=Array.from({length:45},(_,i)=>({id:`x${i}`,document_id:'law',chunk_index:i,char_from:i*500,char_to:i*500+400,content:'source '.repeat(50)}));
+ const hit=await Promise.all(prefix.slice(0,40).map(r=>rowToChunk({...r,desk_tier:'law'})));
+ const result=await hydrateLawContext(hit,()=>Promise.resolve(prefix));
+ assertEquals(result.slice(0,3).map(c=>c.id),['x0','x43','x44']);
+ assertEquals(new Set(result.map(c=>c.id)).size,result.length);
+});
