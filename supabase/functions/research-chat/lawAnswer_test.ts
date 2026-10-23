@@ -65,3 +65,37 @@ Deno.test('Quote rejection emits only a bounded reason code',()=>{
   assertEquals(reasons,[reason]);
  }
 });
+Deno.test('Reviewer selects server excerpts without transcribing OCR',async()=>{
+ const answer=await reviewLawAnswer(async function*(req){
+  const data=JSON.parse(req.messages[1].content as string);
+  const p=data.passages[0];
+  yield {type:'text',text:JSON.stringify({claims:[{statement:'The tribunal rejected the application.',source:p.source,quote_id:p.excerpts?.[0]?.id ?? 'q1'}],uncertain:false})};
+  yield {type:'finish',reason:'stop',usage:null,served:null,generationId:null};
+ },{model:'test',question:'Disposition?',draft:'draft',evidence,signal:new AbortController().signal});
+ assert(answer);assert(answer.answer.includes(quote));
+});
+Deno.test('Excerpt IDs cannot be invented, rebound or replaced by model text',async()=>{
+ for(const claim of [
+  {source:'ref:abcdef-1',quote_id:'invented'},
+  {source:'ref:abcdef-2',quote_id:'q1'},
+  {source:'ref:abcdef-1',quote:'No order as to cost.'},
+ ]) {
+  const result=await reviewLawAnswer(async function*(){
+   yield {type:'text',text:JSON.stringify({claims:[{statement:'The tribunal rejected the application.',...claim}],uncertain:false})};
+   yield {type:'finish',reason:'stop',usage:null,served:null,generationId:null};
+  },{model:'test',question:'q',draft:'d',evidence,signal:new AbortController().signal});
+  assertEquals(result,null);
+ }
+});
+Deno.test('Excerpt partition preserves full original text within bounded pieces',async()=>{
+ const content=('An original sentence with an OCR date 06.09.2018. ').repeat(90);
+ const source:EvidenceMap=new Map([['ref:abcdef-1',{kind:'text',chunk:{content} as Chunk}]]);
+ await reviewLawAnswer(async function*(req){
+  const data=JSON.parse(String(req.messages[1].content));
+  const parts=data.passages[0].excerpts;
+  assertEquals(parts.map((p:{text:string})=>p.text).join(''),content);
+  assert(parts.every((p:{text:string})=>p.text.length<=1400));
+  yield {type:'text',text:JSON.stringify({claims:[{statement:'The source contains an original date.',source:'ref:abcdef-1',quote_id:parts[1].id}],uncertain:false})};
+  yield {type:'finish',reason:'stop',usage:null,served:null,generationId:null};
+ },{model:'test',question:'q',draft:'d',evidence:source,signal:new AbortController().signal});
+});
