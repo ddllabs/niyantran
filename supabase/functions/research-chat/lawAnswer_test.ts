@@ -1,5 +1,5 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
-import { lawReviewEvidence, parseLawReview, reviewLawAnswer, lawReviewReasoning, auditLawAnswer } from './lawAnswer.ts';
+import { lawReviewEvidence, parseLawReview, reviewLawAnswer, lawReviewReasoning, auditLawAnswer, numericDatesSupported } from './lawAnswer.ts';
 import type { EvidenceMap } from './sources.ts';
 import type { ModelEvent } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
@@ -120,4 +120,16 @@ Deno.test('Support audit drops claims with an evidence limit and rejects partial
   if(reason==='length')assertEquals(result,null);
   else {assert(result);assertEquals(result.support.length,1);assertEquals(result.support[0].statement,two.claims[1].statement);assert(result.uncertain);}
  }
+});
+Deno.test('A claim cannot attach numeric dates absent from its own quotation',()=>{
+ assertEquals(parseLawReview(raw({statement:'Limitation commenced on 06.09.2018 after notice dated 01.09.2018.'}),lawReviewEvidence(evidence)),null);
+});
+
+Deno.test('Numeric dates bind to own excerpt with equivalent date normalization only',()=>{
+ assert(numericDatesSupported('Commenced 06.09.2018.','Commenced 2018-09-06.'));
+ assert(numericDatesSupported('Notice 1/9/2018.','Notice 01.09.2018.'));
+ assertEquals(numericDatesSupported('Notice 01.09.2018.','Notice 02.09.2018.'),false);
+ assertEquals(numericDatesSupported('On 2020-03-12.','On 2020-12-03.'),false);
+ // Presence is necessary, not semantic proof: the auditor must reject wrong event attribution.
+ assert(numericDatesSupported('Commenced 01.09.2018.','Notice 01.09.2018; commenced 06.09.2018.'));
 });
