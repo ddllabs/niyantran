@@ -2,7 +2,6 @@
 
 
 
-- [ ] **F243 — Globiz NCLT listing missing.** Indexed document exists (80 chunks), but the listing register and desk-row mirror omit the order. Scoped metadata correction without re-ingestion authorized. [Plan](2026-10-23-globiz-listing.md).
 
 - [ ] **Law bulk ingestion follow-up — 2026-10-23.** Owner authorized implementation, reusing existing ingestion. [Plan/evidence](2026-10-23-supplied-text-connection.md), [client guide](../operations/supplied-text-import.md). Local connector, authenticated registration, immutable input migration, existing-queue/index-loop integration and no-OCR tests implemented; local verification passed: 6,555 app / 1,199 Deno / 7 client tests, all 56 disposable SQL fixtures, lint/build and negative controls. Released via PR#11/main `ff13a953`; connector migration and three Edge Functions deployed. Authorized five-source pilot passed with 5 indexed documents/241 chunks, zero OCR and duplicate-safe rerun. Full package-policy decision generation, relationship/feature adapters, sensitive serving enforcement, PDF/box integration, capacity qualification and broader rollout remain open. Existing National checkpoint unchanged.
 
@@ -1452,6 +1451,8 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- [x] **F243 — Globiz NCLT listing released.** PR #14 merged `258827a0`; branch, PR and main app/SQL CI passed. Production domain serves 435 rows; guarded one-row mirror correction applied. Company/case searches return exactly one order. All 434 old rows and Globiz document/80 chunks/job fingerprints unchanged. No re-ingestion or paid calls. [Evidence](2026-10-23-globiz-listing.md).
 
 - [x] **Law release verification prerequisite — landed `1cd6d38b` / `ff13a953`:** remove the calendar expiry from the existing feedServeRoute test fixture (two failures reproduced on October 23); test-only relative date, no feed runtime changes. Tracked with the [five-document release plan](2026-10-23-law-five-pilot.md).
 
