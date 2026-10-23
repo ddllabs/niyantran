@@ -12,6 +12,7 @@ import { log } from '../_shared/logging.ts';
 import { serviceClient } from '../_shared/supabase.ts';
 import { handleWorker, type RunDeps } from './handler.ts';
 import { indexStep } from './index-step.ts';
+import { suppliedTextStep } from './supplied-step.ts';
 import { callMistralOcr } from './mistral.ts';
 import { ocrStep } from './ocr.ts';
 import {
@@ -59,6 +60,13 @@ export function supabaseIngestDb(client: SupabaseClient): IngestDb {
   }
 
   return {
+    async textInput(documentId) {
+      const { data, error } = await client.from('ingest_text_inputs').select('payload,payload_sha256,expected').eq('document_id', documentId).single();
+      fail('supplied-text read', error);
+      return data!;
+    },
+    async textCommit(jobId, token, rows) { return await rpc('ingest_text_commit', { p_job: jobId, p_token: token, p_rows: rows }); },
+    async textActivate(jobId, token, tokens, cost) { await rpc('ingest_text_activate', { p_job: jobId, p_token: token, p_tokens: tokens, p_cost: cost }); },
     async claim(limit, leaseSeconds) {
       return (await rpc<IngestJob[] | null>('ingest_claim', { p_limit: limit, p_lease: `${leaseSeconds} seconds` })) ??
         [];
@@ -283,7 +291,7 @@ export function buildWorkerDeps(client: SupabaseClient, env: Env): RunDeps {
     documentUrlOverride: (sha256) => documentUrlOverride(supabaseUrl, env, sha256),
     now: Date.now,
     log: (event, fields) => log(event, fields),
-    steps: { ocr: ocrStep, index: indexStep },
+    steps: { ocr: ocrStep, index: (deps, job, deadline) => job.input_kind === 'supplied_text' ? suppliedTextStep(deps, job, deadline) : indexStep(deps, job, deadline) },
     secrets: [mistralKey, openrouterKey, env('INGEST_WORKER_SECRET') ?? ''].filter(Boolean),
   };
 }

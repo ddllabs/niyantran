@@ -108,6 +108,7 @@ export function supabaseAdminDb(client: () => SupabaseClient): AdminIngestDb {
   }
 
   return {
+    async registerText(p) { return await rpc('ingest_register_text', { p }); },
     async documentsBySha(fileSha256) {
       const { data, error } = await client()
         .from('documents')

@@ -4,7 +4,13 @@
 
 ## Current boundary
 
-The current owner task is local integration review only. Do not ingest, deploy, modify production, merge or push. A later owner instruction is required before further ingestion. The Download resolver and identity companion are already on `origin/main` at `6acabfb`; preserve them. This review does not re-verify production deployment state.
+**Law pilot release (2026-10-23):** the owner subsequently authorized the supplied-text connector release and exactly five Law sources. See [pilot plan](../plans/2026-10-23-law-five-pilot.md). This does not resume the held National stage or authorize larger batches. Earlier boundaries below describe their own tasks.
+
+**Latest task boundary (2026-10-23):** the owner has switched to inventory, mapping and orchestration specification only, including the local legal pack. No coding or ingestion is authorized by that task. The National continuation below remains held with 315 prepared sources; preserve its manifest and checkpoint. See the [reconciliation](../research/2026-10-23-corpus-reconciliation.md) and [proposed spec](../specs/2026-10-23-supplied-text-bulk-orchestration.md). Law inclusion is inventory/mapping scope, not a release authorization.
+
+**2026-10-23 continuation:** the owner has now authorized pending National bill ingestion, targeting 1,000 bill identities per review cohort through multiple existing bounded stages. The [continuation spec](../specs/2026-10-23-national-corpus-continuation.md) supersedes the preparation-only boundary below for this scope. Every quality, manifest, budget, capacity and independent audit gate remains. No completed manifest may restart; Law and existing-source replacements remain excluded.
+
+The preceding 2026-10-12 owner task was local integration review only. Its no-ingestion boundary is superseded only by the National continuation above; deployment, merging and pushing remain outside the current scope. The Download resolver and identity companion are already on `origin/main` at `6acabfb`; preserve them. This review does not re-verify production deployment state.
 
 The last recorded completed release is [413 documents / 7,493 chunks](../research/2026-10-11-corpus-wide-batch.md). Its manifest and all earlier completed manifests must never restart. These dated receipts report 3,434 documents / 3,431 indexed / 100,031 chunks / 2,143 covered bill keys; these are not newly queried totals. The 87 exclusions from that cohort, remaining original-pool candidates, nonbill attachment work, and existing-source repairs remain unresolved. Use the current ledger and live state at a future authorized release, never these totals as a readiness count.
 
@@ -34,9 +40,9 @@ Source repair requires a separate raw file, exact ordered edit ledger, repaired 
 
 Existing stubs, partial writes, page-OCR documents and existing-source overwrite/deletion require separate recovery review and authorization. Incomplete transcripts, unresolved markers and known-quality holds are never fillers for a desired batch size.
 
-## Authorized operation (commands for a future release)
+## Authorized operation
 
-Only after a later owner authorization, set task-specific `STAGE_MANIFEST` and `MANIFEST_SHA` to the exact reviewed file and hash. A live manifest requires `execution_authorized:true`, `operation_mode:"supervised"` and an exact release note; changing it invalidates prior hashes/baselines.
+After owner authorization and completion of the preparation gates, set task-specific `STAGE_MANIFEST` and `MANIFEST_SHA` to the exact reviewed file and hash. A live manifest requires `execution_authorized:true`, `operation_mode:"supervised"` and an exact release note; changing it invalidates prior hashes/baselines.
 
 ```bash
 node --experimental-strip-types scripts/corpus-stage-job.mjs --baseline "$STAGE_MANIFEST" "$MANIFEST_SHA"
@@ -54,7 +60,7 @@ Locks contain PID, host and ownership token with a recovery gate. They exclude a
 
 Exit 75 means a persisted bounded retry; respect wake/settlement times. An uncertain write is read before retry; a complete verified record can avoid a repeated embedding request. Unknown usage retains the full cost reservation and requires model-log reconciliation before final acceptance. Partial data, changed identity, invalid vectors, health or budget failures stop the job. Never clear a hold just to proceed. A checkpoint is bound to one manifest and must not be deleted or reused to force execution.
 
-At each maintenance pause independently audit every completed vector, span, context/input hash, original/PDF provenance, listing attachment and real bill-scoped citation retrieval. Under a future authorized production run, ANALYZE `document_chunks`, `documents` and `desk_rows`, then compare exact expected deltas, real counts, planner counts and orphans. Only after passing, write a fresh `<manifest>.maintenance-ack.json` with manifest hash, exact verified document/chunk totals, timestamp, `independent_audit_passed:true`, and `analyze_counts_passed:true`. It expires after 30 minutes. Resume the same supervisor; completed records are reconciled without paid repetition.
+At each maintenance pause independently audit every completed vector, span, context/input hash, original/PDF provenance, listing attachment and real bill-scoped citation retrieval. During an authorized production run, ANALYZE `document_chunks`, `documents` and `desk_rows`, then compare exact expected deltas, real counts, planner counts and orphans. Only after passing, write a fresh `<manifest>.maintenance-ack.json` with manifest hash, exact verified document/chunk totals, timestamp, `independent_audit_passed:true`, and `analyze_counts_passed:true`. It expires after 30 minutes. Resume the same supervisor; completed records are reconciled without paid repetition.
 
 At final completion repeat full independent audit, usage/receipt reconciliation, exact deltas, planner and orphan checks. Worker completion alone is not quality acceptance. Natural-language owner RAG/citation acceptance remains distinct from automated probes.
 

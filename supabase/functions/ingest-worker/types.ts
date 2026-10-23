@@ -53,6 +53,7 @@ export type JobStage = 'ocr' | 'index' | 'done';
 /** An ingest_jobs row, as ingest_claim returns it. */
 export interface IngestJob {
   id: string;
+  input_kind?: 'pdf' | 'supplied_text';
   document_id: string;
   status: JobStatus;
   stage: JobStage;
@@ -268,8 +269,8 @@ export interface ImageRow {
 export interface PageCommitRow {
   chunk_hash: string;
   chunk_index: number;
-  source_kind: 'pdf_page';
-  page_number: number;
+  source_kind: 'pdf_page' | 'document';
+  page_number: number | null;
   char_from: number;
   char_to: number;
   content: string;
@@ -307,6 +308,9 @@ export interface IngestCallLog {
  * INGEST.readPage rows, ordered by the key named; callers page with readAll (paging.ts).
  */
 export interface IngestDb {
+  textInput?(documentId: string): Promise<{ payload: string; payload_sha256: string; expected: PageCommitRow[] }>;
+  textCommit?(jobId: string, token: string, rows: PageCommitRow[]): Promise<{ inserted: number; kept: number; deleted: number }>;
+  textActivate?(jobId: string, token: string, tokens: number, cost: number): Promise<void>;
   claim(limit: number, leaseSeconds: number): Promise<IngestJob[]>;
   /** Rejects (throws) when the token no longer matches. */
   advance(jobId: string, token: string, patch: AdvancePatch): Promise<void>;

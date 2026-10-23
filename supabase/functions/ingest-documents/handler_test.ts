@@ -624,3 +624,11 @@ Deno.test('section mode partial retry preserves context identity and cannot down
   assert(calls[1][0].startsWith('Appeals\n\n'));
   assertEquals(f.docs.get(doc.source_key)!.hashes.size, 2);
 });
+
+Deno.test('durable supplied text cannot be overwritten by the legacy endpoint', async () => {
+ const {db,docs,metaUpdates}=fakeDb();const calls:string[][]=[];
+ const row:DocumentRow={source_key:'law:hc:one',title:'Original',file_name:null,file_url:null,desk_tier:'law',desk_feature:'Archive',content_sha256:'old',ocr_text:'Original',metadata:{origin:'supplied-text'}};
+ docs.set(row.source_key,{id:'id',row,chunker_version:null,hashes:new Map()});
+ const result=await (await handleIngest(post({documents:[{source_key:row.source_key,title:'Changed',ocr_text:'Changed'}]}),{db,secretKey:SECRET,embed:fakeEmbed(calls)})).json();
+ assertEquals(result.results[0].status,'refused');assertEquals(calls.length,0);assertEquals(metaUpdates.length,0);assertEquals(docs.get(row.source_key)!.row,row);
+});

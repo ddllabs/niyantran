@@ -79,6 +79,7 @@ export interface RegisterPart extends DeclaredPart {
 export type RecordStatus = 'processing' | 'failed' | 'full_text' | 'full_text_legacy' | 'record_only';
 
 export type Request =
+  | { action: 'register_text'; record: Record<string, unknown>; dry_run?: boolean; confirm_sha256?: string }
   | {
     action: 'prepare';
     file_sha256: string;

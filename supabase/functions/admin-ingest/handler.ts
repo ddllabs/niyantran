@@ -19,6 +19,8 @@
 // takes the record link and D6's source-URL rule; prepare reports the key's holder.
 
 import { createHash } from 'node:crypto';
+import { prepareSuppliedText, SUPPLIED_TEXT } from '../_shared/suppliedText.ts';
+import { suppliedCommitRows } from '../ingest-worker/supplied-step.ts';
 import { requireUser, type Verify } from '../_shared/auth.ts';
 import { corsHeaders, preflight } from '../_shared/cors.ts';
 import { DESK_CATALOG } from '../_shared/deskCatalog.ts';
@@ -124,6 +126,7 @@ export interface StagedObject {
 }
 
 export interface AdminIngestDb {
+  registerText?(p: Record<string, unknown>): Promise<DbResult<{ document_id: string; job_id: string; status: string; existing: boolean }>>;
   /** Documents whose file_sha256 is this, with the status of each one's latest job. */
   documentsBySha(fileSha256: string): Promise<ExistingDocument[]>;
   documentIdBySourceKey(sourceKey: string): Promise<string | null>;
@@ -389,9 +392,10 @@ export function urlIdentity(s: string): string {
 // ─── The body ────────────────────────────────────────────────────────────────
 
 async function readBody(req: Request): Promise<Body> {
+  const maxBytes = new URL(req.url).searchParams.get('input') === 'supplied-text' ? SUPPLIED_TEXT.bodyBytes : LIMITS.bodyMaxBytes;
   const declared = Number(req.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > LIMITS.bodyMaxBytes) {
-    throw new Refusal('too_large', `request body over ${LIMITS.bodyMaxBytes} bytes`);
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new Refusal('too_large', `request body over ${maxBytes} bytes`);
   }
   if (!req.body) throw bad('body must be JSON');
   const reader = req.body.getReader();
@@ -401,9 +405,9 @@ async function readBody(req: Request): Promise<Body> {
     const { done, value } = await reader.read();
     if (done) break;
     total += value.byteLength;
-    if (total > LIMITS.bodyMaxBytes) {
+    if (total > maxBytes) {
       await reader.cancel().catch(() => {});
-      throw new Refusal('too_large', `request body over ${LIMITS.bodyMaxBytes} bytes`);
+      throw new Refusal('too_large', `request body over ${maxBytes} bytes`);
     }
     chunks.push(value);
   }
@@ -419,7 +423,9 @@ async function readBody(req: Request): Promise<Body> {
   } catch {
     throw bad('body must be JSON');
   }
-  return object(parsed, 'body');
+  const body = object(parsed, 'body');
+  if (total > LIMITS.bodyMaxBytes && body.action !== 'register_text') throw new Refusal('too_large', 'large body only allowed for supplied text');
+  return body;
 }
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
@@ -781,6 +787,27 @@ async function register(ctx: Ctx, body: Body): Promise<unknown> {
   return { ok: true, document_id: documentId, job_id: jobId };
 }
 
+async function registerText(ctx: Ctx, body: Body): Promise<unknown> {
+  let prepared;
+  try { prepared = await prepareSuppliedText(body.record); }
+  catch (e) { throw bad(messageOf(e)); }
+  if (body.dry_run === true) return { ok: true, status: 'dry_run', payload_sha256: prepared.payload_sha256, chunks: prepared.chunks.length };
+  if (body.confirm_sha256 !== prepared.payload_sha256) throw bad('confirm_sha256 must match the reviewed payload');
+  if (!ctx.deps.db.registerText) throw new Refusal('unavailable', 'supplied-text registration is unavailable');
+  const { data, error } = await ctx.deps.db.registerText({ payload: prepared.payload, payload_sha256: prepared.payload_sha256,
+    expected: suppliedCommitRows(prepared.chunks), pages: prepared.pages, sections: prepared.sections, actor: ctx.userId });
+  if (error) {
+    if (error.message.startsWith('supplied text:') || error.code === '23505') throw new Refusal('refused', 'source conflict or invalid supplied-text registration; no source replaced');
+    throw new Refusal('unavailable', UNAVAILABLE);
+  }
+  ctx.log('admin_ingest.supplied_text', { user_id: ctx.userId, job_id: data.job_id, document_id: data.document_id, existing: data.existing });
+  if (data.status === 'queued') {
+    try { await ctx.deps.startWorker(); }
+    catch { ctx.log('admin_ingest.worker_start_failed', { job_id: data.job_id }); }
+  }
+  return { ok: true, ...data, payload_sha256: prepared.payload_sha256 };
+}
+
 async function jobs(ctx: Ctx, body: Body): Promise<unknown> {
   const limit = body.limit === undefined || body.limit === null ? 20 : int(body.limit, 'limit', 1, LIMITS.jobsMaxLimit);
   let before: string | null = null;
@@ -991,6 +1018,9 @@ export async function handleAdminIngest(req: Request, deps: AdminIngestDeps): Pr
         break;
       case 'verify':
         result = await verify(ctx, body);
+        break;
+      case 'register_text':
+        result = await registerText(ctx, body);
         break;
       case 'register':
         result = await register(ctx, body);

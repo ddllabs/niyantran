@@ -664,3 +664,44 @@ Deno.test('index: the 12-page bill end to end: 12 pages, every block, every chun
   // Batches of at most writeBatch rows.
   for (const e of r.events) if (e.op.startsWith('upsert')) assert((e as { n: number }).n <= INDEX_STEP.writeBatch);
 });
+
+Deno.test('supplied text runs the shared index loop without OCR and resumes committed embeddings', async () => {
+  const { input } = await import('../_shared/suppliedText_fixture.ts');
+  const { prepareSuppliedText } = await import('../_shared/suppliedText.ts');
+  const { suppliedTextStep, suppliedCommitRows } = await import('./supplied-step.ts');
+  const p = await prepareSuppliedText(await input());
+  const f = fakeDb([]); const e = fakeEmbed(f.events); let activated = false;
+  f.db.textInput = async () => ({ payload: p.payload, payload_sha256: p.payload_sha256, expected: suppliedCommitRows(p.chunks) });
+  f.db.textCommit = async (_id,_token,rows) => f.db.chunkCommit(DOC,rows,p.chunks.map(c => c.chunkHash));
+  f.db.textActivate = async () => { if (!activated) { activated = true; throw new Error('lost activation acknowledgement'); } };
+  const j = job({ input_kind: 'supplied_text', ocr_hash: null, extract_hash: null });
+  const first = await suppliedTextStep(deps(f.db,e.embed,clock().now),j,FAR);
+  assertEquals(first.activated,undefined); assertEquals(e.calls.length,1);
+  const second = await suppliedTextStep(deps(f.db,e.embed,clock().now),j,FAR);
+  assertEquals(second.activated,true); assertEquals(e.calls.length,1);
+  assertEquals(f.pages.size,0); assertEquals(f.chunks.size,p.chunks.length);
+});
+
+Deno.test('supplied text refuses changed stored review before paid work', async () => {
+  const { input } = await import('../_shared/suppliedText_fixture.ts');
+  const { prepareSuppliedText } = await import('../_shared/suppliedText.ts');
+  const { suppliedTextStep, suppliedCommitRows } = await import('./supplied-step.ts');
+  const p = await prepareSuppliedText(await input()); const f = fakeDb([]); const e = fakeEmbed(f.events);
+  f.db.textInput = async () => ({ payload:p.payload, payload_sha256:'bad',expected:suppliedCommitRows(p.chunks) });
+  f.db.textCommit = async () => { throw new Error('must not commit'); };
+  f.db.textActivate = async () => { throw new Error('must not activate'); };
+  await assertRejects(() => suppliedTextStep(deps(f.db,e.embed,clock().now),job({input_kind:'supplied_text'}),FAR),IngestError,'plan');
+  assertEquals(e.calls.length,0);
+});
+
+Deno.test('supplied text compares the complete registered chunk plan before embeddings', async () => {
+ const {input}=await import('../_shared/suppliedText_fixture.ts');
+ const {prepareSuppliedText}=await import('../_shared/suppliedText.ts');
+ const {suppliedTextStep,suppliedCommitRows}=await import('./supplied-step.ts');
+ const p=await prepareSuppliedText(await input()); const f=fakeDb([]);const e=fakeEmbed(f.events);
+ const expected=suppliedCommitRows(p.chunks);expected[0].char_from++;
+ f.db.textInput=async()=>({payload:p.payload,payload_sha256:p.payload_sha256,expected});
+ f.db.textCommit=async()=>{throw Error('must not write');};f.db.textActivate=async()=>{};
+ await assertRejects(()=>suppliedTextStep(deps(f.db,e.embed,clock().now),job({input_kind:'supplied_text'}),FAR),IngestError,'plan');
+ assertEquals(e.calls.length,0);
+});
