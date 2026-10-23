@@ -2278,3 +2278,12 @@ Deno.test('F247: context result outside the pinned document set is never rendere
   assert(!JSON.stringify(f.requests[0].messages).includes('OUTSIDE_SECRET_TEXT'));
   assert(JSON.stringify(f.requests[0].messages).includes('Attribution remains unresolved'));
 });
+
+Deno.test('F247: Law heading context is quoted beside the excerpt without asserting its speaker', () => {
+  const law = { ...chunk('law'), desk_tier:'law', preceding_heading:{text:'3. CONTENTIONS OF CD',chunkId:'heading',charFrom:10} };
+  const rendered = renderChunk('ref:abc123-1',law);
+  assert(rendered.includes('"3. CONTENTIONS OF CD"'));
+  assert(rendered.includes('does not by itself establish the governing speaker'));
+  assert(rendered.endsWith(law.content));
+  assert(!renderChunk('ref:abc123-1',{...law,desk_tier:'national'}).includes('CONTENTIONS'));
+});
