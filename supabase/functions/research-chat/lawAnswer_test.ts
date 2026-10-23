@@ -1,5 +1,5 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
-import { lawReviewEvidence, parseLawReview, reviewLawAnswer, lawReviewReasoning } from './lawAnswer.ts';
+import { lawReviewEvidence, parseLawReview, reviewLawAnswer, lawReviewReasoning, auditLawAnswer } from './lawAnswer.ts';
 import type { EvidenceMap } from './sources.ts';
 import type { ModelEvent } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
@@ -104,4 +104,20 @@ Deno.test('Reviewer reasoning never silently inherits high when off is supported
  assertEquals(lawReviewReasoning(['off','low','high']),{reasoning:{effort:'low'}});
  assertEquals(lawReviewReasoning(['minimal','high']),{reasoning:{effort:'minimal'}});
  assertEquals(lawReviewReasoning(['high']),{});
+});
+
+Deno.test('Support audit can remove unsupported claims but cannot add replacements',async()=>{
+ const candidate=parseLawReview(raw(),lawReviewEvidence(evidence))!;
+ const run=(reply:string)=>auditLawAnswer(async function*(){yield {type:'text',text:reply};yield {type:'finish',reason:'stop',usage:null,served:null,generationId:null};},{model:'test',candidate,evidence,signal:new AbortController().signal});
+ assert(await run('{"supported":[1]}'));
+ for(const reply of ['{"supported":[]}','{"supported":[2]}','{"supported":[1,1]}','{"supported":[1],"statement":"invented"}']) assertEquals(await run(reply),null);
+});
+Deno.test('Support audit drops claims with an evidence limit and rejects partial streams',async()=>{
+ const two=JSON.parse(raw());two.claims.push({...two.claims[0],statement:'The tribunal made no order as to cost.'});
+ const candidate=parseLawReview(JSON.stringify(two),lawReviewEvidence(evidence))!;
+ for(const reason of ['stop','length']){
+  const result=await auditLawAnswer(async function*(){yield {type:'text',text:'{"supported":[2]}'};yield {type:'finish',reason,usage:null,served:null,generationId:null};},{model:'test',candidate,evidence,signal:new AbortController().signal});
+  if(reason==='length')assertEquals(result,null);
+  else {assert(result);assertEquals(result.support.length,1);assertEquals(result.support[0].statement,two.claims[1].statement);assert(result.uncertain);}
+ }
 });

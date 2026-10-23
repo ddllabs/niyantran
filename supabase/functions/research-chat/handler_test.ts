@@ -3643,12 +3643,14 @@ Deno.test('F249: repeated placeholder cannot become a completed response', async
   assertEquals(rec.messages[0].content, '');
 });
 
-for (const lawHint of [true, false]) for (const valid of [true, false]) Deno.test(`F247: ${lawHint ? 'Law hint' : 'broad retrieval'} draft is held until source review (${valid ? 'valid' : 'fabricated quote'})`, async () => {
+for (const lawHint of [true, false]) for (const valid of [true, false]) for (const auditPass of [true, false]) Deno.test(`F247: ${lawHint ? 'Law hint' : 'broad retrieval'} draft is held until source review (${valid ? 'valid' : 'fabricated quote'}, audit ${auditPass})`, async () => {
   const original = '7.34 The application is rejected and disposed of. No order as to cost.';
   let reviewed = false;
   const stream: HandlerDeps['stream'] = async function* (req) {
     const handle = /ref:[a-z0-9]{6}-\d+/.exec(JSON.stringify(req.messages))?.[0] ?? '';
-    if (String(req.messages[0].content).startsWith('Check a legal answer')) {
+    if (String(req.messages[0].content).startsWith('Verify each claim')) {
+      yield text(JSON.stringify({supported:auditPass?[1]:[]})); yield finish();
+    } else if (String(req.messages[0].content).startsWith('Check a legal answer')) {
       reviewed = true;
       yield text(JSON.stringify({ claims: [{statement:'The tribunal rejected the application with no order as to cost.',source:handle,quote_id: valid ? JSON.parse(String(req.messages[1].content)).passages.find((p: {source:string})=>p.source===handle).excerpts[0].id : 'invented-excerpt'}], uncertain:false }));
       yield finish();
@@ -3662,7 +3664,7 @@ for (const lawHint of [true, false]) for (const valid of [true, false]) Deno.tes
   const events=await frames(await handleResearchChat(post({...BODY,...(lawHint ? {desk_context:{tier:'law'}} : {})}),deps));
   assert(reviewed);
   assert(!JSON.stringify(events).includes('Unsupported tribunal finding'));
-  assertEquals(rec.messages[0].status,valid?'complete':'error');
-  if(valid) { assertStringIncludes(rec.messages[0].content,original); assertEquals(rec.messages[0].sources.length,1); }
+  assertEquals(rec.messages[0].status,valid&&auditPass?'complete':'error');
+  if(valid&&auditPass) { assertStringIncludes(rec.messages[0].content,original); assertEquals(rec.messages[0].sources.length,1); }
   else assertEquals(rec.messages[0].content,'');
 });

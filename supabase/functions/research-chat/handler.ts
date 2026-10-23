@@ -1,4 +1,4 @@
-import { reviewLawAnswer, lawReviewReasoning, LAW_REVIEW_RESERVE_MS } from './lawAnswer.ts';
+import { reviewLawAnswer, auditLawAnswer, lawReviewReasoning, LAW_REVIEW_RESERVE_MS } from './lawAnswer.ts';
 import { placeholderAnswer, placeholderPrefix } from './answerValidation.ts';
 // The research turn (streaming spec §E). Framework-free and dependency
 // injected: nothing here touches Deno.env or the network, so the same code
@@ -1374,7 +1374,16 @@ async function runTurnBody(
           report: reason => log('research.law_review_rejected', { reason, attempt: budget.modelAttempts }),
           ...lawReviewReasoning(t.models.find(m => m.model_id === attemptModel)?.efforts ?? []),
         });
-      } catch { log('research.law_review_failed', { aborted: signal.aborted }); }
+        if (reviewed && budget.modelAttempts < BUDGET.maxSteps && !signal.aborted &&
+            (!context.timeLeft || context.timeLeft() > 1000)) {
+          rounds++;
+          budget.modelAttempts++;
+          reviewed = await auditLawAnswer(attempts.wrap(observedStream, 'chat_answer'), {
+            model: attemptModel, candidate: reviewed, evidence, signal,
+            ...lawReviewReasoning(t.models.find(m => m.model_id === attemptModel)?.efforts ?? []),
+          });
+        } else reviewed = null;
+      } catch { reviewed = null; log('research.law_review_failed', { aborted: signal.aborted }); }
     }
     if (!reviewed) {
       attempts.rejectLast('chat_answer', 'Legal answer declined: original-source support verification failed or unavailable.');
