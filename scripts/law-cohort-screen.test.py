@@ -170,6 +170,57 @@ class ReviewRegressionTests(unittest.TestCase):
             self.finalize(out)
         self.assertFalse((out / 'decisions.jsonl').exists())
 
+    def test_escaped_competing_identity_is_held(self):
+        raw = json.dumps(rec(1, text='A competing order.')).encode().replace(b'law:trib:', br'law\u003atrib\u003a')
+        out, s = self.screen(extra=[('documents/tribunals/IBBI_NCLT/escaped.jsonl.gz', gzip.compress(raw + b'\n'))])
+        self.assertNotIn(1, self.ready_lines(s))
+        with self.assertRaises(ValueError):
+            screen_mod.main(['finalize', '--screen', str(out / 'screen.json'), '--output', str(out / 'd.jsonl'),
+                             '--decision-id', 'x', '--approved-by', 'y', '--keys', rec(1)['source_key']])
+
+    def test_escaped_identical_identity_is_recorded_and_accepted(self):
+        raw = json.dumps(rec(1)).encode().replace(b'law:trib:', br'law\u003atrib\u003a')
+        out, s = self.screen(extra=[('documents/tribunals/IBBI_NCLT/escaped.jsonl.gz', gzip.compress(raw + b'\n'))])
+        self.assertIn(1, self.ready_lines(s))
+        self.assertEqual(len(s['candidates'][0]['occurrences']), 2)
+        self.finalize(out)
+
+    def test_changed_text_with_original_declared_hash_is_held(self):
+        other = rec(1)
+        other['text'] = 'A different order with a stale declared hash.'
+        out, s = self.screen(extra=[('documents/tribunals/IBBI_NCLT/stale.jsonl.gz', gz_jsonl([other]))])
+        self.assertNotIn(1, self.ready_lines(s))
+
+    def test_unreadable_subtree_cannot_attest_completeness(self):
+        cases = [b'{broken json', b'[]', b'{"source_key":"other","source_key":"hidden"}',
+                 b'{"source_key":null}', b'{"source_key":"other","source_\\u006bey":"hidden"}', b'{"source_key":"unrelated","value":NaN}', b'\xff']
+        base = self.dir
+        for i, raw in enumerate(cases):
+            with self.subTest(raw=raw):
+                self.dir = base / str(i)
+                self.dir.mkdir()
+                out, s = self.screen(extra=[('documents/tribunals/IBBI_NCLT/unreadable.jsonl.gz', gzip.compress(raw + b'\n'))])
+                self.assertFalse(s['production_checks']['subtree_scan_complete'])
+                self.assertFalse(s['finalizable'])
+                self.assertEqual(self.ready_lines(s), [])
+                with self.assertRaises(ValueError):
+                    self.finalize(out)
+        self.dir = base
+
+    def test_surrogate_text_occurrence_is_held(self):
+        other = rec(1)
+        other['text'] = '\ud800'
+        raw = json.dumps(other).encode()
+        out, s = self.screen(extra=[('documents/tribunals/IBBI_NCLT/surrogate.jsonl.gz', gzip.compress(raw + b'\n'))])
+        self.assertNotIn(1, self.ready_lines(s))
+
+    def test_schema_two_screen_requires_rescreen(self):
+        out, s = self.screen()
+        s['screen_schema'] = 2
+        (out / 'screen.json').write_text(json.dumps(s))
+        with self.assertRaises(ValueError):
+            self.finalize(out)
+
     def test_complete_screen_still_finalizes(self):
         out, s = self.screen()
         self.finalize(out)

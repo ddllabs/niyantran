@@ -41,7 +41,7 @@ POLICY_MEMBERS = (
     'not_in_pack/still_not_in_pack_v1.csv.gz',
 )
 MAX_CHARS = 600_000  # SUPPLIED_TEXT.maxChars in supabase/functions/_shared/suppliedText.ts
-SCREEN_SCHEMA = 2  # 2: every repeated entry checked; finalize requires verified policy hashes and a complete scan
+SCREEN_SCHEMA = 3  # 3: semantic JSON identities, strict complete scans and computed occurrence text hashes
 SHA = re.compile(r'^[a-f0-9]{64}$')
 
 
@@ -74,6 +74,27 @@ def gz_lines(pack, info):
     with pack.open(info) as fh, gzip.GzipFile(fileobj=fh) as gz:
         for n, raw in enumerate(gz, 1):
             yield n, raw.rstrip(b'\r\n')
+
+
+def parse_record(raw):
+    """Decode identities before comparison; ambiguous or unreadable JSON cannot prove absence."""
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError('duplicate JSON object key')
+            result[key] = value
+        return result
+
+    def reject_constant(value):
+        raise ValueError('non-standard JSON constant')
+
+    record = json.loads(raw.decode('utf-8'), object_pairs_hook=unique_object, parse_constant=reject_constant)
+    if not isinstance(record, dict):
+        raise ValueError('record is not a JSON object')
+    if not isinstance(record.get('source_key'), str) or not record['source_key'].strip():
+        raise ValueError('record has no unambiguous source_key')
+    return record
 
 
 def gz_csv_rows(pack, info):
@@ -186,7 +207,7 @@ def screen(args):
                 break
             scanned += 1
             try:
-                record = json.loads(raw.decode('utf-8'))
+                record = parse_record(raw)
             except (UnicodeDecodeError, ValueError) as e:
                 candidates.append({'line': line_no, 'disposition': 'held', 'reasons': [f'unreadable record: {e}']})
                 continue
@@ -206,7 +227,6 @@ def screen(args):
             c['disposition'] = 'held' if c['reasons'] else 'ready_for_review'
             candidates.append(c)
         keys = {c['source_key'] for c in candidates if c.get('source_key')}
-        key_bytes = [k.encode('utf-8') for k in keys]
         # 2. policy files inside the ZIP (internal members are authoritative; external copies differ)
         policy = {}
         expected = {}
@@ -263,7 +283,8 @@ def screen(args):
         # 3. replacement (__full) and repeated-occurrence scan across the collection subtree
         subtree = full_name.rsplit('/', 1)[0] + '/'
         scan = {'subtree': subtree, 'complete': not args.no_scan_subtree, 'members_scanned': 0, 'occurrences': 0,
-                'skipped_identical_repeats': 0, 'conflicting_repeated_members': []}
+                'skipped_identical_repeats': 0, 'conflicting_repeated_members': [],
+                'unreadable_records': 0, 'unreadable_examples': []}
         name_hashes = defaultdict(set)
         occurrences = defaultdict(list)
         if not args.no_scan_subtree:
@@ -280,21 +301,33 @@ def screen(args):
                 name_hashes[info.filename].add(h)
                 scan['members_scanned'] += 1
                 for line_no, raw in gz_lines(pack, info):
-                    if not any(kb in raw for kb in key_bytes):
-                        continue
                     try:
-                        r = json.loads(raw.decode('utf-8'))
-                    except (UnicodeDecodeError, ValueError):
+                        r = parse_record(raw)
+                    except (UnicodeDecodeError, ValueError, RecursionError):
+                        scan['complete'] = False
+                        scan['unreadable_records'] += 1
+                        if len(scan['unreadable_examples']) < 20:
+                            scan['unreadable_examples'].append({'member': info.filename, 'entry_index': index, 'line': line_no})
                         continue
                     if r.get('source_key') in keys:
+                        text = r.get('text')
+                        try:
+                            actual_hash = sha256(text.encode('utf-8')) if isinstance(text, str) else None
+                        except UnicodeEncodeError:
+                            actual_hash = None  # Invalid Unicode cannot establish identical text.
                         scan['occurrences'] += 1
                         occurrences[r['source_key']].append({
-                            'member': info.filename, 'entry_index': index, 'line': line_no, 'text_sha256': r.get('text_sha256'),
+                            'member': info.filename, 'entry_index': index, 'line': line_no, 'text_sha256': actual_hash,
+                            'declared_text_sha256': r.get('text_sha256'),
                             'full': '__full' in os.path.basename(info.filename),
                         })
             for c in candidates:
                 occ = occurrences.get(c.get('source_key'), [])
                 c['occurrences'] = occ
+                if not scan['complete']:
+                    c['reasons'].append('subtree scan contains unreadable or ambiguous records; completeness unproven')
+                if any(o['text_sha256'] is None or o['text_sha256'] != o['declared_text_sha256'] for o in occ):
+                    c['reasons'].append('occurrence text hash missing or does not match its text')
                 others = [o for o in occ if not (o['member'] == full_name and o['line'] == c['line'])]
                 if any(o['full'] for o in others):
                     c['reasons'].append('superseded by a __full replacement record in another member')
@@ -321,7 +354,7 @@ def screen(args):
                     held[r] += 1
         production_checks = {
             'policy_hashes_verified': all(p.get('verified') for p in policy.values()) and len(policy) == len(POLICY_MEMBERS),
-            'subtree_scan_complete': not args.no_scan_subtree,
+            'subtree_scan_complete': scan['complete'],
         }
         result = {
             'status': 'screened-not-approved', 'screen_schema': SCREEN_SCHEMA, 'production_eligible': False, 'database_writes': 0,
