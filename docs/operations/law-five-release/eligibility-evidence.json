@@ -1,0 +1,27 @@
+{
+  "status": "reviewed-for-owner-authorized-five-source-pilot",
+  "target": "vfgcppstyzjarlzyqdac",
+  "source_keys": [
+    "law:trib:IBBI_NCLT:ibbi_nclt-078f589727146592",
+    "law:trib:IBBI_NCLT:ibbi_nclt-3ba8779ec3d364ef",
+    "law:trib:IBBI_NCLT:ibbi_nclt-6ebdc4363316bb97",
+    "law:trib:IBBI_NCLT:ibbi_nclt-8b07cefd73faeaf1",
+    "law:trib:IBBI_NCLT:ibbi_nclt-96b36e83a18fb8bc"
+  ],
+  "policy_source": "exact internal ZIP members; these are authoritative for this bounded pilot, external companion versions not substituted",
+  "policy_hits": {
+    "sensitive": 0,
+    "dedupe": 0,
+    "missing": 0
+  },
+  "licence_basis": "Each record declares public tribunal order from official IBBI source and NCLT attribution; retained unchanged, not independent legal advice",
+  "member_hashes": {
+    "README_HANDOVER.md": "32ecfe8502b31e55a92151864334273ac4c41a4b39e6f2e17f81d048e882904d",
+    "SOP-load-legal-pack.md": "038f9f15b837d8368748a89c63105fe62a280045b2a9e8d0f36ddad35e012c12",
+    "flags/sensitive_cases_v1.csv.gz": "801f37cff770d0799219c2550987b0200db0559f7e8b264f82733731399c5318",
+    "dedupe/duplicate_documents_v1.csv.gz": "26dc1a5741b7e25fe8a0f81300f33224d3c001dade08e6e570f41d6589e3cc68",
+    "not_in_pack/still_not_in_pack_v1.csv.gz": "e9b899d6db2269e93e6a44cb96bac6e14794aa9a08b5bf31b6db91e2f95f6487"
+  },
+  "inventory": "All five have exactly one selected occurrence, valid hashes/pages, no competing revision, sensitivity or dedupe conflict; full reconciled inventory checked",
+  "scope": "Text-only citations and original URLs; no page highlights or automatic current-row linking"
+}

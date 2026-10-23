@@ -1,6 +1,6 @@
 # Connect supplied corpus text to ingestion
 
-> **Status: Living.** Owner authorized implementation on 2026-10-23, explicitly reusing existing ingestion. Production migration, deployment, paid processing and corpus release are excluded.
+> **Status: Living.** Owner authorized implementation on 2026-10-23, explicitly reusing existing ingestion. Initial implementation excluded release. The owner subsequently authorized release and the bounded five-source pilot; see the [completed pilot record](2026-10-23-law-five-pilot.md).
 
 ## Scope and design
 
@@ -63,3 +63,7 @@ This implements the bounded supplied-text connection, not the full umbrella prog
 The client is authenticated as an existing platform admin; a dedicated narrower ingestion role was not added. Credentials, provisioning and rollout must be agreed before client handover. Registration can start embedding immediately after release. The chunk cap is a work-size limit, not an exact dollar reservation. Expired/uncertain paid steps require reconciliation, and manual retry may pay again for uncommitted provider work. Exactly-once provider billing is not claimed. Website job monitoring is reused, while new historical desk-row linkage and page highlighting are not implemented.
 
 Changed paths are the scopes enumerated above, the new client guide, and the local migration `supabase/migrations/20261022230537_supplied_text_connection.sql`. Prior National/reconciliation artifacts remain uncommitted alongside this work. Acceptance, commits, publication and production operation are still pending.
+
+## Subsequent release
+
+Connector released through PR #11/main `ff13a953`; branch/PR/main CI green. Supabase migration and the three affected functions deployed; five real Law sources indexed and exact rerun verified without duplicates or additional embeddings. See [hosted pilot evidence](2026-10-23-law-five-pilot.md). Earlier local-only statements above record the implementation checkpoint, not current deployment status. Broader rollout remains open.
