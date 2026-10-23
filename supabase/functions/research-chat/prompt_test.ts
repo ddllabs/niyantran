@@ -437,6 +437,18 @@ Deno.test('the coverage check is in the prompt only when asked for, after the re
   for (const phrase of ['section, clause or Schedule', 'Not in record.', 'before you write the answer']) assert(COVERAGE_CHECK.toLowerCase().includes(phrase.toLowerCase()), phrase);
 });
 
+Deno.test('F247: orders require speaker attribution, governing context and operative relief checks', () => {
+  const prompt = buildSystemPrompt({ persona: 'Write confidently.', focus: 'attached', today: '2026-10-24', catalogue: '' });
+  for (const rule of [
+    'A statement recorded in an order is not necessarily a finding of the tribunal',
+    'party submissions, quoted authorities, tribunal reasoning and operative relief',
+    'retrieve the governing heading and surrounding reasoning',
+    'A paragraph number alone does not identify the speaker',
+    'A party seeking exemplary costs is not evidence that costs were awarded',
+    'Do not repair a wrong attribution with a caveat later in the answer',
+  ]) assertStringIncludes(prompt, rule);
+});
+
 Deno.test('bill version guidance requires version-specific attribution rather than assuming enactment',()=>{
  const p=buildSystemPrompt({persona:'analyst',focus:'broad',today:'2026-10-09',catalogue:''});
  assert(p.includes('introduced provisions are not evidence of enacted law'));
