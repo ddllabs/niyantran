@@ -2,6 +2,8 @@
 
 
 
+- [ ] **F243 — Globiz NCLT listing missing.** Indexed document exists (80 chunks), but the listing register and desk-row mirror omit the order. Scoped metadata correction without re-ingestion authorized. [Plan](2026-10-23-globiz-listing.md).
+
 - [ ] **Law bulk ingestion follow-up — 2026-10-23.** Owner authorized implementation, reusing existing ingestion. [Plan/evidence](2026-10-23-supplied-text-connection.md), [client guide](../operations/supplied-text-import.md). Local connector, authenticated registration, immutable input migration, existing-queue/index-loop integration and no-OCR tests implemented; local verification passed: 6,555 app / 1,199 Deno / 7 client tests, all 56 disposable SQL fixtures, lint/build and negative controls. Released via PR#11/main `ff13a953`; connector migration and three Edge Functions deployed. Authorized five-source pilot passed with 5 indexed documents/241 chunks, zero OCR and duplicate-safe rerun. Full package-policy decision generation, relationship/feature adapters, sensitive serving enforcement, PDF/box integration, capacity qualification and broader rollout remain open. Existing National checkpoint unchanged.
 
 - [ ] **Corpus inventory and supplied-text orchestration specification — 2026-10-23.** Owner requested full local reconciliation and a change spec, including the legal pack; **no coding or ingestion in this task**. National: 3,459 stored / 3,456 indexed / 100,716 chunks; all 35,358 current text sources reconciled (3,455 indexed, 315 prepared in the held stage, 26,124 held, 5,464 excluded), with structured dataset records enumerated separately. [Report](../research/2026-10-23-corpus-reconciliation.md), [proposed spec and capability map](../specs/2026-10-23-supplied-text-bulk-orchestration.md). Remaining scope: review/approve capability map and relationship design; preserve frozen R7 checkpoint; resolve per-source quality/mapping exceptions and three recovery stubs; add nonbill key propagation/selection adapters; resolve the 86 Law dedupe winner exceptions, 17 missing translation-parent relationships, 169 incomplete-page declarations and three competing-text source identities, reconcile replacement/occurrence rules and sensitivity handling, and confirm the three internal/external companion checksum differences; implement approved durable supplied-text registration/worker/UI contracts; measure capacity before bulk release. Existing indexed sources without current attachments and the PDF revision/hash differences are preservation/review items, not deletion requests. Full structured-row-to-live reconciliation is outside this document inventory and remains separate work. Broader implementation, release and replacement/backfill authorization remain pending; the separately tracked supplied-text connection increment is now locally authorized.
@@ -63,7 +65,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F243 is next) and goes in the
+- A new finding gets the next free `F` number (F244 is next) and goes in the
   right section.
 
 
