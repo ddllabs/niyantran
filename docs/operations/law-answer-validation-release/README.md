@@ -49,3 +49,5 @@ The same-conversation submissions/costs follow-up failed closed after 13 seconds
 The date question returned the original paragraph 7.29 excerpt in 18 seconds, preserving 1 September 2018 notice and 6 September 2018 commencement. Its citation highlighted that original passage. Independent review accepted these bounded extractive/original-highlight checks and rejected full F247 closure. No exact-page PDF deep-link acceptance is claimed.
 
 Final database fingerprint comparison after v84 website tests is identical to baseline. Counts remain 3,469 documents and 101,243 chunks globally; Law has ten documents, 527 chunks, ten jobs and 436 insolvency listings.
+
+Release gates: all required PR29 checks passed on `f89f41d53b46915309b8412343ddb28fad4bef5c`. Main CI run `40039058638` passed on merge `fb38d839e885e2531c387da288074879e6dda5e5`. Vercel production deployment `dpl_DZXUifETDcagPf4pJjhQm4hxYwag` is READY with that exact commit and `aliasAssigned: true` for both `www.nter.pro` and `nter.pro`. Research-chat v84 is the separately verified Edge deployment.
