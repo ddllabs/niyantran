@@ -52,3 +52,16 @@ Deno.test('Review carries bounded server document identity instead of trusting d
  const entry=lawReviewEvidence(data).get('ref:abcdef-9')!;
  assertEquals(entry.documentId,'document-a');assertEquals(entry.title.length,300);
 });
+Deno.test('Complete short dispositions remain valid exact source quotations',()=>{
+ for (const text of ['No order as to cost.', 'Dismissed.']) {
+  const source:EvidenceMap=new Map([['ref:abcdef-1',{kind:'text',chunk:{content:text} as Chunk}]]);
+  assert(parseLawReview(raw({quote:text}),lawReviewEvidence(source)));
+ }
+});
+Deno.test('Quote rejection emits only a bounded reason code',()=>{
+ for (const [text,reason] of [['  ','empty_quote'],['...','empty_quote'],['Costs awarded.','quote_not_found']]) {
+  const reasons:string[]=[];
+  assertEquals(parseLawReview(raw({quote:text}),lawReviewEvidence(evidence),r=>reasons.push(r)),null);
+  assertEquals(reasons,[reason]);
+ }
+});

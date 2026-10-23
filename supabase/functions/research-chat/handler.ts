@@ -1371,6 +1371,7 @@ async function runTurnBody(
         // Stay on the actual attempt model; provider "served" may be a version alias.
         reviewed = await reviewLawAnswer(attempts.wrap(observedStream, 'chat_answer'), {
           model: attemptModel, question: request.message, draft: envelope.answer, evidence, signal,
+          report: reason => log('research.law_review_rejected', { reason, attempt: budget.modelAttempts }),
           ...(t.models.find(m => m.model_id === attemptModel)?.efforts?.includes('low') ? { reasoning: { effort: 'low' } } : {}),
         });
       } catch { log('research.law_review_failed', { aborted: signal.aborted }); }
