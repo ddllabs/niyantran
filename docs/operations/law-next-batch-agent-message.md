@@ -13,7 +13,7 @@ Repository: https://github.com/ddllabs/niyantran. If starting fresh, fetch curre
 Read these documents in order:
 
 1. `AGENTS.md`, `docs/agents/onboarding.md`, `docs/agents/coordination.md`.
-2. `docs/plans/open-work.md`, `docs/operations/law-answer-release/README.md` and `docs/operations/law-listing-release.md` for actual release/acceptance state.
+2. `docs/plans/open-work.md`, `docs/operations/law-answer-validation-release/README.md`, the historical `docs/operations/law-answer-release/README.md`, and `docs/operations/law-listing-release.md` for actual release/acceptance state.
 3. `docs/specs/2026-10-24-law-listing-publication.md`, its implementation plan, and `docs/specs/2026-10-23-supplied-text-bulk-orchestration.md` for boundaries.
 4. `docs/operations/law-listing-client-guide.md`, `docs/operations/law-listing-backend-contract.md`, `docs/operations/supplied-text-import.md`, and `docs/operations/law-cohort-screen-review-fix.md`.
 5. `docs/Architectures/01-ingestion-pipeline.md`, `docs/specs/2026-09-30-rag-v2-chunk-contract.md`, `docs/specs/2026-10-01-rag-v2-ingestion-v2.md`, and `docs/operations/corpus-jobs.md`.
@@ -28,7 +28,7 @@ Use the existing scripts and chunker:
 
 Mapping rules: match verified source associations or exact official order URLs, then verify forum, type, case number and date. Company titles and PDF basenames are not identities. Keep an IBBI announcement separate from an NCLT order even if the company name matches. New eligible orders absent from the register get canonical listings; existing indexed documents get metadata-only links. Revisions, translations, ambiguous aliases, unsupported forums, policy failures and stale mappings remain held. Never mutate original document metadata or completed manifests to force a match.
 
-Check F247/F248 fix and website acceptance evidence in docs/operations/law-answer-release/README.md and docs/plans/2026-10-24-law-answer-attribution-fields.md before claiming either passed. Earlier release evidence is historical. Do not repair either defect by re-ingestion. The ten documents are already published and remain excluded from the next cohort. F248 is verified, but F247 remains partially resolved and F249 tracks a malformed model answer. Do not claim legal-answer acceptance or autopilot readiness from the latest release. Preparation may continue; the website answer-quality gate remains unmet.
+Read the current answer-validation release receipt before claiming website acceptance. F248 case-number display is verified; F249's exact placeholder guard is implemented. F247 generated synthesis remains unresolved: the bounded Law response now returns original excerpts with citations and qualified context, without generated tribunal findings. This is containment, not full legal-answer acceptance or autopilot readiness. Do not restore synthesis, change models/prompts to bypass it, or repair this by re-ingestion within an ingestion task. The ten documents are already published and remain excluded. Preparation may continue; the larger-batch answer-quality gate remains unmet.
 
 For preparation now:
 
