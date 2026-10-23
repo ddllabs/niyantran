@@ -1,6 +1,6 @@
 # Import reviewed Law text through the existing ingestion system
 
-> **Status: Living.** Local implementation, 2026-10-23. Deployment and production ingestion are not authorized or performed by this task. See [implementation evidence](../plans/2026-10-23-supplied-text-connection.md) and [corpus reconciliation](../research/2026-10-23-corpus-reconciliation.md).
+> **Status: Living.** Connector released to NTER on 2026-10-23 after owner authorization. Exactly five Law sources are authorized for the hosted pilot; larger batches remain excluded. Hosted acceptance is recorded in the pilot guide. See [implementation evidence](../plans/2026-10-23-supplied-text-connection.md) and [corpus reconciliation](../research/2026-10-23-corpus-reconciliation.md).
 
 ## What this connects
 
@@ -12,7 +12,7 @@ This is a **text retrieval connection**, not PDF ingestion. Original citation me
 
 ## Prerequisites for client handover
 
-An operator must first review and release the additive `20261022230537_supplied_text_connection.sql` migration and the changed `admin-ingest`, `ingest-worker` and legacy `ingest-documents` functions together. The existing worker schedule and embedding provider configuration must be verified on the target. Apply neither migration nor deployment from this guide without the owner's release authorization. A preview points at the same live Supabase project; it is not an isolated test database.
+For another environment, an operator must first review and release the additive `20261022230537_supplied_text_connection.sql` migration and the changed `admin-ingest`, `ingest-worker` and legacy `ingest-documents` functions together. The existing worker schedule and embedding provider configuration must be verified on the target. Apply neither migration nor deployment from this guide without the owner's release authorization. A preview points at the same live Supabase project; it is not an isolated test database.
 
 Client requirements:
 
@@ -86,6 +86,6 @@ Before activation SQL verifies all planned chunks/vectors, hashes and source tex
 
 ## Current release limits
 
-This implementation connects reviewed Law text to the existing orchestrator and search storage. It is not a complete 18-million-document deployment: automated package-policy decision generation, full historical record relationships/current desk attachments, sensitive serving enforcement, boxes/PDF-viewer integration and large-scale capacity qualification remain open. The National frozen stage is untouched. No real corpus source was admitted or indexed while developing this connection.
+This implementation connects reviewed Law text to the existing orchestrator and search storage. It is not a complete 18-million-document deployment: automated package-policy decision generation, full historical record relationships/current desk attachments, sensitive serving enforcement, boxes/PDF-viewer integration and large-scale capacity qualification remain open. The National frozen stage is untouched. The separately authorized [five-source hosted pilot](law-five-pilot.md) passed, including exact-repeat registration and semantic retrieval. That does not authorize larger batches.
 
 Rollback before admission: retain the old functions and do not release the migration. After admission: pause the existing worker schedule, cancel pending jobs through existing controls and retain immutable input/receipt data for reconciliation. Do not drop the new table or migration while jobs exist; removal/replacement of indexed records is a separately authorized data task.
