@@ -40,6 +40,29 @@ Feature routing must name an existing Law feature in `supabase/functions/_shared
 
 Resolve `__full` replacement precedence, repeated member occurrences, revision-specific duplicate winners, sensitive serving policy and the report's exceptions before generating eligible decisions. Do not import a duplicate alias as a second searchable document just because it has identical text. The three companion checksum differences also remain a package-release check. Known `partial`/`cut_at_*` page declarations, bad hashes/spans and unsupported features fail even with an eligible review.
 
+## Preparing a bounded cohort with the screener
+
+`scripts/law-cohort-screen.py` prepares one bounded cohort from one pinned ZIP member, offline and read-only. It is not the whole-pack decision generator, and it does not change what the importer checks.
+
+```bash
+python3 -I scripts/law-cohort-screen.py screen --archive "$ZIP" \
+  --member documents/tribunals/IBBI_NCLT/<shard>.jsonl.gz --expect-member-sha256 <member sha256> \
+  --start-line <n> --count 5 --max-scan 20 --feature 'NCLT / NCLAT (Insolvency)' \
+  --exclude-decisions docs/operations/law-five-release/decisions.jsonl \
+  --exclude-decisions docs/operations/law-cohort-2-release/decisions.jsonl \
+  --expect-policy-hashes docs/operations/law-five-release/eligibility-evidence.json \
+  --output-dir /absolute/staging/cohort-N
+# only after the owner approves the screened keys:
+python3 -I scripts/law-cohort-screen.py finalize --screen /absolute/staging/cohort-N/screen.json \
+  --output /absolute/staging/cohort-N/decisions.jsonl --decision-id <owner decision id> --approved-by '<approver>'
+```
+
+`screen` holds any record that fails the adapter-contract checks, lacks a URL/licence/attribution, is flagged in the pack's internal sensitivity, dedupe (`keep=0`, or a keeper naming another file) or not-in-pack lists, has a `__full` replacement or competing text hash in its collection folder, or is already listed in an `--exclude-decisions` manifest. Every central-directory occurrence of a repeated name is hashed and read; only byte-identical repeats are skipped. It writes `screen.json` (evidence, no text) and `candidates.jsonl` (original lines of passing records).
+
+`finalize` refuses held keys, a changed `candidates.jsonl`, a screen from an older schema, and any screen that is not complete: all three policy files must be present and match `--expect-policy-hashes` in every occurrence, and the collection conflict scan must have run (`--no-scan-subtree` is exploratory only). A new pack release needs a newly reviewed expectation file; do not reuse the pilot hashes for different bytes.
+
+Known limits: existing-record screening uses only the `--exclude-decisions` manifests, not the live database (the importer reconciles at registration; take a read-only `verify.sql`-style baseline before submitting). The conflict scan covers the member's collection folder only. Exact chunk counts come from the importer dry run. Dedupe is a hold, not a winner decision. The review booleans written by `finalize` remain the approver's attestation. Its tests run in CI (`python3 -I scripts/law-cohort-screen.test.py`). Cohort-2's evidence is in `law-cohort-2-release/`.
+
 ## Dry run first
 
 ```bash
