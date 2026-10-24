@@ -1,4 +1,4 @@
-import { lawAttributionContext } from '../_shared/lawContext.ts';
+import { decimalParagraphOpenings, lawAttributionContext } from '../_shared/lawContext.ts';
 import type { EvidenceMap } from './sources.ts';
 
 export interface LawPassage {
@@ -16,12 +16,12 @@ interface Unit { spans: Span[]; opening?: number; section?: string; context: str
 /** Read-time units only. Storage chunks and citation handles are never rewritten. */
 export function lawReviewEvidence(evidence: EvidenceMap, limit = 80_000): LawPassage[] {
   const units = new Map<string, Unit>();
-  const structured = new Set([...evidence.values()].filter(e => e.kind === 'text' && e.chunk.desk_tier === 'law' && /(?:^|[\n\f])[ \t]*\d{1,2}\.\d{1,3}[ \t]/.test(e.chunk.content)).map(e => e.kind === 'text' ? e.chunk.document_id : ''));
+  const structured = new Set([...evidence.values()].filter(e => e.kind === 'text' && e.chunk.desk_tier === 'law' && decimalParagraphOpenings(e.chunk.content).length > 0).map(e => e.kind === 'text' ? e.chunk.document_id : ''));
   for (const [source, e] of evidence) {
     if (e.kind !== 'text') continue;
     const c = e.chunk, documentId = c.document_id ?? '';
     const starts = c.desk_tier === 'law' && Number.isSafeInteger(c.char_from)
-      ? [...c.content.matchAll(/(?:^|[\n\f])([ \t]*\d{1,2}\.\d{1,3}[ \t]+[^\r\n\f])/g)]
+      ? decimalParagraphOpenings(c.content)
         .map(m => m.index! + m[0].indexOf(m[1]) + m[1].search(/\S/))
         .filter(start => {
           const prefix = c.content.slice(0,start);

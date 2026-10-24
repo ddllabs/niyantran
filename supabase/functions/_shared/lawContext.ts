@@ -15,6 +15,13 @@ export interface LawContextRow {
 }
 export const LAW_CONTEXT_CHUNKS = 256;
 
+/** Typography only: a line-wrapped amount is not a decimal paragraph label.
+ * Keep one recognizer for hydration and passage grouping so they agree on offsets. */
+export function decimalParagraphOpenings(text: string): RegExpMatchArray[] {
+  return [...text.matchAll(/(?:^|[\n\f])([ \t]*\d{1,2}\.\d{1,3}[ \t]+[^\r\n\f])/g)]
+    .filter(m => !/^\s*\d+\.\d+\s+(?:(?:crores?|lakhs?|lacs?|millions?|billions?|percent|per\s+cent)\b|%)/i.test(text.slice(m.index!, m.index! + 100)));
+}
+
 export async function hydrateLawContext(
   chunks: Chunk[], read: (id: string) => Promise<LawContextRow[]>,
 ): Promise<Chunk[]> {
@@ -64,7 +71,7 @@ export async function hydrateLawContext(
     // locates text only: no claim that the paragraph is a finding or a precedent.
     const openings: {text:string;chunkId:string;charFrom:number}[]=[];
     for (const row of rows) {
-      const matches=[...row.content.matchAll(/(?:^|[\n\f])([ \t]*\d{1,2}\.\d{1,3}[ \t]+[^\r\n\f])/g)];
+      const matches=decimalParagraphOpenings(row.content);
       for (let i=0;i<matches.length;i++) {
         const m=matches[i];
         const start=m.index!+m[0].indexOf(m[1])+m[1].search(/\S/);
@@ -73,7 +80,7 @@ export async function hydrateLawContext(
       }
     }
     const openingFor=(hit:Chunk)=>{
-      const first=/^(?:[ \t\r\n\f]*)\d{1,2}\.\d{1,3}[ \t]/.test(hit.content);
+      const first=decimalParagraphOpenings(hit.content).some(m=>!hit.content.slice(0,m.index).trim());
       if(first)return undefined;
       const opening=openings.filter(p=>p.charFrom<hit.char_from).sort((a,b)=>b.charFrom-a.charFrom)[0];
       if(!opening || hit.char_from-opening.charFrom>12000)return undefined;

@@ -216,7 +216,7 @@ Deno.test('F247 explicit quotation requests require an exact cited-source quotat
  for(const bad of [synthesis,fabricated]) {
   const reasons:string[]=[];const seen:StreamRequest[]=[];
   const a=await reviewLawAnswer(replay([selection,bad,quoted],seen),{...request(),question:'What costs were ordered? Quote the original passage.',report:r=>reasons.push(r)});
-  assert(a);assertEquals(reasons,['source_quotation_required']);assertEquals(seen.length,3);assert(a.answer.includes('“No order as to cost.”'));
+  assert(a);assertEquals(reasons,[bad===fabricated?'unsupported_quotation':'source_quotation_required']);assertEquals(seen.length,3);assert(a.answer.includes('“No order as to cost.”'));
  }
 });
 
@@ -285,4 +285,70 @@ Deno.test('F250 reserves enough output allowance for High selection without addi
  };
  const a=await reviewLawAnswer(provider,{...request(),selectionReasoning:{effort:'high'},reasoning:{effort:'high'}});
  assert(a);assertEquals(calls,2);
+});
+
+Deno.test('F251 retains existing JSON mode and rejects unsupported attribution',async()=>{
+ const seen:StreamRequest[]=[];
+ await reviewLawAnswer(replay([selection,synthesis],seen),request());
+ assert(seen.every(r=>(r.response_format as {type:string}).type==='json_object'));
+ const bad={claims:[{text:'The tribunal rejected the case, not because the debt was unproven.',evidence:'p2'}],uncertain:false};
+ const reasons:string[]=[];
+ assertEquals(await reviewLawAnswer(replay([selection,bad,bad]),{...request(),model:'deepseek/deepseek-v4-flash',report:r=>reasons.push(r)}),null);
+ assertEquals(reasons,['negative_merits_contrast','negative_merits_contrast']);
+});
+
+Deno.test('F251 rejects paraphrases presented as exact quotations even without an explicit quote request',async()=>{
+ const e:EvidenceMap=new Map([['ref:abcdef-1',{kind:'text',chunk:{document_id:'d',desk_tier:'law',content:'The Applicant is directed to deposit INR 75,000/- (Indian Rupees Seventy Five Thousand only) or such lesser amount as is mutually agreed.'} as Chunk}]]);
+ const bad={claims:[{text:'The tribunal directed the applicant “to deposit INR 75,000/- or such lesser amount as is mutually agreed”.',evidence:'p1'}],uncertain:false};
+ const good={claims:[{text:'The tribunal directed a deposit of INR 75,000/- or a mutually agreed lesser amount.',evidence:'p1'}],uncertain:false};
+ const reasons:string[]=[];
+ const a=await reviewLawAnswer(replay([{passages:['p1']},bad,good]),{...request(),evidence:e,report:r=>reasons.push(r)});
+ assert(a);assertEquals(reasons,['unsupported_quotation']);assert(!a.answer.includes('“'));
+});
+
+Deno.test('F251 compact single-document evidence synthesizes once with every original passage',async()=>{
+ const seen:StreamRequest[]=[];
+ const a=await reviewLawAnswer(replay([synthesis],seen),{...request(),compactEvidence:true,reasoning:{effort:'high'}});
+ assert(a);assertEquals(seen.length,1);assertEquals(seen[0].reasoning,{effort:'high'});
+ assertEquals(JSON.parse(String(seen[0].messages[1].content)).passages.length,2);
+ assertEquals(a.sources.length,2);
+});
+
+Deno.test('F251 compact review retains selection for multi-document, oversized and large passage pools',async()=>{
+ for(const rows of [
+  [{document_id:'a',content:'First original source.'},{document_id:'b',content:'Second original source.'}],
+  [{document_id:'a',content:'Original source. '+ 'x'.repeat(12000)}],
+  Array.from({length:13},(_,i)=>({document_id:'a',content:'Original source '+i+'.'})),
+ ]) {
+  const e:EvidenceMap=new Map(rows.map((chunk,i)=>['ref:abcdef-'+i,{kind:'text',chunk:{desk_tier:'law',...chunk} as Chunk}]));
+  const seen:StreamRequest[]=[];
+  await reviewLawAnswer(replay([{passages:['p1']},{claims:[{text:'First original source.',evidence:'p1'}],uncertain:false}],seen),{...request(),evidence:e,compactEvidence:true});
+  assert(String(seen[0].messages[0].content).startsWith('Select original passages'));
+ }
+});
+Deno.test('F251 compact synthesis keeps one correction, fail-closed validation and attempt admission',async()=>{
+ const seen:StreamRequest[]=[];const minima:number[]=[];
+ const a=await reviewLawAnswer(replay([{},{}],seen),{...request(),compactEvidence:true,takeAttempt:n=>{minima.push(n);return true;}});
+ assertEquals(a,null);assertEquals(seen.length,2);assertEquals(minima,[1,1]);
+ const denied:StreamRequest[]=[];
+ assertEquals(await reviewLawAnswer(replay([synthesis],denied),{...request(),compactEvidence:true,takeAttempt:()=>false}),null);
+ assertEquals(denied.length,0);
+});
+
+Deno.test('F251 money amounts must be supported by the claim’s own citation, not an adjacent source',async()=>{
+ const e:EvidenceMap=new Map([
+  ['ref:abcdef-1',{kind:'text',chunk:{document_id:'d',content:'The tribunal appoints Mr Example as IRP.'} as Chunk}],
+  ['ref:abcdef-2',{kind:'text',chunk:{document_id:'d',content:'The creditor shall deposit Rs.3,00,000/- with the IRP.'} as Chunk}],
+ ]);
+ const bad={claims:[{text:'The tribunal appointed Mr Example as IRP and directed a deposit of Rs. 3,00,000.',evidence:'p1'}],uncertain:false};
+ const good={claims:[{text:'The tribunal appointed Mr Example as IRP.',evidence:'p1'},{text:'The creditor shall deposit INR 300000 with the IRP.',evidence:'p2'}],uncertain:false};
+ const reasons:string[]=[];
+ const a=await reviewLawAnswer(replay([selection,bad,good]),{...request(),evidence:e,report:r=>reasons.push(r)});
+ assert(a);assertEquals(reasons,['unsupported_amount']);assertEquals(a.sources.length,2);
+});
+
+Deno.test('F251 rupee support does not equate different magnitude units with the same numeral',async()=>{
+ const e:EvidenceMap=new Map([['ref:abcdef-1',{kind:'text',chunk:{document_id:'d',content:'The creditor shall deposit Rs.5 lakh.'} as Chunk}]]);
+ const bad={claims:[{text:'The creditor shall deposit Rs.5 crore.',evidence:'p1'}],uncertain:false};
+ assertEquals(await reviewLawAnswer(replay([{passages:['p1']},bad,bad]),{...request(),evidence:e}),null);
 });

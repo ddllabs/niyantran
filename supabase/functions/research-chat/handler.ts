@@ -1377,6 +1377,7 @@ async function runTurnBody(
           // The selector and synthesizer share the turn's deadline, accounting and one repair.
           reviewed = await reviewLawAnswer(attempts.wrap(observedStream, 'chat_answer'), {
             model: attemptModel, question: request.message,
+            compactEvidence: lawEvidenceReady,
             previousQuestions: window.filter(m => m.role === 'user').map(m => m.content ?? ''),
             evidence, signal,
             report: reason => log('research.law_review_rejected', { reason, attempt: budget.modelAttempts }),

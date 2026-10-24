@@ -50,3 +50,14 @@ Deno.test('Consistent chained overlapping spans retain their original coverage',
  const p=lawReviewEvidence(map([{content:full.slice(0,10),char_from:0},{content:full.slice(5,20),char_from:5,paragraph_context:{text:full.slice(0,5),chunkId:'a',charFrom:0}},{content:full.slice(8,18),char_from:8,paragraph_context:{text:full.slice(0,5),chunkId:'a',charFrom:0}}]));
  assertEquals(p.length,1);assertEquals(p[0].text,full.slice(0,20));assertEquals(p[0].sources,['ref:abcdef-1','ref:abcdef-2']);
 });
+
+Deno.test('F251 monetary decimals do not suppress independently retrieved unstructured rulings',()=>{
+ for(const amount of ['65.55 crores','18.77 lakhs','12.5 million','10.25 percent','65.55 %']) {
+  const p=lawReviewEvidence(map([
+   {content:'The applicant alleged valuation of\n'+amount+'.',char_from:0},
+   {content:'32. Dismissal is confined to recall; criminal remedies remain open.',char_from:200},
+  ]));
+  assertEquals(p.length,2);
+  assert(p.some(p=>p.text.includes('criminal remedies remain open')));
+ }
+});
