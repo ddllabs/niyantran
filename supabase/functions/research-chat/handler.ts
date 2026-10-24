@@ -1082,6 +1082,10 @@ async function runTurnBody(
     } });
   };
 
+  const provisionTurn = !conversational && !documentSearchUnavailable &&
+    request.focus !== 'broad' && /\b(?:sections?|clauses?|provisions?|amend(?:s|ed|ment|ments)?)\b/i.test(request.message) &&
+    [request.desk_context, request.selection, ...request.attachments].some(context =>
+      context?.tier === 'national' && context.feature === 'Bill Passage Probability Index');
   let lawTurn = !conversational && (request.desk_context?.tier === 'law' || request.selection?.tier === 'law' || request.attachments.some(a => a.tier === 'law'));
   const onEvent = (e: AgentEvent) => {
     if (signal.aborted) return;
@@ -1207,7 +1211,7 @@ async function runTurnBody(
       context.checkpoint({ activity: [...activity] });
     } else if ('text' in e || 'draftText' in e) {
       decoder.push('text' in e ? e.text : e.draftText);
-      const shown = lawTurn || placeholderPrefix(decoder.text) ? '' : decoder.text.slice(streamed.length);
+      const shown = lawTurn || provisionTurn || placeholderPrefix(decoder.text) ? '' : decoder.text.slice(streamed.length);
       if (shown) {
         // A research reply promoted to the answer has no answer round to announce it.
         stage(WRITING);
@@ -1292,7 +1296,7 @@ async function runTurnBody(
           // starts inside it runs at the model's low effort. At high effort a document search
           // hands the answer one reply budget of passages, not forty: Gemini Flash at high read
           // forty and was still thinking when the deadline cut it at 108.7 s.
-          ...(context.timeLeft ? { timeLeft: () => Math.max(0, context.timeLeft!() - (lawTurn ? LAW_REVIEW_RESERVE_MS : 0)) } : {}),
+          ...(context.timeLeft ? { timeLeft: () => Math.max(0, context.timeLeft!() - ((lawTurn || provisionTurn) ? LAW_REVIEW_RESERVE_MS : 0)) } : {}),
           ...lateReasoningOf(t, model),
           ...(HIGH_EFFORTS.has(effortOf(t, model) ?? '') ? { toolReplyChars: TOOL_REPLY_CHARS } : {}),
         },
@@ -1396,7 +1400,15 @@ async function runTurnBody(
   }
   for (const row of result.rows) evidence.set(handles.assign(rowSourceKey(row)), { kind: 'row', row });
 
-  if (lawTurn && result.chunks.some(c => c.desk_tier === 'law')) {
+  // Provision answers use only the matching retrieved bill originals. Listing
+  // analysis and research prose are not evidence of a provision's legal effect.
+  const provisionEvidence: EvidenceMap = new Map([...evidence].filter(([, entry]) =>
+    entry.kind === 'text' && entry.chunk.desk_tier === 'national' &&
+    entry.chunk.desk_feature === 'Bill Passage Probability Index' &&
+    (!scopedDocumentIds.length || scopedDocumentIds.includes(entry.chunk.document_id))));
+  const reviewLaw = lawTurn && result.chunks.some(c => c.desk_tier === 'law');
+  const reviewProvision = provisionTurn && !reviewLaw;
+  if (reviewLaw || reviewProvision) {
     let reviewed = null;
     if ((envelope || lawEvidenceReady) && !signal.aborted && budget.modelAttempts < BUDGET.maxSteps &&
         (!context.timeLeft || context.timeLeft() > 1000)) {
@@ -1410,8 +1422,9 @@ async function runTurnBody(
             model: attemptModel, question: request.message,
             compactEvidence: lawEvidenceReady,
             previousQuestions: window.filter(m => m.role === 'user').map(m => m.content ?? ''),
-            evidence, signal,
-            report: reason => log('research.law_review_rejected', { reason, attempt: budget.modelAttempts }),
+            evidence: reviewProvision ? provisionEvidence : evidence, signal,
+            mode: reviewProvision ? 'provision' : 'law',
+            report: reason => log(reviewProvision ? 'research.provision_review_rejected' : 'research.law_review_rejected', { reason, attempt: budget.modelAttempts }),
             selectionReasoning: effortOf(t, attemptModel) ? { effort: effortOf(t, attemptModel)! }
               : lawReviewReasoning(t.models.find(m => m.model_id === attemptModel)?.efforts ?? []).reasoning,
             ...(effortOf(t, attemptModel) ? { reasoning: { effort: effortOf(t, attemptModel)! } } : {}),
@@ -1437,7 +1450,7 @@ async function runTurnBody(
             continue;
           }
           reviewed = null;
-          log('research.law_review_failed', { aborted: signal.aborted });
+          log(reviewProvision ? 'research.provision_review_failed' : 'research.law_review_failed', { aborted: signal.aborted });
           break;
         }
       }
@@ -1446,7 +1459,7 @@ async function runTurnBody(
       attempts.rejectLast('chat_answer', 'Legal answer declined: original-source support verification failed or unavailable.');
       return makeAssistantMessage({ content: '', sources: [], followUps: [], activity, served,
         status: signal.aborted ? 'interrupted' : 'error',
-        error: 'The legal answer could not be verified against original source passages. Please try again.',
+        error: reviewProvision ? 'The provision answer could not be verified against original source passages. Please try again.' : 'The legal answer could not be verified against original source passages. Please try again.',
         usage: attempts.summary(), timing: timingOf(startedAt, now(), searchMs, writingStart, writingEnd, { firstModelAt, firstAnswerAt, rounds }),
       });
     }

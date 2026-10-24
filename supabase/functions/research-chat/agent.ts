@@ -926,7 +926,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       }
       // Incomplete research calls are not executable. Answer bytes already
       // streamed are kept and retried only as a bounded same-model continuation.
-      if (partial) messages.push({ role: 'assistant', content: partial });
+      if (partial && !holdDraft) messages.push({ role: 'assistant', content: partial });
       if (phase === 'answer' && state.text) state.resumeAnswer = true;
       state.finish = 'error';
       // A call that carried the tool and broke off may have searched, and been billed, before it
@@ -983,19 +983,22 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         retract('searching');
         messages.push({
           role: 'assistant',
-          content: partial || null,
+          // A web research synthesis is not source evidence. Keep the tool
+          // protocol, but let the answer use returned excerpts, not that draft.
+          content: webSearched ? null : partial || null,
           tool_calls: calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.args } })),
         });
         state.pendingTools.push(...calls);
         await completeToolReplies();
         carryWeb();
       } else if (
-        !a.conversational && !state.pressedToSearch && budget.searches === 0 &&
+        !a.conversational && !a.documentSearchUnavailable && !state.webPages.length &&
+        !state.pressedToSearch && budget.searches === 0 &&
         budget.modelAttempts < BUDGET.maxSteps - 1
       ) {
         state.pressedToSearch = true;
         retract('searching');
-        if (partial) messages.push({ role: 'assistant', content: partial });
+        if (partial && !webSearched) messages.push({ role: 'assistant', content: partial });
         carryWeb();
         messages.push({ role: 'user', content: SEARCH_FIRST });
       } else if (
@@ -1015,7 +1018,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       } else if (dig && !forceWeb) {
         state.pressedToDig = true;
         retract('searching');
-        if (partial) messages.push({ role: 'assistant', content: partial });
+        if (partial && !webSearched) messages.push({ role: 'assistant', content: partial });
         carryWeb();
         messages.push({ role: 'user', content: dig });
       } else if (
@@ -1034,7 +1037,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         state.phase = 'complete';
       } else {
         retract('rewriting');
-        if (partial) messages.push({ role: 'assistant', content: partial });
+        if (partial && !webSearched) messages.push({ role: 'assistant', content: partial });
         carryWeb();
         beginAnswer();
       }
