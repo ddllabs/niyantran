@@ -1,0 +1,126 @@
+{
+ "status": "indexed-and-published",
+ "decision_id": "owner-authorized-20261024-law-next-100",
+ "approved_by": "Vighnesh Shukla (relayed in chat by Tamanesh Kauri, 2026-10-24 04:13 IST)",
+ "target": "vfgcppstyzjarlzyqdac",
+ "repository_revision": "cf3e7533209858dadde08274f49fe996dd7179d5",
+ "member": {
+  "name": "documents/tribunals/IBBI_NCLT/2026__part-00006.jsonl.gz",
+  "sha256": "ac10758f54d75a93cf71f1be45f09ed20adefd7d32174bfe839e70b8652c841a"
+ },
+ "screen_json_sha256": "5c42b48aacc61087d85ad2a61d48a7a5bcd7bb915d2ad3bb02fdbcecaf63cf18",
+ "candidates_jsonl_sha256": "ed53e061e26b0c7e74f00b7914a2b5d4147edb4b3de649e0dba298e9f5b1e128",
+ "decision_manifest_sha256": "af57c78d478048c6c06afba6d76e41ed76ae5f0dd52384200424a2d71920d13b",
+ "cohort_table": "../law-next-100-prep/cohort-proposal-UNSIGNED.tsv (sha256 17aeb9eb63a29952b7d7b779fa62d81a5b6c24311086782c2808739391aa487b)",
+ "bounds": {
+  "documents": 100,
+  "max_chunks": 4425,
+  "max_estimated_cost_usd": 0.24
+ },
+ "offline_dry_run": {
+  "selected": 100,
+  "ready": 100,
+  "held": 0,
+  "chunks": 4425,
+  "estimated_cost_ceiling_usd": 0.23562654
+ },
+ "live_reconciliation": {
+  "at_utc": "2026-10-24T07:04:38Z/07:07:47Z",
+  "ready": 100,
+  "create_listing": 66,
+  "link_existing": 34,
+  "mismatches_vs_reviewed_proposal": 0,
+  "report_sha256": "afbd7e4a56b042f1651ec74d9b9a57f727a10ae8ffb0520d1c8ae5b196a42dff"
+ },
+ "submit": {
+  "started_utc": "2026-10-24T07:08:33Z",
+  "selected": 100,
+  "submitted": 100,
+  "uncertain": 0,
+  "registration_held": 0,
+  "already_registered": 0,
+  "publication_pending_at_submit": 100,
+  "importer_exit": 2,
+  "importer_exit_meaning": "publication pending while indexing (expected); not an error",
+  "report_sha256": "784582f1be1590187b88b9a8de75ce00599664ea4763284c6b9798948268ec4f"
+ },
+ "verification_utc": "2026-10-24T07:25Z",
+ "verified": {
+  "documents": 100,
+  "indexed": 100,
+  "chunks": 4425,
+  "chunk_count_fingerprint_matches_plan": true,
+  "missing_vectors": 0,
+  "vector_dims": 1536,
+  "stored_text_hash_valid": 100,
+  "one_job_each": 100,
+  "jobs_succeeded": 100,
+  "ocr_pages": 0,
+  "published": 100,
+  "listing_url_matches_order_url": 100,
+  "one_source_membership_each": 100,
+  "distinct_listings": 100,
+  "new_listings": 66,
+  "existing_listings_linked": 34,
+  "listing_mapping_fingerprint_matches_proposal": true,
+  "fingerprints": {
+   "source_key|chunks|text_sha256": "c45ed25ecb19f927b485fec44661d9e6aa9078518d2ed2cf47e9567479af2f41",
+   "source_key|listing (create-listing or existing row_key)": "861516b02feeb319133fb208be2a8f1aa65562eaf0c81f4a65592c4306e831ce"
+  },
+  "stored_vector_self_lookup": {
+   "probes": 100,
+   "top1_global": 100,
+   "top1_nclt_scoped": 100,
+   "spans_and_official_url": 100,
+   "note": "vector self-lookup only; not natural-language or website acceptance"
+  }
+ },
+ "cost": {
+  "embedding_calls": 107,
+  "embedding_tokens": 1006176,
+  "embedding_usd": 0.02012352,
+  "ocr_usd": 0,
+  "chat_usd": 0
+ },
+ "deltas": {
+  "documents": "3469 -> 3569 (+100)",
+  "document_chunks": "101243 -> 105668 (+4425)",
+  "law_documents": "10 -> 110",
+  "law_records": "436 -> 502 (+66)",
+  "law_source_memberships": "445 -> 545 (+100)",
+  "law_document_links": "10 -> 110",
+  "law_publications_published": "10 -> 110"
+ },
+ "throughput": {
+  "first_job_utc": "2026-10-24T07:11:14Z",
+  "last_indexed_utc": "2026-10-24T07:22:51Z",
+  "wall_minutes": 11.6,
+  "worker_concurrency": "unchanged (2)"
+ },
+ "analyze": "documents, document_chunks, law_records, law_source_memberships, law_document_links, law_publications, ingest_jobs analyzed after load",
+ "not_verified": [
+  "natural-language retrieval with fresh query embeddings",
+  "website listing/search/citation acceptance (F247 partially resolved, F249 open)",
+  "OCR accuracy and legal clearance beyond the screen",
+  "party-submission vs tribunal-finding attribution sample"
+ ],
+ "rerun": {
+  "report_sha256": "19c2042bb288546692ebb59d87b4e1e6d31ad69c2f13d3e97ceee3271a27e90c",
+  "importer_exit": 0,
+  "submitted": 0,
+  "already_registered": 100,
+  "published": 100,
+  "estimated_cost_ceiling_usd": 0,
+  "db_after": {
+   "documents": 3569,
+   "document_chunks": 105668,
+   "ingest_jobs": 112,
+   "law_records": 502,
+   "memberships": 545,
+   "links": 110,
+   "last_job_created_utc": "2026-10-24T07:15:23Z",
+   "embedding_calls_after_07_24_utc": 0
+  }
+ },
+ "credentials": "typed by the owner into hidden Colab prompts; held only in that process environment; removed after the rerun; never in chat, Git or reports"
+}
