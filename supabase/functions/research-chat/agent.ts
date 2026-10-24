@@ -1,3 +1,4 @@
+import { lawAttributionContext } from '../_shared/lawContext.ts';
 import { placeholderAnswer } from './answerValidation.ts';
 // One dependency-injected research loop. The handler owns authentication,
 // failover, persistence and the public stream; this module never retries a
@@ -377,8 +378,7 @@ export function renderChunk(handle: string, c: Chunk): string {
     if (section) fields.push(section);
   }
   const attribution = c.desk_tier === 'law' ? 'Attribution is not established by an excerpt appearing in an order. Verify the governing party-submission, quoted-authority or tribunal-reasoning context before attributing a claim.\n' : '';
-  const heading = c.desk_tier === 'law' && c.preceding_heading
-    ? `Nearest recognized uppercase numbered heading in the retrieved prefix (quoted source context, not a role classification): ${JSON.stringify(sectionText(c.preceding_heading.text))}. Unrecognized or unnumbered intervening headings may exist; this context does not by itself establish the governing speaker. Any new heading inside the excerpt supersedes it.\n` : '';
+  const heading = c.desk_tier === 'law' ? `${lawAttributionContext(c)}\n` : '';
   return `${fields.join(' | ')}\n${attribution}${heading}${c.content}`;
 }
 

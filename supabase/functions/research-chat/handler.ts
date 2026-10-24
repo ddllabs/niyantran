@@ -1,4 +1,4 @@
-import { reviewLawAnswer, auditLawAnswer, lawReviewReasoning, LAW_REVIEW_RESERVE_MS } from './lawAnswer.ts';
+import { reviewLawAnswer, lawReviewReasoning, LAW_REVIEW_RESERVE_MS } from './lawAnswer.ts';
 import { placeholderAnswer, placeholderPrefix } from './answerValidation.ts';
 // The research turn (streaming spec §E). Framework-free and dependency
 // injected: nothing here touches Deno.env or the network, so the same code
@@ -1366,23 +1366,23 @@ async function runTurnBody(
       try {
         stage('Checking source support');
         writingStart = now();
-        rounds++;
-        budget.modelAttempts++;
-        // Stay on the actual attempt model; provider "served" may be a version alias.
+        // The selector and synthesizer share the turn's deadline, accounting and one repair.
         reviewed = await reviewLawAnswer(attempts.wrap(observedStream, 'chat_answer'), {
-          model: attemptModel, question: request.message, draft: envelope.answer, evidence, signal,
+          model: attemptModel, question: request.message,
+          previousQuestions: window.filter(m => m.role === 'user').map(m => m.content ?? ''),
+          evidence, signal,
           report: reason => log('research.law_review_rejected', { reason, attempt: budget.modelAttempts }),
-          ...lawReviewReasoning(t.models.find(m => m.model_id === attemptModel)?.efforts ?? []),
+          selectionReasoning: effortOf(t, attemptModel) ? { effort: effortOf(t, attemptModel)! }
+            : lawReviewReasoning(t.models.find(m => m.model_id === attemptModel)?.efforts ?? []).reasoning,
+          ...(effortOf(t, attemptModel) ? { reasoning: { effort: effortOf(t, attemptModel)! } } : {}),
+          takeAttempt: minimumRemaining => {
+            if (signal.aborted || BUDGET.maxSteps - budget.modelAttempts < minimumRemaining ||
+                (context.timeLeft && context.timeLeft() <= 1000)) return false;
+            rounds++;
+            budget.modelAttempts++;
+            return true;
+          },
         });
-        if (reviewed && budget.modelAttempts < BUDGET.maxSteps && !signal.aborted &&
-            (!context.timeLeft || context.timeLeft() > 1000)) {
-          rounds++;
-          budget.modelAttempts++;
-          reviewed = await auditLawAnswer(attempts.wrap(observedStream, 'chat_answer'), {
-            model: attemptModel, candidate: reviewed, evidence, signal,
-            ...(effortOf(t, attemptModel) ? { reasoning: { effort: effortOf(t, attemptModel)! } } : lawReviewReasoning(t.models.find(m => m.model_id === attemptModel)?.efforts ?? [])),
-          });
-        } else reviewed = null;
       } catch { reviewed = null; log('research.law_review_failed', { aborted: signal.aborted }); }
     }
     if (!reviewed) {

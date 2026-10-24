@@ -3643,16 +3643,24 @@ Deno.test('F249: repeated placeholder cannot become a completed response', async
   assertEquals(rec.messages[0].content, '');
 });
 
-for (const lawHint of [true, false]) for (const valid of [true, false]) for (const auditPass of [true, false]) Deno.test(`F247: ${lawHint ? 'Law hint' : 'broad retrieval'} draft is held until source review (${valid ? 'valid' : 'fabricated quote'}, audit ${auditPass})`, async () => {
+for (const lawHint of [true, false]) for (const valid of [true, false]) for (const repair of [true, false]) Deno.test(`F247: ${lawHint ? 'Law hint' : 'broad retrieval'} synthesized answer is held until source mapping (valid ${valid}, repair ${repair})`, async () => {
   const original = '7.34 The application is rejected and disposed of. No order as to cost.';
-  let reviewed = false;
+  let selections = 0, syntheses = 0;
   const stream: HandlerDeps['stream'] = async function* (req) {
     const handle = /ref:[a-z0-9]{6}-\d+/.exec(JSON.stringify(req.messages))?.[0] ?? '';
-    if (String(req.messages[0].content).startsWith('Verify each claim')) {
-      yield text(JSON.stringify({supported:auditPass?[1]:[]})); yield finish();
-    } else if (String(req.messages[0].content).startsWith('Check a legal answer')) {
-      reviewed = true;
-      yield text(JSON.stringify({ claims: [{statement:'The tribunal rejected the application with no order as to cost.',source:handle,quote_id: valid ? JSON.parse(String(req.messages[1].content)).passages.find((p: {source:string})=>p.source===handle).excerpts[0].id : 'invented-excerpt'}], uncertain:false }));
+    if (String(req.messages[0].content).startsWith('Select original passages')) {
+      selections++;
+      assertEquals(req.reasoning,{effort:'high'});
+      assertEquals(req.max_tokens,8000);
+      const p = JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({passages:[p.id]})); yield finish();
+    } else if (String(req.messages[0].content).startsWith('Answer the question directly')) {
+      syntheses++;
+      assertEquals(req.reasoning,{effort:'high'});
+      assertEquals(req.max_tokens,8000);
+      const p = JSON.parse(String(req.messages[1].content)).passages[0];
+      if (repair && syntheses === 1) yield text(JSON.stringify({answer:'invalid shape'}));
+      else yield text(JSON.stringify({claims:[{text:'The tribunal rejected the application with no order as to cost.',evidence:[valid?p.id:'invented']}],uncertain:false}));
       yield finish();
     } else if (!handle) {
       yield {type:'tool-call',id:'find',name:'search_documents',args:'{"query":"operative order"}'}; yield finish('tool_calls');
@@ -3661,10 +3669,10 @@ for (const lawHint of [true, false]) for (const valid of [true, false]) for (con
     }
   };
   const {deps,rec}=fakeDeps({stream},{searchDocuments:()=>Promise.resolve([{...chunk('law'),desk_tier:'law',content:original,char_to:original.length}])});
-  const events=await frames(await handleResearchChat(post({...BODY,...(lawHint ? {desk_context:{tier:'law'}} : {})}),deps));
-  assert(reviewed);
+  const events=await frames(await handleResearchChat(post({...BODY,reasoning:'high',...(lawHint ? {desk_context:{tier:'law'}} : {})}),deps));
+  assertEquals(selections,1);assert(syntheses>=1&&syntheses<=2);
   assert(!JSON.stringify(events).includes('Unsupported tribunal finding'));
-  assertEquals(rec.messages[0].status,valid&&auditPass?'complete':'error');
-  if(valid&&auditPass) { assertStringIncludes(rec.messages[0].content,original); assertEquals(rec.messages[0].sources.length,1); }
+  assertEquals(rec.messages[0].status,valid?'complete':'error');
+  if(valid) { assertStringIncludes(rec.messages[0].content,'The tribunal rejected the application'); assertEquals(rec.messages[0].sources.length,1); }
   else assertEquals(rec.messages[0].content,'');
 });
