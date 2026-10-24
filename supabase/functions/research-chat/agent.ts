@@ -873,6 +873,12 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       ...(forceWeb ? { tool_choice: 'required' as const, response_format: undefined } : {}),
       ...(phase === 'answer' ? { tool_choice: 'none' as const } : {}),
     };
+    if (phase === 'answer' && a.observationScope) {
+      // The general system prompt owns the normal envelope. Override it at the
+      // same trusted priority for this extraction, including schema fallback.
+      // Source evidence remains in the untrusted user block, never here.
+      request.messages.push({ role: 'system', content: 'For this final observation extraction only, replace the general research_answer output contract with observation_excerpts: {"definition":{"sourceId":1,"quote":"exact excerpt sentence"}|null,"updates":[{"sourceId":1,"quote":"exact excerpt sentence"}]}. Return only that JSON object. No answer, sources, follow_up_questions or other fields. The server renders the answer and citations. All evidence and grounding rules remain binding; follow the extraction constraints in the final request.' });
+    }
     if (late && deps.lateReasoning !== undefined) {
       if (deps.lateReasoning) request.reasoning = deps.lateReasoning;
       else delete request.reasoning;

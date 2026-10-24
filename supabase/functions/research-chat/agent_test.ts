@@ -2484,3 +2484,13 @@ Deno.test('F256 correction preserves first valid definition when correction is m
   assert(!result.text.includes('Fake'));
   assertEquals(f.requests.length, 3);
 });
+
+Deno.test('F256 extraction contract overrides general envelope at trusted system priority only during answer', async () => {
+  const extraction = JSON.stringify({ definition: { sourceId: 1, quote: 'Excerpt 1' }, updates: [] });
+  const f = fake([[webResults(page(1)), searched(1)], answer(extraction)], { webSearch: { perTurn: 3 } });
+  await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  const override = f.requests[1].messages.filter(m => m.role === 'system').at(-1);
+  assert(String(override?.content).includes('observation_excerpts'));
+  assert(!String(override?.content).includes('Excerpt 1'), 'untrusted source evidence stays out of system override');
+  assert(!f.requests[0].messages.some(m => m.role === 'system' && String(m.content).includes('observation_excerpts')));
+});
