@@ -1,12 +1,12 @@
 # Law grounded synthesis release
 
-> **Status: Living.** Release verification in progress. No ingestion authorization.
+> **Status: Living.** F247 bounded Globiz acceptance passed on 2026-10-24: PR33 merge 92a99d46, research-chat v88. Earlier sections preserve failed intermediate releases. F250 performance/wider qualification remains open. No ingestion authorization.
 
-## Change and scope
+## Historical PR31 change and scope
 
 PR #31 replaces the extractive containment path with concise synthesized sentences whose citations are derived from server-owned original-passage IDs. It fixes the follow-up's fragile response shape with one bounded structural correction, retains source support limits, and rejects internal passage IDs in answer prose. Qualified literal heading trails preserve section context across a quoted numbered precedent without labelling the speaker or modifying stored chunks.
 
-Evidence selection and synthesis use the selected model's supported reasoning. Each call allows 8,000 completion tokens, including provider reasoning, inside the existing total deadline and attempt accounting. This can increase latency and usage; it is not a claim of unchanged per-call cost. No model configuration, authentication, schema, worker, OCR, corpus text or embeddings were changed.
+In PR31, evidence selection and synthesis used the selected model's supported reasoning. Each call allowed 8,000 completion tokens, including provider reasoning, inside the existing total deadline and attempt accounting. This can increase latency and usage; it is not a claim of unchanged per-call cost. No model configuration, authentication, schema, worker, OCR, corpus text or embeddings were changed.
 
 Runtime commit `c09551daf012765ed6001569389f2afb655d7445`; PR #31 merge `2429d5f0c79a0eac0eefd53e22dc70b039a7ac98`. Both required jobs passed on the branch and PR runs (`40078872421`, `40078896182`), with green Vercel preview. Main release checks and live acceptance are recorded below when verified.
 
@@ -44,12 +44,12 @@ PR32 runtime `7b72a88fa87681c1f4d2b3403264626cbbd32b9b` merged as `afa39f48a730c
 
 Pre-release read confirms3,569 documents/105,668 chunks globally,110 Law documents/jobs and502 insolvency listings. All110 document, chunk, input and job fingerprints and ingestion costs are unchanged from the latest baseline. Exact merged-commit CI, deployment and website acceptance are pending.
 
-Merged-commit CI40084500163 passed both required jobs. Deployed research-chatv87; retrieved41 source files all match the42-file payload (deno.json is not returned). Bundle hash `98c0bd9e8984673b86321c73a26e8e7fba27c987102e856f007a78860a43dc5a`. Credential-free POST returns401, preserving application authentication. Website tests are now running in a fresh conversation with the existing indexed Globiz attachment, DeepSeek Flash/High and web search off.
+Merged-commit CI40084500163 passed both required jobs. Deployed research-chatv87; retrieved41 source files all match the 42-file payload (deno.json is not returned). Bundle hash `98c0bd9e8984673b86321c73a26e8e7fba27c987102e856f007a78860a43dc5a`. Credential-free POST returns 401, preserving application authentication. Website tests are now running in a fresh conversation with the existing indexed Globiz attachment, DeepSeek Flash/High and web search off.
 
 
 ## Live v87 result and retained-evidence correction
 
-Vercel production dpl_E3HdvwpCHLhVSKXSLvncWu27c2Km serves mergeafa39f48. Original live answer69s/37.2credits correctly cited limitation but explicitly left part unanswered. Same-conversation follow-up63s/42.2credits correctly separated debtor debt-proof/costs submissions from tribunal limitation and no-cost disposition, with four original source handles and no verification error. Citation viewer checks include the original3.31 spans and7.33/7.34; this is not full four-case acceptance.
+Vercel production dpl_E3HdvwpCHLhVSKXSLvncWu27c2Km serves mergeafa39f48. Original live answer69s/37.2credits correctly cited limitation but explicitly left part unanswered. Same-conversation follow-up63s/42.2credits correctly separated debtor debt-proof/costs submissions from tribunal limitation and no-cost disposition, with four original source handles and no verification error. Citation viewer checks include the original 3.31 spans and 7.33/7.34; this is not full four-case acceptance.
 
 Root-cause reproduction identified a production/evaluation mismatch: High draft tool replies are capped at24,000characters, discarding retrieved Law evidence before final synthesis. The local retrieved original-case control retained11/53 chunks and lost7.21 under that cap. The correction retains authorized Law retrieval separately (at most256 chunks/300,000 rendered characters) for the existing final80,000-character paragraph selector. It preserves draft caps, server-owned handles and non-Law behavior. It adds no retrieval/model call by itself, though retaining previously discarded material may increase final-stage tokens within existing limits. Mixed-desk and oversized-first-Law paths still trigger review.
 
@@ -72,3 +72,22 @@ Scalar-ID Flash/High evaluation completed all four approved questions without re
 Local verification:6575 application tests,1280 full Edge tests, lint, production build, evaluation-script check and diff check passed. Independent implementation review found no blocker. Causal scalar-ID regression failed before its correction. Required CI and authenticated NTER acceptance remain pending for this candidate; latency remains material and this is not universal semantic certification.
 
 Fresh read-only baseline found4270 documents/133916 chunks globally,811 Law documents/jobs and1183 insolvency listings. Concurrent ingestion has continued independently of this task; compare original completed documents separately from jobs that were in progress at earlier checkpoints. This task has issued no ingestion, OCR, embedding or listing write.
+
+
+## PR33 deployment
+
+Current v88 limits: selection 8,000 completion tokens, synthesis 16,000, at most three accounted calls and one shared correction (up to 40,000 requested output tokens). The overall turn deadline remains unchanged. No model-routing change.
+
+Candidate 7071d33c merged as92a99d4601012af13593a7305f4dfc314480f6a4. Both required jobs passed on branch/PR runs 40089712353/40089715694 and main 40090172929; main application 3m13s, SQL 6m22s. Vercel production dpl_AEeJtg7AhegGP4z2QXKYYJWGEDPB is READY on that exact merge. Research-chatv88 is ACTIVE, bundle hash 5b8f93001d6d5d00aa25ef8e99548a697be7108c553ac6bcec210a693ffbfea0. All 41 returned source files match the 42-file payload (deno.json excluded by retrieval). Unauthenticated POST returns 401. The following website results are recorded separately from local provider evidence.
+
+Website original question: 70s,53.4 credits, two searches, five original chunk citations. The answer now states limitation dismissal, the expressly confined inquiry and the time-barred claim/non-revival distinction without promoting quoted precedent or debtor submissions. Independent source review accepts coverage. UI source 1 opens 79,2 opens 62,3 opens 63 and5 opens 70; the additional 64 continuation is included in the citation group but was not individually clicked in this check. Screenshot retained privately. Follow-up/date/false-premise checks remain pending at this point.
+
+Website same-conversation follow-up: 161s,70.6 credits, eight citations. It separately states the tribunal’s limitation finding, confined inquiry/no debt-proof determination and no-cost order, then the debtor’s unproven-debt argument and exemplary-cost request. No verification error; independent source review passes. UI citations 5 and 7 open the original 3.31 debt argument and 3.5 costs request; other repeated/continuation handles are source-mapped, not claimed as individually clicked.
+
+Website date question: 81s,75.2 credits, one citation. It correctly distinguishes 06.09.2018 commencement from 01.09.2018 notice and quotes the original 7.29 wording. The UI citation opens original chunk 74/page 32 and matches the quote.
+
+Website false-premise question: 66s,52.2 credits, three citations. It contrasts the operative “No order as to cost” with the debtor’s exemplary-cost request, without claiming an award or adding a causal debt-proof finding. Operative citation 1 was clicked and opens 79; the submission group maps 20/21, previously inspected in the follow-up. Independent review of the final private transcript and original sources accepts all four live cases. Browser error/warning capture was empty.
+
+**F247 is complete for this documented Globiz acceptance set.** Local and live questions both cover original disposition, same-conversation attribution, exact date quotation and false premise. This is not certification of every Law answer. Live responses took 66–161 seconds and52.2–75.2 credits; F250 tracks latency/cost and broader semantic qualification. The selected model remains DeepSeek Flash/High, attached-only with web search off.
+
+Final read-only corpus check: 4,569 documents / 147,417 chunks globally,1,110 Law documents/jobs, 1,386 insolvency listings. Every original 110 completed document/chunk/input/job fingerprint remains identical. Concurrent registrations and previously pending jobs continued during this release; counts and later-job fingerprints therefore changed independently. No ingestion, OCR, embedding, listing write or ANALYZE was executed by this task. These live counts supersede stale exclusion totals only as a dated observation; the next operator must reconcile again.
