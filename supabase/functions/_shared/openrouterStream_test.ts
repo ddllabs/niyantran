@@ -621,3 +621,14 @@ Deno.test('required server-tool selection survives the wire body without unrelat
   assertEquals(body.tools, serverTools);
   assertEquals(body.tool_choice, 'required');
 });
+
+Deno.test('F253 a short system plus long original evidence is eligible for prompt caching', () => {
+  const messages = [{role:'system' as const,content:'Use original evidence.'},{role:'user' as const,content:'source '.repeat(1000)}];
+  const body=buildRequestBody({model:'anthropic/claude-haiku-5.5',messages,cache:true});
+  assertEquals(body.cache_control,{type:'ephemeral'});
+  const cached=body.messages as {content:unknown}[];
+  assertEquals(cached[0].content,messages[0].content,'short system alone gets no ineffective breakpoint');
+  assertEquals(cached[1].content,[{type:'text',text:messages[1].content,cache_control:{type:'ephemeral'}}]);
+  assertEquals(buildRequestBody({model:'google/gemini-2.5-flash-lite',messages,cache:true}).messages,messages);
+  assertEquals(buildRequestBody({model:'anthropic/claude-haiku-5.5',messages,cache:false}).messages,messages);
+});

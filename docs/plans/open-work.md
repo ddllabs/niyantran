@@ -1,5 +1,7 @@
 # Open work: the one list
 
+- [ ] **F253 — Shared AI prompt-cache configuration and cross-desk audit.** Local repair verified: common chat/Law/repair cache+session wrapper and brief serializer; Gemini implicit caching and web/attribution policy preserved. Independent review,6575 app/1333 Edge,lint/build/router pass;10 cross-desk controls pass. Read-only indexed-vector existence check found0 missing in1110 Law/3456 National documents. Publication and production cache-hit acceptance pending. [Spec](../specs/2026-10-24-ai-research-cache-policy.md), [plan](2026-10-24-ai-research-cache-policy.md).
+
 - [ ] **F252 — Law provider-tail latency and uncertainty calibration.** F251's compact-evidence optimization and source corrections are released, but wider latency is not solved: Navinchandra timed out at120s in a private run, retried in96s; Jet took87.705s on NTER with most time inside two provider calls. A private Globiz date response also had unnecessary uncertainty despite sufficient evidence, although final live date passed. Investigate using measured, bounded comparisons; preserve High reasoning, attribution/citations, correction limits and cost accounting. Prior latency/throughput routing experiments were rejected; do not reintroduce them without new evidence. No ingestion or larger batches. [F251 evidence](../operations/law-answer-qualification-release.md).
 
 
@@ -73,7 +75,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F253 is next) and goes in the
+- A new finding gets the next free `F` number (F254 is next) and goes in the
   right section.
 
 

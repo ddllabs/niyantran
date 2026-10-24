@@ -358,3 +358,16 @@ Deno.test('a telemetry insert that hangs never holds the brief', async () => {
   const s = setup({ logModelCall: () => new Promise<void>(() => {}), telemetryTimeoutMs: 10 });
   assertEquals((await handleDeskBrief(post(valid()), s.deps)).status, 200);
 });
+
+Deno.test('F253 brief requests share model-aware prompt caching without changing generation settings', async () => {
+  for(const model of ['anthropic/claude-haiku-5.5','google/gemini-2.5-flash-lite']) {
+    const s=setup({deskModel:model,registry:()=>Promise.resolve({models:[{model_id:model}],roles:[]})});
+    const res=await handleDeskBrief(post(valid({sourceExtract:'Original source. '.repeat(500)})),s.deps);
+    assertEquals(res.status,200);
+    assertEquals(s.calls.length,1);
+    const body=s.calls[0].body;
+    assertEquals(body.cache_control,model.startsWith('anthropic/')?{type:'ephemeral'}:undefined);
+    assertEquals(body.response_format,{type:'json_object'});
+    assertEquals(body.stream,undefined,'briefs remain non-streaming');
+  }
+});
