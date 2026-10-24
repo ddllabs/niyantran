@@ -13,6 +13,7 @@ const quotations = (text: string) => [...text.matchAll(/[“"]([^“”"]{12,})[
 // Narrow lexical support for explicitly marked rupee numerals, not general entailment.
 const rupeeAmounts = (text: string) => [...text.matchAll(/(?:\b(?:INR|Rs\.?)|₹)\s*([\d,]+(?:\.\d+)?)(?:\s*(crores?|lakhs?|lacs?|millions?|billions?)\b)?/gi)]
   .map(m=>m[1].replace(/,/g,'') + ':' + (m[2] ?? '').toLowerCase().replace(/s$/,'').replace('lac','lakh'));
+const inquiryScope = (text: string) => /\b(?:(?:confin(?:e|es|ed|ing)|limit(?:s|ed|ing)?|restrict(?:s|ed|ing)?)\b[^.!?]{0,90}\b(?:inquiry|issue|scope|decision|question)|(?:inquiry|issue|scope|decision|question)\b[^.!?]{0,90}\b(?:confined|limited|restricted))\b/i.test(normalize(text));
 type Model = (request: StreamRequest) => AsyncGenerator<ModelEvent>;
 export interface LawAnswer {
   answer: string;
@@ -71,6 +72,7 @@ export function parseLawSynthesis(value: unknown, focused: LawPassage[], require
     // Preserve explicit alternatives/conditions in the cited source. These are
     // bounded lexical guards, not general completeness or entailment checks.
     const original = normalize(cited.map(p=>p!.text).join('\n'));
+    if (inquiryScope(claim.text) && !inquiryScope(original)) return { reason: 'unsupported_inquiry_scope' };
     const nonAdoption = claim.text.match(/\b(?:not an adoption|(?:did|does|has|had) not adopt\w*)\b[^.!?]*/i)?.[0];
     if (nonAdoption && !original.toLowerCase().includes(normalize(nonAdoption).replace(/[”"’']+$/, '').toLowerCase())) return { reason: 'unsupported_non_adoption' };
     if (rupeeAmounts(claim.text).length && /\bor\b[^.;]{0,60}\blesser amount\b[^.;]{0,60}\bmutually agreed\b/i.test(original) &&

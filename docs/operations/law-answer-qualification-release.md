@@ -80,3 +80,33 @@ Samata assistant407038dc-f729-4459-b811-0d8d79b249fd completed in27.053s but fai
 Two new causal tests fail against v92 and pass with bounded lexical guards for those explicit monetary conditions. The synthesis prompt now requests material alternatives, conditions and moratorium scope. Independent review and41 focused tests pass. The guards scan a cited paragraph unit and can conservatively hold an unrelated monetary proposition in that unit; alternative phrasing may escape them. General completeness, including all-debts scope, still needs source review. Existing one-correction limit is unchanged. Final live acceptance is required again.
 
 First follow-up private run: all six returned JSON,11 calls,USD0.00296999556, but independent semantic review rejected three. Samata selected the opening moratorium chunk without its available end-condition continuation; Future's “payable back” escaped the repayment predicate; Jet inferred blanket non-adoption of any party argument from operative relief. Retained as failed evidence. The next revision includes the observed repayment spelling, rejects unsupported non-adoption clauses, and explicitly requests selection of supplied continuations and each requested condition. Additional causal tests fail before those guards and pass afterward;42 focused tests pass. Prompt guidance alone is not a completeness guarantee.
+
+PR #40 merged `b3d2cad720b696bfd20605604fbe52cad16b3ecc` from `af157668` after CI40108380598/40108404694 passed both required jobs and preview. Final local checks:6,575 app tests,1,320 Edge tests,42 focused tests (including positive explicit non-adoption control), lint, build, router import and diff check pass.
+
+Final private qualification: Bigmoon20.661s,Samata26.616s,Jet29.830s,Future15.224s; Jet repaired an unknown passage and Future repaired the omitted repayment condition. Navinchandra timed out at120.310s, stopping that bounded run with unknown final-call cost (known costUSD0.002697058). A separate two-case run completed Navinchandra96.167s and Globiz19.168s,4 calls,USD0.0033275668. All six completed answers passed independent source review;18 cited entries byte-match originals. This is success across a documented retry, not a clean first-pass run. The timeout and slow retry are unresolved provider-tail evidence, not omitted from the reported performance.
+
+Exact-main CI40108883479 passed both jobs before deploying research-chat v93, hash `43b8a29d6bc89a1d86515d75cc05f62569d5332ec0a2c94c5ddf659f84e3eec5`. All42 deployed source files match the reviewed follow-up payload; unauthenticated POST returns401. Vercel production `dpl_8Za2UwXkfvmqmrGgjBqyGJtQA1m2` is READY at b3d2cad7.
+
+## Final authenticated NTER acceptance
+
+DeepSeek V4 Flash / High, attached existing document only, web off. Independent clause-by-clause source review passes the five non-Globiz answers below. These are actual fresh website retrieval/answer runs, separate from private fixtures.
+
+| Case | Assistant message | Seconds | Source acceptance |
+|---|---|---:|---|
+| Jet Airways |4f5ce311-1d38-4c6c-8d80-452275bea110|87.705|Tribunal38/39 versus applicant16; no inferred non-adoption|
+| Samata |c2e13a32-bd09-4013-98b8-36f43f706070|37.994|All-debts scope, both end conditions, lesser agreed deposit; exact quotes24/27|
+| Navinchandra |a0022e46-7fea-4cc2-986d-4d3ab87b901a|14.321|Appointment226; deposit/conditional priority repayment227|
+| Future Consumer |6232f721-860c-4882-a26c-3e1a6aef8a82|13.143|Unit87–94 supports appointment91 and deposit/available-CoC-funds93|
+| Bigmoon |f21ef7cb-1864-4a79-b66a-e5bc91076eaa|17.540|Limited recall40, criminal-merits reservation and costs41|
+
+Original-reader navigation/highlights checked for Jet, Samata and Navinchandra; Future/Bigmoon reader paths were also checked during v92 acceptance. Jet's two GMICloud answer calls consumed39.538s/45.670s versus about2.3s retrieval; this is a quality pass, not a speed success. Routing history was rechecked: earlier F250 latency/throughput sorts were deliberately rejected after inconsistent results/timeouts. No new routing change was made.
+
+### Globiz follow-up citation correction
+
+On v93, original c02b7272-b963-44c0-b4cc-8d5201f8a88f (50.034s), date d78f7c72-2809-4be1-999d-b17b249c6775 (21.734s) and false-premise f156e9e9-f882-402a-b9e4-065ea544a012 (22.020s) passed independent source review. Follow-up 8c1c41cd-941b-4605-903a-281171756175 (17.733s) failed: a compound sentence cited disposition chunk79 for both limitation and confined-inquiry scope, while the explicit scope is in chunks62–64.
+
+A causal test fails before a narrow inquiry-scope support guard and passes afterward, with positive separate-citation and limited-recall controls. This lexical guard does not prove subject, polarity or general entailment. It preserves the existing correction budget and model routing. All six accepted private qualification responses replay identically under the final guard.
+
+Four targeted private Globiz responses took23.087/19.205/25.048/15.979s,8 calls,USD0.00377631156, no corrections. All13 cited entries byte-match originals. Original, follow-up and false-premise pass semantic review; the date answer has supported facts and exact quotation but an unnecessary insufficiency notice. This is three unqualified passes plus one quality caveat, not four clean passes. All four replay identically through the final guard. The v93 live date answer did not have that caveat.
+
+Final local checks for this correction:43 focused Law tests,1,321 Edge tests,6,575 app tests; lint, production build, router import and diff check pass. Independent review found no code blocker. Authenticated post-deployment follow-up/date acceptance remains pending.

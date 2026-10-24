@@ -382,3 +382,18 @@ Deno.test('F251 rejects unsupported blanket non-adoption inferred from operative
  const explicit:EvidenceMap=new Map([['ref:abcdef-1',{kind:'text',chunk:{document_id:'d',content:'The ruling was not an adoption of any party’s argument.'} as Chunk}]]);
  assert(await reviewLawAnswer(replay([{passages:['p1']},bad]),{...request(),evidence:explicit}));
 });
+
+Deno.test('F251 confined-inquiry assertions need their own scope passage rather than disposition only',async()=>{
+ const e:EvidenceMap=new Map([
+  ['ref:abcdef-1',{kind:'text',chunk:{document_id:'d',content:'The issue before this Tribunal is confined to whether the Petition has been instituted within limitation.'} as Chunk}],
+  ['ref:abcdef-2',{kind:'text',chunk:{document_id:'d',content:'The second notice is barred by limitation and cannot assist the applicant. The second issue is answered accordingly. The application is rejected with no costs.'} as Chunk}],
+ ]);
+ const bad={claims:[{text:'The tribunal confined its inquiry to limitation and held the second notice barred.',evidence:'p2'}],uncertain:false};
+ const good={claims:[{text:'The tribunal confined its inquiry to limitation.',evidence:'p1'},{text:'The tribunal held the second notice barred by limitation.',evidence:'p2'}],uncertain:false};
+ const reasons:string[]=[];
+ const a=await reviewLawAnswer(replay([selection,bad,good]),{...request(),evidence:e,report:r=>reasons.push(r)});
+ assert(a);assertEquals(reasons,['unsupported_inquiry_scope']);assertEquals(a.sources.length,2);
+ const recall:EvidenceMap=new Map([['ref:abcdef-1',{kind:'text',chunk:{document_id:'d',content:'The dismissal of this application is confined to the limited question of recall.'} as Chunk}]]);
+ const limited={claims:[{text:'The tribunal confined its decision to recall.',evidence:'p1'}],uncertain:false};
+ assert(await reviewLawAnswer(replay([{passages:['p1']},limited]),{...request(),evidence:recall}));
+});
