@@ -52,3 +52,9 @@ Economics execution/recovery passes, **full answer quality is not accepted**: bl
 Across these five live turns, actual provider cache hits include256 Globiz,4096 intermediate State,33024 Economics tokens. Other calls miss; embeddings have no chat prompt-cache metric. Small brief generation succeeded with0 cache tokens. All production chat-generation paths use the shared configuration, but provider/model eligibility, matching prefixes, expiry and routing govern hits. Full-response caching remains disabled. These results do not establish universal cached calls, faster answers, or cross-desk answer acceptance.
 
 Final read-only corpus comparison after all five turns is fingerprint-identical to the pre-test baseline:4569 documents/150204 chunks globally; Law1110 documents/49488 chunks/1439 listings. No ingestion, re-ingestion, schema, corpus or listing mutation. Normal chat messages/provider accounting and record-brief generation occurred during authorized acceptance. Runtime stays at reviewed636efdd0, research-chat95/desk-brief19; this follow-up changes documentation only.
+
+
+Follow-up, 25 October 2026 IST: F254/F255 grounding acceptance completed; F256 remains open
+after `e4a2cf5a` / research-chat v103 omitted newer observations in both original-question runs. See the [cross-desk release record](../operations/cross-desk-answer-grounding-release.md)
+for exact live turns and partial-answer limitations. Actual v103 cache hits remain
+observed; F252 provider-tail latency remains open. No ingestion.

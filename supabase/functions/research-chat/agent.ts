@@ -1,4 +1,4 @@
-import { observationInstructions, OBSERVATION_SCHEMA, renderObservation, type ObservationContext } from './observationAnswer.ts';
+import { observationInstructions, OBSERVATION_SCHEMA, renderObservationSelection as renderObservation, type ObservationContext } from './observationAnswer.ts';
 import { lawAttributionContext } from '../_shared/lawContext.ts';
 import { placeholderAnswer } from './answerValidation.ts';
 // One dependency-injected research loop. The handler owns authentication,
@@ -877,7 +877,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       // The general system prompt owns the normal envelope. Override it at the
       // same trusted priority for this extraction, including schema fallback.
       // Source evidence remains in the untrusted user block, never here.
-      request.messages.push({ role: 'system', content: 'For this final observation extraction only, replace the general research_answer output contract with observation_excerpts: {"definition":{"sourceId":1,"quote":"exact excerpt sentence"}|null,"updates":[{"sourceId":1,"quote":"exact excerpt sentence"}]}. Return only that JSON object. No answer, sources, follow_up_questions or other fields. The server renders the answer and citations. All evidence and grounding rules remain binding; follow the extraction constraints in the final request.' });
+      request.messages.push({ role: 'system', content: 'For this final observation extraction only, replace the general research_answer output contract with observation_excerpts: {"definitionId":integer|null,"updateIds":integer[]}. Return only that JSON object. No answer, sources, follow_up_questions or other fields. The server renders the answer and citations. All evidence and grounding rules remain binding; follow the extraction constraints in the final request.' });
     }
     if (late && deps.lateReasoning !== undefined) {
       if (deps.lateReasoning) request.reasoning = deps.lateReasoning;

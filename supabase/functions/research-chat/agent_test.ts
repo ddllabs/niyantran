@@ -2414,7 +2414,7 @@ for (const bad of [
   { definition: { sourceId: 1, quote: 'Invented statistic' }, updates: [] },
   { definition: { sourceId: 1, quote: 'Excerpt 1' }, updates: [], comparison: 'Same period' },
 ]) Deno.test(`F256 corrects unsupported extraction: ${JSON.stringify(bad)}`, async () => {
-  const good = JSON.stringify({ definition: { sourceId: 1, quote: 'Excerpt 1' }, updates: [] });
+  const good = JSON.stringify({ definitionId: 1, updateIds: [] });
   const f = fake([[webResults(page(1)), searched(1)], answer(JSON.stringify(bad)), answer(good)], { webSearch: { perTurn: 3 } });
   const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
   assert(JSON.parse(result.text).answer.includes('Excerpt 1'));
@@ -2432,7 +2432,7 @@ Deno.test('F256 repeated malformed extraction returns honest missing evidence wi
 });
 
 Deno.test('F256 no returned pages produces a transparent evidence limitation', async () => {
-  const empty = JSON.stringify({ definition: null, updates: [] });
+  const empty = JSON.stringify({ definitionId: null, updateIds: [] });
   const f = fake([ready(), answer(empty)], { webSearch: { perTurn: 3 } });
   const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
   assert(JSON.parse(result.text).answer.includes('No supported additional observation'));
@@ -2449,7 +2449,7 @@ Deno.test('F256 final web synthesis receives explicit publisher and claim-level 
 Deno.test('F256 observation correction drops partial continuation draft from its input', async () => {
   const badPrefix = '{"answer":"The calendar-year observation';
   const tail = ' is latest.","sources":[],"follow_up_questions":[]}';
-  const good = JSON.stringify({ definition: { sourceId: 1, quote: 'Excerpt 1' }, updates: [] });
+  const good = JSON.stringify({ definitionId: 1, updateIds: [] });
   const f = fake([[webResults(page(1)), searched(1)], [{ type: 'text', text: badPrefix }, finish('length')], [{ type: 'text', text: tail }, finish()], answer(good)], { webSearch: { perTurn: 3 } });
   const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
   assert(JSON.parse(result.text).answer.includes('Excerpt 1'));
@@ -2458,7 +2458,7 @@ Deno.test('F256 observation correction drops partial continuation draft from its
 
 Deno.test('F256 structured observation renders only source-owned excerpt spans', async () => {
   const source = { ...page(1), excerpt: 'Annual percentage growth rate of GDP at market prices based on constant local currency.' };
-  const extraction = JSON.stringify({ definition: { sourceId: 1, quote: source.excerpt }, updates: [] });
+  const extraction = JSON.stringify({ definitionId: 1, updateIds: [] });
   const f = fake([[webResults(source), searched(1)], answer(extraction)], { webSearch: { perTurn: 3 } });
   const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
   const rendered = JSON.parse(result.text);
@@ -2470,14 +2470,14 @@ Deno.test('F256 structured observation renders only source-owned excerpt spans',
 });
 
 Deno.test('F256 schema fallback remains disabled for the structured observation call', async () => {
-  const extraction = JSON.stringify({ definition: { sourceId: 1, quote: 'Excerpt 1' }, updates: [] });
+  const extraction = JSON.stringify({ definitionId: 1, updateIds: [] });
   const f = fake([[webResults(page(1)), searched(1)], answer(extraction)], { webSearch: { perTurn: 3 }, request: { model: 'test', response_format: undefined } });
   await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
   assertEquals(f.requests[1].response_format, undefined);
 });
 
 Deno.test('F256 correction preserves first valid definition when correction is malformed', async () => {
-  const extraction = JSON.stringify({ definition: { sourceId: 1, quote: 'Excerpt 1' }, updates: [{ sourceId: 1, quote: 'Fake 9%' }] });
+  const extraction = JSON.stringify({ definitionId: 1, updateIds: [999] });
   const f = fake([[webResults(page(1)), searched(1)], answer(extraction), answer('not JSON')], { webSearch: { perTurn: 3 } });
   const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
   assert(JSON.parse(result.text).answer.includes('Excerpt 1'));
@@ -2486,7 +2486,7 @@ Deno.test('F256 correction preserves first valid definition when correction is m
 });
 
 Deno.test('F256 extraction contract overrides general envelope at trusted system priority only during answer', async () => {
-  const extraction = JSON.stringify({ definition: { sourceId: 1, quote: 'Excerpt 1' }, updates: [] });
+  const extraction = JSON.stringify({ definitionId: 1, updateIds: [] });
   const f = fake([[webResults(page(1)), searched(1)], answer(extraction)], { webSearch: { perTurn: 3 } });
   await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
   const override = f.requests[1].messages.filter(m => m.role === 'system').at(-1);
