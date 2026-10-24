@@ -78,3 +78,45 @@ PR #52 merged 275c1077; exact-main CI 40132050892 passed both jobs. Research-cha
 The owner-approved diagnostic completed four calls for $0.0159362. It captured an exact World Bank definition immediately following the glossary table label `| Long definition |`; both initial extraction and correction copied it accurately, but the sentence-start guard rejected it. A definition-only table-label boundary now accepts that complete sentence without permitting forecast/value cells or numerical-update exceptions. Captured first-extraction offline replay now renders both the definition and the separately sourced FY26 statement. This establishes the local cause; fresh website acceptance is still required. The visible literal-parentheses escape defect is also repaired. Both regressions failed before fixes; independent renderer review passes 8 cases without blockers, full focused suite 393 passes.
 
 Table-format repair verification: 1,407 Edge tests, lint/build/router/diff pass. Local app run passed 420/423 files (6,546 tests); three files failed on ENOSPC in Vite's temporary transform cache, not assertions. Two passed on focused retry (19 tests); registry.test.jsx still hit ENOSPC. No corpus or unrelated files deleted. Required CI must run the complete application suite successfully before merge; local disk limitation remains explicit.
+
+
+## Final release and scoped acceptance
+PR #53 merged e4a2cf5a; both exact-main CI jobs passed in 40134772582. Deployed
+research-chat v103 with 43-file equality and unauthenticated 401. Vercel READY
+at e4a2cf5a. Original GDP and clean-session repeat cite the World Bank definition
+and retain the supplied 7.57 value with explicit unknown comparability; both
+omit additional observations. A targeted follow-up separately cites FY27's 6.6%
+projection without treating it as a revision. This satisfies the partial-answer provenance boundary but not the full
+original-question acceptance. All three turns,
+omissions, timings, cache hits and unchanged corpus counts are recorded in the
+[release evidence](../operations/cross-desk-answer-grounding-release.md).
+F254/F255 acceptance is complete; F256 remains open until one fresh unchanged
+original question returns both the definition and a separately sourced newer
+observation. Independent review rejected blanket closure. F252 latency remains open.
+
+## Reproduced omission and candidate selection
+Renewed owner-approved diagnostic: four calls, $0.016555374152, no database
+writes. Captured extraction selected a truncated numeric table row and modified
+an Akashvani sentence (apostrophe and omitted trailing qualifier); both correctly
+failed exact-span validation, and correction retained the table row. This is a
+reproduction, not recovery of discarded website output. Technical refinement:
+server-owned candidate IDs instead of model-copied spans. Ordered scope:
+observationAnswer.ts/tests, agent.ts/tests, handler_test.ts, these task docs.
+Prove selected exact typography/qualifiers survive, reject partial tables and
+role-invalid/unknown IDs, preserve correction salvage and schema fallback.
+Then full checks, independent read-only review, CI-gated release and original
+NTER acceptance. No ingestion, routing change or extra model.
+
+Candidate repair checks: integration test fails when the old renderer is restored;
+12 unit cases pass, including captured transcription failure, full qualifiers,
+decimals/abbreviations, wrong-slot and duplicate IDs, and correction salvage.
+Independent read-only reviewer ran all 12 and found no release blockers; semantic
+relevance and conservative candidate omissions remain limitations. Full Edge
+suite: 1,411 pass; lint/build/router/diff pass. Application suite: 6,575 tests / 423 files pass. No further
+direct diagnostic calls: renewed four-call allowance is exhausted.
+
+Captured-source candidate audit caught ellipsis-ended numerical table fragments.
+The new regression fails before excluding internal gaps; trailing ellipses are
+removed only after existing complete sentence punctuation and the result is
+revalidated. Independent reviewer: 13 unit tests pass, no blocker. Final rerun:
+1,412 Edge / 6,575 application tests pass; lint/build/router/diff pass.

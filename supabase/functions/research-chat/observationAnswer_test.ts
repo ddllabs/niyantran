@@ -1,5 +1,5 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
-import { renderObservation } from './observationAnswer.ts';
+import { renderObservation, observationCandidates, renderObservationSelection } from './observationAnswer.ts';
 const pages = [{ title: 'Definition', url: 'https://worldbank.org/latest/gdp', excerpt: 'Annual growth based on constant local currency. FY26 growth is estimated at 7.6 percent.' }];
 const definition = { sourceId: 1, quote: 'Annual growth based on constant local currency.' };
 const render = (o: unknown) => renderObservation(JSON.stringify(o), pages, { text: 'India; 2025; 7.57 annual %' });
@@ -58,4 +58,54 @@ Deno.test('observation: World Bank glossary definition cell retains its exact co
     assert(renderObservation(JSON.stringify({ definition: { sourceId: 1, quote }, updates: [] }), [{ ...source[0], excerpt: prefix + quote }]).invalid);
   }
   assert(renderObservation(JSON.stringify({ definition: null, updates: [{ sourceId: 1, quote }] }), source).invalid, 'definition-cell exception is not a numerical update boundary');
+});
+
+Deno.test('observation selection: server sentences retain typography and qualifiers; numeric table fragments are unavailable', () => {
+  const source = [{ title: 'Public report', url: 'https://example.org/report', excerpt: 'World Bank projects India’s economy to grow by 6.7 per cent in the next fiscal year starting in April, slightly higher than in the current fiscal year. Growth was 6.5 percent last year.' },
+    { title: 'Table', url: 'https://example.org/table', excerpt: 'TABLE 2022 2023 2024e 2025f India 2 7.6 9.2 6.5 6.3' }];
+  const candidates = observationCandidates(source);
+  const first = candidates.find(c => c.quote === source[0].excerpt.split('. ')[0] + '.');
+  assert(first?.update);
+  assert(!candidates.some(c => c.quote === 'India 2 7.6 9.2 6.5 6.3'));
+  const rendered = renderObservationSelection(JSON.stringify({definitionId:null,updateIds:[first.id]}),source);
+  assert(!rendered.invalid);
+  assert(JSON.parse(rendered.text).answer.includes('India’s economy'));
+  assert(JSON.parse(rendered.text).answer.includes('slightly higher than in the current fiscal year'));
+  assert(renderObservationSelection(JSON.stringify({definitionId:null,updateIds:[999]}),source).invalid);
+  assert(renderObservationSelection(JSON.stringify({definitionId:null,updateIds:[first.id],quote:'fake'}),source).invalid);
+});
+Deno.test('observation selection: definition table candidates cannot become numerical updates and survive bad correction',()=>{
+  const source=[{title:'Glossary',url:'https://example.org/definition',excerpt:'| Long definition | Annual percentage growth based on constant local currency. |'}];
+  const c=observationCandidates(source).find(c=>c.quote.startsWith('Annual'))!;
+  assert(c && !c.update);
+  const previous=JSON.stringify({definitionId:c.id,updateIds:[]});
+  assert(!renderObservationSelection(previous,source).invalid);
+  assert(renderObservationSelection(JSON.stringify({definitionId:null,updateIds:[c.id]}),source).invalid);
+  const saved=renderObservationSelection('broken',source,undefined,previous);
+  assert(JSON.parse(saved.text).answer.includes(c.quote));
+});
+Deno.test('observation selection: decimals, abbreviations and negated forecasts remain complete',()=>{
+ const quote='The U.S. GDP forecast is not 7.6 percent.';
+ const source=[{...pages[0],excerpt:quote+' Instead growth is projected at 7.1 percent.'}];
+ const c=observationCandidates(source);
+ assert(c.some(v=>v.quote===quote));
+ assert(!c.some(v=>v.quote==='GDP forecast is not 7.6 percent.'));
+ assert(!c.some(v=>v.quote==='6 percent.'));
+ assert(renderObservationSelection(JSON.stringify({definitionId:null,updateIds:[1,1]}),source).invalid);
+ assert(renderObservationSelection(JSON.stringify({definitionId:1.5,updateIds:[]}),source).invalid);
+});
+Deno.test('observation selection: captured transcription failure cannot alter selected source text',()=>{
+ const exact='World Bank projects India’s economy to grow by 6.7 per cent in the next fiscal year starting in April, slightly higher than in the current fiscal year.';
+ const source=[{...pages[0],excerpt:exact}];
+ const changed="World Bank projects India's economy to grow by 6.7 per cent in the next fiscal year starting in April.";
+ assert(renderObservation(JSON.stringify({definition:null,updates:[{sourceId:1,quote:changed}]}),source).invalid);
+ const selected=renderObservationSelection(JSON.stringify({definitionId:null,updateIds:[1]}),source);
+ assert(!selected.invalid);
+ assert(JSON.parse(selected.text).answer.includes(exact));
+});
+Deno.test('observation selection: excerpt gaps and ellipsis-ended table rows are not complete sentences',()=>{
+ const source=[{...pages[0],excerpt:'Mexico 3.7 3.3 1.5 0.2 ... India 7.6 6.3 ... Growth is projected at 6.6 percent in FY27. ... Another observation is incomplete ...'}];
+ const c=observationCandidates(source);
+ assert(!c.some(v=>v.quote.includes('...')));
+ assert(c.some(v=>v.update&&v.quote==='Growth is projected at 6.6 percent in FY27.'));
 });

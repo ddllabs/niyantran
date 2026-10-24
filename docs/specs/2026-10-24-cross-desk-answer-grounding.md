@@ -41,3 +41,14 @@ V101 again rejected the GDP answer. Replace the preceding lexical observation ch
 Reuse caching, reasoning, the shared step/deadline budget and at most one correction; never send rejected drafts as evidence. Preserve validated sections if another section is invalid, with an explicit unavailable-evidence notice after the correction. No extra model or verifier. No raw extraction may reach the browser. Other scopes retain their existing answer contract. Tests cover tampering, invented sources, unexpected fields, invalid partial results, continuation cleanup, missing evidence, row provenance and unchanged ordinary RAG.
 
 Definition table cells: a complete definition sentence can start after an explicit `Definition`, `Long definition` or `Short definition` table label. This is a format boundary only for the definition slot; numerical updates and forecast/value cells receive no exception. Keep exact excerpt membership, complete-sentence endings and source-owned URLs.
+
+## Candidate-selection refinement (2026-10-25)
+The approved diagnostic reproduced copied-span mutation and truncated table-row
+selection. Replace model-authored quote fields with `definitionId` and `updateIds`
+(maximum two): IDs reference server-prepared complete, bounded source sentences.
+Each candidate retains its exact source text and source ID. Candidate admission
+uses the existing span validator; definition-only table boundaries cannot be used
+for updates. Reject unknown IDs, extra fields and inappropriate roles, preserving
+one correction and prior valid sections. No extra provider call or weaker source
+boundary. The final acceptance still requires the unchanged GDP question to return
+both a definition and a separately sourced newer observation.

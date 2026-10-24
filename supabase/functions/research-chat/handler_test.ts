@@ -4071,7 +4071,7 @@ Deno.test('F254 stale Law hint cannot bypass National provision review without a
 
 Deno.test('F256 Economic Simulator withholds and corrects unsupported observation prose before saving', async () => {
   const bad = `The calendar-year figure is latest and unrevised. [Source](${SEARCHED})`;
-  const good = JSON.stringify({ definition: { sourceId: 1, quote: 'The MPC voted to keep the repo rate unchanged.' }, updates: [] });
+  const good = JSON.stringify({ definitionId: 1, updateIds: [] });
   const provider = scripted([[webPages(), finish('stop', searchedUsage)], [text(envelope(bad)), finish()], [text(good), finish()]]);
   const row = { ...ROW_ONLY, tier: 'economics', feature: 'Economic Simulator', record_text: 'India GDP growth 2025: 7.57%', row: { country: 'India', year: '2025', value: '7.57' } };
   const { deps, rec } = fakeDeps(provider, { repairModel: '' }, { findDeskRow: () => Promise.resolve(row), indexedDocumentKeys: () => Promise.resolve([]) });
@@ -4088,7 +4088,7 @@ Deno.test('F256 Economic Simulator withholds and corrects unsupported observatio
 });
 
 Deno.test('F256 attached observation keeps its verified row identity in server-rendered answer', async () => {
-  const good = JSON.stringify({ definition: { sourceId: 1, quote: 'The MPC voted to keep the repo rate unchanged.' }, updates: [] });
+  const good = JSON.stringify({ definitionId: 1, updateIds: [] });
   const provider = scripted([[webPages(), finish('stop', searchedUsage)], [text(good), finish()]]);
   const row = { ...ROW_ONLY, tier: 'economics', feature: 'Economic Simulator', record_text: 'India GDP growth 2025: 7.57%', row: { country: 'India', year: '2025', value: '7.57' } };
   const { deps, rec } = fakeDeps(provider, { repairModel: '' }, { findDeskRow: () => Promise.resolve(row), indexedDocumentKeys: () => Promise.resolve([]) });
