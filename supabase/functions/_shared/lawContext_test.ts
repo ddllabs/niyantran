@@ -148,3 +148,13 @@ Deno.test('Paragraph opening coordinates point to its literal first character af
  assertEquals(context?.charFrom,3);
  assertEquals(context?.text,'7.32 Quoted authority follows.');
 });
+
+Deno.test('F251 decimal monetary amounts are not paragraph openings for later rulings',async()=>{
+ const source:LawContextRow[]=[
+  {id:'amount',document_id:'law',chunk_index:0,char_from:0,char_to:100,content:'The applicant alleged valuation of\n65.55 crores and challenged the plan.'},
+  {id:'ruling',document_id:'law',chunk_index:1,char_from:100,char_to:200,content:'32. Dismissal is confined to recall; criminal remedies remain open.'},
+ ];
+ const hit=await rowToChunk({...source[1],desk_tier:'law'});
+ const result=await hydrateLawContext([hit],async()=>source);
+ assertEquals(result.find(c=>c.id==='ruling')?.paragraph_context,undefined);
+});

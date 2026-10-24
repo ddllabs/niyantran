@@ -1,5 +1,6 @@
 /** Opt-in, read-only model evaluation; never ingests or writes to Supabase.
  * Input JSON: {cases:[{id,question,previousQuestions?:string[],chunks:Chunk[]}]}
+ * --compact-evidence=off retains selection for matched timing controls.
  * Private chunks come from a separately authorized read/export. Output contains source text;
  * keep it outside Git. No automatic semantic score: independently review answer + cited passages.
  * deno run --allow-read --allow-write=/tmp --allow-net=openrouter.ai \
@@ -56,7 +57,7 @@ for (const c of data.cases) {
     }
   }
   try {
-    answer = await reviewLawAnswer(provider, {model,question:c.question,previousQuestions:c.previousQuestions,evidence,
+    answer = await reviewLawAnswer(provider, {model,question:c.question,previousQuestions:c.previousQuestions,evidence,compactEvidence:arg('compact-evidence') !== 'off',
       signal:AbortSignal.timeout(120_000),selectionReasoning:{effort:arg('selection-effort') ?? arg('effort') ?? 'high'},
       reasoning:{effort:arg('effort') ?? 'high'},report:r=>reasons.push(r),
       takeAttempt: n => !unknownCost && spent < capUsd && maxCalls-calls >= n,
