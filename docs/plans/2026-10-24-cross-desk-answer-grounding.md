@@ -1,6 +1,6 @@
 # Cross-desk answer grounding plan
 
-**Status: Living.** Implements the matching spec on task/cross-desk-answer-grounding from a2358d33. Owner authorization covers implementation and release; no ingestion.
+**Status: Historical (2026-10-25).** Implements the matching spec on task/cross-desk-answer-grounding from a2358d33. Owner authorization covers implementation and release; no ingestion.
 
 1. Reproduce F255 with server-grounded unindexed State/Growth/International/National/Law rows and deliberately unrelated Law retrieval. Write scope agent.ts, handler.ts, turnScope.ts and tests. Preserve indexed/mixed/broad searches, real Law review and web overrides. Fix unavailable source scope before touching prose.
 2. Fix F254/F256 grounding instructions and provenance notes in prompt.ts/handler.ts with prompt/handler tests. Keep field/source/version/period boundaries explicit; avoid a universal expensive verifier. Live answer evaluation is mandatory for model behavior.
@@ -120,3 +120,15 @@ The new regression fails before excluding internal gaps; trailing ellipses are
 removed only after existing complete sentence punctuation and the result is
 revalidated. Independent reviewer: 13 unit tests pass, no blocker. Final rerun:
 1,412 Edge / 6,575 application tests pass; lint/build/router/diff pass.
+
+
+## Completion
+PR #54 merged `807fbee7`; exact-main CI `40136935348` passed. Research-chat
+v104 (43-file equality, unauthenticated 401) and Vercel exact commit are verified.
+The unchanged original GDP question passed in one turn, 24.742s, 139 words:
+selected 7.57, World Bank definition and separately attributed observations,
+without unsupported comparability or revision inference. Independent evidence
+review approved scoped closure. F254/F255/F256 and F253's cross-desk audit are
+complete; F252 remains open. Source-fetch limits, earlier failures, cache results
+and unchanged corpus counts are in the release record. No larger batches or
+re-ingestion. No universal semantic/latency guarantee is claimed.

@@ -1,16 +1,11 @@
 # Open work: the one list
 
-- [ ] **F256 — Economics end-to-end answer completeness.** PR #53 / `e4a2cf5a` / research-chat v103 deployed after exact-main CI. Original GDP question and fresh-chat repeat now cite the World Bank definition correctly, but both omit requested newer observations. A targeted follow-up gives a cited FY27 forecast; no captured single turn includes both. Provenance/period guards pass, but full acceptance remains open. The renewed approved diagnostic reproduced copied-span mutation and a truncated table selection; candidate-ID repair is under verification. Pass the unchanged original question with definition, selected 7.57, a separately sourced newer observation, and explicit unestablished comparability. [Evidence](../operations/cross-desk-answer-grounding-release.md). No ingestion.
-
-- [ ] **F253 — Shared cache audit completion.** Shared cache configuration is deployed and actual hits verified, including 19,968 tokens on v103. National/State/Law checks pass; final Economics end-to-end acceptance remains dependent on F256. No universal cache-hit or latency guarantee.
-
 
 
 
 - [ ] **F252 — Law provider-tail latency and uncertainty calibration.** F251's compact-evidence optimization and source corrections are released, but wider latency is not solved: Navinchandra timed out at120s in a private run, retried in96s; Jet took87.705s on NTER with most time inside two provider calls. A private Globiz date response also had unnecessary uncertainty despite sufficient evidence, although final live date passed. Investigate using measured, bounded comparisons; preserve High reasoning, attribution/citations, correction limits and cost accounting. Prior latency/throughput routing experiments were rejected; do not reintroduce them without new evidence. No ingestion or larger batches. [F251 evidence](../operations/law-answer-qualification-release.md).
 
 - [ ] **F246 — Law baseline source-membership refresh.** Canonical seeding captures a reviewed snapshot; protected legacy refreshes cannot add, change or remove its source-only memberships. Before claiming ongoing official-register coverage, specify and implement a provenance-checked membership refresh with stable identities, explicit retirement policy, audit evidence and tests preserving corpus attachments. This is separate from automatic publication of newly admitted supported corpus documents. Other forum adapters, revisions/translations and compound fallback also remain outside the first NCLT adapter. No current ingestion authorization.
-
 
 
 - [ ] **Law cohort-2 and cohort screener — 2026-10-23 (PR #13 merged e651b7f0).** Owner-authorized (`owner-authorized-20261023-law-cohort-2`) ingestion of five IBBI NCLT orders is done on NTER: 286 chunks, manifest `79760ace…`, zero OCR, USD 0.00127518, duplicate-safe rerun, ANALYZE; [evidence](../operations/law-cohort-2-release/results.json). New offline screener `scripts/law-cohort-screen.py` ([guide](../operations/supplied-text-import.md#preparing-a-bounded-cohort-with-the-screener)). Review of `09e6db24` found three defects — unverified policy hashes still finalized, repeated ZIP entries skipped, `--no-scan-subtree` screens finalized — fixed with red-first regression tests, now in CI. Schema-3 repair `91254514` merged after independent review and required CI; [explanation](../operations/law-cohort-screen-review-fix.md). Open: natural-language retrieval check with fresh query embeddings and the website answer flow (only stored-vector lookup was verified). Before any larger batch or autopilot: current-database reconciliation in screening, durable batch checkpoints, explicit supported-collection and policy boundaries, document/chunk/spend limits; then a bounded larger NCLT cohort with owner approval, not unrestricted legal-pack ingestion. The five cohort-2 documents need no re-ingestion.
@@ -39,7 +34,6 @@
   complete3191chars, charge880.688 retained; network closure cause unproven.
   No balance/schema/payment/corpus changes. Spec/plan2026-10-19-rag-production-recovery.
 
-
 - [ ] **RAG citation/web production acceptance (2026-10-19).** Owner tests expose Lite
   zero-citation answers despite retrieved evidence; repair rejected for changing
   content; no Web calls occurred for missing-text record questions. Existing
@@ -60,9 +54,7 @@
   in the push/merge authorization. Vercel frontend deploys automatically.
 
 
-
 - [ ] **Test browser-global isolation audit (2026-10-21, outside billing repair).** One full run hit AdminApp's `window.matchMedia` against a leaked browser stub; the isolated admin/billing120 checks and subsequent full6483 run passed. Removed obsolete window setup from modified billing tests; no admin source/test changes or skipped tests. Broader test-order/global cleanup should be audited if recurrence occurs. Evidence in2026-10-21-billing-loading.md.
-
 
 
 ## How to use this file
@@ -82,13 +74,11 @@
 
 ## Billing acceptance follow-up
 
-
 ## Development toolchain follow-up
 
 - [ ] **F237 — Local manual-grant bootstrap authority.** The existing credits_on_plan_grant manual branch is owned by nter_migrator in the disposable bootstrap and hits the profile guard. Grace tests seed provenance with the trigger disabled inside a rolled-back fixture; no existing trigger was altered. Audit separately before relying on manual grants as a fixture path.
 
 - [ ] **F234 — Development toolchain advisories.** Read-only npm audit on 2026-10-19 reports existing Vite/Vitest dependency advisories (2 moderate, 2 high, 2 critical; esbuild, source-map-js, @vitest/mocker, tinypool and dependents). Production dependency audit reports zero. Review compatible upgrades separately; no dependency changes in the scoped BBC/form fix.
-
 
 ## Current state — 2026-10-17 (milestone check)
 
@@ -1442,10 +1432,8 @@ orientation list is compared item by item in the
   *Done 2026-10-15 (`f664612`, owner: "fix the loose ends"): `src/shell/copyPolicy.js` and its test and the unused `.niy-plan-wait` style removed; the pricing copy and retired screens were already done.*
 
 
-
 - [x] **F76. Owner browser acceptance of dictation.** F74 production activation completed; verify real signed-in microphone → editable transcript in both Ask AI and command search, permission refusal and grouped production record search. Synthetic English/Hindi OpenRouter probes and deployed auth/CORS passed; authenticated browser full path is not yet exercised. [Release evidence](2026-10-04-dictation-activation.md).
   *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
-
 
 
 ## 1. Done
@@ -1490,7 +1478,6 @@ orientation list is compared item by item in the
   attempt1; zero5xx in bounded deployment request scan. Evidence in
   [Release record](2026-10-18-profile-credit-summary.md#authorized-release--2026-10-18).
   Scheduled M1/M2 checks continue; Razorpay held, corpus excluded.
-
 
 - [x] **F229. Full selected-record pane animation.** Source8a33c19, released
   fae886b2026-10-18 after explicit owner approval. Adapted, generic National and
@@ -2978,7 +2965,6 @@ Earlier items, updated:
   key). Accept, or keep one document per key.
   *Closed 2026-10-15: superseded by the versions model (F116 to F118, F115 clean-up); the remaining collisions (2025:109, 2025:111, 2026:107) are tracked under R7.*
 
-
 - [ ] **O6.** After F6: the Razorpay keys on Vercel, then one real payment
   - **2026-10-21 local verification:**6522 application/1174 Edge tests,53 SQL fixtures+53 omission checks, concurrent grace capture, lint/build/bundle/router pass. Independent Astra review has no remaining P1/P2 findings. In-app browser isolated UI actions pass; shared SQL/trigger/Edge activation approved and verified (migration20261021140246,research-chatv70). Runtime a2bd59b passed both required CI jobs39613814829 and is Preview READY/exact-SHA. Owner confirmed newv3Max Captured9000/webhook200. Checkoutclose/retry passes; deliberateTestdecline verified (failedpayment,zeroinvoice/lot,Maxunchanged). DedicatedTestrefund remains owner dashboard handoff; in-app terms block and Arc inspection rejected by automatic review under the existing in-app-only constraint. [Evidence](../research/2026-10-21-manual-grace-evidence.md).
   - **2026-10-21 priority: manual billing +48-hour access-only grace first.**
@@ -3446,7 +3432,6 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-12 consolidation
 
 
-
 - **Corpus code consolidation (2026-10-12), `d0a8020`:** reviewed corpus code, tests and documentation integrated with the released UI on main; original copies preserved outside Git. [Evidence](../research/2026-10-12-main-consolidation.md). R7 ingestion/repair holds remain open.
 - **F94 resolved (2026-10-12):** owner-authorized Git disconnect of only `niyantran-desk-reference-v6` (`prj_hlv83bVVPDlaJht0GP7njfUDhsLA`) verified `link: null`; project/deployment history retained. Actual production project still follows main. [Operations record](../research/2026-10-12-main-consolidation.md).
 
@@ -3537,3 +3522,10 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 - [x] **F255 — Unindexed record scope.** Released through `af8b0cb7`, retained in `e4a2cf5a`; State automatic web uses no unrelated document retrieval, with attribution preserved. Indexed Law RAG and original citations passed.
 
 [Release evidence](../operations/cross-desk-answer-grounding-release.md) contains exact message IDs, failures, partial answers, checks and unchanged counts. No ingestion or larger batches.
+
+## Done — 2026-10-25 Economics and cross-desk acceptance
+
+- [x] **F256 — Economics provenance and complete observation answer.** PR #54 / `807fbee7`, research-chat v104, exact-main CI `40136935348` passed. Fresh unchanged GDP question returned supplied value, cited World Bank definition and separately attributed observations in one 139-word answer, 24.742s, with explicit unknown comparability and no omission notice. Independent evidence review approved scoped closure. Search excerpts do not establish universal freshness; BusinessLine original was not independently fetched.
+- [x] **F253 — Shared prompt cache and cross-desk audit.** `636efdd0` through `807fbee7`. Actual provider cache hits verified; National, State, Law and Economics acceptance complete. No guarantee every call hits cache or meets a latency bound. F252 remains open.
+
+[Final release evidence](../operations/cross-desk-answer-grounding-release.md#final-acceptance--v104-25-october-2026-ist) records exact message IDs, tests, source checks and unchanged corpus counts. No ingestion.
