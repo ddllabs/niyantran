@@ -81,3 +81,28 @@ Deno.test('Tail citations retain their own page and block coordinates, never tho
   assertEquals(tail.block_ids,['block-3']);
   assertEquals(tail.image_ids,['image-3']);
 });
+
+Deno.test('Original final passages precede lower-ranked hits so reply bounds do not discard them first',async()=>{
+ const prefix=Array.from({length:45},(_,i)=>({id:`x${i}`,document_id:'law',chunk_index:i,char_from:i*500,char_to:i*500+400,content:'source '.repeat(50)}));
+ const hit=await Promise.all(prefix.slice(0,40).map(r=>rowToChunk({...r,desk_tier:'law'})));
+ const result=await hydrateLawContext(hit,()=>Promise.resolve(prefix));
+ assertEquals(result.slice(0,3).map(c=>c.id),['x0','x43','x44']);
+ assertEquals(new Set(result.map(c=>c.id)).size,result.length);
+});
+
+Deno.test('Quoted numbered precedent preserves earlier heading and intervening text without asserting governing speaker', async () => {
+  const changed = rows.map((r,i)=>i===2?{...r,content:'50. Suffice it to conclude that there is no substance\nin that precedent.'}:r);
+  const hit = await rowToChunk({...changed[3],desk_tier:'law'});
+  const result = (await hydrateLawContext([hit],()=>Promise.resolve(changed)))[0];
+  assertEquals(result.preceding_heading,undefined);
+  assertEquals(result.heading_context?.map(h=>h.text),['3. CONTENTIONS OF RESPONDENT','50. Suffice it to conclude that there is no substance']);
+  assertEquals(result.content,hit.content);
+});
+
+Deno.test('Ambiguous heading context preserves a possible speaker change literally', async () => {
+  const changed = rows.map((r,i)=>i===2?{...r,content:'4. Tribunal reasoning\n4.1 The application fails.'}:r);
+  const hit = await rowToChunk({...changed[3],desk_tier:'law'});
+  const result = (await hydrateLawContext([hit],()=>Promise.resolve(changed)))[0];
+  assertEquals(result.preceding_heading,undefined);
+  assertEquals(result.heading_context?.map(h=>h.text),['3. CONTENTIONS OF RESPONDENT','4. Tribunal reasoning']);
+});

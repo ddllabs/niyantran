@@ -19,6 +19,8 @@ export async function hydrateLawContext(
   chunks: Chunk[], read: (id: string) => Promise<LawContextRow[]>,
 ): Promise<Chunk[]> {
   const enriched = [...chunks];
+  const finalPassages = new Set<string>();
+  const trails = new Map<string, NonNullable<Chunk['heading_context']>>();
   const contexts = new Map<string, NonNullable<Chunk['preceding_heading']>>();
   const ids = [...new Set(chunks.filter(c => c.desk_tier === 'law').map(c => c.document_id))].slice(0, 4);
   for (const id of ids) {
@@ -38,6 +40,7 @@ export async function hydrateLawContext(
     if (rows.length < LAW_CONTEXT_CHUNKS) {
       const exemplar = verified[0];
       for (const row of rows.slice(-2)) {
+        finalPassages.add(row.id);
         if (enriched.some(c => c.id === row.id)) continue;
         enriched.push(await rowToChunk({ ...row, title: exemplar.title, file_name: exemplar.file_name,
           file_url: exemplar.file_url, desk_tier: exemplar.desk_tier, desk_feature: exemplar.desk_feature,
@@ -59,12 +62,26 @@ export async function hydrateLawContext(
       const same = rows[hit.chunk_index];
       if (!same || same.id !== hit.id || same.content !== hit.content || same.char_from !== hit.char_from || same.char_to !== hit.char_to) continue;
       const preceding = headings.filter(h=>h.charFrom < hit.char_from).sort((a,b)=>b.charFrom-a.charFrom)[0];
+      const before = headings.filter(h=>h.charFrom < hit.char_from).sort((a,b)=>a.charFrom-b.charFrom);
+      const anchor = before.findLastIndex(h=>h.recognized);
+      const trail = before.slice(anchor);
+      // Preserve ambiguous intervening source lines, never silently inherit a stale speaker.
+      if (anchor >= 0 && trail.length > 1 && trail.length <= 8) trails.set(hit.id, trail.map(({text,chunkId,charFrom})=>({text,chunkId,charFrom})));
       if (preceding?.recognized) contexts.set(hit.id,{text:preceding.text,chunkId:preceding.chunkId,charFrom:preceding.charFrom});
     }
   }
-  return enriched.map(c=>{
-    const { preceding_heading: _untrusted, ...rest } = c;
+  // Preserve the best relevance hit, then complete-document endings before lower-ranked hits.
+  const ordered = enriched.length ? [enriched[0], ...enriched.slice(1).filter(c=>finalPassages.has(c.id)), ...enriched.slice(1).filter(c=>!finalPassages.has(c.id))] : [];
+  return ordered.map(c=>{
+    const { preceding_heading: _untrusted, heading_context: _untrustedTrail, ...rest } = c;
     const heading = contexts.get(c.id);
-    return { ...rest, ...(heading ? { preceding_heading: heading } : {}) };
+    return { ...rest, ...(heading ? { preceding_heading: heading } : {}), ...(trails.has(c.id) ? {heading_context: trails.get(c.id)} : {}) };
   });
+}
+
+/** Literal source context for both retrieval and final synthesis, never a role classifier. */
+export function lawAttributionContext(c: Chunk): string {
+  if (c.heading_context?.length) return `Earlier uppercase numbered heading followed by intervening numbered source lines, in source order: ${JSON.stringify(c.heading_context.map(h=>h.text))}. These lines may be quoted precedent or a new section; establish the speaker from original wording and paragraph continuity. Do not assume the earlier heading still governs.`;
+  if (c.preceding_heading) return `Nearest recognized heading: ${JSON.stringify(c.preceding_heading.text)}. Positional context does not by itself establish the governing speaker; intervening unnumbered headings may exist. Reported speech controls the speaker.`;
+  return 'Governing heading unavailable; establish speaker from the original wording or state uncertainty.';
 }

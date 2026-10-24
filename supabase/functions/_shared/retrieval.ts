@@ -73,6 +73,8 @@ export interface Chunk {
   section?: CitationSection;
   /** Exact positional source text, hydrated under caller authorization; not a role label. */
   preceding_heading?: { text: string; chunkId: string; charFrom: number };
+  /** Earlier heading and intervening numbered lines, in source order; ambiguous, not a speaker label. */
+  heading_context?: { text: string; chunkId: string; charFrom: number }[];
 }
 
 export interface RetrievalTrace {
