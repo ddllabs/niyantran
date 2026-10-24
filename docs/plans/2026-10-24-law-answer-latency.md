@@ -37,3 +37,9 @@ Added a narrow negative-merits-contrast check and specific feedback using the ex
 Private false-premise replay completed in30.112s, two calls,USD0.00100791936: separately stated operative no-cost order, debtor’s costs request and debtor’s debt-proof submission, with correct source paragraphs. It did not trigger correction, so causal fixtures—not this provider sample—prove the guard. No ingestion or database writes. No-hint verification:6,575 app tests,1,297 Edge tests, lint/build pass; initial guard full Edge1,298 pass; final supported-contrast refinement requires final focused/full checks below.
 
 Final local checks:31 focused Law /1,299 full Edge pass; lint/build and diff checks pass. Independent reviewer found no blocker and confirmed the private false-premise source mapping. App6,575 passed on this branch before the isolated Edge guard refinement; CI reruns the complete suite. Remaining gates: PR/main CI, exact deployment and all four NTER cases.
+
+## V90 selector truncation
+
+PR36 merged663c737f; required branch/PR/main CI passed; v90 exact42-file deployment and401 verified. First website turn failed after53.939s before synthesis: Relace selector reached8,000 completion tokens, research.law_review_rejected=response_length. No credits charged to the user; provider costUSD0.004331. Retained as failed acceptance, not silently retried away.
+
+Independent review recommends one16,000-token selector allowance (same as synthesis) instead of a second8,000-token attempt. Preserves selected High, cancellation/deadline, three-call/one-correction limit and truncated-output refusal. Maximum three-call allowance40k→48k; no speed guarantee. New causal test failed31pass/1fail at8k, passes at16k. Full tests and bounded four-case evaluation precede publication; all four website cases must pass after deployment.

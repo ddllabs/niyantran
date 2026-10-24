@@ -135,7 +135,8 @@ export async function reviewLawAnswer(model: Model, request: {
       if (calls >= 3 || (request.takeAttempt && !request.takeAttempt(minimum))) return null;
       calls++;
       const result = await jsonCall(model, { model: request.model, signal: request.signal, reasoning,
-        max_tokens: synthesisStage ? 16000 : 8000, response_format: { type: 'json_object' },
+        // High reasoning shares this allowance even when the visible selector is tiny.
+        max_tokens: 16000, response_format: { type: 'json_object' },
         messages: [{ role: 'system', content: system + feedback }, { role: 'user', content: JSON.stringify(data) }],
       });
       const parsed = result.reason ? { reason: result.reason } : parse(result.value);

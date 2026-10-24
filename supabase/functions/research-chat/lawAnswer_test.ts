@@ -225,7 +225,7 @@ Deno.test('F247 terminal token-limit response can use the one existing correctio
  const model=async function*(req:StreamRequest):AsyncGenerator<ModelEvent>{
   calls++;yield {type:'text',text:JSON.stringify(calls===1?selection:synthesis)};
   yield calls===2?{...finish,reason:'length'}:finish;
-  assertEquals(req.max_tokens,calls===1?8000:16000);
+  assertEquals(req.max_tokens,16000);
  };
  const a=await reviewLawAnswer(model,{...request(),report:r=>reasons.push(r)});
  assert(a);assertEquals(calls,3);assertEquals(reasons,['response_length']);
@@ -273,4 +273,16 @@ Deno.test('F250 keeps a negative merits contrast explicitly stated in its own ci
  const supported={claims:[{text,evidence:'p1'}],uncertain:false};
  const a=await reviewLawAnswer(replay([{passages:['p1']},supported,supported]),{...request(),evidence:e});
  assert(a);assert(a.answer.includes(text));
+});
+
+Deno.test('F250 reserves enough output allowance for High selection without adding a call',async()=>{
+ let calls=0;
+ const provider=async function*(req:StreamRequest):AsyncGenerator<ModelEvent>{
+  calls++;
+  assertEquals(req.reasoning,{effort:'high'});
+  if(calls===1 && (req.max_tokens??0)<16000){yield {...finish,reason:'length'};return;}
+  yield {type:'text',text:JSON.stringify(calls===1?selection:synthesis)};yield finish;
+ };
+ const a=await reviewLawAnswer(provider,{...request(),selectionReasoning:{effort:'high'},reasoning:{effort:'high'}});
+ assert(a);assertEquals(calls,2);
 });
