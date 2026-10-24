@@ -3713,7 +3713,7 @@ for (const mixed of [false,true]) Deno.test(`F247: High draft cap retains Law sc
   assertEquals(source.chunk_id,'scope');
 });
 
-for (const outage of [false,true]) for (const valid of [true,false]) Deno.test(`F250: attached Law skips discarded draft but requires source review (${valid}, outage ${outage})`, async () => {
+for (const lawHint of [false,true]) for (const outage of [false,true]) for (const valid of [true,false]) Deno.test(`F250: attached Law skips discarded draft but requires source review (${valid}, outage ${outage}, hint ${lawHint})`, async () => {
   let drafts=0, selections=0, syntheses=0;
   const selectionModels:string[]=[];
   const original='7.34 The application is rejected. No order as to cost.';
@@ -3729,7 +3729,7 @@ for (const outage of [false,true]) for (const valid of [true,false]) Deno.test(`
     yield finish();
   };
   const {deps,rec}=fakeDeps({stream},{presearch:true,searchDocuments:()=>Promise.resolve([{...chunk('law'),document_id:DOC_A,desk_tier:'law',content:original,char_to:original.length}])},{resolveDocumentIds:()=>Promise.resolve([DOC_A])});
-  const events=await frames(await handleResearchChat(post({...BODY,message:'What did this tribunal order?',focus:'attached',attachments:[{...docChip('Law order'),tier:'law'}],desk_context:{tier:'law'},web_search:false,reasoning:'high'}),deps));
+  const events=await frames(await handleResearchChat(post({...BODY,message:'What did this tribunal order?',focus:'attached',attachments:[docChip('Law order')],...(lawHint?{desk_context:{tier:'law'}}:{}),web_search:false,reasoning:'high'}),deps));
   if(outage) assertEquals(selectionModels[1],failoverChain(MODELS,selectionModels[0])[1]);
   assertEquals(drafts,0);assertEquals(selections,outage?2:1);assertEquals(syntheses,valid?1:2);
   assertEquals(rec.messages[0].status,valid?'complete':'error');

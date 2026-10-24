@@ -52,6 +52,12 @@ export function parseLawSynthesis(value: unknown, focused: LawPassage[], require
     if (cited.some(p => !p)) return { reason: 'unknown_passage' };
     const partyOnly = cited.every(p => /\b(?:CONTENTION|SUBMISSION|ARGUMENT)S?\b.*\b(?:RESPONDENT|APPLICANT|PETITIONER|DEBTOR|CREDITOR|CD|FC)\b/i.test(p!.section ?? ''));
     if (partyOnly && /\b(?:tribunal|court|bench|nclt)\s+(?:(?:did|does|has|had|have)\s+)?(?:not\s+)?(?:finds?|found|holds?|held|concludes?|concluded|rules?|ruled|decides?|decided|determines?|determined|adopts?|adopted|accepts?|accepted|rejects?|rejected)\b/i.test(claim.text)) return { reason: 'party_source_as_finding' };
+    // A disposition does not support an appended denial of a merits finding.
+    // Permit the contrast only when its full clause occurs in its own cited original.
+    // This narrow lexical guard is not a semantic entailment validator.
+    const contrasts = [...claim.text.matchAll(/\bnot\s+because\b[^.!?]*\b(?:debt|liability)\b[^.!?]*/gi)];
+    if (contrasts.some(([clause]) => !cited.some(p => normalize(p!.text).toLowerCase()
+      .includes(normalize(clause).replace(/[”"’']+$/, '').toLowerCase())))) return { reason: 'negative_merits_contrast' };
     const debtBarred = /\bdebt\s+(?:(?:itself|was|is|has|had|been|became|become|remains?|stood|being)\s+){0,4}(?:time[- ]barred|barred by limitation)\b/i;
     if (debtBarred.test(claim.text) && !cited.some(p => debtBarred.test(p!.text))) return { reason: 'debt_claim_conflation' };
     if (!numericDatesSupported(claim.text, cited.map(p => p!.text).join('\n'))) return { reason: 'unsupported_date' };
@@ -137,7 +143,7 @@ export async function reviewLawAnswer(model: Model, request: {
       request.report?.(parsed.reason);
       if (corrected || parsed.reason === 'invalid_stream' || parsed.reason === 'response_size' || (parsed.reason === 'response_length' && !synthesisStage)) return null;
       corrected = true;
-      feedback = `\nYour previous response failed server validation (${parsed.reason}). Return the exact JSON contract using only IDs in this unchanged input. ${synthesisStage ? 'Each synthesis claim uses one scalar evidence ID, such as "evidence":"p1". Split multi-paragraph propositions into separate independently supported sentences; never remove a needed source while keeping its clause. ' : ''}Do not add commentary or fields.`;
+      feedback = `\nYour previous response failed server validation (${parsed.reason}). Return the exact JSON contract using only IDs in this unchanged input. ${synthesisStage ? 'Each synthesis claim uses one scalar evidence ID, such as "evidence":"p1". Split multi-paragraph propositions into separate independently supported sentences; never remove a needed source while keeping its clause. ' : ''}${parsed.reason === 'negative_merits_contrast' ? 'Do not append a "not because" debt/liability contrast to the disposition. State the actual disposition affirmatively. If needed, state the tribunal’s expressly limited inquiry in a separate sentence citing its scope paragraph; otherwise omit the negative merits assertion. ' : ''}Do not add commentary or fields.`;
     }
   }
   const selected = await run(SELECT, { question: request.question, previousQuestions: conversation,

@@ -1237,7 +1237,9 @@ async function runTurnBody(
             ...(schemaDropped ? { response_format: undefined } : {}),
           },
           model: attempts.wrap(observedStream, 'chat_answer'),
-          lawEvidenceOnly: lawTurn && request.focus === 'attached' && !web.offered,
+          // Document chips need not carry a desk hint. The agent verifies actual
+          // scoped Law chunks before handing evidence back, and emits lawEvidence.
+          lawEvidenceOnly: request.focus === 'attached' && !web.offered,
           searchDocuments: (args, ids, topK, onTiming) =>
             deps.searchDocuments(args, ids, {
               signal,
