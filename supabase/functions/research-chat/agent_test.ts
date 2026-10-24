@@ -2413,6 +2413,10 @@ for (const bad of [
   'The stored figure is the latest available and unrevised. [Source](https://example.org/1)',
   'FY26 is a different fiscal period, not a revision of the same series. [Source](https://example.org/1)',
   'The two figures refer to the same observation period. [Source](https://example.org/1)',
+  'We cannot establish the period convention, but FY26 covers a different period. [Source](https://example.org/1)',
+  'The record does not establish its convention and this is the latest figure. [Source](https://example.org/1)',
+  'The figure is unrevised; we cannot verify the period. [Source](https://example.org/1)',
+  'We cannot determine revision history because this is the latest official figure. [Source](https://example.org/1)',
   'GDP growth measures real output growth. (Web glossary)',
 ]) Deno.test(`F256 observation corrects unsupported period/status or missing page citation: ${bad}`, async () => {
   const good = 'The selected year-labelled observation is 7.57%; its period convention is unverified. GDP growth measures real output growth. [Source](https://example.org/1)';
@@ -2425,6 +2429,23 @@ for (const bad of [
   assert(!f.events.some(e => 'text' in e && e.text.includes(bad)), 'do not publish rejected text');
 });
 
+for (const qualification of [
+  'The sources do not establish whether the figures cover the same period.',
+  'The record does not establish a calendar-year convention.',
+  'These searches cannot establish whether the figure is latest or unrevised.',
+  'We cannot conclude that the newer figure is not a revision.',
+  'It is not known whether the figures cover different reporting periods.',
+  'Whether the figures cover the same period is not known.',
+  'The calendar-year convention is not established.',
+]) Deno.test(`F256 accepts explicit observation uncertainty: ${qualification}`, async () => {
+  const text = JSON.stringify({ answer: `${qualification} GDP growth measures real output growth. [Source](https://example.org/1)`, sources: [], follow_up_questions: [] });
+  const f = fake([[webResults(page(1)), searched(1)], answer(text)], { webSearch: { perTurn: 3 } });
+  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  assertEquals(result.text, text);
+  assertEquals(result.finish, 'stop');
+  assertEquals(f.requests.length, 2, 'an explicit limitation does not need a corrective call');
+});
+
 Deno.test('F256 repeated invalid observation fails closed within one correction', async () => {
   const bad = JSON.stringify({ answer: 'The latest calendar-year figure is unrevised.', sources: [], follow_up_questions: [] });
   const f = fake([[webResults(page(1)), searched(1)], answer(bad), answer(bad)], { webSearch: { perTurn: 3 } });
@@ -2432,6 +2453,15 @@ Deno.test('F256 repeated invalid observation fails closed within one correction'
   assertEquals(f.requests.length, 3);
   assertEquals(result.finish, 'observation_validation');
   assertEquals(result.text, '');
+});
+
+Deno.test('F256 citation URL words are not observation assertions', async () => {
+  const source = { ...page(1), url: 'https://example.org/latest/gdp' };
+  const text = JSON.stringify({ answer: 'The supplied year label has an unverified convention. [Definition](https://example.org/latest/gdp)', sources: [], follow_up_questions: [] });
+  const f = fake([[webResults(source), searched(1)], answer(text)], { webSearch: { perTurn: 3 } });
+  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  assertEquals(result.text, text);
+  assertEquals(f.requests.length, 2);
 });
 
 Deno.test('F256 no web pages cannot bypass observation period and revision guards', async () => {

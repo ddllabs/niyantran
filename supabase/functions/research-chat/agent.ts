@@ -35,9 +35,21 @@ function observationIssue(text: string, pages: WebPage[]): string | null {
   let answer: unknown;
   try { answer = JSON.parse(text).answer; } catch { return null; } // normal envelope handling owns malformed JSON
   if (typeof answer !== 'string') return null;
-  if (/\bcalendar[\s\-‐‑–]+year\b/i.test(answer)) return 'unverified_period_convention';
-  if (/\b(?:latest|unrevised)\b|\bno\s+(?:revised\s+figure|revision)\b/i.test(answer)) return 'unverified_revision_status';
-  if (/\b(?:different|same)\s+(?:(?:fiscal|observation|measurement|reporting)\s+)?periods?\b|\bnot\s+(?:a\s+)?revision\b/i.test(answer)) return 'unverified_comparability';
+  // A named uncertainty is not an assertion. Exempt only the complement of a
+  // negative knowledge verb, stopping at punctuation/conjunctions so an appended
+  // "but this is the latest" assertion still receives the ordinary checks.
+  const assertions = answer.replace(/\]\(https?:\/\/[^\s)]+\)/g, ']')
+    .split(/[,;:.!?\n]|\b(?:and|but|however|yet|whereas|although|while|nevertheless|because|since|therefore|so)\b/i)
+    .map(clause => {
+      // Postposed uncertainty must qualify an interrogative or the convention
+      // itself, not merely an allegedly "latest" or "calendar-year" figure.
+      if (/^\s*(?:whether\b[^;.!?]+|(?:the|its|this|that)\s+calendar[\s\-‐‑–]+year\s+(?:convention|coverage|basis|interpretation))\s+(?:is|are|remains?)\s+(?:unknown|unverified|unestablished|not\s+(?:known|established|verified|confirmed))\s*$/i.test(clause)) return '';
+      return clause.replace(/\b(?:(?:cannot|can't|can not|could not|unable to|(?:do|does) not|doesn't|don't|did not)\s+(?:establish|confirm|determine|verify|conclude|tell|say|show|prove)|(?:is|are)\s+not\s+(?:known|established|verified|confirmed))\b[\s\S]*$/i, '');
+    })
+    .join('. ');
+  if (/\bcalendar[\s\-‐‑–]+year\b/i.test(assertions)) return 'unverified_period_convention';
+  if (/\b(?:latest|unrevised)\b|\bno\s+(?:revised\s+figure|revision)\b/i.test(assertions)) return 'unverified_revision_status';
+  if (/\b(?:different|same)\s+(?:(?:fiscal|observation|measurement|reporting)\s+)?periods?\b|\bnot\s+(?:a\s+)?revision\b/i.test(assertions)) return 'unverified_comparability';
   const urls = new Set(pages.map(p => normaliseUrl(p.url)));
   if (pages.length && ![...answer.matchAll(/\[[^\]]+\]\((https?:\/\/[^\s)]+)\)/g)].some(m => urls.has(normaliseUrl(m[1])))) return 'missing_returned_page_link';
   return null;
