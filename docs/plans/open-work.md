@@ -23,7 +23,6 @@
 > either Done (with its commit or its operations record), waiting on one
 > named owner decision, in one of four later phases, or an accepted risk.
 
-- [ ] **F242 — RAG fallback reliability (2026-10-22).** Fix explicit model-switch notices, premature DeepSeek cutoff and false telemetry timeouts; independent review and CI-gated deployment authorized. Billing unchanged. [Plan](2026-10-22-rag-fallback-reliability.md).
 
 - [ ] **Production RAG acceptance (2026-10-19).** Implementation shipped on main
   8f72418 (clock-test prerequisite7a10c32), Vercel Production READY/exact commit,
@@ -3529,3 +3528,6 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 - [x] **F253 — Shared prompt cache and cross-desk audit.** `636efdd0` through `807fbee7`. Actual provider cache hits verified; National, State, Law and Economics acceptance complete. No guarantee every call hits cache or meets a latency bound. F252 remains open.
 
 [Final release evidence](../operations/cross-desk-answer-grounding-release.md#final-acceptance--v104-25-october-2026-ist) records exact message IDs, tests, source checks and unchanged corpus counts. No ingestion.
+## Done — 2026-10-22 RAG fallback reliability
+
+- [x] **F242** — Explicit fallback notices, preserved serving-model identity, 300-second chat leases with keepalives, and bounded post-answer telemetry. Independently reviewed; all tests and mandatory CI passed. Commit `9a81cd9b`, PR #10 merge `c0ad4355`; research-chat v71 and nter.pro verified. Billing unchanged. [Evidence](2026-10-22-rag-fallback-reliability.md).

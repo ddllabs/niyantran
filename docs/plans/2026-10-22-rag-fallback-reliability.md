@@ -1,6 +1,6 @@
 # F242 implementation plan
 
-> **Status: Living.** 2026-10-22. Branch task/rag-fallback-reliability.
+> **Status: Historical (2026-10-22).** Branch task/rag-fallback-reliability.
 
 1. Confirm source/log causes and paid runtime limits; inspect deployed claim contract.
 2. In disjoint scopes, first reproduce defects then implement:
@@ -34,3 +34,16 @@ Causal regressions failed before fixes: four UI cases, two heartbeat transport c
 - `npm audit --omit=dev`: zero vulnerabilities.
 - Supabase advisory baseline: 20 existing authenticated SECURITY DEFINER warnings and three multiple-policy warnings; this migration adds no roles, tables or permissions. Broad security cleanup is outside scope.
 - In-app production session initially signed out; owner asked to sign in for saved-chat browser acceptance while release continues.
+
+## Release verification
+
+- Full `npm run test:sql`: every disposable fixture and vacuity check passed.
+- PR #10 at `9a81cd9b` passed both required jobs on push and pull_request; merged as `c0ad4355` without bypass.
+- Applied only the chat claim migration. Readback confirms 300 seconds, monotonic chronology, SECURITY INVOKER and postgres/service_role-only execution.
+- Deployed research-chat v71; all 37 returned files match the reviewed bundle byte-for-byte. Exactly four runtime files changed from v70. Anonymous POST still returns HTTP 401 (`missing bearer token`).
+- Existing billing code, financial adapters, balances, settings and keys were not changed.
+- Main CI run 39825387495 passed both jobs. Production deployment `dpl_EyZpb8AT8TqXJjzBuQt2Y5DV9p5E` is READY and assigned to nter.pro/www.nter.pro at merge `c0ad4355`.
+- Signed-in production browser: the original six-message conversation shows both explicit Gemini → Claude Haiku notices with the activity panel collapsed.
+- A short real DeepSeek Flash request completed in 24 seconds; saved requested/served IDs both equal `deepseek/deepseek-v4-flash`. Its new lease is 300 seconds. Three model-call records and two trace records were persisted. This smoke test does not claim a real five-minute provider run; longer execution, heartbeat, interruption and fallback paths were exercised with deterministic regressions.
+- Existing provider 429/500 failures remain external availability conditions. The fix makes fallback explicit and avoids the application's premature cutoff; it cannot guarantee provider uptime.
+- GitHub emitted an informational Ubuntu runner migration annotation. No failed checks or dependency vulnerabilities remain in this release.
