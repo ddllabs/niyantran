@@ -58,3 +58,9 @@ Follow-up, 25 October 2026 IST: F254/F255 grounding acceptance completed; F256 r
 after `e4a2cf5a` / research-chat v103 omitted newer observations in both original-question runs. See the [cross-desk release record](../operations/cross-desk-answer-grounding-release.md)
 for exact live turns and partial-answer limitations. Actual v103 cache hits remain
 observed; F252 provider-tail latency remains open. No ingestion.
+
+
+Final follow-up: `807fbee7` / research-chat v104 passed the unchanged original
+Economics question in one complete answer. F254–F256 and the bounded F253
+cross-desk audit are closed; [release evidence](../operations/cross-desk-answer-grounding-release.md#final-acceptance--v104-25-october-2026-ist)
+records limitations and exact executions. F252 latency remains open.

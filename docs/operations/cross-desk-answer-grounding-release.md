@@ -68,7 +68,7 @@ High reasoning. Automatic web policy was left in control.
 | National Anti-Doping Bill, section 12 | `0cd46050-34d5-4c55-bf60-052e99c7c5fd` | v98, 64.619s; one document search, no web. Correct 2022 principal Act and clause 9 substitutions. Two citations match the introduced version's document, ranges and hashes. PDF reader opens clause 9. Passed. |
 | State MLA, Satyanarayana Pithani | `df94c61e-da56-454e-877d-085512ab2178` | v98, 22.381s; three web searches, 12 pages, zero document searches. Correctly identifies aggregator/Wikipedia provenance and explicitly states no official original was returned. Directory fields checked in Record tab. Passed scoped check. |
 | Law, Globiz Exim | `ef269d9c-6ffa-494a-8202-69dea5ff5a23` | v98 repeat, 72.250s; two document searches, no web. Distinguishes debtor submissions from tribunal findings and rejection with no costs. All eight source hashes/ranges match; reader opens paragraphs 7.33–7.35. Passed. |
-| Economics, India GDP growth 2025 | `5dfb5a76-0ba5-4ac4-80ec-22271a6eacdc`, `7321403d-3517-4701-b31b-c6d4cf62f6e4` | v103 original question and fresh-chat repeat: 36.387s / 17.373s, three/two web searches, 13/10 pages, zero document searches. Both retain supplied 7.57 and correctly cite the World Bank definition, without period/revision inference. Both explicitly omit additional observations. Targeted follow-up `0f548fac-322a-4e71-a778-eaa1c10f2e1c` (40.487s, one search/five pages) separately cites FY27 projected 6.6%, preserves forecast status, and retains the unestablished-comparability note. Provenance/qualification checks pass; full F256 acceptance remains open. |
+| Economics, India GDP growth 2025 | `494bbcf9-660a-4c22-875d-6e613d59890b` | v104, 24.742s; two web searches/10 pages, zero document searches. One 139-word answer includes supplied 7.57, cited World Bank definition and two separately attributed observations, with explicit unestablished comparability and no omission notice. Passed; final source-review limits below. |
 
 The State record and Economics observation were browser-supplied context,
 not verified `desk_rows` citations. Do not present them as independently
@@ -77,7 +77,7 @@ against retrieved chunks; no OCR or re-ingestion was performed.
 
 ## Verification and limits
 
-Full application CI passed (423 files / 6,575 tests). The final local rerun reached 6,546 passing tests but three files encountered ENOSPC; two passed on retry and the third again encountered ENOSPC. Earlier full local application runs passed. Do not describe the final local run as wholly successful. Final runtime local checks:
+Full application CI passed (423 files / 6,575 tests). The earlier pre-candidate local rerun reached 6,546 passing tests but three files encountered ENOSPC; two passed on retry and the third again encountered ENOSPC. Earlier full local application runs passed. That earlier local run was not wholly successful; the later candidate-repair full rerun passed, as recorded below. Pre-candidate runtime local checks:
 `deno test -A --config supabase/functions/deno.json supabase/functions`
 (1,407 tests; superseded lexical cases replaced by extraction/renderer cases), `npm run lint`, `npm run build`, router import and
 `git diff --check` all pass. No standalone type-check exists or is claimed.
@@ -128,3 +128,57 @@ prompt tokens; its two subsequent calls report zero. F252 provider-tail latency
 remains open. The final read-only counts remain 4,569 documents / 150,204 chunks,
 including 1,110 Law documents / 49,488 Law chunks / 1,439 NCLT listings. No corpus,
 listing, ingestion or schema writes occurred; normal chat/accounting writes did.
+
+
+## Candidate-selection repair — PR #54
+The renewed approved diagnostic used four calls, $0.016555374152, and reproduced
+modified punctuation/qualifiers plus truncated table-row extraction. Candidate IDs
+now refer to exact server-owned complete sentences, with definition-only slot
+eligibility and rejection of excerpt gaps. Initial/correction IDs resolve against
+the same immutable source snapshot. No model-written quote is accepted.
+Independent review: 13 unit cases pass, no release blocker; conservative sentence
+availability and model relevance remain limitations. Causal integration and gap
+regressions fail before the repairs. Final local 6,575 app / 1,412 Edge tests,
+lint/build/router/diff pass. PR #54 head `47ec6f6b` passed all head/PR jobs and
+merged as `807fbee7`. Exact-main CI `40136935348` passed both required jobs.
+
+
+## Final acceptance — v104, 25 October 2026 IST
+Research-chat v104 matches all 43 reviewed files; bundle SHA256
+`b1779e2a676d15fe524ff87463624f4b6db874f996c13fa6d8d3893c0b4d06ba`.
+Unauthenticated POST returned 401. Vercel production
+`dpl_HMZqhiat8vvwmRvzjsE46PYXhkjP` is READY at `807fbee7`.
+
+Fresh signed-in NTER turn `494bbcf9-660a-4c22-875d-6e613d59890b` used the unchanged
+original GDP question, DeepSeek Flash/High, the selected India 2025 record and
+automatic web. It completed in 24.742s with two web searches/10 pages, zero
+document searches, and two model rounds. The single 139-word visible answer
+(including provenance notes; link labels counted once) contains all requested
+parts: supplied 7.57, the World Bank definition, and separately attributed
+BusinessLine/IMF observations. It preserves estimate wording and the IMF fiscal
+quarter/year labels; it makes no unsupported revision, comparability or latest
+claim. There is no omission notice or malformed output.
+
+The [World Bank metadata](https://databank.worldbank.org/metadataglossary/jobs/series/NY.GDP.MKTP.KD.ZG)
+and [IMF original](https://www.imf.org/en/news/articles/2025/11/24/pr-25392-india-imf-executive-board-concludes-2025-article-iv-consultation)
+were independently read and support the definition and IMF figures. The
+[BusinessLine link](https://www.thehindubusinessline.com/economy/imf-upped-indias-gdp-growth-to-73-for-fy26/article70524911.ece)
+is attributed to its actual publisher; its original fetch failed, so verification
+is limited to the exact returned search excerpt, as labelled in the answer.
+Do not describe these observations as the latest available or infer their
+relationship to the selected value. Screenshot saved locally as
+`/tmp/f256-v104-economics-accepted.png` (not a repository artifact).
+
+Independent review of the supplied execution evidence approved scoped F256
+closure; the reviewer did not independently operate the browser. F254/F255
+retain their prior accepted National/State/Law checks; changes after those checks
+were scoped to Economics. F253's cross-desk audit is now complete. These are
+bounded acceptance cases, not a universal semantic or latency guarantee. F252
+provider-tail latency remains open. Final corpus counts remain unchanged:
+4,569 documents / 150,204 chunks; Law 1,110 documents / 49,488 chunks / 1,439
+NCLT listings. No ingestion, re-ingestion or larger batches occurred.
+
+The accepted v104 research call reported 7,424 cached prompt tokens; the final
+selection call reported zero. Combined recorded cost was $0.016729. Cache hits
+remain provider-dependent; no additional direct replay beyond the approved four
+calls was made.
