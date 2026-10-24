@@ -1,6 +1,6 @@
 # F247 grounded synthesis implementation
 
-> **Status: Living.** Sequential implementation; independent read-only review permitted.
+> **Status: Historical (2026-10-24).** Completed through PR33 / v88 with four-case authenticated acceptance. Failed intermediate tests below are retained. F250 tracks performance and broader qualification.
 
 1. Reproduce current provider/parser failures locally on existing text; preserve bounded private evidence. Compare a simpler source-ID synthesis contract before implementation.
 2. Write causal parser/orchestration regressions, then implement sentence-to-passage mapping and one bounded correction within existing budgets. Exact scopes: research-chat/lawAnswer.ts/tests, handler.ts/tests. Keep public response interfaces unchanged. Actual provider evaluation exposed missing attribution context after a quoted numbered precedent: include _shared/lawContext.ts/tests, retrieval.ts Chunk metadata and agent.ts source rendering. Preserve ambiguous intervening lines literally; never infer the governing speaker.
@@ -49,3 +49,7 @@ The explicit-coverage evaluation exhausted8000 synthesis tokens and then the120s
 The16000-token run completed an adequate original answer but failed the follow-up twice with claim_shape. Date quotation passed. False-premise source review rejected an invented causal addition to the costs request. A private diagnostic showed that valid combined operative prose was citing two paragraph IDs, while the contract allowed only one. Do not weaken the paragraph boundary: synthesis now requests a scalar evidence ID, accepting a legacy singleton array only as normalization. A new regression failed before this parser/prompt correction and passed afterward. Independent review found no blocking implementation issue;29 focused and1280 full Edge tests pass.
 
 The diagnostic Pro comparison is not a model-routing change. Its first three answers passed independent source review, but the admission spending threshold stopped the fourth (8calls,USD0.10932305; the threshold is not a hard cap). Flash still requires final candidate acceptance; model selection and defaults are unchanged. Raw responses are bounded in fresh0600 local evaluation files, never in public repository evidence.
+
+## Completion
+
+PR33 merge 92a99d46, required PR/main CI passed, research-chat v88 source-verified and exact Vercel production verified. Original 70s/53.4 credits, follow-up 161s/70.6 credits, date 81s/75.2 credits and false premise 66s/52.2 credits passed independent original-source review on NTER. No verification error, false attribution or mismatched quoted date in this bounded set. F247 moved to Done; F250 remains open. All original 110 completed document/chunk/input/job fingerprints unchanged despite concurrent corpus growth to 1,110 Law registrations. No ingestion or stored-corpus writes by this task. [Current receipt](../operations/law-grounded-synthesis-release.md) records precise citation-click coverage and limits.
