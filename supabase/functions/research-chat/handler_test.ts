@@ -4071,16 +4071,29 @@ Deno.test('F254 stale Law hint cannot bypass National provision review without a
 
 Deno.test('F256 Economic Simulator withholds and corrects unsupported observation prose before saving', async () => {
   const bad = `The calendar-year figure is latest and unrevised. [Source](${SEARCHED})`;
-  const good = `The selected year-labelled figure is 7.57%; the period convention is unverified. [Source](${SEARCHED}) explains annual real GDP growth.`;
-  const provider = scripted([[webPages(), finish('stop', searchedUsage)], [text(envelope(bad)), finish()], [text(envelope(good)), finish()]]);
+  const good = JSON.stringify({ definition: { sourceId: 1, quote: 'The MPC voted to keep the repo rate unchanged.' }, updates: [] });
+  const provider = scripted([[webPages(), finish('stop', searchedUsage)], [text(envelope(bad)), finish()], [text(good), finish()]]);
   const row = { ...ROW_ONLY, tier: 'economics', feature: 'Economic Simulator', record_text: 'India GDP growth 2025: 7.57%', row: { country: 'India', year: '2025', value: '7.57' } };
   const { deps, rec } = fakeDeps(provider, { repairModel: '' }, { findDeskRow: () => Promise.resolve(row), indexedDocumentKeys: () => Promise.resolve([]) });
   const got = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, selection: { tier: row.tier, feature: row.feature, row: row.row }, message: 'Explain this observation against its source definition.' }), deps));
   assertEquals(rec.messages[0].status, 'complete');
   assert(!rec.messages[0].content.includes('calendar-year'));
-  assertStringIncludes(rec.messages[0].content, good);
+  assertStringIncludes(rec.messages[0].content, 'The MPC voted to keep the repo rate unchanged.');
+  assertStringIncludes(rec.messages[0].content, 'value: 7.57');
+  assertStringIncludes(rec.messages[0].content, 'Selected record');
   assertStringIncludes(rec.messages[0].content, 'Comparability and revision relationships with web figures are not established.');
   assert((rec.messages[0].timing?.first_answer_ms ?? 0) > 0, 'held answer records its actual release boundary');
   assert(!got.some(frame => 'chunk' in frame && String(frame.chunk).includes('calendar-year')), 'invalid provisional answer must not reach browser');
   assertEquals(provider.seen.length, 3);
+});
+
+Deno.test('F256 attached observation keeps its verified row identity in server-rendered answer', async () => {
+  const good = JSON.stringify({ definition: { sourceId: 1, quote: 'The MPC voted to keep the repo rate unchanged.' }, updates: [] });
+  const provider = scripted([[webPages(), finish('stop', searchedUsage)], [text(good), finish()]]);
+  const row = { ...ROW_ONLY, tier: 'economics', feature: 'Economic Simulator', record_text: 'India GDP growth 2025: 7.57%', row: { country: 'India', year: '2025', value: '7.57' } };
+  const { deps, rec } = fakeDeps(provider, { repairModel: '' }, { findDeskRow: () => Promise.resolve(row), indexedDocumentKeys: () => Promise.resolve([]) });
+  await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, selection: undefined, desk_context: { tier: row.tier, feature: row.feature }, attachments: [{ kind: 'row', tier: row.tier, feature: row.feature, row_key: row.row_key, title: 'India GDP', text: 'stale 9%' }], message: 'Explain this observation against its source definition.' }), deps));
+  assertEquals(rec.messages[0].status, 'complete');
+  assertStringIncludes(rec.messages[0].content, 'value: 7.57');
+  assert(!rec.messages[0].content.includes('stale 9%'));
 });
