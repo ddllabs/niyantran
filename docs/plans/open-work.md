@@ -1,6 +1,6 @@
 # Open work: the one list
 
-- [ ] **F251 — Wider Law performance and semantic qualification.** PR #39/#40 merged6f511513/b3d2cad7; research-chat v93 deployed after required CI. Compact evidence removes selection for bounded pools; decimal boundaries and explicit quotation/monetary-condition checks corrected. Five representative live answers and Globiz original/date/false-premise pass independent source review. Globiz follow-up mis-cited inquiry scope; a causal guard and targeted private review pass, with one retained private date uncertainty caveat. Final correction publication and live acceptance pending. Provider tails remain: Jet87.705s live, Navinchandra120s private timeout and96s retry. [Spec](../specs/2026-10-24-law-answer-qualification.md), [plan](2026-10-24-law-answer-qualification.md), [release evidence](../operations/law-answer-qualification-release.md). No ingestion authorization or universal latency/accuracy claim.
+- [ ] **F252 — Law provider-tail latency and uncertainty calibration.** F251's compact-evidence optimization and source corrections are released, but wider latency is not solved: Navinchandra timed out at120s in a private run, retried in96s; Jet took87.705s on NTER with most time inside two provider calls. A private Globiz date response also had unnecessary uncertainty despite sufficient evidence, although final live date passed. Investigate using measured, bounded comparisons; preserve High reasoning, attribution/citations, correction limits and cost accounting. Prior latency/throughput routing experiments were rejected; do not reintroduce them without new evidence. No ingestion or larger batches. [F251 evidence](../operations/law-answer-qualification-release.md).
 
 
 - [ ] **F246 — Law baseline source-membership refresh.** Canonical seeding captures a reviewed snapshot; protected legacy refreshes cannot add, change or remove its source-only memberships. Before claiming ongoing official-register coverage, specify and implement a provenance-checked membership refresh with stable identities, explicit retirement policy, audit evidence and tests preserving corpus attachments. This is separate from automatic publication of newly admitted supported corpus documents. Other forum adapters, revisions/translations and compound fallback also remain outside the first NCLT adapter. No current ingestion authorization.
@@ -73,7 +73,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F252 is next) and goes in the
+- A new finding gets the next free `F` number (F253 is next) and goes in the
   right section.
 
 
@@ -3556,3 +3556,7 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-24 bounded Law latency optimization
 
 - [x] **F250 — Law answer latency without relaxing source quality.** PR #35/36/37 merged 258c7ad6/663c737f/023bf1dc after required app/SQL CI. Research-chat v91 and exact Vercel deployment verified. Removed discarded draft on eligible one-document attached Law turns; actual-evidence detection covers missing desk hints. Added narrow negative-merits source guard and selector completion allowance while preserving High reasoning, citation validation and bounded correction. Local 6,575 app/1,300 Edge pass; independent review and all four final NTER answers pass. Median 55.618s vs historical 75.5s, with first/date individually slower; no SLA. Original 110 corpus fingerprints unchanged; concurrent ingestion recorded separately. [Release evidence](../operations/law-answer-latency-release.md). Wider qualification remains F251; no larger batches or re-ingestion.
+
+## Done — 2026-10-24 wider Law qualification
+
+- [x] **F251 — Wider Law performance and semantic qualification.** PR #39/#40/#41 merged6f511513/b3d2cad7/17531c94 after required CI; research-chat v94 and exact Vercel deployment verified. Compact pools skip selection without dropping evidence; decimal boundaries and bounded quote/amount/condition/scope guards corrected reproduced failures. Six representative live cases accepted across v93/v94, with final fresh Globiz original/follow-up/date passing independent review and reader navigation. Local6,575 app/1,321 Edge tests pass; corpus fingerprints unchanged. Compact matched median13.5% faster, not an overall latency or semantic guarantee. Provider tails and private uncertainty caveat remain F252. [Spec](../specs/2026-10-24-law-answer-qualification.md), [plan](2026-10-24-law-answer-qualification.md), [release evidence](../operations/law-answer-qualification-release.md). No larger batches or re-ingestion.

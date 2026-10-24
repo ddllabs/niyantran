@@ -1,6 +1,6 @@
 # F251 Law answer qualification
 
-**Status: Living.** Release acceptance in progress; no ingestion or re-ingestion. Baseline `fd059e4b`, research-chat v91.
+**Status: Living.** Released and accepted at v94; provider-tail follow-up remains F252. No ingestion or re-ingestion. Historical baseline `fd059e4b`, research-chat v91.
 
 ## Final changes
 
@@ -41,7 +41,7 @@ Median13.5% lower in this bounded comparison; deterministic benefit is three rem
 
 Causal regressions failed before fixes for monetary decimals, spaced percent symbol, non-exact quotations, own-citation amounts and compact direct synthesis. Handler matrix covers compact/full pools, desk hint presence, first-provider outage and invalid output. Multi-document/large-pool controls retain selection; correction/admission tests remain bounded.
 
-Local app suite: 6,575 pass. Final Edge/lint/build, independent final source review, PR/main CI, exact deployed source match, authenticated NTER acceptance and corpus preservation will be recorded before completion. No standalone type-check claim.
+Local app suite: 6,575 pass. At this pre-release checkpoint, final Edge/lint/build, source review, CI, deployment and website acceptance were pending; final outcomes appear below. No standalone type-check claim.
 
 ## Recovery
 
@@ -71,7 +71,7 @@ Exact-main CI40106741141 passed both required jobs. Research-chat v92 deployed w
 
 Post-deployment full Law baseline comparison is identical: all1,110 document/input/chunk/job fingerprints,1,439 listings, global4,569 documents/150,204 chunks and Law costs. No corpus mutation occurred.
 
-Live acceptance remains in progress. Future Consumer assistant84ee2392-469b-41e0-8786-1db6e8709fe0 completed in15.974s, with two answer calls; its source7 opens original chunk93. The live pool did not demonstrate a one-call saving, so the private compact comparison must not be presented as this website turn's path. Bigmoon now answers the previously failing question in about19s, preserves limited recall jurisdiction and no costs, and opens the original ruling citation.
+At the v92 checkpoint, live acceptance was in progress. Future Consumer assistant84ee2392-469b-41e0-8786-1db6e8709fe0 completed in15.974s, with two answer calls; its source7 opens original chunk93. The live pool did not demonstrate a one-call saving, so the private compact comparison must not be presented as this website turn's path. Bigmoon now answers the previously failing question in about19s, preserves limited recall jurisdiction and no costs, and opens the original ruling citation.
 
 ### Live qualification failure and follow-up
 
@@ -109,4 +109,22 @@ A causal test fails before a narrow inquiry-scope support guard and passes after
 
 Four targeted private Globiz responses took23.087/19.205/25.048/15.979s,8 calls,USD0.00377631156, no corrections. All13 cited entries byte-match originals. Original, follow-up and false-premise pass semantic review; the date answer has supported facts and exact quotation but an unnecessary insufficiency notice. This is three unqualified passes plus one quality caveat, not four clean passes. All four replay identically through the final guard. The v93 live date answer did not have that caveat.
 
-Final local checks for this correction:43 focused Law tests,1,321 Edge tests,6,575 app tests; lint, production build, router import and diff check pass. Independent review found no code blocker. Authenticated post-deployment follow-up/date acceptance remains pending.
+Final local checks for this correction:43 focused Law tests,1,321 Edge tests,6,575 app tests; lint, production build, router import and diff check pass. Independent review found no code blocker. At this pre-v94 checkpoint, authenticated post-deployment follow-up/date acceptance was pending; completed results follow.
+
+## Final correction release and acceptance
+
+PR #41 merged `17531c9419e3bb116474a4703b9cfde4a477d36a` from `985893b0` after branch/PR CI40111122247/40111143350 passed both required jobs and preview. Exact-main CI40111678176 passed both jobs before deployment. Research-chat v94 bundle hash `2559c50671be28b7dd24b36e25385688bfc9c3f0fc03ca2e0feb08446cb5efe1`; all42 deployed files match the reviewed payload. Unauthenticated POST returns401. Vercel production `dpl_6JffeEcrtaEd19MXixA4mo7F4hXe` is READY at17531c94.
+
+Fresh authenticated Globiz conversation on v94, same DeepSeek Flash/High and attached-only/web-off settings:
+
+| Check | Assistant message | Seconds | Independent acceptance |
+|---|---|---:|---|
+| Original |b5f0f482-8e97-45c4-8277-9dba6ad9d5f4|30.240|Disposition79; explicit inquiry scope62–64|
+| Attribution follow-up |8342eebe-6ebb-4783-8874-cfe32c3d6343|22.354|Debtor submissions41/42 and20/21; operative no-cost order79|
+| Date and exact quote |4717b236-4e97-4f1b-97da-2fa227bc0865|27.368|Commencement6Sep versus notice1Sep; exact paragraph7.29, no unnecessary uncertainty|
+
+All three pass clause-level support and requested coverage. The live export provides citation metadata, not source text: source IDs/character bounds were matched to originals, without claiming direct byte equality from that export. Date quotation matches original74 after whitespace normalization; NTER reader opens and highlights that original paragraph. The five other representative live answers were accepted on v93; their accepted private responses replay identically through the isolated v94 guard. They were not all repeated live on v94.
+
+Final read-only corpus comparison after these answer-only checks remained identical across all1,110 Law document/input/chunk/job fingerprints,1,439 listings,global4,569 documents/150,204 chunks and costs. No ingestion/re-ingestion or corpus mutation was performed.
+
+Outcome: compact-path call reduction demonstrated, matched small-sample median13.570→11.738s (13.5%); no overall six-case latency improvement or SLA established. Provider tails remain open as F252, including the retained120s timeout,96s private retry and87.705s Jet website answer. Existing High reasoning, citation/attribution checks and bounded correction remain. No larger batch is authorized.
