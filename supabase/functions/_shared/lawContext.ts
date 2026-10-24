@@ -20,6 +20,8 @@ export async function hydrateLawContext(
 ): Promise<Chunk[]> {
   const enriched = [...chunks];
   const finalPassages = new Set<string>();
+  const openingPassages = new Set<string>();
+  const paragraphs = new Map<string, NonNullable<Chunk['paragraph_context']>>();
   const trails = new Map<string, NonNullable<Chunk['heading_context']>>();
   const contexts = new Map<string, NonNullable<Chunk['preceding_heading']>>();
   const ids = [...new Set(chunks.filter(c => c.desk_tier === 'law').map(c => c.document_id))].slice(0, 4);
@@ -58,9 +60,45 @@ export async function hydrateLawContext(
         headings.push({ text, chunkId: row.id, charFrom, recognized });
       }
     }
+    // A late quote fragment needs its original introductory paragraph. Typography
+    // locates text only: no claim that the paragraph is a finding or a precedent.
+    const openings: {text:string;chunkId:string;charFrom:number}[]=[];
+    for (const row of rows) {
+      const matches=[...row.content.matchAll(/(?:^|[\n\f])([ \t]*\d{1,2}\.\d{1,3}[ \t]+[^\r\n\f])/g)];
+      for (let i=0;i<matches.length;i++) {
+        const m=matches[i];
+        const start=m.index!+m[0].indexOf(m[1])+m[1].search(/\S/);
+        const end=Math.min(start+700,matches[i+1]?.index ?? row.content.length);
+        openings.push({text:row.content.slice(start,end).trim(),chunkId:row.id,charFrom:row.char_from+start});
+      }
+    }
+    const openingFor=(hit:Chunk)=>{
+      const first=/^(?:[ \t\r\n\f]*)\d{1,2}\.\d{1,3}[ \t]/.test(hit.content);
+      if(first)return undefined;
+      const opening=openings.filter(p=>p.charFrom<hit.char_from).sort((a,b)=>b.charFrom-a.charFrom)[0];
+      if(!opening || hit.char_from-opening.charFrom>12000)return undefined;
+      return {...opening,text:opening.text.slice(0,hit.char_from-opening.charFrom)};
+    };
+    const anchors=new Set<string>();
+    for(const hit of enriched.filter(c=>c.desk_tier==='law'&&c.document_id===id)) {
+      const same=rows[hit.chunk_index];
+      if(!same||same.id!==hit.id||same.content!==hit.content||same.char_from!==hit.char_from||same.char_to!==hit.char_to)continue;
+      const opening=openingFor(hit);
+      if(opening&&anchors.size<8)anchors.add(opening.chunkId);
+    }
+    for(const anchor of anchors) {
+      openingPassages.add(anchor);
+      if(enriched.some(c=>c.id===anchor))continue;
+      const row=rows.find(r=>r.id===anchor)!;
+      const exemplar=verified[0];
+      enriched.push(await rowToChunk({...row,title:exemplar.title,file_name:exemplar.file_name,file_url:exemplar.file_url,
+        desk_tier:exemplar.desk_tier,desk_feature:exemplar.desk_feature,document_role:exemplar.document_role}));
+    }
     for (const hit of enriched.filter(c=>c.desk_tier === 'law' && c.document_id === id)) {
       const same = rows[hit.chunk_index];
       if (!same || same.id !== hit.id || same.content !== hit.content || same.char_from !== hit.char_from || same.char_to !== hit.char_to) continue;
+      const opening=openingFor(hit);
+      if(opening)paragraphs.set(hit.id,opening);
       const preceding = headings.filter(h=>h.charFrom < hit.char_from).sort((a,b)=>b.charFrom-a.charFrom)[0];
       const before = headings.filter(h=>h.charFrom < hit.char_from).sort((a,b)=>a.charFrom-b.charFrom);
       const anchor = before.findLastIndex(h=>h.recognized);
@@ -71,17 +109,23 @@ export async function hydrateLawContext(
     }
   }
   // Preserve the best relevance hit, then complete-document endings before lower-ranked hits.
-  const ordered = enriched.length ? [enriched[0], ...enriched.slice(1).filter(c=>finalPassages.has(c.id)), ...enriched.slice(1).filter(c=>!finalPassages.has(c.id))] : [];
+  const ordered = enriched.length ? [enriched[0], ...enriched.slice(1).filter(c=>finalPassages.has(c.id)), ...enriched.slice(1).filter(c=>openingPassages.has(c.id)&&!finalPassages.has(c.id)), ...enriched.slice(1).filter(c=>!finalPassages.has(c.id)&&!openingPassages.has(c.id))] : [];
   return ordered.map(c=>{
-    const { preceding_heading: _untrusted, heading_context: _untrustedTrail, ...rest } = c;
+    const { preceding_heading: _untrusted, heading_context: _untrustedTrail, paragraph_context: _untrustedParagraph, ...rest } = c;
     const heading = contexts.get(c.id);
-    return { ...rest, ...(heading ? { preceding_heading: heading } : {}), ...(trails.has(c.id) ? {heading_context: trails.get(c.id)} : {}) };
+    return { ...rest, ...(heading ? { preceding_heading: heading } : {}), ...(trails.has(c.id) ? {heading_context: trails.get(c.id)} : {}), ...(paragraphs.has(c.id)?{paragraph_context:paragraphs.get(c.id)}:{}) };
   });
 }
 
 /** Literal source context for both retrieval and final synthesis, never a role classifier. */
-export function lawAttributionContext(c: Chunk): string {
+function headingContext(c: Chunk): string {
   if (c.heading_context?.length) return `Earlier uppercase numbered heading followed by intervening numbered source lines, in source order: ${JSON.stringify(c.heading_context.map(h=>h.text))}. These lines may be quoted precedent or a new section; establish the speaker from original wording and paragraph continuity. Do not assume the earlier heading still governs.`;
   if (c.preceding_heading) return `Nearest recognized heading: ${JSON.stringify(c.preceding_heading.text)}. Positional context does not by itself establish the governing speaker; intervening unnumbered headings may exist. Reported speech controls the speaker.`;
   return 'Governing heading unavailable; establish speaker from the original wording or state uncertainty.';
+}
+
+export function lawAttributionContext(c: Chunk): string {
+  const opening=c.paragraph_context
+    ? ` Nearest earlier decimal-numbered paragraph opening: ${JSON.stringify(c.paragraph_context.text)}. This is positional context, not proof that the paragraph governs the initial fragment: unrecognized boundaries may intervene and the opening may be truncated. Check the original wording and any new paragraph in the excerpt. Preserve quoted authorities, their facts and the present tribunal's express adoption as distinct propositions; a quoted case's facts are not facts of this case.` : '';
+  return headingContext(c)+opening;
 }
