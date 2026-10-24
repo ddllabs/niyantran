@@ -4079,6 +4079,7 @@ Deno.test('F256 Economic Simulator withholds and corrects unsupported observatio
   assertEquals(rec.messages[0].status, 'complete');
   assert(!rec.messages[0].content.includes('calendar-year'));
   assertStringIncludes(rec.messages[0].content, good);
+  assertStringIncludes(rec.messages[0].content, 'Comparability and revision relationships with web figures are not established.');
   assert((rec.messages[0].timing?.first_answer_ms ?? 0) > 0, 'held answer records its actual release boundary');
   assert(!got.some(frame => 'chunk' in frame && String(frame.chunk).includes('calendar-year')), 'invalid provisional answer must not reach browser');
   assertEquals(provider.seen.length, 3);

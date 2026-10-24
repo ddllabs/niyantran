@@ -32,3 +32,5 @@ The Economics observation test still invented calendar-year coverage and latest/
 An unknown observation convention also cannot establish whether a differently labelled figure covers the same/different period or is/is not a revision. The scoped check rejects those comparisons and asks for explicit unestablished comparability. Held answers record first-answer time at final release, not zero.
 
 Explicit statements that a relationship cannot be established are permitted. Exempt only the bounded complement of a negative knowledge verb, never an entire answer or a sentence with an appended assertion. Citation URL path words are not prose assertions. Preserve the bounded correction and link validation.
+
+The server renders the observation-period/comparability limitation for this path. Check reference-period and reverse convention predicates as well as direct comparable/compared assertions; keep explicit uncertainty and no-newer-comparable-result statements valid. Web synthesis reports each observation separately with its own period, release and actual/estimate/forecast status, never a range assembled from different releases.

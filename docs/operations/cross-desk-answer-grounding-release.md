@@ -38,14 +38,15 @@ fetched originals. Search absence cannot prove latest status or no revisions.
 | [46](https://github.com/ddllabs/niyantran/pull/46) | `b9ed0503` | research-chat v97 | `40121547216` passed |
 | [47](https://github.com/ddllabs/niyantran/pull/47) | `af8b0cb7` | research-chat v98 | `40123909448` passed |
 | [48](https://github.com/ddllabs/niyantran/pull/48) | `bc5b750e` | research-chat v99 | `40125846137` passed |
+| [49](https://github.com/ddllabs/niyantran/pull/49) | `0b6609f8` | research-chat v100 | `40127591222` passed |
 
 Both required jobs passed before each merge. Production deployment also waits
 for the exact main commit's jobs. The v98 bundle matches all 42 submitted files;
 its hash is `0e46945423602ce8bd5d4af48b065a317d6ccf41140d48a29c2bbbc3f97a2de4`.
-The final v99 bundle also matches all 42 files, hash
-`0d319b33fb7f4c3c2f6bcf14236f4ed5a86c765310e929a4633409b6c071ce2e`.
+The final v100 bundle also matches all 42 files, hash
+`2216c4584fdb93cdc321bf9dc2facd1a7e24ea9383b6f75af15a5f8dc0dd5a6a`.
 An unauthenticated POST returns 401. Vercel production is READY at
-`bc5b750e`, deployment `dpl_R67oGverfwAjQrswBFvsPgN2ifJN`.
+`0b6609f8`, deployment `dpl_FTsUsuZWaTTXkTVuJiHfvqvTysxE`.
 Desk-brief remains v19; no other function was deployed in this task.
 
 ## Live NTER acceptance
@@ -58,7 +59,7 @@ High reasoning. Automatic web policy was left in control.
 | National Anti-Doping Bill, section 12 | `0cd46050-34d5-4c55-bf60-052e99c7c5fd` | v98, 64.619s; one document search, no web. Correct 2022 principal Act and clause 9 substitutions. Two citations match the introduced version's document, ranges and hashes. PDF reader opens clause 9. Passed. |
 | State MLA, Satyanarayana Pithani | `df94c61e-da56-454e-877d-085512ab2178` | v98, 22.381s; three web searches, 12 pages, zero document searches. Correctly identifies aggregator/Wikipedia provenance and explicitly states no official original was returned. Directory fields checked in Record tab. Passed scoped check. |
 | Law, Globiz Exim | `ef269d9c-6ffa-494a-8202-69dea5ff5a23` | v98 repeat, 72.250s; two document searches, no web. Distinguishes debtor submissions from tribunal findings and rejection with no costs. All eight source hashes/ranges match; reader opens paragraphs 7.33–7.35. Passed. |
-| Economics, India GDP growth 2025 | pending final repeat | v98 improved definition/citations but inferred comparison relationships; PR #48 repaired that boundary. v99 then failed closed twice (41.420s / 49.803s). Local tests reproduced uncertainty/URL false positives, but discarded live text is unavailable, so the exact live trigger is unknown. A further scoped repair is awaiting release; acceptance remains pending. |
+| Economics, India GDP growth 2025 | `2c69edd9-f865-4c82-abae-5b00e4031c61` (not accepted) | v100 completed in 35.309s with two web searches, 10 pages and zero document searches. It still inferred differing conventions/reference periods and merged report values into ranges. The next repair adds a server-owned limitation and covers the observed comparison predicates; acceptance remains pending. |
 
 The State record and Economics observation were browser-supplied context,
 not verified `desk_rows` citations. Do not present them as independently
@@ -69,7 +70,7 @@ against retrieved chunks; no OCR or re-ingestion was performed.
 
 Final runtime local checks: `npm test` (6,575 tests, 423 files),
 `deno test -A --config supabase/functions/deno.json supabase/functions`
-(1,407 tests), `npm run lint`, `npm run build`, router import and
+(1,411 tests), `npm run lint`, `npm run build`, router import and
 `git diff --check` all pass. No standalone type-check exists or is claimed.
 Regression guards were demonstrated failing before their fixes. Independent
 review found no remaining code blockers. Five-desk selected/attached tests
@@ -88,3 +89,5 @@ pre-task baseline exactly: 4,569 documents / 150,204 chunks globally;
 Law 1,110 documents / 49,488 chunks / 1,439 listings. This task performs no
 ingestion, re-ingestion, larger batches, listing correction or schema change.
 Existing corpus growth predates this task's baseline.
+
+Previous Economics failures are retained: v99 messages `45c8816f-cd56-44c2-8b92-dff6d69ae646` / `0e59c3be-ff13-4083-b4b4-cab00013bdd3` failed closed in 41.420s / 49.803s. Local uncertainty/URL false positives were reproduced, but discarded live text is unavailable; the exact live trigger is unknown.
