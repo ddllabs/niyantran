@@ -37,7 +37,7 @@ it('generic table keeps row keyboard selection and announces active sort directi
 });
 
 it('home ticker visual clones are hidden from both the screen reader and keyboard focus', () => {
-  hooks.overrides = { 7: [{ key: 'bill', tab: 'national', feature: 'Bills', text: 'A bill', cat: 'National' }] };
+  hooks.overrides = { 1: [{ title: 'A bill', link: 'https://nter.news/articles/bill/', category: 'National', pub: '2026-10-24T00:00:00Z' }] };
   const tree = HomeDesk({ onOpen: vi.fn() });
   const topics = nodes(tree).filter((n) => n.type === 'button' && n.props.className === 'nh-topic');
   expect(topics).toHaveLength(2);

@@ -1,5 +1,7 @@
 # Open work: the one list
 
+- [ ] **nter.news RSS homepage preview — 2026-10-25.** Owner approved branch `task/nter-news-rss-preview` and separate Vercel Preview; preserve layout, production and Supabase data. Implemented and locally verified; required CI and Preview verification pending. [Spec](../specs/2026-10-25-nter-news-rss-preview.md), [plan](2026-10-25-nter-news-rss-preview.md). No main merge or CMS migration authorized.
+
 
 
 
