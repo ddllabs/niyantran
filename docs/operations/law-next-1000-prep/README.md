@@ -49,7 +49,7 @@ The ceiling is the importer's admission estimate (bytes × $0.00000002 × 3), no
 $0.0201 actual against a $0.2356 ceiling, which extrapolates to roughly $0.20 here (extrapolation only).
 Next-100 throughput (100 documents in 11.6 minutes at concurrency 2) extrapolates to about two hours of indexing.
 
-Driver: `nter-law-next1000-live.py` (sha256 `5c59ae72bdea5b5a40235081c9ed74efd28c862ff71a881e3ae6f92d1e0314eb`).
+Driver: `nter-law-next1000-live.py` (sha256 `7af1a8862b63a7a593691d6d2e6bc90a505753230dd40d23ab28e6a633267184`).
 `prepare()` finalizes each tranche with `--keys` (decision IDs `owner-authorized-20261024-law-next-1000-<tranche>-p<member>-<i>`)
 and runs the offline dry run; `live(t)` runs `--reconcile` and submits only if every key is ready, every mapping action
 matches this table, chunks equal the tranche total and the ceiling is within the bound. A token with under 40 minutes
