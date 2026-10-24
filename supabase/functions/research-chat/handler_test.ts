@@ -1240,6 +1240,8 @@ Deno.test('D5: accepted repair emits the exact saved patch and rejected/thrown r
     const answer = 'The Bill remains before the committee pending its report. '.repeat(5);
     const stream: HandlerDeps['stream'] = async function* (req) {
       if (req.messages[0].content?.startsWith('You insert citation markers')) {
+        assertEquals(req.cache,true,'F253 repair cache');
+        assertEquals(req.session_id,'conv-1','F253 repair session');
         req.onAttemptMetadata?.({
           served: 'repair/actual',
           generationId: 'repair-gen',
@@ -3718,6 +3720,8 @@ for (const compact of [false,true]) for (const lawHint of [false,true]) for (con
   const selectionModels:string[]=[];
   const original=Array.from({length:compact?1:13},(_,i)=>`${7}.${34+i} The application is rejected. No order as to cost.`).join('\n');
   const stream: HandlerDeps['stream']=async function*(req){
+    assertEquals(req.cache,true,'F253: every Law attempt enables prompt caching');
+    assertEquals(req.session_id,'conv-1','F253: Law shares the conversation session');
     const system=String(req.messages[0].content);
     if(system.startsWith('Select original passages')||system.startsWith('Answer the question directly')) {
       selectionModels.push(req.model);
@@ -3741,3 +3745,25 @@ for (const compact of [false,true]) for (const lawHint of [false,true]) for (con
   if(valid){assertStringIncludes(rec.messages[0].content,'The tribunal rejected');assertEquals(rec.messages[0].sources.length,1);}
   else assertEquals(rec.messages[0].content,'');
 });
+
+// Existing policy control matrix: shared web eligibility must not become Law-only.
+for(const tier of ['national','state','law','growth','international']) for(const indexed of [false,true]) {
+ Deno.test(`F253 cross-desk cache and automatic web policy: ${tier}, indexed ${indexed}`,async()=>{
+  const provider=scripted([...DECLINES,[text(envelope('The stored record has limited information.')),finish()]]);
+  const key='record:policy-control';
+  const {deps}=fakeDeps(provider,{}, {
+   findDeskRow:()=>Promise.resolve({...ROW_ONLY,desk_tier:tier,document_key:key}),
+   indexedDocumentKeys:()=>Promise.resolve(indexed?[key]:[]),
+   webSearchOverride:()=>Promise.resolve(null),
+  });
+  const got=await frames(await handleResearchChat(post({...SELECTED_ROW_ONLY,
+   selection:{...SELECTED_ROW_ONLY.selection,tier,document_key:key},desk_context:{tier},
+  }),deps));
+  assertEquals(webFrame(got),{offered:!indexed,mode:'auto',reason:indexed?'documents-in-scope':'record-without-document'});
+  assert(provider.seen.length>0);
+  assert(provider.seen.every(r=>r.cache===true && r.session_id===conversationOf(got)));
+  assert(provider.seen.every(r=>!String(r.messages[0].content).startsWith('Select original passages')),'metadata-only records never enter Law evidence synthesis');
+  if(indexed) assert(provider.seen.every(r=>!r.serverTools));
+  else assert(provider.seen.some(r=>r.serverTools?.length));
+ });
+}

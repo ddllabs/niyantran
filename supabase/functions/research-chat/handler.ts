@@ -1043,10 +1043,14 @@ async function runTurnBody(
     announcedModel = model;
     sender.send({ model: { requested: t.chosen.model_id, served: model, reason: fallbackReason } });
   };
+  // Policy shared by normal chat, Law review and citation repair. Keep serving
+  // identity observation separate: repair must not replace the answer's model.
+  const cachedStream: HandlerDeps['stream'] = req =>
+    deps.stream({ ...req, cache: true, session_id: conversation.id });
   // Observe the provider's identity without changing telemetry or retry ownership.
   const observedStream: HandlerDeps['stream'] = async function* (req) {
     responseModel = null;
-    yield* deps.stream({ ...req, onAttemptMetadata(metadata) {
+    yield* cachedStream({ ...req, onAttemptMetadata(metadata) {
       if (metadata.served) responseModel = metadata.served;
       req.onAttemptMetadata?.(metadata);
     } });
@@ -1447,7 +1451,7 @@ async function runTurnBody(
         return undefined;
       };
       budget.modelAttempts++;
-      const repaired = await repairCitations({ model: attempts.wrap(deps.stream, 'citation_repair') }, {
+      const repaired = await repairCitations({ model: attempts.wrap(cachedStream, 'citation_repair') }, {
         answer: ladder.answer,
         evidence,
         model: deps.repairModel,
