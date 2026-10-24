@@ -2322,3 +2322,29 @@ Deno.test('oversized first Law draft passage still activates final review', asyn
   await runAgent(f.deps,input);
   assert(f.events.some(e=>'lawEvidence' in e));
 });
+
+Deno.test('F250: complete scoped Law retrieval skips only the discarded draft and preserves evidence', async () => {
+  const law = { ...chunk('law'), desk_tier: 'law' };
+  const f = fake([answer()], { lawEvidenceOnly: true, searchDocuments: () => Promise.resolve([law]) });
+  const result = await runAgent(f.deps, { ...input, presearch: 'debt', focus: 'attached', scopedDocumentIds: ['doc-law'] });
+  assertEquals(f.requests.length, 0);
+  assertEquals(result.finish, 'law_evidence');
+  assertEquals(result.text, '');
+  assertEquals(result.chunks, [law]);
+  assertEquals(result.searches, 2);
+  assertEquals(result.modelCalls, 0);
+  assertEquals(result.steps.map(s => s.status), ['ok', 'ok']);
+});
+
+for (const scenario of ['broad','multiple','web','empty-context','failed-context','non-law','wrong-document','no-presearch'] as const) Deno.test(`F250: ${scenario} retains normal research`, async () => {
+  let searches=0;
+  const f=fake(scenario==='no-presearch'?[[docCall(),finish('tool_calls')],answer()]:[answer()],{lawEvidenceOnly:true,...(scenario==='web'?{webSearch:{perTurn:1}}:{}),searchDocuments:()=>{
+    searches++;
+    if(searches===2 && scenario==='failed-context') throw new Error('context unavailable');
+    if(searches===2 && scenario==='empty-context') return Promise.resolve([]);
+    return Promise.resolve([{...chunk('law'),document_id:scenario==='wrong-document'?'other':'doc-law',desk_tier:scenario==='non-law'?'national':'law'}]);
+  }});
+  const result=await runAgent(f.deps,{...input,...(scenario==='no-presearch'?{}:{presearch:'debt'}),focus:scenario==='broad'?'broad':'attached',scopedDocumentIds:scenario==='multiple'?['doc-law','doc-other']:['doc-law']});
+  assert(f.requests.length>0);
+  assert(result.finish!=='law_evidence');
+});

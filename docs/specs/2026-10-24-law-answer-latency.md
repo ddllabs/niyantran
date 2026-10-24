@@ -1,0 +1,21 @@
+# F250 Law answer latency
+
+> **Status: Normative.** Owner authorizes latency correction, NTER testing and CI-gated PR/merge/deployment. No ingestion.
+
+## Current evidence and outcome
+
+V88 passes the four Globiz attribution/citation cases, but live turns take70/161/81/66 seconds. Read-only model logs localize the161-second follow-up to selection50.912s plus synthesis97.836s, versus9.813s draft and roughly2.5s retrieval. The main agent requests providerSort latency, while Law review omits it and falls back to OpenRouter default price-weighted routing. Changing providers of the SAME selected model is already the main-call policy; do not change model IDs or reasoning.
+
+Remove one discarded model call on eligible attached-only Law turns while preserving retrieval, selector/synthesizer inputs, selected reasoning, source validation and answer quality. Measure four live cases against v88 (75.5s website median) and report actual timing and costs; no latency SLA. The initial25% routing hypothesis was rejected after routing-only timeouts, not achieved. The refined target is a deterministic one-call reduction (the baseline discarded calls consumed roughly10–25s); do not claim25% unless live evidence establishes it. Require all four answers to pass source review with no verification errors before acceptance.
+
+## Contract and boundaries
+
+Routing-only candidates failed acceptance. The runtime candidate instead skips the discarded initial draft only for single-document attached-only Law turns after successful scoped presearch and context search, with no web tool and no prior model call. Preserve the normal agent path for empty, failed, widened, multi-document or broad retrieval. An explicit evidence-ready result goes directly to the unchanged selector and synthesizer; it must never count as a completed answer or bypass source validation. Keep the original provider routing policy. Since the first provider call moves from draft to selector, preserve the configured failover chain only for a thrown retryable provider error on that first selector attempt, within existing attempt/deadline limits. No fallback for citation-validation rejection; no discarded answer is displayed. The initial latency-sort experiment did not improve the first three cases consistently (89.075/45.119/58.242 seconds); reasoning-heavy, fully buffered calls need fast completion, not merely a fast first token. The throughput experiment also timed out and is rejected. Preserve original paragraph IDs, scalar evidence contract, source guards, source retention, model and supported reasoning, token limits, one shared correction, cancellation and accounting. Do not remove the evidence selector, hide unverified text, substitute excerpts or silently select a different model. No schema, authentication, billing policy, corpus, OCR, embeddings, ingestion worker or listing changes.
+
+Primary routing reference: https://openrouter.ai/docs/guides/routing/provider-selection (checked2026-10-24). Sorting changes provider preference, not a latency guarantee; provider prices may vary.
+
+## Scope and verification
+
+Runtime: supabase/functions/research-chat/agent.ts and handler.ts; causal tests in agent_test.ts and handler_test.ts. lawAnswer.ts remains unchanged after rejected routing experiments. Private evaluation timing in scripts/eval-law-answers.ts. Documentation: this spec, paired plan, open-work and operations receipt/handoff. No dependencies. No model or provider configuration change.
+
+Run deno test -A --config supabase/functions/deno.json supabase/functions/research-chat/lawAnswer_test.ts, then the full Edge suite, npm test, npm run lint, npm run build and git diff --check. Prove the discarded-draft regression fails without the fix; exercise empty, failed, widened, broad, multi-document, web and non-Law exclusions. Use the existing four approved Globiz questions and passages in bounded private OpenRouter evaluation; compare timing and review original-source support independently. Then run all four on authenticated NTER and inspect citations. Required PR/main CI and exact deployed-source checks precede acceptance. Read-only corpus fingerprints separate concurrent ingestion from this task.
