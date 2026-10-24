@@ -38,8 +38,10 @@ for (const c of data.cases) {
     calls++;
     const supplied = JSON.parse(String(req.messages[1].content));
     attempts.push({stagePassageIds:supplied.passages?.map((p:{id:string})=>p.id)});
-    let finished = false;
+    let finished = false, responseText = '';
+    const response = { responseText: '' }; attempts.push(response);
     try { for await (const e of streamChat({fetch,apiKey:key!},req)) {
+      if (e.type === 'text') { responseText = (responseText + e.text).slice(0, 24000); response.responseText = responseText; }
       if (e.type === 'finish') {
         finished = true;
         const cost = e.usage?.cost;

@@ -22,7 +22,7 @@ research-chat/lawAnswer.ts and tests; handler.ts and tests for bounded orchestra
 
 ## Resource tradeoff
 
-Both Law evidence selection and synthesis permit up to8000 completion tokens (including provider reasoning), with at most one structural correction shared across them. This raises per-call potential usage versus the prior1000-token nonreasoning selector/4000-token synthesis draft. Existing total turn deadline, maximum attempts, cancellation, telemetry and billing remain authoritative. Actual evaluation proved4000-token High synthesis could end with length before any answer, and nonreasoning selection could omit decisive retrieved scope evidence. The live model-pricing catalogue on2026-10-24 lists DeepSeek V4 Flash's output capacity above8000; no model configuration change is made.
+Law evidence selection permits up to8000 completion tokens and synthesis up to16000 (including provider reasoning), with at most one structural correction shared across them. The maximum requested output across selection plus synthesis plus synthesis repair is40000 tokens, versus24000 with8000 at every stage. The existing60-second review reserve is not a promise of completion: observed reasoned reviews can exceed it, and the overall300-second turn deadline remains authoritative. Existing total turn deadline, maximum attempts, cancellation, telemetry and billing remain authoritative. Actual evaluation proved4000-token High synthesis could end with length before any answer, and nonreasoning selection could omit decisive retrieved scope evidence. The live model-pricing catalogue on2026-10-24 lists DeepSeek V4 Flash's output capacity above8000; no model configuration change is made.
 
 ## Live quoted-precedent regression
 
@@ -36,3 +36,7 @@ Each synthesized sentence cites one paragraph unit; separate paragraphs require 
 ## Evidence retention under High reasoning
 
 The draft reply budget must not become the final Law synthesis evidence budget. Retain only already-authorized Law search results, bounded to256 chunks and300,000 rendered characters per turn. The final paragraph selector retains its existing80,000-character bound; all model attempts, deadlines and citation handles remain unchanged. Retained-only Law evidence and draft-visible Law evidence both activate review, including mixed-desk searches. Non-Law draft reply behavior remains unchanged. Prove a late retrieved scope passage reaches final synthesis under the actual High draft cap and resolves to its original chunk citation.
+
+## Response-contract continuation
+
+Synthesis requests a scalar evidence ID per sentence; a legacy single-element array is normalized internally, while multiple IDs remain invalid. Separate propositions must remain separate sentences even when their paragraphs share a chunk. A terminal synthesis length limit can use the existing one shared correction; unfinished streams cannot. An explicit sentence-start “Quote…” request requires at least one12-character exact cited-source substring in quotation marks. This validates presence and identity, not relevance or all quotations. A narrow debt/time-barred predicate check prevents the observed claim/debt rewrite unless the cited text contains the same predicate; it is not a semantic legal classifier. Semantic acceptance still requires independent original-source review.

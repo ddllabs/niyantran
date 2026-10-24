@@ -209,3 +209,51 @@ Deno.test('F247 refuses a tribunal non-adoption claim cited only to the costs su
  const a=await reviewLawAnswer(replay([{passages:['p1']},bad,good]),{...request(),evidence:e,report:r=>reasons.push(r)});
  assert(a);assertEquals(reasons,['party_source_as_finding']);assert(!a.answer.includes('did not adopt'));
 });
+
+Deno.test('F247 explicit quotation requests require an exact cited-source quotation',async()=>{
+ const quoted={claims:[{text:'The order states: “No order as to cost.”',evidence:['p2']}],uncertain:false};
+ const fabricated={claims:[{text:'The order states: “Exemplary costs are awarded.”',evidence:['p2']}],uncertain:false};
+ for(const bad of [synthesis,fabricated]) {
+  const reasons:string[]=[];const seen:StreamRequest[]=[];
+  const a=await reviewLawAnswer(replay([selection,bad,quoted],seen),{...request(),question:'What costs were ordered? Quote the original passage.',report:r=>reasons.push(r)});
+  assert(a);assertEquals(reasons,['source_quotation_required']);assertEquals(seen.length,3);assert(a.answer.includes('“No order as to cost.”'));
+ }
+});
+
+Deno.test('F247 terminal token-limit response can use the one existing correction',async()=>{
+ let calls=0;const reasons:string[]=[];
+ const model=async function*(req:StreamRequest):AsyncGenerator<ModelEvent>{
+  calls++;yield {type:'text',text:JSON.stringify(calls===1?selection:synthesis)};
+  yield calls===2?{...finish,reason:'length'}:finish;
+  assertEquals(req.max_tokens,calls===1?8000:16000);
+ };
+ const a=await reviewLawAnswer(model,{...request(),report:r=>reasons.push(r)});
+ assert(a);assertEquals(calls,3);assertEquals(reasons,['response_length']);
+});
+
+
+Deno.test('F247 exact single-quoted source text qualifies but prose apostrophes do not',async()=>{
+ const single={claims:[{text:"The order states: 'No order as to cost.'",evidence:['p2']}],uncertain:false};
+ const prose={claims:[{text:"The respondent's argument wasn't a finding of the tribunal.",evidence:['p1']}],uncertain:false};
+ const reasons:string[]=[];
+ const a=await reviewLawAnswer(replay([selection,prose,single]),{...request(),question:'Quote the costs order.',report:r=>reasons.push(r)});
+ assert(a);assertEquals(reasons,['source_quotation_required']);assert(a.answer.includes("'No order as to cost.'"));
+});
+
+Deno.test('F247 does not turn a time-barred claim into a finding that the debt itself is time-barred',async()=>{
+ const e:EvidenceMap=new Map([['ref:abcdef-1',{kind:'text',chunk:{id:'a',document_id:'d',desk_tier:'law',char_from:0,content:'7.26 The subsequent demand notice cannot revive a time-barred claim.'} as Chunk}]]);
+ const bad={claims:[{text:'The tribunal concluded that the claimed debt was time-barred.',evidence:['p1']}],uncertain:false};
+ const good={claims:[{text:'The tribunal held that the subsequent demand notice could not revive a time-barred claim.',evidence:['p1']}],uncertain:false};
+ const reasons:string[]=[];
+ const a=await reviewLawAnswer(replay([{passages:['p1']},bad,good]),{...request(),evidence:e,report:r=>reasons.push(r)});
+ assert(a);assertEquals(reasons,['debt_claim_conflation']);assert(a.answer.includes('time-barred claim'));
+});
+
+Deno.test('F247 requests a scalar evidence ID so synthesis cannot mistake an array for permission to combine units',async()=>{
+ const seen:StreamRequest[]=[];
+ const scalar={claims:[{text:'The respondent argued that the debt was unproven.',evidence:'p1'}],uncertain:false};
+ const a=await reviewLawAnswer(replay([selection,scalar],seen),request());
+ assert(a);assertEquals(seen.length,2);
+ assert(String(seen[1].messages[0].content).includes('"evidence":"p1"'));
+ assertEquals(a.sources,[{id:1,source:'ref:abcdef-1'}]);
+});

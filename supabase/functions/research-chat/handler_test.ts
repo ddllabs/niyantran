@@ -3657,7 +3657,7 @@ for (const lawHint of [true, false]) for (const valid of [true, false]) for (con
     } else if (String(req.messages[0].content).startsWith('Answer the question directly')) {
       syntheses++;
       assertEquals(req.reasoning,{effort:'high'});
-      assertEquals(req.max_tokens,8000);
+      assertEquals(req.max_tokens,16000);
       const p = JSON.parse(String(req.messages[1].content)).passages[0];
       if (repair && syntheses === 1) yield text(JSON.stringify({answer:'invalid shape'}));
       else yield text(JSON.stringify({claims:[{text:'The tribunal rejected the application with no order as to cost.',evidence:[valid?p.id:'invented']}],uncertain:false}));
