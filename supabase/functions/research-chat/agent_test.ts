@@ -2407,3 +2407,53 @@ Deno.test('F256 failed web research cannot carry its partial synthesis or uncomm
   assertEquals(result.webPages, []);
   assertEquals(result.webSearches, 1, 'possibly billed failed web call still consumes its bounded allowance');
 });
+
+for (const bad of [
+  'The calendar-year 2025 observation is 7.57%. [Source](https://example.org/1)',
+  'The stored figure is the latest available and unrevised. [Source](https://example.org/1)',
+  'GDP growth measures real output growth. (Web glossary)',
+]) Deno.test(`F256 observation corrects unsupported period/status or missing page citation: ${bad}`, async () => {
+  const good = 'The selected year-labelled observation is 7.57%; its period convention is unverified. GDP growth measures real output growth. [Source](https://example.org/1)';
+  const json = (text: string) => JSON.stringify({ answer: text, sources: [], follow_up_questions: [] });
+  const f = fake([[webResults(page(1)), searched(1)], answer(json(bad)), answer(json(good))], { webSearch: { perTurn: 3 } });
+  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  assertEquals(result.text, json(good));
+  assertEquals(f.requests.length, 3);
+  assert(!JSON.stringify(f.requests[2].messages).includes(bad), 'rejected draft must not become correction evidence');
+  assert(!f.events.some(e => 'text' in e && e.text.includes(bad)), 'do not publish rejected text');
+});
+
+Deno.test('F256 repeated invalid observation fails closed within one correction', async () => {
+  const bad = JSON.stringify({ answer: 'The latest calendar-year figure is unrevised.', sources: [], follow_up_questions: [] });
+  const f = fake([[webResults(page(1)), searched(1)], answer(bad), answer(bad)], { webSearch: { perTurn: 3 } });
+  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  assertEquals(f.requests.length, 3);
+  assertEquals(result.finish, 'observation_validation');
+  assertEquals(result.text, '');
+});
+
+Deno.test('F256 no web pages cannot bypass observation period and revision guards', async () => {
+  const bad = JSON.stringify({ answer: 'The latest calendar-year observation is 7.57%.', sources: [], follow_up_questions: [] });
+  const good = JSON.stringify({ answer: 'The supplied year-labelled observation is 7.57%. Its period convention is unverified; this search returned no usable sources to verify the definition or newer comparable data.', sources: [], follow_up_questions: [] });
+  const f = fake([ready(), answer(bad), answer(good)], { webSearch: { perTurn: 3 } });
+  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  assertEquals(result.text, good);
+  assertEquals(f.requests.length, 3);
+});
+
+Deno.test('F256 final web synthesis receives explicit publisher and claim-level provenance rules', async () => {
+  const f = fake([[webResults(page(1)), searched(1)], answer()], { webSearch: { perTurn: 3 } });
+  await runAgent(f.deps, { ...input, documentSearchUnavailable: true });
+  const instruction = String(f.requests[1].messages.at(-1)?.content);
+  assert(instruction.includes('publisher') && instruction.includes('aggregator') && instruction.includes('numerical'));
+});
+
+Deno.test('F256 observation correction drops partial continuation draft from its input', async () => {
+  const badPrefix = '{"answer":"The calendar-year observation';
+  const tail = ' is latest.","sources":[],"follow_up_questions":[]}';
+  const good = JSON.stringify({ answer: 'The supplied year label has an unverified period convention. [Source](https://example.org/1)', sources: [], follow_up_questions: [] });
+  const f = fake([[webResults(page(1)), searched(1)], [{ type: 'text', text: badPrefix }, finish('length')], [{ type: 'text', text: tail }, finish()], answer(good)], { webSearch: { perTurn: 3 } });
+  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  assertEquals(result.text, good);
+  assert(!JSON.stringify(f.requests[3].messages).includes('The calendar-year observation'), 'partial rejected continuation cannot bias correction');
+});
