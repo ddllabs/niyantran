@@ -2,6 +2,8 @@
 
 > **Status: Normative.** Owner authorizes latency correction, NTER testing and CI-gated PR/merge/deployment. No ingestion.
 
+F251 amendment: the [Law qualification spec](2026-10-24-law-answer-qualification.md) supersedes the mandatory-selector requirement below only for eligible compact single-document evidence pools. All original passages still reach source-validated synthesis. Larger pools, selected reasoning, attempt/deadline limits and source ownership retain the F250 contract.
+
 ## Current evidence and outcome
 
 V88 passes the four Globiz attribution/citation cases, but live turns take70/161/81/66 seconds. Read-only model logs localize the161-second follow-up to selection50.912s plus synthesis97.836s, versus9.813s draft and roughly2.5s retrieval. The main agent requests providerSort latency, while Law review omits it and falls back to OpenRouter default price-weighted routing. Changing providers of the SAME selected model is already the main-call policy; do not change model IDs or reasoning.
