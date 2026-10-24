@@ -7,6 +7,7 @@ import { type HandleAssigner, handlesIn } from '../_shared/handles.ts';
 import type { Message, ModelEvent, StreamRequest, Usage } from '../_shared/openrouterStream.ts';
 import {
   mergePages,
+  normaliseUrl,
   webEvidenceBlock,
   type WebPage,
   webSearchCostUsd,
@@ -25,6 +26,21 @@ import {
 import { digNudge } from './dig.ts';
 import { ANSWER_JSON_SCHEMA } from './prompt.ts';
 import type { Focus } from './validate.ts';
+
+// Conservative boundary for the year-labelled Economic Simulator web path.
+// Search excerpts do not establish its reporting-period convention or revision history.
+const WEB_FINAL_RULES = `Write only the facts needed to answer the question, within its requested length; do not add an unrelated statistics or confidence section. Each web-derived proposition needs an inline link to its supporting returned page. Attribute to the actual publisher of that URL: an aggregator reproducing affidavits or election records is NOT the election authority's portal, and independent research is NOT an official government publication. Do not imply an original official source was consulted when only an aggregator was returned. Describe historical results as historical and separately qualify current office/status. Omit numerical details not explicitly supported by the cited excerpt. Browser-supplied fields without a verified row source are supplied context, not confirmed database facts. If no official original was returned, acknowledge that limitation rather than claiming official verification.`;
+const OBSERVATION_RULES = `Answer the user's question concisely; a requested word limit overrides the usual multi-heading layout. Identify the selected value as supplied context unless a verified row citation supports it. Preserve its year label and say its period convention is unverified; do not call it a calendar-year figure or infer a fiscal period. Do not use latest, unrevised, or no-revision claims: these searches cannot establish revision history or exhaust all releases. If needed say no newer comparable observation was found in these results. Separate projections and differently labelled fiscal periods from the selected observation. Explain the measure using returned source excerpts, with an inline [source title](returned URL) directly supporting each web-derived statement. Do not replace links with '(Web glossary)'. Use only returned URLs; no invented numbered record sources. Do not add unsupported confidence or current-status claims.`;
+function observationIssue(text: string, pages: WebPage[]): string | null {
+  let answer: unknown;
+  try { answer = JSON.parse(text).answer; } catch { return null; } // normal envelope handling owns malformed JSON
+  if (typeof answer !== 'string') return null;
+  if (/\bcalendar[\s\-‐‑–]+year\b/i.test(answer)) return 'unverified_period_convention';
+  if (/\b(?:latest|unrevised)\b|\bno\s+(?:revised\s+figure|revision)\b/i.test(answer)) return 'unverified_revision_status';
+  const urls = new Set(pages.map(p => normaliseUrl(p.url)));
+  if (pages.length && ![...answer.matchAll(/\[[^\]]+\]\((https?:\/\/[^\s)]+)\)/g)].some(m => urls.has(normaliseUrl(m[1])))) return 'missing_returned_page_link';
+  return null;
+}
 
 export const BUDGET = { maxSteps: 12, maxSearches: 10, maxContinuations: 2 } as const;
 /**
@@ -227,6 +243,8 @@ export interface AgentInput {
   /** Server resolved the scoped record/module and found no source text. Never
    * substitute a whole-corpus nearest neighbour; rows/web retain their policy. */
   documentSearchUnavailable?: boolean;
+  /** Economic observation web answers need explicit period/provenance checks. */
+  observationScope?: boolean;
   system: string;
   window: Message[];
   userTurn: string;
@@ -284,6 +302,8 @@ export interface AgentCheckpoint {
   /** A missing-document web fallback is requested at most once, across failover. */
   webFallbackAttempted: boolean;
   forceWebSearch: boolean;
+  observationCorrectionAttempted: boolean;
+  answerInputLength: number | null;
   /** The pre-search runs once per turn; a resumed checkpoint (failover) does not repeat it. */
   presearched: boolean;
   /** One bounded Law context pass, retained across provider failover. */
@@ -312,6 +332,8 @@ function inputKey(a: AgentInput): string {
     a.scopeSent ?? true,
     a.featureScope ? [a.featureScope.tier, a.featureScope.feature] : null,
     a.presearch ?? null,
+    a.documentSearchUnavailable ?? false,
+    a.observationScope ?? false,
   ]);
 }
 export function createAgentCheckpoint(
@@ -344,6 +366,8 @@ export function createAgentCheckpoint(
     pressedToDig: false,
     webFallbackAttempted: false,
     forceWebSearch: false,
+    observationCorrectionAttempted: false,
+    answerInputLength: null,
     presearched: false,
     lawContextAttempted: false,
     widened: null,
@@ -734,7 +758,8 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
 
   function beginAnswer(): void {
     state.phase = 'answer';
-    messages.push({ role: 'user', content: ANSWER_NOW });
+    messages.push({ role: 'user', content: ANSWER_NOW + (state.webPages.length ? '\n' + WEB_FINAL_RULES : '') + (a.observationScope ? '\n' + OBSERVATION_RULES : '') });
+    state.answerInputLength = messages.length;
   }
 
   // answer-speed spec §1: search with the reader's question before the first model call, as a
@@ -839,7 +864,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     state.forceWebSearch = false;
     // web-search-streaming spec §1: a research call offered the web tool holds its draft. Every
     // other research call streams it live and takes it back unless it is the answer.
-    const holdDraft = phase === 'research' && !!webTool;
+    const holdDraft = phase === 'research' && (!!webTool || !!a.observationScope);
     let draftSent = false;
     const retract = (reason: RetractReason) => {
       if (phase === 'research' && draftSent) deps.onEvent({ retract: reason });
@@ -886,7 +911,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
           if (phase === 'answer') {
             state.text += event.text;
             if (event.text) state.answerModel = deps.request.model;
-            deps.onEvent({ text: event.text });
+            if (!a.observationScope) deps.onEvent({ text: event.text });
           } else if (event.text && !holdDraft) {
             draftSent = true;
             deps.onEvent({ draftText: event.text });
@@ -1022,7 +1047,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         carryWeb();
         messages.push({ role: 'user', content: dig });
       } else if (
-        !webSearched && !forceWeb &&
+        !a.observationScope && !webSearched && !forceWeb &&
         state.finish === 'stop' && (a.conversational || state.steps.some((s) => s.status === 'ok')) &&
         acceptedDraft(partial, deps.handles)
       ) {
@@ -1042,6 +1067,24 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         beginAnswer();
       }
       continue;
+    }
+    if (a.observationScope && state.finish === 'stop' && !calls.length) {
+      const issue = observationIssue(state.text, state.webPages);
+      if (issue) {
+        // No provisional text or rejected draft is allowed into the retry input.
+        state.text = '';
+        state.resumeAnswer = false;
+        if (!state.observationCorrectionAttempted && budget.modelAttempts < BUDGET.maxSteps &&
+            (deps.timeLeft?.() ?? Infinity) > 1000) {
+          state.observationCorrectionAttempted = true;
+          messages.splice(state.answerInputLength ?? messages.length);
+          messages.push({ role: 'user', content: `The answer failed the observation evidence check (${issue}). Re-answer using only the unchanged evidence. ${OBSERVATION_RULES}` });
+          continue;
+        }
+        state.finish = 'observation_validation';
+        state.phase = 'complete';
+        break;
+      }
     }
     if (partial) messages.push({ role: 'assistant', content: partial });
     if (calls.length) {

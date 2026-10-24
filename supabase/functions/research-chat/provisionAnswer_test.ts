@@ -100,3 +100,41 @@ for (const supported of [
   assert(result, 'explicit source wording must remain usable');
   assertEquals(result.sources, [{ id: 1, source: 'ref:abcdef-1' }]);
 });
+
+for (const text of [
+  'Clause 9 replaces "Board" with "Central Government" in section 12.',
+  'In section 12, the words "Board" are replaced by "Central Government" under clause 9.',
+]) Deno.test(`F254 quoted substitutions preserve short quote boundaries: ${text}`, async () => {
+  const seen: StreamRequest[] = [];
+  const reasons: string[] = [];
+  const claim = { claims: [{ text, evidence: 'p1' }], uncertain: false };
+  const result = await reviewLawAnswer(replay([selection, claim, claim], seen), {
+    ...request(), report: reason => reasons.push(reason),
+  });
+  assert(result, `exact quoted source terms must survive validation: ${reasons.join(', ')}`);
+  assertEquals(result.sources, [{ id: 1, source: 'ref:abcdef-1' }]);
+  assertEquals(seen.length, 2, 'valid short/long quotations need no correction');
+  assert(result.answer.includes(text));
+});
+
+Deno.test('F254 quoted substitutions still reject an altered long quotation after a short term', async () => {
+  const seen: StreamRequest[] = [];
+  const reasons: string[] = [];
+  const claim = { claims: [{ text: 'Clause 9 replaces "Board" with "State Government" in section 12.', evidence: 'p1' }], uncertain: false };
+  const result = await reviewLawAnswer(replay([selection, claim, claim], seen), {
+    ...request(), report: reason => reasons.push(reason),
+  });
+  assertEquals(result, null);
+  assertEquals(reasons, ['unsupported_quotation', 'unsupported_quotation']);
+  assertEquals(seen.length, 3, 'altered quoted wording remains rejected after bounded correction');
+});
+
+for (const [opening, closing] of [['‘', '’'], ["'", "'"]]) {
+  for (const word of ['accepted', 'rejected']) Deno.test(`F254 quotes preserve internal apostrophes: ${opening}${word}${closing}`, async () => {
+    const original: EvidenceMap = new Map([['ref:abcdef-1', { kind: 'text', chunk: { document_id: 'bill', content: "The debtor's application was accepted." } as Chunk }]]);
+    const claim = { claims: [{ text: `The text says ${opening}The debtor's application was ${word}.${closing}`, evidence: 'p1' }], uncertain: false };
+    const seen: StreamRequest[] = [];
+    const result = await reviewLawAnswer(replay([{ passages: ['p1'] }, claim, claim], seen), { ...request(), evidence: original });
+    assertEquals(Boolean(result), word === 'accepted');
+  });
+}

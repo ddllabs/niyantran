@@ -8,8 +8,8 @@ import { placeholderAnswer } from './answerValidation.ts';
 export const LAW_REVIEW_RESERVE_MS = 60_000;
 export const LAW_REVIEW_CHARS = 80_000;
 const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
-const quotations = (text: string) => [...text.matchAll(/[“"]([^“”"]{12,})[”"]/g),
-  ...text.matchAll(/(?:^|[\s:])['‘]([\s\S]{12,}?)['’](?=$|[\s.,;:!?])/g)].map(m=>normalize(m[1]));
+const quotations = (text: string) => [...text.matchAll(/[“"]([^“”"]*)[”"]/g),
+  ...text.matchAll(/(?:^|[\s:])['‘]([\s\S]*?)['’](?=$|[\s.,;:!?])/g)].map(m=>normalize(m[1])).filter(quote=>quote.length >= 12);
 // Narrow lexical support for explicitly marked rupee numerals, not general entailment.
 const rupeeAmounts = (text: string) => [...text.matchAll(/(?:\b(?:INR|Rs\.?)|₹)\s*([\d,]+(?:\.\d+)?)(?:\s*(crores?|lakhs?|lacs?|millions?|billions?)\b)?/gi)]
   .map(m=>m[1].replace(/,/g,'') + ':' + (m[2] ?? '').toLowerCase().replace(/s$/,'').replace('lac','lakh'));

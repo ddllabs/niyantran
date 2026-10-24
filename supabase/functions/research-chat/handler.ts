@@ -1082,6 +1082,9 @@ async function runTurnBody(
     } });
   };
 
+  const observationTurn = !conversational && documentSearchUnavailable && web.offered &&
+    request.focus !== 'broad' && [request.selection, ...request.attachments, request.desk_context].some(context =>
+      context?.tier === 'economics' && context.feature === 'Economic Simulator');
   const provisionTurn = !conversational && !documentSearchUnavailable &&
     request.focus !== 'broad' && /\b(?:sections?|clauses?|provisions?|amend(?:s|ed|ment|ments)?)\b/i.test(request.message) &&
     [request.desk_context, request.selection, ...request.attachments].some(context =>
@@ -1211,7 +1214,7 @@ async function runTurnBody(
       context.checkpoint({ activity: [...activity] });
     } else if ('text' in e || 'draftText' in e) {
       decoder.push('text' in e ? e.text : e.draftText);
-      const shown = lawTurn || provisionTurn || placeholderPrefix(decoder.text) ? '' : decoder.text.slice(streamed.length);
+      const shown = lawTurn || provisionTurn || observationTurn || placeholderPrefix(decoder.text) ? '' : decoder.text.slice(streamed.length);
       if (shown) {
         // A research reply promoted to the answer has no answer round to announce it.
         stage(WRITING);
@@ -1234,6 +1237,7 @@ async function runTurnBody(
     userTurn,
     scopedDocumentIds,
     documentSearchUnavailable,
+    observationScope: observationTurn,
     focus: request.focus,
     conversational,
     // Search the current subject before the first call, including "this bill"
