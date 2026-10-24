@@ -259,6 +259,8 @@ export interface AgentCheckpoint {
   phase: 'research' | 'answer' | 'complete';
   text: string;
   chunks: Chunk[];
+  /** Authorized Law evidence retained for final synthesis, separately from capped draft replies. */
+  lawReviewChunks: Chunk[];
   rows: Map<string, DeskRow>;
   steps: TraceStep[];
   usage: Usage[];
@@ -323,6 +325,7 @@ export function createAgentCheckpoint(
     phase: 'research',
     text: '',
     chunks: [],
+    lawReviewChunks: [],
     rows: new Map(),
     steps: [],
     usage: [],
@@ -405,6 +408,21 @@ function withinReply(found: Chunk[], limit: number | null, prefix: string): Chun
     if (kept.length && length + piece > limit) break;
     kept.push(c);
     length += piece;
+  }
+  return kept;
+}
+
+// Keep final Law review independent of the draft's smaller reply budget. Both
+// inputs come from the same authorized retrieval; no new read or model call.
+// The final paragraph builder still applies its own 80k-character input limit.
+function retainLawReview(existing: Chunk[], found: Chunk[]): Chunk[] {
+  const kept: Chunk[] = [];
+  let size = 0;
+  for (const c of accumulate(existing, found.filter(c => c.desk_tier === 'law'))) {
+    const cost = renderChunk(HANDLE_ROOM, c).length;
+    if (kept.length >= 256 || size + cost > 300_000) continue;
+    kept.push(c);
+    size += cost;
   }
   return kept;
 }
@@ -647,9 +665,10 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         if (found) widenScope('feature-empty');
       }
       if (!found) return EXHAUSTED;
-      // The reply's budget: passages past it are neither shown, handled nor counted as found.
+      state.lawReviewChunks = retainLawReview(state.lawReviewChunks, found);
+      // The draft reply stays capped. Additional Law passages are handled only at final review.
       const kept = withinReply(found, deps.toolReplyChars ?? null, UNTRUSTED);
-      if (kept.some(c => c.desk_tier === 'law')) deps.onEvent({ lawEvidence: true });
+      if (state.lawReviewChunks.length || kept.some(c => c.desk_tier === 'law')) deps.onEvent({ lawEvidence: true });
       state.chunks = accumulate(state.chunks, kept);
       return kept.length
         ? UNTRUSTED +
@@ -731,7 +750,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     checkAbort();
     // The first relevance search can omit the heading governing a submission.
     // Fetch context before any Law draft; it is evidence, never a role classifier.
-    const lawIds = [...new Set(state.chunks.filter(c => c.desk_tier === 'law').map(c => c.document_id))];
+    const lawIds = [...new Set(accumulate(state.chunks, state.lawReviewChunks).filter(c => c.desk_tier === 'law').map(c => c.document_id))];
     if (!a.conversational && !state.lawContextAttempted && lawIds.length) {
       state.lawContextAttempted = true;
       const unresolved = 'Attribution remains unresolved: the contextual search was unavailable or returned no passages. Do not present disputed statements as tribunal findings without explicit governing evidence; state the attribution limitation.';
@@ -746,8 +765,10 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         try {
           const found = await searchAttempt(call, args, lawIds) as Chunk[] | null;
           checkAbort();
-          const kept = withinReply((found ?? []).filter(c => lawIds.includes(c.document_id)), deps.toolReplyChars ?? null, UNTRUSTED);
-          if (kept.some(c => c.desk_tier === 'law')) deps.onEvent({ lawEvidence: true });
+          const authorized = (found ?? []).filter(c => lawIds.includes(c.document_id));
+          state.lawReviewChunks = retainLawReview(state.lawReviewChunks, authorized);
+          const kept = withinReply(authorized, deps.toolReplyChars ?? null, UNTRUSTED);
+          if (state.lawReviewChunks.length || kept.some(c => c.desk_tier === 'law')) deps.onEvent({ lawEvidence: true });
           state.chunks = accumulate(state.chunks, kept);
           if (kept.length) reply = UNTRUSTED + kept.map(c => renderChunk(deps.handles.assign(c.id), c)).join('\n\n');
         } catch {
@@ -1020,7 +1041,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
   }
   return {
     text: state.text,
-    chunks: [...state.chunks],
+    chunks: accumulate(state.chunks, state.lawReviewChunks),
     rows: [...state.rows.values()],
     steps: structuredClone(state.steps),
     continuations: budget.continuations,
