@@ -44,3 +44,18 @@ Deno.test('observation: selected spans retain sentence qualifiers, not just a nu
   }
   assert(!renderObservation(JSON.stringify({ definition: null, updates: [{ sourceId: 1, quote: 'Instead growth is projected at 7.1 percent.' }] }), source).invalid);
 });
+Deno.test('observation: ordinary parentheses remain readable in the NTER Markdown renderer', () => {
+  const result = renderObservation(JSON.stringify({ definition: null, updates: [] }), [], { text: 'GDP growth (annual %)' });
+  assert(JSON.parse(result.text).answer.includes('GDP growth (annual %)'));
+});
+Deno.test('observation: World Bank glossary definition cell retains its exact complete sentence', () => {
+  const quote = 'Annual percentage growth rate of GDP at market prices based on constant local currency.';
+  const source = [{ ...pages[0], excerpt: `| Code | NY.GDP.MKTP.KD.ZG | | Long definition | ${quote} Aggregates are based on constant local currency. |` }];
+  const result = renderObservation(JSON.stringify({ definition: { sourceId: 1, quote }, updates: [] }), source);
+  assert(!result.invalid);
+  assert(JSON.parse(result.text).answer.includes(quote));
+  for (const prefix of ['| Forecast | ', '| Not a definition | ', '| Value | ']) {
+    assert(renderObservation(JSON.stringify({ definition: { sourceId: 1, quote }, updates: [] }), [{ ...source[0], excerpt: prefix + quote }]).invalid);
+  }
+  assert(renderObservation(JSON.stringify({ definition: null, updates: [{ sourceId: 1, quote }] }), source).invalid, 'definition-cell exception is not a numerical update boundary');
+});

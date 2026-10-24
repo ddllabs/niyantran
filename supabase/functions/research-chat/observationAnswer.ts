@@ -22,9 +22,9 @@ export function observationInstructions(pages: WebPage[]): string {
 const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
 // Escape source text so citation-looking strings, HTML and Markdown cannot
 // become server-generated links or document citation markers.
-const plain = (s: string) => normalize(s).replace(/\[/g, '［').replace(/\]/g, '］').replace(/[\\`*_{}()<>#!|]/g, c => `\\${c}`);
+const plain = (s: string) => normalize(s).replace(/\[/g, '［').replace(/\]/g, '］').replace(/[\\`*_{}<>#!|]/g, c => `\\${c}`);
 const keysAre = (o: Record<string, unknown>, keys: string[]) => Object.keys(o).length === keys.length && keys.every(k => k in o);
-function span(value: unknown, pages: WebPage[]): { quote: string; page: WebPage } | null {
+function span(value: unknown, pages: WebPage[], definition = false): { quote: string; page: WebPage } | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const v = value as Record<string, unknown>;
   if (!keysAre(v, ['sourceId', 'quote']) || !Number.isInteger(v.sourceId) || typeof v.quote !== 'string') return null;
@@ -40,7 +40,8 @@ function span(value: unknown, pages: WebPage[]): { quote: string; page: WebPage 
   while (start >= 0) {
     const before = excerpt.slice(0, start);
     const after = excerpt.slice(start + quote.length);
-    if ((!before || /[.!?] $/.test(before)) && (!after || /[.!?]$/.test(quote) && /^ /.test(after))) { bounded = true; break; }
+    const definitionCell = definition && /\| (?:Long definition|Short definition|Definition) \| $/i.test(before);
+    if ((!before || /[.!?] $/.test(before) || definitionCell) && (!after || /[.!?]$/.test(quote) && /^ /.test(after))) { bounded = true; break; }
     start = excerpt.indexOf(quote, start + 1);
   }
   if (!bounded) return null;
@@ -52,7 +53,7 @@ export function renderObservation(text: string, pages: WebPage[], context?: Obse
   try { raw = JSON.parse(text); } catch { raw = null; }
   const obj = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
   const shape = !!obj && keysAre(obj, ['definition', 'updates']) && Array.isArray(obj.updates) && obj.updates.length <= 2;
-  let definition = shape ? span(obj!.definition, pages) : null;
+  let definition = shape ? span(obj!.definition, pages, true) : null;
   let updates = shape ? (obj!.updates as unknown[]).map(v => span(v, pages)) : [];
   const invalid = !shape || (obj!.definition !== null && !definition) || updates.some(v => !v);
   // A failed correction must not erase sections already validated. Revalidate
@@ -61,7 +62,7 @@ export function renderObservation(text: string, pages: WebPage[], context?: Obse
     let old: Record<string, unknown> | null = null;
     try { const v = JSON.parse(previous); if (v && typeof v === 'object' && !Array.isArray(v) && keysAre(v, ['definition', 'updates']) && Array.isArray(v.updates) && v.updates.length <= 2) old = v; } catch { /* no salvage */ }
     if (old) {
-      definition ??= span(old.definition, pages);
+      definition ??= span(old.definition, pages, true);
       if (!updates.some(Boolean)) updates = (old.updates as unknown[]).map(v => span(v, pages));
     }
   }
