@@ -13,6 +13,7 @@ import { readSiteFigures } from './siteFiguresApi.mjs';
 import { prepareHomeMarketQuotes } from '../src/lib/homeMarkets.js';
 import { REGISTER_NOTE, REGISTER_WINDOW, isAgentSnapshot } from '../src/lib/conflictRegister.js';
 import { serveNterLatest } from './nterNews.mjs';
+import { serveRssNews } from './newsRss.mjs';
 import { writablePath } from './writableRoot.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -457,59 +458,15 @@ export async function serveRss(url) {
   return parseRss(await fetchRssXml(url));
 }
 
-function ago(iso) {
-  const t = new Date(iso).getTime();
-  if (!Number.isFinite(t)) return '';
-  const s = (Date.now() - t) / 1000;
-  if (s < 5400) return `${Math.max(1, Math.round(s / 60))} min`;
-  if (s < 172800) return `${Math.round(s / 3600)} hr`;
-  return `${Math.round(s / 86400)} d`;
-}
-
 async function fetchLiveLatest() {
   // Homepage Latest is nter.news only — never fall back to wire RSS.
   const nter = await serveNterLatest({ limit: 12 });
   return nter.rows?.length ? nter : null;
 }
 
+/** Public publisher feed. This read path never queries or writes the Supabase news store. */
 export async function serveHomeLatest(opts = {}) {
-  const live = await serveNterLatest({ limit: 12 });
-  if (live.rows?.length) {
-    writeDiskSnapshot('news', {
-      rows: live.rows,
-      note: live.note,
-      source: 'nter.news',
-      updated: live.updated,
-      as_of: live.updated,
-    });
-    return live;
-  }
-
-  // Only serve a prior nter.news snapshot — never wire RSS / old news.json.
-  const snap = readDiskSnapshot('news');
-  if (snap?.rows?.length && snap.source === 'nter.news') {
-    const ageH = snap.__ageH;
-    const stale = !Number.isFinite(ageH) || ageH > (opts.maxAgeH ?? DEFAULT_HOME_MAX_AGE_H);
-    if (stale && !opts.fresh) {
-      scheduleHomeRefresh('news', () => fetchLiveLatest());
-    }
-    return {
-      ...snapshotPayload(snap),
-      rows: snap.rows.map((r) => ({ ...r, ago: r.ago || ago(r.pub) })),
-      note: snap.note || 'Latest from nter.news.',
-      source: 'nter.news',
-    };
-  }
-
-  return {
-    ok: true,
-    rows: [],
-    note: live.note || 'Waiting for nter.news article.published pushes to POST /api/news/ingest. No headlines were invented.',
-    source: 'nter.news',
-    archive: false,
-    waiting: true,
-    ageH: null,
-  };
+  return serveRssNews(opts);
 }
 
 /**
@@ -871,7 +828,7 @@ export async function handleHomeApi(req, res, next) {
       return;
     }
     if (p === '/api/home/latest') {
-      json(res, await serveHomeLatest({ maxAgeH: maxAgeFromUrl(url), fresh: url.searchParams.get('fresh') === '1' }));
+      json(res, await serveHomeLatest({ limit: url.searchParams.get('limit') || 12, fresh: url.searchParams.get('fresh') === '1' }));
       return;
     }
     if (p === '/api/home/pulse') {
