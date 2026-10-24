@@ -89,3 +89,20 @@ Deno.test('Original final passages precede lower-ranked hits so reply bounds do 
  assertEquals(result.slice(0,3).map(c=>c.id),['x0','x43','x44']);
  assertEquals(new Set(result.map(c=>c.id)).size,result.length);
 });
+
+Deno.test('Quoted numbered precedent preserves earlier heading and intervening text without asserting governing speaker', async () => {
+  const changed = rows.map((r,i)=>i===2?{...r,content:'50. Suffice it to conclude that there is no substance\nin that precedent.'}:r);
+  const hit = await rowToChunk({...changed[3],desk_tier:'law'});
+  const result = (await hydrateLawContext([hit],()=>Promise.resolve(changed)))[0];
+  assertEquals(result.preceding_heading,undefined);
+  assertEquals(result.heading_context?.map(h=>h.text),['3. CONTENTIONS OF RESPONDENT','50. Suffice it to conclude that there is no substance']);
+  assertEquals(result.content,hit.content);
+});
+
+Deno.test('Ambiguous heading context preserves a possible speaker change literally', async () => {
+  const changed = rows.map((r,i)=>i===2?{...r,content:'4. Tribunal reasoning\n4.1 The application fails.'}:r);
+  const hit = await rowToChunk({...changed[3],desk_tier:'law'});
+  const result = (await hydrateLawContext([hit],()=>Promise.resolve(changed)))[0];
+  assertEquals(result.preceding_heading,undefined);
+  assertEquals(result.heading_context?.map(h=>h.text),['3. CONTENTIONS OF RESPONDENT','4. Tribunal reasoning']);
+});
