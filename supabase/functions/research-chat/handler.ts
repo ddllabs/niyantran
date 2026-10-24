@@ -1553,6 +1553,8 @@ async function runTurnBody(
   const webSources = webSourcesOf(result.webPages, checked.text);
   const content = notes.length ? `${notes.join('\n\n')}\n\n${checked.text}` : checked.text;
 
+  // Observation drafts stay private; first visible answer is the validated final release.
+  if (observationTurn && !firstAnswerAt) firstAnswerAt = now();
   const timing = timingOf(startedAt, now(), searchMs, writingStart, writingEnd, { firstModelAt, firstAnswerAt, rounds });
   // `searches` is a step count, not a token figure; `attempts` beside it already
   // is one. It is written on every completed turn, including when it is zero,
