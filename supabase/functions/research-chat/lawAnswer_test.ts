@@ -257,3 +257,20 @@ Deno.test('F247 requests a scalar evidence ID so synthesis cannot mistake an arr
  assert(String(seen[1].messages[0].content).includes('"evidence":"p1"'));
  assertEquals(a.sources,[{id:1,source:'ref:abcdef-1'}]);
 });
+
+Deno.test('F250 rejects a negative debt-merits contrast attached to disposition and repairs to supported affirmative claims',async()=>{
+ const bad={claims:[{text:'The tribunal rejected the petition because the notice was barred, not because the debtor had not proved the debt.',evidence:'p2'}],uncertain:false};
+ const seen:StreamRequest[]=[];const reasons:string[]=[];
+ const a=await reviewLawAnswer(replay([selection,bad,synthesis],seen),{...request(),report:r=>reasons.push(r)});
+ assert(a);assertEquals(reasons,['negative_merits_contrast']);assertEquals(seen.length,3);
+ assert(!a.answer.includes('not because'));
+ assertEquals(a.sources,[{id:1,source:'ref:abcdef-1'},{id:2,source:'ref:abcdef-2'}]);
+});
+
+Deno.test('F250 keeps a negative merits contrast explicitly stated in its own cited original',async()=>{
+ const text='The petition was dismissed on limitation, not because the debt was unproven.';
+ const e:EvidenceMap=new Map([['ref:abcdef-1',{kind:'text',chunk:{document_id:'d',desk_tier:'law',content:text} as Chunk}]]);
+ const supported={claims:[{text,evidence:'p1'}],uncertain:false};
+ const a=await reviewLawAnswer(replay([{passages:['p1']},supported,supported]),{...request(),evidence:e});
+ assert(a);assert(a.answer.includes(text));
+});
