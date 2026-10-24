@@ -30,10 +30,9 @@ Deno.test('F247 repairs an invalid follow-up shape once using the same evidence'
  assert(a);assertEquals(seen.length,3);
  assertEquals(JSON.parse(String(seen[1].messages[1].content)).passages,JSON.parse(String(seen[2].messages[1].content)).passages);
 });
-Deno.test('F247 binds a compound proposition to multiple supporting passages',async()=>{
+Deno.test('F247 refuses a compound proposition across separate source units',async()=>{
  const compound={claims:[{text:'The respondent challenged proof of debt, while the tribunal confined its decision to limitation.',evidence:['p1','p2']}],uncertain:false};
- const a=await reviewLawAnswer(replay([selection,compound]),request());assert(a);
- assert(a.answer.includes('[1] [2]'));assertEquals(a.sources.length,2);
+ const a=await reviewLawAnswer(replay([selection,compound,compound]),request());assertEquals(a,null);
 });
 
 Deno.test('F247 rejects IDs absent from the focused synthesis input even if present in the original pool',async()=>{
@@ -143,4 +142,70 @@ Deno.test('F247 repairs leaked internal passage IDs rather than presenting them 
  const seen:StreamRequest[]=[];
  const a=await reviewLawAnswer(replay([selection,leaked,synthesis],seen),request());
  assert(a);assertEquals(seen.length,3);assert(!a.answer.includes('(p2)'));
+});
+
+Deno.test('F247 selection and synthesis retain the original quoted-precedent introduction separately from chunk text',async()=>{
+ const e=new Map(evidence);
+ const original=e.get('ref:abcdef-1')!;assert(original.kind==='text');
+ const intro='7.32 The Supreme Court judgment in Other Case is reproduced below.';
+ e.set('ref:abcdef-1',{kind:'text',chunk:{...original.chunk,paragraph_context:{text:intro,chunkId:'intro',charFrom:0}}});
+ const seen:StreamRequest[]=[];
+ await reviewLawAnswer(replay([selection,synthesis],seen),{...request(),evidence:e});
+ for(const call of seen){
+  const passage=JSON.parse(String(call.messages[1].content)).passages.find((p:{id:string})=>p.id==='p1');
+  assert(passage.context.includes(intro));
+  assert(passage.context.includes('not proof'));
+  assertEquals(passage.text,original.chunk.content);
+ }
+});
+
+Deno.test('Selecting the operative paragraph excludes the preceding precedent fragment and binds quote units to their introduction',async()=>{
+ const e:EvidenceMap=new Map();
+ const intro='7.32 We rely on Other Case. Its paragraph follows: “The first CIRP';
+ const tail=' admission was not acknowledgement.”\n7.33 This petition is barred.\n7.34 No order as to cost.';
+ e.set('ref:abcdef-1',{kind:'text',chunk:{id:'intro',document_id:'d',desk_tier:'law',char_from:0,content:intro} as Chunk});
+ e.set('ref:abcdef-2',{kind:'text',chunk:{id:'tail',document_id:'d',desk_tier:'law',char_from:intro.length,content:tail,paragraph_context:{text:intro,chunkId:'intro',charFrom:0}} as Chunk});
+ const seen:StreamRequest[]=[];
+ const provider=async function*(req:StreamRequest):AsyncGenerator<ModelEvent>{
+  seen.push(req);const input=JSON.parse(String(req.messages[1].content));
+  if(seen.length===1){
+   const quote=input.passages.find((p:{text:string})=>p.text.includes('admission was not acknowledgement'));
+   assert(quote.text.includes('We rely on Other Case'));
+   const order=input.passages.find((p:{text:string})=>p.text.includes('7.34'));
+   assert(!order.text.includes('first CIRP'));assert(!order.text.includes('acknowledgement'));
+   yield {type:'text',text:JSON.stringify({passages:[order.id]})};
+  }else{
+   assert(!JSON.stringify(input.passages).includes('first CIRP'));
+   yield {type:'text',text:JSON.stringify({claims:[{text:'The order makes no order as to costs.',evidence:[input.passages[0].id]}],uncertain:false})};
+  }
+  yield finish;
+ };
+ const a=await reviewLawAnswer(provider,{...request(),evidence:e});assert(a);
+ assertEquals(a.sources,[{id:1,source:'ref:abcdef-2'}]);
+});
+
+Deno.test('F247 repairs an unqualified tribunal finding supported only by a party-submission section',async()=>{
+ const e:EvidenceMap=new Map([['ref:abcdef-1',{kind:'text',chunk:{id:'a',document_id:'d',desk_tier:'law',char_from:0,content:'3.31 The debt remains unproven.',preceding_heading:{text:'3. CONTENTIONS OF CD',chunkId:'h',charFrom:0}} as Chunk}]]);
+ const bad={claims:[{text:'The tribunal found that the debt remained unproven.',evidence:['p1']}],uncertain:false};
+ const good={claims:[{text:'The respondent argued that the debt remained unproven.',evidence:['p1']}],uncertain:false};
+ const seen:StreamRequest[]=[];const reasons:string[]=[];
+ const a=await reviewLawAnswer(replay([{passages:['p1']},bad,good],seen),{...request(),evidence:e,report:r=>reasons.push(r)});
+ assert(a);assertEquals(reasons,['party_source_as_finding']);assertEquals(seen.length,3);
+ assert(a.answer.includes('respondent argued'));
+});
+
+Deno.test('F247 refuses a causal synthesis joining separate paragraph propositions and repairs with separate sentences',async()=>{
+ const bad={claims:[{text:'The party sought costs because the debt was unproven.',evidence:['p1','p2']}],uncertain:false};
+ const seen:StreamRequest[]=[];const reasons:string[]=[];
+ const a=await reviewLawAnswer(replay([selection,bad,synthesis],seen),{...request(),report:r=>reasons.push(r)});
+ assert(a);assertEquals(reasons,['claim_shape']);assertEquals(seen.length,3);
+});
+
+Deno.test('F247 refuses a tribunal non-adoption claim cited only to the costs submission',async()=>{
+ const e:EvidenceMap=new Map([['ref:abcdef-1',{kind:'text',chunk:{id:'a',document_id:'d',desk_tier:'law',char_from:0,content:'3.5 The CD requests exemplary costs.',preceding_heading:{text:'3. CONTENTIONS OF CD',chunkId:'h',charFrom:0}} as Chunk}]]);
+ const bad={claims:[{text:'The CD sought costs, but the tribunal did not adopt that submission.',evidence:['p1']}],uncertain:false};
+ const good={claims:[{text:'The CD requested exemplary costs.',evidence:['p1']}],uncertain:false};
+ const reasons:string[]=[];
+ const a=await reviewLawAnswer(replay([{passages:['p1']},bad,good]),{...request(),evidence:e,report:r=>reasons.push(r)});
+ assert(a);assertEquals(reasons,['party_source_as_finding']);assert(!a.answer.includes('did not adopt'));
 });
