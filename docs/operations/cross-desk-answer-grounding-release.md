@@ -77,7 +77,7 @@ against retrieved chunks; no OCR or re-ingestion was performed.
 
 ## Verification and limits
 
-Full application CI passed (423 files / 6,575 tests). The final local rerun reached 6,546 passing tests but three files encountered ENOSPC; two passed on retry and the third again encountered ENOSPC. Earlier full local application runs passed. Do not describe the final local run as wholly successful. Pre-candidate runtime local checks:
+Full application CI passed (423 files / 6,575 tests). The earlier pre-candidate local rerun reached 6,546 passing tests but three files encountered ENOSPC; two passed on retry and the third again encountered ENOSPC. Earlier full local application runs passed. That earlier local run was not wholly successful; the later candidate-repair full rerun passed, as recorded below. Pre-candidate runtime local checks:
 `deno test -A --config supabase/functions/deno.json supabase/functions`
 (1,407 tests; superseded lexical cases replaced by extraction/renderer cases), `npm run lint`, `npm run build`, router import and
 `git diff --check` all pass. No standalone type-check exists or is claimed.
