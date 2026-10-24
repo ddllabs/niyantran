@@ -167,6 +167,8 @@ export type AgentEvent =
   | { outOfTime: { phase: 'research' | 'answer'; cut: boolean } }
   | { finish: Extract<ModelEvent, { type: 'finish' }> };
 export interface AgentDeps {
+  /** Hand successful single-document Law retrieval to the caller's mandatory source review. */
+  lawEvidenceOnly?: boolean;
   /** The agent alone decides the tools, the server tools and the tool choice of each call. */
   request: Omit<StreamRequest, 'messages' | 'tools' | 'serverTools' | 'tool_choice'>;
   model(req: StreamRequest): AsyncGenerator<ModelEvent>;
@@ -778,6 +780,18 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         messages.push({ role: 'tool', tool_call_id: call.id, content: reply });
         messages.push({ role: 'user', content: 'Context search attempted, not attribution verified. Identify the governing headings and distinguish the parties’ submissions from the deciding tribunal’s own analysis. A statement recorded in an order is not necessarily adopted. Verify operative relief and costs separately. If a claim lacks governing context, leave its speaker unresolved rather than calling it a finding.' });
       }
+    }
+    // The Law caller synthesizes from these originals, never from the discarded draft.
+    // Keep normal research when either search failed, scope widened or more tools are needed.
+    if (deps.lawEvidenceOnly && a.focus === 'attached' && a.scopedDocumentIds.length === 1 &&
+        !deps.webSearch && !a.conversational && state.presearched && budget.modelAttempts === 0 &&
+        !state.widened && [PRESEARCH_ID, 'law-context-1'].every(id => state.steps.some(s =>
+          s.toolCallId === id && s.status === 'ok' && s.scoped && s.resultCount > 0)) &&
+        state.lawReviewChunks.length > 0 && accumulate(state.chunks, state.lawReviewChunks).every(c =>
+          c.desk_tier === 'law' && c.document_id === a.scopedDocumentIds[0])) {
+      state.finish = 'law_evidence';
+      state.phase = 'complete';
+      break;
     }
     if (
       state.phase === 'research' &&

@@ -1237,6 +1237,7 @@ async function runTurnBody(
             ...(schemaDropped ? { response_format: undefined } : {}),
           },
           model: attempts.wrap(observedStream, 'chat_answer'),
+          lawEvidenceOnly: lawTurn && request.focus === 'attached' && !web.offered,
           searchDocuments: (args, ids, topK, onTiming) =>
             deps.searchDocuments(args, ids, {
               signal,
@@ -1331,9 +1332,12 @@ async function runTurnBody(
   }
 
   let envelope = parseEnvelope(result.text);
+  const lawEvidenceReady = result.finish === 'law_evidence' && lawTurn &&
+    request.focus === 'attached' && scopedDocumentIds.length === 1 && !web.offered &&
+    result.chunks.length > 0 && result.chunks.every(c => c.desk_tier === 'law' && c.document_id === scopedDocumentIds[0]);
   if (
-    signal.aborted || (result.finish !== 'stop' && result.finish !== 'length') ||
-    (result.finish === 'stop' && !envelope) || (result.finish === 'length' && !streamed.trim())
+    signal.aborted || (!lawEvidenceReady && ((result.finish !== 'stop' && result.finish !== 'length') ||
+    (result.finish === 'stop' && !envelope) || (result.finish === 'length' && !streamed.trim())))
   ) {
     attempts.rejectLast(
       'chat_answer',
@@ -1361,29 +1365,48 @@ async function runTurnBody(
 
   if (lawTurn && result.chunks.some(c => c.desk_tier === 'law')) {
     let reviewed = null;
-    if (envelope && !signal.aborted && budget.modelAttempts < BUDGET.maxSteps &&
+    if ((envelope || lawEvidenceReady) && !signal.aborted && budget.modelAttempts < BUDGET.maxSteps &&
         (!context.timeLeft || context.timeLeft() > 1000)) {
-      try {
-        stage('Checking source support');
-        writingStart = now();
-        // The selector and synthesizer share the turn's deadline, accounting and one repair.
-        reviewed = await reviewLawAnswer(attempts.wrap(observedStream, 'chat_answer'), {
-          model: attemptModel, question: request.message,
-          previousQuestions: window.filter(m => m.role === 'user').map(m => m.content ?? ''),
-          evidence, signal,
-          report: reason => log('research.law_review_rejected', { reason, attempt: budget.modelAttempts }),
-          selectionReasoning: effortOf(t, attemptModel) ? { effort: effortOf(t, attemptModel)! }
-            : lawReviewReasoning(t.models.find(m => m.model_id === attemptModel)?.efforts ?? []).reasoning,
-          ...(effortOf(t, attemptModel) ? { reasoning: { effort: effortOf(t, attemptModel)! } } : {}),
-          takeAttempt: minimumRemaining => {
-            if (signal.aborted || BUDGET.maxSteps - budget.modelAttempts < minimumRemaining ||
-                (context.timeLeft && context.timeLeft() <= 1000)) return false;
-            rounds++;
-            budget.modelAttempts++;
-            return true;
-          },
-        });
-      } catch { reviewed = null; log('research.law_review_failed', { aborted: signal.aborted }); }
+      for (;;) {
+        const beforeReview = budget.modelAttempts;
+        try {
+          stage('Checking source support');
+          writingStart = now();
+          // The selector and synthesizer share the turn's deadline, accounting and one repair.
+          reviewed = await reviewLawAnswer(attempts.wrap(observedStream, 'chat_answer'), {
+            model: attemptModel, question: request.message,
+            previousQuestions: window.filter(m => m.role === 'user').map(m => m.content ?? ''),
+            evidence, signal,
+            report: reason => log('research.law_review_rejected', { reason, attempt: budget.modelAttempts }),
+            selectionReasoning: effortOf(t, attemptModel) ? { effort: effortOf(t, attemptModel)! }
+              : lawReviewReasoning(t.models.find(m => m.model_id === attemptModel)?.efforts ?? []).reasoning,
+            ...(effortOf(t, attemptModel) ? { reasoning: { effort: effortOf(t, attemptModel)! } } : {}),
+            takeAttempt: minimumRemaining => {
+              if (signal.aborted || BUDGET.maxSteps - budget.modelAttempts < minimumRemaining ||
+                  (context.timeLeft && context.timeLeft() <= 1000)) return false;
+              rounds++;
+              budget.modelAttempts++;
+              return true;
+            },
+          });
+          break;
+        } catch (error) {
+          // The skipped draft used to perform this availability check. Preserve only
+          // its configured retryable-provider failover, never retry validation failures.
+          const next = chain[chain.indexOf(attemptModel) + 1];
+          if (lawEvidenceReady && !signal.aborted && budget.modelAttempts === beforeReview + 1 &&
+              error instanceof ProviderError && error.retryable && next &&
+              BUDGET.maxSteps - budget.modelAttempts >= 2 && (!context.timeLeft || context.timeLeft() > 1000)) {
+            attempts.rejectLast('chat_answer', 'Law evidence selection provider unavailable.');
+            fallbackReason = `unavailable (${error.status})`;
+            attemptModel = next;
+            continue;
+          }
+          reviewed = null;
+          log('research.law_review_failed', { aborted: signal.aborted });
+          break;
+        }
+      }
     }
     if (!reviewed) {
       attempts.rejectLast('chat_answer', 'Legal answer declined: original-source support verification failed or unavailable.');

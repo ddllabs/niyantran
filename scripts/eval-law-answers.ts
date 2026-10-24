@@ -36,6 +36,7 @@ for (const c of data.cases) {
   let answer = null, error: string | undefined;
   async function* provider(req: StreamRequest): AsyncGenerator<ModelEvent> {
     calls++;
+    const attemptStarted = Date.now();
     const supplied = JSON.parse(String(req.messages[1].content));
     attempts.push({stagePassageIds:supplied.passages?.map((p:{id:string})=>p.id)});
     let finished = false, responseText = '';
@@ -49,7 +50,10 @@ for (const c of data.cases) {
         attempts.push({finish:e.reason,usage:e.usage});
       }
       yield e;
-    } } finally { if (!finished) unknownCost = true; }
+    } } finally {
+      attempts.push({elapsedMs:Date.now()-attemptStarted,providerSort:req.providerSort ?? null});
+      if (!finished) unknownCost = true;
+    }
   }
   try {
     answer = await reviewLawAnswer(provider, {model,question:c.question,previousQuestions:c.previousQuestions,evidence,

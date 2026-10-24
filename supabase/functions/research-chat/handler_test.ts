@@ -3712,3 +3712,28 @@ for (const mixed of [false,true]) Deno.test(`F247: High draft cap retains Law sc
   assert('chunk_id' in source);
   assertEquals(source.chunk_id,'scope');
 });
+
+for (const outage of [false,true]) for (const valid of [true,false]) Deno.test(`F250: attached Law skips discarded draft but requires source review (${valid}, outage ${outage})`, async () => {
+  let drafts=0, selections=0, syntheses=0;
+  const selectionModels:string[]=[];
+  const original='7.34 The application is rejected. No order as to cost.';
+  const stream: HandlerDeps['stream']=async function*(req){
+    const system=String(req.messages[0].content);
+    if(system.startsWith('Select original passages')){
+      selections++; selectionModels.push(req.model); if(outage && selections===1) throw new ProviderError(503,'provider unavailable'); const p=JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({passages:[p.id]}));
+    } else if(system.startsWith('Answer the question directly')){
+      syntheses++; const p=JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({claims:[{text:'The tribunal rejected the application with no order as to cost.',evidence:valid?p.id:'invented'}],uncertain:false}));
+    } else {drafts++;yield text(envelope('Discarded draft.'));}
+    yield finish();
+  };
+  const {deps,rec}=fakeDeps({stream},{presearch:true,searchDocuments:()=>Promise.resolve([{...chunk('law'),document_id:DOC_A,desk_tier:'law',content:original,char_to:original.length}])},{resolveDocumentIds:()=>Promise.resolve([DOC_A])});
+  const events=await frames(await handleResearchChat(post({...BODY,message:'What did this tribunal order?',focus:'attached',attachments:[{...docChip('Law order'),tier:'law'}],desk_context:{tier:'law'},web_search:false,reasoning:'high'}),deps));
+  if(outage) assertEquals(selectionModels[1],failoverChain(MODELS,selectionModels[0])[1]);
+  assertEquals(drafts,0);assertEquals(selections,outage?2:1);assertEquals(syntheses,valid?1:2);
+  assertEquals(rec.messages[0].status,valid?'complete':'error');
+  assert(!JSON.stringify(events).includes('Discarded draft'));
+  if(valid){assertStringIncludes(rec.messages[0].content,'The tribunal rejected');assertEquals(rec.messages[0].sources.length,1);}
+  else assertEquals(rec.messages[0].content,'');
+});
