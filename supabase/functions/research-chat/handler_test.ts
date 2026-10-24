@@ -3657,7 +3657,7 @@ for (const lawHint of [true, false]) for (const valid of [true, false]) for (con
     } else if (String(req.messages[0].content).startsWith('Answer the question directly')) {
       syntheses++;
       assertEquals(req.reasoning,{effort:'high'});
-      assertEquals(req.max_tokens,8000);
+      assertEquals(req.max_tokens,16000);
       const p = JSON.parse(String(req.messages[1].content)).passages[0];
       if (repair && syntheses === 1) yield text(JSON.stringify({answer:'invalid shape'}));
       else yield text(JSON.stringify({claims:[{text:'The tribunal rejected the application with no order as to cost.',evidence:[valid?p.id:'invented']}],uncertain:false}));
@@ -3675,4 +3675,40 @@ for (const lawHint of [true, false]) for (const valid of [true, false]) for (con
   assertEquals(rec.messages[0].status,valid?'complete':'error');
   if(valid) { assertStringIncludes(rec.messages[0].content,'The tribunal rejected the application'); assertEquals(rec.messages[0].sources.length,1); }
   else assertEquals(rec.messages[0].content,'');
+});
+
+for (const mixed of [false,true]) Deno.test(`F247: High draft cap retains Law scope for final synthesis (mixed ${mixed})`, async () => {
+  const scope = '7.21 The inquiry is confined to whether the petition was filed within limitation.';
+  const found = [
+    {...chunk('long'), desk_tier:mixed?'national':'law', content:'3.1 ' + 'Background '.repeat(2400), char_to:26404},
+    {...chunk('scope'), desk_tier:'law', content:scope, char_to:scope.length},
+  ];
+  let selected = false;
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    const system = String(req.messages[0].content);
+    if (system.startsWith('Select original passages')) {
+      const p = JSON.parse(String(req.messages[1].content)).passages.find((p:{text:string})=>p.text===scope);
+      assert(p, 'Retrieved scope must reach the final selector despite the draft cap');
+      selected = true;
+      yield text(JSON.stringify({passages:[p.id]})); yield finish();
+    } else if (system.startsWith('Answer the question directly')) {
+      const p = JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({claims:[{text:'The tribunal confined its inquiry to whether the petition was filed within limitation.',evidence:[p.id]}],uncertain:false})); yield finish();
+    } else if (!/ref:[a-z0-9]{6}-\d+/.test(JSON.stringify(req.messages))) {
+      yield {type:'tool-call',id:'find',name:'search_documents',args:'{"query":"scope of inquiry"}'}; yield finish('tool_calls');
+    } else {
+      const firstReply=req.messages.find(m=>m.role==='tool' && String(m.content).includes('Background '));
+      assert(firstReply && !String(firstReply.content).includes(scope), 'The initial draft reply cap must remain in force');
+      yield text(envelope('Draft answer.')); yield finish();
+    }
+  };
+  const {deps,rec}=fakeDeps({stream},{searchDocuments:()=>Promise.resolve(found)});
+  await frames(await handleResearchChat(post({...BODY,reasoning:'high',...(mixed?{}:{desk_context:{tier:'law'}})}),deps));
+  assert(selected);
+  assertEquals(rec.messages[0].status,'complete');
+  assertStringIncludes(rec.messages[0].content,'confined its inquiry');
+  assertEquals(rec.messages[0].sources.length,1);
+  const source=rec.messages[0].sources[0];
+  assert('chunk_id' in source);
+  assertEquals(source.chunk_id,'scope');
 });

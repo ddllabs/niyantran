@@ -2287,3 +2287,38 @@ Deno.test('F247: Law heading context is quoted beside the excerpt without assert
   assert(rendered.endsWith(law.content));
   assert(!renderChunk('ref:abc123-1',{...law,desk_tier:'national'}).includes('CONTENTIONS'));
 });
+
+Deno.test('Law synthesis retains authorized evidence beyond the draft tool-reply cap', async () => {
+  const found = ['submission', 'scope', 'disposition'].map((id, i) => ({
+    ...chunk(id), desk_tier: 'law', document_id: 'law-doc', chunk_index: i,
+    content: `${i + 1}.1 ${id} ` + 'original '.repeat(50),
+  }));
+  const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+    searchDocuments: () => Promise.resolve(found), toolReplyChars: 900,
+  });
+  const result = await runAgent(f.deps, input);
+  const replies = f.requests.flatMap(r => r.messages.filter(m => m.role === 'tool').map(m => String(m.content)));
+  assert(replies.every(reply => !reply.includes('2.1 scope')));
+  assertEquals(result.chunks.map(c => c.id), ['submission', 'scope', 'disposition']);
+});
+
+Deno.test('retained Law review evidence bounds count and size and excludes non-Law overflow', async () => {
+  const first = {...chunk('first'), desk_tier:'law', document_id:'law-doc'};
+  const found = [first, {...longChunk('large', 70000), desk_tier:'law',document_id:'law-doc'},
+    ...Array.from({length:300},(_,i)=>({...chunk(`law-${i}`),desk_tier:'law',document_id:'law-doc'})),
+    {...chunk('other-desk'),desk_tier:'national'}];
+  const f=fake([[docCall(),finish('tool_calls')],ready(),answer()],{
+    searchDocuments:()=>Promise.resolve(found),toolReplyChars:500,
+  });
+  const result=await runAgent(f.deps,input);
+  assertEquals(result.chunks.length,256);
+  assert(!result.chunks.some(c=>c.id==='large'||c.id==='other-desk'));
+});
+
+Deno.test('oversized first Law draft passage still activates final review', async () => {
+  const f=fake([[docCall(),finish('tool_calls')],ready(),answer()],{
+    searchDocuments:()=>Promise.resolve([{...longChunk('large',70000),desk_tier:'law'}]),toolReplyChars:500,
+  });
+  await runAgent(f.deps,input);
+  assert(f.events.some(e=>'lawEvidence' in e));
+});

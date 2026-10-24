@@ -37,3 +37,38 @@ The historical [extractive release](law-answer-validation-release/README.md) rem
 The follow-up groups original read-time paragraph spans and separates the quoted-precedent ending from operative paragraphs. It preserves original source handles, omits recognized orphan fragments, rejects conflicting overlaps, marks gaps, and bounds unit size/source count. Original numbered section headings accompany matching paragraphs. Each answer sentence cites one unit; that unit can carry several original chunk citations. A targeted party-submission/tribunal-assertion guard uses the existing correction budget. These are bounded safeguards, not universal speaker classification or proof of all legal semantics.
 
 Intermediate source reviews remained failing until their issues were addressed: quoted facts promoted despite advisory context, debtor statements attributed to tribunal, an invented causal link between separate arguments, and unsupported non-adoption from party evidence. A provider interruption produced no answer and unknown cost. Preserve these failures; passing unit tests alone is insufficient. Current final provider and website acceptance remain pending; production is still the verifiedv86 rollback. No new ingestion or corpus writes.
+
+## Verified release candidate
+
+PR32 runtime `7b72a88fa87681c1f4d2b3403264626cbbd32b9b` merged as `afa39f48a730c192cd666954ea24577cd262285f`. Branch/PR CI40083998006/40084037894 passed both required jobs; Vercel preview passed. Local6,575 application and1,270 Edge tests, lint/build/diff checks passed. Independent source review accepted all four final candidate answers: original, same-context follow-up, date quotation and false costs premise. Nine provider calls costUSD0.004368288744; the follow-up recovered once from claim_shape. Earlier failures remain part of this record.
+
+Pre-release read confirms3,569 documents/105,668 chunks globally,110 Law documents/jobs and502 insolvency listings. All110 document, chunk, input and job fingerprints and ingestion costs are unchanged from the latest baseline. Exact merged-commit CI, deployment and website acceptance are pending.
+
+Merged-commit CI40084500163 passed both required jobs. Deployed research-chatv87; retrieved41 source files all match the42-file payload (deno.json is not returned). Bundle hash `98c0bd9e8984673b86321c73a26e8e7fba27c987102e856f007a78860a43dc5a`. Credential-free POST returns401, preserving application authentication. Website tests are now running in a fresh conversation with the existing indexed Globiz attachment, DeepSeek Flash/High and web search off.
+
+
+## Live v87 result and retained-evidence correction
+
+Vercel production dpl_E3HdvwpCHLhVSKXSLvncWu27c2Km serves mergeafa39f48. Original live answer69s/37.2credits correctly cited limitation but explicitly left part unanswered. Same-conversation follow-up63s/42.2credits correctly separated debtor debt-proof/costs submissions from tribunal limitation and no-cost disposition, with four original source handles and no verification error. Citation viewer checks include the original3.31 spans and7.33/7.34; this is not full four-case acceptance.
+
+Root-cause reproduction identified a production/evaluation mismatch: High draft tool replies are capped at24,000characters, discarding retrieved Law evidence before final synthesis. The local retrieved original-case control retained11/53 chunks and lost7.21 under that cap. The correction retains authorized Law retrieval separately (at most256 chunks/300,000 rendered characters) for the existing final80,000-character paragraph selector. It preserves draft caps, server-owned handles and non-Law behavior. It adds no retrieval/model call by itself, though retaining previously discarded material may increase final-stage tokens within existing limits. Mixed-desk and oversized-first-Law paths still trigger review.
+
+Causal evidence: retained-scope regression failed before implementation; disconnecting retention failed the handler integration test; removing retention bounds failed its guard; mixed-desk and oversized-first-Law regressions failed before their fixes. Independent review passes307 focused agent/handler tests. Final full Edge suite1275 passes. Website four-case acceptance remains pending. No ingestion or corpus writes.
+
+
+Further pre-release provider evidence:2pass/1partial/1availability failure. The token-limited original produced no published answer; the date response had correct dates but omitted the requested quote and added an unsupported terminology objection. The existing single correction now also handles a completed synthesis length limit, while incomplete streams remain held. Explicit “Quote…” requests require a matching source substring; this is not proof of quote relevance. The candidate is not yet accepted. A fresh read found711 Law documents/jobs and1060 listings (4170documents/128271chunks globally); all prior110 fingerprints are unchanged. These additional601 registrations are concurrent activity outside this task, which performed no ingestion.
+
+
+The next source-reviewed evaluation was3complete passes and1accurate but incomplete original response: the selector chose limitation/acknowledgement paragraphs but omitted the explicit inquiry scope and debt-proof submission. It was not counted as full acceptance. Selection instructions now explicitly require both for questions about what the tribunal concluded about claimed debt or liability. Final source-reviewed and website checks remain required; the lexical debt/claim guard and quotation recognizer are targeted safeguards, not semantic proof.
+
+
+Follow-up testing exposed another format mismatch: the synthesis prompt showed an array while only one paragraph ID was allowed. The candidate now requests a scalar ID, retains single-unit enforcement and normalizes legacy singleton arrays. It does not merge unrelated paragraphs just because they share a chunk. Synthesis allowance is16000 tokens, selection8000, with at most one shared correction (maximum40000 requested output tokens); actual time/cost can increase. Earlier tests failed through timeout, omitted supported parts or unsupported causal additions. Full candidate provider and NTER acceptance remain required; passing mocks and historical provider runs do not close F247.
+
+
+## PR33 final local candidate
+
+Scalar-ID Flash/High evaluation completed all four approved questions without repair: original35.3s, follow-up114.7s, date23.8s, false premise63.9s;8calls, reportedUSD0.013125858, known cost. Independent source review passed all four answers and their cited original support. Pro comparison is diagnostic only: first three passed, while a separate false-premise answer cited scope for a costs conclusion and failed clause-level support. No model default or routing was changed.
+
+Local verification:6575 application tests,1280 full Edge tests, lint, production build, evaluation-script check and diff check passed. Independent implementation review found no blocker. Causal scalar-ID regression failed before its correction. Required CI and authenticated NTER acceptance remain pending for this candidate; latency remains material and this is not universal semantic certification.
+
+Fresh read-only baseline found4270 documents/133916 chunks globally,811 Law documents/jobs and1183 insolvency listings. Concurrent ingestion has continued independently of this task; compare original completed documents separately from jobs that were in progress at earlier checkpoints. This task has issued no ingestion, OCR, embedding or listing write.
