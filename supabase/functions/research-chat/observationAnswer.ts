@@ -100,6 +100,8 @@ export function observationCandidates(pages: WebPage[]): {id:number;sourceId:num
       let quote=excerpt.slice(start,next).trim();
       // The definition cell's sentence ends before its closing table marker.
       if(definitionStarts.includes(start)) quote=quote.match(/^.*?[.!?](?= |$)/)?.[0] ?? quote;
+      quote=quote.replace(/(?<=[.!?])(?: \.\.\.)+$/, '');
+      if (/\.\.\.|…/.test(quote)) continue;
       const v={sourceId:i+1,quote};
       if(!span(v,pages,true)) continue;
       const update=!!span(v,pages) && /[.!?]$/.test(quote) && !quote.includes('|');

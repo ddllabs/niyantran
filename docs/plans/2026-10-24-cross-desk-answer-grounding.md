@@ -114,3 +114,9 @@ Independent read-only reviewer ran all 12 and found no release blockers; semanti
 relevance and conservative candidate omissions remain limitations. Full Edge
 suite: 1,411 pass; lint/build/router/diff pass. Application suite: 6,575 tests / 423 files pass. No further
 direct diagnostic calls: renewed four-call allowance is exhausted.
+
+Captured-source candidate audit caught ellipsis-ended numerical table fragments.
+The new regression fails before excluding internal gaps; trailing ellipses are
+removed only after existing complete sentence punctuation and the result is
+revalidated. Independent reviewer: 13 unit tests pass, no blocker. Final rerun:
+1,412 Edge / 6,575 application tests pass; lint/build/router/diff pass.

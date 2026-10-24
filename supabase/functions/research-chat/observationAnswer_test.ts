@@ -103,3 +103,9 @@ Deno.test('observation selection: captured transcription failure cannot alter se
  assert(!selected.invalid);
  assert(JSON.parse(selected.text).answer.includes(exact));
 });
+Deno.test('observation selection: excerpt gaps and ellipsis-ended table rows are not complete sentences',()=>{
+ const source=[{...pages[0],excerpt:'Mexico 3.7 3.3 1.5 0.2 ... India 7.6 6.3 ... Growth is projected at 6.6 percent in FY27. ... Another observation is incomplete ...'}];
+ const c=observationCandidates(source);
+ assert(!c.some(v=>v.quote.includes('...')));
+ assert(c.some(v=>v.update&&v.quote==='Growth is projected at 6.6 percent in FY27.'));
+});
