@@ -39,14 +39,15 @@ fetched originals. Search absence cannot prove latest status or no revisions.
 | [47](https://github.com/ddllabs/niyantran/pull/47) | `af8b0cb7` | research-chat v98 | `40123909448` passed |
 | [48](https://github.com/ddllabs/niyantran/pull/48) | `bc5b750e` | research-chat v99 | `40125846137` passed |
 | [49](https://github.com/ddllabs/niyantran/pull/49) | `0b6609f8` | research-chat v100 | `40127591222` passed |
+| [50](https://github.com/ddllabs/niyantran/pull/50) | `46ed371f` | research-chat v101 | `40129113789` passed |
 
 Both required jobs passed before each merge. Production deployment also waits
 for the exact main commit's jobs. The v98 bundle matches all 42 submitted files;
 its hash is `0e46945423602ce8bd5d4af48b065a317d6ccf41140d48a29c2bbbc3f97a2de4`.
-The final v100 bundle also matches all 42 files, hash
-`2216c4584fdb93cdc321bf9dc2facd1a7e24ea9383b6f75af15a5f8dc0dd5a6a`.
+The final v101 bundle also matches all 42 files, hash
+`8ac0f35b791298a7f09465a3cf4c76307e4b6b4a26bd0d12f7fcdfeed916f38c`.
 An unauthenticated POST returns 401. Vercel production is READY at
-`0b6609f8`, deployment `dpl_FTsUsuZWaTTXkTVuJiHfvqvTysxE`.
+`46ed371f`, deployment `dpl_BJdPYf73fPD5aKHhLXA1skBWu48P`.
 Desk-brief remains v19; no other function was deployed in this task.
 
 ## Live NTER acceptance

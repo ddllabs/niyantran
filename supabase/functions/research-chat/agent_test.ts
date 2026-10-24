@@ -2409,72 +2409,34 @@ Deno.test('F256 failed web research cannot carry its partial synthesis or uncomm
 });
 
 for (const bad of [
-  'The calendar-year 2025 observation is 7.57%. [Source](https://example.org/1)',
-  'The stored figure is the latest available and unrevised. [Source](https://example.org/1)',
-  'FY26 is a different fiscal period, not a revision of the same series. [Source](https://example.org/1)',
-  'The two figures refer to the same observation period. [Source](https://example.org/1)',
-  'We cannot establish the period convention, but FY26 covers a different period. [Source](https://example.org/1)',
-  'The record does not establish its convention and this is the latest figure. [Source](https://example.org/1)',
-  'The figure is unrevised; we cannot verify the period. [Source](https://example.org/1)',
-  'We cannot determine revision history because this is the latest official figure. [Source](https://example.org/1)',
-  'The stored figure is a separate estimate covering a different reference period. [Source](https://example.org/1)',
-  'Because period conventions differ, the stored value cannot be directly compared. [Source](https://example.org/1)',
-  'The selected value and FY26 are directly comparable. [Source](https://example.org/1)',
-  'GDP growth measures real output growth. (Web glossary)',
-]) Deno.test(`F256 observation corrects unsupported period/status or missing page citation: ${bad}`, async () => {
-  const good = 'The selected year-labelled observation is 7.57%; its period convention is unverified. GDP growth measures real output growth. [Source](https://example.org/1)';
-  const json = (text: string) => JSON.stringify({ answer: text, sources: [], follow_up_questions: [] });
-  const f = fake([[webResults(page(1)), searched(1)], answer(json(bad)), answer(json(good))], { webSearch: { perTurn: 3 } });
+  { answer: 'The latest calendar-year figure is unrevised.', sources: [], follow_up_questions: [] },
+  { definition: { sourceId: 9, quote: 'Excerpt 1' }, updates: [] },
+  { definition: { sourceId: 1, quote: 'Invented statistic' }, updates: [] },
+  { definition: { sourceId: 1, quote: 'Excerpt 1' }, updates: [], comparison: 'Same period' },
+]) Deno.test(`F256 corrects unsupported extraction: ${JSON.stringify(bad)}`, async () => {
+  const good = JSON.stringify({ definition: { sourceId: 1, quote: 'Excerpt 1' }, updates: [] });
+  const f = fake([[webResults(page(1)), searched(1)], answer(JSON.stringify(bad)), answer(good)], { webSearch: { perTurn: 3 } });
   const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
-  assertEquals(result.text, json(good));
+  assert(JSON.parse(result.text).answer.includes('Excerpt 1'));
   assertEquals(f.requests.length, 3);
-  assert(!JSON.stringify(f.requests[2].messages).includes(bad), 'rejected draft must not become correction evidence');
-  assert(!f.events.some(e => 'text' in e && e.text.includes(bad)), 'do not publish rejected text');
+  assert(!JSON.stringify(f.requests[2].messages).includes(JSON.stringify(bad)), 'rejected draft must not become evidence');
+  assert(!f.events.some(e => 'text' in e), 'no raw extraction is public');
 });
 
-for (const qualification of [
-  'The sources do not establish whether the figures cover the same period.',
-  'The record does not establish a calendar-year convention.',
-  'These searches cannot establish whether the figure is latest or unrevised.',
-  'We cannot conclude that the newer figure is not a revision.',
-  'It is not known whether the figures cover different reporting periods.',
-  'Whether the figures cover the same period is not known.',
-  'The calendar-year convention is not established.',
-  'We cannot establish whether the period conventions differ.',
-]) Deno.test(`F256 accepts explicit observation uncertainty: ${qualification}`, async () => {
-  const text = JSON.stringify({ answer: `${qualification} GDP growth measures real output growth. [Source](https://example.org/1)`, sources: [], follow_up_questions: [] });
-  const f = fake([[webResults(page(1)), searched(1)], answer(text)], { webSearch: { perTurn: 3 } });
+Deno.test('F256 repeated malformed extraction returns honest missing evidence within one correction', async () => {
+  const f = fake([[webResults(page(1)), searched(1)], answer('not JSON'), answer('not JSON')], { webSearch: { perTurn: 3 } });
   const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
-  assertEquals(result.text, text);
+  assertEquals(f.requests.length, 3);
   assertEquals(result.finish, 'stop');
-  assertEquals(f.requests.length, 2, 'an explicit limitation does not need a corrective call');
+  assert(JSON.parse(result.text).answer.includes('supported definition was not available'));
 });
 
-Deno.test('F256 repeated invalid observation fails closed within one correction', async () => {
-  const bad = JSON.stringify({ answer: 'The latest calendar-year figure is unrevised.', sources: [], follow_up_questions: [] });
-  const f = fake([[webResults(page(1)), searched(1)], answer(bad), answer(bad)], { webSearch: { perTurn: 3 } });
+Deno.test('F256 no returned pages produces a transparent evidence limitation', async () => {
+  const empty = JSON.stringify({ definition: null, updates: [] });
+  const f = fake([ready(), answer(empty)], { webSearch: { perTurn: 3 } });
   const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
-  assertEquals(f.requests.length, 3);
-  assertEquals(result.finish, 'observation_validation');
-  assertEquals(result.text, '');
-});
-
-Deno.test('F256 citation URL words are not observation assertions', async () => {
-  const source = { ...page(1), url: 'https://example.org/latest/gdp' };
-  const text = JSON.stringify({ answer: 'The supplied year label has an unverified convention. [Definition](https://example.org/latest/gdp)', sources: [], follow_up_questions: [] });
-  const f = fake([[webResults(source), searched(1)], answer(text)], { webSearch: { perTurn: 3 } });
-  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
-  assertEquals(result.text, text);
+  assert(JSON.parse(result.text).answer.includes('No supported additional observation'));
   assertEquals(f.requests.length, 2);
-});
-
-Deno.test('F256 no web pages cannot bypass observation period and revision guards', async () => {
-  const bad = JSON.stringify({ answer: 'The latest calendar-year observation is 7.57%.', sources: [], follow_up_questions: [] });
-  const good = JSON.stringify({ answer: 'The supplied year-labelled observation is 7.57%. Its period convention is unverified; this search returned no usable sources to verify the definition or newer comparable data.', sources: [], follow_up_questions: [] });
-  const f = fake([ready(), answer(bad), answer(good)], { webSearch: { perTurn: 3 } });
-  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
-  assertEquals(result.text, good);
-  assertEquals(f.requests.length, 3);
 });
 
 Deno.test('F256 final web synthesis receives explicit publisher and claim-level provenance rules', async () => {
@@ -2487,9 +2449,38 @@ Deno.test('F256 final web synthesis receives explicit publisher and claim-level 
 Deno.test('F256 observation correction drops partial continuation draft from its input', async () => {
   const badPrefix = '{"answer":"The calendar-year observation';
   const tail = ' is latest.","sources":[],"follow_up_questions":[]}';
-  const good = JSON.stringify({ answer: 'The supplied year label has an unverified period convention. [Source](https://example.org/1)', sources: [], follow_up_questions: [] });
+  const good = JSON.stringify({ definition: { sourceId: 1, quote: 'Excerpt 1' }, updates: [] });
   const f = fake([[webResults(page(1)), searched(1)], [{ type: 'text', text: badPrefix }, finish('length')], [{ type: 'text', text: tail }, finish()], answer(good)], { webSearch: { perTurn: 3 } });
   const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
-  assertEquals(result.text, good);
-  assert(!JSON.stringify(f.requests[3].messages).includes('The calendar-year observation'), 'partial rejected continuation cannot bias correction');
+  assert(JSON.parse(result.text).answer.includes('Excerpt 1'));
+  assert(!JSON.stringify(f.requests[3].messages).includes('The calendar-year observation'));
+});
+
+Deno.test('F256 structured observation renders only source-owned excerpt spans', async () => {
+  const source = { ...page(1), excerpt: 'Annual percentage growth rate of GDP at market prices based on constant local currency.' };
+  const extraction = JSON.stringify({ definition: { sourceId: 1, quote: source.excerpt }, updates: [] });
+  const f = fake([[webResults(source), searched(1)], answer(extraction)], { webSearch: { perTurn: 3 } });
+  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  const rendered = JSON.parse(result.text);
+  assert(typeof rendered.answer === 'string', 'structured extraction must become a usable answer');
+  assert(rendered.answer.includes(source.excerpt));
+  assert(rendered.answer.includes(source.url));
+  assert(!f.events.some(e => 'text' in e && e.text.includes('sourceId')), 'raw extraction is withheld');
+  assertEquals(f.requests.length, 2);
+});
+
+Deno.test('F256 schema fallback remains disabled for the structured observation call', async () => {
+  const extraction = JSON.stringify({ definition: { sourceId: 1, quote: 'Excerpt 1' }, updates: [] });
+  const f = fake([[webResults(page(1)), searched(1)], answer(extraction)], { webSearch: { perTurn: 3 }, request: { model: 'test', response_format: undefined } });
+  await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  assertEquals(f.requests[1].response_format, undefined);
+});
+
+Deno.test('F256 correction preserves first valid definition when correction is malformed', async () => {
+  const extraction = JSON.stringify({ definition: { sourceId: 1, quote: 'Excerpt 1' }, updates: [{ sourceId: 1, quote: 'Fake 9%' }] });
+  const f = fake([[webResults(page(1)), searched(1)], answer(extraction), answer('not JSON')], { webSearch: { perTurn: 3 } });
+  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  assert(JSON.parse(result.text).answer.includes('Excerpt 1'));
+  assert(!result.text.includes('Fake'));
+  assertEquals(f.requests.length, 3);
 });

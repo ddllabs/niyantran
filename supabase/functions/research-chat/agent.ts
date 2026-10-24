@@ -1,3 +1,4 @@
+import { observationInstructions, OBSERVATION_SCHEMA, renderObservation, type ObservationContext } from './observationAnswer.ts';
 import { lawAttributionContext } from '../_shared/lawContext.ts';
 import { placeholderAnswer } from './answerValidation.ts';
 // One dependency-injected research loop. The handler owns authentication,
@@ -30,31 +31,6 @@ import type { Focus } from './validate.ts';
 // Conservative boundary for the year-labelled Economic Simulator web path.
 // Search excerpts do not establish its reporting-period convention or revision history.
 const WEB_FINAL_RULES = `Write only the facts needed to answer the question, within its requested length; do not add an unrelated statistics or confidence section. Each web-derived proposition needs an inline link to its supporting returned page. Attribute to the actual publisher of that URL: an aggregator reproducing affidavits or election records is NOT the election authority's portal, and independent research is NOT an official government publication. Do not imply an original official source was consulted when only an aggregator was returned. Describe historical results as historical and separately qualify current office/status. Omit numerical details not explicitly supported by the cited excerpt. Browser-supplied fields without a verified row source are supplied context, not confirmed database facts. If no official original was returned, acknowledge that limitation rather than claiming official verification.`;
-const OBSERVATION_RULES = `Answer the user's question concisely; a requested word limit overrides the usual multi-heading layout. Identify the selected value as supplied context unless a verified row citation supports it. Preserve its year label and say its period convention is unverified; do not call it a calendar-year figure or infer a fiscal period. Do not use latest, unrevised, or no-revision claims: these searches cannot establish revision history or exhaust all releases. If needed say no newer comparable observation was found in these results. Retain the labels on projections and fiscal observations without claiming they cover the same or different periods as the selected value. Its convention is unknown, so comparability and revision relationships are not established. The server supplies that limitation explicitly. Do not infer comparability, non-comparability, different reference periods, or revision status. Report at most two relevant web observations separately, each with its exact period label, release date and actual/estimate/forecast status as given by its own source; never merge figures from different releases into a numerical range. Do not call a forecast an actual result. Explain the measure using returned source excerpts, with an inline [source title](returned URL) directly supporting each web-derived statement. Do not replace links with '(Web glossary)'. Use only returned URLs; no invented numbered record sources. Do not add unsupported confidence or current-status claims.`;
-function observationIssue(text: string, pages: WebPage[]): string | null {
-  let answer: unknown;
-  try { answer = JSON.parse(text).answer; } catch { return null; } // normal envelope handling owns malformed JSON
-  if (typeof answer !== 'string') return null;
-  // A named uncertainty is not an assertion. Exempt only the complement of a
-  // negative knowledge verb, stopping at punctuation/conjunctions so an appended
-  // "but this is the latest" assertion still receives the ordinary checks.
-  const assertions = answer.replace(/\]\(https?:\/\/[^\s)]+\)/g, ']')
-    .split(/[,;:.!?\n]|\b(?:and|but|however|yet|whereas|although|while|nevertheless|because|since|therefore|so)\b/i)
-    .map(clause => {
-      // Postposed uncertainty must qualify an interrogative or the convention
-      // itself, not merely an allegedly "latest" or "calendar-year" figure.
-      if (/^\s*(?:whether\b[^;.!?]+|(?:the|its|this|that)\s+calendar[\s\-‐‑–]+year\s+(?:convention|coverage|basis|interpretation))\s+(?:is|are|remains?)\s+(?:unknown|unverified|unestablished|not\s+(?:known|established|verified|confirmed))\s*$/i.test(clause)) return '';
-      return clause.replace(/\b(?:(?:cannot|can't|can not|could not|unable to|(?:do|does) not|doesn't|don't|did not)\s+(?:establish|confirm|determine|verify|conclude|tell|say|show|prove)|(?:is|are)\s+not\s+(?:known|established|verified|confirmed))\b[\s\S]*$/i, '');
-    })
-    .join('. ');
-  if (/\bcalendar[\s\-‐‑–]+year\b/i.test(assertions)) return 'unverified_period_convention';
-  if (/\b(?:latest|unrevised)\b|\bno\s+(?:revised\s+figure|revision)\b/i.test(assertions)) return 'unverified_revision_status';
-  if (/\b(?:different|same)\s+(?:(?:fiscal|observation|measurement|reporting|reference)\s+)?periods?\b|\bnot\s+(?:a\s+)?revision\b/i.test(assertions)) return 'unverified_comparability';
-  if (/\b(?:periods?|period\s+conventions?|conventions?)\s+(?:(?:are|is)\s+)?(?:differ(?:ent)?|identical|equivalent)\b|\b(?:is|are|be)\s+(?:not\s+)?(?:directly\s+)?compar(?:able|ed)\b/i.test(assertions)) return 'unverified_comparability';
-  const urls = new Set(pages.map(p => normaliseUrl(p.url)));
-  if (pages.length && ![...answer.matchAll(/\[[^\]]+\]\((https?:\/\/[^\s)]+)\)/g)].some(m => urls.has(normaliseUrl(m[1])))) return 'missing_returned_page_link';
-  return null;
-}
 
 export const BUDGET = { maxSteps: 12, maxSearches: 10, maxContinuations: 2 } as const;
 /**
@@ -259,6 +235,7 @@ export interface AgentInput {
   documentSearchUnavailable?: boolean;
   /** Economic observation web answers need explicit period/provenance checks. */
   observationScope?: boolean;
+  observationContext?: ObservationContext;
   system: string;
   window: Message[];
   userTurn: string;
@@ -317,6 +294,7 @@ export interface AgentCheckpoint {
   webFallbackAttempted: boolean;
   forceWebSearch: boolean;
   observationCorrectionAttempted: boolean;
+  observationPrevious?: string;
   answerInputLength: number | null;
   /** The pre-search runs once per turn; a resumed checkpoint (failover) does not repeat it. */
   presearched: boolean;
@@ -772,7 +750,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
 
   function beginAnswer(): void {
     state.phase = 'answer';
-    messages.push({ role: 'user', content: ANSWER_NOW + (state.webPages.length ? '\n' + WEB_FINAL_RULES : '') + (a.observationScope ? '\n' + OBSERVATION_RULES : '') });
+    messages.push({ role: 'user', content: ANSWER_NOW + (state.webPages.length ? '\n' + WEB_FINAL_RULES : '') + (a.observationScope ? '\n' + observationInstructions(state.webPages) : '') });
     state.answerInputLength = messages.length;
   }
 
@@ -884,7 +862,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       if (phase === 'research' && draftSent) deps.onEvent({ retract: reason });
     };
     const request: StreamRequest = {
-      response_format: ANSWER_JSON_SCHEMA,
+      response_format: phase === 'answer' && a.observationScope ? OBSERVATION_SCHEMA : ANSWER_JSON_SCHEMA,
       cache: true,
       ...deps.request,
       messages: structuredClone(messages),
@@ -1083,23 +1061,22 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       continue;
     }
     if (a.observationScope && state.finish === 'stop' && !calls.length) {
-      const issue = observationIssue(state.text, state.webPages);
-      if (issue) {
-        // No provisional text or rejected draft is allowed into the retry input.
+      const rendered = renderObservation(state.text, state.webPages, a.observationContext, state.observationPrevious);
+      if (rendered.invalid && !state.observationCorrectionAttempted && budget.modelAttempts < BUDGET.maxSteps &&
+          (deps.timeLeft?.() ?? Infinity) > 1000) {
+        state.observationPrevious = state.text;
         state.text = '';
         state.resumeAnswer = false;
-        if (!state.observationCorrectionAttempted && budget.modelAttempts < BUDGET.maxSteps &&
-            (deps.timeLeft?.() ?? Infinity) > 1000) {
-          state.observationCorrectionAttempted = true;
-          messages.splice(state.answerInputLength ?? messages.length);
-          messages.push({ role: 'user', content: `The answer failed the observation evidence check (${issue}). Re-answer using only the unchanged evidence. ${OBSERVATION_RULES}` });
-          continue;
-        }
-        state.finish = 'observation_validation';
-        state.phase = 'complete';
-        break;
+        state.observationCorrectionAttempted = true;
+        messages.splice(state.answerInputLength ?? messages.length);
+        messages.push({ role: 'user', content: `The extraction contained invalid fields or unsupported source spans. Correct it using only unchanged evidence. ${observationInstructions(state.webPages)}` });
+        continue;
       }
+      // Useful verified sections survive an invalid optional extraction. No
+      // generated comparison or unvalidated span can enter the public envelope.
+      state.text = rendered.text;
     }
+
     if (partial) messages.push({ role: 'assistant', content: partial });
     if (calls.length) {
       // A provider ignoring disabled tools cannot turn the answer phase back

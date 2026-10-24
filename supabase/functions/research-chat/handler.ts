@@ -904,6 +904,9 @@ async function runTurnBody(
   const { window, dropped } = windowMessages(history);
   if (dropped > 0) sender.send({ notice: { kind: 'window', dropped } });
 
+  const observationFields = (row: Record<string, string>) => ['country', 'indicator', 'year', 'value', 'unit']
+    .filter(k => row[k] !== undefined && row[k] !== '').map(k => `${k}: ${String(row[k]).slice(0, 100)}`).join('; ');
+  let observationSelection: { text: string; handle?: string } | undefined;
   let selectionBlock: { handle: string; tier: string; feature: string; recordText: string } | undefined;
   // The selected record's document key, the stored row's when the server can confirm the row.
   let selectionKey: string | null = request.selection?.document_key ?? null;
@@ -922,6 +925,13 @@ async function runTurnBody(
         tier: request.selection.tier,
         feature: request.selection.feature,
         recordText: deskRecordText(request.selection.row),
+      };
+    }
+    if (request.selection.tier === 'economics' && request.selection.feature === 'Economic Simulator') {
+      const row = stored?.row ?? request.selection.row;
+      observationSelection = {
+        text: observationFields(row),
+        ...(stored ? { handle: selectionBlock.handle } : {}),
       };
     }
   }
@@ -1022,6 +1032,11 @@ async function runTurnBody(
         verifiedHandles.add(handle);
         attachments.push({ kind: attachment.kind as 'row' | 'record', title: attachment.title, text: stored.record_text, handle });
       } else attachments.push(promptAttachment(attachment));
+      if (!observationSelection && attachment.tier === 'economics' && attachment.feature === 'Economic Simulator' && attachment.kind !== 'document') {
+        observationSelection = stored
+          ? { text: observationFields(stored.row), handle: handles.assign(rowSourceKey(stored)) }
+          : { text: `${attachment.title}: ${attachment.text}`.slice(0, 300) };
+      }
     }
   }
   // F200: and it is told that it is small talk, so no answer style or persona format turns it into
@@ -1238,6 +1253,7 @@ async function runTurnBody(
     scopedDocumentIds,
     documentSearchUnavailable,
     observationScope: observationTurn,
+    observationContext: observationSelection,
     focus: request.focus,
     conversational,
     // Search the current subject before the first call, including "this bill"
