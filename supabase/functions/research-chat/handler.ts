@@ -667,10 +667,10 @@ function replayTurn(state: TurnState, headers: Record<string, string>): Response
  * are different facts and the reader can act on the difference.
  */
 function unverifiedNote(searches: number, webPages = 0): string {
-  // F130: with web pages behind it, the answer is not unbacked - it is backed by the web, not the
-  // record, and the reader is told so, and that those pages are unofficial.
+  // External provenance is not unofficial status. A row may also have supplied
+  // fields even when the model failed to cite it; disclose that citation gap.
   if (webPages > 0) {
-    return '**Not from the record.** Nothing below is backed by Niyantran\'s records; it draws on the web sources listed above the answer, which are unofficial.';
+    return '**External sources.** Web links refer to pages searched this turn, which may include original publications and secondary reporting. Any claims about stored records without a record citation remain unverified.';
   }
   return searches > 0
     ? '**Unverified.** The searches this turn ran returned no passages, so nothing below is backed by the record.'
@@ -697,7 +697,7 @@ const WIDENED_NOTE: Record<Exclude<WidenedScope, 'feature-empty'>, string> = {
   // corpus had no document for it sent the reader looking for a missing bill
   // that was indexed all along.
   unkeyed:
-    '**Search widened.** Nothing attached to this turn names a source document - a desk module or an uploaded file does not - so this turn searched the whole record. Drag a bill\'s row into the chat to confine the search to that bill.',
+    '**Search widened.** Nothing attached to this turn names a source document - a desk module or an uploaded file does not - so this turn searched the whole record. Attach a source document to limit document searches to it.',
 };
 /** `module` is the desk module the turn was filtered to; only 'feature-empty' uses it. */
 function widenedNote(reason: WidenedScope, module?: string): string {
@@ -915,7 +915,7 @@ async function runTurnBody(
       const handle = handles.assign(rowSourceKey(stored));
       evidence.set(handle, { kind: 'row', row: { ...stored, snapshot_at: stored.snapshot_at || '' } });
       selectionBlock = { handle, tier: stored.tier, feature: stored.feature, recordText: stored.record_text };
-      selectionKey = stored.document_key ?? selectionKey;
+      selectionKey = stored.document_key;
     } else {
       selectionBlock = {
         handle: 'the selected record (user-supplied, not citable)',
@@ -925,6 +925,25 @@ async function runTurnBody(
       };
     }
   }
+
+  // Resolve row chips once: web eligibility, retrieval and citations must use
+  // the same server-confirmed mapping, even when a browser chip is stale.
+  const attachmentRows = await Promise.all(request.attachments.map(attachment =>
+    (attachment.kind === 'row' || attachment.kind === 'record') &&
+        attachment.tier && attachment.feature && attachment.row_key
+      ? deps.db.findDeskRow(attachment.tier, attachment.feature, attachment.row_key)
+      : Promise.resolve(null)
+  ));
+  const mappedRequest: ResearchRequest = {
+    ...request,
+    selection: request.selection ? { ...request.selection, document_key: selectionKey ?? undefined } : request.selection,
+    attachments: request.attachments.map((attachment, index) => {
+      const stored = attachmentRows[index];
+      return stored && attachment.kind !== 'document'
+        ? { ...attachment, document_key: stored.document_key ?? undefined }
+        : attachment;
+    }),
+  };
 
   // A corpus fact, and a cheap one: cached for the isolate and never fatal. A
   // turn is still answerable without it, so a failure here costs the coverage
@@ -942,7 +961,7 @@ async function runTurnBody(
   // 3. Web search (F130, web-search spec §1): decided once, before the first model call, and said
   //    to the reader. Every lookup here is best-effort; none can fail the turn.
   const [webScope, webOverride] = await Promise.all([
-    webScopeOf(deps, request, selectionKey, modules, modulesKnown),
+    webScopeOf(deps, mappedRequest, selectionKey, modules, modulesKnown),
     // A failed read falls back to off, not automatic: "off" may be the reader's privacy choice.
     deps.db.webSearchOverride(conversation.id, request.web_search).catch(() => request.web_search ?? false),
   ]);
@@ -963,6 +982,18 @@ async function runTurnBody(
   const safeText = (s: string) =>
     s ? checkLinks(s, [...webSeen, ...evidenceUrls(evidence)], { scanCode: true }).text : s;
 
+  const documentKeys = documentKeysOf(mappedRequest);
+  const documentIds = documentIdsOf(request);
+  const scopedDocumentIds = await deps.db.resolveDocumentIds({ keys: documentKeys, ids: documentIds });
+  // Missing source text is not permission to substitute unrelated nearest neighbours.
+  // Broad context remains deliberate cross-desk research; mixed attachments still
+  // search their resolved documents and obtain missing context through web policy.
+  const documentSearchUnavailable = request.focus === 'desk'
+    ? webScope.moduleHasDocuments === false
+    : (request.focus === 'attached' || request.focus === 'selection') &&
+      !scopedDocumentIds.length && (webScope.records.length > 0 || webScope.documentAttached ||
+        documentKeys.length > 0 || documentIds.length > 0);
+
   const system = buildSystemPrompt({
     persona,
     today: deps.today?.() ?? new Date(startedAt).toISOString().slice(0, 10),
@@ -971,6 +1002,7 @@ async function runTurnBody(
     selection: selectionBlock,
     documentModules,
     webSearch: web.offered,
+    documentSearchUnavailable,
   });
   // A greeting carries no question, so the attachments are not context for it -
   // they are the reason a bare "hi" came back as a 2,342-character brief with
@@ -980,13 +1012,10 @@ async function runTurnBody(
   const verifiedHandles = new Set<string>();
   const attachments: RenderedAttachment[] = [];
   if (!conversational) {
-    for (const attachment of request.attachments) {
+    for (const [index, attachment] of request.attachments.entries()) {
       // A row chip is citable only after its identity is resolved against the
       // database. Never trust its text or an invented browser-supplied handle.
-      const stored = (attachment.kind === 'row' || attachment.kind === 'record') &&
-          attachment.tier && attachment.feature && attachment.row_key
-        ? await deps.db.findDeskRow(attachment.tier, attachment.feature, attachment.row_key)
-        : null;
+      const stored = attachmentRows[index];
       if (stored) {
         const handle = handles.assign(rowSourceKey(stored));
         evidence.set(handle, { kind: 'row', row: { ...stored, snapshot_at: stored.snapshot_at || '' } });
@@ -1002,9 +1031,6 @@ async function runTurnBody(
     ? webScope.records.slice(-1) : webScope.records;
   const requiredWeb = web.offered && targetRecords.some(r => !r.indexed) &&
     !webScope.documentAttached && requiresWebContext(request.message);
-  const documentKeys = documentKeysOf(request);
-  const documentIds = documentIdsOf(request);
-  const scopedDocumentIds = await deps.db.resolveDocumentIds({ keys: documentKeys, ids: documentIds });
 
   signal.throwIfAborted();
 
@@ -1203,6 +1229,7 @@ async function runTurnBody(
     window,
     userTurn,
     scopedDocumentIds,
+    documentSearchUnavailable,
     focus: request.focus,
     conversational,
     // Search the current subject before the first call, including "this bill"
