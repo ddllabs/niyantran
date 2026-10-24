@@ -472,3 +472,6 @@ and every search is recorded with its cost for F111.
    with Exa) that receives search queries? Recommended: yes, in the F107 legal
    pass, not here.
 2. None blocking otherwise.
+
+## Research draft isolation (F256, 2026-10-24)
+Web research prose is not source evidence. Carry returned page excerpts into later calls, preserving any local tool-call/reply protocol, but discard web synthesis text on success and on failed held research streams. Preserve partial answer continuations. Existing web pages or known unavailable document scope must not trigger a record-search-only no-evidence nudge.

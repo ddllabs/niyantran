@@ -17,3 +17,9 @@ Deno regression tests must fail before fixes for unindexed records admitting unr
 
 ## Style
 Use existing pure decision helpers and typed inputs, e.g. { ...input, documentSearchUnavailable: true }; keep model output untrusted. Do not add a universal second LLM verifier or hard-code these document names. Provider grounding instructions require live semantic evidence, not merely green string assertions.
+
+## Web synthesis boundary
+A web research draft is not retrieved evidence and must not travel into final synthesis as an assistant assertion. Preserve tool-call/reply protocol and returned web excerpts. A successful web search must not trigger a record-search-only “no evidence” nudge; known missing source text must not be searched merely to satisfy that nudge. Browser-only fields remain explicitly user-supplied when the server cannot confirm a row.
+
+## Provision synthesis boundary
+For National bill questions about sections, clauses, amendments or provisions, with matching retrieved bill text, use bounded original-source claim synthesis rather than publishing the broad research draft. Reuse existing selector/renderer and shared limits in a separate provision mode. Preserve document-role/version labels; do not promote a conditional commencement clause into actual commencement/non-commencement status. Neither listing analysis nor an earlier assistant draft establishes institutional definitions or legal effect. Other desks and existing Law synthesis keep their current path.

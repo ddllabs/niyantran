@@ -2389,7 +2389,7 @@ Deno.test('web search: a selected row with no indexed document is searched on th
   const answer = `The committee kept the repo rate unchanged [according to the RBI](${SEARCHED}). ` +
     'See also [an invented page](https://evil.example/phish).';
   const provider = scripted([
-    [webPages(), finish('stop', searchedUsage)],
+    [{ type: 'tool-call', id: 'row-context', name: 'search_desk_rows', args: '{"tier":"national","feature":"Regulatory Watch"}' }, webPages(), finish('tool_calls', searchedUsage)],
     NO_RESEARCH,
     [text(envelope(answer)), finish()],
   ]);
@@ -2651,7 +2651,7 @@ Deno.test('live pages: each research round that searches gets its own start; pag
   const one = { url: 'https://rbi.org.in/one', title: 'One', excerpt: '' };
   const two = { url: 'https://rbi.org.in/two', title: 'Two', excerpt: '' };
   const provider = scripted([
-    [progress(one), { type: 'web-results', pages: [one] }, finish('stop', searchedUsage)],
+    [{ type: 'tool-call', id: 'row-context', name: 'search_desk_rows', args: '{"tier":"national","feature":"Regulatory Watch"}' }, progress(one), { type: 'web-results', pages: [one] }, finish('tool_calls', searchedUsage)],
     [progress(one, two), { type: 'web-results', pages: [one, two] }, finish('stop', searchedUsage)],
     [text(envelope('Answer.')), finish()],
   ]);
@@ -3964,3 +3964,107 @@ for (const focus of ['selection', 'attached'] as const) {
     assertEquals(webFrame(got), { offered: true, mode: 'auto', reason: 'record-without-document' });
   });
 }
+
+Deno.test('F254 indexed National provision answer replaces and withholds unsupported research draft', async () => {
+  const discarded = 'Unsupported draft claims that the Agency Board already has new powers.';
+  const original = '9. In section 12 of the principal Act, for the words Board, the words Central Government shall be substituted.';
+  let selections = 0;
+  let syntheses = 0;
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    const system = String(req.messages[0].content);
+    if (system.startsWith('Select the supplied original bill passages')) {
+      selections++;
+      assert(!JSON.stringify(req.messages).includes(discarded), 'selection must read originals, never the draft');
+      const passage = JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({ passages: [passage.id] }));
+    } else if (system.startsWith('Answer the precise provision question')) {
+      syntheses++;
+      assert(!JSON.stringify(req.messages).includes(discarded), 'synthesis must read originals, never the draft');
+      const passage = JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({ claims: [{ text: 'Clause 9 substitutes Central Government for Board in section 12 of the principal Act.', evidence: passage.id }], uncertain: false }));
+    } else yield text(envelope(discarded));
+    yield finish();
+  };
+  const { deps, rec } = fakeDeps({ stream }, {
+    presearch: true,
+    searchDocuments: () => Promise.resolve([{ ...chunk('national-provision'), document_id: DOC_A,
+      document_role: 'as_passed_both_houses', content: original, char_to: original.length }]),
+  }, { findDeskRow: () => Promise.resolve(storedRow()), resolveDocumentIds: () => Promise.resolve([DOC_A]),
+    indexedDocumentKeys: () => Promise.resolve([storedRow().document_key!]) });
+  const got = await frames(await handleResearchChat(post({ ...BODY, focus: 'selection',
+    message: 'What does clause 9 change in section 12?',
+    selection: { tier: 'national', feature: 'Bill Passage Probability Index', row: { bill_name: 'THE DELIMITATION BILL, 2026.' }, document_key: storedRow().document_key! },
+  }), deps));
+  assertEquals(selections, 1, 'a provision question must select original bill passages');
+  assertEquals(syntheses, 1);
+  assert(!JSON.stringify(got).includes(discarded), 'unsupported draft must never be published on the stream');
+  assert(!JSON.stringify(rec.messages).includes(discarded), 'unsupported draft must never be saved');
+  assertEquals(rec.messages[0].status, 'complete');
+  assertStringIncludes(rec.messages[0].content, 'Clause 9 substitutes Central Government');
+  assert(rec.messages[0].sources.some(s => 'chunk_id' in s && s.chunk_id === 'national-provision'));
+});
+
+for (const [tier, feature, message] of [
+  ['national', 'Bill Passage Probability Index', 'What is the recorded status and house?'],
+  ['state', 'MLA Directory', 'What does this provision mean?'],
+  ['growth', 'Economic Simulator', 'What amendments does this record describe?'],
+]) Deno.test(`F254 provision review stays scoped: ${tier} ${message}`, async () => {
+  const requests: StreamRequest[] = [];
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    requests.push(req);
+    yield text(envelope('The stored record provides limited information.'));
+    yield finish();
+  };
+  const { deps, rec } = fakeDeps({ stream }, { presearch: true,
+    searchDocuments: () => Promise.resolve([{ ...chunk('control'), desk_tier: tier, desk_feature: feature }]),
+  });
+  await frames(await handleResearchChat(post({ ...BODY, message, desk_context: { tier, feature }, web_search: false }), deps));
+  assertEquals(rec.messages[0].status, 'complete');
+  assert(requests.every(r => !/^(Select the supplied original bill passages|Answer the precise provision question)/.test(String(r.messages[0].content))));
+});
+
+for (const pool of ['empty', 'offscope'] as const) {
+  Deno.test(`F254 activated provision review fails closed with ${pool} evidence`, async () => {
+    const draft = 'Unsupported provision draft must not escape.';
+    const stream: HandlerDeps['stream'] = async function* () { yield text(envelope(draft)); yield finish(); };
+    const { deps, rec } = fakeDeps({ stream }, { presearch: true,
+      searchDocuments: () => Promise.resolve(pool === 'empty' ? [] : [{ ...chunk('offscope'), desk_tier: 'growth', desk_feature: 'Economic Simulator' }]),
+    }, { findDeskRow: () => Promise.resolve(storedRow()), resolveDocumentIds: () => Promise.resolve([DOC_A]),
+      indexedDocumentKeys: () => Promise.resolve([storedRow().document_key!]) });
+    const got = await frames(await handleResearchChat(post({ ...BODY, focus: 'selection',
+      message: 'What does clause 9 change in section 12?',
+      selection: { tier: 'national', feature: 'Bill Passage Probability Index', row: { bill_name: 'THE DELIMITATION BILL, 2026.' } },
+    }), deps));
+    assertEquals(rec.messages[0].status, 'error', 'an activated source review cannot accept a draft when its source pool is absent');
+    assert(!JSON.stringify(got).includes(draft));
+    assert(!JSON.stringify(rec.messages).includes(draft));
+  });
+}
+
+Deno.test('F254 stale Law hint cannot bypass National provision review without actual Law evidence', async () => {
+  let syntheses = 0;
+  const original = '9. In section 12 of the principal Act, for the words Board, the words Central Government shall be substituted.';
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    const system = String(req.messages[0].content);
+    if (system.startsWith('Select the supplied original bill passages')) {
+      const passage = JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({ passages: [passage.id] }));
+    } else if (system.startsWith('Answer the precise provision question')) {
+      syntheses++;
+      const passage = JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({ claims: [{ text: 'Clause 9 substitutes Central Government for Board in section 12.', evidence: passage.id }], uncertain: false }));
+    } else yield text(envelope('Unreviewed draft.'));
+    yield finish();
+  };
+  const { deps, rec } = fakeDeps({ stream }, { presearch: true,
+    searchDocuments: () => Promise.resolve([{ ...chunk('national-provision'), document_id: DOC_A, content: original, char_to: original.length }]),
+  }, { findDeskRow: () => Promise.resolve(storedRow()), resolveDocumentIds: () => Promise.resolve([DOC_A]),
+    indexedDocumentKeys: () => Promise.resolve([storedRow().document_key!]) });
+  await frames(await handleResearchChat(post({ ...BODY, focus: 'selection', message: 'What does clause 9 change in section 12?',
+    desk_context: { tier: 'law' },
+    selection: { tier: 'national', feature: 'Bill Passage Probability Index', row: { bill_name: 'THE DELIMITATION BILL, 2026.' } },
+  }), deps));
+  assertEquals(syntheses, 1, 'only actual Law evidence takes precedence over the National provision review');
+  assertEquals(rec.messages[0].status, 'complete');
+  assert(!rec.messages[0].content.includes('Unreviewed draft'));
+});

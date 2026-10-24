@@ -1657,24 +1657,16 @@ Deno.test('web: pages are carried into the next call as one untrusted user messa
   assertEquals(result.webSearches, 2);
 });
 
-Deno.test('web: a web search is not a record search - the no-search press still fires, and the evidence precedes it', async () => {
-  const f = fake([
-    [webResults(page(1)), searched(1)],
-    ready(),
-    answer(),
-  ], { webSearch: { perTurn: 3 } });
+Deno.test('web: returned pages satisfy the search press and reach the answer without counting as record searches', async () => {
+  const f = fake([[webResults(page(1)), searched(1)], answer()], { webSearch: { perTurn: 3 } });
   const result = await runAgent(f.deps, input);
-  assertEquals(f.requests.length, 3);
-  const tail = f.requests[1].messages.slice(-2);
-  assertEquals(tail.map((m) => m.role), ['user', 'user']);
-  assertEquals(tail[0].content, webEvidenceBlock([page(1)]));
-  assert(String(tail[1].content).includes('You have not searched'));
-  assertEquals(serverToolsOf(f.requests[1]), [webSearchTool(2)], 'the pressed call is research and still offered the tool');
+  assertEquals(f.requests.length, 2);
+  assertEquals(evidenceMessages(f.requests[1]).map(m => m.content), [webEvidenceBlock([page(1)])]);
+  assert(!JSON.stringify(f.requests[1].messages).includes('You have not searched'));
   assertEquals(result.searches, 0);
   assertEquals(result.webSearches, 1);
-  assertEquals(f.requests[2].tool_choice, 'none');
-  assertEquals('serverTools' in f.requests[2], false, 'budget left, and still never on the answer call');
-  assertEquals(evidenceMessages(f.requests[2]).length, 1, 'the answer phase sees the evidence');
+  assertEquals(f.requests[1].tool_choice, 'none');
+  assertEquals('serverTools' in f.requests[1], false, 'budget left, and still never on the answer call');
 });
 
 for (
@@ -1850,8 +1842,8 @@ Deno.test('one stream: a web-offered research call that searches sends no draft 
   const answerText = (answer()[0] as { text: string }).text;
   assertEquals(f.events.flatMap((e) => ('text' in e ? [e.text] : [])).join(''), answerText);
   assertEquals(result.text, answerText);
-  // The held sentence still reaches the transcript, as before.
-  assertEquals(f.requests[1].messages.some((m) => m.role === 'assistant' && m.content === 'Checking the record for the committee\'s decision.'), true);
+  // Web research synthesis is discarded; only page evidence and local tool protocol survive.
+  assertEquals(f.requests[1].messages.some((m) => m.role === 'assistant' && m.content === 'Checking the record for the committee\'s decision.'), false);
 });
 
 Deno.test('one stream: a web-offered call that did not search and is promoted sends its text once, just before promoted', async () => {
@@ -2347,4 +2339,71 @@ for (const scenario of ['broad','multiple','web','empty-context','failed-context
   const result=await runAgent(f.deps,{...input,...(scenario==='no-presearch'?{}:{presearch:'debt'}),focus:scenario==='broad'?'broad':'attached',scopedDocumentIds:scenario==='multiple'?['doc-law','doc-other']:['doc-law']});
   assert(f.requests.length>0);
   assert(result.finish!=='law_evidence');
+});
+
+Deno.test('F256 successful web evidence in missing-document scope goes straight to answer without a document-search press', async () => {
+  const f = fake([
+    [webResults(page(1)), searched(1)],
+    answer(), answer(),
+  ], { webSearch: { perTurn: 3, required: true } });
+  const result = await runAgent(f.deps, { ...input, focus: 'attached', documentSearchUnavailable: true });
+  assertEquals(f.requests.length, 2, 'a successful web search must not prompt an impossible document search');
+  assertEquals(f.requests[1].tool_choice, 'none');
+  assertEquals(evidenceMessages(f.requests[1]).map(m => m.content), [webEvidenceBlock([page(1)])]);
+  assert(!JSON.stringify(f.requests[1].messages).includes('You have not searched'));
+  assertEquals(result.webSearches, 1);
+});
+
+Deno.test('F256 web synthesis is not carried as evidence into the answer', async () => {
+  const unsupported = 'The observation is definitely calendar-year GDP and the latest official figure.';
+  const f = fake([
+    [{ type: 'text', text: unsupported }, webResults(page(1)), searched(1)],
+    ready(), answer(),
+  ], { webSearch: { perTurn: 3 } });
+  await runAgent(f.deps, { ...input, documentSearchUnavailable: true });
+  const next = f.requests[1];
+  assert(!JSON.stringify(next.messages).includes(unsupported), 'discard provider synthesis; preserve returned page evidence instead');
+  assertEquals(evidenceMessages(next).map(m => m.content), [webEvidenceBlock([page(1)])]);
+});
+
+Deno.test('F256 mixed web and local tools retain protocol and evidence without provider synthesis', async () => {
+  const unsupported = 'Unsupported interpretation made during web research.';
+  const f = fake([
+    [{ type: 'text', text: unsupported }, docCall('mixed'), webResults(page(1)), searched(1, 'tool_calls')],
+    ready(), answer(),
+  ], { webSearch: { perTurn: 3 }, searchDocuments: () => Promise.resolve([chunk('local')]) });
+  await runAgent(f.deps, input);
+  const next = f.requests[1].messages;
+  const toolTurn = next.find(m => m.role === 'assistant' && m.tool_calls?.some(c => c.id === 'mixed'));
+  assert(toolTurn);
+  assertEquals(toolTurn.content, null, 'web synthesis must not survive through a local tool-call envelope');
+  assertEquals(toolTurn.tool_calls?.[0].function.name, 'search_documents');
+  assert(next.some(m => m.role === 'tool' && m.tool_call_id === 'mixed' && String(m.content).includes('Evidence local')));
+  assertEquals(evidenceMessages(f.requests[1]).map(m => m.content), [webEvidenceBlock([page(1)])]);
+});
+
+Deno.test('F256 failed web research cannot carry its partial synthesis or uncommitted pages into failover', async () => {
+  const unsupported = 'The unverified observation is definitely calendar-year GDP.';
+  const f = fake([], {
+    webSearch: { perTurn: 3 },
+    model: async function* () {
+      yield { type: 'text', text: unsupported };
+      yield webResults(page(77));
+      throw new ProviderError(503, 'web research transport failed');
+    },
+  });
+  const scoped = { ...input, documentSearchUnavailable: true };
+  await assertRejects(() => runAgent(f.deps, scoped), ProviderError);
+  const retry = fake([ready(), answer()], {
+    request: { model: 'failover-model' },
+    webSearch: null,
+    checkpoint: f.deps.checkpoint,
+    handles: f.deps.handles,
+    budget: f.deps.budget,
+  });
+  const result = await runAgent(retry.deps, scoped);
+  assert(!JSON.stringify(retry.requests[0].messages).includes(unsupported), 'failed web synthesis is not evidence for the next provider');
+  assertEquals(evidenceMessages(retry.requests[0]), [], 'failed call pages never become committed evidence');
+  assertEquals(result.webPages, []);
+  assertEquals(result.webSearches, 1, 'possibly billed failed web call still consumes its bounded allowance');
 });
