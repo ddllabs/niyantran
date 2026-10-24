@@ -20,9 +20,11 @@ attempts and repairs. The sole open-work tracker controls closure.
   redundant missing-document nudge after a successful web search.
 - Economic Simulator observation answers retain the supplied year label and
   qualify unknown period conventions and revision relationships. Provisional
-  drafts are withheld; one correction fits the existing budget. A failed
-  correction produces an explicit error instead of publishing the rejected
-  draft. First-answer timing records validated server release, not browser
+  drafts are withheld; one correction fits the existing budget. V102 replaces
+  lexical prose checks with exact whole-sentence/excerpt extraction and server
+  rendering. The server owns record provenance and source URLs; valid sections
+  survive a failed correction, while unsupported sections receive an explicit
+  unavailable/omitted-evidence notice. First-answer timing records validated server release, not browser
   receipt.
 
 These are shared research-agent boundaries, not separate autonomous desk agents.
@@ -40,14 +42,16 @@ fetched originals. Search absence cannot prove latest status or no revisions.
 | [48](https://github.com/ddllabs/niyantran/pull/48) | `bc5b750e` | research-chat v99 | `40125846137` passed |
 | [49](https://github.com/ddllabs/niyantran/pull/49) | `0b6609f8` | research-chat v100 | `40127591222` passed |
 | [50](https://github.com/ddllabs/niyantran/pull/50) | `46ed371f` | research-chat v101 | `40129113789` passed |
+| [51](https://github.com/ddllabs/niyantran/pull/51) | `bf7bf1ee` | not separately deployed | `40131065022` passed |
+| [52](https://github.com/ddllabs/niyantran/pull/52) | `275c1077` | research-chat v102 | `40132050892` passed |
 
 Both required jobs passed before each merge. Production deployment also waits
 for the exact main commit's jobs. The v98 bundle matches all 42 submitted files;
 its hash is `0e46945423602ce8bd5d4af48b065a317d6ccf41140d48a29c2bbbc3f97a2de4`.
-The final v101 bundle also matches all 42 files, hash
-`8ac0f35b791298a7f09465a3cf4c76307e4b6b4a26bd0d12f7fcdfeed916f38c`.
+The v102 bundle matches all 43 files, hash
+`64e5a41845ff96f524a36807202faed7eded6c83dbdd2d6440b3e7f61160aeb8`.
 An unauthenticated POST returns 401. Vercel production is READY at
-`46ed371f`, deployment `dpl_BJdPYf73fPD5aKHhLXA1skBWu48P`.
+`275c1077`, deployment `dpl_AoGTkaDx1mGyNQve91KtrK35qqxG`.
 Desk-brief remains v19; no other function was deployed in this task.
 
 ## Live NTER acceptance
@@ -71,7 +75,7 @@ against retrieved chunks; no OCR or re-ingestion was performed.
 
 Final runtime local checks: `npm test` (6,575 tests, 423 files),
 `deno test -A --config supabase/functions/deno.json supabase/functions`
-(1,411 tests), `npm run lint`, `npm run build`, router import and
+(1,407 tests; superseded lexical cases replaced by extraction/renderer cases), `npm run lint`, `npm run build`, router import and
 `git diff --check` all pass. No standalone type-check exists or is claimed.
 Regression guards were demonstrated failing before their fixes. Independent
 review found no remaining code blockers. Five-desk selected/attached tests
@@ -92,3 +96,7 @@ ingestion, re-ingestion, larger batches, listing correction or schema change.
 Existing corpus growth predates this task's baseline.
 
 Previous Economics failures are retained: v99 messages `45c8816f-cd56-44c2-8b92-dff6d69ae646` / `0e59c3be-ff13-4083-b4b4-cab00013bdd3` failed closed in 41.420s / 49.803s. Local uncertainty/URL false positives were reproduced, but discarded live text is unavailable; the exact live trigger is unknown.
+
+V101 message `0b0ef388-c698-4762-9a50-c1480d51465d` failed closed in 42.512s after three web searches/15 pages. Exact discarded output is unavailable. Provider logs still showed cache hits (19,968 research tokens and 9,984 correction tokens); caching was not disabled. PR #51 replaces this unreliable lexical boundary rather than extending its phrase list.
+
+V102 GDP message `1425f845-b175-4eb3-a5ce-4cd9093ef550` completed in 15.136s but omitted the requested definition; acceptance remains open. The owner-approved four-call public replay ($0.0159362) proved the definition was copied exactly from a `Long definition` table cell and rejected by the boundary check. Offline replay passes after the scoped table-format repair. No claim about the discarded v102 extraction itself is made; the diagnostic is an independent reproduction.
