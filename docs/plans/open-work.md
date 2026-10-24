@@ -1,6 +1,6 @@
 # Open work: the one list
 
-- [ ] **F250 — Law answer latency and wider semantic qualification; latency fix authorized.** [Active spec](../specs/2026-10-24-law-answer-latency.md), [plan](2026-10-24-law-answer-latency.md). V88’s bounded Globiz acceptance includes a 161-second / 70.6-credit follow-up and 81-second / 75.2-credit date answer. Measure stage latency, token cost and completion reliability across representative orders before promising interactive performance or general legal-answer accuracy. Preserve supported selected-model reasoning, original-source attribution and citation gates; do not silently reroute models or replace synthesis with excerpts. This is a separate optimization/qualification task, not new ingestion authorization. [Release evidence](../operations/law-grounded-synthesis-release.md).
+- [ ] **F251 — Wider Law performance and semantic qualification.** F250's bounded optimization shipped in 023bf1dc with four NTER cases passing attribution/citation review; median 55.618s versus historical 75.5s, but original/date remain 90–97s and require correction. Measure representative orders, provider latency distribution, correction rates and completion reliability before promising an SLA or general legal-answer accuracy. Preserve selected-model reasoning and citation gates; no ingestion authorization. [Evidence](../operations/law-answer-latency-release.md).
 
 
 - [ ] **F246 — Law baseline source-membership refresh.** Canonical seeding captures a reviewed snapshot; protected legacy refreshes cannot add, change or remove its source-only memberships. Before claiming ongoing official-register coverage, specify and implement a provenance-checked membership refresh with stable identities, explicit retirement policy, audit evidence and tests preserving corpus attachments. This is separate from automatic publication of newly admitted supported corpus documents. Other forum adapters, revisions/translations and compound fallback also remain outside the first NCLT adapter. No current ingestion authorization.
@@ -73,7 +73,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F251 is next) and goes in the
+- A new finding gets the next free `F` number (F252 is next) and goes in the
   right section.
 
 
@@ -3552,3 +3552,7 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-24 grounded Law synthesis
 
 - [x] **F247 — Grounded Law answers and follow-up verification.** PR33 runtime 7071d33c merged 92a99d4601012af13593a7305f4dfc314480f6a4 after required branch/PR/main CI; research-chat v88 and exact Vercel deployment verified. Final 6,575 app / 1,280 Edge checks, lint/build and independent review pass. All four local and authenticated NTER Globiz cases pass source-reviewed attribution/citation/coverage: original, same-conversation follow-up, date quotation and false costs premise. This closes the documented regression set, not general legal semantic certification. F250 retains 66–161s latency and wider-corpus qualification; bulk/autopilot gates remain separate. Original 110 completed corpus fingerprints unchanged; concurrent external ingestion recorded separately. [Release evidence](../operations/law-grounded-synthesis-release.md).
+
+## Done — 2026-10-24 bounded Law latency optimization
+
+- [x] **F250 — Law answer latency without relaxing source quality.** PR #35/36/37 merged 258c7ad6/663c737f/023bf1dc after required app/SQL CI. Research-chat v91 and exact Vercel deployment verified. Removed discarded draft on eligible one-document attached Law turns; actual-evidence detection covers missing desk hints. Added narrow negative-merits source guard and selector completion allowance while preserving High reasoning, citation validation and bounded correction. Local 6,575 app/1,300 Edge pass; independent review and all four final NTER answers pass. Median 55.618s vs historical 75.5s, with first/date individually slower; no SLA. Original 110 corpus fingerprints unchanged; concurrent ingestion recorded separately. [Release evidence](../operations/law-answer-latency-release.md). Wider qualification remains F251; no larger batches or re-ingestion.

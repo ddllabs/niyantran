@@ -83,3 +83,5 @@ The ingestion/listing contract now treats indexing and publication separately. U
 ## 100-document validation before1,000
 
 The next preparation target is 100 new eligible supported NCLT documents. Preserve work already screened under the former1,000 target, but select a bounded subset and reconcile against fresh database state. Neither 100 nor 1,000 is currently authorized for ingestion. Follow the [updated agent message](law-next-batch-agent-message.md), including the all-record publication checks and stratified retrieval/citation sample before proposing1,000. The F247/F248 fix and live acceptance record is in [the correction plan](../plans/2026-10-24-law-answer-attribution-fields.md).
+
+F250's bounded answer-latency release is now verified in [the v91 receipt](law-answer-latency-release.md): four Globiz website answers pass attribution/citation review, with variable response times and wider qualification retained as F251. This does not authorize 100 or 1,000 documents, certify other orders, or require re-ingesting any existing document.
