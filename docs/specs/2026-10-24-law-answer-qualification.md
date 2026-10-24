@@ -1,6 +1,6 @@
 # F251 — Law answer performance qualification
 
-**Status: Living.** Owner authorized implementation, NTER verification and release on 2026-10-24. No ingestion or re-ingestion.
+**Status: Normative.** Owner authorized implementation, NTER verification and release on 2026-10-24. No ingestion or re-ingestion.
 
 ## Current state and problem
 
@@ -41,3 +41,7 @@ The baseline Samata answer also omitted original parenthetical words inside purp
 Candidate two completed six local cases but failed independent source review on Navinchandra: a combined appointment/deposit sentence cited only the appointment. Other cases passed bounded source review. It required correction for a false exact quotation (Future) and omitted requested quotation (Globiz date). The synthesis instruction now explicitly asks for unquoted synthesis by default and preserves all words, including parentheticals, in requested exact quotes. Existing validators remain authoritative.
 
 A narrow rupee-numeral support guard now checks INR/Rs/₹ amounts against each claim’s own original passage; it rejects the reproduced combined appointment/deposit claim. Comma grouping and singular/plural magnitude labels are normalized; differing explicit magnitude units are rejected. This is not validation of arbitrary number words, units, conversions or all legal entailment.
+
+## Live qualification correction
+
+The v92 Samata website answer omitted the express alternative of a lesser mutually agreed deposit and the moratorium's all-debts scope. Future's repayment paraphrase omitted availability of CoC funds. Preserve material conditions in synthesis, with bounded causal checks for an explicitly stated lesser mutually agreed rupee amount and repayment subject to available funds in the same cited passage. Require the existing correction rather than changing evidence or adding calls. These lexical checks do not establish general semantic completeness. Re-run source review and authenticated acceptance before closing F251.

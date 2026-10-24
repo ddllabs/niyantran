@@ -56,3 +56,27 @@ The six-case median is about21.0s, above the baseline17.0s. This release does **
 Final local verification:6,575 app tests,1,317 Edge tests; lint, production build, router import and diff check pass. Existing test stderr includes deliberate mocked feed failures. No production schema, ingestion or corpus changes.
 
 Independent final review passed all six answers clause by clause and verified all17 cited entries byte-identical to original chunks. Navinchandra separates appointment226 from deposit/repayment227; Samata includes the original parenthetical words and all-debts scope. Reviewer independently ran39 Law tests with no failures and found no current merge blocker. Final validator replay passed all six without changes.
+
+## Publication and additional regression evidence
+
+PR #39 merged `6f511513c1dc1352f5bb592c1abaff1cf9753099` from `21626da0` after branch/PR CI40106168123/40106204385 passed both required jobs and preview. Exact-main CI40106741141 gates deployment.
+
+Four Globiz regressions completed without corrections: 33.984/23.929/13.708/17.254 seconds, 8 calls, USD0.0037665432. Independent review passed original, follow-up, date and false-cost-premise answers; all14 cited entries byte-match originals. This private replay is separate from deployed website acceptance.
+
+Pre-release website baseline: Bigmoon assistant2a6ec689-0620-4dc0-9b26-75129560c7f1 failed with no_evidence; Future Consumer assistant8164cccf-88ed-48ab-b3ca-5544d4a7ce35 completed in16.861s (2.211s search,2 answer calls at3.137/11.305s;5.02 credits). Future source7 opened and highlighted original chunk93 with deposit/interim-finance wording.
+
+## Production deployment
+
+Exact-main CI40106741141 passed both required jobs. Research-chat v92 deployed with bundle hash `478672682a9c10559152ad8c61e89c43c2c5631f26f6701c88431625ca97508d`; all42 retrieved source files match the reviewed payload byte-for-byte. Unauthenticated POST returns401. Vercel production `dpl_CqSJxJVBNgvS4sZMS29Shcxcg6zE` is READY at merge6f511513. Connector team access was unavailable; existing authenticated CLI verified the same deployment endpoint.
+
+Post-deployment full Law baseline comparison is identical: all1,110 document/input/chunk/job fingerprints,1,439 listings, global4,569 documents/150,204 chunks and Law costs. No corpus mutation occurred.
+
+Live acceptance remains in progress. Future Consumer assistant84ee2392-469b-41e0-8786-1db6e8709fe0 completed in15.974s, with two answer calls; its source7 opens original chunk93. The live pool did not demonstrate a one-call saving, so the private compact comparison must not be presented as this website turn's path. Bigmoon now answers the previously failing question in about19s, preserves limited recall jurisdiction and no costs, and opens the original ruling citation.
+
+### Live qualification failure and follow-up
+
+Samata assistant407038dc-f729-4459-b811-0d8d79b249fd completed in27.053s but failed independent qualification: its deposit sentence omitted the expressly allowed lesser mutually agreed amount, and its moratorium answer omitted all-debts scope. The duration quote and source IDs were correct. Future's volunteered repayment sentence also omitted the availability-of-CoC-funds condition. These are synthesis omissions, not missing corpus or wrong listing mappings; no re-ingestion is appropriate.
+
+Two new causal tests fail against v92 and pass with bounded lexical guards for those explicit monetary conditions. The synthesis prompt now requests material alternatives, conditions and moratorium scope. Independent review and41 focused tests pass. The guards scan a cited paragraph unit and can conservatively hold an unrelated monetary proposition in that unit; alternative phrasing may escape them. General completeness, including all-debts scope, still needs source review. Existing one-correction limit is unchanged. Final live acceptance is required again.
+
+First follow-up private run: all six returned JSON,11 calls,USD0.00296999556, but independent semantic review rejected three. Samata selected the opening moratorium chunk without its available end-condition continuation; Future's “payable back” escaped the repayment predicate; Jet inferred blanket non-adoption of any party argument from operative relief. Retained as failed evidence. The next revision includes the observed repayment spelling, rejects unsupported non-adoption clauses, and explicitly requests selection of supplied continuations and each requested condition. Additional causal tests fail before those guards and pass afterward;42 focused tests pass. Prompt guidance alone is not a completeness guarantee.

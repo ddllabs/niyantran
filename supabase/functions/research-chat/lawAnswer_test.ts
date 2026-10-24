@@ -352,3 +352,33 @@ Deno.test('F251 rupee support does not equate different magnitude units with the
  const bad={claims:[{text:'The creditor shall deposit Rs.5 crore.',evidence:'p1'}],uncertain:false};
  assertEquals(await reviewLawAnswer(replay([{passages:['p1']},bad,bad]),{...request(),evidence:e}),null);
 });
+
+Deno.test('F251 preserves an expressly permitted lesser mutually agreed deposit',async()=>{
+ const e:EvidenceMap=new Map([['ref:abcdef-1',{kind:'text',chunk:{document_id:'d',content:'The applicant shall deposit INR 75,000/- (or such lesser amount as is mutually agreed) within one week.'} as Chunk}]]);
+ const answer=(text:string)=>({claims:[{text,evidence:'p1'}],uncertain:false});
+ const bad=answer('The applicant shall deposit INR 75,000 within one week.');
+ const good=answer('The applicant shall deposit INR 75,000, or a lower amount mutually agreed, within one week.');
+ const reasons:string[]=[];
+ const a=await reviewLawAnswer(replay([{passages:['p1']},bad,good]),{...request(),evidence:e,report:r=>reasons.push(r)});
+ assert(a);assertEquals(reasons,['omitted_amount_qualification']);assert(a.answer.includes('lower amount mutually agreed'));
+});
+
+Deno.test('F251 preserves availability-of-funds condition when claiming repayment',async()=>{
+ const e:EvidenceMap=new Map([['ref:abcdef-1',{kind:'text',chunk:{document_id:'d',content:'Deposit Rs.5,00,000 as interim finance, paid back on priority upon the funds available with IRP/RP from the Committee of Creditors.'} as Chunk}]]);
+ const answer=(text:string)=>({claims:[{text,evidence:'p1'}],uncertain:false});
+ const bad=answer('The deposit is repayable on priority.');
+ const good=answer('The deposit is repayable on priority when funds are available from the Committee of Creditors.');
+ const reasons:string[]=[];
+ const a=await reviewLawAnswer(replay([{passages:['p1']},bad,good]),{...request(),evidence:e,report:r=>reasons.push(r)});
+ assert(a);assertEquals(reasons,['omitted_repayment_condition']);
+ assert(await reviewLawAnswer(replay([{passages:['p1']},answer('The tribunal directed an initial deposit of Rs.5,00,000 as interim finance.')]),{...request(),evidence:e}));
+ assertEquals(await reviewLawAnswer(replay([{passages:['p1']},answer('The deposited amount is payable back on priority.'),answer('The deposited amount is payable back on priority.')]),{...request(),evidence:e}),null);
+});
+
+Deno.test('F251 rejects unsupported blanket non-adoption inferred from operative relief',async()=>{
+ const e:EvidenceMap=new Map([['ref:abcdef-1',{kind:'text',chunk:{document_id:'d',content:'The tribunal sets aside the termination notices and directs execution of the lease.'} as Chunk}]]);
+ const bad={claims:[{text:'The ruling was not an adoption of any party’s argument.',evidence:'p1'}],uncertain:false};
+ assertEquals(await reviewLawAnswer(replay([{passages:['p1']},bad,bad]),{...request(),evidence:e}),null);
+ const explicit:EvidenceMap=new Map([['ref:abcdef-1',{kind:'text',chunk:{document_id:'d',content:'The ruling was not an adoption of any party’s argument.'} as Chunk}]]);
+ assert(await reviewLawAnswer(replay([{passages:['p1']},bad]),{...request(),evidence:explicit}));
+});
