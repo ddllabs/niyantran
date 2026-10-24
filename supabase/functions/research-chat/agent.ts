@@ -224,6 +224,9 @@ export interface AgentResult {
 }
 
 export interface AgentInput {
+  /** Server resolved the scoped record/module and found no source text. Never
+   * substitute a whole-corpus nearest neighbour; rows/web retain their policy. */
+  documentSearchUnavailable?: boolean;
   system: string;
   window: Message[];
   userTurn: string;
@@ -623,6 +626,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     const args = parsed && (call.name === 'search_documents' ? documentArguments(parsed) : rowArguments(parsed));
     if (!args) return 'INVALID_TOOL_ARGUMENTS: provide arguments matching the tool schema.';
     if (call.name === 'search_documents') {
+      if (a.documentSearchUnavailable) return 'NO_INDEXED_SOURCE: This scope has no indexed source text. Use its verified row fields and, only when offered, web search for context. Do not substitute unrelated documents or claim to have searched unavailable text.';
       // An attachment scopes every search of the turn, not just the first.
       // Gating this on the first one made a refinement corpus-wide while the
       // reader was still asking about the attached bill, and made leaving the
@@ -737,7 +741,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
   // search the model had already made - the same execution path, so handles, traces, the budget,
   // widening and the found list are unchanged - and the first call can answer at once.
   const presearch = a.presearch?.trim().slice(0, PRESEARCH_MAX_CHARS);
-  if (presearch && !a.conversational && !state.presearched && budget.modelAttempts === 0 && budget.searches === 0) {
+  if (presearch && !a.documentSearchUnavailable && !a.conversational && !state.presearched && budget.modelAttempts === 0 && budget.searches === 0) {
     state.presearched = true;
     const call: ToolCall = { type: 'tool-call', id: PRESEARCH_ID, name: 'search_documents', args: JSON.stringify({ query: presearch }) };
     messages.push({

@@ -1,5 +1,10 @@
 # Spec: focus on a document, and filter by desk (`retrieval-scope`)
 
+## Amendment — 2026-10-24 (F255/F256)
+
+**Normative:** Known missing source text for an attached/selected record or a desk module no longer widens to the whole corpus. Answer verified row fields and use web only when permitted. Indexed/mixed document scopes and deliberate Broad context retain retrieval. Other legacy widening paths retain disclosure. Widening instructions are desk-neutral, not bill-specific. This amendment supersedes conflicting legacy wording below. Implementation/acceptance: [cross-desk grounding](2026-10-24-cross-desk-answer-grounding.md).
+
+
 > **Status: Normative — approved by the owner on 2026-09-30,** with the
 > recommendations below accepted. Module `retrieval-scope` of
 > `docs/specs/2026-09-30-rag-v2-capability-map.md`. It depends on `eval`
