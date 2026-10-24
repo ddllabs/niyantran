@@ -1,0 +1,191 @@
+{
+ "status": "indexed-and-published",
+ "decision_id": "owner-authorized-20261024-law-next-1000 (row IDs owner-authorized-20261024-law-next-1000-<tranche>-p<member>-<i>)",
+ "approved_by": "Vighnesh Shukla (relayed in chat by Tamanesh Kauri, 2026-10-24 14:16 IST)",
+ "target": "vfgcppstyzjarlzyqdac",
+ "repository_revision_for_ingestion_scripts": "cf3e7533209858dadde08274f49fe996dd7179d5",
+ "driver": {
+  "path": "../law-next-1000-prep/nter-law-next1000-live.py",
+  "sha256": "7af1a8862b63a7a593691d6d2e6bc90a505753230dd40d23ab28e6a633267184",
+  "commit": "e3f9841072dbeb8f3435bfb9aebdd50543ed2e62"
+ },
+ "cohort_table": "../law-next-1000-prep/cohort-1000-UNSIGNED.tsv (sha256 4e9b6d0d5e891ab19fec937c77c90adcca8bf765d9a4fa1e44b6aa9969e99711)",
+ "staging_summary_sha256": "b48c00b3fdf153cab22e03d9cc00708444dcc2a27d8688b30070c435fa76b8c6",
+ "bounds": {
+  "documents": 1000,
+  "max_chunks": 44536,
+  "max_estimated_cost_usd": 2.39
+ },
+ "tranches": {
+  "T1": {
+   "members": [
+    "2026__part-00001",
+    "2026__part-00002"
+   ],
+   "documents": 289,
+   "chunks": 10480,
+   "cost_ceiling_usd": 0.55575624,
+   "max_cost": 0.56,
+   "manifest_sha256": "ed83e437f7839ab5d9fc8b6094909d4704220a5e77b293d6291a103a4d52f29a",
+   "reconcile": {
+    "actions": {
+     "create-listing": 289
+    },
+    "mismatches": 0,
+    "report_sha256": "6ea247fab577a318f401329835ff3f58ad503131c93b3c31ffc589c699d627ba"
+   },
+   "submit": {
+    "submitted": 289,
+    "uncertain": 0,
+    "held": 0,
+    "importer_exit": 2,
+    "report_sha256": "de85d18f79aeb468a4e5c7dd9cf861ed9d3a03caa1132e076257e41ac58fa654"
+   }
+  },
+  "T2": {
+   "members": [
+    "2026__part-00003",
+    "2026__part-00004"
+   ],
+   "documents": 312,
+   "chunks": 13788,
+   "cost_ceiling_usd": 0.73244286,
+   "max_cost": 0.74,
+   "manifest_sha256": "972e95b1a856839e42393206bc9b6a119584944c896d0062edd1783f95fd5506",
+   "reconcile": {
+    "actions": {
+     "create-listing": 312
+    },
+    "mismatches": 0,
+    "report_sha256": "69dd448f3ae2175f7fdb04759fb92c59fa5578297f7adc6b4be688dca6bc9fd5"
+   },
+   "submit": {
+    "submitted": 312,
+    "uncertain": 0,
+    "held": 0,
+    "importer_exit": 2,
+    "report_sha256": "f84d500313d0b5b122cc856698bfce0a90e0599c7ad977da76a7544d62ce56d8"
+   }
+  },
+  "T3": {
+   "members": [
+    "2026__part-00005",
+    "2026__part-00006",
+    "2026__part-00008"
+   ],
+   "documents": 211,
+   "chunks": 10784,
+   "cost_ceiling_usd": 0.5733099,
+   "max_cost": 0.58,
+   "manifest_sha256": "dd46363712c898ec9278f4f3f00382cf9555869461dd35b79479094d187f7a9e",
+   "reconcile": {
+    "actions": {
+     "create-listing": 165,
+     "link-existing": 46
+    },
+    "mismatches": 0,
+    "report_sha256": "55b2b3f1b8f2b723ae9d210190a3889f8607441d7f2f54a48e690c4749cb7b60"
+   },
+   "submit": {
+    "submitted": 211,
+    "uncertain": 0,
+    "held": 0,
+    "importer_exit": 2,
+    "report_sha256": "64a130b4cccddca7a93fa9c95e5c9615fdd09ed40157ba14bfbe7e50de931227"
+   }
+  },
+  "T4": {
+   "members": [
+    "2026__part-00007"
+   ],
+   "documents": 188,
+   "chunks": 9484,
+   "cost_ceiling_usd": 0.50210592,
+   "max_cost": 0.51,
+   "manifest_sha256": "5921dce57bfbc840f52af35d38cdd8ed5c7db443d846401089279c5788755354",
+   "reconcile": {
+    "actions": {
+     "create-listing": 171,
+     "link-existing": 17
+    },
+    "mismatches": 0,
+    "report_sha256": "a05555df5cfdda41840cce5ba812eedb2e91153a91ac60440bd4d478930dc241"
+   },
+   "submit": {
+    "submitted": 188,
+    "uncertain": 0,
+    "held": 0,
+    "importer_exit": 2,
+    "report_sha256": "3b3b54ea739cecbea10bcfce36cecb149a3c6f136999e0e0a6c5b2572aa97e1e"
+   }
+  }
+ },
+ "importer_exit_meaning": "2 = publication pending while indexing (expected); not an error",
+ "verification_utc": "2026-10-24T12:14Z",
+ "verified": {
+  "documents": 1000,
+  "indexed": 1000,
+  "chunks": 44536,
+  "chunk_count_matches_plan": 1000,
+  "missing_vectors": 0,
+  "vector_dims": 1536,
+  "text_hash_matches_decision_and_stored_text": 1000,
+  "one_job_each": 1000,
+  "jobs_succeeded": 1000,
+  "ocr_pages": 0,
+  "published": 1000,
+  "listing_url_matches_order_url": 1000,
+  "one_source_membership_each": 1000,
+  "one_document_per_listing": 1000,
+  "new_listings_created_as_reviewed": 937,
+  "existing_listings_linked_as_reviewed": 63,
+  "fingerprints": {
+   "source_key|chunks|text_sha256 (sorted)": "c468005ac6d146eaefc686762b57954b54b9a9cfa2a3780c6ed7b7064d3c8c8a",
+   "source_key|listing (create-listing or existing row_key, sorted)": "9688c5e309520f19b180785eae0715086589dda643d86c936483049da6029798"
+  },
+  "stored_vector_self_lookup": {
+   "probes": 997,
+   "top1_global_same_document": 993,
+   "other_4": "top-1 was another document of this batch holding an identical chunk text (same-case boilerplate); not a retrieval defect",
+   "note": "vector self-lookup only; not natural-language or website acceptance"
+  }
+ },
+ "cost": {
+  "embedding_calls": 1087,
+  "embedding_tokens": 10249159,
+  "embedding_usd": 0.20498318,
+  "ocr_usd": 0,
+  "chat_usd": 0
+ },
+ "deltas": {
+  "documents": "3569 -> 4569 (+1000)",
+  "document_chunks": "105668 -> 150204 (+44536)",
+  "law_documents": "110 -> 1110",
+  "law_records": "502 -> 1439 (+937)",
+  "law_source_memberships": "545 -> 1545 (+1000)",
+  "law_document_links": "110 -> 1110",
+  "law_publications_published": "110 -> 1110"
+ },
+ "throughput": {
+  "first_job_utc": "2026-10-24T10:05:21Z",
+  "last_registration_utc": "2026-10-24T11:40:40Z",
+  "last_indexed_utc": "2026-10-24T12:13:42Z",
+  "wall_minutes_first_job_to_last_indexed": 128,
+  "worker_concurrency": "unchanged",
+  "observed": "reconcile about 2.7 s per document; registration about 26 documents per minute; indexing kept pace during registration and drained at about 2 per minute afterwards"
+ },
+ "analyze": "documents, document_chunks, law_records, law_source_memberships, law_document_links, law_publications, ingest_jobs analyzed after load",
+ "website_sample_gate": "../law-next-1000-prep/README.md (11 checks on the next-100 documents before submission; no new ingestion defect)",
+ "not_verified": [
+  "natural-language answers on these 1,000 documents",
+  "website citation acceptance (F247 synthesis open on main)",
+  "OCR accuracy and legal clearance beyond the screen",
+  "a live duplicate-safe rerun of this batch (shown for next-100 with the same importer; not repeated here to avoid another credential paste)"
+ ],
+ "credentials": "typed by the owner into hidden Colab prompts; held only in that process environment; removed by the driver after each tranche; never in chat, Git or reports",
+ "incidents": [
+  "driver v1 stopped offline on a member-name bug before any network call; fixed in e3f9841",
+  "one pasted token had 20 minutes left; driver refused it and cleared it",
+  "Colab browser connection dropped during T3; the kernel kept running and completed T3/T4"
+ ]
+}
