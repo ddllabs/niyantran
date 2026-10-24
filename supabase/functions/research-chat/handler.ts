@@ -1539,6 +1539,7 @@ async function runTurnBody(
   // Both can be true at once - a widened search that also returned nothing -
   // and they answer different questions, so neither replaces the other.
   const notes = [
+    ...(observationTurn ? ['**Observation scope.** The selected year label’s period convention has not been verified. Comparability and revision relationships with web figures are not established.'] : []),
     ...(result.widened ? [widenedNote(result.widened, featureScope?.feature)] : []),
     ...(grounded ? [] : [evidence.size > 0 && !result.webPages.length
       ? '**Unverified.** Evidence was retrieved, but this answer could not be linked to verified citations. Treat its claims as unverified.'

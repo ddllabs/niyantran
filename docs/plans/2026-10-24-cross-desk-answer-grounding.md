@@ -52,3 +52,11 @@ Independent review reproduced material false positives for explicit uncertainty 
 Review then found a causal-conjunction bypass and postposed-uncertainty false positives. Three causal tests failed before repair; all 25 focused tests pass independently after it. The exemption stops at causal/adversative conjunctions and only permits narrowly anchored postposed uncertainty. No further material review blockers; lexical checks still do not prove general entailment.
 
 Final uncertainty-repair verification: 1,407 Edge tests / 6,575 application tests pass; lint, build, router import and whitespace checks pass. Independent focused review passes 25 cases with no remaining blockers. Fresh live acceptance remains required.
+
+## Fifth production acceptance and comparison-boundary repair
+
+PR #49 merged `0b6609f8`; exact-main CI `40127591222` passed. Research-chat v100 matches 42 files, hash `2216c4584fdb93cdc321bf9dc2facd1a7e24ea9383b6f75af15a5f8dc0dd5a6a`, unauthenticated 401; Vercel READY `dpl_FTsUsuZWaTTXkTVuJiHfvqvTysxE`. GDP turn `2c69edd9-f865-4c82-abae-5b00e4031c61` completed in 35.309s, two web searches / 10 pages / zero document searches, but still inferred that conventions differ and a different reference period applies. These wordings escaped the bounded check. It also merged separately reported values into ranges; the April World Bank report gives FY25 7.1 and FY26 7.6, while the October release separately projects FY27 7.1. No acceptance claimed.
+
+Scoped follow-up expands comparison predicates, adds a server-owned observation limitation, and instructs separate labelled web observations instead of merged ranges. Three comparison cases and the server-note test fail before repair; 31 focused F256 tests pass after. No general entailment guarantee, provider change, new verifier or ingestion. Full verification and fresh live acceptance pending.
+
+Final comparison-repair checks: 1,411 Edge / 6,575 app tests pass; lint, build, router import and whitespace checks pass. Independent review passes 31 focused cases with no further material blockers. Exact report/range semantics remain a live acceptance requirement.

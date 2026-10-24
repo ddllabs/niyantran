@@ -2417,6 +2417,9 @@ for (const bad of [
   'The record does not establish its convention and this is the latest figure. [Source](https://example.org/1)',
   'The figure is unrevised; we cannot verify the period. [Source](https://example.org/1)',
   'We cannot determine revision history because this is the latest official figure. [Source](https://example.org/1)',
+  'The stored figure is a separate estimate covering a different reference period. [Source](https://example.org/1)',
+  'Because period conventions differ, the stored value cannot be directly compared. [Source](https://example.org/1)',
+  'The selected value and FY26 are directly comparable. [Source](https://example.org/1)',
   'GDP growth measures real output growth. (Web glossary)',
 ]) Deno.test(`F256 observation corrects unsupported period/status or missing page citation: ${bad}`, async () => {
   const good = 'The selected year-labelled observation is 7.57%; its period convention is unverified. GDP growth measures real output growth. [Source](https://example.org/1)';
@@ -2437,6 +2440,7 @@ for (const qualification of [
   'It is not known whether the figures cover different reporting periods.',
   'Whether the figures cover the same period is not known.',
   'The calendar-year convention is not established.',
+  'We cannot establish whether the period conventions differ.',
 ]) Deno.test(`F256 accepts explicit observation uncertainty: ${qualification}`, async () => {
   const text = JSON.stringify({ answer: `${qualification} GDP growth measures real output growth. [Source](https://example.org/1)`, sources: [], follow_up_questions: [] });
   const f = fake([[webResults(page(1)), searched(1)], answer(text)], { webSearch: { perTurn: 3 } });
