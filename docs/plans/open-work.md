@@ -1,6 +1,6 @@
 # Open work: the one list
 
-- [ ] **nter.news RSS homepage preview — 2026-10-25.** Owner approved branch `task/nter-news-rss-preview` and separate Vercel Preview; preserve layout, production and Supabase data. Implemented and locally verified; required CI and Preview verification pending. [Spec](../specs/2026-10-25-nter-news-rss-preview.md), [plan](2026-10-25-nter-news-rss-preview.md). No main merge or CMS migration authorized.
+- [ ] **nter.news RSS homepage preview — 2026-10-25.** Owner approved branch `task/nter-news-rss-preview` and separate Vercel Preview; preserve layout, production and Supabase data. Implemented and verified on `17853ac4`; both required CI jobs passed and the separate [review preview](https://niyantran-git-task-nter-news-rss-preview-ddl-labs.vercel.app) serves current publisher RSS. Owner signed-in review and any main merge remain pending. [Spec](../specs/2026-10-25-nter-news-rss-preview.md), [plan](2026-10-25-nter-news-rss-preview.md). No main merge or CMS migration authorized.
 
 
 
