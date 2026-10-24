@@ -3651,7 +3651,7 @@ for (const lawHint of [true, false]) for (const valid of [true, false]) for (con
     if (String(req.messages[0].content).startsWith('Select original passages')) {
       selections++;
       assertEquals(req.reasoning,{effort:'high'});
-      assertEquals(req.max_tokens,8000);
+      assertEquals(req.max_tokens,16000);
       const p = JSON.parse(String(req.messages[1].content)).passages[0];
       yield text(JSON.stringify({passages:[p.id]})); yield finish();
     } else if (String(req.messages[0].content).startsWith('Answer the question directly')) {
