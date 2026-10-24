@@ -2411,6 +2411,8 @@ Deno.test('F256 failed web research cannot carry its partial synthesis or uncomm
 for (const bad of [
   'The calendar-year 2025 observation is 7.57%. [Source](https://example.org/1)',
   'The stored figure is the latest available and unrevised. [Source](https://example.org/1)',
+  'FY26 is a different fiscal period, not a revision of the same series. [Source](https://example.org/1)',
+  'The two figures refer to the same observation period. [Source](https://example.org/1)',
   'GDP growth measures real output growth. (Web glossary)',
 ]) Deno.test(`F256 observation corrects unsupported period/status or missing page citation: ${bad}`, async () => {
   const good = 'The selected year-labelled observation is 7.57%; its period convention is unverified. GDP growth measures real output growth. [Source](https://example.org/1)';
