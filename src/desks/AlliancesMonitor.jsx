@@ -1,3 +1,4 @@
+import { useWorkspaceState } from '../shell/workspaceState.js';
 import { useEffect, useMemo, useState } from 'react';
 import {
   OBLIGATIONS,
@@ -10,15 +11,15 @@ import TableFilterPop, { choiceGroup, matchesChoice } from '../shell/TableFilter
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
 
-export default function AlliancesMonitor({ feed, selected, onSelect, flags, vizFilter, onClearViz }) {
+export default function AlliancesMonitor({ workspaceScope = '', feed, selected, onSelect, flags, vizFilter, onClearViz }) {
   const list = useMemo(
     () => (feed?.rows || []).map((r) => hydrateAlliance(r, flags)).filter((p) => p?.id),
     [feed, flags],
   );
-  const [q, setQ] = useState('');
-  const [region, setRegion] = useState('');
-  const [category, setCategory] = useState('');
-  const [obligation, setObligation] = useState('');
+  const [q, setQ] = useWorkspaceState('AlliancesMonitor.q', '', workspaceScope);
+  const [region, setRegion] = useWorkspaceState('AlliancesMonitor.region', '', workspaceScope);
+  const [category, setCategory] = useWorkspaceState('AlliancesMonitor.category', '', workspaceScope);
+  const [obligation, setObligation] = useWorkspaceState('AlliancesMonitor.obligation', '', workspaceScope);
   const [liveOpen, setLiveOpen] = useState(false);
 
   const regions = useMemo(() => [...new Set(list.map((p) => p.region).filter(Boolean))].sort(), [list]);

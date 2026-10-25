@@ -1,3 +1,4 @@
+import CitationBubble from './CitationBubble.jsx';
 import { tidyDocTitle } from '../lib/docTitle.js';
 import { documentRoleLabel, isTextCitation } from '../types/citation.js';
 
@@ -82,13 +83,13 @@ const Chevron = () => (
 );
 
 /**
- * The cited documents as one compact list (source-list spec, F65 amendment). A row opens
- * its first citation; numbered labels stay inline in the row. File name is tooltip only. A bill
+ * The cited documents as one compact list (source-list spec, F65 amendment). The document action opens
+ * its first citation; sibling numbered controls open individual passages. File name is tooltip only. A bill
  * cited in several versions is one row (F118) with a tag per version that opens that version.
  *
  * @param {{ sources: import('../types/citation.js').CitationSource[], onOpen?: (c: import('../types/citation.js').TextCitation) => void, lang?: string }} props
  */
-export default function SourceList({ sources, onOpen, lang }) {
+export default function SourceList({ sources, onOpen, lang, selectedSource }) {
   const groups = sourceGroups(sources);
   if (!groups.length) return null;
   const hi = lang === 'hi';
@@ -110,14 +111,15 @@ export default function SourceList({ sources, onOpen, lang }) {
                     {single?.version ? <span className="ai-source-version">{single.version}</span> : null}
                     {g.desk_feature ? <span>{g.desk_feature}</span> : null}
                     {pages ? <span>{pages}</span> : null}
-                    <span className="ai-source-ids">
-                      {hi ? 'उद्धरण' : 'cited'}
-                      {g.ids.map(id => <span key={id} className="ai-source-id">{id}</span>)}
-                    </span>
+
                   </span>
                 </span>
-                <Chevron />
+                <span className="ai-source-action">{hi ? 'उद्धरण खोलें' : 'Open citations'}<Chevron /></span>
               </button>
+              <div className="ai-source-citations" role="group" aria-label={hi ? 'उद्धरण' : 'Citations'}>
+                <span>{hi ? 'उद्धरण' : 'Cited passages'}</span>
+                {g.ids.map(id => <CitationBubble showContext key={id} n={id} source={sources.find(source => source.id === id && g.docs.some(doc => doc.document_id === source.document_id))} onOpen={onOpen} selectedSource={selectedSource} />)}
+              </div>
               {single ? null : (
                 <div className="ai-source-versions" role="group" aria-label={hi ? 'संस्करण' : 'Versions'}>
                   {g.docs.map((d) => (

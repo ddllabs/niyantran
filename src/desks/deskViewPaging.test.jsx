@@ -117,12 +117,13 @@ describe('what a paged module asks for (F156)', () => {
     openInDesk({ kind: 'row', tier: 'national', feature: BILLS, row_key: deskRowKey(cited) });
     api.page.mockImplementation(async (view) => (view.key ? paged({ rows: [cited], total: 1 }) : paged()));
     hooks.runEffects = true;
-    const onSelect = vi.fn();
-    render({ onSelect });
+    const onSelect = vi.fn(), onReveal = vi.fn();
+    render({ onSelect, onReveal });
     await tick();
     await tick();
     expect(api.page).toHaveBeenCalledWith(expect.objectContaining({ feature: BILLS, key: deskRowKey(cited) }));
     expect(onSelect).toHaveBeenLastCalledWith(cited);
+    expect(onReveal).toHaveBeenCalledWith(cited);
     expect(pendingDeskRow()).toBeNull();
   });
 
@@ -163,4 +164,21 @@ it('Law table selection identifies the record, never another order or announceme
   const tree = render({ featureName: feature, tier: 'judiciary', selected: order });
   const body = nodes(tree).filter(n => n.type === 'tr' && n.props.onClick);
   expect(body.map(n => n.props.className)).toEqual(['on', '']);
+});
+
+it('does not erase the restored search when a desk mounts', () => {
+  api.page.mockReturnValue(new Promise(() => {}));
+  hooks.runEffects = true;
+  hooks.overrides = { 0: 'railway', 10: 'railway' };
+  render({ featureName: QUESTIONS });
+  expect(hooks.setters[0]).not.toHaveBeenCalledWith('');
+});
+
+it('reports an unavailable off-page target instead of silently keeping an unrelated record', async () => {
+  openInDesk({ kind: 'row', tier: 'national', feature: BILLS, row_key: 'missing' });
+  api.page.mockImplementation(async view => view.key ? paged({ rows: [], total: 0 }) : paged());
+  hooks.runEffects = true;
+  const onReveal = vi.fn();
+  render({ onReveal }); await tick(); await tick();
+  expect(onReveal).toHaveBeenCalledWith(null);
 });

@@ -10,12 +10,13 @@ it('selects the opened passage rather than every repeated reference number', () 
   expect(render(source)).toContain('aria-pressed="true"');
   expect(render({ ...source, chunk_id: 'other' })).toContain('aria-pressed="false"');
 });
-it('keeps citation numbers inline in the single source action', () => {
+it('gives each citation its own action alongside the document CTA', () => {
   const html = renderToStaticMarkup(<SourceList sources={[source, { ...source, id: 2 }]} />);
-  expect(html).not.toContain('Cited passages');
+  expect(html).toContain('Cited passages');
   expect(html).not.toContain('<details');
-  expect((html.match(/<button/g)||[])).toHaveLength(1);
-  expect(html).toContain('class="ai-source-id">1');
+  expect((html.match(/<button/g)||[])).toHaveLength(3);
+  expect(html).toContain('aria-label="Source 1: Bill"');
+  expect(html).toContain('Open citations');
 });
 it('keeps every suggestion directly available without a More questions disclosure', () => {
   const html = renderToStaticMarkup(<SuggestionPills questions={['First?', 'Second?', 'Third?']} label="Follow-ups" />);

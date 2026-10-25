@@ -76,7 +76,7 @@ export function CatalogueResults({ results, selected, lockedIds, listId, onSelec
     {results.length ? results.map((entry, index) => <button type="button" role="option" aria-selected={selected === index}
       id={`${listId}-${index}`} key={entry.id} tabIndex={selected === index ? 0 : -1}
       className={`catalogue-result${selected === index ? ' active' : ''}`} onMouseEnter={() => onHighlight(index)} onFocus={() => onHighlight(index)} onClick={() => onSelect(entry)} {...catalogueDragProps(entry)}>
-      <span><b>{entry.title}</b><small>{entry.desk} / {entry.group}</small>{lockedIds.includes(entry.tab) && <small className="catalogue-restriction"><LockKeyhole size={12} aria-hidden="true" />Access restricted</small>}</span><ArrowRight size={17} aria-hidden="true" />
+      <span><b>{entry.title}</b><small>{entry.desk} → {entry.group}</small><small className="catalogue-result-kind">Module · Explore coverage</small>{lockedIds.includes(entry.tab) && <small className="catalogue-restriction"><LockKeyhole size={12} aria-hidden="true" />Access restricted</small>}</span><ArrowRight size={17} aria-hidden="true" />
     </button>) : <p className="catalogue-empty">No modules found. Try cricket, music, carbon, bills or courts.</p>}
   </div>;
 }
@@ -114,7 +114,7 @@ export default function DeskCatalogueSearch({ tabs, recordTabs = EMPTY, lockedId
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k' && !event.altKey) {
         // Do not stack a search modal above another unrelated native dialog.
         if (document.querySelector('dialog[open]') && !dialog.current?.open) return;
-        event.preventDefault(); setMode('catalogue'); openSearch({ dialog: dialog.current, drag: drag.current, setOpen });
+        event.preventDefault(); openSearch({ dialog: dialog.current, drag: drag.current, setOpen });
       }
     };
     document.addEventListener('keydown', shortcut);
@@ -157,7 +157,7 @@ export default function DeskCatalogueSearch({ tabs, recordTabs = EMPTY, lockedId
     if (event.key === 'Enter' && results[active]) { event.preventDefault(); choose(results[active]); }
   };
   return <div className="desk-catalogue-search" data-catalogue-desks={tabs?.length || 0}>
-    <button ref={trigger} type="button" className="catalogue-open" aria-label={hi ? 'डेस्क, मॉड्यूल और रिकॉर्ड खोजें' : 'Search desks, modules and records'} aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" onClick={() => { setMode('catalogue'); openSearch({ dialog: dialog.current, drag: drag.current, setOpen }); }}>
+    <button ref={trigger} type="button" className="catalogue-open" aria-label={hi ? 'डेस्क, मॉड्यूल और रिकॉर्ड खोजें' : 'Search desks, modules and records'} aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" onClick={() => { openSearch({ dialog: dialog.current, drag: drag.current, setOpen }); }}>
       <Search size={16} aria-hidden="true" /><span className="catalogue-label-long">{hi ? 'डेस्क, मॉड्यूल और रिकॉर्ड खोजें' : 'Search desks, modules and records'}</span><span className="catalogue-label-short" aria-hidden="true">{hi ? 'टर्मिनल में खोजें' : 'Search the terminal'}</span><kbd>⌘ K</kbd>
     </button>
     {open && <dialog ref={dialog} className="catalogue-dialog" aria-labelledby={titleId} onDragStartCapture={event => drag.current.start(event)} onDragEndCapture={() => drag.current.end()} onCancel={event => { event.preventDefault(); setOpen(false); }} onClick={event => {
@@ -167,17 +167,17 @@ export default function DeskCatalogueSearch({ tabs, recordTabs = EMPTY, lockedId
     }}>
       <h2 id={titleId} className="catalogue-sr-only">{hi ? 'मॉड्यूल और रिकॉर्ड खोजें' : 'Find modules and records'}</h2>
       <div className="catalogue-modes" role="group" aria-label="Search mode">
-        <button type="button" aria-pressed={mode === 'catalogue'} onClick={() => setMode('catalogue')}>Catalogue</button>
+        <button type="button" aria-pressed={mode === 'catalogue'} onClick={() => setMode('catalogue')}>Modules</button>
         <button type="button" aria-pressed={mode === 'records'} onClick={() => setMode('records')}>Records</button>
         <button type="button" className="catalogue-close" aria-label="Close search" onClick={() => setOpen(false)}>Esc</button>
       </div>
       {mode === 'catalogue' ? <>
         <div className="catalogue-field"><Search size={18} aria-hidden="true" /><input ref={input} type="search" value={query} role="combobox" aria-label="Search all desks and modules" aria-autocomplete="list" aria-expanded="true" aria-controls={listId} aria-activedescendant={results[active] ? `${listId}-${active}` : undefined} placeholder="Search cricket, music, markets, bills…" autoComplete="off" onChange={event => { setQuery(event.target.value); setSelected(0); }} onKeyDown={keydown} />
           <DictationButton contextKey={`${identity}:catalogue`} lang={lang} onTranscript={text => { setQuery(value => `${value.trim()} ${text}`.trim()); setSelected(0); input.current?.focus(); }} />
-        </div><div className="catalogue-meta">SEARCH SEVEN DESKS<span role="status">{results.length} modules</span></div>
+        </div><div className="catalogue-meta">SEARCH {new Set(searchDeskCatalogue('').map(entry => entry.tab)).size} DESKS<span role="status">{results.length} modules</span></div>
         <div onKeyDown={keydown}><CatalogueResults results={results} selected={active} lockedIds={lockedIds} listId={listId} onSelect={choose} onHighlight={setSelected} /></div>
         <div className="catalogue-footer">Every module, one search.<span>↵ Select a result to explore</span></div>
-      </> : <div className="catalogue-records"><p>Search records in desks available to your account.</p><CommandSearch tabs={recordTabs} identity={identity} lang={lang} searchRecords={searchRecords} onOpen={hit => { setOpen(false); onOpen(hit); }} /></div>}
+      </> : <div className="catalogue-records"><p>Search indexed record snapshots across your available desks. Some modules, including Sports and Entertainment, have no indexed records. Use Modules to find every destination.</p><CommandSearch query={query} onQuery={setQuery} scope="records" tabs={recordTabs} identity={identity} lang={lang} searchRecords={searchRecords} onOpen={hit => { setOpen(false); onOpen(hit); }} /></div>}
     </dialog>}
     {detail && <div className="desk-v6 catalogue-coverage"><V6Dialog titleId={`${id}-coverage`} onClose={() => setDetail(null)}>
       <CatalogueModuleCoverage entry={detail} restricted={restricted} summary={coverage?.id === detail.id ? coverage.summary : undefined} titleId={`${id}-coverage`} onOpen={openDestination} retry={() => { setCoverage(null); setAttempt(value => value + 1); }} />

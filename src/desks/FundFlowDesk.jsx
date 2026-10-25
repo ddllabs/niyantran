@@ -1,5 +1,6 @@
+import { useWorkspaceState } from '../shell/workspaceState.js';
 import { rowSelectionProps } from '../shell/rowSelection.js';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
 
@@ -23,8 +24,8 @@ export function isFundFlowFeature(name) {
 
 const NO_ROWS = [];
 
-export default function FundFlowDesk({ feed, selected, onSelect, vizFilter, onClearViz }) {
-  const [q, setQ] = useState('');
+export default function FundFlowDesk({ workspaceScope = '', feed, selected, onSelect, vizFilter, onClearViz }) {
+  const [q, setQ] = useWorkspaceState('FundFlowDesk.q', '', workspaceScope);
   const rows = Array.isArray(feed?.rows) ? feed.rows : NO_ROWS;
   const meta = feed?.meta || {};
   const profile = meta.profile || rows[0]?.profile || 'Expenditure Profile';

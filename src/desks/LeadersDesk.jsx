@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useWorkspaceState } from '../shell/workspaceState.js';
+import { useMemo } from 'react';
 import { exportJson, GeoAi, GeoDossierChrome, GeoKv, GeoSources } from './GeoDossier.jsx';
 import { applyVizFilter } from '../lib/nationalKpi.js';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
@@ -33,9 +34,9 @@ function isoOf(id) {
     .toUpperCase();
 }
 
-export default function LeadersDesk({ feed, selected, onSelect, vizFilter, onClearViz }) {
-  const [tab, setTab] = useState('analytics');
-  const [q, setQ] = useState('');
+export default function LeadersDesk({ workspaceScope = '', feed, selected, onSelect, vizFilter, onClearViz }) {
+  const [tab, setTab] = useWorkspaceState('LeadersDesk.tab', 'analytics', workspaceScope);
+  const [q, setQ] = useWorkspaceState('LeadersDesk.q', '', workspaceScope);
   const leaders = useMemo(() => {
     const n = q.trim().toLowerCase();
     return (feed?.rows || [])

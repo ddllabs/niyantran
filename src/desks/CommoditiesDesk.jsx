@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useWorkspaceState } from '../shell/workspaceState.js';
+import { useMemo } from 'react';
 import { exportJson, GeoAi, GeoDossierChrome, GeoSources } from './GeoDossier.jsx';
 import { commodityGroups } from '../lib/commodityGroups.js';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
@@ -56,9 +57,9 @@ function GroupPanel({ title, items, rowFor, selected, onSelect }) {
   );
 }
 
-export default function CommoditiesDesk({ feed, selected, onSelect, vizFilter, onClearViz }) {
-  const [tab, setTab] = useState('analytics');
-  const [q, setQ] = useState('');
+export default function CommoditiesDesk({ workspaceScope = '', feed, selected, onSelect, vizFilter, onClearViz }) {
+  const [tab, setTab] = useWorkspaceState('CommoditiesDesk.tab', 'analytics', workspaceScope);
+  const [q, setQ] = useWorkspaceState('CommoditiesDesk.q', '', workspaceScope);
   // F122: the search and the chart filter apply to the pack's groups too.
   const groups = useMemo(() => commodityGroups(feed, { q, vizFilter }), [feed, vizFilter, q]);
   const byName = useMemo(() => new Map((feed?.rows || []).map((r) => [r.commodity || r.title, r])), [feed]);
