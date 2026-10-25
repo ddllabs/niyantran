@@ -113,7 +113,7 @@ describe('CR-06 — End-to-End API Verification Suite', () => {
     });
 
     it('verifies /api/home/latest contract (nter.news)', async () => {
-      vi.stubGlobal('fetch', vi.fn(async () => new Response('<rss><channel><item><title>Publisher headline</title><link>https://nter.news/articles/current/</link><pubDate>Sat, 24 Oct 2026 10:00:00 GMT</pubDate></item></channel></rss>')));
+      vi.stubGlobal('fetch', vi.fn(async url => new Response(url === 'https://nter.news/' ? '<main><section data-section="top-stories"><article class="nx-card"><h3 class="nx-card__title"><a href="/articles/current/">Publisher headline</a></h3></article></section></main>' : '<main><article><h1>Publisher headline</h1><time datetime="2026-10-24">24 October</time></article></main>')));
       let res;
       try { res = await serveHomeLatest({ fresh: true }); } finally { vi.unstubAllGlobals(); }
       expect(res.ok).toBe(true);

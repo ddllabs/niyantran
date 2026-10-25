@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNterLatest } from '../lib/nterNewsClient.js';
-import { newsCheckLabel, newsPublication } from '../lib/homeNews.js';
+import { newsCheckLabel, newsPublication, isPublisherArtwork } from '../lib/homeNews.js';
 import './nterLatestRail.css';
+import PublisherBrand from '../desks/PublisherBrand.jsx';
 
 function NewsImage({ src, alt }) {
   const [failed, setFailed] = useState(null);
@@ -17,6 +18,7 @@ function NewsImage({ src, alt }) {
   return (
     <img
       src={src}
+      style={isPublisherArtwork(src) ? { objectFit: 'contain' } : undefined}
       alt={alt || ''}
       className="nter-card-img"
       loading="lazy"
@@ -38,14 +40,14 @@ export default function NterLatestRail({ onLogin, limit = 8 }) {
           <div className="nter-rail-brand">
             <span className="nter-live-badge">
               <span className="nter-live-dot" aria-hidden="true" />
-              Latest from nter.news
+              Selected from <PublisherBrand />
             </span>
             <div>
               <h2 id="nter-rail-heading" className="nter-rail-title">
                 NTER.news Intelligence Rail
               </h2>
               <p className="nter-rail-subtitle">
-                Published reporting from nter.news, refreshed regularly.
+                Front-page reporting from nter.news, refreshed regularly.
               </p>
             </div>
           </div>

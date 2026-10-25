@@ -1,0 +1,8 @@
+.nh-publisher-brand { display: inline-flex; align-items: center; gap: 4px; height: 14px; vertical-align: middle; }
+.nh-publisher-brand img { display: block; object-fit: contain; flex: none; }
+.nh-publisher-mark { width: 14px; height: 14px; }
+.nh-publisher-word { width: 78px; height: 8px; }
+
+.nh-publisher-brand .nh-publisher-word--dark { display: none; }
+.theme-dark .nh-publisher-brand .nh-publisher-word--light { display: none; }
+.theme-dark .nh-publisher-brand .nh-publisher-word--dark { display: block; }

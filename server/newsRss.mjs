@@ -21,7 +21,7 @@ function text(value, max = 1000) {
   return decodeEntities(raw ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
-function publisherUrl(raw, article = false) {
+export function publisherUrl(raw, article = false) {
   try {
     const url = new URL(decodeEntities(raw), 'https://nter.news');
     if (url.protocol !== 'https:' || !['nter.news', 'www.nter.news'].includes(url.hostname)
@@ -65,13 +65,14 @@ export function parseNewsRss(xml, now = Date.now()) {
   return rows.slice(0, MAX_ROWS);
 }
 
-async function readFeed(fetcher) {
+export async function readNewsSource(fetcher, url = NEWS_RSS_URL, signal) {
+  if (url !== NEWS_RSS_URL && url !== 'https://nter.news/' && publisherUrl(url, true) !== url) throw new Error('Unapproved news source');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const response = await fetcher(NEWS_RSS_URL, {
-      signal: controller.signal, redirect: 'error',
-      headers: { Accept: 'application/rss+xml, application/xml, text/xml', 'User-Agent': 'NterPro-News/1.0' },
+    const response = await fetcher(url, {
+      signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal, redirect: 'error',
+      headers: { Accept: 'text/html, application/rss+xml, application/xml, text/xml', 'User-Agent': 'NterPro-News/1.0' },
     });
     if (!response.ok || Number(response.headers.get('content-length')) > NEWS_MAX_BYTES) throw new Error('News source unavailable');
     if (!response.body) throw new Error('Missing news response');
@@ -92,7 +93,7 @@ async function readFeed(fetcher) {
 }
 
 /** Per-instance cache only. Cold starts may have no last-good response; no database is used. */
-export function createNewsReader({ fetcher = (...args) => fetch(...args), clock = () => Date.now() } = {}) {
+export function createNewsReader({ fetcher = (...args) => fetch(...args), clock = () => Date.now(), loadRows, delivery = 'rss', sourceUrl = NEWS_RSS_URL } = {}) {
   let snapshot = null;
   let inflight = null;
   let failedAt = null;
@@ -103,7 +104,7 @@ export function createNewsReader({ fetcher = (...args) => fetch(...args), clock 
       if (!inflight) {
         inflight = (async () => {
           try {
-            const rows = parseNewsRss(await readFeed(fetcher), clock());
+            const rows = loadRows ? await loadRows(fetcher, clock) : parseNewsRss(await readNewsSource(fetcher), clock());
             snapshot = { rows, checkedAt: clock() };
             failedAt = null;
           } catch {
@@ -118,9 +119,9 @@ export function createNewsReader({ fetcher = (...args) => fetch(...args), clock 
     const stale = !available || failedAt !== null || checkedAge >= NEWS_TTL_MS;
     const count = Number.isFinite(Number(limit)) ? Math.max(1, Math.min(MAX_ROWS, Math.floor(Number(limit)))) : 12;
     const rows = available ? snapshot.rows.slice(0, count).map(row => ({ ...row, fallback: stale })) : [];
-    const updated = rows[0]?.pub || null;
+    const updated = rows.reduce((latest, row) => row.pub && (!latest || Date.parse(row.pub) > Date.parse(latest)) ? row.pub : latest, null);
     return {
-      ok: Boolean(available), delivery: 'rss', source: 'nter.news', source_url: NEWS_RSS_URL,
+      ok: Boolean(available), delivery, source: 'nter.news', source_url: sourceUrl,
       rows, updated, as_of: updated, checked_at: available ? new Date(snapshot.checkedAt).toISOString() : null,
       ageH: updated ? Math.max(0, (clock() - Date.parse(updated)) / 3600000) : null,
       archive: stale, stale, waiting: !rows.length, cached: available && checkedAge > 0,

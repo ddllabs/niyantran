@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { savedHomeNews, newsCheckLabel, newsPublication, NEWS_CACHE_MS } from './homeNews.js';
 const now = Date.parse('2026-10-25T00:00:00Z');
-const body = { delivery: 'rss', rows: [{ title: 'Current' }], checked_at: new Date(now).toISOString(), updated: '2026-10-24T14:39:07Z' };
+const body = { delivery: 'publisher', rows: [{ title: 'Current' }], checked_at: new Date(now).toISOString(), updated: '2026-10-24T14:39:07Z' };
 describe('news cache and publication labels', () => {
   it('rejects the old seed/cache and expired or undated saved news', () => {
+    expect(savedHomeNews({ ...body, delivery: 'rss' }, now)).toBeNull();
     expect(savedHomeNews({ rows: [{ title: 'September seed' }] }, now)).toBeNull();
     expect(savedHomeNews({ ...body, checked_at: null }, now)).toBeNull();
     expect(savedHomeNews(body, now + 86400_001)).toBeNull();
@@ -13,6 +14,7 @@ describe('news cache and publication labels', () => {
     expect(newsCheckLabel(body, now)).toBe('checked · just now');
     expect(newsPublication(body.updated)).toBe('24 Oct 2026');
     expect(newsPublication('invalid')).toBe('');
+    expect(newsPublication(null)).toBe('');
   });
   it('marks saved results stale after five minutes, including a successful empty feed', () => {
     expect(savedHomeNews(body, now + NEWS_CACHE_MS).archive).toBe(true);

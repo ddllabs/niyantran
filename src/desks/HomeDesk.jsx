@@ -18,6 +18,7 @@ import { prepareHomeMarketQuotes } from '../lib/homeMarkets.js';
 import { fetchNterLatest } from '../lib/nterNewsClient.js';
 import { savedHomeNews, newsCheckLabel, newsPublication, NEWS_POLL_MS } from '../lib/homeNews.js';
 import HomeNewsImage from './HomeNewsImage.jsx';
+import PublisherBrand from './PublisherBrand.jsx';
 import { trackProductEvent } from '../lib/productAnalytics.js';
 import { plainNote, technicalTitle } from '../lib/plainSourceNote.js';
 import { loadWatchlist, subscribeWatchlist } from '../lib/watchlistStore.js';
@@ -401,7 +402,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
                 <h2>{featured.title}</h2>
                 <p>{featured.dek}</p>
                 <div className="nh-story-meta">
-                  <span>nter.news</span>
+                  <PublisherBrand />
                   {featured.pub ? <span>· {newsPublication(featured.pub)}</span> : null}
                 </div>
                 <a className="nh-cta" href={featured.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
@@ -412,11 +413,11 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
             </article>
           )}
 
-          <section className="nh-news" aria-label="Latest from nter.news">
+          <section className="nh-news" aria-label="Selected from nter.news">
             <div className="nh-news-head">
               <div className="bh">
                 <span>
-                  FROM NTER.NEWS
+                  FROM <PublisherBrand />
                   <span className="nh-agent" title={meta.latest?.checked_at ? `Last successful check: ${meta.latest.checked_at}` : 'Waiting for published stories'}>{newsCheckLabel(meta.latest)}</span>
                 </span>
                 <a className="nh-link" href="https://nter.news" target="_blank" rel="noreferrer">
@@ -494,7 +495,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
           <section className="nh-box nh-rail-latest-box">
             <div className="bh">
               <span>
-                LATEST FROM NTER.NEWS
+                SELECTED FROM <PublisherBrand />
                 <span className="nh-agent" title={meta.latest?.checked_at ? `Last successful check: ${meta.latest.checked_at}` : 'Waiting for published stories'}>{newsCheckLabel(meta.latest)}</span>
               </span>
               <a className="nh-link" href="https://nter.news" target="_blank" rel="noreferrer">
@@ -553,7 +554,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
                 <b>{meta.markets?.ageH != null ? `${Number(meta.markets.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
               </div>
               <div>
-                <span>Latest (nter.news)</span>
+                <span>News (nter.news)</span>
                 <b>{newsLoading ? '…' : newsCheckLabel(meta.latest)}</b>
               </div>
               <div>

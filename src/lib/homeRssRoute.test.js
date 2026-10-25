@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 const rss = vi.hoisted(() => ({ read: vi.fn() }));
-vi.mock('../../server/newsRss.mjs', () => ({ serveRssNews: rss.read }));
+vi.mock('../../server/newsPublisher.mjs', () => ({ servePublisherNews: rss.read }));
 import handler from '../../api/router.js';
 afterEach(() => vi.useRealTimers());
 function response() {

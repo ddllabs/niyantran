@@ -4,7 +4,7 @@ export const NEWS_POLL_MS = 60_000;
 const MAX_SAVED_AGE_MS = 24 * 60 * 60_000;
 
 export function savedHomeNews(body, now = Date.now()) {
-  if (body?.delivery !== 'rss' || !Array.isArray(body.rows)) return null;
+  if (body?.delivery !== 'publisher' || !Array.isArray(body.rows)) return null;
   const checked = Date.parse(body.checked_at);
   if (!Number.isFinite(checked) || now - checked > MAX_SAVED_AGE_MS || checked > now + 60_000) return null;
   const stale = Boolean(body.stale || body.archive || now - checked >= NEWS_CACHE_MS);
@@ -12,6 +12,7 @@ export function savedHomeNews(body, now = Date.now()) {
 }
 
 export function newsPublication(iso) {
+  if (!iso) return '';
   const date = new Date(iso);
   return Number.isFinite(date.getTime()) ? date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }) : '';
 }
@@ -23,4 +24,8 @@ export function newsCheckLabel(body, now = Date.now()) {
   const when = minutes < 1 ? 'just now' : minutes < 60 ? `${minutes}m ago` : `${Math.floor(minutes / 60)}h ago`;
   const stale = body.stale || body.archive || now - checked >= NEWS_CACHE_MS;
   return `${stale ? 'previously fetched' : 'checked'} · ${when}`;
+}
+
+export function isPublisherArtwork(src) {
+  return /\/article-default\.svg(?:[?#].*)?$/i.test(String(src || ''));
 }

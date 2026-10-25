@@ -2,7 +2,7 @@ import { afterEach, describe, it, expect, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { fetchNterLatest } from './nterNewsClient.js';
 import NterLatestRail from '../marketing/NterLatestRail.jsx';
-const result = { ok: true, delivery: 'rss', source: 'nter.news', checked_at: new Date().toISOString(), rows: [{ title: 'Publisher story', link: 'https://nter.news/articles/story/', pub: '2026-10-24T10:00:00Z', dek: 'Public excerpt', src: 'News Desk' }] };
+const result = { ok: true, delivery: 'publisher', source: 'nter.news', checked_at: new Date().toISOString(), rows: [{ title: 'Publisher story', link: 'https://nter.news/articles/story/', pub: '2026-10-24T10:00:00Z', dek: 'Public excerpt', src: 'News Desk' }] };
 afterEach(() => vi.unstubAllGlobals());
 describe('publisher RSS client and public rail', () => {
   it('uses the RSS API contract and requests revalidation only for manual refresh', async () => {
@@ -29,7 +29,9 @@ describe('publisher RSS client and public rail', () => {
     const html = renderToStaticMarkup(<NterLatestRail limit={4} />);
     expect(html).toContain('nter-rail-section');
     expect(html).toContain('NTER.news Intelligence Rail');
-    expect(html).toContain('Latest from nter.news');
+    expect(html).toContain('Selected from');
+    expect(html).toContain('aria-label="nter.news"');
+    expect(html).toContain('nter-news-mark-red');
     expect(html).toContain('https://nter.news');
   });
 });

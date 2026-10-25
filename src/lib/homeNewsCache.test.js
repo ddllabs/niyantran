@@ -8,7 +8,7 @@ it('news polling does not postpone market/conflict refresh, and rejects pre-RSS 
   const before = saveHomeCache({ markets: { rows: [{ name: 'NIFTY' }] }, latest: { rows: [{ title: 'Old seed' }] } });
   expect(loadHomeCache().latest).toBeNull();
   vi.advanceTimersByTime(3600000);
-  saveHomeCache({ latest: { delivery: 'rss', rows: [], checked_at: new Date().toISOString() } });
+  saveHomeCache({ latest: { delivery: 'publisher', rows: [], checked_at: new Date().toISOString() } });
   expect(loadHomeCache().savedAt).toBe(before.savedAt);
   expect(loadHomeCache().latest.rows).toEqual([]);
 });

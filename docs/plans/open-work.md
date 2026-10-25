@@ -1,6 +1,6 @@
 # Open work: the one list
 
-- [ ] **nter.news RSS homepage preview — 2026-10-25.** Owner approved branch `task/nter-news-rss-preview` and separate Vercel Preview; preserve layout, production and Supabase data. Implemented and verified on `17853ac4`; both required CI jobs passed and the separate [review preview](https://niyantran-git-task-nter-news-rss-preview-ddl-labs.vercel.app) serves current publisher RSS. Owner signed-in review and any main merge remain pending. [Spec](../specs/2026-10-25-nter-news-rss-preview.md), [plan](2026-10-25-nter-news-rss-preview.md). No main merge or CMS migration authorized.
+- [ ] **nter.news RSS homepage preview — 2026-10-25.** Owner approved branch `task/nter-news-rss-preview` and separate Vercel Preview; preserve layout, production and Supabase data. Implemented and verified on `17853ac4`; both required CI jobs passed and the separate [review preview](https://niyantran-git-task-nter-news-rss-preview-ddl-labs.vercel.app) serves current publisher RSS. Signed-in review found RSS selection/date discrepancies and cropped generic artwork. Owner authorized matching publisher front-page order, verified article dates, contain-fit generic art and official logo on the same Preview branch; implemented and locally verified (6,613 app / 1,412 Deno tests, lint/build/bundle/router); exact-commit CI/Preview delivery verification follows. Public selection now begins Kashmir/Shinde/Siang with article-page dates, preserved layout and official logo. Main merge remains unauthorized. [Spec](../specs/2026-10-25-nter-news-rss-preview.md), [plan](2026-10-25-nter-news-rss-preview.md). No main merge or CMS migration authorized.
 
 
 
@@ -79,7 +79,7 @@
 
 - [ ] **F237 — Local manual-grant bootstrap authority.** The existing credits_on_plan_grant manual branch is owned by nter_migrator in the disposable bootstrap and hits the profile guard. Grace tests seed provenance with the trigger disabled inside a rolled-back fixture; no existing trigger was altered. Audit separately before relying on manual grants as a fixture path.
 
-- [ ] **F234 — Development toolchain advisories.** Read-only npm audit on 2026-10-19 reports existing Vite/Vitest dependency advisories (2 moderate, 2 high, 2 critical; esbuild, source-map-js, @vitest/mocker, tinypool and dependents). Production dependency audit reports zero. Review compatible upgrades separately; no dependency changes in the scoped BBC/form fix.
+- [ ] **F234 — Dependency advisories.** Read-only npm audit on 2026-10-19 reports existing Vite/Vitest dependency advisories (2 moderate, 2 high, 2 critical; esbuild, source-map-js, @vitest/mocker, tinypool and dependents). Production dependency audit reported zero then. The 2026-10-25 news preview audit now reports one existing high-severity zod advisory (GHSA-mrhx-c7xc-m3w5); no advisory for pinned fast-xml-parser 5.11.2 or cheerio 1.2.0. Review compatible upgrades separately; no dependency changes in the scoped BBC/form fix.
 
 ## Current state — 2026-10-17 (milestone check)
 

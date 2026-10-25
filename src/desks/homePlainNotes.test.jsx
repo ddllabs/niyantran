@@ -22,7 +22,7 @@ const shown = (html) => html.replace(/<[^>]+>/g, '\n').replace(/&#x27;/g, "'").r
 const quote = { name: 'NIFTY 50', last: 25000, chg: 0.4 };
 
 function home(boot) {
-  cache.boot = { ...boot, latest: { ...boot.latest, delivery: 'rss', checked_at: new Date().toISOString() } };
+  cache.boot = { ...boot, latest: { ...boot.latest, delivery: 'publisher', checked_at: new Date().toISOString() } };
   return renderToStaticMarkup(<HomeDesk onOpen={() => {}} onFeed={() => {}} onSelect={() => {}} onLoading={() => {}} />);
 }
 

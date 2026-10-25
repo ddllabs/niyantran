@@ -13,7 +13,7 @@ import { readSiteFigures } from './siteFiguresApi.mjs';
 import { prepareHomeMarketQuotes } from '../src/lib/homeMarkets.js';
 import { REGISTER_NOTE, REGISTER_WINDOW, isAgentSnapshot } from '../src/lib/conflictRegister.js';
 import { serveNterLatest } from './nterNews.mjs';
-import { serveRssNews } from './newsRss.mjs';
+import { servePublisherNews } from './newsPublisher.mjs';
 import { writablePath } from './writableRoot.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -464,9 +464,9 @@ async function fetchLiveLatest() {
   return nter.rows?.length ? nter : null;
 }
 
-/** Public publisher feed. This read path never queries or writes the Supabase news store. */
+/** Public publisher front-page feed. This read path never queries or writes the Supabase news store. */
 export async function serveHomeLatest(opts = {}) {
-  return serveRssNews(opts);
+  return servePublisherNews(opts);
 }
 
 /**

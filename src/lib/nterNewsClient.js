@@ -3,8 +3,8 @@ import { savedHomeNews } from './homeNews.js';
 import { homeLiveApiEnabled } from './apiMode.js';
 
 /**
- * Fetch latest articles from nter.news via /api/home/latest.
- * The old September seed is never presented as current news.
+ * Fetch the publisher-selected articles from nter.news via /api/home/latest.
+ * Pre-correction RSS/seed responses are never presented as the current selection.
  */
 export async function fetchNterLatest({ signal, limit = 12, fresh = false } = {}) {
   if (homeLiveApiEnabled()) {
@@ -12,12 +12,12 @@ export async function fetchNterLatest({ signal, limit = 12, fresh = false } = {}
       const url = `/api/home/latest?limit=${encodeURIComponent(limit)}${fresh ? '&fresh=1' : ''}`;
       const res = await fetch(url, { signal, cache: 'no-store' });
       const body = await res.json().catch(() => null);
-      if (body?.delivery === 'rss' && Array.isArray(body.rows)) return body;
+      if (body?.delivery === 'publisher' && Array.isArray(body.rows)) return body;
     } catch (err) {
       if (err?.name === 'AbortError') throw err;
     }
   }
-  return { ok: false, delivery: 'rss', rows: [], checked_at: null, updated: null,
+  return { ok: false, delivery: 'publisher', rows: [], checked_at: null, updated: null,
     note: 'nter.news stories are temporarily unavailable.', source: 'nter.news',
     waiting: true, archive: true, stale: true };
 }
@@ -50,7 +50,7 @@ export function useNterLatest({ pollIntervalMs = 60000, limit = 12, enabled = tr
       const res = await fetchNterLatest({ signal: ac.signal, limit, fresh });
       if (ac.signal.aborted) return;
       setData(prev => {
-        const previous = savedHomeNews({ ...prev, delivery: 'rss' });
+        const previous = savedHomeNews({ ...prev, delivery: 'publisher' });
         const next = res.ok ? res : previous ? { ...previous, stale: true, archive: true, note: res.note } : res;
         return { ...next, loading: false, error: next.rows.length ? null : !res.ok ? res.note : null };
       });
