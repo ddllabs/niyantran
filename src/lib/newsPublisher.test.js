@@ -8,6 +8,11 @@ const article = (date = '2026-08-30', canonical = '') => `<html><head><meta prop
 const response = html => new Response(html);
 
 describe('public publisher selection and publication provenance', () => {
+  it('imports compact explainer thumbnails without mistaking promotional logos for article images', () => {
+    const compact = (slug, src) => `<article class="nx-card"><div class="has-thumb"><h3 class="nx-card__title"><a href="/articles/${slug}/">${slug}</a></h3><a class="nx-thumb" href="/articles/${slug}/" aria-hidden="true"><img src="${src}"></a></div><a class="nx-research"><img src="/assets/brand/nter-pro-mark.png"></a></article>`;
+    const rows = parsePublisherFront(front(compact('autumn', '/assets/uploads/_t/autumn.png-240x160.webp') + compact('bhaipo', '/assets/uploads/_t/bhaipo.jpg-240x160.webp') + compact('unsafe', 'https://evil.example/photo.jpg')));
+    expect(rows.map(row => row.img)).toEqual(['https://nter.news/assets/uploads/_t/autumn.png-240x160.webp', 'https://nter.news/assets/uploads/_t/bhaipo.jpg-240x160.webp', '']);
+  });
   it('keeps editorial order, canonical deduplication, metadata and a bounded card count', () => {
     const rows = parsePublisherFront(front(card('kashmir') + card('shinde') + card('kashmir') + Array.from({ length: 30 }, (_, i) => card(`other-${i}`)).join('')));
     expect(rows).toHaveLength(24);

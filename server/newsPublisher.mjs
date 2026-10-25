@@ -25,7 +25,7 @@ export function parsePublisherFront(html) {
     if (!link || !title || seen.has(link)) return;
     seen.add(link);
     rows.push({ id: link, article_id: link, title, link, source_url: link,
-      img: publisherUrl(card.find('.nx-card__media img,.nx-card__thumb img').first().attr('src') || ''),
+      img: publisherUrl(card.find('.nx-card__media img,.nx-card__thumb img,.nx-thumb img').first().attr('src') || ''),
       category: plain(card.find('.nx-card__kicker').text(), 80),
       dek: plain(card.find('.nx-card__dek').text(), 500),
       pub: null, published_at: null, date_source: null, src: 'nter.news', author: '', source: 'nter.news', fallback: false });
