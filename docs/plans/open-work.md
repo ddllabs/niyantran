@@ -1,7 +1,6 @@
 # Open work: the one list
 
 
-- [ ] **Reviewed preview production release — 2026-10-25.** Owner accepted the preview and explicitly authorized push/merge to production. [PR58](https://github.com/ddllabs/niyantran/pull/58), [release plan](2026-10-25-preview-production-release.md). Publishes the verified nter.news homepage integration/date/image/logo/heading work and citation/search/view-state fixes from b7a772a1; protected PR/main CI and exact production deployment verification required. No data/corpus/schema/billing/auth-policy changes. Complete record indexing remains separate.
 
 
 
@@ -3540,3 +3539,7 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-25 preview discovery and workspace refinement
 
 - [x] **Preview implementation `0ebb0ece`.** Explicit Open citations/individual passage controls, canonical search hierarchy and retained query, bounded fair/partial snapshot search, scoped desk controls and exact-record focus with Return to results.433 files/6625 app tests,1412 Edge tests,lint/build/bundle and isolated browser checks passed. Owner review and any main/production merge remain separate. [Spec](../specs/2026-10-25-discovery-workspace.md), [implementation and release gates](2026-10-25-discovery-workspace.md). Full record indexing remains separate; no data/corpus/production changes.
+
+## Done — 2026-10-25 reviewed preview integration
+
+- [x] **nter.news and discovery integration.** Owner authorized production publication; [PR58](https://github.com/ddllabs/niyantran/pull/58) merged at `a2c69f625cf3e1734a0d1bd83859bc4b0fb2fca1`, preserving reviewed runtime `b7a772a1`. Both required jobs passed on final PR head `cef285c4` (push40175036438 and PR40175040027). News/date/image/logo/heading and citation/search/view-state work is integrated; no Supabase data/schema, corpus, billing or auth-policy changes. [Release gates and recovery](2026-10-25-preview-production-release.md); exact-main CI/deployment and live acceptance receipt is supplied in the delivery report. Full record indexing remains open separately.
