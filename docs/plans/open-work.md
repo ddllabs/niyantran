@@ -1,5 +1,6 @@
 # Open work: the one list
 
+
 - [ ] **nter.news homepage preview — 2026-10-25.** Owner approved only `task/nter-news-rss-preview` and its separate [review preview](https://niyantran-git-task-nter-news-rss-preview-ddl-labs.vercel.app). Initial RSS implementation `17853ac4` and publisher-selection/date/logo revision `73ea88c8` passed both required CI jobs and signed-in review. Owner now approved compact explainer thumbnail repair, newest verified article in the hero (publisher order retained elsewhere), and clearer section headings within existing layout. Regression tests reproduced omissions and old-first hero; thumbnail fix committed, full6,616 app/1,412 Edge tests plus lint/build/bundle/router pass. Responsive browser verification completed; final Preview deployment and exact-commit CI verification follow. Production/Supabase data remain untouched; main merge and CMS migration are unauthorized. [Spec](../specs/2026-10-25-nter-news-rss-preview.md), [plan](2026-10-25-nter-news-rss-preview.md).
 
 
@@ -3533,3 +3534,9 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-22 RAG fallback reliability
 
 - [x] **F242** — Explicit fallback notices, preserved serving-model identity, 300-second chat leases with keepalives, and bounded post-answer telemetry. Independently reviewed; all tests and mandatory CI passed. Commit `9a81cd9b`, PR #10 merge `c0ad4355`; research-chat v71 and nter.pro verified. Billing unchanged. [Evidence](2026-10-22-rag-fallback-reliability.md).
+
+- [ ] **Complete navigation record-search coverage.** Current provider covers indexed snapshots only (42 populated modules at review); global catalogue covers120. Before expanding, inventory each module's structured/register/live/planned source and agree a separate read-only provider/index with access/freshness/bounds. Do not expand AI ingestion just for navigation. This is excluded from the scoped preview refinement; needs its own specification and approval. [Coverage evidence](../research/2026-10-25-citation-search-state-review.md).
+
+## Done — 2026-10-25 preview discovery and workspace refinement
+
+- [x] **Preview implementation `0ebb0ece`.** Explicit Open citations/individual passage controls, canonical search hierarchy and retained query, bounded fair/partial snapshot search, scoped desk controls and exact-record focus with Return to results.433 files/6625 app tests,1412 Edge tests,lint/build/bundle and isolated browser checks passed. Owner review and any main/production merge remain separate. [Spec](../specs/2026-10-25-discovery-workspace.md), [implementation and release gates](2026-10-25-discovery-workspace.md). Full record indexing remains separate; no data/corpus/production changes.
