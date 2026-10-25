@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useWorkspaceState } from '../shell/workspaceState.js';
+import { useEffect, useMemo } from 'react';
 import { hydrateAsset } from '../lib/strategicAssets.js';
 import { applyVizFilter } from '../lib/nationalKpi.js';
 import TableFilterPop, { choiceGroup, matchesChoice } from '../shell/TableFilterPop.jsx';
@@ -16,15 +17,15 @@ function options(list, key) {
   return [...new Set(list.map((p) => p[key]).filter(Boolean))].sort();
 }
 
-export default function NuclearWatch({ feed, selected, onSelect, vizFilter, onClearViz }) {
+export default function NuclearWatch({ workspaceScope = '', feed, selected, onSelect, vizFilter, onClearViz }) {
   const list = useMemo(
     () => (feed?.rows || []).map((r) => hydrateAsset(r, 'nuclear')).filter((p) => p?.id),
     [feed],
   );
-  const [q, setQ] = useState('');
-  const [kind, setKind] = useState('');
-  const [region, setRegion] = useState('');
-  const [status, setStatus] = useState('');
+  const [q, setQ] = useWorkspaceState('NuclearWatch.q', '', workspaceScope);
+  const [kind, setKind] = useWorkspaceState('NuclearWatch.kind', '', workspaceScope);
+  const [region, setRegion] = useWorkspaceState('NuclearWatch.region', '', workspaceScope);
+  const [status, setStatus] = useWorkspaceState('NuclearWatch.status', '', workspaceScope);
   const strip = feed?.meta?.strip || {};
   const selectedId = selected?.id || selected?.__saId || '';
 

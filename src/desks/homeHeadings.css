@@ -1,0 +1,41 @@
+/* Heading hierarchy only: retain the existing Home columns, panels and card geometry. */
+.nh .nh-box > .bh {
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+.nh .nh-section-heading {
+  align-items: flex-start;
+  gap: 12px;
+}
+.nh-heading-copy { min-width: 0; }
+.nh-section-heading h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 750;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.nh-heading-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 6px;
+}
+.nh-heading-source .nh-agent {
+  margin: 0;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.nh-section-heading > .nh-link {
+  flex: none;
+  white-space: nowrap;
+  padding-top: 2px;
+  line-height: 1.5;
+}

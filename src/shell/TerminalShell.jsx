@@ -1,3 +1,6 @@
+import RecordFocus from './RecordFocus.jsx';
+import { clearWorkspace, workspaceScopeKey, readWorkspace, writeWorkspace } from './workspaceState.js';
+import { deskRowKey } from '../lib/deskRows.js';
 import { lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { bucketsFor, catalogModules, modulesForTier, TABS } from '../desks/catalog.js';
 const HomeDesk = lazy(() => import('../desks/HomeDesk.jsx'));
@@ -29,7 +32,7 @@ import { refreshEntitlement, watchEntitlementTransitions } from '../lib/entitlem
 import { OPEN_CONVERSATION_EVENT, clearCredits, refreshCredits } from '../lib/creditsStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
 import { applyInterfaceLang } from './interfaceLang.js';
-import { openInDesk, takePendingDeskRow } from '../ai/openRowSource.js';
+import { openInDesk, pendingDeskRow, takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
 import PersonaChooser from './PersonaChooser.jsx';
 const CreditsPage = lazy(() => import('./credits/CreditsPage.jsx'));
@@ -42,18 +45,26 @@ const LiveTvModal = lazy(() => import('./LiveTvModal.jsx'));
 import { clearPersonaPrefs } from '../lib/personas.js';
 import { hydrateUserPrefs, startUserPrefsSync } from '../lib/userPrefsSync.js';
 import './upgrade.css';
-import DeskCatalogueSearch from './DeskCatalogueSearch.jsx';
+import './command-search.css';
+import './deskCatalogueSearch.css';
+const DeskCatalogueSearch = lazy(() => import('./DeskCatalogueSearch.jsx'));
 import RestrictedDeskRoute from './RestrictedDeskRoute.jsx';
 import { backFromRestrictedDesk, rememberDeskNavigation } from './deskRouteHistory.js';
 
 export default function TerminalShell({ onLogout }) {
   const start = parseDeskHash();
+  const user = sessionUser();
   const [tab, setTab] = useState(start.tab);
   const [featureName, setFeatureName] = useState(start.feature);
+  const workspace = workspaceScopeKey(user?.id || user?.email, `${start.tab}:${start.feature}`);
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
   const [lang, setLang] = useState('en');
   const [theme, setTheme] = useState('light');
   const [feed, setFeed] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [recordFocus, setRecordFocus] = useState(null);
+  const onReveal = useCallback(row => setRecordFocus({ row }), []);
   const [reload, setReload] = useState(0);
   const [loading, setLoading] = useState(false);
   const [vizFilter, setVizFilter] = useState(null);
@@ -67,7 +78,6 @@ export default function TerminalShell({ onLogout }) {
   // F195: the desk rail on module pages, open (names, over the page; a drawer on phones) or not.
   const [railOpen, setRailOpen] = useState(false);
   const [userTick, setUserTick] = useState(0);
-  const user = sessionUser();
   const typeId = userTypeOf(user?.type).id;
   const typeMeta = userTypeOf(typeId);
   const ent = entitlementOf(user);
@@ -126,9 +136,15 @@ export default function TerminalShell({ onLogout }) {
   const onFeed = useCallback(body => setFeed(body), []);
   // F135: with the panel collapsed, picking the selected row again reopens its record.
   const pickRef = useRef({});
-  const onSelect = useMemo(() => rowPicker(() => pickRef.current, setSelected), []);
+  const onSelect = useMemo(() => {
+    const pick = rowPicker(() => pickRef.current, setSelected);
+    return (row, options) => {
+      if (row || options?.toggled) writeWorkspace(workspaceRef.current, 'selected', row ? deskRowKey(row) : '');
+      pick(row, options);
+    };
+  }, []);
   const onLoading = useCallback((v) => setLoading(Boolean(v)), []);
-  const onClearViz = useCallback(() => setVizFilter(null), []);
+  const onClearViz = useCallback(() => { writeWorkspace(workspaceRef.current, 'vizFilter', null); setVizFilter(null); }, []);
   const guideMode = tab !== 'home' && !String(featureName || '').trim();
   const v6Landing = guideMode && ['national', 'global', 'law', 'economics', 'carbon', 'sports', 'entertainment', 'state'].includes(tab);
   // Home is the default view: like a desk landing, it has no module row.
@@ -159,6 +175,7 @@ export default function TerminalShell({ onLogout }) {
     function onViz(e) {
       const it = e.detail;
       if (!it?.filterCol) {
+        writeWorkspace(workspaceRef.current, 'vizFilter', null);
         setVizFilter(null);
         return;
       }
@@ -178,9 +195,13 @@ export default function TerminalShell({ onLogout }) {
         );
         if (i >= 0) {
           const out = list.filter((_, j) => j !== i);
-          return out.length ? out : null;
+          const result = out.length ? out : null;
+          writeWorkspace(workspaceRef.current, 'vizFilter', result);
+          return result;
         }
-        return [...list, next];
+        const result = [...list, next];
+        writeWorkspace(workspaceRef.current, 'vizFilter', result);
+        return result;
       });
     }
     window.addEventListener('niy-viz-filter', onViz);
@@ -188,17 +209,47 @@ export default function TerminalShell({ onLogout }) {
   }, []);
 
   useEffect(() => {
-    setVizFilter(null);
+    setRecordFocus(null);
+    setVizFilter(readWorkspace(workspace, 'vizFilter', null));
     setFeed(null);
     setSelected(null);
-  }, [tab, featureName]);
+  }, [tab, featureName, workspace]);
+
+  useEffect(() => {
+    const pane = document.querySelector('.main-col');
+    if (!pane) return undefined;
+    const save = event => {
+      let node = event.target;
+      const path = [];
+      while (node && node !== pane) { path.unshift(Array.prototype.indexOf.call(node.parentElement.children, node)); node = node.parentElement; }
+      if (node !== pane) return;
+      const positions = readWorkspace(workspace, 'scroll', {});
+      writeWorkspace(workspace, 'scroll', { ...positions, [path.join('.')]: { top: event.target.scrollTop, left: event.target.scrollLeft } });
+    };
+    pane.addEventListener('scroll', save, { passive: true, capture: true });
+    return () => pane.removeEventListener('scroll', save, true);
+  }, [workspace]);
+
+  useEffect(() => {
+    if (!feed || loading || feed.feature !== featureName) return;
+    const pane = document.querySelector('.main-col');
+    if (pane) for (const [path, position] of Object.entries(readWorkspace(workspace, 'scroll', {}))) {
+      const node = path ? path.split('.').reduce((parent, index) => parent?.children[Number(index)], pane) : pane;
+      if (node) { node.scrollTop = position.top; node.scrollLeft = position.left; }
+    }
+    const key = readWorkspace(workspace, 'selected', '');
+    const row = feed.rows?.find(row => deskRowKey(row) === key);
+    if (row) setSelected(row);
+  }, [workspace, feed, loading, featureName]);
 
   // A cited desk row's "Open in desk" (src/ai/openRowSource.js) routes here
   // through the hash and asks for the row to be selected once its feed lands.
   useEffect(() => {
+    const pending = pendingDeskRow();
     const row = takePendingDeskRow(feed, tab);
-    if (row) setSelected(row);
-  }, [feed, tab]);
+    if (row) { setSelected(row); setRecordFocus({ row }); writeWorkspace(workspace, 'selected', deskRowKey(row)); }
+    else if (pending && pending.tab === tab && pending.feature === feed?.feature && !feed.paged) setRecordFocus({ row: null });
+  }, [feed, tab, workspace]);
 
   useEffect(() => {
     kickHomeRefreshIfDue();
@@ -347,6 +398,7 @@ export default function TerminalShell({ onLogout }) {
   const statusLabel = ent.inGrace ? 'Renewal grace' : ent.status === 'active' ? 'Active' : 'Free';
 
   function doLogout() {
+    clearWorkspace();
     clearSessionUser();
     // The AI credit balance is this account's alone; nothing of it outlives the sign-out (F111 review R).
     clearCredits();
@@ -367,7 +419,7 @@ export default function TerminalShell({ onLogout }) {
         {moduleNavigation && !account ? null : <DeskLandingTabs tab={tab} lang={lang} tabs={deskTabs} onDesk={onDesk}/>}
         <div className="shell-header-utilities">
         <DeskDirectory tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/>
-        <DeskCatalogueSearch key={`${user?.id || user?.email || ""}:${userTick}`} tabs={deskTabs} recordTabs={searchTabs} lockedIds={[...lockedIds]}
+        <LazyView><DeskCatalogueSearch key={`${user?.id || user?.email || ""}:${userTick}`} tabs={deskTabs} recordTabs={searchTabs} lockedIds={[...lockedIds]}
           identity={`${user?.id || user?.email || ''}:${userTick}`} lang={lang}
           onOpen={hit => {
             onOpen({ tab: hit.tab, feature: hit.feature });
@@ -375,7 +427,7 @@ export default function TerminalShell({ onLogout }) {
               openInDesk({ ...hit, kind: 'row', tier: hit.tab });
               setReload(value => value + 1);
             }
-          }} />
+          }} /></LazyView>
         <div className="top-actions">
           <button
             type="button"
@@ -537,8 +589,8 @@ export default function TerminalShell({ onLogout }) {
               lang={lang}
             /></LazyView>
           ) : (
-            <LazyView><DeskView
-              key={`${feedTier}:${featureName}`}
+            <><RecordFocus focus={recordFocus} feature={featureName} onReturn={() => setRecordFocus(null)} /><div className="workspace-results" hidden={Boolean(recordFocus)}><LazyView><DeskView
+              key={`${user?.id || user?.email || ''}:${feedTier}:${featureName}`}
               tier={feedTier}
               featureName={featureName}
               onFeed={onFeed}
@@ -548,7 +600,9 @@ export default function TerminalShell({ onLogout }) {
               reload={reload}
               vizFilter={vizFilter}
               onClearViz={onClearViz}
-            /></LazyView>
+              onReveal={onReveal}
+              workspaceScope={workspace}
+            /></LazyView></div></>
           )}
         </main>
         {!restricted && <SidePanel

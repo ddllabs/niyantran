@@ -1,8 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// /api/home/latest reads nter.news articles from Supabase. With .env.local
-// present the real admin client would query the live project, so this suite
-// supplies a stub store instead: the test runs offline and never touches NTER.
+// Stub the legacy store to prove the RSS path never queries Supabase.
 const newsStore = vi.hoisted(() => ({
   tables: [],
   client: {
@@ -115,13 +113,14 @@ describe('CR-06 — End-to-End API Verification Suite', () => {
     });
 
     it('verifies /api/home/latest contract (nter.news)', async () => {
-      const res = await serveHomeLatest();
+      vi.stubGlobal('fetch', vi.fn(async url => new Response(url === 'https://nter.news/' ? '<main><section data-section="top-stories"><article class="nx-card"><h3 class="nx-card__title"><a href="/articles/current/">Publisher headline</a></h3></article></section></main>' : '<main><article><h1>Publisher headline</h1><time datetime="2026-10-24">24 October</time></article></main>')));
+      let res;
+      try { res = await serveHomeLatest({ fresh: true }); } finally { vi.unstubAllGlobals(); }
       expect(res.ok).toBe(true);
       expect(res.source).toBe('nter.news');
       expect(Array.isArray(res.rows)).toBe(true);
-      // The rows came from the stub store, not from a live project or the seed file.
-      expect(newsStore.tables).toContain('nter_news_articles');
-      expect(res.rows.map((r) => r.article_id)).toEqual(['stub-f29']);
+      expect(newsStore.tables).toEqual([]);
+      expect(res.rows.map((r) => r.title)).toEqual(['Publisher headline']);
     });
   });
 

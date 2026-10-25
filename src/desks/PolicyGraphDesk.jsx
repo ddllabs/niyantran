@@ -1,3 +1,4 @@
+import { useWorkspaceState } from '../shell/workspaceState.js';
 import { useEffect, useMemo, useState } from 'react';
 import { PIG_SEC_META } from '../data/nationalCurated.js';
 import { applyVizFilter } from '../lib/nationalKpi.js';
@@ -14,14 +15,14 @@ import {
 
 const NO_ROWS = [];
 
-export default function PolicyGraphDesk({ feed, selected, onSelect, vizFilter, onClearViz }) {
+export default function PolicyGraphDesk({ workspaceScope = '', feed, selected, onSelect, vizFilter, onClearViz }) {
   const rows = feed?.rows || NO_ROWS;
   const model = useMemo(() => buildPigModel(rows), [rows]);
   const [expanded, setExpanded] = useState(() => new Set());
-  const [picked, setPicked] = useState('india');
-  const [query, setQuery] = useState('');
-  const [yearRange, setYearRange] = useState(null);
-  const [stageFilter, setStageFilter] = useState('all');
+  const [picked, setPicked] = useWorkspaceState('PolicyGraphDesk.picked', 'india', workspaceScope);
+  const [query, setQuery] = useWorkspaceState('PolicyGraphDesk.query', '', workspaceScope);
+  const [yearRange, setYearRange] = useWorkspaceState('PolicyGraphDesk.yearRange', null, workspaceScope);
+  const [stageFilter, setStageFilter] = useWorkspaceState('PolicyGraphDesk.stageFilter', 'all', workspaceScope);
   const [drag, setDrag] = useState(null);
   const { years, counts, maxC } = useMemo(() => pigYearCounts(model), [model]);
   const vis = useMemo(() => pigLayout(model, expanded, yearRange), [model, expanded, yearRange]);
@@ -45,7 +46,7 @@ export default function PolicyGraphDesk({ feed, selected, onSelect, vizFilter, o
       const lo = years[Math.max(0, years.length - 6)];
       return [lo, hi];
     });
-  }, [years]);
+  }, [years, setYearRange]);
 
   function stageOk(n) {
     if (stageFilter === 'all') return true;

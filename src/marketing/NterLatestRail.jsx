@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNterLatest } from '../lib/nterNewsClient.js';
+import { newsCheckLabel, newsPublication, isPublisherArtwork } from '../lib/homeNews.js';
 import './nterLatestRail.css';
+import PublisherBrand from '../desks/PublisherBrand.jsx';
 
 function NewsImage({ src, alt }) {
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState(null);
 
-  if (!src || failed) {
+  if (!src || failed === src) {
     return (
       <div className="nter-card-placeholder" aria-hidden="true">
         <span>NTER.NEWS</span>
@@ -16,16 +18,17 @@ function NewsImage({ src, alt }) {
   return (
     <img
       src={src}
+      style={isPublisherArtwork(src) ? { objectFit: 'contain' } : undefined}
       alt={alt || ''}
       className="nter-card-img"
       loading="lazy"
-      onError={() => setFailed(true)}
+      onError={() => setFailed(src)}
     />
   );
 }
 
 export default function NterLatestRail({ onLogin, limit = 8 }) {
-  const { rows, loading, error, updated, ageH, waiting, refresh } = useNterLatest({
+  const { rows, loading, error, checked_at, archive, stale, waiting, note, refresh } = useNterLatest({
     pollIntervalMs: 60000,
     limit,
   });
@@ -37,21 +40,21 @@ export default function NterLatestRail({ onLogin, limit = 8 }) {
           <div className="nter-rail-brand">
             <span className="nter-live-badge">
               <span className="nter-live-dot" aria-hidden="true" />
-              Live Latest
+              Selected from <PublisherBrand />
             </span>
             <div>
               <h2 id="nter-rail-heading" className="nter-rail-title">
                 NTER.news Intelligence Rail
               </h2>
               <p className="nter-rail-subtitle">
-                Live stream of public reporting, policy briefs, and verified investigative developments.
+                Front-page reporting from nter.news, refreshed regularly.
               </p>
             </div>
           </div>
           <div className="nter-rail-meta">
-            {updated ? (
-              <span className="nter-rail-updated" title={`Last updated: ${updated}`}>
-                As of {ageH != null && ageH < 1 ? '<1h ago' : ageH != null ? `${Math.round(ageH)}h ago` : 'just now'}
+            {checked_at ? (
+              <span className="nter-rail-updated" title={`Last checked: ${checked_at}`}>
+                {newsCheckLabel({ checked_at, archive, stale })}
               </span>
             ) : null}
             <a
@@ -83,16 +86,16 @@ export default function NterLatestRail({ onLogin, limit = 8 }) {
           </div>
         ) : error && !rows.length ? (
           <div className="nter-rail-error" role="alert">
-            <h4>Live Feed Disconnected</h4>
+            <h4>News temporarily unavailable</h4>
             <p>{error}</p>
             <button type="button" className="nter-retry-btn" onClick={refresh}>
-              Retry Connection
+              Retry
             </button>
           </div>
         ) : !rows.length || waiting ? (
           <div className="nter-rail-empty">
-            <h4>Waiting for Ingest</h4>
-            <p>Waiting for live articles from nter.news. No headlines were invented.</p>
+            <h4>No stories available</h4>
+            <p>{note || 'Waiting for published stories from nter.news.'}</p>
           </div>
         ) : (
           <div className="nter-cards-grid" data-testid="nter-latest-grid">
@@ -119,7 +122,7 @@ export default function NterLatestRail({ onLogin, limit = 8 }) {
                   ) : null}
                   <div className="nter-card-footer">
                     <span className="nter-card-source">{item.src || 'nter.news'}</span>
-                    <span>{item.ago || 'Recent'}</span>
+                    <span>{newsPublication(item.pub || item.published_at)}</span>
                   </div>
                 </div>
               </a>

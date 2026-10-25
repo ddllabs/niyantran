@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useWorkspaceState } from '../shell/workspaceState.js';
+import { useEffect, useMemo } from 'react';
 import {
   markerPos,
   ordered,
@@ -45,11 +46,11 @@ function theatrePrompt(c, angle = 0) {
   return prompts[(seed + angle) % prompts.length];
 }
 
-export default function ConflictsMonitor({ feed, selected, onSelect, vizFilter, onClearViz }) {
+export default function ConflictsMonitor({ workspaceScope = '', feed, selected, onSelect, vizFilter, onClearViz }) {
   const theatres = useMemo(() => theatresFromFeed(feed), [feed]);
-  const [region, setRegion] = useState('Global');
-  const [posture, setPosture] = useState('All');
-  const [query, setQuery] = useState('');
+  const [region, setRegion] = useWorkspaceState('ConflictsMonitor.region', 'Global', workspaceScope);
+  const [posture, setPosture] = useWorkspaceState('ConflictsMonitor.posture', 'All', workspaceScope);
+  const [query, setQuery] = useWorkspaceState('ConflictsMonitor.query', '', workspaceScope);
 
   const regions = useMemo(() => {
     const set = new Set(theatres.map((c) => regionGroup(c.region)));

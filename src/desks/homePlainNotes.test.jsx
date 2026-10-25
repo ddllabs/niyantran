@@ -22,7 +22,7 @@ const shown = (html) => html.replace(/<[^>]+>/g, '\n').replace(/&#x27;/g, "'").r
 const quote = { name: 'NIFTY 50', last: 25000, chg: 0.4 };
 
 function home(boot) {
-  cache.boot = boot;
+  cache.boot = { ...boot, latest: { ...boot.latest, delivery: 'publisher', checked_at: new Date().toISOString() } };
   return renderToStaticMarkup(<HomeDesk onOpen={() => {}} onFeed={() => {}} onSelect={() => {}} onLoading={() => {}} />);
 }
 
@@ -31,7 +31,7 @@ describe('Home in plain words (F165)', () => {
     const html = home({ markets: { rows: [quote] }, latest: { rows: [], note: INGEST_NOTE, waiting: true, source: 'nter.news' }, pulse: { rows: [] } });
     const text = shown(html);
     expect(text).toContain('No nter.news headlines yet. No headlines were invented.');
-    expect(text).toContain('waiting for stories');
+    expect(text).toContain('checked · just now');
     expect(text).not.toContain('NEWS SEARCH · LIVE');
     expect(text).toContain('No time stamp on these quotes, so treat them as a stored snapshot.');
     expect(text.filter((t) => FORBIDDEN.test(t))).toEqual([]);

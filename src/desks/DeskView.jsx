@@ -1,9 +1,10 @@
+import { useWorkspaceState } from '../shell/workspaceState.js';
 import { rowSelectionProps } from '../shell/rowSelection.js';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchFeature, fetchFeaturePage } from '../lib/featureFeed.js';
 import { featureFeedApiEnabled } from '../lib/apiMode.js';
 import { canonicalQ, isPagedFeature, LAW_LISTING_FEATURE } from '../lib/pagedFeatures.js';
-import { fetchPendingDeskRow } from '../ai/openRowSource.js';
+import { pendingDeskRow, fetchPendingDeskRow } from '../ai/openRowSource.js';
 import { openAiResearch, rowDragProps } from '../lib/aiDrop.js';
 import { deskRowKey } from '../lib/deskRows.js';
 import { cellText, filterRows, isArticleHref, sortRows } from '../lib/normalise.js';
@@ -121,34 +122,35 @@ export default function DeskView({
   reload,
   vizFilter,
   onClearViz,
+  onReveal,
+  workspaceScope = '',
 }) {
-  const [q, setQ] = useState('');
+  const [q, setQ] = useWorkspaceState('table.q', '', workspaceScope);
   const deferredQ = useDeferredValue(q);
-  const [sort, setSort] = useState({ key: '', dir: 'asc' });
+  const [sort, setSort] = useWorkspaceState('table.sort', { key: '', dir: 'asc' }, workspaceScope);
   const [feed, setFeed] = useState(null);
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(true);
   const [visibleKeys, setVisibleKeys] = useState(null);
   const [reloadTick, setReloadTick] = useState(0);
-  const [pageAt, setPageAt] = useState({ view: '', n: 0 });
-  const [hasAnswerFilter, setHasAnswerFilter] = useState('');
+  const [pageAt, setPageAt] = useWorkspaceState('table.pageAt', { view: '', n: 0 }, workspaceScope);
+  const [hasAnswerFilter, setHasAnswerFilter] = useWorkspaceState('table.hasAnswerFilter', '', workspaceScope);
   // F156: Bills and Questions ask the server for one page at a time; after a failed page they load
   // the whole module as before (pagedMode false).
   const [pagedMode, setPagedMode] = useState(() => isPagedFeature(featureName) && featureFeedApiEnabled());
-  const [pagedQ, setPagedQ] = useState('');
+  const [pagedQ, setPagedQ] = useWorkspaceState('table.pagedQ', '', workspaceScope);
   const [paging, setPaging] = useState(false);
   // F190: MLA Directory's State picker ('' is All states); F196: the handbook modules' and the Comparison
   // Engine's Table picker ('' is the module's first table). Only those modules read it (pickValue below).
   // The pick is kept with the module it was made on, so the next module's first request never carries it.
   // F196: the Party Organisation Map opens MLA Directory on the state chosen there (mlaStateHandoff.js).
-  const [modulePick, setModulePick] = useState(() => handoffPick(tier, featureName));
+  const [modulePick, setModulePick] = useWorkspaceState('table.modulePick', () => handoffPick(tier, featureName), workspaceScope);
   // F159 review: a failed load says "check your connection" only when the reader is offline.
   const [errOffline, setErrOffline] = useState(false);
   const loadedFor = useRef('');
   const mounted = useRef(true);
   const lastPick = useRef('');
   const colsKey = featureName ? `niy-cols:${tier || ''}:${featureName}` : '';
-  const filtersKey = featureName ? `niy-filters:${tier || ''}:${featureName}` : '';
   const questionsDesk = isParliamentaryQuestions(featureName);
   const mlaDesk = isMlaDirectory(tier, featureName);
   const picker = mlaDesk ? null : modulePicker(tier, featureName);
@@ -159,7 +161,7 @@ export default function DeskView({
   // last answer to this module and table (kept while a new one loads) and scoped to them: picking
   // another table resets it.
   const subFor = `${pickFor}|${pickValue}`;
-  const [subPick, setSubPick] = useState(NO_PICK);
+  const [subPick, setSubPick] = useWorkspaceState('table.subPick', NO_PICK, workspaceScope);
   const [subMeta, setSubMeta] = useState({ for: '', meta: null });
   const subPicker = picker && subMeta.for === subFor
     ? yearsPicker(tier, featureName, { meta: subMeta.meta }) || comparisonYearPicker(tier, featureName, { meta: subMeta.meta })
@@ -174,10 +176,8 @@ export default function DeskView({
   const setSub = (value) => setSubPick({ for: subFor, value: String(value ?? '') });
 
   useEffect(() => {
-    setQ('');
-    setHasAnswerFilter('');
-    setModulePick(handoffPick(tier, featureName));
-    setSubPick(NO_PICK);
+    const handoff = handoffPick(tier, featureName);
+    if (handoff.value) setModulePick(handoff);
     onSelect(null);
     if (!colsKey) {
       setVisibleKeys(null);
@@ -189,27 +189,7 @@ export default function DeskView({
     } catch {
       setVisibleKeys(null);
     }
-    if (filtersKey) {
-      try {
-        const saved = JSON.parse(localStorage.getItem(filtersKey) || 'null');
-        if (saved && typeof saved === 'object') {
-          if (typeof saved.q === 'string') setQ(saved.q);
-          if (saved.hasAnswer != null) setHasAnswerFilter(saved.hasAnswer);
-        }
-      } catch {
-        /* ignore */
-      }
-    }
-  }, [tier, featureName, onSelect, colsKey, filtersKey]);
-
-  useEffect(() => {
-    if (!filtersKey || !questionsDesk) return;
-    try {
-      localStorage.setItem(filtersKey, JSON.stringify({ q, hasAnswer: hasAnswerFilter }));
-    } catch {
-      /* ignore quota */
-    }
-  }, [filtersKey, questionsDesk, q, hasAnswerFilter]);
+  }, [tier, featureName, onSelect, colsKey, setModulePick]);
 
   function persistVisibleKeys(keys) {
     setVisibleKeys(keys);
@@ -317,7 +297,7 @@ export default function DeskView({
     if (!pagedMode) return undefined;
     const timer = setTimeout(() => setPagedQ(canonicalQ(q)), SEARCH_WAIT_MS);
     return () => clearTimeout(timer);
-  }, [q, pagedMode]);
+  }, [q, pagedMode, setPagedQ]);
 
   // One page per view: a new search, sort, filter, MLA state or table starts again at its first page.
   const viewKey = JSON.stringify([featureName, pagedMode ? pagedQ : deferredQ, sort, vizFilter, hasAnswerFilter, ...(pickValue ? [pickValue] : []), ...(subValue ? [subValue] : [])]);
@@ -368,14 +348,17 @@ export default function DeskView({
         onSelect(null);
         setLoading(false);
         onLoading?.(false);
+        const pending = pendingDeskRow();
         fetchPendingDeskRow(body, (key) => fetchFeaturePage({ tier, feature: featureName, key }).then((b) => b?.rows))
           .then((row) => {
-            if (row && mounted.current) onSelect(row);
+            if (!mounted.current || ac.signal.aborted) return;
+            if (row) { onSelect(row); onReveal?.(row); }
+            else if (pending && pending.feature === featureName && !body.rows?.some(row => deskRowKey(row) === pending.row_key)) onReveal?.(null);
           })
-          .catch(() => {});
+          .catch(() => { if (pending && !ac.signal.aborted) onReveal?.(null); });
       }, () => {});
     return () => ac.abort();
-  }, [pagedMode, tier, featureName, page, pagedQ, sort, vizFilter, hasAnswerFilter, questionsDesk, onFeed, onSelect, onLoading, reload, reloadTick]);
+  }, [pagedMode, tier, featureName, page, pagedQ, sort, vizFilter, hasAnswerFilter, questionsDesk, onFeed, onSelect, onLoading, onReveal, reload, reloadTick]);
 
   const searchIndex = useMemo(() => {
     const rows = feed?.rows || [];
@@ -435,7 +418,7 @@ export default function DeskView({
         setHasAnswerFilter,
       ),
     ];
-  }, [questionsDesk, hasAnswerFilter]);
+  }, [questionsDesk, hasAnswerFilter, setHasAnswerFilter]);
 
   const statusRow = !loading && feed?.rows?.length === 1 && feed.rows[0]?.status === 'source_status' ? feed.rows[0] : null;
   // F159: no records yet because live data is still loading on the server (retried), or given up.
@@ -464,7 +447,7 @@ export default function DeskView({
   }
 
   if (isTransitFeature(featureName)) {
-    return <TransitDesk onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} />;
+    return <TransitDesk workspaceScope={workspaceScope} onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} />;
   }
 
   if (isAlliancesFeature(featureName) && !statusRow && !liveHold) {
@@ -474,7 +457,7 @@ export default function DeskView({
         <div className={`alliances-wrap${loading ? ' is-loading' : ''}`}>
           {loading && <FeedLoader label="Loading alliance register…" />}
           {!loading && (
-            <AlliancesMonitor
+            <AlliancesMonitor workspaceScope={workspaceScope}
               feed={feed}
               selected={selected}
               onSelect={onSelect}
@@ -494,7 +477,7 @@ export default function DeskView({
         {err && <p className="banner warn">{err}</p>}
         <div className={`alliances-wrap${loading ? ' is-loading' : ''}`}>
           {loading && <FeedLoader label="Loading sanctions register…" />}
-          {!loading && <SanctionsMonitor feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
+          {!loading && <SanctionsMonitor workspaceScope={workspaceScope} feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
         </div>
       </div>
     );
@@ -506,7 +489,7 @@ export default function DeskView({
         {err && <p className="banner warn">{err}</p>}
         <div className={`alliances-wrap${loading ? ' is-loading' : ''}`}>
           {loading && <FeedLoader label="Loading aid register…" />}
-          {!loading && <GlobalAidMonitor feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
+          {!loading && <GlobalAidMonitor workspaceScope={workspaceScope} feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
         </div>
       </div>
     );
@@ -518,7 +501,7 @@ export default function DeskView({
         {err && <p className="banner warn">{err}</p>}
         <div className={`alliances-wrap${loading ? ' is-loading' : ''}`}>
           {loading && <FeedLoader label="Loading nuclear register…" />}
-          {!loading && <NuclearWatch feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
+          {!loading && <NuclearWatch workspaceScope={workspaceScope} feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
         </div>
       </div>
     );
@@ -554,7 +537,7 @@ export default function DeskView({
         {err && <p className="banner warn">{err}</p>}
         <div className={`alliances-wrap${loading ? ' is-loading' : ''}`}>
           {loading && <FeedLoader label="Loading policy graph…" />}
-          {!loading && <PolicyGraphDesk feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
+          {!loading && <PolicyGraphDesk workspaceScope={workspaceScope} feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
         </div>
       </div>
     );
@@ -571,7 +554,7 @@ export default function DeskView({
   if (isManifestosFeature(featureName)) {
     return (
       <div className="desk desk-wide desk-res">
-        <ManifestosDesk selected={selected} onFeed={onFeed} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />
+        <ManifestosDesk workspaceScope={workspaceScope} selected={selected} onFeed={onFeed} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />
       </div>
     );
   }
@@ -583,7 +566,7 @@ export default function DeskView({
         <div className={`alliances-wrap${loading ? ' is-loading' : ''}`}>
           {loading && <FeedLoader label="Downloading Budget Statement 1…" />}
           {!loading && (
-            <FundFlowDesk
+            <FundFlowDesk workspaceScope={workspaceScope}
               feed={feed}
               selected={selected}
               onSelect={onSelect}
@@ -631,7 +614,7 @@ export default function DeskView({
   if (isMorningBriefFeature(featureName)) {
     return (
       <div className="desk desk-wide desk-res">
-        <MorningBriefDesk onFeed={onFeed} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />
+        <MorningBriefDesk workspaceScope={workspaceScope} onFeed={onFeed} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />
       </div>
     );
   }
@@ -639,7 +622,7 @@ export default function DeskView({
   if (isStatementsFeature(featureName)) {
     return (
       <div className="desk desk-wide desk-res">
-        <StatementsDesk onFeed={onFeed} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />
+        <StatementsDesk workspaceScope={workspaceScope} onFeed={onFeed} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />
       </div>
     );
   }
@@ -650,7 +633,7 @@ export default function DeskView({
         {err && <p className="banner warn">{err}</p>}
         <div className={`alliances-wrap${loading ? ' is-loading' : ''}`}>
           {loading && <FeedLoader label="Loading MP roster…" />}
-          {!loading && <MpCardsDesk feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
+          {!loading && <MpCardsDesk workspaceScope={workspaceScope} feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
         </div>
       </div>
     );
@@ -683,7 +666,7 @@ export default function DeskView({
         {err && <p className="banner warn">{err}</p>}
         <div className={`alliances-wrap${loading ? ' is-loading' : ''}`}>
           {loading && <FeedLoader label="Loading leader register…" />}
-          {!loading && <LeadersDesk feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
+          {!loading && <LeadersDesk workspaceScope={workspaceScope} feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
         </div>
       </div>
     );
@@ -695,7 +678,7 @@ export default function DeskView({
         {err && <p className="banner warn">{err}</p>}
         <div className={`alliances-wrap${loading ? ' is-loading' : ''}`}>
           {loading && <FeedLoader label="Loading commodity board…" />}
-          {!loading && <CommoditiesDesk feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
+          {!loading && <CommoditiesDesk workspaceScope={workspaceScope} feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
         </div>
       </div>
     );
@@ -720,7 +703,7 @@ export default function DeskView({
         {err && <p className="banner warn">{err}</p>}
         <div className={`conflicts-wrap${loading ? ' is-loading' : ''}`}>
           {loading && <FeedLoader label="Loading conflict monitor…" />}
-          {!loading && <ConflictsMonitor feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
+          {!loading && <ConflictsMonitor workspaceScope={workspaceScope} feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
         </div>
       </div>
     );
@@ -947,10 +930,7 @@ export default function DeskView({
                       const rowId = `${cellOf(row, cols[0] || { key: 'title' })}|${safePage}|${i}`;
                       const on =
                         selected === row ||
-                        (featureName === LAW_LISTING_FEATURE ? Boolean(selected && deskRowKey(selected) === deskRowKey(row)) : (selected &&
-                          (selected.conflict_name || selected.title || selected.subject) &&
-                          (selected.conflict_name || selected.title || selected.subject) ===
-                            (row.conflict_name || row.title || row.subject)));
+                        Boolean(selected && deskRowKey(selected) === deskRowKey(row));
                       const close = /central tender/i.test(featureName) ? tenderCloseBand(row) : null;
                       const rowClass = [on ? 'on' : '', close?.tone ? `close-${close.tone}` : ''].filter(Boolean).join(' ');
                       return (

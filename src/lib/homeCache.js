@@ -1,3 +1,4 @@
+import { savedHomeNews } from './homeNews.js';
 import { liveApiEnabled } from './apiMode.js';
 import { loadRefreshCfg } from './refreshStore.js';
 
@@ -14,7 +15,7 @@ function read() {
     if (!raw) return null;
     const d = JSON.parse(raw);
     if (!d || typeof d !== 'object') return null;
-    return d;
+    return { ...d, latest: savedHomeNews(d.latest) };
   } catch {
     return null;
   }
@@ -43,7 +44,8 @@ export function isHomeCacheFresh(hours, cache = read()) {
 export function saveHomeCache({ markets, latest, pulse }) {
   const prev = read() || {};
   const next = {
-    savedAt: Date.now(),
+    // Editorial polling must not reset the independent market/conflict refresh clock.
+    savedAt: markets || pulse ? Date.now() : prev.savedAt || 0,
     markets: markets || prev.markets || null,
     latest: latest || prev.latest || null,
     pulse: pulse || prev.pulse || null,

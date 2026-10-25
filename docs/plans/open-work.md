@@ -1,6 +1,9 @@
 # Open work: the one list
 
 
+- [ ] **Reviewed preview production release — 2026-10-25.** Owner accepted the preview and explicitly authorized push/merge to production. [PR58](https://github.com/ddllabs/niyantran/pull/58), [release plan](2026-10-25-preview-production-release.md). Publishes the verified nter.news homepage integration/date/image/logo/heading work and citation/search/view-state fixes from b7a772a1; protected PR/main CI and exact production deployment verification required. No data/corpus/schema/billing/auth-policy changes. Complete record indexing remains separate.
+
+
 
 
 - [ ] **F252 — Law provider-tail latency and uncertainty calibration (deferred future work).** Owner deferred on 2026-10-25; not a blocker for unrelated work. Resume only under a new scoped task, using observed slow requests/timeouts to prioritize.  F251's compact-evidence optimization and source corrections are released, but wider latency is not solved: Navinchandra timed out at120s in a private run, retried in96s; Jet took87.705s on NTER with most time inside two provider calls. A private Globiz date response also had unnecessary uncertainty despite sufficient evidence, although final live date passed. Investigate using measured, bounded comparisons; preserve High reasoning, attribution/citations, correction limits and cost accounting. Prior latency/throughput routing experiments were rejected; do not reintroduce them without new evidence. No ingestion or larger batches. [F251 evidence](../operations/law-answer-qualification-release.md).
@@ -77,7 +80,7 @@
 
 - [ ] **F237 — Local manual-grant bootstrap authority.** The existing credits_on_plan_grant manual branch is owned by nter_migrator in the disposable bootstrap and hits the profile guard. Grace tests seed provenance with the trigger disabled inside a rolled-back fixture; no existing trigger was altered. Audit separately before relying on manual grants as a fixture path.
 
-- [ ] **F234 — Development toolchain advisories.** Read-only npm audit on 2026-10-19 reports existing Vite/Vitest dependency advisories (2 moderate, 2 high, 2 critical; esbuild, source-map-js, @vitest/mocker, tinypool and dependents). Production dependency audit reports zero. Review compatible upgrades separately; no dependency changes in the scoped BBC/form fix.
+- [ ] **F234 — Dependency advisories.** Read-only npm audit on 2026-10-19 reports existing Vite/Vitest dependency advisories (2 moderate, 2 high, 2 critical; esbuild, source-map-js, @vitest/mocker, tinypool and dependents). Production dependency audit reported zero then. The 2026-10-25 news preview audit now reports one existing high-severity zod advisory (GHSA-mrhx-c7xc-m3w5); no advisory for pinned fast-xml-parser 5.11.2 or cheerio 1.2.0. Review compatible upgrades separately; no dependency changes in the scoped BBC/form fix.
 
 ## Current state — 2026-10-17 (milestone check)
 
@@ -3531,3 +3534,9 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-22 RAG fallback reliability
 
 - [x] **F242** — Explicit fallback notices, preserved serving-model identity, 300-second chat leases with keepalives, and bounded post-answer telemetry. Independently reviewed; all tests and mandatory CI passed. Commit `9a81cd9b`, PR #10 merge `c0ad4355`; research-chat v71 and nter.pro verified. Billing unchanged. [Evidence](2026-10-22-rag-fallback-reliability.md).
+
+- [ ] **Complete navigation record-search coverage.** Current provider covers indexed snapshots only (42 populated modules at review); global catalogue covers120. Before expanding, inventory each module's structured/register/live/planned source and agree a separate read-only provider/index with access/freshness/bounds. Do not expand AI ingestion just for navigation. This is excluded from the scoped preview refinement; needs its own specification and approval. [Coverage evidence](../research/2026-10-25-citation-search-state-review.md).
+
+## Done — 2026-10-25 preview discovery and workspace refinement
+
+- [x] **Preview implementation `0ebb0ece`.** Explicit Open citations/individual passage controls, canonical search hierarchy and retained query, bounded fair/partial snapshot search, scoped desk controls and exact-record focus with Return to results.433 files/6625 app tests,1412 Edge tests,lint/build/bundle and isolated browser checks passed. Owner review and any main/production merge remain separate. [Spec](../specs/2026-10-25-discovery-workspace.md), [implementation and release gates](2026-10-25-discovery-workspace.md). Full record indexing remains separate; no data/corpus/production changes.

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import bundledAds from '../data/home-ads.json';
-import zine from '../data/home-zine.json';
 import {
   homeCacheHasRows,
   isHomeCacheFresh,
@@ -9,17 +8,34 @@ import {
   saveHomeCache,
 } from '../lib/homeCache.js';
 import { REGISTER_WINDOW } from '../lib/conflictRegister.js';
-import { homeLatestFromStatic, homeMarketsFromStatic, homePulseFromStatic } from '../lib/homeStatic.js';
+import { homeMarketsFromStatic, homePulseFromStatic } from '../lib/homeStatic.js';
 import { homeLiveApiEnabled, liveApiEnabled } from '../lib/apiMode.js';
 import { loadRefreshCfg } from '../lib/refreshStore.js';
 import { aiDragProps } from '../lib/aiDrop.js';
 import { dedupeNewsRows } from '../lib/newsDedup.js';
 import { applyRecordChecklistToFeed } from '../lib/recordChecklist.js';
 import { prepareHomeMarketQuotes } from '../lib/homeMarkets.js';
-import { loadHomeTickerItems } from '../lib/homeTicker.js';
+import { fetchNterLatest } from '../lib/nterNewsClient.js';
+import { savedHomeNews, newsCheckLabel, newsPublication, NEWS_POLL_MS } from '../lib/homeNews.js';
+import HomeNewsImage from './HomeNewsImage.jsx';
+import PublisherBrand from './PublisherBrand.jsx';
+import './homeHeadings.css';
 import { trackProductEvent } from '../lib/productAnalytics.js';
 import { plainNote, technicalTitle } from '../lib/plainSourceNote.js';
 import { loadWatchlist, subscribeWatchlist } from '../lib/watchlistStore.js';
+
+function NewsSectionHeading({ title, meta }) {
+  return <div className="bh nh-section-heading">
+    <div className="nh-heading-copy">
+      <h2>{title}</h2>
+      <div className="nh-heading-source">
+        <PublisherBrand />
+        <span className="nh-agent" title={meta?.checked_at ? `Last successful check: ${meta.checked_at}` : 'Waiting for published stories'}>{newsCheckLabel(meta)}</span>
+      </div>
+    </div>
+    <a className="nh-link" href="https://nter.news" target="_blank" rel="noreferrer">Open nter.news →</a>
+  </div>;
+}
 
 async function getJson(path, signal) {
   const route = String(path).split('?')[0];
@@ -31,9 +47,6 @@ async function getJson(path, signal) {
       const body = await res.json().catch(() => null);
       if (!res.ok || !body) {
         /* fall through to static */
-      } else if (route === '/api/home/latest') {
-        // Empty rows is a valid nter.news state (waiting for ingest).
-        if (body.ok !== false) return body;
       } else if (Array.isArray(body.rows) && body.rows.length) {
         return body;
       } else if (body.last != null) {
@@ -44,7 +57,6 @@ async function getJson(path, signal) {
     }
   }
   if (route === '/api/home/markets') return homeMarketsFromStatic(signal);
-  if (route === '/api/home/latest') return homeLatestFromStatic(signal);
   if (route === '/api/home/pulse') return homePulseFromStatic(signal);
   throw new Error(`HTTP ${route} unavailable`);
 }
@@ -116,7 +128,8 @@ export function SnapshotBadge({ ageH, archive, waiting, source }) {
 }
 
 export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }) {
-  const boot = loadHomeCache();
+  const cachedHome = loadHomeCache();
+  const boot = cachedHome ? { ...cachedHome, latest: savedHomeNews(cachedHome.latest) } : null;
   const [markets, setMarkets] = useState(boot?.markets?.rows || []);
   const [latest, setLatest] = useState(boot?.latest?.rows || []);
   const [pulse, setPulse] = useState(boot?.pulse?.rows || []);
@@ -128,13 +141,13 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
   const [ads, setAds] = useState(() => (Array.isArray(bundledAds) ? bundledAds : []));
   const [ad, setAd] = useState(0);
   const [loading, setLoading] = useState(!homeCacheHasRows(boot));
-  const [topics, setTopics] = useState([]);
+  const [newsLoading, setNewsLoading] = useState(!boot?.latest);
+  const latestRef = useRef(boot?.latest || null);
   const [watchlist, setWatchlist] = useState(() => loadWatchlist());
   const prevReload = useRef(reload);
 
   useEffect(() => subscribeWatchlist(setWatchlist), []);
 
-  const featured = zine[0];
   const latestShown = dedupeNewsRows(
     (latest || []).map((r) => ({
       title: r.title,
@@ -153,19 +166,27 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
     title: r.title,
     link: r.link || r.source_url,
     src: r.src || r.outlet,
-    ago: r.ago,
+    ago: newsPublication(r.pub || r.published || r.date),
     dek: r.dek,
     pub: r.pub || r.published || r.date,
     img: r.img || '',
     category: r.category || '',
     related_count: r.related_count,
   }));
-  const newsLead = latestShown[0] || null;
+  // Keep publisher order elsewhere; only the hero prioritizes verified publication time.
+  const featured = latestShown.reduce((newest, row) => {
+    const time = Date.parse(row.pub);
+    const previous = Date.parse(newest?.pub);
+    return Number.isFinite(time) && (!Number.isFinite(previous) || time > previous) ? row : newest;
+  }, latestShown[0] || null);
+  const topics = latestShown.map(row => ({ key: row.link, text: row.title, cat: row.category || 'NTER.NEWS', link: row.link }));
+  const remainingNews = latestShown.filter(row => row !== featured);
+  const newsLead = remainingNews[0] || null;
   // F165: the latest-news note can describe the ingest route ("POST /api/news/ingest"); a reader sees
   // plain words, and the original stays as the line's title.
   const newsEmptyNote = latestNewsNote(meta.latest?.note, 'nter.news headlines aren\u2019t available right now. No headlines were invented.');
   const railEmptyNote = latestNewsNote(meta.latest?.note, 'Waiting for nter.news stories.');
-  const newsRest = latestShown.slice(1, 13);
+  const newsRest = remainingNews.slice(1, 13);
   const pulseShown = dedupeNewsRows(
     (pulse || []).map((r) => ({
       title: r.title,
@@ -200,14 +221,36 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
     return () => clearInterval(t);
   }, [ads.length]);
 
+  // News has its own freshness policy, independent of the six-hour market refresh setting.
   useEffect(() => {
-    let alive = true;
-    loadHomeTickerItems().then((items) => {
-      if (alive) setTopics(items);
-    });
-    return () => {
-      alive = false;
-    };
+    const ac = new AbortController();
+    let busy = false;
+    async function refreshNews(fresh = false) {
+      if (busy) return;
+      busy = true;
+      try {
+        const result = await fetchNterLatest({ signal: ac.signal, limit: 24, fresh });
+        if (ac.signal.aborted) return;
+        const previous = savedHomeNews(latestRef.current);
+        const next = result.ok ? result : previous
+          ? { ...previous, stale: true, archive: true, note: result.note }
+          : result;
+        latestRef.current = next;
+        setLatest(next.rows || []);
+        setMeta(current => ({ ...current, latest: next }));
+        saveHomeCache({ latest: next });
+      } catch (err) {
+        if (err?.name !== 'AbortError') setMeta(current => ({ ...current, latest: { ...current.latest, stale: true, archive: true } }));
+      } finally {
+        busy = false;
+        if (!ac.signal.aborted) setNewsLoading(false);
+      }
+    }
+    refreshNews(Boolean(reload));
+    const refreshVisible = () => { if (!document.hidden) refreshNews(); };
+    const timer = setInterval(refreshVisible, NEWS_POLL_MS);
+    document.addEventListener('visibilitychange', refreshVisible);
+    return () => { ac.abort(); clearInterval(timer); document.removeEventListener('visibilitychange', refreshVisible); };
   }, [reload]);
 
   useEffect(() => {
@@ -222,70 +265,32 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
     const cached = loadHomeCache();
     const hasCache = homeCacheHasRows(cached);
 
-    function applyFeed(marketsBody, latestBody, pulseBody) {
-      if (latestBody?.rows?.length) {
-        const rows = dedupeNewsRows(
-          latestBody.rows.map((r) => ({ title: r.title, source_url: r.link, date: r.pub, status: '' })),
-        );
-        onFeed(
-          applyRecordChecklistToFeed({
-            feature: 'Home',
-            rows,
-            source: { adapter: 'nter.news', note: latestBody.note },
-            fallback: Boolean(latestBody.archive),
-          }),
-        );
-      } else if (pulseBody?.rows?.length) {
-        const rows = dedupeNewsRows(
-          pulseBody.rows.map((r) => ({ title: r.title, source_url: r.link, date: r.time, status: '' })),
-        );
-        onFeed(
-          applyRecordChecklistToFeed({
-            feature: 'Conflict Pulse',
-            rows,
-            source: {
-              adapter: 'embedded',
-              note: pulseBody.note,
-            },
-            fallback: Boolean(pulseBody.archive),
-          }),
-        );
-      }
-      onSelect(null);
-    }
-
     function paintCache(c) {
       if (!c) return;
       setMarkets(c.markets?.rows || []);
-      setLatest(c.latest?.rows || []);
       setPulse(c.pulse?.rows || []);
-      setMeta({ markets: c.markets, latest: c.latest, pulse: c.pulse });
+      setMeta(current => ({ ...current, markets: c.markets, pulse: c.pulse }));
       setLoading(false);
       onLoading?.(false);
     }
 
     async function pullSnapshots(fresh) {
       const q = `maxAgeH=${encodeURIComponent(hours)}${fresh ? '&fresh=1' : ''}`;
-      const [m, l, p] = await Promise.allSettled([
+      const [m, p] = await Promise.allSettled([
         getJson(`/api/home/markets?${q}`, ac.signal),
-        getJson(`/api/home/latest?${q}`, ac.signal),
         getJson(`/api/home/pulse?${q}`, ac.signal),
       ]);
       if (ac.signal.aborted) return;
       const marketsBody = m.status === 'fulfilled' ? m.value : null;
-      const latestBody = l.status === 'fulfilled' ? l.value : null;
       const pulseBody = p.status === 'fulfilled' ? p.value : null;
       if (marketsBody?.rows) setMarkets(marketsBody.rows);
-      if (latestBody?.rows) setLatest(latestBody.rows);
       if (pulseBody?.rows) setPulse(pulseBody.rows);
-      setMeta({ markets: marketsBody, latest: latestBody, pulse: pulseBody });
-      saveHomeCache({ markets: marketsBody, latest: latestBody, pulse: pulseBody });
-      applyFeed(marketsBody, latestBody, pulseBody);
+      setMeta(current => ({ ...current, markets: marketsBody, pulse: pulseBody }));
+      saveHomeCache({ markets: marketsBody, pulse: pulseBody });
     }
 
     if (hasCache) {
       paintCache(cached);
-      applyFeed(cached.markets, cached.latest, cached.pulse);
     } else {
       setLoading(true);
       onLoading?.(true);
@@ -321,7 +326,16 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
     })();
 
     return () => ac.abort();
-  }, [onFeed, onSelect, onLoading, reload]);
+  }, [onLoading, reload]);
+
+  useEffect(() => {
+    const body = latest.length ? meta.latest : meta.pulse;
+    if (!body?.rows?.length) { onFeed(null); onSelect(null); return; }
+    const rows = dedupeNewsRows(body.rows.map(row => ({ title: row.title, source_url: row.link, date: row.pub || row.time, status: '' })));
+    onFeed(applyRecordChecklistToFeed({ feature: latest.length ? 'Home' : 'Conflict Pulse', rows,
+      source: { adapter: latest.length ? 'nter.news' : 'embedded', note: body.note }, fallback: Boolean(body.archive) }));
+    onSelect(null);
+  }, [latest, meta.latest, meta.pulse, onFeed, onSelect]);
 
   const quotes = prepareHomeMarketQuotes(markets.length ? markets : TICKER_PLACEHOLDERS);
 
@@ -343,9 +357,9 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
                     className="nh-topic"
                     aria-hidden={copy === 1 || undefined}
                     tabIndex={copy === 1 ? -1 : undefined}
-                    onClick={() => onOpen({ tab: it.tab, feature: it.feature })}
+                    onClick={() => window.open(it.link, '_blank', 'noopener,noreferrer')}
                   >
-                    <span className={`nh-topic-cat cat-${it.key}`}>{it.cat}</span>
+                    <span className="nh-topic-cat">{it.cat}</span>
                     <span className="nh-topic-text">{it.text}</span>
                   </button>
                 )),
@@ -403,43 +417,29 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
             <article className="nh-hero">
               <div className="nh-hero-copy">
                 <div className="nh-kicker">
-                  <span className="nh-tag inv">{featured.type || 'Briefing'}</span>
-                  {featured.interactive && <span className="nh-sim">INTERACTIVE</span>}
+                  <span className="nh-tag inv">{featured.category || 'Briefing'}</span>
                 </div>
                 <h2>{featured.title}</h2>
                 <p>{featured.dek}</p>
                 <div className="nh-story-meta">
-                  <span>{featured.source || 'Niyantran'}</span>
-                  {featured.published ? <span>· {featured.published}</span> : null}
+                  <PublisherBrand />
+                  {featured.pub ? <span>· {newsPublication(featured.pub)}</span> : null}
                 </div>
-                <button type="button" className="nh-cta">
-                  Read + explore the data
-                </button>
+                <a className="nh-cta" href={featured.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+                  Read on nter.news
+                </a>
               </div>
-              {featured.thumb && <img className="nh-hero-img" alt="" src={featured.thumb} />}
+              <HomeNewsImage className="nh-hero-img" src={featured.img} />
             </article>
           )}
 
-          <section className="nh-news" aria-label="Latest from nter.news">
+          <section className="nh-news" aria-label="Selected from nter.news">
             <div className="nh-news-head">
-              <div className="bh">
-                <span>
-                  FROM NTER.NEWS
-                  <SnapshotBadge
-                    ageH={meta.latest?.ageH}
-                    archive={Boolean(meta.latest?.archive) && (latestShown?.length || 0) > 0}
-                    waiting={!latestShown.length && (meta.latest?.waiting || meta.latest?.source === 'nter.news')}
-                    source="nter.news"
-                  />
-                </span>
-                <a className="nh-link" href="https://nter.news" target="_blank" rel="noreferrer">
-                  Open nter.news →
-                </a>
-              </div>
+              <NewsSectionHeading title="News & analysis" meta={meta.latest} />
             </div>
 
-            {loading && !latest.length && <p className="muted nh-news-empty">Loading…</p>}
-            {!loading && !latestShown.length && (
+            {newsLoading && !latest.length && <p className="muted nh-news-empty">Loading…</p>}
+            {!newsLoading && !latestShown.length && (
               <p className="muted nh-news-empty" title={technicalTitle(meta.latest?.note, newsEmptyNote)}>
                 {newsEmptyNote}
               </p>
@@ -457,7 +457,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
                   row: { title: newsLead.title, source_url: newsLead.link, src: newsLead.src, img: newsLead.img },
                 })}
               >
-                {newsLead.img ? <img className="nh-news-lead-img" src={newsLead.img} alt="" loading="lazy" /> : null}
+                {newsLead.img ? <HomeNewsImage className="nh-news-lead-img" src={newsLead.img} /> : null}
                 <div className="nh-news-lead-copy">
                   <div className="nh-kicker">
                     <span className="nh-tag">{newsLead.category || 'nter.news'}</span>
@@ -487,7 +487,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
                       row: { title: r.title, source_url: r.link, src: r.src, img: r.img },
                     })}
                   >
-                    {r.img ? <img src={r.img} alt="" loading="lazy" /> : <div className="nh-news-ph" aria-hidden="true" />}
+                    <HomeNewsImage src={r.img} />
                     <div className="nh-news-card-copy">
                       {r.category ? <span className="nh-news-cat">{r.category}</span> : null}
                       <strong>{r.title}</strong>
@@ -505,20 +505,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
 
         <aside className="nh-rail">
           <section className="nh-box nh-rail-latest-box">
-            <div className="bh">
-              <span>
-                LIVE LATEST
-                <SnapshotBadge
-                  ageH={meta.latest?.ageH}
-                  archive={Boolean(meta.latest?.archive) && (latestShown?.length || 0) > 0}
-                  waiting={!latestShown.length && (meta.latest?.waiting || meta.latest?.source === 'nter.news')}
-                  source="nter.news"
-                />
-              </span>
-              <a className="nh-link" href="https://nter.news" target="_blank" rel="noreferrer">
-                nter.news →
-              </a>
-            </div>
+            <NewsSectionHeading title="Publisher picks" meta={meta.latest} />
             <ul className="nh-rail-latest-list">
               {latestShown.slice(0, 4).map((r, i) => (
                 <li key={`rail-latest-${r.link || i}`} className="nh-rail-latest-item">
@@ -550,7 +537,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
           </section>
 
           <section className="nh-box">
-            <div className="bh">MY WATCHLIST</div>
+            <h2 className="bh">MY WATCHLIST</h2>
             <ul className="nh-watchlist">
               {watchlist.length === 0 && <li className="muted" style={{ fontSize: 12 }}>No saved desks yet.</li>}
               {watchlist.map((w) => (
@@ -564,15 +551,15 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
           </section>
 
           <section className="nh-box">
-            <div className="bh">FEED HEALTH</div>
+            <h2 className="bh">FEED HEALTH</h2>
             <div className="nh-health">
               <div>
                 <span>Markets</span>
                 <b>{meta.markets?.ageH != null ? `${Number(meta.markets.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
               </div>
               <div>
-                <span>Latest (nter.news)</span>
-                <b>{meta.latest?.ageH != null ? `${Number(meta.latest.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
+                <span>News (nter.news)</span>
+                <b>{newsLoading ? '…' : newsCheckLabel(meta.latest)}</b>
               </div>
               <div>
                 <span>Conflict pulse</span>

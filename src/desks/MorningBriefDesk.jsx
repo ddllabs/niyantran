@@ -1,3 +1,4 @@
+import { useWorkspaceState } from '../shell/workspaceState.js';
 import { useEffect, useState } from 'react';
 import { applyVizFilter } from '../lib/nationalKpi.js';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
@@ -24,11 +25,11 @@ export function briefSection(feed, section) {
   return { rows: [], err: real.length ? '' : (feed?.source?.note || 'no rows') };
 }
 
-export default function MorningBriefDesk({ onSelect, onFeed, vizFilter, onClearViz }) {
+export default function MorningBriefDesk({ workspaceScope = '', onSelect, onFeed, vizFilter, onClearViz }) {
   const [top, setTop] = useState({ rows: [], err: '' });
   const [pib, setPib] = useState({ rows: [], err: '' });
   const [eco, setEco] = useState({ rows: [], err: '' });
-  const [q, setQ] = useState('');
+  const [q, setQ] = useWorkspaceState('MorningBriefDesk.q', '', workspaceScope);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

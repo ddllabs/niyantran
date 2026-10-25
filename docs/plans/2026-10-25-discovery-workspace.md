@@ -1,0 +1,30 @@
+# Discovery and workspace preview implementation
+
+Status: **Historical (2026-10-25).** Owner approved autonomous implementation and deployment on task/nter-news-rss-preview, 2026-10-25. [Spec](../specs/2026-10-25-discovery-workspace.md).
+
+Sequential, no delegation. Baseline0030407a; production348ae6b1. Existing public branch alias retained.
+
+1. Citation entry: source card CTA and exact numbered controls; source grouping/reader tests, causal regression. Scope ai components and their CSS/tests.
+2. Workspace contract: bounded account/module session store and React adapter; generic and enumerated specialized controls; retain selections/scroll and exact target focus. Scope shell helper/provider, TerminalShell, DeskView, row handoff, specialized adapters, tests. Do not store row bodies or write user preferences to Supabase.
+3. Search provider: canonical catalogue breadcrumbs, fair bounded snapshot results, partial failures and continuation with explicit limited coverage. Scope commandSearch and tests. No server/index/schema changes.
+4. Search presentation: shared retained query/mode, grouped destination hierarchy and coverage/continuation, keyboard/dictation/drag preservation. Scope two search components/CSS/tests.
+5. Review causal tests and actual browser fixtures, full tests, lint/build/bundle, Deno suite; inspect all diff paths/secrets. Commit coherent verified slices, push only preview branch, wait both required CI jobs on exact SHA and Vercel READY/stable alias. Verify public access and signed-in flows. Record limitations, production SHA and clean synchronized state.
+
+Verification: NODE_OPTIONS=--import=/private/tmp/nter-rss-offline.mjs npm test -- <focused files>; npm test (offline preload); npm run lint; npm run build; npm run check:bundle; deno test -A --config supabase/functions/deno.json supabase/functions. CI runs disposable SQL fixtures even though this change touches no SQL. Rollback is preview alias to0030407a deployment; no production operation.
+
+## Evidence
+
+Implementation commit `0ebb0ece` completes the scoped preview UI work. The owner still reviews product acceptance; no main merge is included.
+
+- Causal RED evidence: new document-action/number test failed on the previous plain spans; retained-query mount test failed on setQ(''); partial-desk test rejected all results; fairness test exposed only two of eight desks after the old cutoff; off-page reveal test selected the panel record but never called the left-view reveal action. Corresponding guards pass after the repairs.
+- `NODE_OPTIONS='--import=/private/tmp/nter-rss-offline.mjs' npm test`:433 files /6625 tests pass. External traffic denied by preload; expected source-unavailable/fixture diagnostics are not live-source verification. Final selection-wrapper refinement also passed73 focused tests (shell, panel model, provider, command UI, state store).
+- `deno test -A --config supabase/functions/deno.json supabase/functions`:1412 pass, zero failures. No Edge source changed or deployed.
+- `npm run lint`:pass, zero warnings. `npm run build`:pass. `npm run check:bundle`:pass,181765 initial JavaScript gzip bytes against182446 limit; no extra stylesheets or oversized chunks. No standalone typecheck claimed. `git diff --check`:pass.
+- In-app browser, isolated local fixture with all non-GET API/external traffic rejected: individual citation2 opens chunk2/page2; table query railway survives module navigation and ordinary selection; an excluded/off-page target249 is visibly revealed on the left and selected; Return to results restores124 matching rows/query; search reopening retains Records/Off-page; Show more expands24→48 without dismissal; Escape returns focus. Catalogue dynamically shows8desks/120modules. Desktop and390px iframe light/dark screenshots reviewed. Temporary fixture files removed before commit.
+- State adapters: generic table controls plus Alliances, Commodities, Conflicts, Fund Flow, Global Aid, Leaders, Morning Brief, MP Cards, Nuclear Watch, Policy Graph, Sanctions, Manifestos, Transit and Statements. AssetRegister has no runtime importer and was left unchanged after inventory. State scope is passed explicitly from Shell to avoid global active-module state; only controls, scroll coordinates and selected keys enter bounded session storage. Logout clears it. Transient connections/calculators/gestures remain excluded.
+- Snapshot provider remains deliberately partial, read-only and separate from the AI corpus:50 candidates per accessible desk, fair interleaving within relevance classes,24 displayed at a time with continuation, visible partial failures and source snapshot dates. Ranking is over the bounded candidate set, not all records. The review observed42 populated indexed modules; a complete record index requires its own source inventory and approval. No Sports/Entertainment record coverage is fabricated.
+- Vercel preview alias public override and production alias were re-read before publication. Production remained `dpl_96d6nUJ6tLC5cvUDM8xvRGaE4jQy`, main348ae6b1. Only task/nter-news-rss-preview is authorized for push. Required publication gate: both named CI jobs on the exact final commit, READY preview and stable alias verification; the delivery report supplies the resulting run/deployment receipt. No protection bypass around CI, new production link or project-wide protection change.
+
+## Limits and rollback
+
+No live row was clicked or new AI question sent in browser verification, because the existing record panel can generate a paid brief and write shared data. Isolated fixtures prove interaction behavior; final signed-in preview verification uses read-only search/navigation/existing answers. This work does not promise full record indexing, source freshness beyond snapshot metadata, arbitrary specialized chart-state persistence or changes to answer quality. Production, Supabase schema/data, billing, corpus, homepage content/layout and source collections are unchanged by this task. Rollback remains the prior branch preview deployment0030407a; do not promote or roll back production.

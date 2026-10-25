@@ -1,3 +1,4 @@
+import { useWorkspaceState } from '../shell/workspaceState.js';
 import { useEffect, useMemo, useState } from 'react';
 import { compact, hydrateAppeal, money, statsFor } from '../lib/globalAid.js';
 import { applyVizFilter } from '../lib/nationalKpi.js';
@@ -6,15 +7,15 @@ import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
 import { liveApiEnabled } from '../lib/apiMode.js';
 
-export default function GlobalAidMonitor({ feed, selected, onSelect, vizFilter, onClearViz }) {
+export default function GlobalAidMonitor({ workspaceScope = '', feed, selected, onSelect, vizFilter, onClearViz }) {
   const list = useMemo(
     () => (feed?.rows || []).map((r) => hydrateAppeal(r)).filter((p) => p?.id),
     [feed],
   );
-  const [q, setQ] = useState('');
-  const [region, setRegion] = useState('');
-  const [agency, setAgency] = useState('');
-  const [type, setType] = useState('');
+  const [q, setQ] = useWorkspaceState('GlobalAidMonitor.q', '', workspaceScope);
+  const [region, setRegion] = useWorkspaceState('GlobalAidMonitor.region', '', workspaceScope);
+  const [agency, setAgency] = useWorkspaceState('GlobalAidMonitor.agency', '', workspaceScope);
+  const [type, setType] = useWorkspaceState('GlobalAidMonitor.type', '', workspaceScope);
   const [liveOpen, setLiveOpen] = useState(false);
   const [live, setLive] = useState(null);
   const [liveErr, setLiveErr] = useState('');

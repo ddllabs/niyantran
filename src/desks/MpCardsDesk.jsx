@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useWorkspaceState } from '../shell/workspaceState.js';
 import { LS18_FACTS } from '../data/nationalCurated.js';
 import { applyVizFilter } from '../lib/nationalKpi.js';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
@@ -22,9 +22,9 @@ function MetricLine({ label, value }) {
   );
 }
 
-export default function MpCardsDesk({ feed, selected, onSelect, vizFilter, onClearViz }) {
+export default function MpCardsDesk({ workspaceScope = '', feed, selected, onSelect, vizFilter, onClearViz }) {
   const rows = feed?.rows || [];
-  const [q, setQ] = useState('');
+  const [q, setQ] = useWorkspaceState('MpCardsDesk.q', '', workspaceScope);
   const filtered = rows.filter((r) => {
     if (!applyVizFilter(r, vizFilter)) return false;
     if (!q.trim()) return true;
