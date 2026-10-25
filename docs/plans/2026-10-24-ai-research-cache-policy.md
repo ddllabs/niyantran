@@ -1,0 +1,66 @@
+# F253 implementation plan
+
+**Status: Living.** Implements the matching cache-policy spec. Sequential on task/ai-research-cache-policy.
+
+1. Read shared frontend/handler/agent, Law review, briefs, serializer, web policy and tests.
+2. Causal tests at handler provider boundary and briefs. Write scopes: research-chat/handler.ts and handler_test.ts; _shared/openrouterStream.ts and its tests; desk-brief/handler.ts and handler_test.ts/record_test.ts. Preserve request semantics and all policy gates.
+3. Extract existing model-aware cache fields; enable at common chat boundary and brief transport. Add cross-desk regression matrix without changing web policy.
+4. Focused/full checks per spec; independent read-only review permitted, no delegation beyond review. Record evidence and limitations in this plan and open-work. Initial local checkpoint complete; publication and production acceptance subsequently authorized below.
+
+## Execution evidence — 2026-10-24
+
+The original Law16-case matrix failed after cache/session assertions were added; the long-evidence serializer and brief-boundary tests also failed before implementation. Independent review found citation repair still bypassed the wrapper: its accepted/rejected/thrown repair regression failed before routing it through cachedStream. The final policy wrapper is separate from served-model observation to preserve answer attribution.
+
+Independent reviewer:74 serializer/brief tests and196 handler tests pass, including10 cross-desk indexed/missing-record cases. Full Edge suite1333 passes; lint, production build, router import and diff check pass. Full application suite6575 tests across423 files passes. Existing mocked feed errors are test fixtures, not live incidents. At this local checkpoint there were no new paid calls or browser sessions; these tests do not measure production cache-hit rate/cost/latency. Subsequent authorized live acceptance is recorded below.
+
+Read-only production aggregate:1110 Law and3456 National documents have indexed_at set; zero in either tier lack all non-null chunk vectors. This is existence verification, not complete per-document vector coverage or citation reconciliation. No indexed rows were returned for other tiers. All interactive chats use the same frontend send path/backend; separate desk/record briefs are not interactive RAG and have no web-search fallback. Their persistent stored-brief reuse remains unchanged.
+
+Web policy is unchanged. Missing-record auto-on is not universal broad-chat auto-on. Failed lookups preserve privacy instead of assuming missing text. When a module has any indexed documents, desk-wide auto web remains off even if other entries in that module lack text; selecting/attaching one of those entries triggers its per-record decision. Explicit off, greetings and model support gates remain. Required web execution is further bounded to context questions with missing records and no attached indexed document, within the existing budget.
+
+Shared-code risk is real: handler/agent/serializer affect multiple desks. Law-only source checking is conditional on Law context/evidence, so a cross-desk chat retrieving Law evidence can legitimately enter Law review. No evidence here establishes a wider regression from F247–F251; synthetic regression coverage and the read-only vector check are the verified scope, not an end-to-end acceptance run on every desk.
+
+References inspected: OpenRouter prompt caching https://openrouter.ai/docs/guides/best-practices/prompt-caching and response caching https://openrouter.ai/docs/guides/features/response-caching. Supabase changelog Markdown fetch was unsupported by the web reader; no Supabase API/schema contract changed in this task.
+
+Original checkpoint boundary: local code/tests only, no push, PR, deploy, data mutation, ingestion or re-ingestion. Owner subsequently authorized the release below. F252 provider-tail work is not closed by this configuration repair.
+
+## Authorized release — 2026-10-24
+
+Owner authorized publication/deployment and actual cache-hit plus cross-desk acceptance. PR43 merged636efdd0 from398006af after branch40114398801 and PR40114426719 passed Build and tests, SQL fixtures and preview. Exact-main40114877101 passed both required jobs before deployment. Saved current research-chat v94 and desk-brief v18 for rollback; restore those reviewed prior payloads if acceptance regresses, with existing authentication configuration. No data rollback or corpus action is needed.
+
+Baseline: three previous v94 Globiz turns had5 Baidu calls with20480 cached prompt tokens out of60198 input tokens; one StreamLake call had0/1340. Automatic DeepSeek cache hits therefore predate F253. Embedding calls do not expose this prompt-cache metric. Do not attribute baseline hits or all latency differences to the fix.
+
+Production Vercel dpl_GqrCwYSNjt9JPQBNfFFr1PFWbSVh is READY at636efdd0. Supabase research-chat v95 bundle SHA2562e33c19732db9a49c365f95555fda9fbefdb7e4a3d82be7413e4d7d042313fa2 (42 files) and desk-brief v19 SHA2563b3fbcf16d509a954dc31fcdb1f9127df04efa6b2e0e759a03f1a461ca8c20eb (17 files) exactly match the reviewed deploy payloads. Existing verify_jwt:false/body authentication retained; unauthenticated POSTs return401 for both. No schema change.
+
+Live Law acceptance used the existing Globiz record and the same attribution question twice. Turns8ca2d9e9-b71d-490c-92c8-d4a9c57457c3/e226aa89-c522-4329-a437-b1615999af57 completed in19.477s/15.794s. Both distinguish the debtor's submissions from the tribunal's rejection with no order as to costs; Source5 opens the operative text in the reader. Four Baidu DeepSeek calls reported cached/input tokens0/16186,0/1897,256/16231,0/1780. This proves a real post-release cache hit, not universal hits or a causal speedup. Questions/history can change prompt prefixes; no prompt reordering was included.
+
+Independent saved-source review accepts both Globiz answers: §§3.31/3.5 establish debtor assertions, §7.34 establishes disposition, §7.33 supports limitation in the first answer. All five source IDs, document IDs, ranges and normalized hashes match the saved original chunks; heading context establishes speakers. This is not a fresh PDF audit.
+
+National live turn9805014b-7bf4-48c6-a67f-2cac0488b172 retrieved the existing Anti-Doping Amendment Bill2025. Web remained automatically off. Citation4 opened clause9's exact two replacements in the original-text reader. Eight text citations match original chunks, ranges and normalized hashes; the requested Act/clause9 answer is supported. **Answer quality is not fully accepted:** the extra context falsely says clause8 transfers section11 powers, whereas cited originals insert “or have been”; other interpretation exceeds the cited subset. Tracked asF254, not claimed to be a caching regression.
+
+National total123.950s included three DigitalOcean DeepSeek calls31.981s/48.067s/41.790s, cached tokens0 for all. The middle call was rejected by the server (“finish=stop, envelope=absent”) and retried. Existing rejection/repair produced a completed answer, but provider latency remains unresolved underF252. No repeat was needed to demonstrate this failure mode.
+
+State MLA Directory turnc647396f-4c1c-4a3a-b00d-26ebf44b3c74 automatically enabled web for Satyanarayana Pithani (no indexed document). A real web call returned5 pages in62.202s; model_call_logs records web_search_count1. **End-to-end answer failed** after134.871s with “The legal answer could not be verified against original source passages.” The presearch had widened to48 unrelated Law passages, triggering Law context/review. Thus web execution passes but cross-desk answer acceptance fails (F255). Failed message retains no final web_sources; the activity trace and call log, not an empty final source list, prove execution. One intermediate DigitalOcean call reused4096 prompt tokens, despite final answer failure; a cache hit is not answer acceptance.
+
+Opening that State record generated a successful brief via deployed desk-brief v19: Claude Haiku5.5 on Claude Platform on AWS,2.083s,970 input tokens,0 cached. Small inputs are not guaranteed eligible; no live brief cache-hit claim is made. Existing stored-brief reuse is distinct from provider prompt caching.
+
+Release disposition: configuration published and real cache hits observed, but cross-desk end-to-end acceptance remains incomplete (F254/F255/F256). The defects were found after deployment; caching causation is neither established nor disproven. agent.ts/webPolicy.ts are unchanged across91804da9..636efdd0; the caching diff does not alter retrieval scope, review policy or prompts. Retain the release pending scoped investigation rather than claiming universal acceptance or a demonstrated rollback trigger. F253 stays open for acceptance; no opportunistic semantic-policy edits in this caching release.
+
+Economics Economic Simulator turn7fbe6c44-476b-46c7-bbfc-b45243aeae13 automatically enabled web for the selected India GDP growth2025 record. Three real searches returned15 pages in56.199s (model_call_logs web_search_count3); final saved web_sources contains15 entries,2 cited links. Relace DeepSeek reported33024 cached/52981 prompt tokens; DigitalOcean calls reported0 cached. One provider envelope was rejected and one Google citation repair declined; the server completed with web provenance in131.982s. A transient browser disconnect required Recover answer; the final saved answer was visibly restored without a new user turn. Windowed function logs included an interrupted respondWith operation, but this does not establish the disconnect's root cause.
+
+Economics execution/recovery passes, **full answer quality is not accepted**: blanket “unofficial” web provenance contradicts official World Bank/RBI links, the record disclaimer conflicts with use of the selected stored value, and bill-specific widening advice appears here. Calendar-year/latest-official assertions require period/freshness verification, not assumed correct from this run. F256 records these limits. No further paid repeats were run.
+
+Across these five live turns, actual provider cache hits include256 Globiz,4096 intermediate State,33024 Economics tokens. Other calls miss; embeddings have no chat prompt-cache metric. Small brief generation succeeded with0 cache tokens. All production chat-generation paths use the shared configuration, but provider/model eligibility, matching prefixes, expiry and routing govern hits. Full-response caching remains disabled. These results do not establish universal cached calls, faster answers, or cross-desk answer acceptance.
+
+Final read-only corpus comparison after all five turns is fingerprint-identical to the pre-test baseline:4569 documents/150204 chunks globally; Law1110 documents/49488 chunks/1439 listings. No ingestion, re-ingestion, schema, corpus or listing mutation. Normal chat messages/provider accounting and record-brief generation occurred during authorized acceptance. Runtime stays at reviewed636efdd0, research-chat95/desk-brief19; this follow-up changes documentation only.
+
+
+Follow-up, 25 October 2026 IST: F254/F255 grounding acceptance completed; F256 remains open
+after `e4a2cf5a` / research-chat v103 omitted newer observations in both original-question runs. See the [cross-desk release record](../operations/cross-desk-answer-grounding-release.md)
+for exact live turns and partial-answer limitations. Actual v103 cache hits remain
+observed; F252 provider-tail latency remains open. No ingestion.
+
+
+Final follow-up: `807fbee7` / research-chat v104 passed the unchanged original
+Economics question in one complete answer. F254–F256 and the bounded F253
+cross-desk audit are closed; [release evidence](../operations/cross-desk-answer-grounding-release.md#final-acceptance--v104-25-october-2026-ist)
+records limitations and exact executions. F252 latency remains open.

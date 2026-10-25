@@ -319,13 +319,16 @@ export default async function handler(req, res) {
         return;
       }
       const sp = q(req);
-      const maxAgeH = Number(sp.get('maxAgeH'));
-      res.status(200).json(
-        await serveHomeLatest({
-          maxAgeH: Number.isFinite(maxAgeH) && maxAgeH > 0 ? maxAgeH : undefined,
-          fresh: sp.get('fresh') === '1',
-        }),
-      );
+      const fresh = sp.get('fresh') === '1';
+      const body = await serveHomeLatest({ limit: sp.get('limit') || 12, fresh });
+      const checked = Date.parse(body.checked_at);
+      const seconds = Math.max(0, Math.floor((300000 - (Date.now() - checked)) / 1000));
+      if (body.ok && !body.stale && !fresh && seconds > 0) {
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+        res.setHeader('Vercel-CDN-Cache-Control', `public, s-maxage=${seconds}`);
+      }
+      if (method === 'HEAD') { res.status(body.ok ? 200 : 503).end(); return; }
+      res.status(body.ok ? 200 : 503).json(body);
       return;
     }
 

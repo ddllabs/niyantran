@@ -1,3 +1,4 @@
+import { useWorkspaceState } from '../shell/workspaceState.js';
 import { rowSelectionProps } from '../shell/rowSelection.js';
 import { useEffect, useState } from 'react';
 import { STATEMENT_LEADERS } from '../data/nationalCurated.js';
@@ -34,13 +35,13 @@ export function mentionVolume(rows, now = Date.now()) {
   return series.filter((p) => p.n > 0).length >= 2 ? series : null;
 }
 
-export default function StatementsDesk({ onSelect, onFeed, vizFilter, onClearViz }) {
-  const [i, setI] = useState(0);
+export default function StatementsDesk({ workspaceScope = '', onSelect, onFeed, vizFilter, onClearViz }) {
+  const [i, setI] = useWorkspaceState('StatementsDesk.i', 0, workspaceScope);
   const [rows, setRows] = useState([]);
   const [vol, setVol] = useState(null);
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(true);
-  const [q, setQ] = useState('');
+  const [q, setQ] = useWorkspaceState('StatementsDesk.q', '', workspaceScope);
   const person = STATEMENT_LEADERS[i];
   const shown = rows.filter((r) => {
     if (!applyVizFilter(r, vizFilter)) return false;

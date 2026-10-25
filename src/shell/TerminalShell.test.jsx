@@ -14,6 +14,7 @@ import TerminalShell from './TerminalShell.jsx';
 
 // These snapshots assert settled route authorization, after mocked deferred views resolve.
 beforeAll(async () => {
+  await import('./DeskCatalogueSearch.jsx');
   vi.stubGlobal('location', { hash: '#/home' });
   for (const hash of ['#/home', '#/carbon', '#/economics/Live%20Global%20Stock%20Exchanges']) {
     location.hash = hash;

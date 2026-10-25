@@ -667,10 +667,10 @@ function replayTurn(state: TurnState, headers: Record<string, string>): Response
  * are different facts and the reader can act on the difference.
  */
 function unverifiedNote(searches: number, webPages = 0): string {
-  // F130: with web pages behind it, the answer is not unbacked - it is backed by the web, not the
-  // record, and the reader is told so, and that those pages are unofficial.
+  // External provenance is not unofficial status. A row may also have supplied
+  // fields even when the model failed to cite it; disclose that citation gap.
   if (webPages > 0) {
-    return '**Not from the record.** Nothing below is backed by Niyantran\'s records; it draws on the web sources listed above the answer, which are unofficial.';
+    return '**External sources.** Web links refer to pages searched this turn, which may include original publications and secondary reporting. Any claims about stored records without a record citation remain unverified.';
   }
   return searches > 0
     ? '**Unverified.** The searches this turn ran returned no passages, so nothing below is backed by the record.'
@@ -697,7 +697,7 @@ const WIDENED_NOTE: Record<Exclude<WidenedScope, 'feature-empty'>, string> = {
   // corpus had no document for it sent the reader looking for a missing bill
   // that was indexed all along.
   unkeyed:
-    '**Search widened.** Nothing attached to this turn names a source document - a desk module or an uploaded file does not - so this turn searched the whole record. Drag a bill\'s row into the chat to confine the search to that bill.',
+    '**Search widened.** Nothing attached to this turn names a source document - a desk module or an uploaded file does not - so this turn searched the whole record. Attach a source document to limit document searches to it.',
 };
 /** `module` is the desk module the turn was filtered to; only 'feature-empty' uses it. */
 function widenedNote(reason: WidenedScope, module?: string): string {
@@ -904,6 +904,9 @@ async function runTurnBody(
   const { window, dropped } = windowMessages(history);
   if (dropped > 0) sender.send({ notice: { kind: 'window', dropped } });
 
+  const observationFields = (row: Record<string, string>) => ['country', 'indicator', 'year', 'value', 'unit']
+    .filter(k => row[k] !== undefined && row[k] !== '').map(k => `${k}: ${String(row[k]).slice(0, 100)}`).join('; ');
+  let observationSelection: { text: string; handle?: string } | undefined;
   let selectionBlock: { handle: string; tier: string; feature: string; recordText: string } | undefined;
   // The selected record's document key, the stored row's when the server can confirm the row.
   let selectionKey: string | null = request.selection?.document_key ?? null;
@@ -915,7 +918,7 @@ async function runTurnBody(
       const handle = handles.assign(rowSourceKey(stored));
       evidence.set(handle, { kind: 'row', row: { ...stored, snapshot_at: stored.snapshot_at || '' } });
       selectionBlock = { handle, tier: stored.tier, feature: stored.feature, recordText: stored.record_text };
-      selectionKey = stored.document_key ?? selectionKey;
+      selectionKey = stored.document_key;
     } else {
       selectionBlock = {
         handle: 'the selected record (user-supplied, not citable)',
@@ -924,7 +927,33 @@ async function runTurnBody(
         recordText: deskRecordText(request.selection.row),
       };
     }
+    if (request.selection.tier === 'economics' && request.selection.feature === 'Economic Simulator') {
+      const row = stored?.row ?? request.selection.row;
+      observationSelection = {
+        text: observationFields(row),
+        ...(stored ? { handle: selectionBlock.handle } : {}),
+      };
+    }
   }
+
+  // Resolve row chips once: web eligibility, retrieval and citations must use
+  // the same server-confirmed mapping, even when a browser chip is stale.
+  const attachmentRows = await Promise.all(request.attachments.map(attachment =>
+    (attachment.kind === 'row' || attachment.kind === 'record') &&
+        attachment.tier && attachment.feature && attachment.row_key
+      ? deps.db.findDeskRow(attachment.tier, attachment.feature, attachment.row_key)
+      : Promise.resolve(null)
+  ));
+  const mappedRequest: ResearchRequest = {
+    ...request,
+    selection: request.selection ? { ...request.selection, document_key: selectionKey ?? undefined } : request.selection,
+    attachments: request.attachments.map((attachment, index) => {
+      const stored = attachmentRows[index];
+      return stored && attachment.kind !== 'document'
+        ? { ...attachment, document_key: stored.document_key ?? undefined }
+        : attachment;
+    }),
+  };
 
   // A corpus fact, and a cheap one: cached for the isolate and never fatal. A
   // turn is still answerable without it, so a failure here costs the coverage
@@ -942,7 +971,7 @@ async function runTurnBody(
   // 3. Web search (F130, web-search spec §1): decided once, before the first model call, and said
   //    to the reader. Every lookup here is best-effort; none can fail the turn.
   const [webScope, webOverride] = await Promise.all([
-    webScopeOf(deps, request, selectionKey, modules, modulesKnown),
+    webScopeOf(deps, mappedRequest, selectionKey, modules, modulesKnown),
     // A failed read falls back to off, not automatic: "off" may be the reader's privacy choice.
     deps.db.webSearchOverride(conversation.id, request.web_search).catch(() => request.web_search ?? false),
   ]);
@@ -963,6 +992,18 @@ async function runTurnBody(
   const safeText = (s: string) =>
     s ? checkLinks(s, [...webSeen, ...evidenceUrls(evidence)], { scanCode: true }).text : s;
 
+  const documentKeys = documentKeysOf(mappedRequest);
+  const documentIds = documentIdsOf(request);
+  const scopedDocumentIds = await deps.db.resolveDocumentIds({ keys: documentKeys, ids: documentIds });
+  // Missing source text is not permission to substitute unrelated nearest neighbours.
+  // Broad context remains deliberate cross-desk research; mixed attachments still
+  // search their resolved documents and obtain missing context through web policy.
+  const documentSearchUnavailable = request.focus === 'desk'
+    ? webScope.moduleHasDocuments === false
+    : (request.focus === 'attached' || request.focus === 'selection') &&
+      !scopedDocumentIds.length && (webScope.records.length > 0 || webScope.documentAttached ||
+        documentKeys.length > 0 || documentIds.length > 0);
+
   const system = buildSystemPrompt({
     persona,
     today: deps.today?.() ?? new Date(startedAt).toISOString().slice(0, 10),
@@ -971,6 +1012,7 @@ async function runTurnBody(
     selection: selectionBlock,
     documentModules,
     webSearch: web.offered,
+    documentSearchUnavailable,
   });
   // A greeting carries no question, so the attachments are not context for it -
   // they are the reason a bare "hi" came back as a 2,342-character brief with
@@ -980,19 +1022,21 @@ async function runTurnBody(
   const verifiedHandles = new Set<string>();
   const attachments: RenderedAttachment[] = [];
   if (!conversational) {
-    for (const attachment of request.attachments) {
+    for (const [index, attachment] of request.attachments.entries()) {
       // A row chip is citable only after its identity is resolved against the
       // database. Never trust its text or an invented browser-supplied handle.
-      const stored = (attachment.kind === 'row' || attachment.kind === 'record') &&
-          attachment.tier && attachment.feature && attachment.row_key
-        ? await deps.db.findDeskRow(attachment.tier, attachment.feature, attachment.row_key)
-        : null;
+      const stored = attachmentRows[index];
       if (stored) {
         const handle = handles.assign(rowSourceKey(stored));
         evidence.set(handle, { kind: 'row', row: { ...stored, snapshot_at: stored.snapshot_at || '' } });
         verifiedHandles.add(handle);
         attachments.push({ kind: attachment.kind as 'row' | 'record', title: attachment.title, text: stored.record_text, handle });
       } else attachments.push(promptAttachment(attachment));
+      if (!observationSelection && attachment.tier === 'economics' && attachment.feature === 'Economic Simulator' && attachment.kind !== 'document') {
+        observationSelection = stored
+          ? { text: observationFields(stored.row), handle: handles.assign(rowSourceKey(stored)) }
+          : { text: `${attachment.title}: ${attachment.text}`.slice(0, 300) };
+      }
     }
   }
   // F200: and it is told that it is small talk, so no answer style or persona format turns it into
@@ -1002,9 +1046,6 @@ async function runTurnBody(
     ? webScope.records.slice(-1) : webScope.records;
   const requiredWeb = web.offered && targetRecords.some(r => !r.indexed) &&
     !webScope.documentAttached && requiresWebContext(request.message);
-  const documentKeys = documentKeysOf(request);
-  const documentIds = documentIdsOf(request);
-  const scopedDocumentIds = await deps.db.resolveDocumentIds({ keys: documentKeys, ids: documentIds });
 
   signal.throwIfAborted();
 
@@ -1043,15 +1084,26 @@ async function runTurnBody(
     announcedModel = model;
     sender.send({ model: { requested: t.chosen.model_id, served: model, reason: fallbackReason } });
   };
+  // Policy shared by normal chat, Law review and citation repair. Keep serving
+  // identity observation separate: repair must not replace the answer's model.
+  const cachedStream: HandlerDeps['stream'] = req =>
+    deps.stream({ ...req, cache: true, session_id: conversation.id });
   // Observe the provider's identity without changing telemetry or retry ownership.
   const observedStream: HandlerDeps['stream'] = async function* (req) {
     responseModel = null;
-    yield* deps.stream({ ...req, onAttemptMetadata(metadata) {
+    yield* cachedStream({ ...req, onAttemptMetadata(metadata) {
       if (metadata.served) responseModel = metadata.served;
       req.onAttemptMetadata?.(metadata);
     } });
   };
 
+  const observationTurn = !conversational && documentSearchUnavailable && web.offered &&
+    request.focus !== 'broad' && [request.selection, ...request.attachments, request.desk_context].some(context =>
+      context?.tier === 'economics' && context.feature === 'Economic Simulator');
+  const provisionTurn = !conversational && !documentSearchUnavailable &&
+    request.focus !== 'broad' && /\b(?:sections?|clauses?|provisions?|amend(?:s|ed|ment|ments)?)\b/i.test(request.message) &&
+    [request.desk_context, request.selection, ...request.attachments].some(context =>
+      context?.tier === 'national' && context.feature === 'Bill Passage Probability Index');
   let lawTurn = !conversational && (request.desk_context?.tier === 'law' || request.selection?.tier === 'law' || request.attachments.some(a => a.tier === 'law'));
   const onEvent = (e: AgentEvent) => {
     if (signal.aborted) return;
@@ -1177,7 +1229,7 @@ async function runTurnBody(
       context.checkpoint({ activity: [...activity] });
     } else if ('text' in e || 'draftText' in e) {
       decoder.push('text' in e ? e.text : e.draftText);
-      const shown = lawTurn || placeholderPrefix(decoder.text) ? '' : decoder.text.slice(streamed.length);
+      const shown = lawTurn || provisionTurn || observationTurn || placeholderPrefix(decoder.text) ? '' : decoder.text.slice(streamed.length);
       if (shown) {
         // A research reply promoted to the answer has no answer round to announce it.
         stage(WRITING);
@@ -1199,6 +1251,9 @@ async function runTurnBody(
     window,
     userTurn,
     scopedDocumentIds,
+    documentSearchUnavailable,
+    observationScope: observationTurn,
+    observationContext: observationSelection,
     focus: request.focus,
     conversational,
     // Search the current subject before the first call, including "this bill"
@@ -1237,6 +1292,9 @@ async function runTurnBody(
             ...(schemaDropped ? { response_format: undefined } : {}),
           },
           model: attempts.wrap(observedStream, 'chat_answer'),
+          // Document chips need not carry a desk hint. The agent verifies actual
+          // scoped Law chunks before handing evidence back, and emits lawEvidence.
+          lawEvidenceOnly: request.focus === 'attached' && !web.offered,
           searchDocuments: (args, ids, topK, onTiming) =>
             deps.searchDocuments(args, ids, {
               signal,
@@ -1258,7 +1316,7 @@ async function runTurnBody(
           // starts inside it runs at the model's low effort. At high effort a document search
           // hands the answer one reply budget of passages, not forty: Gemini Flash at high read
           // forty and was still thinking when the deadline cut it at 108.7 s.
-          ...(context.timeLeft ? { timeLeft: () => Math.max(0, context.timeLeft!() - (lawTurn ? LAW_REVIEW_RESERVE_MS : 0)) } : {}),
+          ...(context.timeLeft ? { timeLeft: () => Math.max(0, context.timeLeft!() - ((lawTurn || provisionTurn) ? LAW_REVIEW_RESERVE_MS : 0)) } : {}),
           ...lateReasoningOf(t, model),
           ...(HIGH_EFFORTS.has(effortOf(t, model) ?? '') ? { toolReplyChars: TOOL_REPLY_CHARS } : {}),
         },
@@ -1331,9 +1389,12 @@ async function runTurnBody(
   }
 
   let envelope = parseEnvelope(result.text);
+  const lawEvidenceReady = result.finish === 'law_evidence' && lawTurn &&
+    request.focus === 'attached' && scopedDocumentIds.length === 1 && !web.offered &&
+    result.chunks.length > 0 && result.chunks.every(c => c.desk_tier === 'law' && c.document_id === scopedDocumentIds[0]);
   if (
-    signal.aborted || (result.finish !== 'stop' && result.finish !== 'length') ||
-    (result.finish === 'stop' && !envelope) || (result.finish === 'length' && !streamed.trim())
+    signal.aborted || (!lawEvidenceReady && ((result.finish !== 'stop' && result.finish !== 'length') ||
+    (result.finish === 'stop' && !envelope) || (result.finish === 'length' && !streamed.trim())))
   ) {
     attempts.rejectLast(
       'chat_answer',
@@ -1359,37 +1420,66 @@ async function runTurnBody(
   }
   for (const row of result.rows) evidence.set(handles.assign(rowSourceKey(row)), { kind: 'row', row });
 
-  if (lawTurn && result.chunks.some(c => c.desk_tier === 'law')) {
+  // Provision answers use only the matching retrieved bill originals. Listing
+  // analysis and research prose are not evidence of a provision's legal effect.
+  const provisionEvidence: EvidenceMap = new Map([...evidence].filter(([, entry]) =>
+    entry.kind === 'text' && entry.chunk.desk_tier === 'national' &&
+    entry.chunk.desk_feature === 'Bill Passage Probability Index' &&
+    (!scopedDocumentIds.length || scopedDocumentIds.includes(entry.chunk.document_id))));
+  const reviewLaw = lawTurn && result.chunks.some(c => c.desk_tier === 'law');
+  const reviewProvision = provisionTurn && !reviewLaw;
+  if (reviewLaw || reviewProvision) {
     let reviewed = null;
-    if (envelope && !signal.aborted && budget.modelAttempts < BUDGET.maxSteps &&
+    if ((envelope || lawEvidenceReady) && !signal.aborted && budget.modelAttempts < BUDGET.maxSteps &&
         (!context.timeLeft || context.timeLeft() > 1000)) {
-      try {
-        stage('Checking source support');
-        writingStart = now();
-        // The selector and synthesizer share the turn's deadline, accounting and one repair.
-        reviewed = await reviewLawAnswer(attempts.wrap(observedStream, 'chat_answer'), {
-          model: attemptModel, question: request.message,
-          previousQuestions: window.filter(m => m.role === 'user').map(m => m.content ?? ''),
-          evidence, signal,
-          report: reason => log('research.law_review_rejected', { reason, attempt: budget.modelAttempts }),
-          selectionReasoning: effortOf(t, attemptModel) ? { effort: effortOf(t, attemptModel)! }
-            : lawReviewReasoning(t.models.find(m => m.model_id === attemptModel)?.efforts ?? []).reasoning,
-          ...(effortOf(t, attemptModel) ? { reasoning: { effort: effortOf(t, attemptModel)! } } : {}),
-          takeAttempt: minimumRemaining => {
-            if (signal.aborted || BUDGET.maxSteps - budget.modelAttempts < minimumRemaining ||
-                (context.timeLeft && context.timeLeft() <= 1000)) return false;
-            rounds++;
-            budget.modelAttempts++;
-            return true;
-          },
-        });
-      } catch { reviewed = null; log('research.law_review_failed', { aborted: signal.aborted }); }
+      for (;;) {
+        const beforeReview = budget.modelAttempts;
+        try {
+          stage('Checking source support');
+          writingStart = now();
+          // The selector and synthesizer share the turn's deadline, accounting and one repair.
+          reviewed = await reviewLawAnswer(attempts.wrap(observedStream, 'chat_answer'), {
+            model: attemptModel, question: request.message,
+            compactEvidence: lawEvidenceReady,
+            previousQuestions: window.filter(m => m.role === 'user').map(m => m.content ?? ''),
+            evidence: reviewProvision ? provisionEvidence : evidence, signal,
+            mode: reviewProvision ? 'provision' : 'law',
+            report: reason => log(reviewProvision ? 'research.provision_review_rejected' : 'research.law_review_rejected', { reason, attempt: budget.modelAttempts }),
+            selectionReasoning: effortOf(t, attemptModel) ? { effort: effortOf(t, attemptModel)! }
+              : lawReviewReasoning(t.models.find(m => m.model_id === attemptModel)?.efforts ?? []).reasoning,
+            ...(effortOf(t, attemptModel) ? { reasoning: { effort: effortOf(t, attemptModel)! } } : {}),
+            takeAttempt: minimumRemaining => {
+              if (signal.aborted || BUDGET.maxSteps - budget.modelAttempts < minimumRemaining ||
+                  (context.timeLeft && context.timeLeft() <= 1000)) return false;
+              rounds++;
+              budget.modelAttempts++;
+              return true;
+            },
+          });
+          break;
+        } catch (error) {
+          // The skipped draft used to perform this availability check. Preserve only
+          // its configured retryable-provider failover, never retry validation failures.
+          const next = chain[chain.indexOf(attemptModel) + 1];
+          if (lawEvidenceReady && !signal.aborted && budget.modelAttempts === beforeReview + 1 &&
+              error instanceof ProviderError && error.retryable && next &&
+              BUDGET.maxSteps - budget.modelAttempts >= 2 && (!context.timeLeft || context.timeLeft() > 1000)) {
+            attempts.rejectLast('chat_answer', 'Law evidence selection provider unavailable.');
+            fallbackReason = `unavailable (${error.status})`;
+            attemptModel = next;
+            continue;
+          }
+          reviewed = null;
+          log(reviewProvision ? 'research.provision_review_failed' : 'research.law_review_failed', { aborted: signal.aborted });
+          break;
+        }
+      }
     }
     if (!reviewed) {
       attempts.rejectLast('chat_answer', 'Legal answer declined: original-source support verification failed or unavailable.');
       return makeAssistantMessage({ content: '', sources: [], followUps: [], activity, served,
         status: signal.aborted ? 'interrupted' : 'error',
-        error: 'The legal answer could not be verified against original source passages. Please try again.',
+        error: reviewProvision ? 'The provision answer could not be verified against original source passages. Please try again.' : 'The legal answer could not be verified against original source passages. Please try again.',
         usage: attempts.summary(), timing: timingOf(startedAt, now(), searchMs, writingStart, writingEnd, { firstModelAt, firstAnswerAt, rounds }),
       });
     }
@@ -1421,7 +1511,7 @@ async function runTurnBody(
         return undefined;
       };
       budget.modelAttempts++;
-      const repaired = await repairCitations({ model: attempts.wrap(deps.stream, 'citation_repair') }, {
+      const repaired = await repairCitations({ model: attempts.wrap(cachedStream, 'citation_repair') }, {
         answer: ladder.answer,
         evidence,
         model: deps.repairModel,
@@ -1465,6 +1555,7 @@ async function runTurnBody(
   // Both can be true at once - a widened search that also returned nothing -
   // and they answer different questions, so neither replaces the other.
   const notes = [
+    ...(observationTurn ? ['**Observation scope.** The selected year label’s period convention has not been verified. Comparability and revision relationships with web figures are not established.'] : []),
     ...(result.widened ? [widenedNote(result.widened, featureScope?.feature)] : []),
     ...(grounded ? [] : [evidence.size > 0 && !result.webPages.length
       ? '**Unverified.** Evidence was retrieved, but this answer could not be linked to verified citations. Treat its claims as unverified.'
@@ -1479,6 +1570,8 @@ async function runTurnBody(
   const webSources = webSourcesOf(result.webPages, checked.text);
   const content = notes.length ? `${notes.join('\n\n')}\n\n${checked.text}` : checked.text;
 
+  // Observation drafts stay private; first visible answer is the validated final release.
+  if (observationTurn && !firstAnswerAt) firstAnswerAt = now();
   const timing = timingOf(startedAt, now(), searchMs, writingStart, writingEnd, { firstModelAt, firstAnswerAt, rounds });
   // `searches` is a step count, not a token figure; `attempts` beside it already
   // is one. It is written on every completed turn, including when it is zero,

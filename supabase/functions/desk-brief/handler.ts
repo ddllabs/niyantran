@@ -13,7 +13,7 @@ import { requireUser, type Verify } from '../_shared/auth.ts';
 import { corsHeaders, preflight } from '../_shared/cors.ts';
 import { errorResponse, HttpError, json } from '../_shared/http.ts';
 import { log } from '../_shared/logging.ts';
-import { OPENROUTER_CHAT_URL, type Usage } from '../_shared/openrouterStream.ts';
+import { OPENROUTER_CHAT_URL, promptCacheFields, type Message, type Usage } from '../_shared/openrouterStream.ts';
 import {
   buildRecordPrompt,
   catalogueFeature,
@@ -442,7 +442,7 @@ async function postProvider(
         'HTTP-Referer': 'https://niyantran.local',
         'X-Title': 'Niyantran Terminal Desk Brief',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, ...promptCacheFields(String(body.model), body.messages as Message[]) }),
     });
     const data = await res.json().catch(() => null);
     const payload = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : null;

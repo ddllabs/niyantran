@@ -1,5 +1,6 @@
 /** Opt-in, read-only model evaluation; never ingests or writes to Supabase.
  * Input JSON: {cases:[{id,question,previousQuestions?:string[],chunks:Chunk[]}]}
+ * --compact-evidence=off retains selection for matched timing controls.
  * Private chunks come from a separately authorized read/export. Output contains source text;
  * keep it outside Git. No automatic semantic score: independently review answer + cited passages.
  * deno run --allow-read --allow-write=/tmp --allow-net=openrouter.ai \
@@ -36,10 +37,13 @@ for (const c of data.cases) {
   let answer = null, error: string | undefined;
   async function* provider(req: StreamRequest): AsyncGenerator<ModelEvent> {
     calls++;
+    const attemptStarted = Date.now();
     const supplied = JSON.parse(String(req.messages[1].content));
     attempts.push({stagePassageIds:supplied.passages?.map((p:{id:string})=>p.id)});
-    let finished = false;
+    let finished = false, responseText = '';
+    const response = { responseText: '' }; attempts.push(response);
     try { for await (const e of streamChat({fetch,apiKey:key!},req)) {
+      if (e.type === 'text') { responseText = (responseText + e.text).slice(0, 24000); response.responseText = responseText; }
       if (e.type === 'finish') {
         finished = true;
         const cost = e.usage?.cost;
@@ -47,10 +51,13 @@ for (const c of data.cases) {
         attempts.push({finish:e.reason,usage:e.usage});
       }
       yield e;
-    } } finally { if (!finished) unknownCost = true; }
+    } } finally {
+      attempts.push({elapsedMs:Date.now()-attemptStarted,providerSort:req.providerSort ?? null});
+      if (!finished) unknownCost = true;
+    }
   }
   try {
-    answer = await reviewLawAnswer(provider, {model,question:c.question,previousQuestions:c.previousQuestions,evidence,
+    answer = await reviewLawAnswer(provider, {model,question:c.question,previousQuestions:c.previousQuestions,evidence,compactEvidence:arg('compact-evidence') !== 'off',
       signal:AbortSignal.timeout(120_000),selectionReasoning:{effort:arg('selection-effort') ?? arg('effort') ?? 'high'},
       reasoning:{effort:arg('effort') ?? 'high'},report:r=>reasons.push(r),
       takeAttempt: n => !unknownCost && spent < capUsd && maxCalls-calls >= n,

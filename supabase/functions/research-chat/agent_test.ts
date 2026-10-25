@@ -1657,24 +1657,16 @@ Deno.test('web: pages are carried into the next call as one untrusted user messa
   assertEquals(result.webSearches, 2);
 });
 
-Deno.test('web: a web search is not a record search - the no-search press still fires, and the evidence precedes it', async () => {
-  const f = fake([
-    [webResults(page(1)), searched(1)],
-    ready(),
-    answer(),
-  ], { webSearch: { perTurn: 3 } });
+Deno.test('web: returned pages satisfy the search press and reach the answer without counting as record searches', async () => {
+  const f = fake([[webResults(page(1)), searched(1)], answer()], { webSearch: { perTurn: 3 } });
   const result = await runAgent(f.deps, input);
-  assertEquals(f.requests.length, 3);
-  const tail = f.requests[1].messages.slice(-2);
-  assertEquals(tail.map((m) => m.role), ['user', 'user']);
-  assertEquals(tail[0].content, webEvidenceBlock([page(1)]));
-  assert(String(tail[1].content).includes('You have not searched'));
-  assertEquals(serverToolsOf(f.requests[1]), [webSearchTool(2)], 'the pressed call is research and still offered the tool');
+  assertEquals(f.requests.length, 2);
+  assertEquals(evidenceMessages(f.requests[1]).map(m => m.content), [webEvidenceBlock([page(1)])]);
+  assert(!JSON.stringify(f.requests[1].messages).includes('You have not searched'));
   assertEquals(result.searches, 0);
   assertEquals(result.webSearches, 1);
-  assertEquals(f.requests[2].tool_choice, 'none');
-  assertEquals('serverTools' in f.requests[2], false, 'budget left, and still never on the answer call');
-  assertEquals(evidenceMessages(f.requests[2]).length, 1, 'the answer phase sees the evidence');
+  assertEquals(f.requests[1].tool_choice, 'none');
+  assertEquals('serverTools' in f.requests[1], false, 'budget left, and still never on the answer call');
 });
 
 for (
@@ -1850,8 +1842,8 @@ Deno.test('one stream: a web-offered research call that searches sends no draft 
   const answerText = (answer()[0] as { text: string }).text;
   assertEquals(f.events.flatMap((e) => ('text' in e ? [e.text] : [])).join(''), answerText);
   assertEquals(result.text, answerText);
-  // The held sentence still reaches the transcript, as before.
-  assertEquals(f.requests[1].messages.some((m) => m.role === 'assistant' && m.content === 'Checking the record for the committee\'s decision.'), true);
+  // Web research synthesis is discarded; only page evidence and local tool protocol survive.
+  assertEquals(f.requests[1].messages.some((m) => m.role === 'assistant' && m.content === 'Checking the record for the committee\'s decision.'), false);
 });
 
 Deno.test('one stream: a web-offered call that did not search and is promoted sends its text once, just before promoted', async () => {
@@ -2286,4 +2278,219 @@ Deno.test('F247: Law heading context is quoted beside the excerpt without assert
   assert(rendered.includes('does not by itself establish the governing speaker'));
   assert(rendered.endsWith(law.content));
   assert(!renderChunk('ref:abc123-1',{...law,desk_tier:'national'}).includes('CONTENTIONS'));
+});
+
+Deno.test('Law synthesis retains authorized evidence beyond the draft tool-reply cap', async () => {
+  const found = ['submission', 'scope', 'disposition'].map((id, i) => ({
+    ...chunk(id), desk_tier: 'law', document_id: 'law-doc', chunk_index: i,
+    content: `${i + 1}.1 ${id} ` + 'original '.repeat(50),
+  }));
+  const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+    searchDocuments: () => Promise.resolve(found), toolReplyChars: 900,
+  });
+  const result = await runAgent(f.deps, input);
+  const replies = f.requests.flatMap(r => r.messages.filter(m => m.role === 'tool').map(m => String(m.content)));
+  assert(replies.every(reply => !reply.includes('2.1 scope')));
+  assertEquals(result.chunks.map(c => c.id), ['submission', 'scope', 'disposition']);
+});
+
+Deno.test('retained Law review evidence bounds count and size and excludes non-Law overflow', async () => {
+  const first = {...chunk('first'), desk_tier:'law', document_id:'law-doc'};
+  const found = [first, {...longChunk('large', 70000), desk_tier:'law',document_id:'law-doc'},
+    ...Array.from({length:300},(_,i)=>({...chunk(`law-${i}`),desk_tier:'law',document_id:'law-doc'})),
+    {...chunk('other-desk'),desk_tier:'national'}];
+  const f=fake([[docCall(),finish('tool_calls')],ready(),answer()],{
+    searchDocuments:()=>Promise.resolve(found),toolReplyChars:500,
+  });
+  const result=await runAgent(f.deps,input);
+  assertEquals(result.chunks.length,256);
+  assert(!result.chunks.some(c=>c.id==='large'||c.id==='other-desk'));
+});
+
+Deno.test('oversized first Law draft passage still activates final review', async () => {
+  const f=fake([[docCall(),finish('tool_calls')],ready(),answer()],{
+    searchDocuments:()=>Promise.resolve([{...longChunk('large',70000),desk_tier:'law'}]),toolReplyChars:500,
+  });
+  await runAgent(f.deps,input);
+  assert(f.events.some(e=>'lawEvidence' in e));
+});
+
+Deno.test('F250: complete scoped Law retrieval skips only the discarded draft and preserves evidence', async () => {
+  const law = { ...chunk('law'), desk_tier: 'law' };
+  const f = fake([answer()], { lawEvidenceOnly: true, searchDocuments: () => Promise.resolve([law]) });
+  const result = await runAgent(f.deps, { ...input, presearch: 'debt', focus: 'attached', scopedDocumentIds: ['doc-law'] });
+  assertEquals(f.requests.length, 0);
+  assertEquals(result.finish, 'law_evidence');
+  assertEquals(result.text, '');
+  assertEquals(result.chunks, [law]);
+  assertEquals(result.searches, 2);
+  assertEquals(result.modelCalls, 0);
+  assertEquals(result.steps.map(s => s.status), ['ok', 'ok']);
+});
+
+for (const scenario of ['broad','multiple','web','empty-context','failed-context','non-law','wrong-document','no-presearch'] as const) Deno.test(`F250: ${scenario} retains normal research`, async () => {
+  let searches=0;
+  const f=fake(scenario==='no-presearch'?[[docCall(),finish('tool_calls')],answer()]:[answer()],{lawEvidenceOnly:true,...(scenario==='web'?{webSearch:{perTurn:1}}:{}),searchDocuments:()=>{
+    searches++;
+    if(searches===2 && scenario==='failed-context') throw new Error('context unavailable');
+    if(searches===2 && scenario==='empty-context') return Promise.resolve([]);
+    return Promise.resolve([{...chunk('law'),document_id:scenario==='wrong-document'?'other':'doc-law',desk_tier:scenario==='non-law'?'national':'law'}]);
+  }});
+  const result=await runAgent(f.deps,{...input,...(scenario==='no-presearch'?{}:{presearch:'debt'}),focus:scenario==='broad'?'broad':'attached',scopedDocumentIds:scenario==='multiple'?['doc-law','doc-other']:['doc-law']});
+  assert(f.requests.length>0);
+  assert(result.finish!=='law_evidence');
+});
+
+Deno.test('F256 successful web evidence in missing-document scope goes straight to answer without a document-search press', async () => {
+  const f = fake([
+    [webResults(page(1)), searched(1)],
+    answer(), answer(),
+  ], { webSearch: { perTurn: 3, required: true } });
+  const result = await runAgent(f.deps, { ...input, focus: 'attached', documentSearchUnavailable: true });
+  assertEquals(f.requests.length, 2, 'a successful web search must not prompt an impossible document search');
+  assertEquals(f.requests[1].tool_choice, 'none');
+  assertEquals(evidenceMessages(f.requests[1]).map(m => m.content), [webEvidenceBlock([page(1)])]);
+  assert(!JSON.stringify(f.requests[1].messages).includes('You have not searched'));
+  assertEquals(result.webSearches, 1);
+});
+
+Deno.test('F256 web synthesis is not carried as evidence into the answer', async () => {
+  const unsupported = 'The observation is definitely calendar-year GDP and the latest official figure.';
+  const f = fake([
+    [{ type: 'text', text: unsupported }, webResults(page(1)), searched(1)],
+    ready(), answer(),
+  ], { webSearch: { perTurn: 3 } });
+  await runAgent(f.deps, { ...input, documentSearchUnavailable: true });
+  const next = f.requests[1];
+  assert(!JSON.stringify(next.messages).includes(unsupported), 'discard provider synthesis; preserve returned page evidence instead');
+  assertEquals(evidenceMessages(next).map(m => m.content), [webEvidenceBlock([page(1)])]);
+});
+
+Deno.test('F256 mixed web and local tools retain protocol and evidence without provider synthesis', async () => {
+  const unsupported = 'Unsupported interpretation made during web research.';
+  const f = fake([
+    [{ type: 'text', text: unsupported }, docCall('mixed'), webResults(page(1)), searched(1, 'tool_calls')],
+    ready(), answer(),
+  ], { webSearch: { perTurn: 3 }, searchDocuments: () => Promise.resolve([chunk('local')]) });
+  await runAgent(f.deps, input);
+  const next = f.requests[1].messages;
+  const toolTurn = next.find(m => m.role === 'assistant' && m.tool_calls?.some(c => c.id === 'mixed'));
+  assert(toolTurn);
+  assertEquals(toolTurn.content, null, 'web synthesis must not survive through a local tool-call envelope');
+  assertEquals(toolTurn.tool_calls?.[0].function.name, 'search_documents');
+  assert(next.some(m => m.role === 'tool' && m.tool_call_id === 'mixed' && String(m.content).includes('Evidence local')));
+  assertEquals(evidenceMessages(f.requests[1]).map(m => m.content), [webEvidenceBlock([page(1)])]);
+});
+
+Deno.test('F256 failed web research cannot carry its partial synthesis or uncommitted pages into failover', async () => {
+  const unsupported = 'The unverified observation is definitely calendar-year GDP.';
+  const f = fake([], {
+    webSearch: { perTurn: 3 },
+    model: async function* () {
+      yield { type: 'text', text: unsupported };
+      yield webResults(page(77));
+      throw new ProviderError(503, 'web research transport failed');
+    },
+  });
+  const scoped = { ...input, documentSearchUnavailable: true };
+  await assertRejects(() => runAgent(f.deps, scoped), ProviderError);
+  const retry = fake([ready(), answer()], {
+    request: { model: 'failover-model' },
+    webSearch: null,
+    checkpoint: f.deps.checkpoint,
+    handles: f.deps.handles,
+    budget: f.deps.budget,
+  });
+  const result = await runAgent(retry.deps, scoped);
+  assert(!JSON.stringify(retry.requests[0].messages).includes(unsupported), 'failed web synthesis is not evidence for the next provider');
+  assertEquals(evidenceMessages(retry.requests[0]), [], 'failed call pages never become committed evidence');
+  assertEquals(result.webPages, []);
+  assertEquals(result.webSearches, 1, 'possibly billed failed web call still consumes its bounded allowance');
+});
+
+for (const bad of [
+  { answer: 'The latest calendar-year figure is unrevised.', sources: [], follow_up_questions: [] },
+  { definition: { sourceId: 9, quote: 'Excerpt 1' }, updates: [] },
+  { definition: { sourceId: 1, quote: 'Invented statistic' }, updates: [] },
+  { definition: { sourceId: 1, quote: 'Excerpt 1' }, updates: [], comparison: 'Same period' },
+]) Deno.test(`F256 corrects unsupported extraction: ${JSON.stringify(bad)}`, async () => {
+  const good = JSON.stringify({ definitionId: 1, updateIds: [] });
+  const f = fake([[webResults(page(1)), searched(1)], answer(JSON.stringify(bad)), answer(good)], { webSearch: { perTurn: 3 } });
+  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  assert(JSON.parse(result.text).answer.includes('Excerpt 1'));
+  assertEquals(f.requests.length, 3);
+  assert(!JSON.stringify(f.requests[2].messages).includes(JSON.stringify(bad)), 'rejected draft must not become evidence');
+  assert(!f.events.some(e => 'text' in e), 'no raw extraction is public');
+});
+
+Deno.test('F256 repeated malformed extraction returns honest missing evidence within one correction', async () => {
+  const f = fake([[webResults(page(1)), searched(1)], answer('not JSON'), answer('not JSON')], { webSearch: { perTurn: 3 } });
+  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  assertEquals(f.requests.length, 3);
+  assertEquals(result.finish, 'stop');
+  assert(JSON.parse(result.text).answer.includes('supported definition was not available'));
+});
+
+Deno.test('F256 no returned pages produces a transparent evidence limitation', async () => {
+  const empty = JSON.stringify({ definitionId: null, updateIds: [] });
+  const f = fake([ready(), answer(empty)], { webSearch: { perTurn: 3 } });
+  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  assert(JSON.parse(result.text).answer.includes('No supported additional observation'));
+  assertEquals(f.requests.length, 2);
+});
+
+Deno.test('F256 final web synthesis receives explicit publisher and claim-level provenance rules', async () => {
+  const f = fake([[webResults(page(1)), searched(1)], answer()], { webSearch: { perTurn: 3 } });
+  await runAgent(f.deps, { ...input, documentSearchUnavailable: true });
+  const instruction = String(f.requests[1].messages.at(-1)?.content);
+  assert(instruction.includes('publisher') && instruction.includes('aggregator') && instruction.includes('numerical'));
+});
+
+Deno.test('F256 observation correction drops partial continuation draft from its input', async () => {
+  const badPrefix = '{"answer":"The calendar-year observation';
+  const tail = ' is latest.","sources":[],"follow_up_questions":[]}';
+  const good = JSON.stringify({ definitionId: 1, updateIds: [] });
+  const f = fake([[webResults(page(1)), searched(1)], [{ type: 'text', text: badPrefix }, finish('length')], [{ type: 'text', text: tail }, finish()], answer(good)], { webSearch: { perTurn: 3 } });
+  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  assert(JSON.parse(result.text).answer.includes('Excerpt 1'));
+  assert(!JSON.stringify(f.requests[3].messages).includes('The calendar-year observation'));
+});
+
+Deno.test('F256 structured observation renders only source-owned excerpt spans', async () => {
+  const source = { ...page(1), excerpt: 'Annual percentage growth rate of GDP at market prices based on constant local currency.' };
+  const extraction = JSON.stringify({ definitionId: 1, updateIds: [] });
+  const f = fake([[webResults(source), searched(1)], answer(extraction)], { webSearch: { perTurn: 3 } });
+  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  const rendered = JSON.parse(result.text);
+  assert(typeof rendered.answer === 'string', 'structured extraction must become a usable answer');
+  assert(rendered.answer.includes(source.excerpt));
+  assert(rendered.answer.includes(source.url));
+  assert(!f.events.some(e => 'text' in e && e.text.includes('sourceId')), 'raw extraction is withheld');
+  assertEquals(f.requests.length, 2);
+});
+
+Deno.test('F256 schema fallback remains disabled for the structured observation call', async () => {
+  const extraction = JSON.stringify({ definitionId: 1, updateIds: [] });
+  const f = fake([[webResults(page(1)), searched(1)], answer(extraction)], { webSearch: { perTurn: 3 }, request: { model: 'test', response_format: undefined } });
+  await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  assertEquals(f.requests[1].response_format, undefined);
+});
+
+Deno.test('F256 correction preserves first valid definition when correction is malformed', async () => {
+  const extraction = JSON.stringify({ definitionId: 1, updateIds: [999] });
+  const f = fake([[webResults(page(1)), searched(1)], answer(extraction), answer('not JSON')], { webSearch: { perTurn: 3 } });
+  const result = await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  assert(JSON.parse(result.text).answer.includes('Excerpt 1'));
+  assert(!result.text.includes('Fake'));
+  assertEquals(f.requests.length, 3);
+});
+
+Deno.test('F256 extraction contract overrides general envelope at trusted system priority only during answer', async () => {
+  const extraction = JSON.stringify({ definitionId: 1, updateIds: [] });
+  const f = fake([[webResults(page(1)), searched(1)], answer(extraction)], { webSearch: { perTurn: 3 } });
+  await runAgent(f.deps, { ...input, documentSearchUnavailable: true, observationScope: true });
+  const override = f.requests[1].messages.filter(m => m.role === 'system').at(-1);
+  assert(String(override?.content).includes('observation_excerpts'));
+  assert(!String(override?.content).includes('Excerpt 1'), 'untrusted source evidence stays out of system override');
+  assert(!f.requests[0].messages.some(m => m.role === 'system' && String(m.content).includes('observation_excerpts')));
 });

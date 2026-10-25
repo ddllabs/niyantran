@@ -59,7 +59,7 @@ export interface StreamRequest {
   response_format?: unknown;
   reasoning?: { effort: string };
   max_tokens?: number;
-  /** Add Anthropic-style cache breakpoints when the system prompt is long enough,
+  /** Add Anthropic-style cache breakpoints when the input prefix is long enough,
    * and on Anthropic cache the moving tail too. */
   cache?: boolean;
   /** OpenRouter's sticky-routing key: a conversation stays on the provider that holds its
@@ -101,21 +101,30 @@ export class ProviderError extends Error {
 type Part = { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } };
 
 function cacheable(messages: Message[]): boolean {
-  const system = messages.find((m) => m.role === 'system');
-  return typeof system?.content === 'string' && system.content.length >= MIN_CACHEABLE_PREFIX_CHARS;
+  const lastUser = messages.findLastIndex(m => m.role === 'user');
+  return lastUser >= 0 && messages.slice(0, lastUser + 1)
+    .reduce((sum, m) => sum + (typeof m.content === 'string' ? m.content.length : 0), 0) >= MIN_CACHEABLE_PREFIX_CHARS;
 }
 
-function withCacheBreakpoints(messages: Message[]): unknown[] {
-  if (!cacheable(messages)) return messages;
-  const system = messages.find((m) => m.role === 'system');
-  const lastUser = [...messages].reverse().find((m) => m.role === 'user');
-  return messages.map((m) => {
-    if ((m === system || m === lastUser) && typeof m.content === 'string') {
+/** Shared prompt caching for streaming chat and non-streaming briefs.
+ * Eligibility is approximate; actual token minima and hits belong to the provider.
+ * Gemini deliberately uses implicit caching after explicit-cache cost measurements.
+ */
+export function promptCacheFields(model: string, messages: Message[], enabled = true): {
+  messages: unknown[]; cache_control?: { type: 'ephemeral' };
+} {
+  if (!enabled || model.startsWith('google/') || !cacheable(messages)) return { messages };
+  const system = messages.find(m => m.role === 'system');
+  const lastUser = [...messages].reverse().find(m => m.role === 'user');
+  return {
+    messages: messages.map(m => {
+      if (typeof m.content !== 'string' || (m !== lastUser &&
+          !(m === system && m.content.length >= MIN_CACHEABLE_PREFIX_CHARS))) return m;
       const part: Part = { type: 'text', text: m.content, cache_control: { type: 'ephemeral' } };
       return { ...m, content: [part] };
-    }
-    return m;
-  });
+    }),
+    ...(model.startsWith('anthropic/') ? { cache_control: { type: 'ephemeral' as const } } : {}),
+  };
 }
 
 export function buildRequestBody(req: StreamRequest): Record<string, unknown> {
@@ -127,10 +136,9 @@ export function buildRequestBody(req: StreamRequest): Record<string, unknown> {
   // Measured 2026-10-02: per-block breakpoints made every Gemini call write a fresh billed
   // explicit cache, 15% dearer and about twice as slow per call. Gemini caches implicitly for
   // free, so Google bodies carry none (answer-streaming spec §4).
-  const google = req.model.startsWith('google/');
   const body: Record<string, unknown> = {
     model: req.model,
-    messages: req.cache && !google ? withCacheBreakpoints(req.messages) : req.messages,
+    ...promptCacheFields(req.model, req.messages, req.cache === true),
     stream: true,
     usage: { include: true },
   };
@@ -144,12 +152,6 @@ export function buildRequestBody(req: StreamRequest): Record<string, unknown> {
     body.tools = [...(req.tools ?? []), ...req.serverTools];
     body.tool_choice = req.tool_choice ?? 'auto';
   }
-  // The explicit breakpoints stop at the question. Top-level cache_control is
-  // Anthropic's automatic breakpoint on the last block, so each research call
-  // reads the search results the previous one wrote instead of paying for them
-  // again. It is not sent elsewhere: Gemini honours only its last breakpoint,
-  // as a billed explicit cache.
-  if (req.cache && anthropic && cacheable(req.messages)) body.cache_control = { type: 'ephemeral' };
   if (req.response_format) {
     body.response_format = req.response_format;
     body.provider = { require_parameters: true };

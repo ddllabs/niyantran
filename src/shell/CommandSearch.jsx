@@ -6,12 +6,15 @@ import DictationButton from '../components/DictationButton.jsx';
 import './command-search.css';
 
 const modules = catalogModules();
-export default function CommandSearch({ tabs, onOpen, identity, lang = 'en', searchRecords = recordMatches }) {
-  const [q, setQ] = useState('');
-  const [open, setOpen] = useState(false);
+export default function CommandSearch({ tabs, onOpen, identity, lang = 'en', searchRecords = recordMatches, query: sharedQuery, onQuery, scope = 'all' }) {
+  const [localQ, setLocalQ] = useState('');
+  const q = sharedQuery ?? localQ;
+  const setQ = next => onQuery ? onQuery(typeof next === 'function' ? next(q) : next) : setLocalQ(next);
+  const [open, setOpen] = useState(Boolean(sharedQuery));
   const [selected, setSelected] = useState(0);
   const [remote, setRemote] = useState({ query: '', hits: [], loading: false, error: '' });
   const [retry, setRetry] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(24);
   const input = useRef(null);
   // A result is held from mousedown until the click or drag ends. Without cancelling the mousedown
   // (which would also stop a native drag), focus can leave the input, and that must not close the
@@ -19,11 +22,12 @@ export default function CommandSearch({ tabs, onOpen, identity, lang = 'en', sea
   const held = useRef(false);
   const id = useId();
   const query = q.trim();
-  const local = useMemo(() => navigationMatches(query, tabs, modules), [query, tabs]);
+  const local = useMemo(() => scope === 'records' ? [] : navigationMatches(query, tabs, modules), [query, tabs, scope]);
   const records = remote.query === query ? remote.hits : [];
-  const hits = [...local, ...records];
+  const hits = [...local, ...records].slice(0, visibleCount);
   const active = Math.min(selected, Math.max(0, hits.length - 1));
   const visible = open && query.length >= 2;
+  const coverageNote = `${remote.coverage?.failed?.length ? ` Unavailable: ${remote.coverage.failed.join(', ')}.` : ''}${remote.coverage?.truncated ? ' First 50 per desk; refine your search for more.' : ''}`;
 
   useEffect(() => {
     if (!open || query.length < 2) return undefined;
@@ -34,7 +38,7 @@ export default function CommandSearch({ tabs, onOpen, identity, lang = 'en', sea
       const timeout = setTimeout(() => controller.abort(), 10000);
       try {
         const found = await searchRecords(query, tabs, modules, controller.signal);
-        if (live) setRemote({ query, hits: found, loading: false, error: '' });
+        if (live) setRemote({ query, hits: found, loading: false, error: '', coverage: found.coverage });
       } catch {
         if (live) setRemote({ query, hits: [], loading: false, error: 'Record search is unavailable. Try again.' });
       } finally { clearTimeout(timeout); }
@@ -58,7 +62,7 @@ export default function CommandSearch({ tabs, onOpen, identity, lang = 'en', sea
   function choose(hit) {
     if (!hit) return;
     onOpen(hit);
-    setQ(''); setOpen(false); setSelected(0);
+    setOpen(false); setSelected(0);
   }
   return <div className="cmd" onBlur={e => {
     if (!held.current && !e.currentTarget.contains(e.relatedTarget)) setOpen(false);
@@ -69,7 +73,7 @@ export default function CommandSearch({ tabs, onOpen, identity, lang = 'en', sea
       aria-activedescendant={visible && hits[active] ? `${id}-${active}` : undefined}
       placeholder={lang === 'hi' ? 'डेस्क, मॉड्यूल, रिकॉर्ड खोजें' : 'Search desks, modules, records'}
       onFocus={() => setOpen(true)}
-      onChange={e => { setQ(e.target.value); setSelected(0); setOpen(true); }}
+      onChange={e => { setQ(e.target.value); setVisibleCount(24); setSelected(0); setOpen(true); }}
       onKeyDown={e => {
         if (e.nativeEvent.isComposing) return;
         if (e.key === 'Escape') { setOpen(false); return; }
@@ -82,19 +86,20 @@ export default function CommandSearch({ tabs, onOpen, identity, lang = 'en', sea
     <DictationButton contextKey={identity} lang={lang} onTranscript={text => {
       setQ(value => `${value.trim()} ${text}`.trim()); setOpen(true); setSelected(0); input.current?.focus();
     }} />
+    {scope === 'records' && query.length < 2 && <p className="cmd-search-status">Type at least two characters to search records.</p>}
     {visible && <div className="cmd-hits">
       <div id={id} role="listbox" aria-label="Search results">
         {['desk', 'module', 'record'].map(kind => {
           const group = hits.filter(hit => hit.kind === kind);
           if (!group.length) return null;
           return <div key={kind} role="group" aria-label={`${kind}s`}>
-            <p className="cmd-group-label">{kind === 'desk' ? 'Desks' : kind === 'module' ? 'Modules' : 'Records'}</p>
+            <p className="cmd-group-label">{kind === 'desk' ? 'Desks' : kind === 'module' ? 'Modules' : 'Records'} <span>{group.length}</span></p>
             {group.map(hit => {
               const index = hits.indexOf(hit);
               return <div role="option" aria-selected={active === index} id={`${id}-${index}`} key={hit.id}
                 className={`cmd-result${active === index ? ' active' : ''}`} onMouseEnter={() => setSelected(index)}>
                 <button type="button" tabIndex={-1} {...resultDragProps(hit)} onMouseDown={hold} onClick={() => choose(hit)}>
-                  <strong>{hit.title}</strong><span>{hit.detail}</span>
+                  <strong>{hit.title}</strong><span>{hit.detail}</span>{hit.kind === 'record' && <span className="cmd-record-date">Snapshot · {Number.isFinite(Date.parse(hit.snapshot_at)) ? new Date(hit.snapshot_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'date not recorded'}</span>}
                 </button>
               </div>;
             })}
@@ -102,8 +107,9 @@ export default function CommandSearch({ tabs, onOpen, identity, lang = 'en', sea
         })}
       </div>
       <p className="cmd-search-status" role="status">{remote.query !== query || remote.loading
-        ? 'Searching records…' : remote.error || (!hits.length ? 'No matching desks, modules or records.' : 'Record matches from the indexed desk snapshot.')}</p>
-      {remote.query === query && remote.error && <button type="button" className="cmd-retry" onClick={() => setRetry(n => n + 1)}>Retry record search</button>}
+        ? 'Searching records…' : remote.error || `${hits.length ? 'Indexed snapshot matches.' : 'No matches in the searched snapshots.'}${coverageNote} Not every module is indexed.`}</p>
+      {local.length + records.length > visibleCount && <button type="button" className="cmd-retry" onMouseDown={event => event.preventDefault()} onClick={() => setVisibleCount(n => n + 24)}>Show more results ({local.length + records.length - visibleCount})</button>}
+      {remote.query === query && remote.error && <button type="button" className="cmd-retry" onMouseDown={event => event.preventDefault()} onClick={() => setRetry(n => n + 1)}>Retry record search</button>}
     </div>}
   </div>;
 }

@@ -511,10 +511,10 @@ Deno.test('a persona cannot carry or replace the web block', () => {
   assertEquals(on.split(WEB_SEARCH).length, 2);
 });
 
-Deno.test('the web block: records win, and a conflict is said out loud', () => {
-  assertStringIncludes(WEB_SEARCH, 'Search the desk rows and documents first');
-  assertStringIncludes(WEB_SEARCH, 'the row or document wins');
-  assertStringIncludes(WEB_SEARCH, 'say so');
+Deno.test('the web block: dated records and newer sources keep distinct provenance', () => {
+  assertStringIncludes(WEB_SEARCH, 'Use verified desk rows for their stored fields');
+  assertStringIncludes(WEB_SEARCH, 'does not automatically overrule newer source evidence');
+  assertStringIncludes(WEB_SEARCH, 'without silently overwriting the record');
 });
 
 Deno.test('the web block: use the web for what the records do not hold, and must for a question beyond a row-only record', () => {
@@ -569,4 +569,18 @@ Deno.test('F216: a paginated result supports its counts, not an invented coverag
 Deno.test('F247: an analysis heading or matching result cannot prove adoption', () => {
   const p = buildSystemPrompt({ persona: 'analyst', focus: 'attached', today: '2026-10-24', catalogue: '' });
   for (const rule of ['An ANALYSIS AND FINDINGS heading does not turn reported submissions into findings', 'Never infer adoption merely because the final outcome is compatible with a submission', 'quote the deciding tribunal’s own adoption language', 'Keep the requesting party explicit']) assertStringIncludes(p, rule);
+});
+
+Deno.test('F254: narrow provision answers bind each amendment to its own clause and section', () => {
+  assertStringIncludes(SYSTEM_PROMPT_STATIC, 'Do not infer a neighbouring clause');
+  assertStringIncludes(SYSTEM_PROMPT_STATIC, 'amendment clause number and the principal Act section');
+  assertStringIncludes(SYSTEM_PROMPT_STATIC, 'A narrow question is not a request for a broader context section');
+});
+
+Deno.test('F256: web provenance and economic period instructions do not invent authority or recency', () => {
+  assert(!WEB_SEARCH.includes('Treat them as unofficial'));
+  assertStringIncludes(WEB_SEARCH, 'external does not mean unofficial');
+  assertStringIncludes(WEB_SEARCH, 'An unsuccessful search for newer information does not establish');
+  assertStringIncludes(SYSTEM_PROMPT_STATIC, 'A year label alone does not establish calendar-year or fiscal-year');
+  assertStringIncludes(SYSTEM_PROMPT_STATIC, 'update date is not the observation period');
 });

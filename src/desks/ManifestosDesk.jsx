@@ -1,5 +1,6 @@
+import { useWorkspaceState } from '../shell/workspaceState.js';
 import { rowSelectionProps } from '../shell/rowSelection.js';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { MANIFESTO_LIBRARY, UNION_PROMISES } from '../data/nationalCurated.js';
 import { applyVizFilter } from '../lib/nationalKpi.js';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
@@ -30,10 +31,10 @@ function curatedRows() {
   }));
 }
 
-export default function ManifestosDesk({ selected, onSelect, onFeed, vizFilter, onClearViz }) {
+export default function ManifestosDesk({ workspaceScope = '', selected, onSelect, onFeed, vizFilter, onClearViz }) {
   const rows = useMemo(() => curatedRows(), []);
-  const [domain, setDomain] = useState('all');
-  const [year, setYear] = useState('2024');
+  const [domain, setDomain] = useWorkspaceState('ManifestosDesk.domain', 'all', workspaceScope);
+  const [year, setYear] = useWorkspaceState('ManifestosDesk.year', '2024', workspaceScope);
   const domains = useMemo(() => [...new Set(rows.map((r) => r.domain).filter(Boolean))], [rows]);
   const filtered = rows.filter(
     (r) =>

@@ -38,3 +38,39 @@
 /* F134: while a result is dragged the dialog stops being modal (so the page behind can take the drop)
    but stays rendered, invisible and out of the pointer's way, so the drag source is not unmounted. */
 .catalogue-dialog.catalogue-dialog-dragging{opacity:0;pointer-events:none}
+
+/* Destination hierarchy, within the existing terminal palette and dialog. */
+.catalogue-result b { font-size:15px; line-height:1.4; }
+.catalogue-result small { font-size:12px; }
+.catalogue-result .catalogue-result-kind { font-size:11px; color:var(--accent); margin-top:7px; }
+.catalogue-meta { font-size:11px; letter-spacing:.06em; }
+.catalogue-meta span { font-size:12px; }
+.catalogue-modes button { font-size:13px; min-height:36px; }
+.catalogue-records { padding:12px 20px 20px; min-height:350px; }
+.catalogue-records>p { font-size:12px; line-height:1.6; margin-top:0; }
+.catalogue-records .cmd { display:flex; flex-wrap:wrap; }
+.catalogue-records .cmd input { flex:1; font-size:16px; min-height:42px; }
+.catalogue-records .cmd-hits { position:static; flex-basis:100%; max-height:48vh; margin-top:12px; border:0; box-shadow:none; }
+.catalogue-records .cmd-result button { padding:13px 10px; }
+.catalogue-records .cmd-result strong { font-size:14px; line-height:1.45; }
+.catalogue-records .cmd-result span { font-size:12px; line-height:1.55; color:var(--muted); }
+.catalogue-records .cmd-group-label { display:flex; justify-content:space-between; font-size:11px; margin:12px 10px 6px; }
+.catalogue-records .cmd-search-status { line-height:1.6; font-size:12px; }
+.catalogue-records .cmd-retry { min-height:36px; }
+.workspace-record-focus { margin:16px; padding:20px; border:1px solid var(--line); border-radius:10px; background:var(--panel); }
+.workspace-record-focus header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
+.workspace-record-focus h2 { font-size:18px; margin:0; }
+.workspace-record-focus p { color:var(--muted); line-height:1.6; }
+.workspace-record-focus button { padding:10px 14px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--accent); cursor:pointer; }
+.workspace-record-focus dl { display:grid; grid-template-columns:minmax(100px,1fr) 3fr; gap:12px; font-size:14px; line-height:1.6; }
+.workspace-record-focus dt { color:var(--muted); overflow-wrap:anywhere; }
+.workspace-record-focus dd { margin:0; overflow-wrap:anywhere; }
+
+.workspace-results { height:100%; min-height:0; }
+.workspace-results[hidden] { display:none; }
+.workspace-record-focus { box-sizing:border-box; height:calc(100% - 32px); overflow:auto; }
+
+@media(max-width:600px), (pointer:coarse) {
+  .catalogue-modes button, .catalogue-records .cmd-retry, .workspace-record-focus button { min-height:44px; }
+  .catalogue-field input, .catalogue-records .cmd input { font-size:16px; min-height:44px; }
+}

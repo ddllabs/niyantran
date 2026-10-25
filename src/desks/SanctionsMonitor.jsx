@@ -1,3 +1,4 @@
+import { useWorkspaceState } from '../shell/workspaceState.js';
 import { useEffect, useMemo, useState } from 'react';
 import { hydrateSanction, issuerTokens, statsFor } from '../lib/sanctions.js';
 import { applyVizFilter } from '../lib/nationalKpi.js';
@@ -6,15 +7,15 @@ import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
 import { liveApiEnabled } from '../lib/apiMode.js';
 
-export default function SanctionsMonitor({ feed, selected, onSelect, vizFilter, onClearViz }) {
+export default function SanctionsMonitor({ workspaceScope = '', feed, selected, onSelect, vizFilter, onClearViz }) {
   const list = useMemo(
     () => (feed?.rows || []).map((r) => hydrateSanction(r)).filter((p) => p?.id),
     [feed],
   );
-  const [q, setQ] = useState('');
-  const [region, setRegion] = useState('');
-  const [type, setType] = useState('');
-  const [status, setStatus] = useState('');
+  const [q, setQ] = useWorkspaceState('SanctionsMonitor.q', '', workspaceScope);
+  const [region, setRegion] = useWorkspaceState('SanctionsMonitor.region', '', workspaceScope);
+  const [type, setType] = useWorkspaceState('SanctionsMonitor.type', '', workspaceScope);
+  const [status, setStatus] = useWorkspaceState('SanctionsMonitor.status', '', workspaceScope);
   const [liveOpen, setLiveOpen] = useState(false);
   const [live, setLive] = useState(null);
   const [liveErr, setLiveErr] = useState('');

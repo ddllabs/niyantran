@@ -1,3 +1,4 @@
+import { useWorkspaceState } from '../shell/workspaceState.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AIR_ALT,
@@ -154,7 +155,7 @@ function Row({ k, v }) {
   );
 }
 
-export default function TransitDesk({ onFeed, onSelect, onLoading, reload }) {
+export default function TransitDesk({ workspaceScope = '', onFeed, onSelect, onLoading, reload }) {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const shipsRef = useRef(new Map());
@@ -180,15 +181,15 @@ export default function TransitDesk({ onFeed, onSelect, onLoading, reload }) {
   const dirtyRef = useRef(true);
   const mapReadyRef = useRef(false);
 
-  const [mode, setMode] = useState('air');
-  const [regionId, setRegionId] = useState('india');
+  const [mode, setMode] = useWorkspaceState('TransitDesk.mode', 'air', workspaceScope);
+  const [regionId, setRegionId] = useWorkspaceState('TransitDesk.regionId', 'india', workspaceScope);
   const [paused, setPaused] = useState(false);
   const [wsState, setWsState] = useState('connecting');
   const [count, setCount] = useState(0);
   const [counts, setCounts] = useState(() => Object.fromEntries(CAT_ORDER.map((k) => [k, 0])));
-  const [filter, setFilter] = useState({ ...DEFAULT_FILTER });
+  const [filter, setFilter] = useWorkspaceState('TransitDesk.filter', { ...DEFAULT_FILTER }, workspaceScope);
   const [zLabel, setZLabel] = useState('1x');
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useWorkspaceState('TransitDesk.query', '', workspaceScope);
   const [results, setResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
   const [tip, setTip] = useState(null);
@@ -349,7 +350,6 @@ export default function TransitDesk({ onFeed, onSelect, onLoading, reload }) {
     hoverRef.current = null;
     focusRef.current = null;
     setPanel(null);
-    setQuery('');
     setResults([]);
     setWsState('connecting');
     setMapPainted(false);

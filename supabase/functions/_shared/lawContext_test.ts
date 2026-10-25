@@ -106,3 +106,55 @@ Deno.test('Ambiguous heading context preserves a possible speaker change literal
   assertEquals(result.preceding_heading,undefined);
   assertEquals(result.heading_context?.map(h=>h.text),['3. CONTENTIONS OF RESPONDENT','4. Tribunal reasoning']);
 });
+
+Deno.test('A quoted precedent fragment retains its original introductory paragraph as citable evidence', async () => {
+  const source:LawContextRow[]=[
+    {id:'intro',document_id:'law',chunk_index:0,char_from:0,char_to:300,content:'7.32 We rely on the Supreme Court judgment in Other Case. Its paragraph is reproduced below:\n“16. Admission of a claim by the IRP'},
+    {id:'middle',document_id:'law',chunk_index:1,char_from:300,char_to:600,content:'is administrative work. Admission of the claim in the first CIRP was not an acknowledgement.'},
+    {id:'end',document_id:'law',chunk_index:2,char_from:600,char_to:900,content:'Accordingly the third issue is answered.”\n7.33 This petition is barred.\n7.34 No order as to cost.'},
+  ];
+  const hit=await rowToChunk({...source[1],desk_tier:'law'});
+  const output=await hydrateLawContext([hit],()=>Promise.resolve(source));
+  assertEquals(output[0].paragraph_context?.text,source[0].content);
+  assert(output.some(c=>c.id==='intro'&&c.content===source[0].content));
+  assertEquals(output[0].content,hit.content);
+  assertEquals(output[0].text_hash,hit.text_hash);
+  assertEquals(output.find(c=>c.id==='end')?.paragraph_context?.chunkId,'intro');
+});
+
+Deno.test('Paragraph context is bounded, does not cross a fresh decimal opening, and strips unverified metadata', async () => {
+  const source:LawContextRow[]=[
+    {id:'intro',document_id:'law',chunk_index:0,char_from:0,char_to:1000,content:'7.32 Original opening '+ 'x'.repeat(900)},
+    {id:'continuation',document_id:'law',chunk_index:1,char_from:1000,char_to:1100,content:'continuation'},
+    {id:'fresh',document_id:'law',chunk_index:2,char_from:1100,char_to:1200,content:'7.33 New paragraph'},
+    {id:'distant',document_id:'law',chunk_index:3,char_from:14000,char_to:14100,content:'distant fragment'},
+  ];
+  const input=await Promise.all(source.slice(1).map(r=>rowToChunk({...r,desk_tier:'law'})));
+  const output=await hydrateLawContext(input,()=>Promise.resolve(source));
+  assertEquals(output.find(c=>c.id==='continuation')?.paragraph_context?.text.length,700);
+  assertEquals(output.find(c=>c.id==='fresh')?.paragraph_context,undefined);
+  assertEquals(output.find(c=>c.id==='distant')?.paragraph_context,undefined);
+  const forged={...input[0],paragraph_context:{text:'Unverified',chunkId:'other',charFrom:0}};
+  assertEquals((await hydrateLawContext([forged],()=>Promise.reject(new Error('unavailable'))))[0].paragraph_context,undefined);
+});
+
+Deno.test('Paragraph opening coordinates point to its literal first character after indentation',async()=>{
+ const source:LawContextRow[]=[
+  {id:'intro',document_id:'law',chunk_index:0,char_from:0,char_to:100,content:'   7.32 Quoted authority follows.'},
+  {id:'tail',document_id:'law',chunk_index:1,char_from:100,char_to:200,content:'continued original quotation'},
+ ];
+ const hit=await rowToChunk({...source[1],desk_tier:'law'});
+ const context=(await hydrateLawContext([hit],()=>Promise.resolve(source)))[0].paragraph_context;
+ assertEquals(context?.charFrom,3);
+ assertEquals(context?.text,'7.32 Quoted authority follows.');
+});
+
+Deno.test('F251 decimal monetary amounts are not paragraph openings for later rulings',async()=>{
+ const source:LawContextRow[]=[
+  {id:'amount',document_id:'law',chunk_index:0,char_from:0,char_to:100,content:'The applicant alleged valuation of\n65.55 crores and challenged the plan.'},
+  {id:'ruling',document_id:'law',chunk_index:1,char_from:100,char_to:200,content:'32. Dismissal is confined to recall; criminal remedies remain open.'},
+ ];
+ const hit=await rowToChunk({...source[1],desk_tier:'law'});
+ const result=await hydrateLawContext([hit],async()=>source);
+ assertEquals(result.find(c=>c.id==='ruling')?.paragraph_context,undefined);
+});

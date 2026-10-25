@@ -221,7 +221,7 @@ describe('a state changed while a request is out (F190 review)', () => {
     expect(onFeed).not.toHaveBeenCalledWith(null);
   });
 
-  it('goes back to "All states" when the reader leaves MLA Directory and returns', async () => {
+  it('retains the chosen state when the reader leaves MLA Directory and returns', async () => {
     const asked = pendingRequests();
     await settle();
     pick('Kerala');
@@ -230,8 +230,8 @@ describe('a state changed while a request is out (F190 review)', () => {
     await settle();
     props = { ...props, featureName: 'MLA Directory' };
     await settle();
-    expect(pickers(tree)[0].props.value).toBe('');
-    expect(asked.at(-1).opts.params).toBeUndefined();
+    expect(pickers(tree)[0].props.value).toBe('Kerala');
+    expect(asked.at(-1).opts.params).toEqual({ state: 'Kerala' });
   });
 });
 

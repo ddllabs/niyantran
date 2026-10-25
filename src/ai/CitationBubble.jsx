@@ -73,7 +73,7 @@ export function CitationPlaceholder() {
   );
 }
 
-export default function CitationBubble({ n, source: raw, onOpen, selectedSource }) {
+export default function CitationBubble({ n, source: raw, onOpen, selectedSource, showContext = false }) {
   if (!isReadableCitation(raw) || n !== raw.id) return null;
   const source = sanitizeCitation(raw);
   const selected = selectedSource?.kind === source.kind && selectedSource.id === source.id && (source.kind === 'text'
@@ -87,7 +87,7 @@ export default function CitationBubble({ n, source: raw, onOpen, selectedSource 
       type="button"
       className={`cite-bubble${source.kind === 'row' ? ' row' : ''}${selected ? ' selected' : ''}`}
       aria-pressed={selected}
-      title={label}
+      title={showContext ? [label, documentRoleLabel(source.document_role), source.page_number ? `Page ${source.page_number}` : '', source.section?.heading].filter(Boolean).join(' · ') : label}
       aria-label={`Source ${n}: ${label}`}
       onClick={(e) => {
         e.preventDefault();

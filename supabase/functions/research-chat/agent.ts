@@ -1,3 +1,4 @@
+import { observationInstructions, OBSERVATION_SCHEMA, renderObservationSelection as renderObservation, type ObservationContext } from './observationAnswer.ts';
 import { lawAttributionContext } from '../_shared/lawContext.ts';
 import { placeholderAnswer } from './answerValidation.ts';
 // One dependency-injected research loop. The handler owns authentication,
@@ -7,6 +8,7 @@ import { type HandleAssigner, handlesIn } from '../_shared/handles.ts';
 import type { Message, ModelEvent, StreamRequest, Usage } from '../_shared/openrouterStream.ts';
 import {
   mergePages,
+  normaliseUrl,
   webEvidenceBlock,
   type WebPage,
   webSearchCostUsd,
@@ -25,6 +27,10 @@ import {
 import { digNudge } from './dig.ts';
 import { ANSWER_JSON_SCHEMA } from './prompt.ts';
 import type { Focus } from './validate.ts';
+
+// Conservative boundary for the year-labelled Economic Simulator web path.
+// Search excerpts do not establish its reporting-period convention or revision history.
+const WEB_FINAL_RULES = `Write only the facts needed to answer the question, within its requested length; do not add an unrelated statistics or confidence section. Each web-derived proposition needs an inline link to its supporting returned page. Attribute to the actual publisher of that URL: an aggregator reproducing affidavits or election records is NOT the election authority's portal, and independent research is NOT an official government publication. Do not imply an original official source was consulted when only an aggregator was returned. Describe historical results as historical and separately qualify current office/status. Omit numerical details not explicitly supported by the cited excerpt. Browser-supplied fields without a verified row source are supplied context, not confirmed database facts. If no official original was returned, acknowledge that limitation rather than claiming official verification.`;
 
 export const BUDGET = { maxSteps: 12, maxSearches: 10, maxContinuations: 2 } as const;
 /**
@@ -167,6 +173,8 @@ export type AgentEvent =
   | { outOfTime: { phase: 'research' | 'answer'; cut: boolean } }
   | { finish: Extract<ModelEvent, { type: 'finish' }> };
 export interface AgentDeps {
+  /** Hand successful single-document Law retrieval to the caller's mandatory source review. */
+  lawEvidenceOnly?: boolean;
   /** The agent alone decides the tools, the server tools and the tool choice of each call. */
   request: Omit<StreamRequest, 'messages' | 'tools' | 'serverTools' | 'tool_choice'>;
   model(req: StreamRequest): AsyncGenerator<ModelEvent>;
@@ -222,6 +230,12 @@ export interface AgentResult {
 }
 
 export interface AgentInput {
+  /** Server resolved the scoped record/module and found no source text. Never
+   * substitute a whole-corpus nearest neighbour; rows/web retain their policy. */
+  documentSearchUnavailable?: boolean;
+  /** Economic observation web answers need explicit period/provenance checks. */
+  observationScope?: boolean;
+  observationContext?: ObservationContext;
   system: string;
   window: Message[];
   userTurn: string;
@@ -259,6 +273,8 @@ export interface AgentCheckpoint {
   phase: 'research' | 'answer' | 'complete';
   text: string;
   chunks: Chunk[];
+  /** Authorized Law evidence retained for final synthesis, separately from capped draft replies. */
+  lawReviewChunks: Chunk[];
   rows: Map<string, DeskRow>;
   steps: TraceStep[];
   usage: Usage[];
@@ -277,6 +293,9 @@ export interface AgentCheckpoint {
   /** A missing-document web fallback is requested at most once, across failover. */
   webFallbackAttempted: boolean;
   forceWebSearch: boolean;
+  observationCorrectionAttempted: boolean;
+  observationPrevious?: string;
+  answerInputLength: number | null;
   /** The pre-search runs once per turn; a resumed checkpoint (failover) does not repeat it. */
   presearched: boolean;
   /** One bounded Law context pass, retained across provider failover. */
@@ -305,6 +324,8 @@ function inputKey(a: AgentInput): string {
     a.scopeSent ?? true,
     a.featureScope ? [a.featureScope.tier, a.featureScope.feature] : null,
     a.presearch ?? null,
+    a.documentSearchUnavailable ?? false,
+    a.observationScope ?? false,
   ]);
 }
 export function createAgentCheckpoint(
@@ -323,6 +344,7 @@ export function createAgentCheckpoint(
     phase: 'research',
     text: '',
     chunks: [],
+    lawReviewChunks: [],
     rows: new Map(),
     steps: [],
     usage: [],
@@ -336,6 +358,8 @@ export function createAgentCheckpoint(
     pressedToDig: false,
     webFallbackAttempted: false,
     forceWebSearch: false,
+    observationCorrectionAttempted: false,
+    answerInputLength: null,
     presearched: false,
     lawContextAttempted: false,
     widened: null,
@@ -405,6 +429,21 @@ function withinReply(found: Chunk[], limit: number | null, prefix: string): Chun
     if (kept.length && length + piece > limit) break;
     kept.push(c);
     length += piece;
+  }
+  return kept;
+}
+
+// Keep final Law review independent of the draft's smaller reply budget. Both
+// inputs come from the same authorized retrieval; no new read or model call.
+// The final paragraph builder still applies its own 80k-character input limit.
+function retainLawReview(existing: Chunk[], found: Chunk[]): Chunk[] {
+  const kept: Chunk[] = [];
+  let size = 0;
+  for (const c of accumulate(existing, found.filter(c => c.desk_tier === 'law'))) {
+    const cost = renderChunk(HANDLE_ROOM, c).length;
+    if (kept.length >= 256 || size + cost > 300_000) continue;
+    kept.push(c);
+    size += cost;
   }
   return kept;
 }
@@ -603,6 +642,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     const args = parsed && (call.name === 'search_documents' ? documentArguments(parsed) : rowArguments(parsed));
     if (!args) return 'INVALID_TOOL_ARGUMENTS: provide arguments matching the tool schema.';
     if (call.name === 'search_documents') {
+      if (a.documentSearchUnavailable) return 'NO_INDEXED_SOURCE: This scope has no indexed source text. Use its verified row fields and, only when offered, web search for context. Do not substitute unrelated documents or claim to have searched unavailable text.';
       // An attachment scopes every search of the turn, not just the first.
       // Gating this on the first one made a refinement corpus-wide while the
       // reader was still asking about the attached bill, and made leaving the
@@ -647,9 +687,10 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         if (found) widenScope('feature-empty');
       }
       if (!found) return EXHAUSTED;
-      // The reply's budget: passages past it are neither shown, handled nor counted as found.
+      state.lawReviewChunks = retainLawReview(state.lawReviewChunks, found);
+      // The draft reply stays capped. Additional Law passages are handled only at final review.
       const kept = withinReply(found, deps.toolReplyChars ?? null, UNTRUSTED);
-      if (kept.some(c => c.desk_tier === 'law')) deps.onEvent({ lawEvidence: true });
+      if (state.lawReviewChunks.length || kept.some(c => c.desk_tier === 'law')) deps.onEvent({ lawEvidence: true });
       state.chunks = accumulate(state.chunks, kept);
       return kept.length
         ? UNTRUSTED +
@@ -709,14 +750,15 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
 
   function beginAnswer(): void {
     state.phase = 'answer';
-    messages.push({ role: 'user', content: ANSWER_NOW });
+    messages.push({ role: 'user', content: ANSWER_NOW + (state.webPages.length ? '\n' + WEB_FINAL_RULES : '') + (a.observationScope ? '\n' + observationInstructions(state.webPages) : '') });
+    state.answerInputLength = messages.length;
   }
 
   // answer-speed spec §1: search with the reader's question before the first model call, as a
   // search the model had already made - the same execution path, so handles, traces, the budget,
   // widening and the found list are unchanged - and the first call can answer at once.
   const presearch = a.presearch?.trim().slice(0, PRESEARCH_MAX_CHARS);
-  if (presearch && !a.conversational && !state.presearched && budget.modelAttempts === 0 && budget.searches === 0) {
+  if (presearch && !a.documentSearchUnavailable && !a.conversational && !state.presearched && budget.modelAttempts === 0 && budget.searches === 0) {
     state.presearched = true;
     const call: ToolCall = { type: 'tool-call', id: PRESEARCH_ID, name: 'search_documents', args: JSON.stringify({ query: presearch }) };
     messages.push({
@@ -731,7 +773,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     checkAbort();
     // The first relevance search can omit the heading governing a submission.
     // Fetch context before any Law draft; it is evidence, never a role classifier.
-    const lawIds = [...new Set(state.chunks.filter(c => c.desk_tier === 'law').map(c => c.document_id))];
+    const lawIds = [...new Set(accumulate(state.chunks, state.lawReviewChunks).filter(c => c.desk_tier === 'law').map(c => c.document_id))];
     if (!a.conversational && !state.lawContextAttempted && lawIds.length) {
       state.lawContextAttempted = true;
       const unresolved = 'Attribution remains unresolved: the contextual search was unavailable or returned no passages. Do not present disputed statements as tribunal findings without explicit governing evidence; state the attribution limitation.';
@@ -746,8 +788,10 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         try {
           const found = await searchAttempt(call, args, lawIds) as Chunk[] | null;
           checkAbort();
-          const kept = withinReply((found ?? []).filter(c => lawIds.includes(c.document_id)), deps.toolReplyChars ?? null, UNTRUSTED);
-          if (kept.some(c => c.desk_tier === 'law')) deps.onEvent({ lawEvidence: true });
+          const authorized = (found ?? []).filter(c => lawIds.includes(c.document_id));
+          state.lawReviewChunks = retainLawReview(state.lawReviewChunks, authorized);
+          const kept = withinReply(authorized, deps.toolReplyChars ?? null, UNTRUSTED);
+          if (state.lawReviewChunks.length || kept.some(c => c.desk_tier === 'law')) deps.onEvent({ lawEvidence: true });
           state.chunks = accumulate(state.chunks, kept);
           if (kept.length) reply = UNTRUSTED + kept.map(c => renderChunk(deps.handles.assign(c.id), c)).join('\n\n');
         } catch {
@@ -757,6 +801,18 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         messages.push({ role: 'tool', tool_call_id: call.id, content: reply });
         messages.push({ role: 'user', content: 'Context search attempted, not attribution verified. Identify the governing headings and distinguish the parties’ submissions from the deciding tribunal’s own analysis. A statement recorded in an order is not necessarily adopted. Verify operative relief and costs separately. If a claim lacks governing context, leave its speaker unresolved rather than calling it a finding.' });
       }
+    }
+    // The Law caller synthesizes from these originals, never from the discarded draft.
+    // Keep normal research when either search failed, scope widened or more tools are needed.
+    if (deps.lawEvidenceOnly && a.focus === 'attached' && a.scopedDocumentIds.length === 1 &&
+        !deps.webSearch && !a.conversational && state.presearched && budget.modelAttempts === 0 &&
+        !state.widened && [PRESEARCH_ID, 'law-context-1'].every(id => state.steps.some(s =>
+          s.toolCallId === id && s.status === 'ok' && s.scoped && s.resultCount > 0)) &&
+        state.lawReviewChunks.length > 0 && accumulate(state.chunks, state.lawReviewChunks).every(c =>
+          c.desk_tier === 'law' && c.document_id === a.scopedDocumentIds[0])) {
+      state.finish = 'law_evidence';
+      state.phase = 'complete';
+      break;
     }
     if (
       state.phase === 'research' &&
@@ -800,13 +856,13 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     state.forceWebSearch = false;
     // web-search-streaming spec §1: a research call offered the web tool holds its draft. Every
     // other research call streams it live and takes it back unless it is the answer.
-    const holdDraft = phase === 'research' && !!webTool;
+    const holdDraft = phase === 'research' && (!!webTool || !!a.observationScope);
     let draftSent = false;
     const retract = (reason: RetractReason) => {
       if (phase === 'research' && draftSent) deps.onEvent({ retract: reason });
     };
     const request: StreamRequest = {
-      response_format: ANSWER_JSON_SCHEMA,
+      response_format: phase === 'answer' && a.observationScope ? OBSERVATION_SCHEMA : ANSWER_JSON_SCHEMA,
       cache: true,
       ...deps.request,
       messages: structuredClone(messages),
@@ -817,6 +873,12 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       ...(forceWeb ? { tool_choice: 'required' as const, response_format: undefined } : {}),
       ...(phase === 'answer' ? { tool_choice: 'none' as const } : {}),
     };
+    if (phase === 'answer' && a.observationScope) {
+      // The general system prompt owns the normal envelope. Override it at the
+      // same trusted priority for this extraction, including schema fallback.
+      // Source evidence remains in the untrusted user block, never here.
+      request.messages.push({ role: 'system', content: 'For this final observation extraction only, replace the general research_answer output contract with observation_excerpts: {"definitionId":integer|null,"updateIds":integer[]}. Return only that JSON object. No answer, sources, follow_up_questions or other fields. The server renders the answer and citations. All evidence and grounding rules remain binding; follow the extraction constraints in the final request.' });
+    }
     if (late && deps.lateReasoning !== undefined) {
       if (deps.lateReasoning) request.reasoning = deps.lateReasoning;
       else delete request.reasoning;
@@ -847,7 +909,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
           if (phase === 'answer') {
             state.text += event.text;
             if (event.text) state.answerModel = deps.request.model;
-            deps.onEvent({ text: event.text });
+            if (!a.observationScope) deps.onEvent({ text: event.text });
           } else if (event.text && !holdDraft) {
             draftSent = true;
             deps.onEvent({ draftText: event.text });
@@ -887,7 +949,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       }
       // Incomplete research calls are not executable. Answer bytes already
       // streamed are kept and retried only as a bounded same-model continuation.
-      if (partial) messages.push({ role: 'assistant', content: partial });
+      if (partial && !holdDraft) messages.push({ role: 'assistant', content: partial });
       if (phase === 'answer' && state.text) state.resumeAnswer = true;
       state.finish = 'error';
       // A call that carried the tool and broke off may have searched, and been billed, before it
@@ -944,19 +1006,22 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         retract('searching');
         messages.push({
           role: 'assistant',
-          content: partial || null,
+          // A web research synthesis is not source evidence. Keep the tool
+          // protocol, but let the answer use returned excerpts, not that draft.
+          content: webSearched ? null : partial || null,
           tool_calls: calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.args } })),
         });
         state.pendingTools.push(...calls);
         await completeToolReplies();
         carryWeb();
       } else if (
-        !a.conversational && !state.pressedToSearch && budget.searches === 0 &&
+        !a.conversational && !a.documentSearchUnavailable && !state.webPages.length &&
+        !state.pressedToSearch && budget.searches === 0 &&
         budget.modelAttempts < BUDGET.maxSteps - 1
       ) {
         state.pressedToSearch = true;
         retract('searching');
-        if (partial) messages.push({ role: 'assistant', content: partial });
+        if (partial && !webSearched) messages.push({ role: 'assistant', content: partial });
         carryWeb();
         messages.push({ role: 'user', content: SEARCH_FIRST });
       } else if (
@@ -976,11 +1041,11 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       } else if (dig && !forceWeb) {
         state.pressedToDig = true;
         retract('searching');
-        if (partial) messages.push({ role: 'assistant', content: partial });
+        if (partial && !webSearched) messages.push({ role: 'assistant', content: partial });
         carryWeb();
         messages.push({ role: 'user', content: dig });
       } else if (
-        !webSearched && !forceWeb &&
+        !a.observationScope && !webSearched && !forceWeb &&
         state.finish === 'stop' && (a.conversational || state.steps.some((s) => s.status === 'ok')) &&
         acceptedDraft(partial, deps.handles)
       ) {
@@ -995,12 +1060,29 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         state.phase = 'complete';
       } else {
         retract('rewriting');
-        if (partial) messages.push({ role: 'assistant', content: partial });
+        if (partial && !webSearched) messages.push({ role: 'assistant', content: partial });
         carryWeb();
         beginAnswer();
       }
       continue;
     }
+    if (a.observationScope && state.finish === 'stop' && !calls.length) {
+      const rendered = renderObservation(state.text, state.webPages, a.observationContext, state.observationPrevious);
+      if (rendered.invalid && !state.observationCorrectionAttempted && budget.modelAttempts < BUDGET.maxSteps &&
+          (deps.timeLeft?.() ?? Infinity) > 1000) {
+        state.observationPrevious = state.text;
+        state.text = '';
+        state.resumeAnswer = false;
+        state.observationCorrectionAttempted = true;
+        messages.splice(state.answerInputLength ?? messages.length);
+        messages.push({ role: 'user', content: `The extraction contained invalid fields or unsupported source spans. Correct it using only unchanged evidence. ${observationInstructions(state.webPages)}` });
+        continue;
+      }
+      // Useful verified sections survive an invalid optional extraction. No
+      // generated comparison or unvalidated span can enter the public envelope.
+      state.text = rendered.text;
+    }
+
     if (partial) messages.push({ role: 'assistant', content: partial });
     if (calls.length) {
       // A provider ignoring disabled tools cannot turn the answer phase back
@@ -1020,7 +1102,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
   }
   return {
     text: state.text,
-    chunks: [...state.chunks],
+    chunks: accumulate(state.chunks, state.lawReviewChunks),
     rows: [...state.rows.values()],
     steps: structuredClone(state.steps),
     continuations: budget.continuations,

@@ -20,8 +20,8 @@ describe('catalogue discovery UI contract', () => {
   it('offers all 120 canonical entries with desk/group labels and honest restricted metadata', () => {
     const html = renderToStaticMarkup(<CatalogueResults results={DESK_CATALOGUE} selected={0} lockedIds={['economics']} listId="results" onSelect={noop} onHighlight={noop} />);
     expect((html.match(/role="option"/g) || [])).toHaveLength(120);
-    expect(html).toContain('National / Legislative &amp; Policy Intelligence');
-    expect(html).toContain('Economics / Market Intelligence');
+    expect(html).toContain('National → Legislative &amp; Policy Intelligence');
+    expect(html).toContain('Economics → Market Intelligence');
     expect(html).toContain('Access restricted');
     expect(html).toContain('Music Charts — United States Top 25');
     expect(html).not.toContain('live records');

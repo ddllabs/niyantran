@@ -118,8 +118,8 @@ describe('SourceList', () => {
     const one = renderToStaticMarkup(<SourceList sources={[page(2, 'd1', 2, { desk_feature: 'Bills' })]} />);
     expect(one).toContain('Bills');
     expect(one).toContain('p. 2<');
-    expect(one).toContain('cited');
-    expect(one).toContain('class="ai-source-id">2</span>');
+    expect(one).toContain('Cited passages');
+    expect(one).toContain('aria-label="Source 2: A bill — Bills"');
     const many = renderToStaticMarkup(<SourceList sources={[1, 2, 3, 4, 5, 6, 7].map((n) => page(n, 'd1', n * 2))} />);
     expect(many).toContain('pp. 2, 4, 6, 8, 10 +2<');
     expect(renderToStaticMarkup(<SourceList sources={[text(1, 'd1', 'A')]} />)).not.toMatch(/p\. |pp\. /);
@@ -186,4 +186,13 @@ describe('SourceReader document state', () => {
   it('works without a callback', async () => {
     await expect(reader.readSource(text(1, 'd', 'Document'), rows(null), () => true)).resolves.toMatchObject({ doc: null });
   });
+});
+
+it('offers Open citations and independent exact passage buttons outside the document action', () => {
+  const sources = [text(1, 'd', 'Evidence'), text(2, 'd', 'Evidence', { char_from: 8, char_to: 12 })];
+  const html = renderToStaticMarkup(<SourceList sources={sources} selectedSource={sources[1]} />);
+  expect(html).toContain('Open citations');
+  expect(html).toContain('aria-label="Source 2: Evidence"');
+  expect(html).toContain('aria-pressed="true"');
+  expect(html).not.toMatch(/<button[^>]*class="ai-source-chip"[^>]*>(?:(?!<\/button>)[\s\S])*<button/);
 });

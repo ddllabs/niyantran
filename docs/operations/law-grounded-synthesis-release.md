@@ -1,0 +1,93 @@
+# Law grounded synthesis release
+
+> **Status: Living.** F247 bounded Globiz acceptance passed on 2026-10-24: PR33 merge 92a99d46, research-chat v88. Earlier sections preserve failed intermediate releases. F250 performance/wider qualification remains open. No ingestion authorization.
+
+## Historical PR31 change and scope
+
+PR #31 replaces the extractive containment path with concise synthesized sentences whose citations are derived from server-owned original-passage IDs. It fixes the follow-up's fragile response shape with one bounded structural correction, retains source support limits, and rejects internal passage IDs in answer prose. Qualified literal heading trails preserve section context across a quoted numbered precedent without labelling the speaker or modifying stored chunks.
+
+In PR31, evidence selection and synthesis used the selected model's supported reasoning. Each call allowed 8,000 completion tokens, including provider reasoning, inside the existing total deadline and attempt accounting. This can increase latency and usage; it is not a claim of unchanged per-call cost. No model configuration, authentication, schema, worker, OCR, corpus text or embeddings were changed.
+
+Runtime commit `c09551daf012765ed6001569389f2afb655d7445`; PR #31 merge `2429d5f0c79a0eac0eefd53e22dc70b039a7ac98`. Both required jobs passed on the branch and PR runs (`40078872421`, `40078896182`), with green Vercel preview. Main release checks and live acceptance are recorded below when verified.
+
+## Local evidence
+
+`npm test`: 6,575 passed. Full Deno Edge suite: 1,255 passed. Lint, production build, Deno evaluation-script check and diff checks passed. Independent review covered source mapping, attempt/deadline boundaries, heading ambiguity and private evaluation output. Causal tests failed without the new protections: synthesized/multi-source output, follow-up shape repair, ambiguous heading trail, retained selected reasoning and internal-ID rejection.
+
+Actual OpenRouter/DeepSeek High evaluation used existing retrieved Globiz text and four questions. The guarded run completed 4/4: original disposition/limitation, same-context submissions-versus-findings follow-up, notice-versus-commencement date and false exemplary-cost premise. Its follow-up recovered once from `synthesis_shape`. Source-reviewed citations distinguish debtor chunks 20/42 from operative 79; date 74 establishes 1 September notice and 6 September commencement. An earlier reasoned follow-up also used explicit confined-inquiry 63 for a negative merits statement. The final guarded responses took 50.3/29.2/9.9/32.3 seconds and reported USD0.008884070872 total provider cost.
+
+Failed intermediate evaluations are retained in the [implementation plan](../plans/2026-10-24-law-grounded-synthesis.md), not treated as passes. Nonreasoning selection omitted decisive evidence; 4,000-token synthesis sometimes exhausted its allowance in reasoning; an earlier false-premise sentence lacked disposition support. The guarded run fixed the latter by separating propositions. Its original response used the less precise “claimed debt” instead of source “claim”; its date response paraphrased despite a quotation request. The conflicting no-quotes prompt instruction was removed before commit. Website acceptance must check attribution, exact citation support and usable answers; local success alone does not close F247.
+
+The opt-in `scripts/eval-law-answers.ts` takes caller-prepared private JSON cases, calls the real answer path without database writes and saves fresh 0600 output outside the repository. It halts on unknown cost and has bounded calls/time and an admission cost threshold, not a hard provider spend cap. Never commit corpus text, private evaluation output or credentials.
+
+## Corpus preservation and concurrent work
+
+The earlier baseline was 3,469 documents/101,243 chunks globally, ten Law documents/527 chunks/ten jobs and 436 insolvency listings. A new read-only pre-release check found 3,569/105,668 globally, 110 Law documents/110 jobs and 502 listings: another 100 Law documents/jobs had appeared independently of this task. This task performed no ingestion. All original-ten document, chunk, supplied-input and job fingerprints remained identical. Compare release effects to the new baseline and distinguish concurrent changes; never claim the old global counts remained unchanged.
+
+## Production acceptance
+
+PR31 main CI `40079381543` passed both required jobs. Vercel production `dpl_GMyQpDtZ99LY9kVGuRXThvourPwf` is READY at exact merge2429d5. Research-chatv85 matched the deployed source, but the live original question failed semantic acceptance: it attributed quoted Supreme Court first-CIRP facts to the current tribunal and changed claim admission into claimed debt. The source viewer exposed the mistake at78/79; paragraph7.32 in75 introduces the quotation. The reply completed in86seconds; completion is not correctness.
+
+Research-chat was rolled back to the exact prior v84 payload asv86; retrieval confirms bundle hash `a67b142f9c6225d318f7590327a6ed2e20fb2b1b714c37b8306bb89315486a0d`. F247 remains open. The next change adds bounded positional paragraph openings and citable original anchors; it does not infer a speaker or alter stored evidence. New local and live acceptance are pending.
+
+The historical [extractive release](law-answer-validation-release/README.md) remains a record of v84, not evidence that the new synthesis is already verified. No new cohort or 1,000-document submission is authorized here.
+
+## Paragraph-unit follow-up under review
+
+The follow-up groups original read-time paragraph spans and separates the quoted-precedent ending from operative paragraphs. It preserves original source handles, omits recognized orphan fragments, rejects conflicting overlaps, marks gaps, and bounds unit size/source count. Original numbered section headings accompany matching paragraphs. Each answer sentence cites one unit; that unit can carry several original chunk citations. A targeted party-submission/tribunal-assertion guard uses the existing correction budget. These are bounded safeguards, not universal speaker classification or proof of all legal semantics.
+
+Intermediate source reviews remained failing until their issues were addressed: quoted facts promoted despite advisory context, debtor statements attributed to tribunal, an invented causal link between separate arguments, and unsupported non-adoption from party evidence. A provider interruption produced no answer and unknown cost. Preserve these failures; passing unit tests alone is insufficient. Current final provider and website acceptance remain pending; production is still the verifiedv86 rollback. No new ingestion or corpus writes.
+
+## Verified release candidate
+
+PR32 runtime `7b72a88fa87681c1f4d2b3403264626cbbd32b9b` merged as `afa39f48a730c192cd666954ea24577cd262285f`. Branch/PR CI40083998006/40084037894 passed both required jobs; Vercel preview passed. Local6,575 application and1,270 Edge tests, lint/build/diff checks passed. Independent source review accepted all four final candidate answers: original, same-context follow-up, date quotation and false costs premise. Nine provider calls costUSD0.004368288744; the follow-up recovered once from claim_shape. Earlier failures remain part of this record.
+
+Pre-release read confirms3,569 documents/105,668 chunks globally,110 Law documents/jobs and502 insolvency listings. All110 document, chunk, input and job fingerprints and ingestion costs are unchanged from the latest baseline. Exact merged-commit CI, deployment and website acceptance are pending.
+
+Merged-commit CI40084500163 passed both required jobs. Deployed research-chatv87; retrieved41 source files all match the 42-file payload (deno.json is not returned). Bundle hash `98c0bd9e8984673b86321c73a26e8e7fba27c987102e856f007a78860a43dc5a`. Credential-free POST returns 401, preserving application authentication. Website tests are now running in a fresh conversation with the existing indexed Globiz attachment, DeepSeek Flash/High and web search off.
+
+
+## Live v87 result and retained-evidence correction
+
+Vercel production dpl_E3HdvwpCHLhVSKXSLvncWu27c2Km serves mergeafa39f48. Original live answer69s/37.2credits correctly cited limitation but explicitly left part unanswered. Same-conversation follow-up63s/42.2credits correctly separated debtor debt-proof/costs submissions from tribunal limitation and no-cost disposition, with four original source handles and no verification error. Citation viewer checks include the original 3.31 spans and 7.33/7.34; this is not full four-case acceptance.
+
+Root-cause reproduction identified a production/evaluation mismatch: High draft tool replies are capped at24,000characters, discarding retrieved Law evidence before final synthesis. The local retrieved original-case control retained11/53 chunks and lost7.21 under that cap. The correction retains authorized Law retrieval separately (at most256 chunks/300,000 rendered characters) for the existing final80,000-character paragraph selector. It preserves draft caps, server-owned handles and non-Law behavior. It adds no retrieval/model call by itself, though retaining previously discarded material may increase final-stage tokens within existing limits. Mixed-desk and oversized-first-Law paths still trigger review.
+
+Causal evidence: retained-scope regression failed before implementation; disconnecting retention failed the handler integration test; removing retention bounds failed its guard; mixed-desk and oversized-first-Law regressions failed before their fixes. Independent review passes307 focused agent/handler tests. Final full Edge suite1275 passes. Website four-case acceptance remains pending. No ingestion or corpus writes.
+
+
+Further pre-release provider evidence:2pass/1partial/1availability failure. The token-limited original produced no published answer; the date response had correct dates but omitted the requested quote and added an unsupported terminology objection. The existing single correction now also handles a completed synthesis length limit, while incomplete streams remain held. Explicit “Quote…” requests require a matching source substring; this is not proof of quote relevance. The candidate is not yet accepted. A fresh read found711 Law documents/jobs and1060 listings (4170documents/128271chunks globally); all prior110 fingerprints are unchanged. These additional601 registrations are concurrent activity outside this task, which performed no ingestion.
+
+
+The next source-reviewed evaluation was3complete passes and1accurate but incomplete original response: the selector chose limitation/acknowledgement paragraphs but omitted the explicit inquiry scope and debt-proof submission. It was not counted as full acceptance. Selection instructions now explicitly require both for questions about what the tribunal concluded about claimed debt or liability. Final source-reviewed and website checks remain required; the lexical debt/claim guard and quotation recognizer are targeted safeguards, not semantic proof.
+
+
+Follow-up testing exposed another format mismatch: the synthesis prompt showed an array while only one paragraph ID was allowed. The candidate now requests a scalar ID, retains single-unit enforcement and normalizes legacy singleton arrays. It does not merge unrelated paragraphs just because they share a chunk. Synthesis allowance is16000 tokens, selection8000, with at most one shared correction (maximum40000 requested output tokens); actual time/cost can increase. Earlier tests failed through timeout, omitted supported parts or unsupported causal additions. Full candidate provider and NTER acceptance remain required; passing mocks and historical provider runs do not close F247.
+
+
+## PR33 final local candidate
+
+Scalar-ID Flash/High evaluation completed all four approved questions without repair: original35.3s, follow-up114.7s, date23.8s, false premise63.9s;8calls, reportedUSD0.013125858, known cost. Independent source review passed all four answers and their cited original support. Pro comparison is diagnostic only: first three passed, while a separate false-premise answer cited scope for a costs conclusion and failed clause-level support. No model default or routing was changed.
+
+Local verification:6575 application tests,1280 full Edge tests, lint, production build, evaluation-script check and diff check passed. Independent implementation review found no blocker. Causal scalar-ID regression failed before its correction. Required CI and authenticated NTER acceptance remain pending for this candidate; latency remains material and this is not universal semantic certification.
+
+Fresh read-only baseline found4270 documents/133916 chunks globally,811 Law documents/jobs and1183 insolvency listings. Concurrent ingestion has continued independently of this task; compare original completed documents separately from jobs that were in progress at earlier checkpoints. This task has issued no ingestion, OCR, embedding or listing write.
+
+
+## PR33 deployment
+
+Current v88 limits: selection 8,000 completion tokens, synthesis 16,000, at most three accounted calls and one shared correction (up to 40,000 requested output tokens). The overall turn deadline remains unchanged. No model-routing change.
+
+Candidate 7071d33c merged as92a99d4601012af13593a7305f4dfc314480f6a4. Both required jobs passed on branch/PR runs 40089712353/40089715694 and main 40090172929; main application 3m13s, SQL 6m22s. Vercel production dpl_AEeJtg7AhegGP4z2QXKYYJWGEDPB is READY on that exact merge. Research-chatv88 is ACTIVE, bundle hash 5b8f93001d6d5d00aa25ef8e99548a697be7108c553ac6bcec210a693ffbfea0. All 41 returned source files match the 42-file payload (deno.json excluded by retrieval). Unauthenticated POST returns 401. The following website results are recorded separately from local provider evidence.
+
+Website original question: 70s,53.4 credits, two searches, five original chunk citations. The answer now states limitation dismissal, the expressly confined inquiry and the time-barred claim/non-revival distinction without promoting quoted precedent or debtor submissions. Independent source review accepts coverage. UI source 1 opens 79,2 opens 62,3 opens 63 and5 opens 70; the additional 64 continuation is included in the citation group but was not individually clicked in this check. Screenshot retained privately. Follow-up/date/false-premise checks remain pending at this point.
+
+Website same-conversation follow-up: 161s,70.6 credits, eight citations. It separately states the tribunal’s limitation finding, confined inquiry/no debt-proof determination and no-cost order, then the debtor’s unproven-debt argument and exemplary-cost request. No verification error; independent source review passes. UI citations 5 and 7 open the original 3.31 debt argument and 3.5 costs request; other repeated/continuation handles are source-mapped, not claimed as individually clicked.
+
+Website date question: 81s,75.2 credits, one citation. It correctly distinguishes 06.09.2018 commencement from 01.09.2018 notice and quotes the original 7.29 wording. The UI citation opens original chunk 74/page 32 and matches the quote.
+
+Website false-premise question: 66s,52.2 credits, three citations. It contrasts the operative “No order as to cost” with the debtor’s exemplary-cost request, without claiming an award or adding a causal debt-proof finding. Operative citation 1 was clicked and opens 79; the submission group maps 20/21, previously inspected in the follow-up. Independent review of the final private transcript and original sources accepts all four live cases. Browser error/warning capture was empty.
+
+**F247 is complete for this documented Globiz acceptance set.** Local and live questions both cover original disposition, same-conversation attribution, exact date quotation and false premise. This is not certification of every Law answer. Live responses took 66–161 seconds and52.2–75.2 credits; F250 tracks latency/cost and broader semantic qualification. The selected model remains DeepSeek Flash/High, attached-only with web search off.
+
+Final read-only corpus check: 4,569 documents / 147,417 chunks globally,1,110 Law documents/jobs, 1,386 insolvency listings. Every original 110 completed document/chunk/input/job fingerprint remains identical. Concurrent registrations and previously pending jobs continued during this release; counts and later-job fingerprints therefore changed independently. No ingestion, OCR, embedding, listing write or ANALYZE was executed by this task. These live counts supersede stale exclusion totals only as a dated observation; the next operator must reconcile again.

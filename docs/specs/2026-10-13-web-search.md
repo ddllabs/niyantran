@@ -1,5 +1,10 @@
 # Web search in AI Research (F130)
 
+## Amendment — 2026-10-24 (F255/F256)
+
+**Normative:** External web provenance is not unofficial status. Returned original publications and secondary reporting retain distinct source/date/period attribution; a stored row does not automatically overrule newer comparable evidence. Missing indexed scoped records use verified row fields and policy-permitted web instead of unrelated corpus passages. Explicit web-off and model/privacy gates remain. Uncited record claims are disclosed without claiming all content is unbacked or all web pages unofficial. Economics year labels require period qualification; update timestamps do not establish calendar-year coverage or latest official status. This amendment supersedes conflicting legacy wording below. Implementation/acceptance: [cross-desk grounding](2026-10-24-cross-desk-answer-grounding.md).
+
+
 > **Status: Living.** Owner request 2026-10-13. Research:
 > [web search](../research/2026-10-13-web-search.md) (TenderBase reference,
 > Niyantran gap, two OpenRouter probes). Branch `task/web-search`, worktree
@@ -467,3 +472,6 @@ and every search is recorded with its cost for F111.
    with Exa) that receives search queries? Recommended: yes, in the F107 legal
    pass, not here.
 2. None blocking otherwise.
+
+## Research draft isolation (F256, 2026-10-24)
+Web research prose is not source evidence. Carry returned page excerpts into later calls, preserving any local tool-call/reply protocol, but discard web synthesis text on success and on failed held research streams. Preserve partial answer continuations. Existing web pages or known unavailable document scope must not trigger a record-search-only no-evidence nudge.

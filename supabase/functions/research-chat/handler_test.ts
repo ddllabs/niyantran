@@ -1240,6 +1240,8 @@ Deno.test('D5: accepted repair emits the exact saved patch and rejected/thrown r
     const answer = 'The Bill remains before the committee pending its report. '.repeat(5);
     const stream: HandlerDeps['stream'] = async function* (req) {
       if (req.messages[0].content?.startsWith('You insert citation markers')) {
+        assertEquals(req.cache,true,'F253 repair cache');
+        assertEquals(req.session_id,'conv-1','F253 repair session');
         req.onAttemptMetadata?.({
           served: 'repair/actual',
           generationId: 'repair-gen',
@@ -1831,7 +1833,7 @@ Deno.test('a scope the record could not answer widens visibly in the ticker and 
 // D4. focus was advisory text only. "Attached only" over material the corpus has
 // never indexed cannot scope to nothing, so it searches everything - which is
 // exactly what the reported session did, on every bill, in silence.
-Deno.test('focus attached with nothing resolved searches unscoped and discloses it', async () => {
+Deno.test('focus attached with an unresolved record never searches the whole corpus', async () => {
   const scopes: (string[] | undefined)[] = [];
   const { deps, rec } = fakeDeps(documentTurn(1), {
     searchDocuments: (_args, ids) => {
@@ -1843,11 +1845,9 @@ Deno.test('focus attached with nothing resolved searches unscoped and discloses 
   await frames(
     await handleResearchChat(post({ ...BODY, focus: 'attached', turn_key: 'unresolved', attachments: [bill] }), deps),
   );
-  assertEquals(scopes, [undefined], 'nothing resolved, so nothing to scope to');
-  assertStringIncludes(
-    String(rec.messages[0].content),
-    '**Search widened.** The record holds no indexed source document for the attached material',
-  );
+  assertEquals(scopes, [], 'unresolved record identity must not imply the entire corpus');
+  assertEquals(rec.messages[0].status, 'complete');
+  assertEquals(rec.messages[0].sources, []);
 });
 
 // The reported turn: "Attached only" over a desk module, the bill it asked about
@@ -1928,17 +1928,18 @@ Deno.test('document ids and document keys resolve together as one scope', async 
   assertEquals(scopes, [['doc-1', DOC_A]]);
 });
 
-Deno.test('an unindexed document id or key discloses as unresolved, and an id alone counts as scope sent', async () => {
+Deno.test('an unindexed document id or key does not retrieve unrelated source text', async () => {
   const bill = { kind: 'row', title: 'The Delimitation Bill', text: 'row', document_key: 'bill:2026:999' };
   for (const [name, attachments] of [['id', [docChip()]], ['key', [bill]]] as const) {
     // The index keeps only indexed documents, so an unindexed one resolves to nothing.
-    const { deps, rec } = fakeDeps(documentTurn(1), { searchDocuments: () => Promise.resolve([chunk('c1')]) });
+    let searches = 0;
+    const { deps, rec } = fakeDeps(documentTurn(1), { searchDocuments: () => { searches++; return Promise.resolve([chunk('c1')]); } });
     await frames(
       await handleResearchChat(post({ ...BODY, focus: 'attached', turn_key: `unindexed-${name}`, attachments }), deps),
     );
     const content = String(rec.messages[0].content);
-    assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, 'unresolved', name);
-    assertStringIncludes(content, 'holds no indexed source document');
+    assertEquals(searches, 0, name);
+    assertEquals(rec.messages[0].sources, []);
     assert(!content.includes('Nothing attached to this turn names'), `a ${name} was sent, so one was named`);
   }
 });
@@ -2076,13 +2077,13 @@ Deno.test('a module that held nothing widens to all documents and says so, namin
   assertStringIncludes(JSON.stringify(rec.messages[0].activity), `Nothing in ${PBI} matched`);
 });
 
-Deno.test('desk focus on a module with no documents searches unfiltered and shows no banner', async () => {
+Deno.test('desk focus on a module with no documents does not search unrelated corpus', async () => {
   const seen: unknown[] = [];
   const { deps, rec } = fakeDeps(documentTurn(1), {
     searchDocuments: (args, ids) => (seen.push({ args, ids }), Promise.resolve([])),
   });
   const sent = await frames(await handleResearchChat(post(deskBody('Lok Sabha Questions', 'desk-rows-only')), deps));
-  assertEquals(seen, [{ args: { query: 'committee' }, ids: undefined }], 'one unfiltered search, no re-run');
+  assertEquals(seen, [], 'known missing module index must not search the whole corpus');
   assert(!String(rec.messages[0].content).includes('Search widened'));
   assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, undefined);
   assert(!sent.some((f) => /searching (all documents|the whole record)/.test((f as { reasoning?: string }).reasoning ?? '')));
@@ -2096,7 +2097,6 @@ Deno.test('every widening reason has its own note and ticker label, and only att
     ['empty', { focus: 'attached' }, { searchDocuments: (_a, ids) => Promise.resolve(ids ? [] : [chunk('c1')]) }, {
       resolveDocumentIds: () => Promise.resolve(['doc-1']),
     }],
-    ['unresolved', { focus: 'attached', attachments: [docChip()] }, {}, {}],
     ['unkeyed', { focus: 'attached' }, {}, {}],
     ['feature-empty', { focus: 'desk', desk_context: { tier: 'national', feature: PBI } }, {
       searchDocuments: (args) => Promise.resolve(args.desk_feature ? [] : [chunk('c1')]),
@@ -2123,8 +2123,8 @@ Deno.test('every widening reason has its own note and ticker label, and only att
     labels.add(label);
     assertEquals(/attached/i.test(note), reason !== 'feature-empty', `${reason}: ${note}`);
   }
-  assertEquals(notes.size, 4, 'one note per reason');
-  assertEquals(labels.size, 4, 'one label per reason');
+  assertEquals(notes.size, 3, 'one note per remaining widening reason');
+  assertEquals(labels.size, 3, 'one label per remaining widening reason');
 });
 
 // ---- The page contract's async evidence step (chunk-contract spec, "Resolving boxes").
@@ -2389,7 +2389,7 @@ Deno.test('web search: a selected row with no indexed document is searched on th
   const answer = `The committee kept the repo rate unchanged [according to the RBI](${SEARCHED}). ` +
     'See also [an invented page](https://evil.example/phish).';
   const provider = scripted([
-    [webPages(), finish('stop', searchedUsage)],
+    [{ type: 'tool-call', id: 'row-context', name: 'search_desk_rows', args: '{"tier":"national","feature":"Regulatory Watch"}' }, webPages(), finish('tool_calls', searchedUsage)],
     NO_RESEARCH,
     [text(envelope(answer)), finish()],
   ]);
@@ -2588,10 +2588,10 @@ Deno.test('web search: an answer backed only by the web says so, not "Unverified
   await frames(await handleResearchChat(post({ ...BODY, turn_key: 'web-only', web_search: true }), deps));
   const saved = rec.messages[0];
   assert(!saved.content.includes('**Unverified.**'));
-  assertStringIncludes(saved.content, '**Not from the record.**');
+  assertStringIncludes(saved.content, '**External sources.**');
   // F131: the web sources now sit in the strip above the answer.
-  assertStringIncludes(saved.content, 'the web sources listed above the answer');
-  assertStringIncludes(saved.content, 'unofficial');
+  assertStringIncludes(saved.content, 'pages searched this turn');
+  assert(!saved.content.includes('unofficial'), 'external web pages are not inherently unofficial');
 });
 
 // ─── F131 web search streaming (docs/specs/2026-10-13-web-search-streaming.md) ───────────────────
@@ -2651,7 +2651,7 @@ Deno.test('live pages: each research round that searches gets its own start; pag
   const one = { url: 'https://rbi.org.in/one', title: 'One', excerpt: '' };
   const two = { url: 'https://rbi.org.in/two', title: 'Two', excerpt: '' };
   const provider = scripted([
-    [progress(one), { type: 'web-results', pages: [one] }, finish('stop', searchedUsage)],
+    [{ type: 'tool-call', id: 'row-context', name: 'search_desk_rows', args: '{"tier":"national","feature":"Regulatory Watch"}' }, progress(one), { type: 'web-results', pages: [one] }, finish('tool_calls', searchedUsage)],
     [progress(one, two), { type: 'web-results', pages: [one, two] }, finish('stop', searchedUsage)],
     [text(envelope('Answer.')), finish()],
   ]);
@@ -3504,13 +3504,13 @@ Deno.test('missing-document overview stores the web decision and discloses decli
   }
 });
 
-Deno.test('current pinned bill anchors pre-search instead of the previous subject in history', async () => {
+Deno.test('current indexed pinned bill anchors pre-search instead of previous subject in history', async () => {
   const queries: string[] = [];
   const provider = scripted([NO_RESEARCH, [text(envelope('Current record answer.')), finish()]]);
   const { deps } = fakeDeps(provider, {
     presearch: true,
-    searchDocuments: args => { queries.push(args.query); return Promise.resolve([]); },
-  }, { recentMessages: () => Promise.resolve([{ role: 'user', content: 'Old bill subject' }, { role: 'assistant', content: 'Old answer' }]) });
+    searchDocuments: args => { queries.push(args.query); return Promise.resolve([{ ...chunk('current'), document_id: DOC_A }]); },
+  }, { resolveDocumentIds: () => Promise.resolve([DOC_A]), recentMessages: () => Promise.resolve([{ role: 'user', content: 'Old bill subject' }, { role: 'assistant', content: 'Old answer' }]) });
   await frames(await handleResearchChat(post({ ...BODY, message: 'tell me about this bill', focus: 'attached', web_search: false,
     attachments: [{ kind: 'record', title: 'National Anti-Doping (Amendment) Bill, 2025', text: 'Record only' }] }), deps));
   assertEquals(queries, ['National Anti-Doping (Amendment) Bill, 2025 — tell me about this bill']);
@@ -3651,13 +3651,13 @@ for (const lawHint of [true, false]) for (const valid of [true, false]) for (con
     if (String(req.messages[0].content).startsWith('Select original passages')) {
       selections++;
       assertEquals(req.reasoning,{effort:'high'});
-      assertEquals(req.max_tokens,8000);
+      assertEquals(req.max_tokens,16000);
       const p = JSON.parse(String(req.messages[1].content)).passages[0];
       yield text(JSON.stringify({passages:[p.id]})); yield finish();
     } else if (String(req.messages[0].content).startsWith('Answer the question directly')) {
       syntheses++;
       assertEquals(req.reasoning,{effort:'high'});
-      assertEquals(req.max_tokens,8000);
+      assertEquals(req.max_tokens,16000);
       const p = JSON.parse(String(req.messages[1].content)).passages[0];
       if (repair && syntheses === 1) yield text(JSON.stringify({answer:'invalid shape'}));
       else yield text(JSON.stringify({claims:[{text:'The tribunal rejected the application with no order as to cost.',evidence:[valid?p.id:'invented']}],uncertain:false}));
@@ -3675,4 +3675,425 @@ for (const lawHint of [true, false]) for (const valid of [true, false]) for (con
   assertEquals(rec.messages[0].status,valid?'complete':'error');
   if(valid) { assertStringIncludes(rec.messages[0].content,'The tribunal rejected the application'); assertEquals(rec.messages[0].sources.length,1); }
   else assertEquals(rec.messages[0].content,'');
+});
+
+for (const mixed of [false,true]) Deno.test(`F247: High draft cap retains Law scope for final synthesis (mixed ${mixed})`, async () => {
+  const scope = '7.21 The inquiry is confined to whether the petition was filed within limitation.';
+  const found = [
+    {...chunk('long'), desk_tier:mixed?'national':'law', content:'3.1 ' + 'Background '.repeat(2400), char_to:26404},
+    {...chunk('scope'), desk_tier:'law', content:scope, char_to:scope.length},
+  ];
+  let selected = false;
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    const system = String(req.messages[0].content);
+    if (system.startsWith('Select original passages')) {
+      const p = JSON.parse(String(req.messages[1].content)).passages.find((p:{text:string})=>p.text===scope);
+      assert(p, 'Retrieved scope must reach the final selector despite the draft cap');
+      selected = true;
+      yield text(JSON.stringify({passages:[p.id]})); yield finish();
+    } else if (system.startsWith('Answer the question directly')) {
+      const p = JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({claims:[{text:'The tribunal confined its inquiry to whether the petition was filed within limitation.',evidence:[p.id]}],uncertain:false})); yield finish();
+    } else if (!/ref:[a-z0-9]{6}-\d+/.test(JSON.stringify(req.messages))) {
+      yield {type:'tool-call',id:'find',name:'search_documents',args:'{"query":"scope of inquiry"}'}; yield finish('tool_calls');
+    } else {
+      const firstReply=req.messages.find(m=>m.role==='tool' && String(m.content).includes('Background '));
+      assert(firstReply && !String(firstReply.content).includes(scope), 'The initial draft reply cap must remain in force');
+      yield text(envelope('Draft answer.')); yield finish();
+    }
+  };
+  const {deps,rec}=fakeDeps({stream},{searchDocuments:()=>Promise.resolve(found)});
+  await frames(await handleResearchChat(post({...BODY,reasoning:'high',...(mixed?{}:{desk_context:{tier:'law'}})}),deps));
+  assert(selected);
+  assertEquals(rec.messages[0].status,'complete');
+  assertStringIncludes(rec.messages[0].content,'confined its inquiry');
+  assertEquals(rec.messages[0].sources.length,1);
+  const source=rec.messages[0].sources[0];
+  assert('chunk_id' in source);
+  assertEquals(source.chunk_id,'scope');
+});
+
+for (const compact of [false,true]) for (const lawHint of [false,true]) for (const outage of [false,true]) for (const valid of [true,false]) Deno.test(`F250: attached Law skips discarded draft but requires source review (${valid}, outage ${outage}, hint ${lawHint}, compact ${compact})`, async () => {
+  let drafts=0, selections=0, syntheses=0;
+  const selectionModels:string[]=[];
+  const original=Array.from({length:compact?1:13},(_,i)=>`${7}.${34+i} The application is rejected. No order as to cost.`).join('\n');
+  const stream: HandlerDeps['stream']=async function*(req){
+    assertEquals(req.cache,true,'F253: every Law attempt enables prompt caching');
+    assertEquals(req.session_id,'conv-1','F253: Law shares the conversation session');
+    const system=String(req.messages[0].content);
+    if(system.startsWith('Select original passages')||system.startsWith('Answer the question directly')) {
+      selectionModels.push(req.model);
+      if(outage && selectionModels.length===1) throw new ProviderError(503,'provider unavailable');
+    }
+    if(system.startsWith('Select original passages')){
+      selections++; const p=JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({passages:[p.id]}));
+    } else if(system.startsWith('Answer the question directly')){
+      syntheses++; const p=JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({claims:[{text:'The tribunal rejected the application with no order as to cost.',evidence:valid?p.id:'invented'}],uncertain:false}));
+    } else {drafts++;yield text(envelope('Discarded draft.'));}
+    yield finish();
+  };
+  const {deps,rec}=fakeDeps({stream},{presearch:true,searchDocuments:()=>Promise.resolve([{...chunk('law'),document_id:DOC_A,desk_tier:'law',content:original,char_to:original.length}])},{resolveDocumentIds:()=>Promise.resolve([DOC_A])});
+  const events=await frames(await handleResearchChat(post({...BODY,message:'What did this tribunal order?',focus:'attached',attachments:[docChip('Law order')],...(lawHint?{desk_context:{tier:'law'}}:{}),web_search:false,reasoning:'high'}),deps));
+  if(outage) assertEquals(selectionModels[1],failoverChain(MODELS,selectionModels[0])[1]);
+  assertEquals(drafts,0);assertEquals(selections,compact?0:1);assertEquals(syntheses,valid?1:2);
+  assertEquals(rec.messages[0].status,valid?'complete':'error');
+  assert(!JSON.stringify(events).includes('Discarded draft'));
+  if(valid){assertStringIncludes(rec.messages[0].content,'The tribunal rejected');assertEquals(rec.messages[0].sources.length,1);}
+  else assertEquals(rec.messages[0].content,'');
+});
+
+// Existing policy control matrix: shared web eligibility must not become Law-only.
+for(const tier of ['national','state','law','growth','international']) for(const indexed of [false,true]) {
+ Deno.test(`F253 cross-desk cache and automatic web policy: ${tier}, indexed ${indexed}`,async()=>{
+  const provider=scripted([...DECLINES, ...Array.from({ length: 3 }, () => [text(envelope('The stored record has limited information.')),finish()])]);
+  const key='record:policy-control';
+  const {deps}=fakeDeps(provider,{}, {
+   findDeskRow:()=>Promise.resolve({...ROW_ONLY,desk_tier:tier,document_key:key}),
+   indexedDocumentKeys:()=>Promise.resolve(indexed?[key]:[]),
+   webSearchOverride:()=>Promise.resolve(null),
+  });
+  const got=await frames(await handleResearchChat(post({...SELECTED_ROW_ONLY,
+   selection:{...SELECTED_ROW_ONLY.selection,tier,document_key:key},desk_context:{tier},
+  }),deps));
+  assertEquals(webFrame(got),{offered:!indexed,mode:'auto',reason:indexed?'documents-in-scope':'record-without-document'});
+  assert(provider.seen.length>0);
+  assert(provider.seen.every(r=>r.cache===true && r.session_id===conversationOf(got)));
+  assert(provider.seen.every(r=>!String(r.messages[0].content).startsWith('Select original passages')),'metadata-only records never enter Law evidence synthesis');
+  if(indexed) assert(provider.seen.every(r=>!r.serverTools));
+  else assert(provider.seen.some(r=>r.serverTools?.length));
+ });
+}
+
+// F255: a real unindexed record must not acquire unrelated tribunal evidence
+// through the automatic pre-search or a model-requested document search.
+for (const tier of ['state', 'growth', 'international', 'national', 'law']) {
+  for (const focus of ['attached', 'selection'] as const) {
+    Deno.test(`F255 unindexed ${tier} ${focus} uses row and required web, never unrelated Law`, async () => {
+      const row = { ...storedRow(), tier, feature: 'Record register', row_key: 'current-record',
+        document_key: 'record:unindexed', record_text: 'Record: Current record\nstatus: Active' };
+      const requests: StreamRequest[] = [];
+      let documentSearches = 0;
+      let requestedDocument = false;
+      const stream: HandlerDeps['stream'] = async function* (req) {
+        requests.push(req);
+        if (req.tool_choice === 'required') {
+          yield webPages(); yield finish('stop', searchedUsage); return;
+        }
+        if (researching(req)) {
+          if (!requestedDocument) {
+            requestedDocument = true;
+            yield { type: 'tool-call', id: 'unrelated-search', name: 'search_documents', args: '{"query":"current record overview"}' };
+            yield finish('tool_calls');
+          } else yield finish();
+          return;
+        }
+        const token = req.messages.map(m => String(m.content)).join('\n').match(/ref:[a-z0-9]{6}-\d+/)?.[0];
+        yield text(envelope(`The stored status is Active [1]. The [official release](${SEARCHED}) gives external context.`, token ? [{ id: 1, source: token }] : []));
+        yield finish();
+      };
+      const { deps, rec } = fakeDeps({ stream }, {
+        presearch: true,
+        searchDocuments: () => {
+          documentSearches++;
+          return Promise.resolve([{ ...chunk('unrelated-law'), desk_tier: 'law',
+            content: '7.34 The insolvency application is rejected. No order as to cost.' }]);
+        },
+      }, {
+        findDeskRow: () => Promise.resolve(row),
+        indexedDocumentKeys: () => Promise.resolve([]),
+      });
+      const identity = { tier, feature: row.feature, row_key: row.row_key, document_key: row.document_key };
+      const got = await frames(await handleResearchChat(post({ ...BODY,
+        message: 'Give me an overview of this record', focus, desk_context: { tier },
+        ...(focus === 'attached'
+          ? { attachments: [{ kind: 'record', title: 'Current record', text: 'untrusted browser fields', ...identity }] }
+          : { selection: { ...identity, row: { name: 'Current record' } } }),
+      }), deps));
+      assertEquals(documentSearches, 0, 'missing record text must never fall through to whole-corpus search');
+      assertEquals(webFrame(got)?.offered, true);
+      assert(requests.some(r => r.tool_choice === 'required'), 'a declined optional web search must still execute the required fallback');
+      assert(requests.every(r => !/^(Select original passages|Answer the question directly)/.test(String(r.messages[0].content))), 'unrelated Law must never trigger Law review');
+      const saved = rec.messages[0];
+      assertEquals(saved.status, 'complete');
+      assert(saved.sources.some(s => 'row_key' in s && s.row_key === row.row_key), 'server-grounded row remains citable');
+      assert(!saved.sources.some(s => 'chunk_id' in s), 'no unrelated corpus citation');
+      assertStringIncludes(saved.content, SEARCHED);
+      assert(rec.calls.some(c => c.web_search_count === 1), 'verify executed web search, not just tool eligibility');
+    });
+  }
+}
+
+Deno.test('F256 web context with verified row never denies all record provenance', async () => {
+  const provider = scripted([
+    [webPages(), finish('stop', searchedUsage)], NO_RESEARCH,
+    [text(envelope(`The stored record identifies Lok Sabha. [RBI](${SEARCHED}) provides external context. ${'Context from the release. '.repeat(15)}`)), finish()],
+  ]);
+  const { deps, rec } = fakeDeps(provider, { repairModel: '' }, {
+    findDeskRow: () => Promise.resolve(ROW_ONLY), indexedDocumentKeys: () => Promise.resolve([]),
+  });
+  await frames(await handleResearchChat(post(SELECTED_ROW_ONLY), deps));
+  const saved = rec.messages[0];
+  assertEquals(saved.status, 'complete');
+  assertStringIncludes(provider.seen[0].messages.map(m => m.content).join('\n'), ROW_ONLY.record_text);
+  assert(!saved.content.includes('unofficial'), 'official web evidence is external, not automatically unofficial');
+  assert(!saved.content.includes('Nothing below is backed'), 'a missing inline row citation does not prove none of the answer uses verified row fields');
+  assertStringIncludes(saved.content, SEARCHED);
+});
+
+Deno.test('F255 broad research with an unindexed row still retrieves and reviews genuine Law evidence', async () => {
+  let searches = 0;
+  let reviews = 0;
+  const original = '7.34 The application is rejected. No order as to cost.';
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    if (String(req.messages[0].content).startsWith('Select original passages')) {
+      const passage = JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({ passages: [passage.id] }));
+    } else if (String(req.messages[0].content).startsWith('Answer the question directly')) {
+      reviews++;
+      const passage = JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({ claims: [{ text: 'The tribunal rejected the application with no order as to cost.', evidence: [passage.id] }], uncertain: false }));
+    } else yield text(envelope('Draft answer.'));
+    yield finish();
+  };
+  const { deps, rec } = fakeDeps({ stream }, {
+    presearch: true,
+    searchDocuments: () => {
+      searches++;
+      return Promise.resolve([{ ...chunk('broad-law'), desk_tier: 'law', content: original, char_to: original.length }]);
+    },
+  }, { findDeskRow: () => Promise.resolve(ROW_ONLY), indexedDocumentKeys: () => Promise.resolve([]) });
+  await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, focus: 'broad', web_search: false,
+    message: 'Research tribunal treatment across the corpus.', reasoning: 'high',
+  }), deps));
+  assert(searches > 0, 'broad research is not confined to the unindexed selected row');
+  assertEquals(reviews, 1, 'genuine retrieved Law evidence retains mandatory attribution review');
+  assertEquals(rec.messages[0].status, 'complete');
+  assert(rec.messages[0].sources.some(s => 'chunk_id' in s && s.chunk_id === 'broad-law'));
+});
+
+for (const browserKey of [undefined, 'bill:stale-browser-key']) {
+  Deno.test(`F255 canonical selected-row mapping drives indexed retrieval (browser key ${browserKey ?? 'absent'})`, async () => {
+    const canonicalKey = storedRow().document_key!;
+    const resolutions: { keys: string[]; ids: string[] }[] = [];
+    const searchedScopes: (string[] | undefined)[] = [];
+    const { deps, rec } = fakeDeps(documentTurn(1), {
+      searchDocuments: (_args, ids) => {
+        searchedScopes.push(ids);
+        return Promise.resolve([{ ...chunk('canonical-selected'), document_id: DOC_A }]);
+      },
+    }, {
+      findDeskRow: () => Promise.resolve(storedRow()),
+      indexedDocumentKeys: keys => Promise.resolve(keys.filter(key => key === canonicalKey)),
+      resolveDocumentIds: scope => {
+        resolutions.push(scope);
+        return Promise.resolve(scope.keys.includes(canonicalKey) ? [DOC_A] : []);
+      },
+    });
+    const got = await frames(await handleResearchChat(post({ ...BODY, focus: 'selection',
+      selection: { tier: 'national', feature: storedRow().feature, row: { bill_name: 'THE DELIMITATION BILL, 2026.' },
+        ...(browserKey ? { document_key: browserKey } : {}),
+      },
+    }), deps));
+    assertEquals(resolutions, [{ keys: [canonicalKey], ids: [] }], 'the stored mapping replaces absent or stale browser keys');
+    assertEquals(searchedScopes, [[DOC_A]], 'indexed selected-record retrieval stays scoped to the canonical document');
+    assertEquals(webFrame(got)?.offered, false, 'indexed record uses its document rather than automatic web fallback');
+    assertEquals(rec.messages[0].status, 'complete');
+  });
+}
+
+for (const browserKey of [undefined, 'bill:stale-attachment-key']) {
+  Deno.test(`F255 canonical attached-row mapping drives indexed retrieval (browser key ${browserKey ?? 'absent'})`, async () => {
+    const canonicalKey = storedRow().document_key!;
+    const resolutions: { keys: string[]; ids: string[] }[] = [];
+    const searchedScopes: (string[] | undefined)[] = [];
+    const { deps, rec } = fakeDeps(documentTurn(1), {
+      searchDocuments: (_args, ids) => {
+        searchedScopes.push(ids);
+        return Promise.resolve([{ ...chunk('canonical-attached'), document_id: DOC_A }]);
+      },
+    }, {
+      findDeskRow: () => Promise.resolve(storedRow()),
+      indexedDocumentKeys: keys => Promise.resolve(keys.filter(key => key === canonicalKey)),
+      resolveDocumentIds: scope => {
+        resolutions.push(scope);
+        return Promise.resolve(scope.keys.includes(canonicalKey) ? [DOC_A] : []);
+      },
+    });
+    const got = await frames(await handleResearchChat(post({ ...BODY, focus: 'attached',
+      attachments: [{ kind: 'record', title: 'The Delimitation Bill', text: 'untrusted browser fields',
+        tier: 'national', feature: storedRow().feature, row_key: storedRow().row_key,
+        ...(browserKey ? { document_key: browserKey } : {}),
+      }],
+    }), deps));
+    assertEquals(resolutions, [{ keys: [canonicalKey], ids: [] }], 'verified attached-row mapping replaces absent or stale browser keys');
+    assertEquals(searchedScopes, [[DOC_A]], 'indexed attached-record retrieval stays scoped to the canonical document');
+    assertEquals(webFrame(got)?.offered, false, 'canonical indexed attachment must not trigger missing-document web fallback');
+    assertEquals(rec.messages[0].status, 'complete');
+  });
+}
+
+for (const focus of ['selection', 'attached'] as const) {
+  Deno.test(`F255 canonical null mapping clears stale indexed browser key (${focus})`, async () => {
+    const staleKey = 'bill:stale-indexed-other-record';
+    const row = { ...storedRow(), document_key: null };
+    const resolutions: { keys: string[]; ids: string[] }[] = [];
+    let searches = 0;
+    const { deps } = fakeDeps(documentTurn(1), {
+      searchDocuments: () => {
+        searches++;
+        return Promise.resolve([{ ...chunk('wrong-record'), document_id: DOC_A }]);
+      },
+    }, {
+      findDeskRow: () => Promise.resolve(row),
+      indexedDocumentKeys: keys => Promise.resolve(keys.filter(key => key === staleKey)),
+      resolveDocumentIds: scope => {
+        resolutions.push(scope);
+        return Promise.resolve(scope.keys.includes(staleKey) ? [DOC_A] : []);
+      },
+    });
+    const identity = { tier: 'national', feature: row.feature, row_key: row.row_key, document_key: staleKey };
+    const got = await frames(await handleResearchChat(post({ ...BODY, focus,
+      ...(focus === 'selection'
+        ? { selection: { ...identity, row: { bill_name: 'THE DELIMITATION BILL, 2026.' } } }
+        : { attachments: [{ kind: 'record', title: 'The Delimitation Bill', text: 'untrusted browser fields', ...identity }] }),
+    }), deps));
+    assertEquals(resolutions, [{ keys: [], ids: [] }], 'canonical null is authoritative; it must not resurrect a stale client key');
+    assertEquals(searches, 0, 'the other indexed document is not evidence for this record');
+    assertEquals(webFrame(got), { offered: true, mode: 'auto', reason: 'record-without-document' });
+  });
+}
+
+Deno.test('F254 indexed National provision answer replaces and withholds unsupported research draft', async () => {
+  const discarded = 'Unsupported draft claims that the Agency Board already has new powers.';
+  const original = '9. In section 12 of the principal Act, for the words Board, the words Central Government shall be substituted.';
+  let selections = 0;
+  let syntheses = 0;
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    const system = String(req.messages[0].content);
+    if (system.startsWith('Select the supplied original bill passages')) {
+      selections++;
+      assert(!JSON.stringify(req.messages).includes(discarded), 'selection must read originals, never the draft');
+      const passage = JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({ passages: [passage.id] }));
+    } else if (system.startsWith('Answer the precise provision question')) {
+      syntheses++;
+      assert(!JSON.stringify(req.messages).includes(discarded), 'synthesis must read originals, never the draft');
+      const passage = JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({ claims: [{ text: 'Clause 9 substitutes Central Government for Board in section 12 of the principal Act.', evidence: passage.id }], uncertain: false }));
+    } else yield text(envelope(discarded));
+    yield finish();
+  };
+  const { deps, rec } = fakeDeps({ stream }, {
+    presearch: true,
+    searchDocuments: () => Promise.resolve([{ ...chunk('national-provision'), document_id: DOC_A,
+      document_role: 'as_passed_both_houses', content: original, char_to: original.length }]),
+  }, { findDeskRow: () => Promise.resolve(storedRow()), resolveDocumentIds: () => Promise.resolve([DOC_A]),
+    indexedDocumentKeys: () => Promise.resolve([storedRow().document_key!]) });
+  const got = await frames(await handleResearchChat(post({ ...BODY, focus: 'selection',
+    message: 'What does clause 9 change in section 12?',
+    selection: { tier: 'national', feature: 'Bill Passage Probability Index', row: { bill_name: 'THE DELIMITATION BILL, 2026.' }, document_key: storedRow().document_key! },
+  }), deps));
+  assertEquals(selections, 1, 'a provision question must select original bill passages');
+  assertEquals(syntheses, 1);
+  assert(!JSON.stringify(got).includes(discarded), 'unsupported draft must never be published on the stream');
+  assert(!JSON.stringify(rec.messages).includes(discarded), 'unsupported draft must never be saved');
+  assertEquals(rec.messages[0].status, 'complete');
+  assertStringIncludes(rec.messages[0].content, 'Clause 9 substitutes Central Government');
+  assert(rec.messages[0].sources.some(s => 'chunk_id' in s && s.chunk_id === 'national-provision'));
+});
+
+for (const [tier, feature, message] of [
+  ['national', 'Bill Passage Probability Index', 'What is the recorded status and house?'],
+  ['state', 'MLA Directory', 'What does this provision mean?'],
+  ['growth', 'Economic Simulator', 'What amendments does this record describe?'],
+]) Deno.test(`F254 provision review stays scoped: ${tier} ${message}`, async () => {
+  const requests: StreamRequest[] = [];
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    requests.push(req);
+    yield text(envelope('The stored record provides limited information.'));
+    yield finish();
+  };
+  const { deps, rec } = fakeDeps({ stream }, { presearch: true,
+    searchDocuments: () => Promise.resolve([{ ...chunk('control'), desk_tier: tier, desk_feature: feature }]),
+  });
+  await frames(await handleResearchChat(post({ ...BODY, message, desk_context: { tier, feature }, web_search: false }), deps));
+  assertEquals(rec.messages[0].status, 'complete');
+  assert(requests.every(r => !/^(Select the supplied original bill passages|Answer the precise provision question)/.test(String(r.messages[0].content))));
+});
+
+for (const pool of ['empty', 'offscope'] as const) {
+  Deno.test(`F254 activated provision review fails closed with ${pool} evidence`, async () => {
+    const draft = 'Unsupported provision draft must not escape.';
+    const stream: HandlerDeps['stream'] = async function* () { yield text(envelope(draft)); yield finish(); };
+    const { deps, rec } = fakeDeps({ stream }, { presearch: true,
+      searchDocuments: () => Promise.resolve(pool === 'empty' ? [] : [{ ...chunk('offscope'), desk_tier: 'growth', desk_feature: 'Economic Simulator' }]),
+    }, { findDeskRow: () => Promise.resolve(storedRow()), resolveDocumentIds: () => Promise.resolve([DOC_A]),
+      indexedDocumentKeys: () => Promise.resolve([storedRow().document_key!]) });
+    const got = await frames(await handleResearchChat(post({ ...BODY, focus: 'selection',
+      message: 'What does clause 9 change in section 12?',
+      selection: { tier: 'national', feature: 'Bill Passage Probability Index', row: { bill_name: 'THE DELIMITATION BILL, 2026.' } },
+    }), deps));
+    assertEquals(rec.messages[0].status, 'error', 'an activated source review cannot accept a draft when its source pool is absent');
+    assert(!JSON.stringify(got).includes(draft));
+    assert(!JSON.stringify(rec.messages).includes(draft));
+  });
+}
+
+Deno.test('F254 stale Law hint cannot bypass National provision review without actual Law evidence', async () => {
+  let syntheses = 0;
+  const original = '9. In section 12 of the principal Act, for the words Board, the words Central Government shall be substituted.';
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    const system = String(req.messages[0].content);
+    if (system.startsWith('Select the supplied original bill passages')) {
+      const passage = JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({ passages: [passage.id] }));
+    } else if (system.startsWith('Answer the precise provision question')) {
+      syntheses++;
+      const passage = JSON.parse(String(req.messages[1].content)).passages[0];
+      yield text(JSON.stringify({ claims: [{ text: 'Clause 9 substitutes Central Government for Board in section 12.', evidence: passage.id }], uncertain: false }));
+    } else yield text(envelope('Unreviewed draft.'));
+    yield finish();
+  };
+  const { deps, rec } = fakeDeps({ stream }, { presearch: true,
+    searchDocuments: () => Promise.resolve([{ ...chunk('national-provision'), document_id: DOC_A, content: original, char_to: original.length }]),
+  }, { findDeskRow: () => Promise.resolve(storedRow()), resolveDocumentIds: () => Promise.resolve([DOC_A]),
+    indexedDocumentKeys: () => Promise.resolve([storedRow().document_key!]) });
+  await frames(await handleResearchChat(post({ ...BODY, focus: 'selection', message: 'What does clause 9 change in section 12?',
+    desk_context: { tier: 'law' },
+    selection: { tier: 'national', feature: 'Bill Passage Probability Index', row: { bill_name: 'THE DELIMITATION BILL, 2026.' } },
+  }), deps));
+  assertEquals(syntheses, 1, 'only actual Law evidence takes precedence over the National provision review');
+  assertEquals(rec.messages[0].status, 'complete');
+  assert(!rec.messages[0].content.includes('Unreviewed draft'));
+});
+
+Deno.test('F256 Economic Simulator withholds and corrects unsupported observation prose before saving', async () => {
+  const bad = `The calendar-year figure is latest and unrevised. [Source](${SEARCHED})`;
+  const good = JSON.stringify({ definitionId: 1, updateIds: [] });
+  const provider = scripted([[webPages(), finish('stop', searchedUsage)], [text(envelope(bad)), finish()], [text(good), finish()]]);
+  const row = { ...ROW_ONLY, tier: 'economics', feature: 'Economic Simulator', record_text: 'India GDP growth 2025: 7.57%', row: { country: 'India', year: '2025', value: '7.57' } };
+  const { deps, rec } = fakeDeps(provider, { repairModel: '' }, { findDeskRow: () => Promise.resolve(row), indexedDocumentKeys: () => Promise.resolve([]) });
+  const got = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, selection: { tier: row.tier, feature: row.feature, row: row.row }, message: 'Explain this observation against its source definition.' }), deps));
+  assertEquals(rec.messages[0].status, 'complete');
+  assert(!rec.messages[0].content.includes('calendar-year'));
+  assertStringIncludes(rec.messages[0].content, 'The MPC voted to keep the repo rate unchanged.');
+  assertStringIncludes(rec.messages[0].content, 'value: 7.57');
+  assertStringIncludes(rec.messages[0].content, 'Selected record');
+  assertStringIncludes(rec.messages[0].content, 'Comparability and revision relationships with web figures are not established.');
+  assert((rec.messages[0].timing?.first_answer_ms ?? 0) > 0, 'held answer records its actual release boundary');
+  assert(!got.some(frame => 'chunk' in frame && String(frame.chunk).includes('calendar-year')), 'invalid provisional answer must not reach browser');
+  assertEquals(provider.seen.length, 3);
+});
+
+Deno.test('F256 attached observation keeps its verified row identity in server-rendered answer', async () => {
+  const good = JSON.stringify({ definitionId: 1, updateIds: [] });
+  const provider = scripted([[webPages(), finish('stop', searchedUsage)], [text(good), finish()]]);
+  const row = { ...ROW_ONLY, tier: 'economics', feature: 'Economic Simulator', record_text: 'India GDP growth 2025: 7.57%', row: { country: 'India', year: '2025', value: '7.57' } };
+  const { deps, rec } = fakeDeps(provider, { repairModel: '' }, { findDeskRow: () => Promise.resolve(row), indexedDocumentKeys: () => Promise.resolve([]) });
+  await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, selection: undefined, desk_context: { tier: row.tier, feature: row.feature }, attachments: [{ kind: 'row', tier: row.tier, feature: row.feature, row_key: row.row_key, title: 'India GDP', text: 'stale 9%' }], message: 'Explain this observation against its source definition.' }), deps));
+  assertEquals(rec.messages[0].status, 'complete');
+  assertStringIncludes(rec.messages[0].content, 'value: 7.57');
+  assert(!rec.messages[0].content.includes('stale 9%'));
 });
