@@ -19,9 +19,23 @@ import { fetchNterLatest } from '../lib/nterNewsClient.js';
 import { savedHomeNews, newsCheckLabel, newsPublication, NEWS_POLL_MS } from '../lib/homeNews.js';
 import HomeNewsImage from './HomeNewsImage.jsx';
 import PublisherBrand from './PublisherBrand.jsx';
+import './homeHeadings.css';
 import { trackProductEvent } from '../lib/productAnalytics.js';
 import { plainNote, technicalTitle } from '../lib/plainSourceNote.js';
 import { loadWatchlist, subscribeWatchlist } from '../lib/watchlistStore.js';
+
+function NewsSectionHeading({ title, meta }) {
+  return <div className="bh nh-section-heading">
+    <div className="nh-heading-copy">
+      <h2>{title}</h2>
+      <div className="nh-heading-source">
+        <PublisherBrand />
+        <span className="nh-agent" title={meta?.checked_at ? `Last successful check: ${meta.checked_at}` : 'Waiting for published stories'}>{newsCheckLabel(meta)}</span>
+      </div>
+    </div>
+    <a className="nh-link" href="https://nter.news" target="_blank" rel="noreferrer">Open nter.news →</a>
+  </div>;
+}
 
 async function getJson(path, signal) {
   const route = String(path).split('?')[0];
@@ -159,14 +173,20 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
     category: r.category || '',
     related_count: r.related_count,
   }));
-  const featured = latestShown[0] || null;
+  // Keep publisher order elsewhere; only the hero prioritizes verified publication time.
+  const featured = latestShown.reduce((newest, row) => {
+    const time = Date.parse(row.pub);
+    const previous = Date.parse(newest?.pub);
+    return Number.isFinite(time) && (!Number.isFinite(previous) || time > previous) ? row : newest;
+  }, latestShown[0] || null);
   const topics = latestShown.map(row => ({ key: row.link, text: row.title, cat: row.category || 'NTER.NEWS', link: row.link }));
-  const newsLead = latestShown[1] || featured || null;
+  const remainingNews = latestShown.filter(row => row !== featured);
+  const newsLead = remainingNews[0] || null;
   // F165: the latest-news note can describe the ingest route ("POST /api/news/ingest"); a reader sees
   // plain words, and the original stays as the line's title.
   const newsEmptyNote = latestNewsNote(meta.latest?.note, 'nter.news headlines aren\u2019t available right now. No headlines were invented.');
   const railEmptyNote = latestNewsNote(meta.latest?.note, 'Waiting for nter.news stories.');
-  const newsRest = latestShown.slice(2, 14);
+  const newsRest = remainingNews.slice(1, 13);
   const pulseShown = dedupeNewsRows(
     (pulse || []).map((r) => ({
       title: r.title,
@@ -415,15 +435,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
 
           <section className="nh-news" aria-label="Selected from nter.news">
             <div className="nh-news-head">
-              <div className="bh">
-                <span>
-                  FROM <PublisherBrand />
-                  <span className="nh-agent" title={meta.latest?.checked_at ? `Last successful check: ${meta.latest.checked_at}` : 'Waiting for published stories'}>{newsCheckLabel(meta.latest)}</span>
-                </span>
-                <a className="nh-link" href="https://nter.news" target="_blank" rel="noreferrer">
-                  Open nter.news →
-                </a>
-              </div>
+              <NewsSectionHeading title="News & analysis" meta={meta.latest} />
             </div>
 
             {newsLoading && !latest.length && <p className="muted nh-news-empty">Loading…</p>}
@@ -493,15 +505,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
 
         <aside className="nh-rail">
           <section className="nh-box nh-rail-latest-box">
-            <div className="bh">
-              <span>
-                SELECTED FROM <PublisherBrand />
-                <span className="nh-agent" title={meta.latest?.checked_at ? `Last successful check: ${meta.latest.checked_at}` : 'Waiting for published stories'}>{newsCheckLabel(meta.latest)}</span>
-              </span>
-              <a className="nh-link" href="https://nter.news" target="_blank" rel="noreferrer">
-                nter.news →
-              </a>
-            </div>
+            <NewsSectionHeading title="Publisher picks" meta={meta.latest} />
             <ul className="nh-rail-latest-list">
               {latestShown.slice(0, 4).map((r, i) => (
                 <li key={`rail-latest-${r.link || i}`} className="nh-rail-latest-item">
@@ -533,7 +537,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
           </section>
 
           <section className="nh-box">
-            <div className="bh">MY WATCHLIST</div>
+            <h2 className="bh">MY WATCHLIST</h2>
             <ul className="nh-watchlist">
               {watchlist.length === 0 && <li className="muted" style={{ fontSize: 12 }}>No saved desks yet.</li>}
               {watchlist.map((w) => (
@@ -547,7 +551,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
           </section>
 
           <section className="nh-box">
-            <div className="bh">FEED HEALTH</div>
+            <h2 className="bh">FEED HEALTH</h2>
             <div className="nh-health">
               <div>
                 <span>Markets</span>
