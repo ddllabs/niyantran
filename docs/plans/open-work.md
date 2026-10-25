@@ -1,7 +1,7 @@
 # Open work: the one list
 
 
-- [ ] **nter.news homepage preview — 2026-10-25.** Owner approved only `task/nter-news-rss-preview` and its separate [review preview](https://niyantran-git-task-nter-news-rss-preview-ddl-labs.vercel.app). Initial RSS implementation `17853ac4` and publisher-selection/date/logo revision `73ea88c8` passed both required CI jobs and signed-in review. Owner now approved compact explainer thumbnail repair, newest verified article in the hero (publisher order retained elsewhere), and clearer section headings within existing layout. Regression tests reproduced omissions and old-first hero; thumbnail fix committed, full6,616 app/1,412 Edge tests plus lint/build/bundle/router pass. Responsive browser verification completed; final Preview deployment and exact-commit CI verification follow. Production/Supabase data remain untouched; main merge and CMS migration are unauthorized. [Spec](../specs/2026-10-25-nter-news-rss-preview.md), [plan](2026-10-25-nter-news-rss-preview.md).
+- [ ] **Reviewed preview production release — 2026-10-25.** Owner accepted the preview and explicitly authorized push/merge to production. [PR58](https://github.com/ddllabs/niyantran/pull/58), [release plan](2026-10-25-preview-production-release.md). Publishes the verified nter.news homepage integration/date/image/logo/heading work and citation/search/view-state fixes from b7a772a1; protected PR/main CI and exact production deployment verification required. No data/corpus/schema/billing/auth-policy changes. Complete record indexing remains separate.
 
 
 
