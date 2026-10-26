@@ -81,18 +81,39 @@ Any of the following ends the run with the reason written to `autopilot-status.j
 **Pre-write importer failures are retried.** The importer completes every read-only check (source scan, live
 `law-reconcile` mapping for each document, chunk and cost bounds) before it opens its report, and it registers nothing
 until the report exists. An exit 1 with no report file therefore proves nothing was written. The driver retries that
-case alone, up to 3 times, after 90, 180 and 270 seconds, each time with a fresh sign-in. Any failure after the report
-exists is never retried. Batch 7 T1 first stopped this way on 2026-10-26 16:45 UTC: one mapping request took about
-40 seconds on the server (edge logs), past the importer's 30-second client timeout, and the database was unchanged.
+case alone, up to 3 times, after 90, 180 and 270 seconds, each time with a fresh sign-in. Batch 7 T1 first stopped this way on
+2026-10-26 16:45 UTC: one mapping request took about 40 seconds on the server (edge logs), past the importer's 30-second
+client timeout, and the database was unchanged.
+
+**Incomplete submissions are resumed by reconciliation, never treated as done.** The importer stops sending at the first
+uncertain outcome. Batch 7 T1's second attempt registered 185 of 205 documents. A 503 on the read-only
+publication-status check after document 185 then counted as uncertain, and the last 20 were not sent. The driver then
+pauses 120 seconds so any request still in flight can finish, signs in again and runs a fresh read-only reconcile of
+the same approved manifest. Every key must be accounted for, in one of two ways:
+- **already registered:** the live document exists, its stored text hash equals the plan, and the mapping names that
+  document;
+- **cleanly ready:** the key is ready with no document, as on a first submission.
+
+Only then does it submit the same manifest again. Registration is idempotent and the database is the ledger, so the
+resume registers only the remainder. The tranche counts as submitted when the new report shows submitted plus already
+registered equal to the tranche size, with 0 uncertain and 0 held. The resume stops on any held document, any
+mismatch, or more than 5 submission reports for one tranche.
 
 A stop never deletes or unpublishes anything. Every step is resumable: reports are never overwritten, and re-running
-the cell continues from the recorded state. An earlier submission that is incomplete or uncertain is never treated as
-done; it stops the run until it has been reconciled. Each tranche's dry run must also match the estimate for every
-document's chunk count.
+the cell continues from the recorded state. Each tranche's dry run must also match the estimate for every document's
+chunk count.
 
-Offline test: `python3 -I test_autopilot_offline.py`. It uses a fake screener, importer and REST, and covers two clean
-batches, the holds, a reconcile-mismatch stop followed by a resume, the incomplete-submission stop, a pre-write retry, no retry once a
-report exists, and the size guard. With retries set to 0 the pre-write scenario stops, as batch 7 T1 did.
+Offline test: `python3 -I test_autopilot_offline.py`. It uses a fake screener, importer and REST, and covers:
+- two clean batches and the holds;
+- a reconcile-mismatch stop followed by a resume;
+- a crash mid-submission, resumed;
+- a pre-write retry, and no immediate retry once a report exists;
+- a part-way submission resumed (12 already registered plus the rest);
+- a resume refused when a registered document's text differs;
+- the 5-report bound;
+- the size guard.
+
+With retries or resumes turned off, the corresponding scenarios stop, as batch 7 T1 did.
 An independent review of the first draft found 9 defects (premature resume, one token covering both reconcile and
 submit, browser-bound secret reads, narrow network retries, unordered or short-page paging, unequal-size MinHash, and
 non-atomic caches); all are fixed here.

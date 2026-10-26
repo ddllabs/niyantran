@@ -75,23 +75,32 @@ def fake_run(cmd, env=None):
     raise AssertionError(cmd)
 M['run'] = fake_run
 
+FAIL = {'after': None}   # submit: stop as uncertain after this many new registrations (models a 503 on the status read)
 def fake_importer(n, P, t, report, *extra):
     v = P['tranches'][t]; report = pathlib.Path(report)
     if report.exists(): raise M['Stop']('exists')
     rows = []
     for k in v['keys']:
-        rows.append({'source_key': k, 'status': 'ready', 'chunks': P['plan_rows'][k]['chunks'],
-                     'mapping': {'status': 'ready', 'action': 'create-listing', 'fingerprint': 'a' * 64}})
+        m = {'status': 'ready', 'action': 'create-listing', 'fingerprint': 'a' * 64}
+        if k in DB: m['document_id'] = DB[k]['id']
+        rows.append({'source_key': k, 'status': 'ready', 'chunks': P['plan_rows'][k]['chunks'], 'mapping': m})
     summ = {'type': 'summary', 'ready': v['docs'], 'held': 0, 'chunks': v['chunks'], 'estimated_cost_ceiling_usd': v['cost_ceiling'],
-            'submitted': 0, 'uncertain': 0, 'registration_held': 0, 'manifest_sha256': M['sha'](M['ST'] / f'b{n:02d}' / t / 'decisions.jsonl')}
+            'submitted': 0, 'uncertain': 0, 'registration_held': 0, 'already_registered': 0,
+            'manifest_sha256': M['sha'](M['ST'] / f'b{n:02d}' / t / 'decisions.jsonl')}
     if '--submit' in extra:
-        summ['submitted'] = v['docs']
+        stopped = False
         for k in v['keys']:
+            if k in DB:
+                summ['already_registered'] += 1; continue
+            if stopped: continue
             pr = P['plan_rows'][k]; did = 'id-' + k[-16:]
             text = next(x for x in sum(POOL.values(), []) if x['source_key'] == k)['text']
             DB[k] = {'id': did, 'source_key': k, 'file_url': pr['url'], 'indexed_at': 'now', 'content_sha256': pr['text_sha256'], 'ocr_text': text,
                      'citation': {}}
             CHUNKS[did] = pr['chunks']; LINKS[did] = 1
+            summ['submitted'] += 1
+            if FAIL['after'] is not None and summ['submitted'] == FAIL['after']:
+                summ['uncertain'] = 1; stopped = True; FAIL['after'] = None
         decided.update(v['keys'])
     rows.append(summ)
     report.write_text(''.join(json.dumps(r) + '\n' for r in rows))
@@ -175,17 +184,18 @@ try:
 except KeyboardInterrupt:
     pass
 M['importer'] = orig
-try:
-    M['run_batch'](10); print('FAIL: incomplete submission skipped')
-except M['Stop'] as e:
-    print('stop 2 ok:', 'incomplete or uncertain' in str(e))
+M['run_batch'](10)
+st = json.loads((M['ST'] / 'autopilot-status.json').read_text())
+print('crash resume ok:', st['batches']['10']['phase'] == 'verified',
+      any(x.get('batch') == 10 and x.get('event') == 'resuming an incomplete submission' for x in st['log']),
+      (M['ST'] / 'b10' / 'T1' / 'submit-2.jsonl').exists())
 # 4. an importer exit 1 before the report exists (nothing written, e.g. one mapping request timing out) is retried
 M['BATCHES'] = [11]
-for i in range(6, 10):
-    POOL[f'2024__part-0000{i}'] = [{'source_key': f'law:trib:IBBI_NCLT:ibbi_nclt-{i:02d}{j:014d}', 'text': mk_text(),
+for i in range(6, 20):
+    POOL[f'2024__part-{i:05d}'] = [{'source_key': f'law:trib:IBBI_NCLT:ibbi_nclt-{i:02d}{j:014d}', 'text': mk_text(),
         'file_url': f'https://ibbi.gov.in/uploads/order/{hashlib.md5(f"{i}-{j}".encode()).hexdigest()}.pdf', 'case': f'CP {i}-{j}/2024',
         'date': f'2024-0{1+j%9}-1{j%9}'} for j in range(20)]
-    M['MEMBERS'].append((f'documents/tribunals/IBBI_NCLT/2024__part-0000{i}.jsonl.gz', 'x'))
+    M['MEMBERS'].append((f'documents/tribunals/IBBI_NCLT/2024__part-{i:05d}.jsonl.gz', 'x'))
 fails = {'reconcile': 1, 'submit': 2}; calls = []
 def flaky_importer(n, P, t, report, *extra):
     kind = 'submit' if '--submit' in extra else 'reconcile' if '--reconcile' in extra else 'dry'
@@ -211,8 +221,44 @@ try:
     M['run_batch'](12); print('FAIL: late failure not stopped')
 except M['Stop'] as e:
     st = json.loads((M['ST'] / 'autopilot-status.json').read_text())
-    print('no retry after write ok:', 'not clean' in str(e), not any(x.get('batch') == 12 and 'retrying' in x.get('event', '') for x in st['log']))
+    print('no retry after write ok:', 'without completing' in str(e), not any(x.get('batch') == 12 and 'retrying' in x.get('event', '') for x in st['log']))
 M['importer'] = orig
+# 6. a submission that stops part-way (registered 12, then an uncertain status read) is resumed: 12 already registered + the rest
+M['BATCHES'] = [13]
+before = len(DB); FAIL['after'] = 12
+M['run_batch'](13)
+st = json.loads((M['ST'] / 'autopilot-status.json').read_text())
+s2 = json.loads((M['ST'] / 'b13' / 'T1' / 'submit-2-status.json').read_text())['summary']
+print('partial resume ok:', st['batches']['13']['phase'] == 'verified', s2['already_registered'] == 12,
+      s2['submitted'] + s2['already_registered'] == 30, len(DB) - before == 30)
+# 7. a resume refuses a registered document whose stored text differs from the plan
+M['BATCHES'] = [14]
+FAIL['after'] = 5
+real_submit_once = M['_submit_once']; TAMPERED = {}
+def tamper(n, P, t, v, d, j, resume):
+    if resume:
+        k = next(k for k in v['keys'] if k in DB); TAMPERED[k] = DB[k]['content_sha256']; DB[k]['content_sha256'] = '0' * 64
+    return real_submit_once(n, P, t, v, d, j, resume)
+M['_submit_once'] = tamper
+try:
+    M['run_batch'](14); print('FAIL: tampered document accepted')
+except M['Stop'] as e:
+    print('resume refuses changed text ok:', 'live reconcile differs' in str(e))
+M['_submit_once'] = real_submit_once
+for k, h in TAMPERED.items(): DB[k]['content_sha256'] = h
+# 8. a tranche that never completes stops after MAX_SUBMIT_REPORTS attempts
+M['BATCHES'] = [15]
+def never(n, P, t, report, *extra):
+    if '--submit' in extra:
+        FAIL['after'] = 1
+    return orig(n, P, t, report, *extra)
+M['importer'] = never
+try:
+    M['run_batch'](15); print('FAIL: endless resume')
+except M['Stop'] as e:
+    print('  stop reason:', e)
+    print('resume bound ok:', 'without completing' in str(e), len(list((M['ST'] / 'b15' / 'T1').glob('submit-*.jsonl'))) == M['MAX_SUBMIT_REPORTS'])
+M['importer'] = orig; FAIL['after'] = None
 # 3. very unequal sizes are never compared; a short order fully inside a long one is not held by the estimate alone
 import numpy as np
 big = ' '.join(random.choice(vocab) for _ in range(20000)); small = ' '.join(big.split()[:400])

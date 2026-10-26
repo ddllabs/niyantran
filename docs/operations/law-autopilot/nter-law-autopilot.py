@@ -6,7 +6,7 @@
 # read -> finalize + dry run -> per tranche read-only reconcile then submit -> wait for indexing -> per-document
 # verification. Any deviation stops the run (state and reasons in Drive autopilot-status.json); reports are never
 # overwritten and every step is resumable after a runtime reset.
-import base64, glob, hashlib, http.client, json, os, pathlib, shutil, subprocess, sys, tarfile, time, urllib.error, urllib.parse, urllib.request
+import base64, glob, hashlib, http.client, json, os, pathlib, re, shutil, subprocess, sys, tarfile, time, urllib.error, urllib.parse, urllib.request
 from collections import Counter
 
 REPO_SHA = 'cf3e7533209858dadde08274f49fe996dd7179d5'
@@ -598,17 +598,50 @@ def link_ok(url):
     return not rest_get('/rest/v1/law_document_links?' + urllib.parse.urlencode({'select': 'document_id', 'record_id': 'eq.' + recs[0]['id']}))
 
 
+MAX_SUBMIT_REPORTS = 5   # the first submission plus up to 4 resumes of the same approved manifest
+RESUME_PAUSE_S = 120
+
+
+def _summary(path):
+    try:
+        rows = [json.loads(l) for l in open(path) if l.strip()]
+    except Exception:
+        return {}
+    return rows[-1] if rows and rows[-1].get('type') == 'summary' else {}
+
+
+def _complete(s, docs):
+    return (s.get('type') == 'summary' and s.get('submitted', 0) + s.get('already_registered', 0) == docs
+            and s.get('uncertain') == 0 and s.get('registration_held') == 0 and s.get('held') == 0)
+
+
+def _submit_reports(d):
+    return sorted(glob.glob(str(d / 'submit-*.jsonl')), key=lambda p: int(re.search(r'submit-(\d+)\.jsonl$', p).group(1)))
+
+
 def submit_tranche(n, P, t):
+    """Reconcile, then submit one tranche. If a submission ends incomplete or uncertain (a request timing out, or a 5xx on
+    the publication-status read after a registration), the same approved manifest is resumed: after a pause, a fresh
+    read-only reconcile must account for every key, either as already registered (the live document carries this plan's
+    text hash and the mapping names that document) or as cleanly ready with no document. Registration is idempotent and
+    the database is the ledger, so the resume registers only the remainder. Anything else, or more than
+    MAX_SUBMIT_REPORTS attempts, stops."""
     v, d = P['tranches'][t], ST / f'b{n:02d}' / t
-    if glob.glob(str(d / 'submit-*.jsonl')):
-        try:
-            last = [json.loads(l) for l in open(d / 'submit-1.jsonl') if l.strip()][-1]
-        except Exception:
-            last = {}
-        if (last.get('type') == 'summary' and last.get('submitted') == v['docs'] and last.get('uncertain') == 0
-                and last.get('registration_held') == 0 and last.get('held') == 0):
+    while True:
+        reports = _submit_reports(d)
+        if reports and _complete(_summary(reports[-1]), v['docs']):
             return
-        raise Stop(f'batch {n} {t}: an earlier submission is incomplete or uncertain; reconcile it before resuming')
+        if len(reports) >= MAX_SUBMIT_REPORTS:
+            raise Stop(f'batch {n} {t}: {len(reports)} submissions without completing; reconcile by hand')
+        resume = bool(reports)
+        if resume:
+            status(batch=n, tranche=t, event='resuming an incomplete submission', earlier=os.path.basename(reports[-1]),
+                   earlier_summary={k: _summary(reports[-1]).get(k) for k in ('submitted', 'already_registered', 'uncertain', 'registration_held', 'held')})
+            time.sleep(RESUME_PAUSE_S)  # let any request still in flight finish before the database is read
+        _submit_once(n, P, t, v, d, len(reports) + 1, resume)
+
+
+def _submit_once(n, P, t, v, d, j, resume):
     sign_in()
     try:
         k = 1
@@ -616,36 +649,50 @@ def submit_tranche(n, P, t):
             k += 1
         code, rows = importer_retry(n, P, t, d / f'reconcile-{k}.jsonl', '--reconcile')
         src = {x['source_key']: x for x in rows if x.get('source_key')}
-        bad, actions = [], Counter()
+        live = docs_for(v['keys'])
+        bad, actions, registered = [], Counter(), 0
         for key in v['keys']:
             x = src.get(key) or {}; m = x.get('mapping') or {}
-            a = m.get('action')
-            ok = x.get('status') == 'ready' and m.get('status') == 'ready' and not m.get('document_id') and len(m.get('fingerprint') or '') == 64
-            ok = ok and (a == 'create-listing' or (a == 'link-existing' and link_ok(P['plan_rows'][key]['url'])))
+            a, doc = m.get('action'), live.get(key)
+            fp_ok = x.get('status') == 'ready' and len(m.get('fingerprint') or '') == 64
+            if m.get('document_id') or doc:
+                # already registered: only acceptable on a resume, and only as this plan's exact text
+                ok = (resume and fp_ok and m.get('status') in ('ready', 'published') and doc is not None
+                      and doc.get('id') == m.get('document_id') and doc.get('content_sha256') == P['plan_rows'][key]['text_sha256'])
+                registered += ok
+                a = 'already-registered'
+            else:
+                ok = fp_ok and m.get('status') == 'ready' and (a == 'create-listing' or (a == 'link-existing' and link_ok(P['plan_rows'][key]['url'])))
             actions[a] += 1
             if not ok:
                 bad.append([key[-16:], x.get('status'), m.get('status'), a, m.get('reasons')])
         s = rows[-1] if rows else {}
         rec = {'tranche': t, 'reconcile_exit': code, 'reconcile_sha256': sha(d / f'reconcile-{k}.jsonl') if rows else None, 'summary': s,
-               'actions': dict(actions), 'mismatches': bad[:50], 'mismatch_count': len(bad), 'token_minutes_left': token_minutes_left()}
+               'resume': resume, 'already_registered': registered, 'actions': dict(actions), 'mismatches': bad[:50],
+               'mismatch_count': len(bad), 'token_minutes_left': token_minutes_left()}
         write_json(d / f'reconcile-{k}-status.json', rec)
         if (code != 0 or bad or s.get('ready') != v['docs'] or s.get('held') != 0 or s.get('chunks') != v['chunks']
                 or s.get('manifest_sha256') != v['manifest_sha256']):
             raise Stop(f'batch {n} {t}: live reconcile differs from the plan ({len(bad)} keys); not submitted')
         forget_creds(); sign_in()  # a fresh token for the submission itself
-        need = v['docs'] * 5.2 / 60 + 10
+        need = (v['docs'] - registered) * 5.2 / 60 + registered * 1.5 / 60 + 10
         if (token_minutes_left() or 0) < need:
             raise Stop(f'batch {n} {t}: fresh token has {token_minutes_left()} minutes, below the {need:.0f} needed')
-        code, rows = importer_retry(n, P, t, d / 'submit-1.jsonl', '--submit', '--approval', v['manifest_sha256'],
+        rpt = d / f'submit-{j}.jsonl'
+        code, rows = importer_retry(n, P, t, rpt, '--submit', '--approval', v['manifest_sha256'],
                                     '--max-chunks', str(v['chunks']), '--max-estimated-cost-usd', str(C.max_cost(v['cost_ceiling'])),
                                     need_minutes=need)
         s = rows[-1] if rows else {}
-        res = {'tranche': t, 'submit_exit': code, 'report_sha256': sha(d / 'submit-1.jsonl') if rows else None, 'summary': s,
-               'actions': dict(actions)}
-        write_json(d / 'submit-1-status.json', res)
-        if not (code in (0, 2) and s.get('submitted') == v['docs'] and s.get('uncertain') == 0 and s.get('registration_held') == 0):
-            raise Stop(f'batch {n} {t}: submission not clean ({s.get("submitted")}/{v["docs"]}, uncertain {s.get("uncertain")})')
-        status(batch=n, tranche=t, event='submitted', docs=v['docs'], chunks=v['chunks'], actions=dict(actions))
+        res = {'tranche': t, 'submit_exit': code, 'report_sha256': sha(rpt) if rows else None, 'summary': s,
+               'resume': resume, 'actions': dict(actions)}
+        write_json(d / f'submit-{j}-status.json', res)
+        if code in (0, 2) and _complete(s, v['docs']) and s.get('already_registered', 0) == registered:
+            status(batch=n, tranche=t, event='submitted', docs=v['docs'], chunks=v['chunks'], actions=dict(actions), report=rpt.name)
+            return
+        if s.get('registration_held') or s.get('held') or code == 3:
+            raise Stop(f'batch {n} {t}: submission held documents ({s.get("registration_held")} registration, {s.get("held")} held)')
+        status(batch=n, tranche=t, event='submission incomplete', report=rpt.name, exit=code,
+               submitted=s.get('submitted'), already_registered=s.get('already_registered'), uncertain=s.get('uncertain'))
     finally:
         forget_creds()
 
