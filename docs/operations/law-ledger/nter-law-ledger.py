@@ -39,7 +39,13 @@ FILEMAP = {'292e68e44a755cf869b54daab8025218cb064dac182c600f56659e69f62c68d1': '
            '93137c186c0ee8e49534055050e5072110bbbe9de9a145b0b7270d5fcfa2d820': '2026__part-00004.jsonl.gz',
            'd998f34146409c1afe1dff5e43e15bc70a405ca7fda960452c4c283c436820b4': '2026__part-00005.jsonl.gz',
            'ee85b8f7b25f1545b0c29b33848f98448c0dcfa3403b0ff7240e9231248e76af': '2026__part-00008.jsonl.gz',
-           'f6f70f2b9d558a940f69b5ad63b37aafe9863f9c67996690514986b397249e9e': '2026__part-00007.jsonl.gz'}
+           'f6f70f2b9d558a940f69b5ad63b37aafe9863f9c67996690514986b397249e9e': '2026__part-00007.jsonl.gz',
+           'f38a16fd9a06f5112fc8eb598643368bb3e3463cb9ee6bcadac032b49163e455': '2025__part-00001.jsonl.gz',
+           'cd174623f96ac6a22c0802db7be0d4096630e6e376cf873f5976e5f358efc51a': '2025__part-00002.jsonl.gz',
+           'e26d94bf27b5deda25bd333847197bebafe379ee31cd50780b9503e3a0c801b0': '2025__part-00003.jsonl.gz',
+           'aaf6f336af897b4ca2ebd788ef613ad20faa56fac8524da2e90d22aba9afda3b': '2025__part-00004.jsonl.gz',
+           'e032ce024ccf70fccbcca07fdba85c1840834ace92a74d6476614c1fd7e89fac': '2025__part-00005.jsonl.gz',
+           'c7fd10414c53268b0acbfc1e544c12bad7a0d61abbef930d71de10b400f414ac': '2025__part-00006.jsonl.gz'}
 HEADER = ['#', 'Status', 'Batch', 'Batch decision', 'Row decision ID', 'Approver', 'Source key', 'Title', 'Case number', 'Order date', 'Pages',
           'Official PDF URL', 'Document ID', 'Text SHA-256', 'Chunks', 'Job ID', 'Job status', 'Embedding tokens', 'Embedding cost USD',
           'OCR pages', 'Registered at (UTC)', 'Indexed at (UTC)', 'Listing record ID', 'Listing row key', 'Listing origin', 'Listing type',
