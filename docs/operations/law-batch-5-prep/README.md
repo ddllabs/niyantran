@@ -1,6 +1,6 @@
 # Law batch 5 (next 1,000, 2025 orders): preparation and checks
 
-> **Status: prepared; owner authorization recorded; not yet submitted.** Owner request (Tamanesh Kauri, 2026-10-26
+> **Status: Historical (dated 2026-10-26). Submitted, indexed and published; see `../law-batch-5-release/`.** Owner request (Tamanesh Kauri, 2026-10-26
 > 03:21 IST): finish the open items from the next-1,000 batch, then start the next 1,000; approver **Vighnesh Shukla**
 > (confirmed 03:47 IST). The receipt goes to `../law-batch-5-release/` after submission and verification. Not a claim of
 > autopilot readiness.
@@ -28,8 +28,8 @@
 
   Each document has its own listing. Nothing was deleted or unpublished; that needs a separate owner decision. These
   pairs also explain the 4 stored-vector self-lookup ties. Batch 5 adds a new hold so this does not recur (below).
-- **Duplicate-safe rerun:** run with the next submission token (`rerun_previous_t4()` in the driver). Its result is recorded
-  in the batch-5 receipt.
+- **Duplicate-safe rerun:** done 2026-10-26 06:38 UTC (`rerun_previous_t4()`): 188 selected, 0 submitted, 188 already
+  registered and published, US$0. Recorded in the batch-5 receipt.
 - **Ledger sheet:** updated from `../law-ledger/ledger-export.sql` once Colab Google auth is granted.
 
 ## Inputs and screen
