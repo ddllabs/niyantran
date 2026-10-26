@@ -75,7 +75,7 @@ def fake_run(cmd, env=None):
     raise AssertionError(cmd)
 M['run'] = fake_run
 
-FAIL = {'after': None}   # submit: stop as uncertain after this many new registrations (models a 503 on the status read)
+FAIL = {'after': None}; ORDER = []; HIDE = {'keys': set(), 'left': 0}   # HIDE: unpublished documents the API cannot show yet   # submit: stop as uncertain after this many new registrations (models a 503 on the status read)
 def fake_importer(n, P, t, report, *extra):
     v = P['tranches'][t]; report = pathlib.Path(report)
     if report.exists(): raise M['Stop']('exists')
@@ -97,7 +97,7 @@ def fake_importer(n, P, t, report, *extra):
             text = next(x for x in sum(POOL.values(), []) if x['source_key'] == k)['text']
             DB[k] = {'id': did, 'source_key': k, 'file_url': pr['url'], 'indexed_at': 'now', 'content_sha256': pr['text_sha256'], 'ocr_text': text,
                      'citation': {}}
-            CHUNKS[did] = pr['chunks']; LINKS[did] = 1
+            CHUNKS[did] = pr['chunks']; LINKS[did] = 1; ORDER.append(k)
             summ['submitted'] += 1
             if FAIL['after'] is not None and summ['submitted'] == FAIL['after']:
                 summ['uncertain'] = 1; stopped = True; FAIL['after'] = None
@@ -119,6 +119,8 @@ def fake_get(path):
             rows = [DB[q['source_key'][3:]]] if q['source_key'][3:] in DB else []
         else:
             ks = keys_in(q['source_key']); rows = [DB[k] for k in ks if k in DB]
+            if HIDE['left'] > 0 and any(k in HIDE['keys'] for k in ks):
+                HIDE['left'] -= 1; rows = [r for r in rows if r['source_key'] not in HIDE['keys']]
         sel = q['select'].split(',')
         out = [{('citation' if s.startswith('metadata') else s): d.get('citation' if s.startswith('metadata') else s) for s in sel} for d in rows]
         return out[off:off + lim]
@@ -259,6 +261,23 @@ except M['Stop'] as e:
     print('  stop reason:', e)
     print('resume bound ok:', 'without completing' in str(e), len(list((M['ST'] / 'b15' / 'T1').glob('submit-*.jsonl'))) == M['MAX_SUBMIT_REPORTS'])
 M['importer'] = orig; FAIL['after'] = None
+# 9. a resume that finds registered documents not yet visible (unpublished) waits, re-checks them, then completes
+M['BATCHES'] = [16]
+before = len(DB); FAIL['after'] = 12; ORDER.clear()
+orig_once = M['_submit_once']
+def hide_then(n, P, t, v, d, j, resume):
+    if resume and not HIDE['keys']:
+        HIDE['keys'] = set(ORDER[-4:]); HIDE['left'] = 2   # the last 4 registered stay unreadable for two reads
+    return orig_once(n, P, t, v, d, j, resume)
+M['_submit_once'] = hide_then
+M['run_batch'](16)
+M['_submit_once'] = orig_once
+st = json.loads((M['ST'] / 'autopilot-status.json').read_text())
+waits = [x for x in st['log'] if x.get('batch') == 16 and x.get('event', '').startswith('registered documents not yet visible')]
+s2 = json.loads((M['ST'] / 'b16' / 'T1' / 'submit-2-status.json').read_text())['summary']
+print('not-yet-visible wait ok:', st['batches']['16']['phase'] == 'verified', len(waits) == 2, s2['already_registered'] == 12,
+      len(DB) - before == 30, not (M['ST'] / 'b16' / 'T1' / 'submit-3.jsonl').exists())
+HIDE['keys'] = set(); HIDE['left'] = 0
 # 3. very unequal sizes are never compared; a short order fully inside a long one is not held by the estimate alone
 import numpy as np
 big = ' '.join(random.choice(vocab) for _ in range(20000)); small = ' '.join(big.split()[:400])

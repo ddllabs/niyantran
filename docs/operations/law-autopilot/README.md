@@ -94,7 +94,11 @@ the same approved manifest. Every key must be accounted for, in one of two ways:
   document;
 - **cleanly ready:** the key is ready with no document, as on a first submission.
 
-Only then does it submit the same manifest again. Registration is idempotent and the database is the ledger, so the
+A registered document that the API cannot show yet is waited for, not accepted unchecked. Supplied-text NCLT
+documents are readable only once published (after indexing). Batch 9 T1 first stopped on this: 13 documents registered
+seconds before the uncertain response were not yet published. The driver waits 5 minutes and re-reconciles, up to 18
+times (90 minutes), until every registered document is readable and its text hash can be compared. Only then does it
+submit the same manifest again. Registration is idempotent and the database is the ledger, so the
 resume registers only the remainder. The tranche counts as submitted when the new report shows submitted plus already
 registered equal to the tranche size, with 0 uncertain and 0 held. The resume stops on any held document, any
 mismatch, or more than 5 submission reports for one tranche.
@@ -111,6 +115,7 @@ Offline test: `python3 -I test_autopilot_offline.py`. It uses a fake screener, i
 - a part-way submission resumed (12 already registered plus the rest);
 - a resume refused when a registered document's text differs;
 - the 5-report bound;
+- a resume that waits for registered documents to become visible;
 - the size guard.
 
 With retries or resumes turned off, the corresponding scenarios stop, as batch 7 T1 did.

@@ -600,6 +600,11 @@ def link_ok(url):
 
 MAX_SUBMIT_REPORTS = 5   # the first submission plus up to 4 resumes of the same approved manifest
 RESUME_PAUSE_S = 120
+VISIBILITY_WAIT_S, VISIBILITY_TRIES = 300, 18   # up to 90 minutes for registered documents to index and publish
+
+
+class NotVisibleYet(Exception):
+    """A resume found documents the mapping says are registered but the API cannot show yet (not yet published)."""
 
 
 def _summary(path):
@@ -627,6 +632,7 @@ def submit_tranche(n, P, t):
     the database is the ledger, so the resume registers only the remainder. Anything else, or more than
     MAX_SUBMIT_REPORTS attempts, stops."""
     v, d = P['tranches'][t], ST / f'b{n:02d}' / t
+    waits = 0
     while True:
         reports = _submit_reports(d)
         if reports and _complete(_summary(reports[-1]), v['docs']):
@@ -634,11 +640,19 @@ def submit_tranche(n, P, t):
         if len(reports) >= MAX_SUBMIT_REPORTS:
             raise Stop(f'batch {n} {t}: {len(reports)} submissions without completing; reconcile by hand')
         resume = bool(reports)
-        if resume:
+        if resume and not waits:
             status(batch=n, tranche=t, event='resuming an incomplete submission', earlier=os.path.basename(reports[-1]),
                    earlier_summary={k: _summary(reports[-1]).get(k) for k in ('submitted', 'already_registered', 'uncertain', 'registration_held', 'held')})
             time.sleep(RESUME_PAUSE_S)  # let any request still in flight finish before the database is read
-        _submit_once(n, P, t, v, d, len(reports) + 1, resume)
+        try:
+            _submit_once(n, P, t, v, d, len(reports) + 1, resume)
+            waits = 0
+        except NotVisibleYet as e:
+            waits += 1
+            if waits > VISIBILITY_TRIES:
+                raise Stop(f'batch {n} {t}: {e.args[0]} registered documents still not visible after {VISIBILITY_TRIES} waits')
+            status(batch=n, tranche=t, event='registered documents not yet visible; waiting', count=e.args[0], wait=waits)
+            time.sleep(VISIBILITY_WAIT_S)
 
 
 def _submit_once(n, P, t, v, d, j, resume):
@@ -650,11 +664,16 @@ def _submit_once(n, P, t, v, d, j, resume):
         code, rows = importer_retry(n, P, t, d / f'reconcile-{k}.jsonl', '--reconcile')
         src = {x['source_key']: x for x in rows if x.get('source_key')}
         live = docs_for(v['keys'])
-        bad, actions, registered = [], Counter(), 0
+        bad, actions, registered, unseen = [], Counter(), 0, []
         for key in v['keys']:
             x = src.get(key) or {}; m = x.get('mapping') or {}
             a, doc = m.get('action'), live.get(key)
             fp_ok = x.get('status') == 'ready' and len(m.get('fingerprint') or '') == 64
+            if resume and doc is None and m.get('document_id') and fp_ok and m.get('status') in ('ready', 'published'):
+                # registered but not yet readable: supplied-text NCLT documents are hidden from the API until published
+                # (after indexing). Its text hash cannot be checked yet, so this pass is retried later; never accepted blind.
+                unseen.append(key[-16:]); actions['registered, not yet visible'] += 1
+                continue
             if m.get('document_id') or doc:
                 # already registered: only acceptable on a resume, and only as this plan's exact text
                 ok = (resume and fp_ok and m.get('status') in ('ready', 'published') and doc is not None
@@ -669,11 +688,13 @@ def _submit_once(n, P, t, v, d, j, resume):
         s = rows[-1] if rows else {}
         rec = {'tranche': t, 'reconcile_exit': code, 'reconcile_sha256': sha(d / f'reconcile-{k}.jsonl') if rows else None, 'summary': s,
                'resume': resume, 'already_registered': registered, 'actions': dict(actions), 'mismatches': bad[:50],
-               'mismatch_count': len(bad), 'token_minutes_left': token_minutes_left()}
+               'mismatch_count': len(bad), 'not_yet_visible': unseen, 'token_minutes_left': token_minutes_left()}
         write_json(d / f'reconcile-{k}-status.json', rec)
         if (code != 0 or bad or s.get('ready') != v['docs'] or s.get('held') != 0 or s.get('chunks') != v['chunks']
                 or s.get('manifest_sha256') != v['manifest_sha256']):
             raise Stop(f'batch {n} {t}: live reconcile differs from the plan ({len(bad)} keys); not submitted')
+        if unseen:
+            raise NotVisibleYet(len(unseen))
         forget_creds(); sign_in()  # a fresh token for the submission itself
         need = (v['docs'] - registered) * 5.2 / 60 + registered * 1.5 / 60 + 10
         if (token_minutes_left() or 0) < need:
