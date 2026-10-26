@@ -1,0 +1,209 @@
+{
+ "decision": "owner-authorized-20261026-law-batch-5",
+ "approver": "Vighnesh Shukla (relayed in chat by Tamanesh Kauri, 2026-10-26 03:47 IST)",
+ "inputs": {
+  "ingestion_scripts": "cf3e753",
+  "driver": "nter-law-batch5-live.py",
+  "driver_sha256": "9e336b796ad9100ee3094de2570cfed1859620ef4ccead3e473fea1924e57d3d",
+  "driver_commit": "0ecfb66d5eecd0238c7a46374f17a5a03928ece8",
+  "staging_summary_sha256": "ae80cada1c7c12a9862f0e6501a5e54d3836e9ded058f87dea890b1ac37c77f1",
+  "cohort_tsv_sha256": "544591c9b7b58e9fb1b4efb38a60f01ceeeb9d84b2e97b538c7e45ca9fa68154"
+ },
+ "tranches": {
+  "T1": {
+   "members": "2025 p00001",
+   "docs": 186,
+   "chunks": 6004,
+   "manifest_sha256": "aae686d491f3a011599930b763125a780ab38bdd812c76b7bb104efe558bd8c5",
+   "reconcile_report_sha256": "e8706ffadd770131caba78cd8db8a5b705fe70ff1a142461abb958b3d55160e8",
+   "reconcile_actions": {
+    "create-listing": 186
+   },
+   "mismatches": 0,
+   "token_minutes_left_at_reconcile": 55.7,
+   "submit_report_sha256": "4fcede9ed6b0bdf5554e8671e8f244cbfaac55240317ef43869046f06c4d257d",
+   "submit_exit": 2,
+   "submitted": 186,
+   "uncertain": 0,
+   "held": 0,
+   "publication_pending_at_submit": 186,
+   "embed_tokens": 1408589,
+   "embed_cost_usd": 0.02817178,
+   "first_job_utc": "2026-10-26 06:58",
+   "last_job_utc": "2026-10-26 07:05",
+   "last_indexed_utc": "2026-10-26 07:13"
+  },
+  "T2": {
+   "members": "2025 p00002",
+   "docs": 198,
+   "chunks": 7367,
+   "manifest_sha256": "295135caa07f82034ecc8b1df401652b5e8b9b80de5c996d81b7f462d7044e0a",
+   "reconcile_report_sha256": "a3b87d09601b76d01bbba59de41860085b875e41b52747fa50dd67d0a193fb62",
+   "reconcile_actions": {
+    "create-listing": 198
+   },
+   "mismatches": 0,
+   "token_minutes_left_at_reconcile": 41.2,
+   "submit_report_sha256": "c22c2af5f1ead44b92614a43414cf476a2d72515174900afed1cf2015ea28783",
+   "submit_exit": 2,
+   "submitted": 198,
+   "uncertain": 0,
+   "held": 0,
+   "publication_pending_at_submit": 198,
+   "embed_tokens": 1719822,
+   "embed_cost_usd": 0.03439644,
+   "first_job_utc": "2026-10-26 07:12",
+   "last_job_utc": "2026-10-26 07:19",
+   "last_indexed_utc": "2026-10-26 07:31"
+  },
+  "T3": {
+   "members": "2025 p00003 + p00004",
+   "docs": 254,
+   "chunks": 8321,
+   "manifest_sha256": "8e7a51591f1770e4bdc12bc679d716d2d3f4e3efd1a67c0b6a2a1c50b22466aa",
+   "reconcile_report_sha256": "85283dbc2c7bd23c2d52cad9ca11d752bb114c818a2beb4d516b4db5279c684e",
+   "reconcile_actions": {
+    "create-listing": 254
+   },
+   "mismatches": 0,
+   "token_minutes_left_at_reconcile": 26.1,
+   "submit_report_sha256": "bd838c6c68f7f900d25446ae726ccd255f1f905f8bcca00ea617130150ede90a",
+   "submit_exit": 2,
+   "submitted": 254,
+   "uncertain": 0,
+   "held": 0,
+   "publication_pending_at_submit": 254,
+   "embed_tokens": 1963941,
+   "embed_cost_usd": 0.03927882,
+   "first_job_utc": "2026-10-26 07:28",
+   "last_job_utc": "2026-10-26 07:37",
+   "last_indexed_utc": "2026-10-26 08:03"
+  },
+  "T4": {
+   "members": "2025 p00005",
+   "docs": 197,
+   "chunks": 6513,
+   "manifest_sha256": "40ce77f897f0fddda882f089c3cfeae82dfee50aa1603b6592ac2b4df33a61c4",
+   "reconcile_report_sha256": "b012e87f4d45b62e82135dc4a0917e7c3b4c9dd0faaab22f038a3fb3d3d043de",
+   "reconcile_actions": {
+    "create-listing": 197
+   },
+   "mismatches": 0,
+   "token_minutes_left_at_reconcile": 51.4,
+   "submit_report_sha256": "487a9f6646bd07d2355d7d349595fd5ee0c65d65aaefd3b28ba4aca73d4c5cd9",
+   "submit_exit": 2,
+   "submitted": 197,
+   "uncertain": 0,
+   "held": 0,
+   "publication_pending_at_submit": 197,
+   "embed_tokens": 1507229,
+   "embed_cost_usd": 0.03014458,
+   "first_job_utc": "2026-10-26 08:00",
+   "last_job_utc": "2026-10-26 08:07",
+   "last_indexed_utc": "2026-10-26 08:17"
+  },
+  "T5": {
+   "members": "2025 p00006 (first 165)",
+   "docs": 165,
+   "chunks": 6427,
+   "manifest_sha256": "c76eeb95f4d5821b70185fcb84edda8d338e365e60f7c0197e201d63f33356be",
+   "reconcile_report_sha256": "0a6684bb5a4cce64ab3ab652c1f9752157fbb003c1c1dd4cb45c61fba3b0ab71",
+   "reconcile_actions": {
+    "create-listing": 165
+   },
+   "mismatches": 0,
+   "token_minutes_left_at_reconcile": 37.6,
+   "submit_report_sha256": "c43d4292d8a1eb861de630fe14a61501f4d0510270b70bd6153d94e718762c51",
+   "submit_exit": 2,
+   "submitted": 165,
+   "uncertain": 0,
+   "held": 0,
+   "publication_pending_at_submit": 165,
+   "embed_tokens": 1499305,
+   "embed_cost_usd": 0.0299861,
+   "first_job_utc": "2026-10-26 08:13",
+   "last_job_utc": "2026-10-26 08:19",
+   "last_indexed_utc": "2026-10-26 09:18"
+  }
+ },
+ "duplicate_safe_rerun_next1000_T4": {
+  "manifest_sha256": "5921dce57bfbc840f52af35d38cdd8ed5c7db443d846401089279c5788755354",
+  "rerun_exit": 0,
+  "report_sha256": "d0fc17144d601062c6a5dfffb32aa39fa8070b68d75b005e96a46b973696a89c",
+  "selected": 188,
+  "submitted": 0,
+  "already_registered": 188,
+  "published": 188,
+  "uncertain": 0,
+  "estimated_cost_ceiling_usd": 0,
+  "ok": true,
+  "at_utc": "2026-10-26 06:38"
+ },
+ "verification": {
+  "docs": 1000,
+  "indexed": 1000,
+  "published": 1000,
+  "chunks": 34632,
+  "missing_vectors": 0,
+  "non_1536_vectors": 0,
+  "stored_text_hash_valid": 1000,
+  "one_job_each": 1000,
+  "jobs_succeeded": 1000,
+  "ocr_pages": 0,
+  "listing_url_equals_order_url": 1000,
+  "one_membership_each": 1000,
+  "distinct_records": 1000,
+  "one_document_per_record": 1000,
+  "new_listings_created": 1000,
+  "new_law_records_since_06_50_utc": 1000,
+  "cohort_fingerprint_sha256": "9899e0e45f8ef2f050367d5f24f2b3fb670021cfb3a2fe7bed6b5f16673988c0",
+  "cohort_fingerprint_matches": true,
+  "self_lookup": {
+   "tested": 1000,
+   "self_top1": 992,
+   "same_document_top1": 993,
+   "identical_chunk_text_elsewhere": 7,
+   "hnsw_near_miss_same_document": 1
+  }
+ },
+ "cost": {
+  "embed_tokens": 8098886,
+  "embed_cost_usd": 0.16197772,
+  "ceiling_usd": 1.843409,
+  "ocr_or_chat_spend": 0
+ },
+ "deltas": {
+  "documents": [
+   4569,
+   5569
+  ],
+  "chunks": [
+   150204,
+   184836
+  ],
+  "law_documents": [
+   1110,
+   2110
+  ],
+  "law_records": [
+   1439,
+   2439
+  ],
+  "memberships": [
+   1545,
+   2545
+  ],
+  "links": [
+   1110,
+   2110
+  ],
+  "publications": [
+   1110,
+   2110
+  ]
+ },
+ "timing_utc": {
+  "first_job": "2026-10-26 06:58:11",
+  "last_indexed": "2026-10-26 09:18:01"
+ }
+}
