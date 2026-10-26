@@ -80,9 +80,10 @@ def fake_importer(n, P, t, report, *extra):
     if report.exists(): raise M['Stop']('exists')
     rows = []
     for k in v['keys']:
-        rows.append({'source_key': k, 'status': 'ready', 'mapping': {'status': 'ready', 'action': 'create-listing', 'fingerprint': 'a' * 64}})
+        rows.append({'source_key': k, 'status': 'ready', 'chunks': P['plan_rows'][k]['chunks'],
+                     'mapping': {'status': 'ready', 'action': 'create-listing', 'fingerprint': 'a' * 64}})
     summ = {'type': 'summary', 'ready': v['docs'], 'held': 0, 'chunks': v['chunks'], 'estimated_cost_ceiling_usd': v['cost_ceiling'],
-            'submitted': 0, 'uncertain': 0, 'registration_held': 0}
+            'submitted': 0, 'uncertain': 0, 'registration_held': 0, 'manifest_sha256': M['sha'](M['ST'] / f'b{n:02d}' / t / 'decisions.jsonl')}
     if '--submit' in extra:
         summ['submitted'] = v['docs']
         for k in v['keys']:
@@ -105,6 +106,8 @@ def fake_get(path):
     if table == 'documents':
         if 'source_key' in q and q['source_key'].startswith('like.'):
             rows = sorted(DB.values(), key=lambda d: d['source_key'])
+        elif q.get('source_key', '').startswith('eq.'):
+            rows = [DB[q['source_key'][3:]]] if q['source_key'][3:] in DB else []
         else:
             ks = keys_in(q['source_key']); rows = [DB[k] for k in ks if k in DB]
         sel = q['select'].split(',')
@@ -113,14 +116,16 @@ def fake_get(path):
     if table == 'document_chunks':
         ids = keys_in(q['document_id'])
         if q.get('embedding') == 'is.null': return []
-        out = [{'document_id': i} for i in ids for _ in range(CHUNKS.get(i, 0))]
+        out = [{'id': f'{i}-{c}', 'document_id': i} for i in ids for c in range(CHUNKS.get(i, 0))]
         return out[off:off + lim]
     if table == 'law_document_links':
         ids = keys_in(q['document_id']); out = [{'document_id': i, 'record_id': 'r'} for i in ids for _ in range(LINKS.get(i, 0))]
         return out[off:off + lim]
     raise AssertionError(path)
 M['rest_get'] = fake_get
-M['sign_in'] = lambda: os.environ.update(NTER_INGEST_ACCESS_TOKEN='a.b.c', SUPABASE_PUBLISHABLE_KEY='k')
+import base64, time as _t
+_tok = 'x.' + base64.urlsafe_b64encode(json.dumps({'exp': int(_t.time()) + 3600}).encode()).decode().rstrip('=') + '.y'
+M['sign_in'] = lambda: os.environ.update(NTER_INGEST_ACCESS_TOKEN=_tok, SUPABASE_PUBLISHABLE_KEY='k')
 M['sha'] = M['sha']
 # manifests(): REPO paths absent; PRIOR empty; state manifests pinned
 for n in M['BATCHES']:
@@ -137,3 +142,47 @@ print('overlap', len(k7 & k8))
 held_dup = [k for k in k7 | k8 if k.endswith('0000000000005') and k.startswith('law:trib:IBBI_NCLT:ibbi_nclt-02')]
 print('near-dup selected?', held_dup)
 print('part4[0] selected?', POOL['2024__part-00004'][0]['source_key'] in k7 | k8)
+
+# ── stop scenarios ──
+# 1. a reconcile mismatch stops before any submission; a clean resume then completes the batch
+M['BATCHES'] = [9]
+orig = M['importer']
+def bad_importer(n, P, t, report, *extra):
+    code, rows = orig(n, P, t, report, *extra)
+    if '--reconcile' in extra:
+        rows[0]['mapping']['action'] = 'link-existing'
+        pathlib.Path(report).write_text(''.join(json.dumps(r) + '\n' for r in rows))
+    return code, rows
+M['importer'] = bad_importer; M['link_ok'] = lambda url: False
+before = len(DB)
+try:
+    M['run_batch'](9); print('FAIL: no stop')
+except M['Stop'] as e:
+    print('stop 1 ok:', 'not submitted' in str(e), len(DB) == before)
+M['importer'] = orig
+M['run_batch'](9)
+print('resume ok:', json.loads((M['ST'] / 'autopilot-status.json').read_text())['batches']['9']['phase'])
+# 2. an incomplete earlier submission is never treated as done
+M['BATCHES'] = [10]
+def crash_importer(n, P, t, report, *extra):
+    if '--submit' in extra:
+        pathlib.Path(report).write_text(json.dumps({'source_key': P['tranches'][t]['keys'][0], 'status': 'submitting'}) + '\n')
+        raise KeyboardInterrupt('runtime reset')
+    return orig(n, P, t, report, *extra)
+M['importer'] = crash_importer
+try:
+    M['run_batch'](10)
+except KeyboardInterrupt:
+    pass
+M['importer'] = orig
+try:
+    M['run_batch'](10); print('FAIL: incomplete submission skipped')
+except M['Stop'] as e:
+    print('stop 2 ok:', 'incomplete or uncertain' in str(e))
+# 3. very unequal sizes are never compared; a short order fully inside a long one is not held by the estimate alone
+import numpy as np
+big = ' '.join(random.choice(vocab) for _ in range(20000)); small = ' '.join(big.split()[:400])
+reg = {'sigs': np.zeros((0, 256), dtype=np.uint64), 'ns': np.array([]), 'meta': []}
+bs = M['C'].shingles(big); M['C'].reg_add(reg, 'big', 'A', '2024-01-01', '', M['C'].minhash(bs), len(bs))
+ss = M['C'].shingles(small)
+print('size guard ok:', M['C'].similar_hold({'case_number': 'A', 'order_date': '2024-01-01', 'file_url': ''}, ss, M['C'].minhash(ss), reg, lambda i: bs) is None)

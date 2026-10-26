@@ -10,6 +10,7 @@ _P = np.uint64(4294967311)  # prime > 2^32
 _rng = np.random.default_rng(20261026)
 _A = _rng.integers(1, 4294967311, NPERM, dtype=np.uint64)
 _B = _rng.integers(0, 4294967311, NPERM, dtype=np.uint64)
+assert int(_A.max()) < 2 ** 32 and int(_B.max()) < 4294967311  # keeps a·h + b below 2^64
 MAX_CHUNKS, MAX_CHARS = 256, 300000
 
 
@@ -30,7 +31,7 @@ def shingles(text, k=5):
 
 
 def minhash(sh):
-    """256 independent min-hashes of a shingle set (uint64 arithmetic stays below 2^64: a,b < 2^33, h < 2^32)."""
+    """256 independent min-hashes of a shingle set. a, b < p ≈ 2^32 and h < 2^32; with this fixed seed every a < 2^32, so a·h + b < 2^64."""
     if len(sh) == 0:
         return np.full(NPERM, np.iinfo(np.uint64).max, dtype=np.uint64)
     out = np.empty(NPERM, dtype=np.uint64)
@@ -47,27 +48,37 @@ def containment(sig_a, n_a, sigs, ns):
     return inter / np.maximum(1, np.minimum(n_a, ns))
 
 
-def similar_hold(c, cand_sig, cand_n, reg):
-    """Near-duplicate rule. reg: dict(sigs=ndarray m×256, ns=ndarray m, meta=list of dicts {key, case, date, tail}).
-    Hold if text containment ≥ 0.90 and a metadata tie (same normalized case number, same order date or same PDF hash
-    tail), or containment ≥ 0.97 with at least 300 shingles on both sides (essentially identical text)."""
-    if not len(reg['ns']):
+def similar_hold(c, sh, sig, reg, get_sh):
+    """Near-duplicate rule. reg: dict(sigs=m×256, ns=m, meta=[{key, case, date, tail}]); get_sh(i) returns registry
+    document i's exact shingle set. MinHash only pre-filters (estimated containment ≥ 0.75, set sizes within 3×; the
+    estimate is unreliable for very unequal sizes, so such pairs are not compared). The decision uses exact containment:
+    ≥ 0.90 with a metadata tie (same normalized case number, same order date or same PDF hash tail), or ≥ 0.97 with at
+    least 300 shingles on both sides (essentially identical text)."""
+    n = len(sh)
+    if not len(reg['ns']) or n == 0:
         return None
-    cont = containment(cand_sig, cand_n, reg['sigs'], reg['ns'])
-    for i in np.nonzero(cont >= 0.90)[0]:
+    ns = reg['ns']
+    ratio_ok = np.maximum(n, ns) <= 3 * np.maximum(1, np.minimum(n, ns))
+    est = containment(sig, n, reg['sigs'], ns)
+    idx = np.nonzero(ratio_ok & (est >= 0.75))[0]
+    for i in idx[np.argsort(-est[idx])][:10]:
         m = reg['meta'][i]
+        other = get_sh(int(i))
+        exact = len(np.intersect1d(sh, other, assume_unique=True)) / max(1, min(n, len(other)))
         tie = ((norm_case(c['case_number']) and norm_case(c['case_number']) == norm_case(m['case']))
                or (c['order_date'] and c['order_date'] == m['date'])
                or (url_tail(c['file_url']) and url_tail(c['file_url']) == m['tail']))
-        if tie or (cont[i] >= 0.97 and min(cand_n, reg['ns'][i]) >= 300):
-            return {'key': m['key'], 'containment': round(float(cont[i]), 3), 'tie': bool(tie)}
+        if (exact >= 0.90 and tie) or (exact >= 0.97 and min(n, len(other)) >= 300):
+            return {'key': m['key'], 'containment': round(float(exact), 3), 'tie': bool(tie)}
     return None
 
 
-def reg_add(reg, key, case, date, url, sig, n):
+def reg_add(reg, key, case, date, url, sig, n, sh=None):
     reg['sigs'] = np.vstack([reg['sigs'], sig[None, :]]) if len(reg['ns']) else sig[None, :].copy()
     reg['ns'] = np.append(reg['ns'], n)
     reg['meta'].append({'key': key, 'case': case or '', 'date': date or '', 'tail': url_tail(url)})
+    if sh is not None:
+        reg.setdefault('sh', []).append(sh)
 
 
 def base_holds(c, db_keys, db_urls):
@@ -115,14 +126,16 @@ def in_filter(values):
     return 'in.(' + ','.join('"' + v.replace('"', '') + '"' for v in values) + ')'
 
 
-def rest_pages(get, table, params, page=1000, limit_pages=1000):
-    """get(path_with_query) -> list. Pages with limit/offset until a short page."""
+def rest_pages(get, table, params, page=1000, limit_pages=2000):
+    """get(path_with_query) -> list. Pages with limit/offset (params must include a stable order) until an empty page,
+    so a server max-rows below `page` cannot truncate silently."""
+    assert 'order' in params, 'paging needs a stable order'
     out, off = [], 0
     for _ in range(limit_pages):
         q = dict(params, limit=str(page), offset=str(off))
         rows = get(f'/rest/v1/{table}?' + urllib.parse.urlencode(q, safe='(),.*:'))
-        out += rows
-        if len(rows) < page:
+        if not rows:
             return out
-        off += page
+        out += rows
+        off += len(rows)
     raise RuntimeError(f'{table}: too many pages')

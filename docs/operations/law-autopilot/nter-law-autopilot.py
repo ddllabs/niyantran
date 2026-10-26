@@ -6,7 +6,7 @@
 # read -> finalize + dry run -> per tranche read-only reconcile then submit -> wait for indexing -> per-document
 # verification. Any deviation stops the run (state and reasons in Drive autopilot-status.json); reports are never
 # overwritten and every step is resumable after a runtime reset.
-import base64, glob, hashlib, json, os, pathlib, shutil, subprocess, sys, tarfile, time, urllib.parse, urllib.request
+import base64, glob, hashlib, http.client, json, os, pathlib, shutil, subprocess, sys, tarfile, time, urllib.error, urllib.parse, urllib.request
 from collections import Counter
 
 REPO_SHA = 'cf3e7533209858dadde08274f49fe996dd7179d5'
@@ -211,12 +211,13 @@ def setup(core_url, core_sha):
     g = {'__name__': 'nter_next100_cell'}
     exec(compile(open(ESTIMATOR[0], 'rb').read(), 'nter-law-next100-cell.py', 'exec'), g)
     (REPO / 'next100-estimate.mjs').write_text(g['ESTIMATE_MJS'], 'utf-8')
-    b = urllib.request.urlopen(core_url).read()
+    b = urllib.request.urlopen(core_url, timeout=120).read()
     assert hashlib.sha256(b).hexdigest() == core_sha, 'autopilot core hash mismatch'
     m = {'__name__': 'nter_autopilot_core'}
     exec(compile(b, 'nter-law-autopilot-core.py', 'exec'), m)
     C = type('Core', (), m)
     ST.mkdir(parents=True, exist_ok=True)
+    load_secrets()
 
 
 def manifests():
@@ -230,18 +231,47 @@ def manifests():
 
 
 # ─── credentials (Colab Secrets; nothing typed, printed or stored) ─────────
-def sign_in():
+_SECRETS = {}
+
+
+def load_secrets():
+    """Read the three Colab Secrets once, while the notebook tab is connected (userdata.get talks to the browser and
+    must not be called during an unattended run). They stay in this process's memory only."""
     from google.colab import userdata
-    key, email, pw = userdata.get('SUPABASE_PUBLISHABLE_KEY'), userdata.get('NTER_INGEST_EMAIL'), userdata.get('NTER_INGEST_PASSWORD')
-    assert key and not key.startswith('sb_secret_') and 'service_role' not in key, 'publishable key only'
-    req = urllib.request.Request(TARGET + '/auth/v1/token?grant_type=password', method='POST',
-                                 data=json.dumps({'email': email, 'password': pw}).encode(),
-                                 headers={'apikey': key, 'Content-Type': 'application/json'})
     try:
-        body = json.loads(urllib.request.urlopen(req, timeout=60).read())
-    except urllib.error.HTTPError as e:
-        raise Stop(f'ingestion account sign-in failed: HTTP {e.code}')
-    del pw
+        vals = {k: userdata.get(k) for k in ('SUPABASE_PUBLISHABLE_KEY', 'NTER_INGEST_EMAIL', 'NTER_INGEST_PASSWORD')}
+    except Exception as e:
+        raise Stop(f'Colab Secrets not readable ({type(e).__name__}); add them and enable notebook access')
+    key = vals['SUPABASE_PUBLISHABLE_KEY'] or ''
+    role = None
+    if key.count('.') == 2:
+        try:
+            p = key.split('.')[1]; role = json.loads(base64.urlsafe_b64decode(p + '=' * (-len(p) % 4))).get('role')
+        except Exception:
+            role = 'unreadable'
+    if not (key.startswith('sb_publishable_') or role == 'anon'):
+        raise Stop('SUPABASE_PUBLISHABLE_KEY must be the publishable (anon) key, never a secret or service key')
+    if not vals['NTER_INGEST_EMAIL'] or not vals['NTER_INGEST_PASSWORD']:
+        raise Stop('NTER_INGEST_EMAIL / NTER_INGEST_PASSWORD secrets are empty')
+    _SECRETS.clear(); _SECRETS.update(vals)
+
+
+def sign_in():
+    key = _SECRETS['SUPABASE_PUBLISHABLE_KEY']
+    req = urllib.request.Request(TARGET + '/auth/v1/token?grant_type=password', method='POST',
+                                 data=json.dumps({'email': _SECRETS['NTER_INGEST_EMAIL'], 'password': _SECRETS['NTER_INGEST_PASSWORD']}).encode(),
+                                 headers={'apikey': key, 'Content-Type': 'application/json'})
+    body = None
+    for attempt in range(4):
+        try:
+            body = json.loads(urllib.request.urlopen(req, timeout=60).read()); break
+        except urllib.error.HTTPError as e:
+            if e.code < 500 or attempt == 3:
+                raise Stop(f'ingestion account sign-in failed: HTTP {e.code}')
+        except (urllib.error.URLError, http.client.HTTPException, OSError, json.JSONDecodeError) as e:
+            if attempt == 3:
+                raise Stop(f'ingestion account sign-in failed: {type(e).__name__}')
+        time.sleep(15 * (attempt + 1))
     tok = body.get('access_token')
     if not tok or tok.count('.') != 2:
         raise Stop('sign-in returned no access token')
@@ -266,16 +296,16 @@ def token_minutes_left():
 def rest_get(path):
     req = urllib.request.Request(TARGET + path, headers={'apikey': os.environ['SUPABASE_PUBLISHABLE_KEY'],
                                                          'Authorization': 'Bearer ' + os.environ['NTER_INGEST_ACCESS_TOKEN']})
-    for attempt in range(4):
+    for attempt in range(5):
         try:
             return json.loads(urllib.request.urlopen(req, timeout=120).read())
         except urllib.error.HTTPError as e:
-            if e.code < 500 or attempt == 3:
-                raise Stop(f'read {path[:80]} failed: HTTP {e.code}')
-        except urllib.error.URLError:
-            if attempt == 3:
-                raise
-        time.sleep(10 * (attempt + 1))
+            if e.code < 500 or attempt == 4:
+                raise Stop(f'read {path.split("?")[0]} failed: HTTP {e.code}')
+        except (urllib.error.URLError, http.client.HTTPException, OSError, json.JSONDecodeError) as e:
+            if attempt == 4:
+                raise Stop(f'read {path.split("?")[0]} failed: {type(e).__name__}')
+        time.sleep(15 * (attempt + 1))
 
 
 def db_law_docs():
@@ -293,8 +323,11 @@ def registry(db):
     cache_meta, cache_sig = ST / 'registry-meta.json', ST / 'registry-sigs.npy'
     meta, sigs = [], np.zeros((0, C.NPERM), dtype=np.uint64)
     if cache_meta.exists() and cache_sig.exists():
-        meta = json.loads(cache_meta.read_text()); sigs = np.load(cache_sig)
-        assert len(meta) == len(sigs), 'registry cache inconsistent'
+        try:
+            meta = json.loads(cache_meta.read_text()); sigs = np.load(cache_sig)
+            assert len(meta) == len(sigs) and sigs.shape[1:] == (C.NPERM,)
+        except Exception:
+            meta, sigs = [], np.zeros((0, C.NPERM), dtype=np.uint64)  # damaged cache: rebuild from the database
     have = {m['key'] for m in meta}
     need = sorted(set(db) - have)
     for i in range(0, len(need), 25):
@@ -315,7 +348,10 @@ def registry(db):
             meta += add_m
             sigs = np.vstack([sigs] + [x[None, :] for x in add_s]) if len(sigs) else np.vstack([x[None, :] for x in add_s])
         if (i // 25) % 20 == 19 or i + 25 >= len(need):
-            np.save(cache_sig, sigs); cache_meta.write_text(json.dumps(meta))
+            with open(str(cache_sig) + '.tmp', 'wb') as fh:
+                np.save(fh, sigs)
+            pathlib.Path(str(cache_meta) + '.tmp').write_text(json.dumps(meta))
+            os.replace(str(cache_sig) + '.tmp', cache_sig); os.replace(str(cache_meta) + '.tmp', cache_meta)
     missing = sorted(set(db) - {m['key'] for m in meta})
     return {'sigs': sigs, 'ns': np.array([m['n'] for m in meta]), 'meta': meta}, missing
 
@@ -324,7 +360,7 @@ def registry(db):
 def screen(member, msha, bdir, excl):
     name = pathlib.Path(member).name.split('.')[0]
     out = bdir / 'screens' / f'screen-{name}'
-    if not (out / 'screen.json').exists():
+    if not all((out / f).exists() for f in ('screen.json', 'candidates.jsonl', 'estimate-UNSIGNED.json')):
         local = W / 'auto-screens' / bdir.name / out.name
         if local.exists():
             shutil.rmtree(local)
@@ -336,12 +372,17 @@ def screen(member, msha, bdir, excl):
             cmd += ['--exclude-decisions', x]
         run(cmd)
         run([NODE, '--experimental-strip-types', 'next100-estimate.mjs', local / 'screen.json', local / 'estimate-UNSIGNED.json'])
-        if out.exists():
-            shutil.rmtree(out)
-        shutil.copytree(local, out)
+        tmp = out.with_name(out.name + '.tmp')
+        for d in (tmp, out):
+            if d.exists():
+                shutil.rmtree(d)
+        shutil.copytree(local, tmp)
+        tmp.rename(out)
     s = json.loads((out / 'screen.json').read_text('utf-8'))
     if not s.get('finalizable'):
         raise Stop(f'{name}: screen not finalizable')
+    if s['lines_scanned'] >= 5000:
+        raise Stop(f'{name}: member has 5,000+ lines; the screen window would truncate it')
     assert sha(out / 'candidates.jsonl') == s['candidates_jsonl_sha256']
     est = {r['source_key']: r for r in json.loads((out / 'estimate-UNSIGNED.json').read_text('utf-8'))['rows']}
     texts = {}
@@ -371,39 +412,56 @@ def select(n, db, reg):
     excl = list(manifests())
     db_keys, db_urls = set(db), {r['file_url'] for r in db.values()}
     db_cd = {C.norm_case(m['case']) + '|' + m['date'] for m in reg['meta'] if m['case'] and m['date']}
-    screens, elig, holds, seen, cd_groups = [], [], Counter(), set(), {}
-    batch_reg = {'sigs': np.zeros((0, C.NPERM), dtype=np.uint64), 'ns': np.array([]), 'meta': []}
+    screens, elig, holds, seen, seen_cd = [], [], Counter(), set(), set(db_cd)
+    batch_reg = {'sigs': np.zeros((0, C.NPERM), dtype=np.uint64), 'ns': np.array([]), 'meta': [], 'sh': []}
+    db_sh = {}
+
+    def db_shingles(i):  # exact text of an ingested document, read on demand for a near-duplicate candidate pair
+        key = reg['meta'][i]['key']
+        if key not in db_sh:
+            sign_in()
+            try:
+                rows = rest_get('/rest/v1/documents?' + urllib.parse.urlencode(
+                    {'select': 'source_key,content_sha256,ocr_text', 'source_key': 'eq.' + key}))
+            finally:
+                forget_creds()
+            t = (rows[0].get('ocr_text') or '') if rows else ''
+            if not rows or hashlib.sha256(t.encode('utf-8')).hexdigest() != rows[0].get('content_sha256'):
+                raise Stop(f'could not read the stored text of {key[-16:]}')
+            db_sh[key] = C.shingles(t)
+        return db_sh[key]
+
     i = cursor
     while len(elig) < DOCS_PER_BATCH and i < len(MEMBERS):
         member, msha = MEMBERS[i]
         sc = screen(member, msha, bdir, excl)
         screens.append({k: v for k, v in sc.items() if k != 'rows'} | {'ready': len(sc['rows'])})
-        rows = sc['rows']
-        for r in rows:   # same normalized case number + order date as another candidate in this window
-            if r['case_number'] and r['order_date']:
-                cd_groups.setdefault(C.norm_case(r['case_number']) + '|' + r['order_date'], []).append(r['source_key'])
-        for r in rows:
+        for r in sc['rows']:
             if r['source_key'] in seen:
                 holds['cross-screen duplicate key'] += 1; continue
             seen.add(r['source_key'])
             reasons = C.base_holds(r, db_keys, db_urls)
-            g = C.norm_case(r['case_number']) + '|' + r['order_date']
-            if r['case_number'] and r['order_date'] and (g in db_cd or len(cd_groups.get(g, [])) > 1):
+            # the first document of a (normalized case number, order date) pair is kept; later ones are held
+            g = C.norm_case(r['case_number']) + '|' + r['order_date'] if r['case_number'] and r['order_date'] else None
+            if g and g in seen_cd:
                 reasons.append('possible duplicate order (same case number and order date)')
+            if g:
+                seen_cd.add(g)
             sh = C.shingles(r.pop('text')); sig = C.minhash(sh)
             if not reasons:
-                hit = C.similar_hold(r, sig, len(sh), reg) or C.similar_hold(r, sig, len(sh), batch_reg)
+                hit = (C.similar_hold(r, sh, sig, reg, db_shingles)
+                       or C.similar_hold(r, sh, sig, batch_reg, lambda j: batch_reg['sh'][j]))
                 if hit:
                     reasons.append('near-duplicate text of ' + hit['key'][-16:] + f" (containment {hit['containment']})")
             r['hold_reasons'] = reasons
             if reasons:
                 for x in reasons:
-                    holds[x.split(' of ')[0] if x.startswith('near-duplicate') else x] += 1
-            elif len(elig) < DOCS_PER_BATCH:
-                elig.append(r)
-            if not reasons:  # later candidates are compared against earlier eligible ones in this window
-                C.reg_add(batch_reg, r['source_key'], r['case_number'], r['order_date'], r['file_url'], sig, len(sh))
-        last_member = i
+                    holds['near-duplicate text' if x.startswith('near-duplicate') else x] += 1
+            else:
+                if len(elig) < DOCS_PER_BATCH:
+                    elig.append(r)
+                # later candidates are compared against earlier eligible ones in this window
+                C.reg_add(batch_reg, r['source_key'], r['case_number'], r['order_date'], r['file_url'], sig, len(sh), sh)
         i += 1
     if not elig:
         raise Stop('pack exhausted: no eligible documents remain')
@@ -454,6 +512,13 @@ def finalize(n, P, t):
     d = ST / f'b{n:02d}' / t
     man = d / 'decisions.jsonl'
     if man.exists():
+        keys = [json.loads(l)['source_key'] for l in man.read_text().splitlines() if l.strip()]
+        if sorted(keys) != sorted(P['tranches'][t]['keys']):
+            raise Stop(f'batch {n} {t}: existing manifest does not hold the planned keys')
+        s = load_state()
+        if s['manifests'].setdefault(str(man), sha(man)) != sha(man):
+            raise Stop(f'batch {n} {t}: manifest changed since it was recorded')
+        save_state(s)
         return man
     d.mkdir(parents=True, exist_ok=True)
     dirs, parts = screen_dirs(n), []
@@ -495,6 +560,10 @@ def dry_runs(n, P):
         rpt = ST / f'b{n:02d}' / t / 'dry-run.jsonl'
         rows = [json.loads(l) for l in open(rpt)] if rpt.exists() else importer(n, P, t, rpt)[1]
         s = rows[-1] if rows else {}
+        per_doc = {x['source_key']: x.get('chunks') for x in rows if x.get('source_key')}
+        off = [k[-16:] for k in v['keys'] if per_doc.get(k) != P['plan_rows'][k]['chunks']]
+        if off:
+            raise Stop(f'batch {n} {t}: dry-run chunk count differs from the estimate for {len(off)} documents')
         if not (s.get('ready') == v['docs'] and s.get('held') == 0 and s.get('chunks') == v['chunks']
                 and s.get('estimated_cost_ceiling_usd', 9) <= C.max_cost(v['cost_ceiling'])):
             raise Stop(f'batch {n} {t}: dry run differs (ready {s.get("ready")}/{v["docs"]}, held {s.get("held")}, chunks {s.get("chunks")}/{v["chunks"]})')
@@ -513,7 +582,14 @@ def link_ok(url):
 def submit_tranche(n, P, t):
     v, d = P['tranches'][t], ST / f'b{n:02d}' / t
     if glob.glob(str(d / 'submit-*.jsonl')):
-        return
+        try:
+            last = [json.loads(l) for l in open(d / 'submit-1.jsonl') if l.strip()][-1]
+        except Exception:
+            last = {}
+        if (last.get('type') == 'summary' and last.get('submitted') == v['docs'] and last.get('uncertain') == 0
+                and last.get('registration_held') == 0 and last.get('held') == 0):
+            return
+        raise Stop(f'batch {n} {t}: an earlier submission is incomplete or uncertain; reconcile it before resuming')
     sign_in()
     try:
         k = 1
@@ -534,8 +610,13 @@ def submit_tranche(n, P, t):
         rec = {'tranche': t, 'reconcile_exit': code, 'reconcile_sha256': sha(d / f'reconcile-{k}.jsonl') if rows else None, 'summary': s,
                'actions': dict(actions), 'mismatches': bad[:50], 'mismatch_count': len(bad), 'token_minutes_left': token_minutes_left()}
         write_json(d / f'reconcile-{k}-status.json', rec)
-        if code != 0 or bad or s.get('ready') != v['docs'] or s.get('held') != 0 or s.get('chunks') != v['chunks']:
+        if (code != 0 or bad or s.get('ready') != v['docs'] or s.get('held') != 0 or s.get('chunks') != v['chunks']
+                or s.get('manifest_sha256') != v['manifest_sha256']):
             raise Stop(f'batch {n} {t}: live reconcile differs from the plan ({len(bad)} keys); not submitted')
+        forget_creds(); sign_in()  # a fresh token for the submission itself
+        need = v['docs'] * 5.2 / 60 + 10
+        if (token_minutes_left() or 0) < need:
+            raise Stop(f'batch {n} {t}: fresh token has {token_minutes_left()} minutes, below the {need:.0f} needed')
         code, rows = importer(n, P, t, d / 'submit-1.jsonl', '--submit', '--approval', v['manifest_sha256'],
                               '--max-chunks', str(v['chunks']), '--max-estimated-cost-usd', str(C.max_cost(v['cost_ceiling'])))
         s = rows[-1] if rows else {}
@@ -586,11 +667,13 @@ def verify(n, P):
         idl = list(ids)
         for i in range(0, len(idl), 60):
             f = C.in_filter(idl[i:i + 60])
-            for r in C.rest_pages(rest_get, 'document_chunks', {'select': 'document_id', 'document_id': f}):
+            for r in C.rest_pages(rest_get, 'document_chunks', {'select': 'id,document_id', 'document_id': f, 'order': 'id'}):
                 chunks[r['document_id']] += 1
-            for r in C.rest_pages(rest_get, 'document_chunks', {'select': 'document_id', 'document_id': f, 'embedding': 'is.null'}):
+            for r in C.rest_pages(rest_get, 'document_chunks', {'select': 'id,document_id', 'document_id': f, 'embedding': 'is.null',
+                                                                 'order': 'id'}):
                 nullv[r['document_id']] += 1
-            for r in C.rest_pages(rest_get, 'law_document_links', {'select': 'document_id,record_id', 'document_id': f}):
+            for r in C.rest_pages(rest_get, 'law_document_links', {'select': 'document_id,record_id', 'document_id': f,
+                                                                    'order': 'document_id,record_id'}):
                 links[r['document_id']] += 1
     finally:
         forget_creds()
@@ -672,4 +755,5 @@ def run_all(core_url, core_sha):
         raise
     finally:
         forget_creds()
+        _SECRETS.clear()
     return load_state()
