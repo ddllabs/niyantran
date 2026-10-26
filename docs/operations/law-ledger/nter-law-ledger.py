@@ -19,9 +19,16 @@ NEXT1000 = {'batch': 'B4 next-1000 (1000)', 'approver': 'Vighnesh Shukla (relaye
             'receipt': 'docs/operations/law-next-1000-release/',
             'manifest': 'T1 ed83e437f7839ab5d9fc8b6094909d4704220a5e77b293d6291a103a4d52f29a; T2 972e95b1a856839e42393206bc9b6a119584944c896d0062edd1783f95fd5506; '
                         'T3 dd46363712c898ec9278f4f3f00382cf9555869461dd35b79479094d187f7a9e; T4 5921dce57bfbc840f52af35d38cdd8ed5c7db443d846401089279c5788755354'}
+BATCH5 = {'batch': 'B5 batch-5 (1000, 2025 orders)', 'approver': 'Vighnesh Shukla (relayed by Tamanesh Kauri)', 'authorized': '2026-10-26 03:47 IST',
+          'receipt': 'docs/operations/law-batch-5-release/',
+          'manifest': 'T1 aae686d491f3a011599930b763125a780ab38bdd812c76b7bb104efe558bd8c5; T2 295135caa07f82034ecc8b1df401652b5e8b9b80de5c996d81b7f462d7044e0a; '
+                      'T3 8e7a51591f1770e4bdc12bc679d716d2d3f4e3efd1a67c0b6a2a1c50b22466aa; T4 40ce77f897f0fddda882f089c3cfeae82dfee50aa1603b6592ac2b4df33a61c4; '
+                      'T5 c76eeb95f4d5821b70185fcb84edda8d338e365e60f7c0197e201d63f33356be'}
 def batch_of(bdec):
     if str(bdec).startswith('owner-authorized-20261024-law-next-1000'):
         return 'owner-authorized-20261024-law-next-1000', NEXT1000
+    if str(bdec).startswith('owner-authorized-20261026-law-batch-5'):
+        return 'owner-authorized-20261026-law-batch-5', BATCH5
     return bdec, BATCHES.get(bdec, {'batch': bdec, 'approver': ''})
 FILEMAP = {'292e68e44a755cf869b54daab8025218cb064dac182c600f56659e69f62c68d1': '2026__part-00006.jsonl.gz (pilot extract)',
            'bc374a90f1c60313d68015845cbe1d2a5583c86c03ea0c4ab3b04f41f324d5f6': '2026__part-00006.jsonl.gz',
