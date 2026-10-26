@@ -554,6 +554,25 @@ def importer(n, P, t, report, *extra):
     return r.returncode, rows
 
 
+PRE_WRITE_RETRIES = 3
+
+
+def importer_retry(n, P, t, report, *extra, need_minutes=None):
+    """The importer finishes every read-only check (source scan, live law-reconcile mapping, chunk and cost bounds)
+    before it opens the report, and it registers nothing until the report exists. So an exit 1 with no report file
+    proves nothing was written: typically one mapping request exceeding the importer's 30-second timeout. Only that
+    case is retried, after a pause and with a fresh sign-in; any other outcome is returned unchanged."""
+    for attempt in range(PRE_WRITE_RETRIES + 1):
+        code, rows = importer(n, P, t, report, *extra)
+        if not (code == 1 and not os.path.exists(report)) or attempt == PRE_WRITE_RETRIES:
+            return code, rows
+        status(batch=n, tranche=t, event='importer stopped before writing; retrying', attempt=attempt + 1,
+               report=os.path.basename(str(report)))
+        forget_creds(); time.sleep(90 * (attempt + 1)); sign_in()
+        if need_minutes and (token_minutes_left() or 0) < need_minutes:
+            raise Stop(f'batch {n} {t}: fresh token has {token_minutes_left()} minutes, below the {need_minutes:.0f} needed')
+
+
 def dry_runs(n, P):
     for t, v in P['tranches'].items():
         man = finalize(n, P, t)
@@ -595,7 +614,7 @@ def submit_tranche(n, P, t):
         k = 1
         while (d / f'reconcile-{k}.jsonl').exists():
             k += 1
-        code, rows = importer(n, P, t, d / f'reconcile-{k}.jsonl', '--reconcile')
+        code, rows = importer_retry(n, P, t, d / f'reconcile-{k}.jsonl', '--reconcile')
         src = {x['source_key']: x for x in rows if x.get('source_key')}
         bad, actions = [], Counter()
         for key in v['keys']:
@@ -617,8 +636,9 @@ def submit_tranche(n, P, t):
         need = v['docs'] * 5.2 / 60 + 10
         if (token_minutes_left() or 0) < need:
             raise Stop(f'batch {n} {t}: fresh token has {token_minutes_left()} minutes, below the {need:.0f} needed')
-        code, rows = importer(n, P, t, d / 'submit-1.jsonl', '--submit', '--approval', v['manifest_sha256'],
-                              '--max-chunks', str(v['chunks']), '--max-estimated-cost-usd', str(C.max_cost(v['cost_ceiling'])))
+        code, rows = importer_retry(n, P, t, d / 'submit-1.jsonl', '--submit', '--approval', v['manifest_sha256'],
+                                    '--max-chunks', str(v['chunks']), '--max-estimated-cost-usd', str(C.max_cost(v['cost_ceiling'])),
+                                    need_minutes=need)
         s = rows[-1] if rows else {}
         res = {'tranche': t, 'submit_exit': code, 'report_sha256': sha(d / 'submit-1.jsonl') if rows else None, 'summary': s,
                'actions': dict(actions)}

@@ -78,13 +78,21 @@ Any of the following ends the run with the reason written to `autopilot-status.j
 - a verification failure;
 - the pack running out.
 
+**Pre-write importer failures are retried.** The importer completes every read-only check (source scan, live
+`law-reconcile` mapping for each document, chunk and cost bounds) before it opens its report, and it registers nothing
+until the report exists. An exit 1 with no report file therefore proves nothing was written. The driver retries that
+case alone, up to 3 times, after 90, 180 and 270 seconds, each time with a fresh sign-in. Any failure after the report
+exists is never retried. Batch 7 T1 first stopped this way on 2026-10-26 16:45 UTC: one mapping request took about
+40 seconds on the server (edge logs), past the importer's 30-second client timeout, and the database was unchanged.
+
 A stop never deletes or unpublishes anything. Every step is resumable: reports are never overwritten, and re-running
 the cell continues from the recorded state. An earlier submission that is incomplete or uncertain is never treated as
 done; it stops the run until it has been reconciled. Each tranche's dry run must also match the estimate for every
 document's chunk count.
 
 Offline test: `python3 -I test_autopilot_offline.py`. It uses a fake screener, importer and REST, and covers two clean
-batches, the holds, a reconcile-mismatch stop followed by a resume, the incomplete-submission stop, and the size guard.
+batches, the holds, a reconcile-mismatch stop followed by a resume, the incomplete-submission stop, a pre-write retry, no retry once a
+report exists, and the size guard. With retries set to 0 the pre-write scenario stops, as batch 7 T1 did.
 An independent review of the first draft found 9 defects (premature resume, one token covering both reconcile and
 submit, browser-bound secret reads, narrow network retries, unordered or short-page paging, unequal-size MinHash, and
 non-atomic caches); all are fixed here.

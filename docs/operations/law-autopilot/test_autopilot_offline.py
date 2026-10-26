@@ -179,6 +179,40 @@ try:
     M['run_batch'](10); print('FAIL: incomplete submission skipped')
 except M['Stop'] as e:
     print('stop 2 ok:', 'incomplete or uncertain' in str(e))
+# 4. an importer exit 1 before the report exists (nothing written, e.g. one mapping request timing out) is retried
+M['BATCHES'] = [11]
+for i in range(6, 10):
+    POOL[f'2024__part-0000{i}'] = [{'source_key': f'law:trib:IBBI_NCLT:ibbi_nclt-{i:02d}{j:014d}', 'text': mk_text(),
+        'file_url': f'https://ibbi.gov.in/uploads/order/{hashlib.md5(f"{i}-{j}".encode()).hexdigest()}.pdf', 'case': f'CP {i}-{j}/2024',
+        'date': f'2024-0{1+j%9}-1{j%9}'} for j in range(20)]
+    M['MEMBERS'].append((f'documents/tribunals/IBBI_NCLT/2024__part-0000{i}.jsonl.gz', 'x'))
+fails = {'reconcile': 1, 'submit': 2}; calls = []
+def flaky_importer(n, P, t, report, *extra):
+    kind = 'submit' if '--submit' in extra else 'reconcile' if '--reconcile' in extra else 'dry'
+    calls.append(kind)
+    if fails.get(kind, 0) > 0 and t == 'T1':
+        fails[kind] -= 1
+        return 1, []
+    return orig(n, P, t, report, *extra)
+M['importer'] = flaky_importer
+M['run_batch'](11)
+st = json.loads((M['ST'] / 'autopilot-status.json').read_text())
+retries = [x for x in st['log'] if x.get('event', '').startswith('importer stopped before writing')]
+print('pre-write retry ok:', st['batches']['11']['phase'], len(retries) == 3, calls.count('submit') >= 3)
+# 5. an exit 1 after the report exists is never retried
+M['BATCHES'] = [12]
+def late_fail(n, P, t, report, *extra):
+    if '--submit' in extra:
+        pathlib.Path(report).write_text(json.dumps({'type': 'manifest'}) + '\n')
+        return 1, [{'type': 'manifest'}]
+    return orig(n, P, t, report, *extra)
+M['importer'] = late_fail; calls.clear()
+try:
+    M['run_batch'](12); print('FAIL: late failure not stopped')
+except M['Stop'] as e:
+    st = json.loads((M['ST'] / 'autopilot-status.json').read_text())
+    print('no retry after write ok:', 'not clean' in str(e), not any(x.get('batch') == 12 and 'retrying' in x.get('event', '') for x in st['log']))
+M['importer'] = orig
 # 3. very unequal sizes are never compared; a short order fully inside a long one is not held by the estimate alone
 import numpy as np
 big = ' '.join(random.choice(vocab) for _ in range(20000)); small = ' '.join(big.split()[:400])
