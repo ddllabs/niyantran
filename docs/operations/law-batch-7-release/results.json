@@ -1,0 +1,226 @@
+{
+ "decision": "owner-authorized-20261026-law-auto-b07",
+ "approver": "Tamanesh Kauri (standing approval for 5 batches, 2026-10-26 21:07 IST)",
+ "inputs": {
+  "ingestion_scripts": "cf3e753",
+  "driver": "docs/operations/law-autopilot/nter-law-autopilot.py",
+  "driver_runs": [
+   {
+    "commit": "f5297069655f1103a2826345f5f881ad74f90a63",
+    "sha256": "2cd40cd2df8475b063da1338bcd039e5b386a32c4aa556f513a6d041becc0579",
+    "covered": "plan, dry run, first T1 attempt"
+   },
+   {
+    "commit": "92c3e8f301cf80a81d5c1fe3b6ccb4d6f373abf6",
+    "sha256": "b516ff47994b40648394715807fb903251a92f18b05056156f1a103e43ea02e0",
+    "covered": "T1 submit-1 (185 registered)"
+   },
+   {
+    "commit": "590419a62492792aebf8e45c3e5bc183642199be",
+    "sha256": "6869cfbfe379416fd71ba36d5d4f0832864f82fea02ca18cca445538d8feb8f9",
+    "covered": "T1 resume, T2-T5, indexing wait, verification"
+   }
+  ],
+  "core_sha256": "f99814a4d9db27c8572b5c72dc8f39c799a22eda6898c9e9b82ce0086cba6797",
+  "plan_json_sha256": "80ddcb6c088b11c34c4155a3646a8d729b20535c67ec3a87911fc50cfd71e5c9",
+  "cohort_tsv_sha256": "0e77daaec144b17f81dfcf92d48aebdc9ffcfaa0cceea79b2c8fae25a3a8713a",
+  "members_screened": [
+   "2024__part-00001",
+   "2024__part-00002",
+   "2024__part-00003",
+   "2024__part-00004",
+   "2024__part-00005"
+  ]
+ },
+ "selection_holds": {
+  "no case number": 58,
+  "near-duplicate text": 25,
+  "possible duplicate order (same case number and order date)": 1,
+  "not an official order PDF URL": 3
+ },
+ "tranches": {
+  "T1": {
+   "members": [
+    "2024__part-00002",
+    "2024__part-00003"
+   ],
+   "docs": 205,
+   "chunks": 4827,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.256447,
+   "manifest_sha256": "7f1a53a2c8979d34f86b362432bcfbbffb8a54160ba8a3060a61e09def57cde7",
+   "mismatches": 0,
+   "uncertain_final": 0,
+   "held": 0,
+   "registered_utc": "17:01–17:52",
+   "embed_tokens": 1128565,
+   "embed_cost_usd": 0.022571,
+   "submissions": [
+    {
+     "report": "submit-1.jsonl",
+     "note": "stopped before writing: one law-reconcile mapping request took ~40 s server-side, past the importer 30 s timeout (16:45); no report, nothing written"
+    },
+    {
+     "report": "submit-1.jsonl (driver 92c3e8f)",
+     "submitted": 185,
+     "uncertain": 1,
+     "note": "importer stopped at the first uncertain outcome: HTTP 503 on the read-only law-status read after document 185 (17:08:24); 20 not sent"
+    },
+    {
+     "report": "submit-2.jsonl (driver 590419a)",
+     "submitted": 20,
+     "already_registered": 185,
+     "uncertain": 0,
+     "note": "resume after a read-only reconcile accounted for all 205 keys (185 registered with the plan text hash, 20 cleanly ready)"
+    }
+   ]
+  },
+  "T2": {
+   "members": [
+    "2024__part-00003"
+   ],
+   "docs": 205,
+   "chunks": 5105,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.271271,
+   "manifest_sha256": "1b99de34fb1556328db275a8beea092e29aff46a9c29b1ef5594bfeb90b39df7",
+   "mismatches": 0,
+   "uncertain_final": 0,
+   "held": 0,
+   "registered_utc": "17:59–18:07",
+   "embed_tokens": 1193534,
+   "embed_cost_usd": 0.023871
+  },
+  "T3": {
+   "members": [
+    "2024__part-00003",
+    "2024__part-00004"
+   ],
+   "docs": 205,
+   "chunks": 5276,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.279959,
+   "manifest_sha256": "8a43a743d7fe261c746e9c93f314d3c4728cd0845a95f8465dd61b0ad09a3c47",
+   "mismatches": 0,
+   "uncertain_final": 0,
+   "held": 0,
+   "registered_utc": "18:15–18:22",
+   "embed_tokens": 1227442,
+   "embed_cost_usd": 0.024549
+  },
+  "T4": {
+   "members": [
+    "2024__part-00004",
+    "2024__part-00005"
+   ],
+   "docs": 205,
+   "chunks": 5752,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.305489,
+   "manifest_sha256": "1e9694f53e78f02fd135429ce5b80274b686dfa3139590048758af453b5405fb",
+   "mismatches": 0,
+   "uncertain_final": 0,
+   "held": 0,
+   "registered_utc": "18:30–18:37",
+   "embed_tokens": 1349848,
+   "embed_cost_usd": 0.026997
+  },
+  "T5": {
+   "members": [
+    "2024__part-00005"
+   ],
+   "docs": 180,
+   "chunks": 5257,
+   "create": 180,
+   "link": 0,
+   "cost_ceiling": 0.280219,
+   "manifest_sha256": "64bdf9b1c96a823541ecc28414f3f7fcc42db2efaaa5e2fe53774ca551889300",
+   "mismatches": 0,
+   "uncertain_final": 0,
+   "held": 0,
+   "registered_utc": "18:44–18:51",
+   "embed_tokens": 1244189,
+   "embed_cost_usd": 0.024884
+  }
+ },
+ "verification": {
+  "docs": 1000,
+  "indexed": 1000,
+  "published": 1000,
+  "chunks": 26217,
+  "missing_vectors": 0,
+  "non_1536_vectors": 0,
+  "stored_text_hash_valid": 1000,
+  "one_job_each": 1000,
+  "jobs_succeeded": 1000,
+  "ocr_pages": 0,
+  "listing_url_equals_order_url": 1000,
+  "one_membership_each": 1000,
+  "distinct_records": 1000,
+  "one_document_per_record": 1000,
+  "new_listings_created": 1000,
+  "cohort_fingerprint_sha256": "b75fd57a94d8a327da0bb9adf9acf87c120c81598582f10b63b0fa989c795832",
+  "cohort_fingerprint_matches": true,
+  "autopilot_verify": "verified 2026-10-26T19:38:16Z (per document: indexed, text hash, chunk count, no null vectors, one listing link, URL)",
+  "same_case_and_date_groups_with_batch7_docs": 0,
+  "same_case_and_date_groups_total": 6,
+  "shared_chunk_check": "pairs sharing >=3 identical chunk hashes with any other document; the stored-vector self-lookup was skipped to avoid load during batch 8",
+  "possible_duplicate_or_overlapping_pairs_for_owner_review": [
+   {
+    "keys": [
+     "9781d6d42a44617e",
+     "91d46e288216be50"
+    ],
+    "title": "Master Weaver Ethnics India Private Limited",
+    "note": "both 2024-05-02, both batch 7; 13 of the 14 chunks of the shorter order recur in the 83-chunk order; case strings differ (I.A.1356 of 2023 vs IA-IBC-1356-2024); sizes differ >3x so the near-duplicate hold did not compare them"
+   }
+  ],
+  "boilerplate_overlap_note": "other pairs share <=6 of 60-126 chunks: standard resolution-plan approval wording across different companies (Chennai and Ahmedabad benches); not duplicates"
+ },
+ "cost": {
+  "embed_tokens": 6143578,
+  "embed_cost_usd": 0.12287156,
+  "ceiling_usd": 1.393385,
+  "ocr_or_chat_spend": 0
+ },
+ "deltas": {
+  "documents": [
+   6569,
+   7569
+  ],
+  "chunks": [
+   215809,
+   242026
+  ],
+  "law_documents": [
+   3110,
+   4110
+  ],
+  "law_records": [
+   3439,
+   4439
+  ],
+  "memberships": [
+   3545,
+   4545
+  ],
+  "links": [
+   3110,
+   4110
+  ],
+  "publications": [
+   3110,
+   4110
+  ]
+ },
+ "timing_utc": {
+  "planned": "2026-10-26 16:38:19",
+  "first_job": "2026-10-26 17:01:10",
+  "last_indexed": "2026-10-26 19:37:08",
+  "verified": "2026-10-26 19:38:16"
+ }
+}
