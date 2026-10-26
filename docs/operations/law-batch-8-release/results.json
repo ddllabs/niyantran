@@ -1,0 +1,194 @@
+{
+ "decision": "owner-authorized-20261026-law-auto-b08",
+ "approver": "Tamanesh Kauri (standing approval for 5 batches, 2026-10-26 21:07 IST)",
+ "inputs": {
+  "ingestion_scripts": "cf3e753",
+  "driver": "docs/operations/law-autopilot/nter-law-autopilot.py",
+  "driver_commit": "590419a62492792aebf8e45c3e5bc183642199be",
+  "driver_sha256": "6869cfbfe379416fd71ba36d5d4f0832864f82fea02ca18cca445538d8feb8f9",
+  "core_sha256": "f99814a4d9db27c8572b5c72dc8f39c799a22eda6898c9e9b82ce0086cba6797",
+  "plan_json_sha256": "3a0eee39cdf7d0d0538c80556735479aaf6f4aacc89c7efa07c2c758b9cf39a0",
+  "cohort_tsv_sha256": "124d7348767c86d3e13335593cfc1f91c2457ac75d0b2754e204d6182bb9fc84",
+  "members_screened": [
+   "2024__part-00005",
+   "2024__part-00006",
+   "2024__part-00007",
+   "2024__part-00008",
+   "2024__part-00009",
+   "2024__part-00010",
+   "2023__part-00001"
+  ]
+ },
+ "selection_holds": {
+  "near-duplicate text": 54,
+  "no case number": 311,
+  "not an official order PDF URL": 2,
+  "possible duplicate order (same case number and order date)": 3,
+  "over answer-read limits": 4
+ },
+ "tranches": {
+  "T1": {
+   "members": [
+    "2024__part-00005",
+    "2024__part-00006"
+   ],
+   "docs": 205,
+   "chunks": 6533,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.346961,
+   "manifest_sha256": "a1b5730477d1257a33c283ce37a4540ecbff8dd6d3214fe614dfaa9f2f577df1",
+   "mismatches": 0,
+   "submissions": 1,
+   "uncertain": 0,
+   "held": 0,
+   "registered_utc": "19:53–20:02",
+   "embed_tokens": 1519187,
+   "embed_cost_usd": 0.030384
+  },
+  "T2": {
+   "members": [
+    "2024__part-00006",
+    "2024__part-00007"
+   ],
+   "docs": 205,
+   "chunks": 5603,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.298994,
+   "manifest_sha256": "60d4f1a8d63d6d6c91b4e62301d94e04b0b6c3b469ff0b1fced0ef16406747dd",
+   "mismatches": 0,
+   "submissions": 1,
+   "uncertain": 0,
+   "held": 0,
+   "registered_utc": "20:09–20:17",
+   "embed_tokens": 1316569,
+   "embed_cost_usd": 0.026331
+  },
+  "T3": {
+   "members": [
+    "2024__part-00007",
+    "2024__part-00008"
+   ],
+   "docs": 205,
+   "chunks": 6030,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.320288,
+   "manifest_sha256": "6f20576d3e66861a1c6bc626791e56d2bd3bcccdbb1d5fac1e00e6e221af0c30",
+   "mismatches": 0,
+   "submissions": 1,
+   "uncertain": 0,
+   "held": 0,
+   "registered_utc": "20:24–20:32",
+   "embed_tokens": 1405776,
+   "embed_cost_usd": 0.028116
+  },
+  "T4": {
+   "members": [
+    "2024__part-00008",
+    "2024__part-00009"
+   ],
+   "docs": 205,
+   "chunks": 6272,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.332876,
+   "manifest_sha256": "9cc589c2412d43aa657b0d3a511bf2856cf01a7b004573580a111110a4e29054",
+   "mismatches": 0,
+   "submissions": 1,
+   "uncertain": 0,
+   "held": 0,
+   "registered_utc": "20:39–20:47",
+   "embed_tokens": 1463821,
+   "embed_cost_usd": 0.029276
+  },
+  "T5": {
+   "members": [
+    "2024__part-00009",
+    "2024__part-00010",
+    "2023__part-00001"
+   ],
+   "docs": 180,
+   "chunks": 5384,
+   "create": 180,
+   "link": 0,
+   "cost_ceiling": 0.285431,
+   "manifest_sha256": "3ff5d0cf04971614159ad32e8866122559ba5c9270c73d36b3c5acca3cd981bf",
+   "mismatches": 0,
+   "submissions": 1,
+   "uncertain": 0,
+   "held": 0,
+   "registered_utc": "20:53–21:00",
+   "embed_tokens": 1259353,
+   "embed_cost_usd": 0.025187
+  }
+ },
+ "verification": {
+  "docs": 1000,
+  "indexed": 1000,
+  "published": 1000,
+  "chunks": 29822,
+  "missing_vectors": 0,
+  "non_1536_vectors": 0,
+  "stored_text_hash_valid": 1000,
+  "one_job_each": 1000,
+  "jobs_succeeded": 1000,
+  "ocr_pages": 0,
+  "listing_url_equals_order_url": 1000,
+  "one_membership_each": 1000,
+  "distinct_records": 1000,
+  "one_document_per_record": 1000,
+  "new_listings_created": 1000,
+  "cohort_fingerprint_sha256": "052152b64f9486cc2ad1eb1a0cc164637861ffb903681148da38d6cb48c2266c",
+  "cohort_fingerprint_matches": true,
+  "autopilot_verify": "verified 2026-10-26T22:43:10Z",
+  "same_case_and_date_groups_with_batch8_docs": 0,
+  "same_case_and_date_groups_total": 6,
+  "shared_chunk_pairs_at_least_30pct_of_smaller": 1,
+  "shared_chunk_note": "only f761ef017cc55794 (Sohrab Spinning Mill) / b4d32e12d74d313b (Noble Steels): 3 of 9 chunks, different companies and dates; standard liquidation wording, not a duplicate",
+  "possible_duplicate_or_overlapping_pairs_for_owner_review": []
+ },
+ "cost": {
+  "embed_tokens": 6964706,
+  "embed_cost_usd": 0.13929412,
+  "ceiling_usd": 1.58455,
+  "ocr_or_chat_spend": 0
+ },
+ "deltas": {
+  "documents": [
+   7569,
+   8569
+  ],
+  "chunks": [
+   242026,
+   271848
+  ],
+  "law_documents": [
+   4110,
+   5110
+  ],
+  "law_records": [
+   4439,
+   5439
+  ],
+  "memberships": [
+   4545,
+   5545
+  ],
+  "links": [
+   4110,
+   5110
+  ],
+  "publications": [
+   4110,
+   5110
+  ]
+ },
+ "timing_utc": {
+  "planned": "2026-10-26 19:44:43",
+  "first_job": "2026-10-26 19:53:55",
+  "last_indexed": "2026-10-26 22:42:15",
+  "verified": "2026-10-26 22:43:10"
+ }
+}
