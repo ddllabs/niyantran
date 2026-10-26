@@ -1,0 +1,225 @@
+{
+ "decision": "owner-authorized-20261026-law-batch-6",
+ "approver": "Vighnesh Shukla (relayed in chat by Tamanesh Kauri, 2026-10-26 16:29 IST)",
+ "inputs": {
+  "ingestion_scripts": "cf3e753",
+  "driver": "nter-law-batch6-live.py",
+  "driver_sha256": "780c65d6e897942f1b23144052095af2c4e43ecad34d4838062785e602935a26",
+  "driver_commit": "6eb59d6bff3ec3b4d724b286f3bfac9c62b2ba9c",
+  "screen_driver_sha256": "72eb70cc70cbcec928afc32e4c45e486faee5711f7eeb02081ff291dafd0836d",
+  "staging_summary_sha256": "a9aac3351f617fb62bdc61ac650b1dbe11c4102ed0874969b0356455362c9de2",
+  "cohort_tsv_sha256": "7fb618d0d0f1381dacc000e476ceb89f891d9abb5e8973a15964bf70bd489023"
+ },
+ "tranches": {
+  "T1": {
+   "members": [
+    "2025__part-00006",
+    "2025__part-00007"
+   ],
+   "docs": 205,
+   "chunks": 7339,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.389614,
+   "manifest_sha256": "146739f44772e2a87b0ced0bd3b235764ac21cd3bd411bfcd1d9c83f47e834dd",
+   "reconcile_report_sha256": "9f1876ef54d92770dace012c44c04986bad9199566069f2842a0be795d2252bf",
+   "mismatches": 0,
+   "token_minutes_left_at_reconcile": 39.9,
+   "submit_report_sha256": "ca800add0c230b4894aee5807d8202e9998da86cb0df58dab43678d3484b4500",
+   "submit_exit": 2,
+   "submitted": 205,
+   "uncertain": 0,
+   "held": 0,
+   "embed_tokens": 1699865,
+   "embed_cost_usd": 0.0339973
+  },
+  "T2": {
+   "members": [
+    "2025__part-00007",
+    "2025__part-00008",
+    "2025__part-00009"
+   ],
+   "docs": 205,
+   "chunks": 8625,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.460493,
+   "manifest_sha256": "2f2b0262982a5bdefe4f211ae01f85d14d34a9df2d733cb17621621ecf05ccf3",
+   "reconcile_report_sha256": "a8b0cb375c7e8e361f21f46bf673a4fed51ad6ebaf8955c78eb4be6035cb5d50",
+   "mismatches": 0,
+   "token_minutes_left_at_reconcile": 24.3,
+   "submit_report_sha256": "d4726d029bc6a87e50367f4c5058549daeeaa8178d59f3dbad86076070cfa5b7",
+   "submit_exit": 2,
+   "submitted": 205,
+   "uncertain": 0,
+   "held": 0,
+   "embed_tokens": 2000843,
+   "embed_cost_usd": 0.04001686
+  },
+  "T3": {
+   "members": [
+    "2025__part-00009",
+    "2024__part-00001"
+   ],
+   "docs": 205,
+   "chunks": 6248,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.333223,
+   "manifest_sha256": "59bc3f9963b75c0d84e631c5c2d273725d1a62f5868f0bba882d404a6b70e498",
+   "reconcile_report_sha256": "e0731d7c1ee626fefe9108963bd899c01641829bcc4d2cbfeac3a0c3915ea429",
+   "mismatches": 0,
+   "token_minutes_left_at_reconcile": 55.2,
+   "submit_report_sha256": "34a9abccae3497c5088bf10e65d7f11caefdb1fe08a496cd2278fe0e9c0524d3",
+   "submit_exit": 2,
+   "submitted": 205,
+   "uncertain": 0,
+   "held": 0,
+   "embed_tokens": 1467366,
+   "embed_cost_usd": 0.02934732
+  },
+  "T4": {
+   "members": [
+    "2024__part-00001"
+   ],
+   "docs": 205,
+   "chunks": 4836,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.25541,
+   "manifest_sha256": "8cfbec56790e42011c62292e72892f0296cb5e526a2bf57c23f8aae7d93237e2",
+   "reconcile_report_sha256": "c05c6dd97b0e3c2a578f046853dc80384108d48da71d4c116e8cad3fc8ab4701",
+   "mismatches": 0,
+   "token_minutes_left_at_reconcile": 39.5,
+   "submit_report_sha256": "efb057e316d7654a43f96d8d972c3f0f42f887713acdfc8c762fbb3e6ac43b12",
+   "submit_exit": 2,
+   "submitted": 205,
+   "uncertain": 0,
+   "held": 0,
+   "embed_tokens": 1123263,
+   "embed_cost_usd": 0.02246526
+  },
+  "T5": {
+   "members": [
+    "2024__part-00001",
+    "2024__part-00002"
+   ],
+   "docs": 180,
+   "chunks": 3925,
+   "create": 180,
+   "link": 0,
+   "cost_ceiling": 0.207631,
+   "manifest_sha256": "338c70aeb0c2145beef4c620bcca702e2380bfe797519c254e2613030a56771a",
+   "reconcile_report_sha256": "c7a44224bd32bcfb74ce07a665f009a6e4d6c24535835939b7a1d1cc126ec0a7",
+   "mismatches": 0,
+   "token_minutes_left_at_reconcile": 24.4,
+   "submit_report_sha256": "817cbc9002eb21e53233158de5ac61fefc15406487400593d9f969d6907f8328",
+   "submit_exit": 2,
+   "submitted": 180,
+   "uncertain": 0,
+   "held": 0,
+   "embed_tokens": 922440,
+   "embed_cost_usd": 0.0184488
+  }
+ },
+ "verification": {
+  "docs": 1000,
+  "indexed": 1000,
+  "published": 1000,
+  "chunks": 30973,
+  "missing_vectors": 0,
+  "non_1536_vectors": 0,
+  "stored_text_hash_valid": 1000,
+  "one_job_each": 1000,
+  "jobs_succeeded": 1000,
+  "ocr_pages": 0,
+  "listing_url_equals_order_url": 1000,
+  "one_membership_each": 1000,
+  "distinct_records": 1000,
+  "one_document_per_record": 1000,
+  "new_listings_created": 1000,
+  "new_law_records_since_12_00_utc": 1000,
+  "cohort_fingerprint_sha256": "fabf4f469466b1e983567357707ba4fb06d5f92a78ec74c8476ae9ecd6ea512d",
+  "cohort_fingerprint_matches": true,
+  "self_lookup": {
+   "tested": 1000,
+   "self_top1": 983,
+   "identical_chunk_text_elsewhere": 17
+  },
+  "same_case_and_date_groups_with_batch6_docs": 0,
+  "possible_duplicate_or_overlapping_pairs_for_owner_review": [
+   {
+    "keys": [
+     "4c12a79b9c025227",
+     "2f2b9b57e25445e7"
+    ],
+    "title": "Dr. Jain Video On Wheels Ltd.",
+    "note": "same CP 843(ND)/2018 and date 2025-09-02, different IAs; 38 of 42 chunks shared"
+   },
+   {
+    "keys": [
+     "80362814f70b232f",
+     "24d4c2e106815449"
+    ],
+    "title": "Green India Building Systems & Services Pvt. Ltd.",
+    "note": "same CP 998(MB)/2023, dates 2024-01-05 vs 2024-01-24; same PDF basename re-uploaded with a date prefix; 14 of 17 chunks shared"
+   },
+   {
+    "keys": [
+     "9bde5d1dbd2e4c4f",
+     "890aa169203045d1"
+    ],
+    "title": "Mantena Laboratories Limited",
+    "note": "same IAs 78/2023 and 1468/2022, same date 2024-02-06; case strings differ; 15 of 29 chunks shared"
+   },
+   {
+    "keys": [
+     "ee42ffaf4e2bb6bc",
+     "6d6ba64145e34fd9"
+    ],
+    "title": "Dharti Cotton Private Limited",
+    "note": "CP 138/AHM/2024, dates 2025-11-10 vs 2025-12-05; all 18 chunks shared (both batch 6)"
+   }
+  ]
+ },
+ "cost": {
+  "embed_tokens": 7213777,
+  "embed_cost_usd": 0.14427554,
+  "ceiling_usd": 1.646373,
+  "ocr_or_chat_spend": 0
+ },
+ "deltas": {
+  "documents": [
+   5569,
+   6569
+  ],
+  "chunks": [
+   184836,
+   215809
+  ],
+  "law_documents": [
+   2110,
+   3110
+  ],
+  "law_records": [
+   2439,
+   3439
+  ],
+  "memberships": [
+   2545,
+   3545
+  ],
+  "links": [
+   2110,
+   3110
+  ],
+  "publications": [
+   2110,
+   3110
+  ]
+ },
+ "timing_utc": {
+  "first_job": "2026-10-26 12:19:18",
+  "last_indexed": "2026-10-26 14:20:00"
+ }
+}

@@ -1,6 +1,6 @@
 # Law batch 6 (next 1,000): preparation and checks
 
-> **Status: prepared; owner authorization recorded; not yet submitted.** Owner request (Tamanesh Kauri, 2026-10-26
+> **Status: Historical (dated 2026-10-26). Submitted, indexed and published; see `../law-batch-6-release/`.** Owner request (Tamanesh Kauri, 2026-10-26
 > 16:26 IST): start the next batch of 1,000. Approver **Vighnesh Shukla**, confirmed at 16:29 IST. The receipt will go to
 > `../law-batch-6-release/` after submission and verification. This is not a claim of autopilot readiness.
 
