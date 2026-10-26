@@ -24,11 +24,18 @@ BATCH5 = {'batch': 'B5 batch-5 (1000, 2025 orders)', 'approver': 'Vighnesh Shukl
           'manifest': 'T1 aae686d491f3a011599930b763125a780ab38bdd812c76b7bb104efe558bd8c5; T2 295135caa07f82034ecc8b1df401652b5e8b9b80de5c996d81b7f462d7044e0a; '
                       'T3 8e7a51591f1770e4bdc12bc679d716d2d3f4e3efd1a67c0b6a2a1c50b22466aa; T4 40ce77f897f0fddda882f089c3cfeae82dfee50aa1603b6592ac2b4df33a61c4; '
                       'T5 c76eeb95f4d5821b70185fcb84edda8d338e365e60f7c0197e201d63f33356be'}
+BATCH6 = {'batch': 'B6 batch-6 (1000, 2025 + 2024 orders)', 'approver': 'Vighnesh Shukla (relayed by Tamanesh Kauri)', 'authorized': '2026-10-26 16:29 IST',
+          'receipt': 'docs/operations/law-batch-6-release/',
+          'manifest': 'T1 146739f44772e2a87b0ced0bd3b235764ac21cd3bd411bfcd1d9c83f47e834dd; T2 2f2b0262982a5bdefe4f211ae01f85d14d34a9df2d733cb17621621ecf05ccf3; '
+                      'T3 59bc3f9963b75c0d84e631c5c2d273725d1a62f5868f0bba882d404a6b70e498; T4 8cfbec56790e42011c62292e72892f0296cb5e526a2bf57c23f8aae7d93237e2; '
+                      'T5 338c70aeb0c2145beef4c620bcca702e2380bfe797519c254e2613030a56771a'}
 def batch_of(bdec):
     if str(bdec).startswith('owner-authorized-20261024-law-next-1000'):
         return 'owner-authorized-20261024-law-next-1000', NEXT1000
     if str(bdec).startswith('owner-authorized-20261026-law-batch-5'):
         return 'owner-authorized-20261026-law-batch-5', BATCH5
+    if str(bdec).startswith('owner-authorized-20261026-law-batch-6'):
+        return 'owner-authorized-20261026-law-batch-6', BATCH6
     return bdec, BATCHES.get(bdec, {'batch': bdec, 'approver': ''})
 FILEMAP = {'292e68e44a755cf869b54daab8025218cb064dac182c600f56659e69f62c68d1': '2026__part-00006.jsonl.gz (pilot extract)',
            'bc374a90f1c60313d68015845cbe1d2a5583c86c03ea0c4ab3b04f41f324d5f6': '2026__part-00006.jsonl.gz',
@@ -45,7 +52,13 @@ FILEMAP = {'292e68e44a755cf869b54daab8025218cb064dac182c600f56659e69f62c68d1': '
            'e26d94bf27b5deda25bd333847197bebafe379ee31cd50780b9503e3a0c801b0': '2025__part-00003.jsonl.gz',
            'aaf6f336af897b4ca2ebd788ef613ad20faa56fac8524da2e90d22aba9afda3b': '2025__part-00004.jsonl.gz',
            'e032ce024ccf70fccbcca07fdba85c1840834ace92a74d6476614c1fd7e89fac': '2025__part-00005.jsonl.gz',
-           'c7fd10414c53268b0acbfc1e544c12bad7a0d61abbef930d71de10b400f414ac': '2025__part-00006.jsonl.gz'}
+           'c7fd10414c53268b0acbfc1e544c12bad7a0d61abbef930d71de10b400f414ac': '2025__part-00006.jsonl.gz',
+           'fac94f639cf270279f5d9214e039d4219f778bf5129b6c30107cbeeb58fe66bf': '2025__part-00006.jsonl.gz',
+           '8f4eb24503bcdeb9a7c85eb77897d456fd33625cb4e97dc0bee6e414588ef23b': '2025__part-00007.jsonl.gz',
+           '3ac8ba8646526146efbd0575cba19a32a4ebbd905bdb063a56cc9197bb92053a': '2025__part-00008.jsonl.gz',
+           '373a0b6a9687c245607060d92aa6d04da2dfe10c2a85a592ded27e5d73430af9': '2025__part-00009.jsonl.gz',
+           'ef45b44a8fa496404c1476fde3426e211bc0ef1cad830aa8821b97ecbc494990': '2024__part-00001.jsonl.gz',
+           '089986abb89e85d14054004ed8672beccd12e278fe2307d724a78d8e9f24923d': '2024__part-00002.jsonl.gz'}
 HEADER = ['#', 'Status', 'Batch', 'Batch decision', 'Row decision ID', 'Approver', 'Source key', 'Title', 'Case number', 'Order date', 'Pages',
           'Official PDF URL', 'Document ID', 'Text SHA-256', 'Chunks', 'Job ID', 'Job status', 'Embedding tokens', 'Embedding cost USD',
           'OCR pages', 'Registered at (UTC)', 'Indexed at (UTC)', 'Listing record ID', 'Listing row key', 'Listing origin', 'Listing type',
