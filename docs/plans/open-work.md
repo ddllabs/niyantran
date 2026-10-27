@@ -1,6 +1,5 @@
 # Open work: the one list
 
-- [ ] **Published AI personas for all users — 2026-10-28.** Owner authorized global rollout, push and merge to nter.pro. Prior pilot shipped in PR #60 (`23f73a46`). Separate runtime consumption from active-admin-only editing/testing/publishing, preserve current prompt contents, and verify both permission boundaries before activation. [Spec](../specs/2026-10-28-persona-global-rollout.md), [plan](2026-10-28-persona-global-rollout.md). Branch task/persona-global-rollout.
 
 
 
@@ -1440,6 +1439,8 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- [x] **Published AI personas for all users — 2026-10-28 (`88140bd3`, PR #61).** Owner-authorized rollout: active users consume their own published persona; only active platform admins manage drafts, tests, publication and rollback. Migration applied, admin-personas v2/research-chat v106 verified, global consumption enabled, all six prompt hashes/revisions preserved. Full local app/Edge tests and required CI jobs passed; production frontend assignment remains behind the protected merge checks. [Spec](../specs/2026-10-28-persona-global-rollout.md), [release evidence](2026-10-28-persona-global-rollout.md).
 
 - [x] **F243 — Globiz NCLT listing released.** PR #14 merged `258827a0`; branch, PR and main app/SQL CI passed. Production domain serves 435 rows; guarded one-row mirror correction applied. Company/case searches return exactly one order. All 434 old rows and Globiz document/80 chunks/job fingerprints unchanged. No re-ingestion or paid calls. [Evidence](2026-10-23-globiz-listing.md).
 
