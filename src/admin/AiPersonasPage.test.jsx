@@ -8,7 +8,7 @@ vi.mock('../lib/adminPersonas.js', async original => ({ ...await original(), adm
 import { adminPersonas } from '../lib/adminPersonas.js';
 import { AiPersonasPage } from './AiPersonasPage.jsx';
 const state={persona:'upsc_aspirant',generation:1,draft_id:'v1',active_id:'v1',draft_text:'Original',active_text:'Original'};
-const data={states:[state],history:[]};
+const data={audience:'all_users',states:[state],history:[]};
 function nodes(tree,predicate) {
   if (!tree || typeof tree!=='object')return [];
   if(Array.isArray(tree))return tree.flatMap(t=>nodes(t,predicate));
@@ -24,7 +24,7 @@ describe('persona editor publication boundary',()=>{
       textarea(render()).props.onChange({target:{value}});
       const tree=render();expect(textarea(tree).props.value).toBe(value);
       expect(textarea(tree).props.disabled).toBe(false);
-      expect(button(tree,'Publish for my account').props.disabled).toBe(true);
+      expect(button(tree,'Publish persona').props.disabled).toBe(true);
     }
     expect(adminPersonas).not.toHaveBeenCalled();
   });
@@ -34,8 +34,8 @@ describe('persona editor publication boundary',()=>{
     adminPersonas.mockResolvedValue({...data,states:[{...state,generation:2,draft_id:'v2',draft_text:exact}]});
     await button(render(),'Save draft').props.onClick();
     expect(adminPersonas).toHaveBeenCalledWith({action:'save',persona:'upsc_aspirant',expected:1,text:exact});
-    expect(button(render(),'Publish for my account').props.disabled).toBe(false);
-    await button(render(),'Publish for my account').props.onClick();
+    expect(button(render(),'Publish persona').props.disabled).toBe(false);
+    await button(render(),'Publish persona').props.onClick();
     expect(adminPersonas).toHaveBeenLastCalledWith({action:'publish',persona:'upsc_aspirant',expected:2});
   });
   it('retains unsaved wording on conflict and when reloading server versions',async()=>{
@@ -46,6 +46,14 @@ describe('persona editor publication boundary',()=>{
     adminPersonas.mockResolvedValueOnce({...data,states:[{...state,generation:2,draft_text:'Other edit'}]});
     await button(render(),'Reload server versions').props.onClick();
     expect(textarea(render()).props.value).toBe('My edits');
-    expect(button(render(),'Publish for my account').props.disabled).toBe(true);
+    expect(button(render(),'Publish persona').props.disabled).toBe(true);
   });
+});
+
+it('describes the actual rollout audience without granting management to consumers', () => {
+  for (const [audience, expected] of [['all_users','all users with the matching persona'], ['pilot','only to the pilot account'], ['disabled','consumption is paused']]) {
+    hooks.states[0] = {...data, audience};
+    const lede=nodes(render(),n=>n.type==='p'&&n.props.className==='adm-lede')[0];
+    expect(lede.props.children.join('')).toContain(expected);
+  }
 });

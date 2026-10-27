@@ -2,7 +2,7 @@ import { assertEquals } from 'jsr:@std/assert';
 import { handleAdminPersonas } from './handler.ts';
 const token = 'a.b.c';
 function req(body?: unknown) { return new Request('https://test/admin-personas', { method: body ? 'POST' : 'GET', headers: {authorization:`Bearer ${token}`,'content-type':'application/json'}, ...(body ? {body:JSON.stringify(body)} : {}) }); }
-Deno.test('pilot API rejects other identities before touching prompt storage', async () => {
+Deno.test('admin API rejects non-admin identities before touching prompt storage', async () => {
   let calls = 0;
   const res = await handleAdminPersonas(req(), {verify:()=>Promise.resolve({id:'other'}),access:()=>Promise.resolve(false),run:()=>{calls++;return Promise.resolve({});}});
   assertEquals(res.status,403); assertEquals(calls,0);

@@ -1,6 +1,6 @@
 # Open work: the one list
 
-- [ ] **Editable AI personas — 2026-10-27.** Owner approved implementation: server drafts, current-text tests, publish/rollback and account-restricted production pilot. Customer activation requires separate approval. [Spec](../specs/2026-10-27-admin-persona-prompts.md), [plan](2026-10-27-admin-persona-prompts.md). Branch task/admin-persona-prompts; deployed baseline and owner identity must be verified before pilot activation.
+- [ ] **Published AI personas for all users — 2026-10-28.** Owner authorized global rollout, push and merge to nter.pro. Prior pilot shipped in PR #60 (`23f73a46`). Separate runtime consumption from active-admin-only editing/testing/publishing, preserve current prompt contents, and verify both permission boundaries before activation. [Spec](../specs/2026-10-28-persona-global-rollout.md), [plan](2026-10-28-persona-global-rollout.md). Branch task/persona-global-rollout.
 
 
 

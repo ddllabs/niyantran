@@ -1,5 +1,8 @@
-export interface PilotSources {
-  pilot(): Promise<boolean>;
+import { HttpError } from './http.ts';
+
+export interface PersonaSources {
+  published(): Promise<boolean>;
+  canEdit(): Promise<boolean>;
   active(): Promise<{ text: string; id: string } | null>;
   bundled(): Promise<string>;
 }
@@ -19,16 +22,16 @@ export async function promptHash(text: string): Promise<string> {
   return [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))]
     .map((b) => b.toString(16).padStart(2, '0')).join('');
 }
-export async function resolvePilotPersona(_file: string, s: PilotSources, override?: string): Promise<ResolvedPersona> {
-  let pilot = false;
-  let unavailable = false;
-  try { pilot = await s.pilot(); } catch { unavailable = true; }
+export async function resolvePersonaPrompt(_file: string, s: PersonaSources, override?: string): Promise<ResolvedPersona> {
   if (override !== undefined) {
-    if (!pilot) throw new HttpError(403, 'Persona editing is restricted to the pilot account');
+    if (!await s.canEdit()) throw new HttpError(403, 'Persona editing requires an active platform admin');
     validatePersonaText(override);
     return { text: override, source: 'editor_test', version: null, hash: await promptHash(override) };
   }
-  if (pilot) {
+  let published = false;
+  let unavailable = false;
+  try { published = await s.published(); } catch { unavailable = true; }
+  if (published) {
     try {
       const active = await s.active();
       if (active) {
@@ -41,5 +44,4 @@ export async function resolvePilotPersona(_file: string, s: PilotSources, overri
   return { text, source: unavailable ? 'bundled_fallback' : 'bundled', version: null,
     hash: await promptHash(text), ...(unavailable ? { reason: 'storage_unavailable' } : {}) };
 }
-import { HttpError } from './http.ts';
 
