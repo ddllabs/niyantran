@@ -155,3 +155,8 @@ it('F257 persists identity from the whole row even when preview loses the identi
  expect(chip.tab).toBe('national');
  expect(chip.preview.source_url).toBeUndefined();
 });
+
+it('F261 names Parliamentary attachments by subject even with a member title', async()=>{
+ const [a]=await materializeAiDrop({kind:'row',feature:'Parliamentary Question Database',title:'Member Name',row:{id:'q1',title:'Member Name',subject:'Flood management',mp_name:'Member Name'}},{hydrate:false});
+ expect(a.title).toBe('Flood management');
+});

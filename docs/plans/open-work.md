@@ -1,6 +1,6 @@
 # Open work: the one list
 
-- [ ] **F261 — Align Parliamentary record displays with verified answer coverage.** Live acceptance found old “answer not on record” banner/lifecycle/cached briefs despite Full text in chat; attachment labels and suggestions prefer the MP over the question subject. Use current verified coverage without rewriting source-register facts or silently treating cached metadata briefs as OCR synthesis. No re-ingestion. Also review mixed HTML/Markdown table rendering and unsupported “verbatim” synthesis wording observed in the FMBAP answer. [Evidence](../operations/2026-10-28-corpus-repair-review/release.md).
+- [ ] **F261 — Align Parliamentary record displays with verified answer coverage.** Live acceptance found old “answer not on record” banner/lifecycle/cached briefs despite Full text in chat; attachment labels and suggestions prefer the MP over the question subject. Use current verified coverage without rewriting source-register facts or silently treating cached metadata briefs as OCR synthesis. No re-ingestion. Also fix nested-list Markdown table rendering (verified from the saved response; the earlier HTML attribution was an inference) and unsupported “verbatim” synthesis wording observed in the FMBAP answer. [Evidence](../operations/2026-10-28-corpus-repair-review/release.md).
 
 
 

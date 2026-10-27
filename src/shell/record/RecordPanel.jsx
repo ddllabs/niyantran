@@ -106,7 +106,7 @@ export function RecordPaneLoading({ brief, onClose }) {
   );
 }
 
-export function BriefCard({ brief }) {
+export function BriefCard({ brief, context }) {
   const ready = brief.state === 'ready'
     && (Array.isArray(brief.points) ? Boolean(brief.headline && brief.points.length) : Boolean(brief.brief));
   const date = ready ? writtenDate(brief.writtenAt) : '';
@@ -114,6 +114,7 @@ export function BriefCard({ brief }) {
   return (
     <div className="rd-ai rp-brief" aria-live="polite">
       <div className="rd-sec-label">✦ Niyantran analysis{ready ? <small>{date ? ` · AI brief · written ${date}` : ' · AI brief'}</small> : null}</div>
+      {ready && context ? <p className="desk-note">{context}</p> : null}
       {ready ? <BriefBody brief={brief} /> : waiting ? <BriefAnimation key={brief.record} writing={brief.state !== 'loading'} /> : (
         <div className="rd-ai-brief rp-brief-empty">{BRIEF_STATUS[brief.state] || BRIEF_STATUS.error}</div>
       )}
@@ -175,7 +176,7 @@ export default function RecordPanel({ model, onClose, onAsk, onSelect, onQuick, 
       {about.rows?.length || about.chips?.length || about.cards?.length || showBrief ? (
         <section className="rp-block">
           <h3 className="rp-eyebrow">{about.label || '02 · About this record'}</h3>
-          {showBrief ? <BriefCard brief={brief} /> : null}
+          {showBrief ? <BriefCard brief={brief} context={model.briefContext} /> : null}
           {about.rows?.length ? (
             <dl className="rp-kv">{about.rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
           ) : null}

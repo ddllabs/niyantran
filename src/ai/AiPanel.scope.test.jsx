@@ -39,3 +39,9 @@ it('F257 the real composer preserves Broad chosen explicitly for this current re
  await form.props.onSubmit({preventDefault(){}});
  expect(h.research.actions.send.mock.calls[0][0].focus).toBe('broad');
 });
+
+it('F261 suggestions use the subject of a saved Parliamentary attachment',()=>{
+ h.research.store.chats[0].attachments=[{kind:'row',title:'Member Name',feature:props.featureName,preview:{subject:'Flood management'}}];
+ const follow=nodes(render()).find(n=>Array.isArray(n.props?.questions));
+ expect(follow.props.questions.join(' ')).toContain('Flood management');expect(follow.props.questions.join(' ')).not.toContain('Member Name');
+});

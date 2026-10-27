@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import RecordPanel from './RecordPanel.jsx';
+import RecordPanel, { BriefCard } from './RecordPanel.jsx';
 
 const model = (over = {}) => ({
   title: 'Russia–Ukraine War',
@@ -296,4 +296,9 @@ describe('RecordPanel Law additions', () => {
     expect(renderToStaticMarkup(<RecordPanel model={model()} onQuick={() => {}} />)).not.toContain('Quick exit');
     expect(find(RecordPanel({ model: law }), 'rp-qbtn')).toHaveLength(0);
   });
+});
+
+it('F261 labels a stored brief with its metadata basis without changing its body',()=>{
+ const html=renderToStaticMarkup(<BriefCard brief={{state:'ready',brief:'Old register analysis'}} context="Based on register fields, not answer text."/>);
+ expect(html).toContain('Based on register fields, not answer text.');expect(html).toContain('Old register analysis');
 });

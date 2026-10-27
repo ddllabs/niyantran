@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { recordAvailability, refreshCoverage, COVERAGE_TTL_MS } from '../lib/corpusCoverage.js';
+import { documentKey } from '../lib/deskRows.js';
 import FeedLoader from './FeedLoader.jsx';
 import { feedOverview } from '../lib/analytics.js';
 import { fetchFeaturePage } from '../lib/featureFeed.js';
@@ -58,9 +60,24 @@ function RecordPanelWithBrief({ adapter, selected, feed, loading, onSelect }) {
   const packs = useRecordPacks(feed?.feature);
   const rows = useRelatedRows(feed, selected);
   const today = todayInIndia();
+  const coverageKey = /parliamentary question/i.test(feed?.feature || '')
+    ? documentKey(selected, feed?.tier, feed?.feature) : null;
+  const [textCoverage, setTextCoverage] = useState({ key: null, value: null });
+  useEffect(() => {
+    if (!coverageKey) return undefined;
+    let live = true;
+    const check = () => refreshCoverage([coverageKey]).then((indexed) => {
+      const { record, text } = recordAvailability({ kind: 'row', document_key: coverageKey }, indexed);
+      if (live) setTextCoverage({ key: coverageKey, value: text || (record === 'snapshot' ? 'snapshot' : null) });
+    }).catch(() => { if (live) setTextCoverage({ key: coverageKey, value: null }); });
+    check();
+    const timer = setInterval(check, COVERAGE_TTL_MS);
+    return () => { live = false; clearInterval(timer); };
+  }, [coverageKey]);
+  const coverage = textCoverage.key === coverageKey ? textCoverage.value : null;
   return (
     <RecordPanel
-      model={adapter(selected, { rows, feed, packs, today })}
+      model={adapter(selected, { rows, feed, packs, today, coverage })}
       brief={brief}
       onClose={() => onSelect?.(null)}
       onAsk={() => openAiResearch({ row: selected, attachFeed: true })}

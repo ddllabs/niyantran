@@ -53,7 +53,7 @@ export function applyParliamentaryQuestionShapingToFeed(feed) {
       boardNote:
         known > 0
           ? `Search covers all ${rows.length.toLocaleString('en-IN')} questions. "Has answer" is filled only where the source records whether a question was answered.`
-          : `Search covers all ${rows.length.toLocaleString('en-IN')} questions. Answers are not in this dataset yet, so "Has answer" shows Not reported.`,
+          : `Search covers all ${rows.length.toLocaleString('en-IN')} questions. "Has answer" describes the question register only; Not reported does not establish whether answer text is available.`,
     },
   };
 }

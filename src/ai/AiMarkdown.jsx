@@ -194,6 +194,22 @@ function startsBlockAtRoot(line) {
   return !/^\s/.test(line) && startsBlock(line);
 }
 
+/** List continuations may contain tables; route their cells through the same
+ * citation and URL-safe renderer as top-level tables. Never interpret HTML. */
+function ListContent({ lines, keyPrefix, cite }) {
+  const out = [];
+  for (let i = 0; i < lines.length;) {
+    const start = i;
+    const table = ROW.test(lines[i]);
+    const block = [];
+    while (i < lines.length && ROW.test(lines[i]) === table) block.push(lines[i++]);
+    out.push(table
+      ? <Table key={start} rows={block} keyPrefix={`${keyPrefix}-t${start}`} cite={cite} />
+      : <Lines key={start} lines={block} keyPrefix={`${keyPrefix}-p${start}`} cite={cite} />);
+  }
+  return out;
+}
+
 function ListItems({ items, keyPrefix, cite }) {
   // Consecutive siblings of one kind share a list; a switch from bullets to
   // numbers (or back) at the same depth starts a new one.
@@ -206,7 +222,7 @@ function ListItems({ items, keyPrefix, cite }) {
   return groups.map((group, g) => {
     const lis = group.items.map((item, n) => (
       <li key={n}>
-        <Lines lines={item.lines} keyPrefix={`${keyPrefix}-${g}-${n}`} cite={cite} />
+        <ListContent lines={item.lines} keyPrefix={`${keyPrefix}-${g}-${n}`} cite={cite} />
         {item.children.length ? <ListItems items={item.children} keyPrefix={`${keyPrefix}-${g}-${n}c`} cite={cite} /> : null}
       </li>
     ));

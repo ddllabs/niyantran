@@ -261,6 +261,7 @@ export async function materializeAiDrop(payload, extras = {}) {
     const docs = [...new Set([...urlsFromRow(payload.row), ...(related.extraUrls || [])])].slice(0, 3);
     const hubs = provenanceUrls(payload.row);
     const title =
+      (/parliamentary question/i.test(payload.feature || extras.feature || extras.feed?.feature || '') ? payload.row.subject : '') ||
       payload.title ||
       payload.row.conflict_name ||
       payload.row.title ||
@@ -341,6 +342,7 @@ export async function materializeAiDrop(payload, extras = {}) {
           feature: extras.feed.feature || payload.feature,
           tab: payload.tab || '',
           title:
+            (/parliamentary question/i.test(extras.feed.feature || payload.feature || '') ? extras.selected.subject : '') ||
             extras.selected.bill_name ||
             extras.selected.title ||
             extras.selected.name ||
