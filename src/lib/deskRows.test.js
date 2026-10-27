@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fixture from './__fixtures__/deskRows.json';
-import { billDocumentKey, deskRecordText, deskRowKey, flattenRow, fnv1a64, slimDeskRow, toDeskRow } from './deskRows.js';
+import { documentKey, billDocumentKey, deskRecordText, deskRowKey, flattenRow, fnv1a64, slimDeskRow, toDeskRow } from './deskRows.js';
 import { rowPinKey } from './sourceUrls.js';
 
 describe('deskRows (client, mirrored in _shared/deskRows.ts)', () => {
@@ -99,4 +99,48 @@ describe('deskRows (client, mirrored in _shared/deskRows.ts)', () => {
     expect(r.snapshot_at).toBe('2026-09-07T18:02:04.432Z');
     for (const v of Object.values(r.row)) expect(typeof v).toBe('string');
   });
+});
+
+
+describe('cross-desk lookup pointers', () => {
+  it('binds identical row IDs to their desk and preserves legacy adapters', () => {
+    expect(documentKey({id: '234'}, 'national', 'Parliamentary Question Database')).toBe('desk-record:["national","Parliamentary Question Database","234"]');
+    expect(documentKey({id: '234'}, 'state', 'Other')).not.toBe(documentKey({id: '234'}, 'national', 'Other'));
+    expect(documentKey({id: '234'})).toBeNull();
+    expect(documentKey({id: '234', document_key: 'desk-record:["law","Other","fake"]'}, 'national', 'Other')).toBe('desk-record:["national","Other","234"]');
+    expect(documentKey({bill_number: '1', bill_name: 'Bill, 2026'}, 'national', 'Bills')).toBe('bill:2026:1');
+    expect(documentKey({document_key: 'law-record:11111111-1111-4111-8111-111111111111'}, 'law', 'Orders')).toBe('law-record:11111111-1111-4111-8111-111111111111');
+  });
+});
+
+it('F257 recovers saved stable identities and refuses capped or conflicting previews',async()=>{
+ const {recordAttachmentIdentity,attachmentCoverageKey}=await import('./deskRows.js');
+ const base={kind:'row',tab:'national',feature:'Parliamentary Question Database'};
+ expect(recordAttachmentIdentity({...base,preview:{id:'234',subject:'Question'}})).toMatchObject({row_key:'234',document_key:'desk-record:["national","Parliamentary Question Database","234"]'});
+ expect(recordAttachmentIdentity({...base,preview:{subject:'Question',source_url:'https://example.gov/q'}})).toMatchObject({row_key:'https://example.gov/q'});
+ const capped=Object.fromEntries(Array.from({length:32},(_,i)=>['field'+i,'value'+i]));
+ expect(recordAttachmentIdentity({...base,preview:capped})).toBeNull();
+ expect(recordAttachmentIdentity({...base,preview:{value:'no explicit identity'}})).toBeNull();
+ expect(recordAttachmentIdentity({...base,document_key:'desk-record:["law","Orders","234"]'})).toBeNull();
+ expect(recordAttachmentIdentity({...base,document_key:'desk-record:["national","Parliamentary Question Database","234"]',preview:capped})).toMatchObject({row_key:'234'});
+ expect(attachmentCoverageKey({kind:'document',document_id:'00000000-0000-0000-0000-000000000001'})).toBe('document-id:00000000-0000-0000-0000-000000000001');
+});
+
+it('F257 retains Bill/Law adapters without inventing row identity from capped saved previews',async()=>{
+ const {recordAttachmentIdentity}=await import('./deskRows.js');
+ const bill={kind:'row',tab:'national',feature:'Bills',preview:{bill_number:'7',bill_name:'Bill, 2026'}};
+ expect(recordAttachmentIdentity(bill)).toMatchObject({row_key:'7',document_key:'desk-record:["national","Bills","7"]'});
+ const preview={...Object.fromEntries(Array.from({length:32},(_,i)=>['field'+i,'value'+i])),title:'Could hide an earlier identity'};
+ const held=recordAttachmentIdentity({...bill,document_key:'bill:2026:7',preview});
+ expect(held).toBeNull();
+ expect(recordAttachmentIdentity({kind:'row',tab:'law',feature:'Orders',preview:{id:'order-1',document_key:'law-record:11111111-1111-4111-8111-111111111111'}})).toMatchObject({row_key:'order-1',document_key:'desk-record:["law","Orders","order-1"]'});
+});
+
+it('F257 coverage and requests ignore stale legacy keys when a stable row tuple exists',async()=>{
+ const {recordAttachmentIdentity,attachmentCoverageKey}=await import('./deskRows.js');
+ const chip={kind:'row',tab:'national',feature:'Bills',row_key:'record-7',document_key:'bill:2007:70'};
+ const key='desk-record:["national","Bills","record-7"]';
+ expect(recordAttachmentIdentity(chip).document_key).toBe(key);
+ expect(attachmentCoverageKey(chip)).toBe(key);
+ expect(chip.document_key).toBe('bill:2007:70');
 });

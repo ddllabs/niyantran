@@ -152,15 +152,15 @@ describe('WebSearchToggle', () => {
 // The prediction the panel feeds the globe: the chips on the chat, the selected row that the next
 // send will pin, the coverage answers it already holds, and the desk module list.
 describe('predictWeb', () => {
-  const db = (rows) => ({ from() { const chain = { select: () => chain, in: () => chain, not: () => Promise.resolve({ data: rows, error: null }) }; return chain; } });
+  const db = (rows) => ({ rpc: async (_name,{p_keys}) => ({data:p_keys.map(document_key=>({document_key,coverage:rows.some(r=>r.document_key===document_key)?'full':'unmapped'})),error:null}), from() { const chain = { select: () => chain, in: () => chain, not: () => Promise.resolve({ data: rows, error: null }) }; return chain; } });
   beforeEach(() => resetCoverageCache());
-  const row = (document_key) => ({ kind: 'row', title: 'A row', ...(document_key ? { document_key } : {}) });
+  const row = (document_key) => ({ kind: 'row', tier: 'national', feature: 'Bills', row_key: document_key ? JSON.parse(document_key.slice(12))[2] : '1', title: 'A row', ...(document_key ? { document_key } : {}) });
   const modules = [{ desk_tier: 'National', desk_feature: 'Bills' }];
 
   it('answers like webDefaultFor for the chips alone', async () => {
-    const indexedKeys = await indexedDocumentKeys(['bill:2026:153', 'bill:2026:999'], db([{ document_key: 'bill:2026:153' }]));
-    expect(predictWeb({ focus: 'attached', attachments: [row('bill:2026:153')], indexedKeys })).toEqual({ on: false, reason: 'documents-in-scope' });
-    expect(predictWeb({ focus: 'attached', attachments: [row('bill:2026:999')], indexedKeys })).toEqual({ on: true, reason: 'record-without-document' });
+    const indexedKeys = await indexedDocumentKeys(['desk-record:["national","Bills","153"]', 'desk-record:["national","Bills","999"]'], db([{ document_key: 'desk-record:["national","Bills","153"]' }]));
+    expect(predictWeb({ focus: 'attached', attachments: [row('desk-record:["national","Bills","153"]')], indexedKeys })).toEqual({ on: false, reason: 'documents-in-scope' });
+    expect(predictWeb({ focus: 'attached', attachments: [row('desk-record:["national","Bills","999"]')], indexedKeys })).toEqual({ on: true, reason: 'record-without-document' });
     expect(predictWeb({ focus: 'attached', attachments: [row()], indexedKeys })).toEqual({ on: true, reason: 'record-without-document' });
     expect(predictWeb({ focus: 'broad', attachments: [row()], indexedKeys })).toEqual({ on: false, reason: 'broad' });
   });
@@ -173,20 +173,20 @@ describe('predictWeb', () => {
   });
 
   it('a selected bill with an indexed document stays off once its coverage has answered', async () => {
-    const selectedIndexed = await indexedDocumentKeys(['bill:2026:153'], db([{ document_key: 'bill:2026:153' }]));
-    expect(predictWeb({ focus: 'selection', attachments: [], selectedRecord: row('bill:2026:153'), selectedIndexed })).toEqual({ on: false, reason: 'documents-in-scope' });
+    const selectedIndexed = await indexedDocumentKeys(['desk-record:["national","Bills","153"]'], db([{ document_key: 'desk-record:["national","Bills","153"]' }]));
+    expect(predictWeb({ focus: 'selection', attachments: [], selectedRecord: row('desk-record:["national","Bills","153"]'), selectedIndexed })).toEqual({ on: false, reason: 'documents-in-scope' });
   });
 
   it('a keyed record whose coverage has not answered is unknown, not "no document"', async () => {
-    expect(predictWeb({ focus: 'selection', attachments: [], selectedRecord: row('bill:2026:153') })).toEqual({ on: false, reason: null });
+    expect(predictWeb({ focus: 'selection', attachments: [], selectedRecord: row('desk-record:["national","Bills","153"]') })).toEqual({ on: false, reason: null });
     // The chips' answer is for older keys: a newly attached key is unknown until its lookup lands.
-    const indexedKeys = await indexedDocumentKeys(['bill:2026:153'], db([{ document_key: 'bill:2026:153' }]));
-    expect(predictWeb({ focus: 'attached', attachments: [row('bill:2026:153'), row('bill:2026:7')], indexedKeys })).toEqual({ on: false, reason: null });
+    const indexedKeys = await indexedDocumentKeys(['desk-record:["national","Bills","153"]'], db([{ document_key: 'desk-record:["national","Bills","153"]' }]));
+    expect(predictWeb({ focus: 'attached', attachments: [row('desk-record:["national","Bills","153"]'), row('desk-record:["national","Bills","7"]')], indexedKeys })).toEqual({ on: false, reason: null });
   });
 
   it('a known "no" past its lifetime still answers no, as the chip badge does', async () => {
-    const indexedKeys = await indexedDocumentKeys(['bill:2026:999'], db([]));
-    expect(predictWeb({ focus: 'attached', attachments: [row('bill:2026:999')], indexedKeys })).toEqual({ on: true, reason: 'record-without-document' });
+    const indexedKeys = await indexedDocumentKeys(['desk-record:["national","Bills","999"]'], db([]));
+    expect(predictWeb({ focus: 'attached', attachments: [row('desk-record:["national","Bills","999"]')], indexedKeys })).toEqual({ on: true, reason: 'record-without-document' });
   });
 
   it('desk focus follows the module list', () => {

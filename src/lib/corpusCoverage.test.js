@@ -65,9 +65,9 @@ it('blank and duplicate keys are never sent to the database', async () => {
 
 // A document chip names a document the reader just opened from a citation, so
 // it is in the corpus by construction; there is no key to look up.
-it('a document chip is full text without a lookup', () => {
-  expect(coverageOf({ kind: 'document', document_id: 'd1', title: 'T' }, null)).toBe('full');
-  expect(coverageOf({ kind: 'document', document_id: 'd1', title: 'T' }, new Set())).toBe('full');
+it('a document chip needs a current lookup before claiming full text', () => {
+  expect(coverageOf({ kind: 'document', document_id: 'd1', title: 'T' }, null)).toBe(null);
+  expect(coverageOf({ kind: 'document', document_id: 'd1', title: 'T' }, new Set())).toBe(null);
   // Without an id it names nothing.
   expect(coverageOf({ kind: 'document', title: 'T' }, new Set())).toBe(null);
 });
@@ -364,4 +364,56 @@ describe('webDefaultFor', () => {
   it('desk focus ignores attachments, as the server does', () => {
     expect(webDefaultFor({ focus: 'desk', attachments: [row()], indexedKeys, deskContext: { tier: 'National', feature: 'Bills' }, modules })).toEqual({ on: false, reason: 'documents-in-scope' });
   });
+});
+
+it('resolves generic records through reviewed associations and distinguishes mapping states', async () => {
+  const key = 'desk-record:["national","Parliamentary Question Database","234"]';
+  const db = { rpc: vi.fn(async () => ({ data: [{ document_key: key, document_id: 'd', coverage: 'full' }] })) };
+  const found = await refreshCoverage([key], db);
+  expect(db.rpc).toHaveBeenCalledWith('record_resolve_document_keys', { p_keys: [key] });
+  expect(coverageOf({ document_key: key }, found)).toBe('full');
+  db.rpc.mockResolvedValue({ data: [{ document_key: key, document_id: null, coverage: 'unmapped' }] });
+  expect(coverageOf({ document_key: key }, await refreshCoverage([key], db))).toBe('unmapped');
+  db.rpc.mockResolvedValue({ data: [{ document_key: key, document_id: 'd', coverage: 'partial' }] });
+  expect(coverageOf({ document_key: key }, await refreshCoverage([key], db))).toBe('partial');
+  db.rpc.mockResolvedValue({ error: { message: 'offline' } });
+  expect(coverageOf({ document_key: key }, await refreshCoverage([key], db))).toBeNull();
+});
+
+it('F257 saved direct document chips do not claim full text without a current lookup',()=>{
+ expect(coverageOf({kind:'document',document_id:'00000000-0000-0000-0000-000000000001'},new Set())).not.toBe('full');
+});
+
+it('F257 recovers a saved keyless record for current coverage and refreshes direct-document access',async()=>{
+ const {attachmentCoverageKey}=await import('./deskRows.js');
+ const saved={kind:'row',tab:'national',feature:'Parliamentary Question Database',preview:{id:'234',subject:'Question'}};
+ const key=attachmentCoverageKey(saved);
+ const db={rpc:vi.fn(async()=>({data:[{document_key:key,coverage:'full',document_id:'d'}],error:null}))};
+ expect(coverageOf(saved,await refreshCoverage([key],db))).toBe('full');
+ expect(db.rpc).toHaveBeenCalledWith('record_resolve_document_keys',{p_keys:[key]});
+ const doc={kind:'document',document_id:'00000000-0000-0000-0000-000000000001'};
+ const direct=attachmentCoverageKey(doc);
+ for(const state of ['full','registered','unavailable','incomplete']){
+   db.rpc.mockResolvedValue({data:[{document_key:direct,coverage:state,document_id:state==='full'?doc.document_id:null}],error:null});
+   expect(coverageOf(doc,await refreshCoverage([direct],db))).toBe(state);
+ }
+ expect(coverageOf({kind:'row',preview:{value:'unrecoverable'}},new Set())).toBe('unmapped');
+});
+
+it('F257 legacy document key without a verifiable row tuple cannot display Full text',async()=>{
+ const {attachmentCoverageKey}=await import('./deskRows.js');
+ const legacy={kind:'row',title:'Old bill',document_key:'bill:2026:7'};
+ expect(attachmentCoverageKey(legacy)).toBeNull();
+ expect(coverageOf(legacy,new Set(['bill:2026:7']))).toBe('unmapped');
+});
+
+it('F257 a stale indexed Bill key cannot give a mapped tuple a false Full text badge',async()=>{
+ const {attachmentCoverageKey}=await import('./deskRows.js');
+ const chip={kind:'row',tab:'national',feature:'Bills',row_key:'current-row',document_key:'bill:2007:70'};
+ const key=attachmentCoverageKey(chip);
+ const db={rpc:vi.fn(async()=>({data:[{document_key:key,document_id:null,coverage:'unmapped'}],error:null}))};
+ const found=await refreshCoverage([key],db);
+ found.add('bill:2007:70');
+ expect(coverageOf(chip,found)).toBe('unmapped');
+ expect(db.rpc).toHaveBeenCalledWith('record_resolve_document_keys',{p_keys:['desk-record:["national","Bills","current-row"]']});
 });

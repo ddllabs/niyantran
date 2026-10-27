@@ -1,5 +1,5 @@
 import { reviewLawAnswer, lawReviewReasoning, LAW_REVIEW_RESERVE_MS } from './lawAnswer.ts';
-import { placeholderAnswer, placeholderPrefix } from './answerValidation.ts';
+import { hasAnswerContent, placeholderAnswer, placeholderPrefix } from './answerValidation.ts';
 // The research turn (streaming spec §E). Framework-free and dependency
 // injected: nothing here touches Deno.env or the network, so the same code
 // runs under the edge runtime and under `deno test` with fakes.
@@ -909,11 +909,13 @@ async function runTurnBody(
   let observationSelection: { text: string; handle?: string } | undefined;
   let selectionBlock: { handle: string; tier: string; feature: string; recordText: string } | undefined;
   // The selected record's document key, the stored row's when the server can confirm the row.
-  let selectionKey: string | null = request.selection?.document_key ?? null;
+  let verifiedSelection: DeskRow | undefined;
+  let selectionKey: string | null = null;
   if (request.selection) {
     const rowKey = deskRowKey(request.selection.row);
     const stored = await deps.db.findDeskRow(request.selection.tier, request.selection.feature, rowKey);
     if (stored) {
+      verifiedSelection = stored;
       // Only a row the server can confirm becomes citable evidence.
       const handle = handles.assign(rowSourceKey(stored));
       evidence.set(handle, { kind: 'row', row: { ...stored, snapshot_at: stored.snapshot_at || '' } });
@@ -949,8 +951,8 @@ async function runTurnBody(
     selection: request.selection ? { ...request.selection, document_key: selectionKey ?? undefined } : request.selection,
     attachments: request.attachments.map((attachment, index) => {
       const stored = attachmentRows[index];
-      return stored && attachment.kind !== 'document'
-        ? { ...attachment, document_key: stored.document_key ?? undefined }
+      return attachment.kind === 'row' || attachment.kind === 'record'
+        ? { ...attachment, document_key: stored?.document_key ?? undefined }
         : attachment;
     }),
   };
@@ -1251,6 +1253,8 @@ async function runTurnBody(
     window,
     userTurn,
     scopedDocumentIds,
+    scopedRows: [...(verifiedSelection ? [verifiedSelection] : []), ...attachmentRows.filter((row): row is DeskRow => !!row)],
+    ...(request.desk_context ? { rowFeatureScope: request.desk_context } : {}),
     documentSearchUnavailable,
     observationScope: observationTurn,
     observationContext: observationSelection,
@@ -1259,7 +1263,7 @@ async function runTurnBody(
     // Search the current subject before the first call, including "this bill"
     // after a selection change. Ambiguous follow-ups keep model-written queries;
     // conversation history must not override a named current selection.
-    ...(deps.presearch && !conversational ? { presearch: presearchFor(request, history.length > 0) } : {}),
+    ...(deps.presearch && !conversational ? { presearch: presearchFor(request, history.length > 0, { selection: verifiedSelection?.row, attachments: attachmentRows.filter((row): row is DeskRow => !!row).map(row => row.row) }) } : {}),
     // scopeSent: the reader named a document, by key or by id. Whether it
     // resolved is what `scopedDocumentIds` says; this says whether leaving the
     // attachments is "unresolved" or "unkeyed".
@@ -1568,6 +1572,7 @@ async function runTurnBody(
   const checked = checkLinks(ladder.answer, [...result.webPages.map((p) => p.url), ...evidenceUrls(evidence)], { scanCode: true });
   if (checked.removed) log('research.links_removed', { count: checked.removed });
   const webSources = webSourcesOf(result.webPages, checked.text);
+  const usableAnswer = hasAnswerContent(checked.text);
   const content = notes.length ? `${notes.join('\n\n')}\n\n${checked.text}` : checked.text;
 
   // Observation drafts stay private; first visible answer is the validated final release.
@@ -1590,14 +1595,14 @@ async function runTurnBody(
     { ...summary, searches: result.searches, web_offered: web.offered, web_required: requiredWeb,
       web_reason: web.reason, ...(result.widened ? { widened: result.widened } : {}) };
   const terminal = makeAssistantMessage({
-    content,
-    sources: ladder.sources,
-    webSources,
-    followUps,
+    content: usableAnswer ? content : '',
+    sources: usableAnswer ? ladder.sources : [],
+    webSources: usableAnswer ? webSources : [],
+    followUps: usableAnswer ? followUps : [],
     activity,
     served,
-    status: signal.aborted ? 'interrupted' : result.finish === 'length' ? 'truncated' : 'complete',
-    error: null,
+    status: signal.aborted ? 'interrupted' : !usableAnswer ? 'error' : result.finish === 'length' ? 'truncated' : 'complete',
+    error: usableAnswer ? null : 'The model returned no usable answer. Please try again.',
     usage: result.finish === 'length' ? { ...usage, continuations: result.continuations } : usage,
     timing,
   });
@@ -1612,6 +1617,12 @@ async function runTurnBody(
         answer: {
           latencyMs: writingEnd && writingStart ? writingEnd - writingStart : 0,
           aborted: signal.aborted,
+          error: usableAnswer ? null : 'empty_answer',
+          scope: { focus: request.focus, document_ids: scopedDocumentIds,
+            records: [...(verifiedSelection ? [verifiedSelection] : []), ...attachmentRows.filter((r): r is DeskRow => !!r)].map(r => [r.tier, r.feature, r.row_key]),
+            document_scope_resolved: scopedDocumentIds.length > 0,
+            retrieval_mode: request.focus === 'broad' ? 'broad' : request.focus === 'desk' ? 'feature-hybrid' : 'document-exact',
+            content_valid: usableAnswer },
         },
       }),
     );

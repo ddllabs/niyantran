@@ -583,7 +583,8 @@ Deno.test('document scope resolves keys and ids together and keeps only indexed 
     { id: DOC_B, document_key: null, indexed_at: null },
   ];
   // A PostgREST stand-in for the three filters the resolution may use.
-  f.setReply((_side, table, _op, _value, filters = []) => {
+  f.setReply((_side, table, _op, value, filters = []) => {
+    if (table === 'record_resolve_document_keys') return {data: (value as {p_keys:string[]}).p_keys.flatMap(key => corpus.filter(d => `document-id:${d.id}`===key && d.indexed_at).map(d => ({document_key:key,document_id:d.id,coverage:'full'}))), error:null};
     if (table !== 'documents') return { data: [], error: null };
     const rows = corpus.filter((d) =>
       filters.every(([op, column, ...rest]) => {
@@ -936,4 +937,27 @@ Deno.test('Law resolution stays within twelve keys per RPC and never substitutes
   f.setReply(() => ({ data: null, error: { message: 'Denied' } }));
   await assertRejects(() => d.db.resolveDocumentIds({ keys: [keys[0]], ids: [] }), Error, 'Research service unavailable');
   assertEquals(f.calls.filter(c => c.table === 'documents').length, 0);
+});
+
+Deno.test('generic record links use caller resolver, preserve partial ready IDs and never query legacy keys', async () => {
+  const f = fixture();
+  const key = 'desk-record:["national","Parliamentary Question Database","234"]';
+  f.setReply((_side, table) => ({ data: table === 'record_resolve_document_keys' ? [
+    { document_key: key, document_id: DOC_A, coverage: 'partial' },
+    { document_key: key, document_id: null, coverage: 'partial' },
+  ] : [], error: null }));
+  const d = createDependencies(request(), f.runtime);
+  await d.requireUser(request());
+  assertEquals(await d.db.resolveDocumentIds({ keys: [key], ids: [] }), [DOC_A]);
+  assertEquals(await d.db.indexedDocumentKeys([key]), []);
+  assert(f.calls.filter(c => c.table === 'record_resolve_document_keys').every(c => c.side === 'caller'));
+  assertEquals(f.calls.filter(c => c.table === 'documents').length, 0);
+});
+
+Deno.test('stored row resolution returns authoritative tuple, not a stale browser/legacy key', async () => {
+ const f=fixture();
+ f.setReply((_side,table)=>({data:table==='desk_rows'?{tier:'national',feature:'Bills',row_key:'1',row:{id:'1'},record_text:'Bill',document_key:'bill:2026:old',snapshot_at:'2026-10-28'}:[],error:null}));
+ const d=createDependencies(request(),f.runtime);await d.requireUser(request());
+ const row=await d.db.findDeskRow('national','Bills','1');
+ assertEquals(row?.document_key,'desk-record:["national","Bills","1"]');
 });

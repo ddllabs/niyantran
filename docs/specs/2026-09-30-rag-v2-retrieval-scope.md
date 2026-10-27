@@ -449,3 +449,7 @@ findings. All were accepted and addressed:
 15. Replica logistics: a paged, rate-limited read, the guard, and the
     commands.
 16. The "1,235 documents" figure was wrong: it is 1,235 of 9,415 keys.
+
+## Supersession — F257–F260 local implementation, 2026-10-28
+
+The approved `2026-10-28-corpus-record-retrieval-contract.md` supersedes this document's empty-result widening behavior. Attached/selection searches stay within verified document IDs and row tuples; desk searches stay within their feature/tier. Only explicit Broad permits wider corpus retrieval. Missing mapping is not proof that OCR is absent. The implementation is local pending review/release; production acceptance remains held.

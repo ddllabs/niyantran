@@ -2,7 +2,7 @@ import { TABS, catalogModules, modulesForTier } from '../desks/catalog.js';
 import { fetchFeature } from './featureFeed.js';
 import { githubCsvUrl } from './githubCsv.js';
 import { collectRowUrls, isHubListingUrl, rowRecordText, sourceKindHint } from './sourceUrls.js';
-import { documentKey } from './deskRows.js';
+import { deskRowKey, documentKey, attachmentCoverageKey } from './deskRows.js';
 import { authHeaders } from './authHeaders.js';
 import { DROP_LIMIT_BYTES, FILE_LIMIT_BYTES, fileText } from './fileText.js';
 
@@ -201,7 +201,8 @@ export function attachmentIdentity(a) {
   if (!a || typeof a !== 'object') return '';
   // chat-attach-fixes: a record with a corpus key is that record by any route. A bill dragged from
   // the table carried desk '' and the same bill sent by "Ask AI" carried 'national'.
-  if (a.document_key) return ['key', a.document_key].join('\u0000');
+  const recordKey = attachmentCoverageKey(a);
+  if (recordKey) return ['key', recordKey].join('\u0000');
   // A dropped file is its name, size and content (`fingerprint`, from filesFromDrop): its text sits
   // inside `files`, so two different files that shared a name were one chip.
   if (a.kind === 'file' && a.fingerprint) return ['file', a.title || '', a.fingerprint].join('\u0000');
@@ -289,7 +290,8 @@ export async function materializeAiDrop(payload, extras = {}) {
     attachments.push({
       kind: 'row',
       title,
-      tab: payload.tab || '',
+      tab: payload.tab || extras.tier || '',
+      row_key: deskRowKey(payload.row),
       feature: payload.feature || extras.feature || extras.feed?.feature || '',
       // The corpus key for this record, computed here from the whole row rather
       // than later from `preview`, which keeps only its first 32 scalar fields.
@@ -297,7 +299,7 @@ export async function materializeAiDrop(payload, extras = {}) {
       // (validate.ts documentKeysOf) and the selection was sending one while
       // attachments were not - so a bill dropped into the chat could not be
       // scoped to its own text even when that text was indexed.
-      ...(documentKey(payload.row) ? { document_key: documentKey(payload.row) } : {}),
+      ...(documentKey(payload.row, payload.tab || extras.tier, payload.feature || extras.feature || extras.feed?.feature) ? { document_key: documentKey(payload.row, payload.tab || extras.tier, payload.feature || extras.feature || extras.feed?.feature) } : {}),
       preview: {
         ...rowPreview(payload.row),
         related_records: related.related_records,

@@ -92,7 +92,7 @@ it('a row is pinned once per bill, and two bills sharing a number are two bills'
  const {rowIsPinned}=await import('./AiPanel.jsx');
  const y2007={bill_name:'The Competition (Amendment) Bill, 2007',bill_number:'70',date_introduced:'2007-08-28'};
  const y2010={bill_name:'The Other Bill, 2010',bill_number:'70',date_introduced:'2010-03-01'};
- const pinned=[{kind:'row',title:y2007.bill_name,document_key:'bill:2007:70',preview:{bill_number:'70'}}];
+ const pinned=[{kind:'row',title:y2007.bill_name,document_key:'bill:2007:70',tab:'national',feature:'Bills',row_key:'70',preview:{bill_number:'70'}}];
  expect(rowIsPinned(pinned,y2007)).toBe(true);
  expect(rowIsPinned(pinned,y2010)).toBe(false);
  // A module chip under the same desk is not the row.
@@ -215,11 +215,11 @@ it('a document chip is forwarded with its document id and without text',async()=
  const {requestAttachments}=await import('./AiPanel.jsx');
  const out=requestAttachments([
   {id:'a1',kind:'document',title:CITED.title,document_id:CITED.document_id,feature:'Regulatory Circulars'},
-  {id:'a2',kind:'row',title:'Bill',text:'row text',document_key:'bill:2007:70'},
+  {id:'a2',kind:'row',title:'Bill',text:'row text',document_key:'bill:2007:70',tab:'national',feature:'Bills',row_key:'70'},
  ]);
  expect(out[0]).toEqual({kind:'document',title:CITED.title,document_id:CITED.document_id});
  expect(out[0]).not.toHaveProperty('text');
- expect(out[1]).toMatchObject({kind:'row',title:'Bill',text:'row text',document_key:'bill:2007:70'});
+ expect(out[1]).toMatchObject({kind:'row',title:'Bill',text:'row text',document_key:'desk-record:["national","Bills","70"]',tier:'national',feature:'Bills',row_key:'70'});
  // A document chip that names no document is not sent at all.
  expect(requestAttachments([{id:'a3',kind:'document',title:'x'}])).toEqual([]);
 });
@@ -249,8 +249,8 @@ it('asking about a document moves broad and desk focus to attached, with a notic
 it('the notice counts the attached documents the search is shared with',async()=>{
  const {askAboutDocument}=await import('./AiPanel.jsx');
  const other={id:'a1',kind:'document',title:'Other',document_id:'d-other'};
- const bill={id:'a2',kind:'row',title:'Bill',document_key:'bill:2007:70'};
- const r=await askAboutDocument(CITED,{attach:attachSpy().attach,focus:'broad',attachments:[other,bill],indexed:new Set(['bill:2007:70'])});
+ const bill={id:'a2',kind:'row',title:'Bill',document_key:'bill:2007:70',tab:'national',feature:'Bills',row_key:'70'};
+ const r=await askAboutDocument(CITED,{attach:attachSpy().attach,focus:'broad',attachments:[other,bill],indexed:new Set(['desk-record:["national","Bills","70"]'])});
  expect(r.notice).toBe('Focus set to Attached so questions search only the attached documents. Searching 3 attached documents.');
  // The same document attached twice is one document; a row with no indexed text confines nothing.
  const same={id:'a3',kind:'document',title:CITED.title,document_id:CITED.document_id};
@@ -275,11 +275,11 @@ it('the reader offers the button, and turns it off while the thread is locked',(
  fake.research={...ready,locked:true};
  expect(renderToStaticMarkup(<AiPanel lang="en"/>)).toMatch(/<button[^>]*disabled=""[^>]*>Ask about this document/);
 });
-it('a document chip shows its title, a document marker and full text',()=>{
+it('a document chip shows its title and marker without premature full-text claim',()=>{
  const chat={id:'c1',title:'t',messages:[],attachments:[{id:'a1',kind:'document',title:CITED.title,document_id:CITED.document_id}]};
  fake.research={...fake.research,ready:true,loading:false,locked:false,store:{chats:[chat],activeId:'c1',loaded:true}};
  const html=renderToStaticMarkup(<AiPanel lang="en"/>);
- expect(html).toMatch(/SEBI Circular on Mutual Funds<\/span><em class="ai-v2-file-cover document"[^>]*>Document<\/em><em class="ai-v2-file-cover full"[^>]*>Full text</);
+ expect(html).toMatch(/SEBI Circular on Mutual Funds<\/span><em class="ai-v2-file-cover document"[^>]*>Document<\/em>/);
 });
 // Decision 3: desk focus now filters documents to the open module.
 it('the desk focus is labelled "Desk", with a hint that documents are limited to the module',async()=>{
@@ -496,17 +496,17 @@ it('the web prediction counts only the records the request will send', async () 
  expect(selectedRecord).toBe(null);
  expect(webDefaultFor({focus:'attached',attachments,indexedKeys:new Set()})).toEqual({on:false,reason:'no-record'});
  // A chip with text is kept, key and all.
- const bill={id:'b',kind:'row',title:'Bill',text:'Record: Bill',document_key:'bill:2026:156'};
- expect(webPredictionRecords([bill],null).attachments).toEqual([expect.objectContaining({kind:'row',document_key:'bill:2026:156'})]);
+ const bill={id:'b',kind:'row',title:'Bill',text:'Record: Bill',document_key:'bill:2026:156',tab:'national',feature:'Bills',row_key:'156'};
+ expect(webPredictionRecords([bill],null).attachments).toEqual([expect.objectContaining({kind:'row',document_key:'desk-record:["national","Bills","156"]',tier:'national',feature:'Bills',row_key:'156'})]);
 });
 
 it('the web prediction counts a selected row whenever the send would pin it, with or without a module name', async () => {
  const {webPredictionRecords}=await import('./AiPanel.jsx');
  const row={bill_name:'THE NATIONAL CO-OPERATIVE DEVELOPMENT CORPORATION (AMENDMENT) BILL, 2026',bill_number:'156',house:'Lok Sabha'};
  // No module name: the row is pinned and sent as an attachment, so it is in scope.
- expect(webPredictionRecords([],row).selectedRecord).toEqual({kind:'row',document_key:'bill:2026:156'});
+ expect(webPredictionRecords([],row).selectedRecord).toEqual({kind:'row'});
  // Already pinned: counted once, through the chip.
- const pinned=[{id:'p',kind:'row',title:row.bill_name,text:'Record',document_key:'bill:2026:156'}];
+ const pinned=[{id:'p',kind:'row',title:row.bill_name,text:'Record',document_key:'bill:2026:156',tab:'national',feature:'Bills',row_key:'156'}];
  expect(webPredictionRecords(pinned,row).selectedRecord).toBe(null);
  // A row with nothing to send, or a source-status row, is never pinned.
  expect(webPredictionRecords([],{}).selectedRecord).toBe(null);
@@ -631,6 +631,31 @@ it('Law orders and announcements with the same company title remain distinct pin
  const order={id:'order-1',title:'Future Consumer',document_key:key};
  const announcement={kind:'row',title:'Future Consumer',preview:{id:'announcement-1'}};
  expect(rowIsPinned([announcement],order)).toBe(false);
- expect(rowIsPinned([{kind:'row',title:order.title,document_key:key}],order)).toBe(true);
- expect(webPredictionRecords([],order).selectedRecord.document_key).toBe(key);
+ expect(rowIsPinned([{kind:'row',title:order.title,document_key:key,tab:'law',feature:'Orders',row_key:order.id}],order)).toBe(true);
+ expect(webPredictionRecords([],order,'law','Orders').selectedRecord.document_key).toBe('desk-record:["law","Orders","order-1"]');
+});
+
+it('F257 request identity uses persisted full-row key, never a truncated preview hash',async()=>{
+ const {requestAttachments}=await import('./AiPanel.jsx');
+ const chip={kind:'row',title:'Question',text:'record',tab:'national',feature:'Parliamentary Question Database',row_key:'official-key',preview:{value:'truncated'}};
+ expect(requestAttachments([chip])[0].row_key).toBe('official-key');
+});
+
+it('F257 selected-record sends reset stale broad focus but preserve a later deliberate choice',async()=>{
+ const {selectionFocus}=await import('./AiPanel.jsx');
+ expect(selectionFocus('broad','national|PQ|new',null)).toBe('attached');
+ expect(selectionFocus('desk','national|PQ|new','national|PQ|old')).toBe('attached');
+ expect(selectionFocus('broad','national|PQ|new','national|PQ|new')).toBe('broad');
+ expect(selectionFocus('desk',null,null)).toBe('desk');
+});
+
+it('F257 stale Law keys never override the tuple sent by pins or current selection',async()=>{
+ const {requestAttachments,webPredictionRecords}=await import('./AiPanel.jsx');
+ const old='law-record:11111111-1111-4111-8111-111111111111';
+ const key='desk-record:["law","Orders","current-row"]';
+ const chip={kind:'row',tab:'law',feature:'Orders',row_key:'current-row',document_key:old,title:'Order',text:'record'};
+ expect(requestAttachments([chip])[0].document_key).toBe(key);
+ expect(webPredictionRecords([chip],null).attachments[0].document_key).toBe(key);
+ expect(webPredictionRecords([],{id:'current-row',title:'Order',document_key:old},'law','Orders').selectedRecord).toMatchObject({document_key:key,tier:'law',feature:'Orders',row_key:'current-row'});
+ expect(chip.document_key).toBe(old);
 });

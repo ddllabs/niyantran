@@ -50,11 +50,12 @@ it('a document chip is identified by its document id', () => {
 // same bill sent by "Ask AI" carried 'national', so it attached twice; and a file's text sits
 // inside `files`, so two different files that share a name were one chip.
 describe('attachment identity', () => {
-  it('a row with a document key is that key, by any route', () => {
-    const drag = { kind: 'row', title: 'THE NATIONAL CO-OPERATIVE DEVELOPMENT CORPORATION (AMENDMENT) BILL, 2026', tab: '', feature: 'Bill Passage Probability Index', document_key: 'bill:2026:156' };
+  it('a row with a stable tuple and document key is that key, by any route', () => {
+    const drag = { kind: 'row', title: 'THE NATIONAL CO-OPERATIVE DEVELOPMENT CORPORATION (AMENDMENT) BILL, 2026', tab: 'national', feature: 'Bill Passage Probability Index', row_key: '156', document_key: 'bill:2026:156' };
     const seed = { ...drag, tab: 'national', title: 'The National Co-operative Development Corporation (Amendment) Bill, 2026' };
     expect(attachmentIdentity(seed)).toBe(attachmentIdentity(drag));
-    expect(attachmentIdentity({ ...drag, document_key: 'bill:2026:157' })).not.toBe(attachmentIdentity(drag));
+    expect(attachmentIdentity({ ...drag, document_key: 'bill:2026:157' })).toBe(attachmentIdentity(drag));
+    expect(attachmentIdentity({ ...drag, row_key: '157' })).not.toBe(attachmentIdentity(drag));
   });
 
   it('a row without a key is its title and module, not its desk', () => {
@@ -145,4 +146,12 @@ it('a Law record pin preserves the verified lookup key without fetching source t
   expect(chip.document_key).toBe(key);
   expect(chip.preview.id).toBe('legacy-order');
   expect(fetch).not.toHaveBeenCalled();
+});
+
+it('F257 persists identity from the whole row even when preview loses the identity field', async () => {
+ const row={...Object.fromEntries(Array.from({length:33},(_,i)=>['field'+i,'value'+i])),source_url:'https://example.gov/document.pdf'};
+ const [chip]=await materializeAiDrop({kind:'row',row,feature:'Parliamentary Question Database'},{tier:'national',hydrate:false});
+ expect(chip.row_key).toBe('https://example.gov/document.pdf');
+ expect(chip.tab).toBe('national');
+ expect(chip.preview.source_url).toBeUndefined();
 });

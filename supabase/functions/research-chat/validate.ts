@@ -25,6 +25,7 @@ export const LIMITS = {
   cellChars: 500,
   title: 200,
   key: 200,
+  documentKey: 1024,
 } as const;
 
 export type Focus = (typeof FOCUS_VALUES)[number];
@@ -149,7 +150,7 @@ export function validateRequest(body: unknown): { request: ResearchRequest } | {
     if (!tier || !feature || !row) fieldErrors.selection = 'selection needs tier, feature and a non-empty row';
     else {
       selection = { tier, feature, row };
-      const key = str(s.document_key, LIMITS.key);
+      const key = str(s.document_key, LIMITS.documentKey);
       if (key) selection.document_key = key;
     }
   }
@@ -183,7 +184,7 @@ export function validateRequest(body: unknown): { request: ResearchRequest } | {
         if (!kind || !title || !text) continue;
         const item: TextAttachment = { kind, title, text };
         const rowKey = str(a.row_key, LIMITS.key);
-        const docKey = str(a.document_key, LIMITS.key);
+        const docKey = str(a.document_key, LIMITS.documentKey);
         if (tier) item.tier = tier;
         if (feature) item.feature = feature;
         if (rowKey) item.row_key = rowKey;

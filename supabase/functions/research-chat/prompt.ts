@@ -255,7 +255,7 @@ export function buildSystemPrompt(a: PromptInput): string {
     a.catalogue,
     coverageLine(a.documentModules ?? []),
     a.documentSearchUnavailable
-      ? 'This scope has no indexed source text. Answer its fields from verified desk rows; use web search for missing context only when offered. Do not search unrelated corpus documents. If web is off or unavailable, state the source-text limitation and answer only supported fields.' : '',
+      ? 'No searchable document could be resolved for this scope. Text may exist but its mapping, indexing or access may need review. Answer its fields from verified desk rows; use web search for missing context only when offered. Do not search unrelated corpus documents. If web is off or unavailable, state the source-text limitation and answer only supported fields.' : '',
     a.selection ? selectedRecordBlock(a.selection) : '',
   ]
     .filter(Boolean)

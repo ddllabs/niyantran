@@ -1807,27 +1807,16 @@ Deno.test('every document search of a turn carries the resolved scope', async ()
 
 // D2. The widening was silent: "Attached only" could answer entirely out of
 // fifteen other bills with nothing in the ticker or the answer saying so.
-Deno.test('a scope the record could not answer widens visibly in the ticker and the answer', async () => {
+Deno.test('F259: empty attached scope remains confined without widening notices', async () => {
   const { deps, rec } = fakeDeps(documentTurn(1), {
     searchDocuments: (_args, ids) => Promise.resolve(ids ? [] : [chunk('c1')]),
   }, { resolveDocumentIds: () => Promise.resolve(['doc-1']) });
   const sent = await frames(await handleResearchChat(post({ ...BODY, focus: 'attached', turn_key: 'widened' }), deps));
 
-  // chat_turn_traces has no column for a scope, so the turn-level fact rides on
-  // the usage object beside `searches`. Whether widening stays rare once the RPC
-  // pre-filters is a question only a query over many turns can answer.
-  assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, 'empty');
-  const ticker = sent.filter((f) => keyOf(f) === 'reasoning').map((f) => (f as { reasoning: string }).reasoning);
-  assert(
-    ticker.some((t) => t.includes('attached documents held nothing')),
-    `the ticker must show the widening, saw ${JSON.stringify(ticker)}`,
-  );
-  assertStringIncludes(
-    JSON.stringify(rec.messages[0].activity),
-    'attached documents held nothing',
-    'a reader reopening the message sees the same ticker',
-  );
-  assertStringIncludes(String(rec.messages[0].content), '**Search widened.** The attached documents held no matching');
+  assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, undefined);
+  assert(!String(rec.messages[0].content).includes('Search widened'));
+  assert(!JSON.stringify(sent).includes('searching all documents'));
+
 });
 
 // D4. focus was advisory text only. "Attached only" over material the corpus has
@@ -1853,17 +1842,17 @@ Deno.test('focus attached with an unresolved record never searches the whole cor
 // The reported turn: "Attached only" over a desk module, the bill it asked about
 // selected in the table on the first turn and not on the second. No key was
 // sent, so the corpus was never asked - and the old notice blamed the corpus.
-Deno.test('focus attached with no document named says nothing named one', async () => {
+Deno.test('F259: attached focus without document identity never widens', async () => {
   const { deps, rec } = fakeDeps(documentTurn(1), { searchDocuments: () => Promise.resolve([chunk('c1')]) });
   const module = { kind: 'file', title: 'Bill Passage Probability Index', text: 'six sample rows' };
   const sent = await frames(
     await handleResearchChat(post({ ...BODY, focus: 'attached', turn_key: 'unkeyed', attachments: [module] }), deps),
   );
   const content = String(rec.messages[0].content);
-  assertStringIncludes(content, '**Search widened.** Nothing attached to this turn names a source document');
+  assert(!content.includes('Search widened'));
   assert(!content.includes('holds no indexed source document'), 'the corpus was never asked, so it is not to blame');
-  assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, 'unkeyed');
-  assert(sent.some((f) => (f as { reasoning?: string }).reasoning?.startsWith('Nothing attached names')));
+  assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, undefined);
+  assert(!sent.some((f) => (f as { reasoning?: string }).reasoning?.includes('searching all documents')));
 });
 
 // chat-turn-cost (F41): the widened limit is off by default since the second pass (2026-10-02), so a
@@ -1877,7 +1866,7 @@ Deno.test('a widened search and a broad one both leave retrieval\'s default pass
   const module = { kind: 'file', title: 'Bill Passage Probability Index', text: 'six sample rows' };
   const widened = fakeDeps(documentTurn(1), { searchDocuments });
   await frames(await handleResearchChat(post({ ...BODY, focus: 'attached', turn_key: 'topk-wide', attachments: [module] }), widened.deps));
-  assertEquals(contexts.length > 0, true);
+  assertEquals(contexts.length, 0);
   assertEquals(contexts.at(-1)?.topK, undefined);
   const broad = fakeDeps(documentTurn(1), { searchDocuments });
   await frames(await handleResearchChat(post({ ...BODY, focus: 'broad', turn_key: 'topk-broad' }), broad.deps));
@@ -1912,12 +1901,13 @@ Deno.test('document ids and document keys resolve together as one scope', async 
       return Promise.resolve([chunk('c1')]);
     },
   }, {
+    findDeskRow: () => Promise.resolve(storedRow()),
     resolveDocumentIds: (scope) => {
       asked.push(scope);
       return Promise.resolve(['doc-1', DOC_A]);
     },
   });
-  const bill = { kind: 'row', title: 'The Delimitation Bill', text: 'row', document_key: 'bill:2026:108' };
+  const bill = { tier: 'national', feature: storedRow().feature, row_key: storedRow().row_key, kind: 'row', title: 'The Delimitation Bill', text: 'row', document_key: 'bill:2026:108' };
   await frames(
     await handleResearchChat(
       post({ ...BODY, focus: 'attached', turn_key: 'ids-and-keys', attachments: [bill, docChip()] }),
@@ -2057,24 +2047,17 @@ Deno.test('desk focus on a module with documents sends that module with every do
   assert(!String(rec.messages[0].content).includes('Search widened'));
 });
 
-Deno.test('a module that held nothing widens to all documents and says so, naming the module', async () => {
+Deno.test('F259: empty module stays confined', async () => {
   const seen: unknown[] = [];
   const { deps, rec } = fakeDeps(documentTurn(1), {
     searchDocuments: (args) => (seen.push(args), Promise.resolve(args.desk_feature ? [] : [chunk('c1')])),
   });
   const sent = await frames(await handleResearchChat(post(deskBody(PBI, 'desk-empty')), deps));
-  assertEquals(seen, [{ query: 'committee', desk_tier: 'national', desk_feature: PBI }, { query: 'committee' }]);
-  const content = String(rec.messages[0].content);
-  const note = `**Search widened.** Nothing in ${PBI} matched, so all documents were searched.`;
-  assert(content.startsWith(note), `the answer header names the module, saw ${content.slice(0, 160)}`);
-  assert(!content.slice(0, content.indexOf(LONG)).includes('attached'), 'a module is not an attachment');
-  assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, 'feature-empty');
-  const ticker = sent.filter((f) => keyOf(f) === 'reasoning').map((f) => (f as { reasoning: string }).reasoning);
-  assert(
-    ticker.includes(`Nothing in ${PBI} matched; searching all documents.`),
-    `the ticker names the module, saw ${JSON.stringify(ticker)}`,
-  );
-  assertStringIncludes(JSON.stringify(rec.messages[0].activity), `Nothing in ${PBI} matched`);
+  assertEquals(seen, [{ query: 'committee', desk_tier: 'national', desk_feature: PBI }]);
+  assert(!String(rec.messages[0].content).includes('Search widened'));
+  assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, undefined);
+  assert(!JSON.stringify(sent).includes('searching all documents'));
+
 });
 
 Deno.test('desk focus on a module with no documents does not search unrelated corpus', async () => {
@@ -2092,7 +2075,7 @@ Deno.test('desk focus on a module with no documents does not search unrelated co
 // Each reason says what was actually left: the attached documents, the record's
 // missing index, nothing named, or the desk module. Only the attachment reasons
 // may speak of attachments.
-Deno.test('every widening reason has its own note and ticker label, and only attachment reasons say attached', async () => {
+Deno.test('F259: all former fallback reasons now remain confined', async () => {
   const cases: [string, Record<string, unknown>, Partial<HandlerDeps>, Partial<UserDb>][] = [
     ['empty', { focus: 'attached' }, { searchDocuments: (_a, ids) => Promise.resolve(ids ? [] : [chunk('c1')]) }, {
       resolveDocumentIds: () => Promise.resolve(['doc-1']),
@@ -2102,8 +2085,6 @@ Deno.test('every widening reason has its own note and ticker label, and only att
       searchDocuments: (args) => Promise.resolve(args.desk_feature ? [] : [chunk('c1')]),
     }, {}],
   ];
-  const notes = new Set<string>();
-  const labels = new Set<string>();
   for (const [reason, body, over, dbOver] of cases) {
     const { deps, rec } = fakeDeps(documentTurn(1), {
       searchDocuments: () => Promise.resolve([chunk('c1')]),
@@ -2112,19 +2093,10 @@ Deno.test('every widening reason has its own note and ticker label, and only att
     const sent = await frames(
       await handleResearchChat(post({ ...BODY, ...body, turn_key: `reason-${reason}` }), deps),
     );
-    assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, reason);
-    const content = String(rec.messages[0].content);
-    const note = content.slice(0, content.indexOf(LONG)).trim();
-    assert(note.startsWith('**Search widened.**'), reason);
-    notes.add(note);
-    const label = sent.map((f) => (f as { reasoning?: string }).reasoning ?? '')
-      .find((t) => /searching (all documents|the whole record)/.test(t));
-    assert(label, `${reason} has a ticker label`);
-    labels.add(label);
-    assertEquals(/attached/i.test(note), reason !== 'feature-empty', `${reason}: ${note}`);
+    assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, undefined);
+    assert(!String(rec.messages[0].content).includes('Search widened'), reason);
+    assert(!JSON.stringify(sent).includes('searching all documents'), reason);
   }
-  assertEquals(notes.size, 3, 'one note per remaining widening reason');
-  assertEquals(labels.size, 3, 'one label per remaining widening reason');
 });
 
 // ---- The page contract's async evidence step (chunk-contract spec, "Resolving boxes").
@@ -3510,9 +3482,9 @@ Deno.test('current indexed pinned bill anchors pre-search instead of previous su
   const { deps } = fakeDeps(provider, {
     presearch: true,
     searchDocuments: args => { queries.push(args.query); return Promise.resolve([{ ...chunk('current'), document_id: DOC_A }]); },
-  }, { resolveDocumentIds: () => Promise.resolve([DOC_A]), recentMessages: () => Promise.resolve([{ role: 'user', content: 'Old bill subject' }, { role: 'assistant', content: 'Old answer' }]) });
+  }, { findDeskRow: () => Promise.resolve({...storedRow(),row:{bill_name:'National Anti-Doping (Amendment) Bill, 2025'}}), resolveDocumentIds: () => Promise.resolve([DOC_A]), recentMessages: () => Promise.resolve([{ role: 'user', content: 'Old bill subject' }, { role: 'assistant', content: 'Old answer' }]) });
   await frames(await handleResearchChat(post({ ...BODY, message: 'tell me about this bill', focus: 'attached', web_search: false,
-    attachments: [{ kind: 'record', title: 'National Anti-Doping (Amendment) Bill, 2025', text: 'Record only' }] }), deps));
+    attachments: [{ kind: 'record', title: 'National Anti-Doping (Amendment) Bill, 2025', text: 'Record only', tier:'national', feature:PBI, row_key:'current-bill' }] }), deps));
   assertEquals(queries, ['National Anti-Doping (Amendment) Bill, 2025 — tell me about this bill']);
 });
 
@@ -4096,4 +4068,42 @@ Deno.test('F256 attached observation keeps its verified row identity in server-r
   assertEquals(rec.messages[0].status, 'complete');
   assertStringIncludes(rec.messages[0].content, 'value: 7.57');
   assert(!rec.messages[0].content.includes('stale 9%'));
+});
+
+Deno.test('F260: invisible HTML answer cannot be persisted as complete or replaced by notices', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('<p>&nbsp;</p>')), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'invisible-html-answer' }), deps));
+  assertEquals(rec.messages[0].status, 'error');
+  assertEquals(rec.messages[0].content, '');
+  assert(rec.messages[0].usage);
+});
+
+Deno.test('F259: generic presearch uses verified parliamentary subject rather than member/browser title', async () => {
+  const seen: string[] = [];
+  const stored: DeskRow = {tier:'national',feature:'Lok Sabha Questions',row_key:'pq-1',row:{name:'Member Name',subject:'Support to Film Projects'},record_text:'Support to Film Projects',document_key:'pq:1',snapshot_at:'2026-10-28'};
+  const {deps} = fakeDeps(documentTurn(1), {presearch:true,searchDocuments: args => {seen.push(args.query);return Promise.resolve([]);}}, {
+    findDeskRow:()=>Promise.resolve(stored),resolveDocumentIds:()=>Promise.resolve(['pq-doc']),
+  });
+  await frames(await handleResearchChat(post({...BODY,focus:'attached',message:'tell me about this document',turn_key:'verified-pq-subject',attachments:[{kind:'record',title:'Wrong browser member',text:'browser',tier:'national',feature:'Lok Sabha Questions',row_key:'pq-1'}]}),deps));
+  assertEquals(seen[0],'Support to Film Projects — tell me about this document');
+});
+
+Deno.test('F260: notice-only and heading-only completed drafts fail without losing billed usage', async () => {
+  for (const value of ['## Answer', '<h2>Answer</h2>', '**Unverified.** No evidence retrieved.', '[1]']) {
+    const provider = scripted([...DECLINES, [text(envelope(value)), finish()]]);
+    const {deps,rec} = fakeDeps(provider);
+    await frames(await handleResearchChat(post({...BODY,turn_key:'scaffold-answer'}),deps));
+    assertEquals(rec.messages[0].status,'error',value);
+    assertEquals(rec.messages[0].content,'',value);
+    assertEquals(rec.messages[0].sources,[]);
+    assert(rec.messages[0].usage);
+  }
+});
+
+Deno.test('F257 missing authoritative row cannot smuggle another document key into scope', async () => {
+ const resolutions: {keys:string[];ids:string[]}[]=[];
+ const {deps}=fakeDeps(documentTurn(1),{}, {findDeskRow:()=>Promise.resolve(null),resolveDocumentIds:s=>{resolutions.push(s);return Promise.resolve([]);}});
+ await frames(await handleResearchChat(post({...BODY,focus:'attached',attachments:[{kind:'row',title:'Missing row',text:'Unverified',tier:'national',feature:'Parliamentary Question Database',row_key:'missing',document_key:'bill:2026:1'}]}),deps));
+ assertEquals(resolutions,[{keys:[],ids:[]}]);
 });

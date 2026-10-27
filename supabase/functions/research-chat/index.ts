@@ -4,6 +4,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { requireUser } from '../_shared/auth.ts';
 import type { PageBlockRow, PageImageRow } from '../_shared/citations.ts';
 import { corsHeaders, preflight } from '../_shared/cors.ts';
+import { recordDocumentKey } from '../_shared/deskRows.ts';
 import { deskCatalogBlock } from '../_shared/deskCatalog.ts';
 import { EMBED_DIMS, EMBED_MODEL, embedTexts, servedModelMatches } from '../_shared/embed.ts';
 import { errorResponse, HttpError } from '../_shared/http.ts';
@@ -255,6 +256,14 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
     }
     return rows;
   }
+  async function resolveRecordKeys(keys: string[]) {
+    const rows: { document_key: string; document_id: string | null; coverage: string }[] = [];
+    for (let i = 0; i < keys.length; i += 24) {
+      const data = await query(signal => caller().rpc('record_resolve_document_keys', { p_keys: keys.slice(i, i + 24) }).abortSignal(signal));
+      rows.push(...(data ?? []));
+    }
+    return rows;
+  }
   const persistence = rpcTurnStore({
     rpc: (fn, args) => {
       if (!owner || args.p_user_id !== owner) throw new HttpError(403, 'Turn owner mismatch');
@@ -410,24 +419,26 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
             )
             : Promise.resolve([] as { id: string }[]);
         const lawKeys = keys.filter((key) => key.startsWith('law-record:'));
-        const [byKey, byId, law] = await Promise.all([
-          indexed('metadata->>document_key', keys.filter((key) => !key.startsWith('law-record:'))), indexed('id', ids),
+        const [byKey, byId, law, records] = await Promise.all([
+          indexed('metadata->>document_key', keys.filter((key) => !key.startsWith('law-record:') && !key.startsWith('desk-record:'))), resolveRecordKeys(ids.map(id => `document-id:${id}`)).then(rows => rows.filter(row => row.document_id).map(row => ({id:row.document_id!}))),
           resolveLawKeys(lawKeys),
+          resolveRecordKeys(keys.filter(key => key.startsWith('desk-record:'))),
         ]);
-        return [...new Set([...(byKey ?? []), ...(byId ?? []), ...(law ?? []).map((row: { document_id: string }) => ({ id: row.document_id }))].map((d) => String(d.id)))];
+        return [...new Set([...(byKey ?? []), ...(byId ?? []), ...(law ?? []).map((row: { document_id: string }) => ({ id: row.document_id })), ...records.filter(row => row.document_id).map(row => ({ id: row.document_id! }))].map((d) => String(d.id)))];
       },
       indexedDocumentKeys: async (keys) => {
         // web-search spec §1: the keys that name an indexed document. Same filter as
         // resolveDocumentIds, so "has embeddings" and "is searchable" cannot disagree.
         if (!keys.length) return [];
         const lawKeys = keys.filter((key) => key.startsWith('law-record:'));
-        const legacyKeys = keys.filter((key) => !key.startsWith('law-record:'));
-        const [legacy, law] = await Promise.all([
+        const legacyKeys = keys.filter((key) => !key.startsWith('law-record:') && !key.startsWith('desk-record:'));
+        const [legacy, law, records] = await Promise.all([
           legacyKeys.length ? query((signal) => caller().from('documents').select('document_key:metadata->>document_key')
             .in('metadata->>document_key', legacyKeys).not('indexed_at', 'is', null).abortSignal(signal)) : Promise.resolve([]),
           resolveLawKeys(lawKeys),
+          resolveRecordKeys(keys.filter(key => key.startsWith('desk-record:'))),
         ]);
-        return [...new Set([...legacy ?? [], ...law ?? []].map((d) => String((d as { document_key: unknown }).document_key ?? '')).filter(Boolean))];
+        return [...new Set([...legacy ?? [], ...law ?? [], ...records.filter(row => row.coverage === 'full')].map((d) => String((d as { document_key: unknown }).document_key ?? '')).filter(Boolean))];
       },
       webSearchOverride: async (conversationId, requested) => {
         // The reader's own client: conversations RLS limits both the read and the write to the
@@ -445,13 +456,15 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
         );
         return typeof row?.web_search === 'boolean' ? row.web_search : null;
       },
-      findDeskRow: async (tier, feature, key) =>
-        await query((signal) =>
+      findDeskRow: async (tier, feature, key) => {
+        const row = await query((signal) =>
           caller().from('desk_rows').select('tier,feature,row_key,row,record_text,document_key,snapshot_at').eq(
             'tier',
             tier,
           ).eq('feature', feature).eq('row_key', key).abortSignal(signal).maybeSingle()
-        ) as DeskRow | null,
+        ) as DeskRow | null;
+        return row ? { ...row, document_key: recordDocumentKey(row.tier, row.feature, row.row_key) } : null;
+      },
     },
     telemetry: {
       logModelCall: async (row) => {

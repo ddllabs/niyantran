@@ -188,8 +188,8 @@ Deno.test('document and desk tools preserve call IDs and share selection handles
 // D3. The scope used to be gated on `budget.documentSearches === 0`, so the
 // second search of a turn went corpus-wide while the reader was still asking
 // about the attached bill. An attachment now scopes every search, and only the
-// empty-result fallback leaves it.
-Deno.test('every document search of a turn is scoped, and each retries its empty scope unscoped', async () => {
+// empty results stay within it too.
+Deno.test('F259: every search remains scoped, including empty refinements', async () => {
   const scopes: (string[] | undefined)[] = [];
   const f = fake([[docCall(), finish('tool_calls')], [docCall('again'), finish('tool_calls')], ready(), answer()], {
     searchDocuments: (_args, ids) => {
@@ -198,22 +198,22 @@ Deno.test('every document search of a turn is scoped, and each retries its empty
     },
   });
   const result = await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus: 'attached' });
-  assertEquals(scopes, [['private-doc'], undefined, ['private-doc'], undefined]);
-  assertEquals(result.searches, 4);
-  assertEquals(result.steps.map((s) => s.scoped), [true, false, true, false]);
+  assertEquals(scopes, [['private-doc'], ['private-doc']]);
+  assertEquals(result.searches, 2);
+  assertEquals(result.steps.map((s) => s.scoped), [true, true]);
   assert(!JSON.stringify(f.requests).includes('private-doc'));
 });
 
 // D2. The widening was silent, so an "Attached only" turn could answer entirely
 // from other documents with nothing anywhere saying so.
-Deno.test('widening the scope is announced once and reported on the result', async () => {
+Deno.test('F259: empty scoped refinements never emit widening', async () => {
   const f = fake([[docCall(), finish('tool_calls')], [docCall('again'), finish('tool_calls')], ready(), answer()], {
     searchDocuments: (_args, ids) => Promise.resolve(ids ? [] : [chunk('a')]),
   });
   const result = await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus: 'attached' });
-  assertEquals(result.widened, 'empty');
+  assertEquals(result.widened, null);
   // Two searches widened; the reader is told once.
-  assertEquals(f.events.filter((e) => 'widened' in e), [{ widened: 'empty' }]);
+  assertEquals(f.events.filter((e) => 'widened' in e), []);
 });
 
 Deno.test('a scoped search that finds something never claims the turn was widened', async () => {
@@ -229,7 +229,7 @@ Deno.test('a scoped search that finds something never claims the turn was widene
 // to nothing. It searches everything, which is what every bill in the reported
 // session did, so the one thing it owes the reader is to say so. The other three
 // focus values never promised confinement and must not claim to have broken one.
-Deno.test('a focus that confines discloses an unscoped search when nothing resolved to a document', async () => {
+Deno.test('F259: unresolved focuses never announce an implicit wider search', async () => {
   const disclosed: Record<string, string | null> = {};
   for (const focus of FOCUS_VALUES) {
     const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
@@ -245,24 +245,24 @@ Deno.test('a focus that confines discloses an unscoped search when nothing resol
   }
   // The two focuses that confine owe the disclosure; the two that range never
   // promised confinement and must not claim to have broken one.
-  assertEquals(disclosed, { attached: 'unresolved', selection: 'unresolved', desk: null, broad: null });
+  assertEquals(disclosed, { attached: null, selection: null, desk: null, broad: null });
 });
 
 // A turn that named no document at all - a desk module attached, the bill only
 // selected in the table and the selection lost to a reload - is not a turn whose
 // bill is missing from the corpus. Telling the reader it was sent them looking
 // for a gap in an index that held the bill all along.
-Deno.test('an unscoped search says whether a document was named or nothing was', async () => {
+Deno.test('F259: missing identity never authorizes widening, whether named or unkeyed', async () => {
   const disclosed: Record<string, string | null> = {};
   for (const [label, scopeSent] of [['named', true], ['nothing', false]] as const) {
     const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
       searchDocuments: () => Promise.resolve([chunk('a')]),
     });
     const result = await runAgent(f.deps, { ...input, scopedDocumentIds: [], focus: 'attached', scopeSent });
-    assertEquals(f.events.filter((e) => 'widened' in e), [{ widened: result.widened! }]);
+    assertEquals(f.events.filter((e) => 'widened' in e), []);
     disclosed[label] = result.widened;
   }
-  assertEquals(disclosed, { named: 'unresolved', nothing: 'unkeyed' });
+  assertEquals(disclosed, { named: null, nothing: null });
 });
 
 Deno.test('an unscoped turn that never ran a document search discloses nothing', async () => {
@@ -340,10 +340,10 @@ Deno.test('confinement beats the feature scope, which beats the model desk_tier'
       searchDocuments: log.searchDocuments,
     });
     await runAgent(f.deps, { ...input, scopedDocumentIds: ['doc-1'], focus, featureScope: BILLS });
-    assertEquals(log.calls, [{ args: { query: 'clause', desk_tier: 'state' }, ids: ['doc-1'] }], focus);
+    assertEquals(log.calls, [{ args: { query: 'clause' }, ids: ['doc-1'] }], focus);
   }
   // 3. No confinement and no module filter: the model's desk_tier, as before.
-  for (const [focus, featureScope] of [['broad', BILLS], ['desk', undefined]] as const) {
+  for (const [focus, featureScope] of [['broad', BILLS]] as const) {
     const log = searchLog();
     const f = fake([[docCallWith({ query: 'clause', desk_tier: 'state' }), finish('tool_calls')], ready(), answer()], {
       searchDocuments: log.searchDocuments,
@@ -356,7 +356,6 @@ Deno.test('confinement beats the feature scope, which beats the model desk_tier'
 Deno.test('a desk_feature the model sends is stripped: the model never chooses the module', async () => {
   for (const [focus, featureScope, expected] of [
     ['broad', undefined, { query: 'clause' }],
-    ['desk', undefined, { query: 'clause' }],
     ['desk', BILLS, { query: 'clause', desk_tier: 'national', desk_feature: 'Bills' }],
   ] as const) {
     const log = searchLog();
@@ -368,7 +367,7 @@ Deno.test('a desk_feature the model sends is stripped: the model never chooses t
   }
 });
 
-Deno.test('an empty module search re-runs once without the module and discloses feature-empty once', async () => {
+Deno.test('F259: repeated empty module searches keep their module', async () => {
   const log = searchLog((args) => args.desk_feature ? [] : [chunk('a')]);
   const f = fake([
     [docCall(), finish('tool_calls')],
@@ -379,21 +378,19 @@ Deno.test('an empty module search re-runs once without the module and discloses 
   const result = await runAgent(f.deps, { ...input, focus: 'desk', featureScope: BILLS });
   assertEquals(log.calls, [
     { args: { query: 'clause', desk_tier: 'national', desk_feature: 'Bills' }, ids: undefined },
-    { args: { query: 'clause' }, ids: undefined },
     { args: { query: 'clause', desk_tier: 'national', desk_feature: 'Bills' }, ids: undefined },
-    { args: { query: 'clause' }, ids: undefined },
   ]);
-  assertEquals(result.searches, 4);
-  assertEquals(result.widened, 'feature-empty');
-  assertEquals(f.events.filter((e) => 'widened' in e), [{ widened: 'feature-empty' }]);
+  assertEquals(result.searches, 2);
+  assertEquals(result.widened, null);
+  assertEquals(f.events.filter((e) => 'widened' in e), []);
 });
 
-Deno.test('an empty module search that the re-run also finds nothing for still discloses, and only once it ran', async () => {
+Deno.test('F259: empty module search stays scoped within budget', async () => {
   const log = searchLog(() => []);
   const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: log.searchDocuments });
   const result = await runAgent(f.deps, { ...input, focus: 'desk', featureScope: BILLS });
-  assertEquals(log.calls.length, 2);
-  assertEquals(result.widened, 'feature-empty');
+  assertEquals(log.calls.length, 1);
+  assertEquals(result.widened, null);
 
   // No room for the re-run: nothing was widened, so nothing is said.
   const budget = createAgentBudget();
@@ -405,11 +402,11 @@ Deno.test('an empty module search that the re-run also finds nothing for still d
   assertEquals(second.widened, null);
 });
 
-Deno.test('desk focus on a module with no documents searches unfiltered with no banner', async () => {
+Deno.test('F259: desk focus with no resolved module performs no document search', async () => {
   const log = searchLog(() => []);
   const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: log.searchDocuments });
   const result = await runAgent(f.deps, { ...input, focus: 'desk' });
-  assertEquals(log.calls, [{ args: { query: 'clause' }, ids: undefined }], 'one search, no re-run');
+  assertEquals(log.calls, [], 'missing module must not unlock corpus search');
   assertEquals(result.widened, null);
   assertEquals(f.events.filter((e) => 'widened' in e), []);
 });
@@ -442,7 +439,7 @@ Deno.test('scope fallback cannot exceed the last available search slot', async (
   const result = await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus: 'attached' });
   assertEquals(searches, 1);
   assertEquals(result.searches, 10);
-  assert(f.requests[1].messages.some((m) => m.content?.includes('SEARCH_BUDGET_EXHAUSTED')));
+  assert(f.requests[1].messages.some((m) => m.content?.includes('NO_RESULTS')));
   assertEquals(f.requests[1].tool_choice, 'none');
   // D2. The budget refused the wider search, so the turn never left the
   // attachment and must not tell the reader it did.
@@ -653,7 +650,7 @@ Deno.test('a failed scoped search still scopes the handler retry', async () => {
     },
   });
   await runAgent(second.deps, { ...input, scopedDocumentIds: ['doc'], focus: 'attached' });
-  assertEquals(scopes, [['doc'], undefined]);
+  assertEquals(scopes, [['doc']]);
 });
 
 Deno.test('the final model slot continues partial JSON without a conflicting answer-now instruction', async () => {
@@ -985,7 +982,7 @@ Deno.test('an attachment narrows the search only under a focus that promised to 
     const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
       searchDocuments: (_args, ids) => (scopes.push(ids), Promise.resolve([chunk('a')])),
     });
-    const result = await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus });
+    const result = await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus, featureScope: BILLS });
     assertEquals(scopes, [undefined], `${focus} must range beyond the attachment`);
     // Nothing was confined, so nothing was widened: there is no promise to walk back.
     assertEquals(result.widened, null);
@@ -1303,8 +1300,8 @@ Deno.test('presearch: a turn aborted during the pre-search makes no model call',
   assertEquals(f.requests.length, 0);
 });
 
-// chat-turn-cost (F41): a widened search is corpus-wide and off-target by construction, so it asks
-// for fewer passages; and a search reply stops at a character budget, so prompts stay bounded.
+// F259 supersedes implicit widening. Legacy widenedTopK configuration cannot
+// change scope; ordinary passage and reply limits still apply.
 function topKLog(result: (ids?: string[]) => Chunk[]) {
   const calls: { ids?: string[]; topK?: number }[] = [];
   const searchDocuments = (_args: DocumentSearchArgs, ids?: string[], topK?: number) => {
@@ -1314,29 +1311,28 @@ function topKLog(result: (ids?: string[]) => Chunk[]) {
   return { calls, searchDocuments };
 }
 
-// The widened limit is off by default (owner, 2026-10-02): a second pass found 15 passages no
-// deeper than 40 and slower (research/2026-10-02-turn-cost-benchmark.md). It stays an option.
-Deno.test('by default a widened retry asks for the default passage count, like the scoped search', async () => {
+// Compatibility regression: even legacy callers supplying widenedTopK stay confined.
+Deno.test('F259: empty scoped search has no widened retry', async () => {
   const log = topKLog((ids) => (ids ? [] : [chunk('a')]));
   const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: log.searchDocuments });
   await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus: 'attached' });
-  assertEquals(log.calls, [{ ids: ['private-doc'], topK: undefined }, { ids: undefined, topK: undefined }]);
+  assertEquals(log.calls, [{ ids: ['private-doc'], topK: undefined }]);
 });
 
-Deno.test('asked for, the widened limit applies to the widened retry only', async () => {
+Deno.test('F259: legacy widened limit cannot authorize a retry', async () => {
   const log = topKLog((ids) => (ids ? [] : [chunk('a')]));
   const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: log.searchDocuments, widenedTopK: WIDENED_TOP_K });
   await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus: 'attached' });
-  assertEquals(log.calls, [{ ids: ['private-doc'], topK: undefined }, { ids: undefined, topK: WIDENED_TOP_K }]);
+  assertEquals(log.calls, [{ ids: ['private-doc'], topK: undefined }]);
 });
 
-Deno.test('a confining focus with nothing to confine to searches widened from the start, with the limit when asked', async () => {
+Deno.test('F259: unkeyed focus is blocked with either legacy passage limit', async () => {
   const off = topKLog(() => [chunk('a')]);
   await runAgent(fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: off.searchDocuments }).deps, { ...input, focus: 'attached', scopeSent: false });
-  assertEquals(off.calls, [{ ids: undefined, topK: undefined }]);
+  assertEquals(off.calls, []);
   const on = topKLog(() => [chunk('a')]);
   await runAgent(fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: on.searchDocuments, widenedTopK: WIDENED_TOP_K }).deps, { ...input, focus: 'attached', scopeSent: false });
-  assertEquals(on.calls, [{ ids: undefined, topK: WIDENED_TOP_K }]);
+  assertEquals(on.calls, []);
 });
 
 Deno.test('a broad search, and any search with the limit off, asks for the default', async () => {
@@ -1346,7 +1342,7 @@ Deno.test('a broad search, and any search with the limit off, asks for the defau
   const off = topKLog((ids) => (ids ? [] : [chunk('a')]));
   await runAgent(fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: off.searchDocuments, widenedTopK: null }).deps,
     { ...input, scopedDocumentIds: ['private-doc'], focus: 'attached' });
-  assertEquals(off.calls.map((c) => c.topK), [undefined, undefined]);
+  assertEquals(off.calls.map((c) => c.topK), [undefined]);
 });
 
 const longChunk = (id: string, chars: number): Chunk => ({ ...chunk(id), content: id.repeat(chars) });
@@ -2493,4 +2489,46 @@ Deno.test('F256 extraction contract overrides general envelope at trusted system
   assert(String(override?.content).includes('observation_excerpts'));
   assert(!String(override?.content).includes('Excerpt 1'), 'untrusted source evidence stays out of system override');
   assert(!f.requests[0].messages.some(m => m.role === 'system' && String(m.content).includes('observation_excerpts')));
+});
+
+Deno.test('F259: missing document identity fails closed and empty scoped searches never widen', async () => {
+  for (const ids of [[], ['private-doc']]) {
+    const scopes: (string[] | undefined)[] = [];
+    const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+      searchDocuments: (_args, scope) => { scopes.push(scope); return Promise.resolve([]); },
+    });
+    const result = await runAgent(f.deps, { ...input, focus: 'attached', scopedDocumentIds: ids });
+    assertEquals(scopes, ids.length ? [ids] : []);
+    assertEquals(result.widened, null);
+  }
+});
+
+Deno.test('F259: row tools cannot escape verified attachments or the desk module', async () => {
+  const call: ModelEvent = { type: 'tool-call', id: 'rows', name: 'search_desk_rows', args: '{"tier":"law","feature":"Supreme Court"}' };
+  for (const focus of ['attached', 'selection', 'desk', 'broad'] as const) {
+    const seen: SearchDeskRowsArgs[] = [];
+    const f = fake([[call, finish('tool_calls')], ready(), answer()], {
+      searchDeskRows: args => { seen.push(args); return Promise.resolve({rows: [], total: 0, snapshot_at: null}); },
+    });
+    const scoped = { ...input, focus, scopedRows: [row()], rowFeatureScope: {tier:'national',feature:'Bills'} };
+    const result = await runAgent(f.deps, scoped);
+    if (focus === 'attached' || focus === 'selection') {
+      assertEquals(seen, []);
+      assertEquals(result.rows.map(r => [r.tier,r.feature,r.row_key]), [['national','Bills','same-key']]);
+    } else assertEquals(seen[0], {tier:focus === 'desk' ? 'national':'law',feature:focus === 'desk'?'Bills':'Supreme Court'});
+  }
+});
+
+Deno.test('F259: capacity and timeout failures never become empty-scope widening', async () => {
+  for (const reason of ['FEATURE_SEARCH_RECOVERY_LIMIT', 'statement timeout']) {
+    const scopes: (string[] | undefined)[] = [];
+    const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+      searchDocuments: (_args, ids) => {scopes.push(ids); return Promise.reject(new Error(reason));},
+    });
+    const result = await runAgent(f.deps, {...input,focus:'attached',scopedDocumentIds:['private-doc']});
+    assertEquals(scopes,[['private-doc']]);
+    assertEquals(result.widened,null);
+    assertEquals(result.steps[0].status,'error');
+    assert(f.requests.some(req => req.messages.some(m => m.role === 'tool' && m.content?.includes('TOOL_EXECUTION_FAILED'))));
+  }
 });
