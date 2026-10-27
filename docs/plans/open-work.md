@@ -1,6 +1,9 @@
 # Open work: the one list
 
-- [ ] **F261 — Align Parliamentary record displays with verified answer coverage.** Live acceptance found old “answer not on record” banner/lifecycle/cached briefs despite Full text in chat; attachment labels and suggestions prefer the MP over the question subject. Use current verified coverage without rewriting source-register facts or silently treating cached metadata briefs as OCR synthesis. No re-ingestion. Also fix nested-list Markdown table rendering (verified from the saved response; the earlier HTML attribution was an inference) and unsupported “verbatim” synthesis wording observed in the FMBAP answer. [Evidence](../operations/2026-10-28-corpus-repair-review/release.md).
+- [ ] **F263 — Make feature-search recovery fixture prove the recovery branch.** Docs-only PR #65 CI 40594375279 failed `recovery matches exact oracle`, while parallel same-head run 40594341876 passed. Read-only EXPLAIN confirms the oracle uses an exact full-vector sort; the helper may legitimately return a full approximate result without recovery. The fixture does not prove branch entry. First 80 synthetic far vectors have 80 full-precision distances but one halfvec distance, supporting (not reproducing) nondeterministic ANN selection. Diagnose and make the fixture deterministic with causal evidence; do not change production retrieval or weaken scope/recall checks merely to turn CI green. F261 runtime passed its own branch, PR and main CI.
+
+- [ ] **F262 — Empty unsent chat appears as a deletion confirmation in History.** During F261 live acceptance, opening History from New research displayed “Delete New research and its 0 messages?” without selecting Delete. Cancelled; no deletion. Investigate empty chat identity versus the pendingDelete sentinel in AiPanel before a scoped fix; preserve real deletion confirmation. Separate from corpus/display readiness. [Observation](../operations/2026-10-28-f261-release.md).
+
 
 
 
@@ -73,7 +76,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F262 is next) and goes in the
+- A new finding gets the next free `F` number (F263 is next) and goes in the
   right section.
 
 ## Frontend follow-up
@@ -3558,4 +3561,8 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 
 - [x] **nter.news and discovery integration.** Owner authorized production publication; [PR58](https://github.com/ddllabs/niyantran/pull/58) merged at `a2c69f625cf3e1734a0d1bd83859bc4b0fb2fca1`, preserving reviewed runtime `b7a772a1`. Both required jobs passed on final PR head `cef285c4` (push40175036438 and PR40175040027). News/date/image/logo/heading and citation/search/view-state work is integrated; no Supabase data/schema, corpus, billing or auth-policy changes. [Release gates and recovery](2026-10-25-preview-production-release.md); exact-main CI/deployment and live acceptance receipt is supplied in the delivery report. Full record indexing remains open separately.
 
-F257–F260 released through PR #62 / `8f01b348` after owner authorization and required CI. The reviewed existing mapping repair was applied and replayed without changing OCR, chunks or vectors. See the [release receipt](../operations/2026-10-28-corpus-repair-review/release.md). Larger batches remain held; F261 records the separate Parliamentary display inconsistency.
+F257–F260 released through PR #62 / `8f01b348` after owner authorization and required CI. The reviewed existing mapping repair was applied and replayed without changing OCR, chunks or vectors. See the [release receipt](../operations/2026-10-28-corpus-repair-review/release.md). Larger batches remain held; F261 subsequently closed below with verified display corrections.
+
+## Done — 2026-10-28 record availability and answer presentation
+
+F261 released through PR #64 / `69922e738d34b0bcfc690656f0c78ef1bc95bee6` (runtime `ace99b73`). Sol implementation independently reviewed; 6,663 app and 1,441 Edge tests, lint/build, required branch/PR/main CI passed. NTER verified all five Parliamentary subjects and Full text states, current record coverage, cached-brief context, saved nested-table rendering, Bill/Law Full text and metadata-only/snapshot web defaults. Fresh FMBAP answer was substantive, accurately attributed and cited, with exact-document trace. Five document/chunk hashes unchanged; no re-ingestion or larger batches. [Release evidence](../operations/2026-10-28-f261-release.md), [client handoff](../operations/2026-10-28-corpus-client-handoff.md).

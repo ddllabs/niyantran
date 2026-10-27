@@ -21,3 +21,7 @@ Sequential, sole task-agent writer; no delegation or commits.
 - Vitest emits expected fixture diagnostics on simulated feed/network/error paths; no failing tests. No standalone type-check was claimed. No SQL/migration or api/server code changed, so SQL fixtures and router import were not required or run.
 - No browser or production acceptance performed by this task agent. Supervisor owns browser/release acceptance. Prompt policy applies to future generations; stored answers and briefs were not rewritten or regenerated. No data, schema, dependencies, paid calls, ingestion, commits, pushes or release actions performed.
 - Final branch: `task/f261-record-availability`; scoped changes remain uncommitted for supervisor integration. F261 remains open until the supervisor lands it.
+
+## Supervisor acceptance
+
+Integrated via PR #64 / `69922e73` after independent review and required CI. Main CI passed; frontend and research-chat v108 deployed. Live checks and limits are in [release evidence](../operations/2026-10-28-f261-release.md). F261 is closed; larger batches remain held.
