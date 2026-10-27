@@ -1,8 +1,8 @@
 # National parliamentary-question batch (batch 1: 1,000 Lok Sabha answers)
 
-> **Status: Living (2026-10-27).** This is the owner's authorization, the route and the checks for one batch of up to
-> 1,000 Lok Sabha question answers from the National citation pack v1.1. The batch receipt is added here once it is
-> verified.
+> **Status: Living (2026-10-27).** This is the owner's authorization, the route, the checks and the receipt for one
+> batch of 1,000 Lok Sabha question answers from the National citation pack v1.1. Batch 1 is verified; the driver stopped
+> after it as instructed.
 
 ## Authorization
 
@@ -97,3 +97,89 @@ python3 -I docs/operations/national-pq-batch/test_national_pq_driver_offline.py
 ```
 
 Both run the real importer in dry-run mode. No network is used.
+
+## Batch 1 receipt (verified 2026-10-27 14:14 UTC)
+
+- **Inputs:**
+  - Code: commit `3e72673`, with driver sha256 `07ae236f…0f7c1e` fetched by that commit in Colab.
+  - Pack: `NTER_citation_pack_v1.1_2026-10-05.zip`, sha256 `459b354c…dc9b8`.
+  - Question member: sha256 `474bb46e…8441`.
+  - Rules: sha256 `5cb2d67c…730c`.
+- **Deployment (owner-approved, same day):**
+  - `ingest-worker` v6 and `admin-ingest` v8 were redeployed. The only file changed is `_shared/suppliedText.ts`; every
+    other deployed file was compared with the repository and is unchanged.
+  - The migration `supplied_text_national_questions` was applied after CI passed on `3e72673`. Both jobs passed,
+    including the SQL fixtures.
+  - The inner registration function is executable only by its owner. `service_role` keeps only the wrapper.
+- **Live read before the batch:**
+  - 3,459 National documents.
+  - 8,000 question desk rows, carrying 6,840 distinct PDFs.
+  - 82 question answers already stored.
+- **Screen of all 6,840 pack records:**
+  - 6,486 eligible before chunking.
+  - Every eligible answer's desk rows agreed on URL, subject, date, type, ministry and member. No answer was held for
+    a desk-row disagreement.
+- **Holds:**
+
+  | Reason | Count |
+  | --- | --- |
+  | already stored (key and legacy file name) | 82 each |
+  | page split `none` | 82 |
+  | page split `last_page_empty` | 121 |
+  | answer date not found in the text | 59 |
+  | question number not found in the text | 53 |
+  | no answer section | 34 |
+  | page split `unsplit_multipage` | 21 |
+  | page split `approximate` | 8 |
+  | near-duplicate | 3 |
+  | same-date containment | 1 |
+  | over limits | 2 |
+  | too short | 1 |
+
+  Held answers stay out of the database for review; nothing was forced.
+- **Selection:**
+  - The 1,000 newest eligible answers, from Lok Sabha session 187, in five tranches of 200.
+  - Each tranche's offline dry run matched every document's chunk count, with 0 held.
+  - Worst-case cost ceiling: US$0.6449.
+- **Run (UTC):**
+  - T1–T5 registered 11:09–11:32, with 0 uncertain, 0 held and 0 resumes.
+  - Indexing finished at 14:11. After registration ended, the queue ran at the worker's scheduled rate of about 2 per
+    minute.
+- **Verified:**
+  - By the driver, over the API: every document.
+  - Independently, by `verify.sql` against the database. It returned:
+
+  | Check | Result |
+  | --- | --- |
+  | Indexed, and stored text hash valid | 1,000 / 1,000 |
+  | Chunks | 11,219, equal to the plan; 0 null vectors; all 1536-d |
+  | Stored in national / Parliamentary Question Database | 1,000 |
+  | Matched to a desk row by URL | 1,000 (1,228 desk rows covered; 1,000 distinct URLs) |
+  | One succeeded job each | 1,000 |
+  | OCR pages | 0 |
+  | Cohort fingerprint | `581081b2650fdc8eb2770cea29f11a53f2eba944ab5e9f46cfeb459cc7f132f4`, equal to the plan |
+
+- **Cost:** 2,412,145 embedding tokens, **US$0.0482**.
+- **Deltas:**
+
+  | Item | Before | After |
+  | --- | --- | --- |
+  | Documents | 11,008 | 12,008 |
+  | National documents | 3,459 | 4,459 |
+  | Question answers | 82 | 1,082 |
+  | Chunks | 325,989 | 337,208 |
+
+  ANALYZE was run on `documents`, `document_chunks` and `desk_rows`.
+- **Shared-chunk check:**
+  - One pair shares 10 of 24–25 chunks: `AU3492_cjYS5X.pdf` (Progress under AOGUSY) and `AU3500_ClELGq.pdf` (GMP and
+    NABL Accreditation under AOGUSY).
+  - Both were answered by AYUSH on 13 March 2026, to different questions asked by different members.
+  - The shared part is the scheme description common to both answers. It is not a duplicate document. It is listed for
+    the owner's information, and nothing was changed.
+- **Ledger:** `Data Handover/National/v1.1/staging/pq-batch-01/ledger-national-pq-b01.csv` lists the 1,000 files, all
+  with status `verified`, document id and indexed time. The staging folder holds the private corpus copies, decisions
+  and reports, which are not committed.
+- **Not checked here:**
+  - natural-language answers on the website;
+  - per-record grounding. Question rows carry no `document_key`, and the frontend's `documentKey()` reads only bill
+    and Law keys, so the module-level assistant sees these answers but "ask about this record" does not attach them.
