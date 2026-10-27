@@ -76,7 +76,7 @@ export interface ResearchRequest {
   desk_context?: { tier: string; feature?: string };
   /** Admin persona probe: an app_persona value. research-chat honours it only for a platform admin. */
   persona_probe?: string;
-  /** Exact editor text, allowed only for the verified pilot account. */
+  /** Exact editor text, allowed only for a verified active platform admin. */
   persona_prompt?: string;
   /** The composer globe's override for this conversation (web-search spec §1). Absent: the stored
    * choice applies, or automatic when there is none. */

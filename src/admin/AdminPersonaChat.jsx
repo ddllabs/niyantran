@@ -43,7 +43,7 @@ export default function AdminPersonaChat({ typeId, promptText, disabled = false 
     finally { if (request.current === abort) { request.current = null; setBusy(false); } }
   }
   return <section className="adm-mini-chat">
-    <header className="adm-mini-head"><div><b>Test current text</b><span>{meta.label} · unsaved edits included · pilot only</span></div>
+    <header className="adm-mini-head"><div><b>Test current text</b><span>{meta.label} · unsaved edits included · admins only</span></div>
       <button type="button" className="adm-btn ghost tiny" disabled={busy} onClick={() => { setMessages([]); setConversationId(null); setDiagnostic(null); setErr(''); }}>Clear</button>
     </header>
     <div className="adm-mini-log" ref={scroller}>

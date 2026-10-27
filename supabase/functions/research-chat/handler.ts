@@ -385,7 +385,7 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
   const request = validated.request;
   if (request.persona_prompt !== undefined) {
     try {
-      if (!await deps.canEditPersona?.(caller.userId)) return json({ error: 'Persona editing is restricted to the pilot account' }, 403, headers);
+      if (!await deps.canEditPersona?.(caller.userId)) return json({ error: 'Persona editing requires an active platform admin' }, 403, headers);
     } catch { return json({ error: 'Persona access unavailable' }, 503, headers); }
   }
 

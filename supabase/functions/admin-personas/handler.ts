@@ -35,7 +35,7 @@ export async function handleAdminPersonas(req: Request, deps: PersonaAdminDeps):
   try {
     if (!['GET','POST'].includes(req.method)) throw new HttpError(405, 'method not allowed');
     const { userId } = await requireUser(req, deps.verify);
-    if (!await deps.access(userId)) throw new HttpError(403, 'Persona editing is restricted to the pilot account');
+    if (!await deps.access(userId)) throw new HttpError(403, 'Persona editing requires an active platform admin');
     let input: Record<string, unknown> = { action: 'read' };
     if (req.method === 'POST') {
       input = await readInput(req);

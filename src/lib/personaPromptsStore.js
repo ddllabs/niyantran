@@ -64,15 +64,15 @@ export function resetPersonaPrompt(typeId) {
   return savePersonaPrompts(next);
 }
 
-/** Shipped markdown only — live desk / server path (A-07). */
+/** Shipped markdown fallback; the server resolves published versions separately. */
 export function shippedPersonaPromptFor(typeId) {
   const id = userTypeOf(typeId).id;
   return String(DEFAULT_PERSONA_PROMPTS[id] || '').trim();
 }
 
 /**
- * Admin drafts (localStorage), never sent anywhere: research-chat always
- * answers with the shipped prompt (src/data/personas/, bundled server-side).
+ * Legacy browser drafts for explicit import into the server editor.
+ * Ordinary research turns resolve the published server version, not this store.
  */
 export function personaPromptFor(typeId) {
   const id = userTypeOf(typeId).id;

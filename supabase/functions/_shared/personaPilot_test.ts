@@ -1,24 +1,25 @@
 import { assertEquals, assertRejects } from 'jsr:@std/assert';
-import { resolvePilotPersona } from './personaPilot.ts';
+import { resolvePersonaPrompt } from './personaPilot.ts';
 
-function sources(pilot = true) {
+function sources(published = true) {
   return {
-    pilot: () => Promise.resolve(pilot),
+    published: () => Promise.resolve(published),
+    canEdit: () => Promise.resolve(published),
     active: () => Promise.resolve({ text: '  Published\nπ\n ', id: 'v2' }),
     bundled: () => Promise.resolve('  Default\n '),
   };
 }
-Deno.test('published pilot text is preserved exactly; ordinary callers retain bundled text', async () => {
-  assertEquals((await resolvePilotPersona('student.md', sources())).text, '  Published\nπ\n ');
-  assertEquals((await resolvePilotPersona('student.md', sources(false))).text, '  Default\n ');
+Deno.test('published consumer text is preserved exactly; ordinary callers retain bundled text', async () => {
+  assertEquals((await resolvePersonaPrompt('student.md', sources())).text, '  Published\nπ\n ');
+  assertEquals((await resolvePersonaPrompt('student.md', sources(false))).text, '  Default\n ');
 });
 Deno.test('unsaved probe text is exact and an unauthorized override is rejected', async () => {
   const text = '  Unsaved\nπ\n ';
-  assertEquals((await resolvePilotPersona('student.md', sources(), text)).text, text);
-  await assertRejects(() => resolvePilotPersona('student.md', sources(false), text), Error, 'pilot');
+  assertEquals((await resolvePersonaPrompt('student.md', sources(), text)).text, text);
+  await assertRejects(() => resolvePersonaPrompt('student.md', sources(false), text), Error, 'admin');
 });
 Deno.test('storage outage falls back and reports why, never leaking the prompt in metadata', async () => {
-  const result = await resolvePilotPersona('student.md', {
+  const result = await resolvePersonaPrompt('student.md', {
     ...sources(), active: () => Promise.reject(new Error('database unavailable')),
   });
   assertEquals(result.source, 'bundled_fallback');
@@ -27,6 +28,17 @@ Deno.test('storage outage falls back and reports why, never leaking the prompt i
   assertEquals(result.hash.length, 64);
 });
 Deno.test('blank and oversized Unicode overrides fail before reaching a model', async () => {
-  await assertRejects(() => resolvePilotPersona('student.md', sources(), ' \n '));
-  await assertRejects(() => resolvePilotPersona('student.md', sources(), 'π'.repeat(50001)));
+  await assertRejects(() => resolvePersonaPrompt('student.md', sources(), ' \n '));
+  await assertRejects(() => resolvePersonaPrompt('student.md', sources(), 'π'.repeat(50001)));
+});
+
+Deno.test('global consumers cannot submit editor overrides', async () => {
+  await assertRejects(() => resolvePersonaPrompt('student.md', {
+    ...sources(true), canEdit: () => Promise.resolve(false),
+  }, 'unauthorized override'), Error);
+});
+Deno.test('admin can test editor text while published consumption is paused', async () => {
+  assertEquals((await resolvePersonaPrompt('student.md', {
+    ...sources(false), canEdit: () => Promise.resolve(true),
+  }, 'admin draft')).text, 'admin draft');
 });

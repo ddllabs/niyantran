@@ -4,7 +4,7 @@ import { functionsUrl } from './supabaseClient.js';
 /** Prompt bodies travel only to our authenticated persona endpoint, never to logs. */
 export async function adminPersonas(input, { signal } = {}) {
   const identity = await verifiedLocalIdentity();
-  if (!identity || !await localIdentityIsCurrent(identity)) throw new Error('Sign in with the pilot admin account.');
+  if (!identity || !await localIdentityIsCurrent(identity)) throw new Error('Sign in with the platform admin account.');
   let response;
   try {
     response = await fetch(functionsUrl('admin-personas'), {

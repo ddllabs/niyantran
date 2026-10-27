@@ -35,6 +35,8 @@ export function AiPersonasPage() {
   const status = personaEditorState(state, text);
   const publication = history.find(e => e.revision_id === state?.active_id && ['initialize', 'publish', 'rollback'].includes(e.action));
 
+  const audience = data?.audience === 'all_users' ? 'Published personas apply to all users with the matching persona.' : data?.audience === 'pilot' ? 'Published personas currently apply only to the pilot account.' : data?.audience === 'disabled' ? 'Published persona consumption is paused; users receive bundled defaults.' : 'Loading the published persona audience…';
+
   async function operation(action) {
     setBusy(true); setError(''); setNotice('');
     try {
@@ -46,7 +48,7 @@ export function AiPersonasPage() {
       if (action === 'initialize' || !data) setEditors(Object.fromEntries(USER_TYPES.map(t => [t.id, next.states.find(s => s.persona === dbPersona(t.id)).draft_text])));
       setNotice(action === 'reload' ? 'Server versions reloaded. Your editor text has been retained.' :
         action === 'save' ? 'Draft saved. Customer prompts are unchanged.' : action === 'initialize' ? 'Baseline versions initialized.' :
-          'Active pilot version updated. It applies to your next new turn only.');
+          next.audience === 'all_users' ? 'Published version updated. It applies to all users with this persona on their next new turn.' : next.audience === 'pilot' ? 'Published version updated for the pilot account’s next new turn.' : 'Published version updated. Consumption is paused.');
       setRevision('');
     } catch (e) { if (alive.current) setError(e.message); }
     finally { if (alive.current) setBusy(false); }
@@ -54,7 +56,7 @@ export function AiPersonasPage() {
 
   return <>
     <h1 className="adm-h1">AI personas</h1>
-    <p className="adm-lede">Account-restricted pilot · Published changes affect only the designated admin account. Save a draft, test the current text, then publish when ready. Grounding and citation rules remain enforced.</p>
+    <p className="adm-lede">Admins manage these prompts. {audience} Save a draft, test the current text, then publish when ready. Grounding and citation rules remain enforced.</p>
     {error && <p className="adm-msg" role="alert">{error}</p>}
     {!data ? <div><p>{busy ? 'Loading persona versions…' : 'The server editor is unavailable. No prompts have been changed.'}</p>{!busy && <button className="adm-btn ghost" onClick={() => operation('reload')}>Retry loading</button>}</div> : <>
       <div className="adm-persona-types" role="tablist" aria-label="Personas">
@@ -80,7 +82,7 @@ export function AiPersonasPage() {
           </label>
           <div className="adm-actions">
             <button className="adm-btn" disabled={busy || !valid || !dirty} onClick={() => operation('save')}>Save draft</button>
-            <button className="adm-btn" disabled={busy || dirty || state?.draft_id === state?.active_id} onClick={() => operation('publish')}>Publish for my account</button>
+            <button className="adm-btn" disabled={busy || dirty || state?.draft_id === state?.active_id} onClick={() => operation('publish')}>Publish persona</button>
             <button className="adm-btn ghost" disabled={busy} onClick={() => operation('reload')}>Reload server versions</button>
           </div>
           <details><summary>Import or restore editor text</summary><p className="adm-hint">These actions change only the editor. Save and publish are separate.</p>
@@ -94,7 +96,7 @@ export function AiPersonasPage() {
             <label className="adm-field"><span>Choose a previous version</span><select value={revision} disabled={busy} onChange={e => setRevision(e.target.value)}>
               <option value="">Select version…</option>{history.map(e => <option key={e.id} value={e.revision_id}>{e.action} · {new Date(e.created_at).toLocaleString()} · {e.revision_id}</option>)}
             </select></label>
-            <button className="adm-btn ghost" disabled={busy || !revision} onClick={() => operation('rollback')}>Activate selected version for my account</button>
+            <button className="adm-btn ghost" disabled={busy || !revision} onClick={() => operation('rollback')}>Activate selected version</button>
           </details>
           {notice && <p className="adm-msg" role="status">{notice}</p>}
         </div>
