@@ -1,7 +1,34 @@
 # Law ingestion autopilot (batches 7–11)
 
-> **Status: Living.** This file records the owner's standing approval, how the autopilot runs, and when it stops. Each
+> **Status: Living (run finished 2026-10-27).** This file records the owner's standing approval, how the autopilot runs, and when it stops. Each
 > batch's receipt is written to `law-batch-<n>-release/` once that batch is verified.
+
+## Outcome (2026-10-27)
+
+**Finished.** All 5 approved batches are verified, and the autopilot logged `finished` at 08:29 UTC on 2026-10-27.
+
+| Batch | Docs | Chunks | Embedding cost | Retries / resumes | Owner-review pairs | Receipt |
+| --- | --- | --- | --- | --- | --- | --- |
+| 7 | 1,000 | 26,217 | $0.1229 | T1 pre-write retry; T1 resume (185 + 20) | 1 (Master Weaver) | `../law-batch-7-release/` |
+| 8 | 1,000 | 29,822 | $0.1393 | none | 0 | `../law-batch-8-release/` |
+| 9 | 1,000 | 22,218 | $0.1042 | T1 pre-write retry; resume refused (not yet visible), then resumed (122 + 83) | 1 (Dharti Dredging) | `../law-batch-9-release/` |
+| 10 | 1,000 | 22,647 | $0.1060 | none; Colab runtime reconnected before verification | 1 (MSA Developers) | `../law-batch-10-release/` |
+| 11 | 439 | 9,276 | $0.0432 | T1 pre-write retry | 0 | `../law-batch-11-release/` |
+| **Total** | **4,439** | **110,180** | **$0.5155** | | **3** | |
+
+- Law documents went from 3,110 to 7,549.
+- Nothing was registered twice, and nothing was deleted or unpublished.
+- **Batch 11 exhausted the pack.** Every member has now been screened. 3,428 older records in batch 11 alone were held
+  for having no parsed case number. A further batch would need a new approval and either case-number recovery for the
+  older records or OCR of scanned orders.
+- **Driver changes made during the run,** each with an offline test that fails when the change is turned off:
+  - pre-write retry (`92c3e8f`);
+  - resume of an incomplete submission (`590419a`);
+  - waiting for registered documents to become visible before re-checking them (`8b3133f`);
+  - a same-date containment hold (`ea40c44`).
+- **Owner follow-ups:**
+  - Decide on the three overlapping pairs; they are listed in `../../plans/open-work.md`.
+  - Rotate or disable the ingestion account's password.
 
 ## Authorization
 
