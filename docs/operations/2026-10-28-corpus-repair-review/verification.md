@@ -1,6 +1,6 @@
 # Local verification record
 
-> **Status: Living.** 2026-10-28. Review candidate; not production acceptance.
+> **Status: Living.** 2026-10-28. Local verification history; the [release receipt](release.md) records subsequent CI, deployment, repairs and live acceptance. Earlier hold statements below describe the pre-release phase.
 
 ## Executed evidence
 

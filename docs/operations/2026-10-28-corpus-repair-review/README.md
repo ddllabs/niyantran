@@ -1,8 +1,8 @@
-# F257–F260 local review
+# F257–F260 review and release
 
-> **Status: Living.** Local implementation and unapplied repair proposal. Production, publication and ingestion remain held.
+> **Status: Living.** Released through PR #62 / `8f01b348`. Approved existing-document repair applied; new ingestion remains held.
 
-**Release gate:** see [verification](verification.md). Docker recovery and final SQL verification are complete: 59 fixtures and all 59 migration-removal negative controls passed. The local candidate is ready for owner review, not approved for production. Production acceptance, mapping repairs and larger batches remain held.
+**Current evidence:** see the [production release receipt](release.md) and [local verification history](verification.md). The final integrated release passed both required CI jobs. Larger batches remain held.
 
 ## What changes
 
@@ -11,7 +11,7 @@
 - F259: document and row tools enforce attached/selection/desk boundaries on every attempt. Explicit Broad remains available. Record-targeted actions reset stale broad focus; a subsequent deliberate scope choice is preserved. Verified Parliamentary subjects outrank MP display names.
 - F260: empty markup, headings, placeholders, notices and citation-only output cannot become a successful stored answer. Failed output clears answer sources, retains usage accounting and reports an error. Existing attribution/citation review is preserved; this adds no provider retry loop.
 
-## Proposed existing-document repairs
+## Reviewed existing-document repairs
 
 Read-only inventory captured 2026-10-27 19:06:57–19:12:12 UTC (28 October IST). IDs are cutoff-bound; pages are separate SQL snapshots, not one MVCC transaction. Each candidate carries the full current row/document/chunk fingerprint; apply must recheck it and the explicitly expected source-URL peer set. Ingestion/publication must be paused during reviewed repair execution. No re-OCR, re-embedding or chunk replacement is proposed.
 
@@ -24,7 +24,7 @@ Read-only inventory captured 2026-10-27 19:06:57–19:12:12 UTC (28 October IST)
 | Held for incomplete indexing | 1,116 |
 | Held for unsupported/unverified source identity | 82 |
 
-Hold reasons overlap for those 82; do not sum reason counts. This is a frozen review proposal, not a statement that live counts stopped changing. Already registered but incomplete inputs must not be re-ingested to repair mapping.
+Hold reasons overlap for those 82; do not sum reason counts. This is the frozen inventory used for the approved repair, not a statement that live counts stopped changing. Already registered but incomplete inputs must not be re-ingested to repair mapping.
 
 | Reported record | Existing document ID | Listing row keys |
 |---|---|---|
@@ -57,7 +57,7 @@ node --test scripts/record-mapping-repair.test.mjs
 node scripts/record-mapping-repair.mjs --inventory ingest/f257-review-20261028/inventory --out /tmp/new-mapping-review
 ```
 
-The output is a review-required manifest and summary. The script has no database client or network execution mode. After separate owner approval, its `--plan FILE --sql NEW_FILE --approval SHA256 --decision-id ID --approver NAME --max-associations N` mode renders SQL only. Never invent approval values or execute the output under the current hold.
+The output is a review-required manifest and summary. The script has no database client or network execution mode. After separate owner approval, its `--plan FILE --sql NEW_FILE --approval SHA256 --decision-id ID --approver NAME --max-associations N` mode renders SQL only. Never invent approval values. The recorded repair has already been applied; any new manifest needs separate approval.
 
 The service-only mapping apply RPC binds source identity, reviewed row content, text hash, metadata, index/chunk state and expected URL peers. Idempotent repeats require the same decision/evidence. `record_mapping_remove` supports exact-evidence association rollback and recounts surviving links; it never deletes corpus content. Ambiguous/unmatched inputs remain held.
 
@@ -65,9 +65,9 @@ The service-only mapping apply RPC binds source identity, reviewed row content, 
 
 Focused SQL tests use real local pgvector, authenticated RLS and migration-omission vacuity. Synthetic 44,027-chunk recovery measurements: default planner p50 959 ms, p95 1,958 ms, max 4,960 ms; a separately forced planner/concurrency run averaged 83 ms with 40/40 successes. These are different cache/planner scenarios, not a production SLA or a guarantee for 18 million documents. A 1 ms deadline raises cancellation, not false absence.
 
-Local mocked browser coverage exercises National, State, Law, Economics and Growth plus unmapped, partial and revoked controls. It is not live NTER or natural-language provider acceptance. No paid model calls were made.
+Local mocked browser coverage exercises National, State, Law, Economics and Growth plus unmapped, partial and revoked controls. Those tests are distinct from the subsequent live NTER checks recorded in the release receipt.
 
-Before production: finish all local verification, review code and this exact repair manifest, obtain publication/deployment/repair authorization, pass required CI, deploy migrations/functions/UI together, run bounded authenticated NTER acceptance, and only then consider authorizing a new ingestion cohort. Keep the client's corpus branch intact. No larger batch is authorized by this work.
+The owner authorized review, publication, deployment and the verified existing repair. PR #62 passed CI and was merged; migrations, research-chat and UI were deployed. Keep the client's corpus branch intact. No larger batch is authorized by this work.
 
 ## Mapping maintenance and remaining boundaries
 

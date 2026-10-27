@@ -1,6 +1,6 @@
 # F257–F260 local implementation
 
-> **Status: Living.** Owner approved implementation and local tests; all production mutation, publication and ingestion remain held.
+> **Status: Living.** Released through PR #62 / `8f01b348`, 2026-10-28, with approved mapping repairs. New ingestion remains held. Original task sequence below records the local phase; [release receipt](../operations/2026-10-28-corpus-repair-review/release.md) supersedes its earlier production holds.
 
 Base origin/main dc2b4118. Isolated checkout protects active persona work. Spec: ../specs/2026-10-28-corpus-record-retrieval-contract.md.
 
