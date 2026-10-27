@@ -80,6 +80,9 @@ m() { echo "$MIG/$1"; }
 # fixture name -> container, then the ordered bootstrap files.
 chain() {
   case "$1" in
+    persona_prompts)
+      CONTAINER=$PLAIN
+      FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(as_non_superuser 20261027175415_admin_persona_prompts.sql)") ;;
     law_listing)
       chain supplied_text
       FILES+=("$(as_non_superuser 20261023184450_law_listing_publication.sql)") ;;

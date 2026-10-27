@@ -401,7 +401,8 @@ Deno.test('a persona_probe reaches the persona lookup with the caller', async ()
     },
   } as Partial<HandlerDeps>);
   await frames(await handleResearchChat(post({ ...BODY, persona_probe: 'journalist' }), deps));
-  assertEquals(asked, [['user-1', 'journalist']]);
+  assertEquals(asked.map(args => args.slice(0, 3)), [['user-1', 'journalist', undefined]]);
+  assertEquals(typeof asked[0][3], 'function');
 });
 
 Deno.test('the same turn_key twice answers duplicate before any provider call', async () => {
@@ -4096,4 +4097,27 @@ Deno.test('F256 attached observation keeps its verified row identity in server-r
   assertEquals(rec.messages[0].status, 'complete');
   assertStringIncludes(rec.messages[0].content, 'value: 7.57');
   assert(!rec.messages[0].content.includes('stale 9%'));
+});
+
+Deno.test('a non-pilot editor override is rejected before claiming or calling a model', async () => {
+  const provider = scripted([]);
+  const { deps, rec } = fakeDeps(provider, { canEditPersona: () => Promise.resolve(false) });
+  const res = await handleResearchChat(post({ ...BODY, persona_probe: 'academic', persona_prompt: 'Unsaved' }), deps);
+  assertEquals(res.status, 403);
+  assertEquals(provider.seen.length, 0);
+  assertEquals(rec.messages.length, 0);
+});
+Deno.test('the pilot editor text reaches the main LLM unchanged and emits its fingerprint', async () => {
+  const exact = ' \nPilot exact π\n ';
+  const provider = scripted([...DECLINES, [text(envelope('Test answer.')), finish()]]);
+  const { deps } = fakeDeps(provider, {
+    canEditPersona: () => Promise.resolve(true),
+    persona: (_id, _probe, override, report) => {
+      report?.({ source: 'editor_test', version: null, hash: 'h'.repeat(64) });
+      return Promise.resolve(override!);
+    },
+  });
+  const out = await frames(await handleResearchChat(post({ ...BODY, persona_probe: 'academic', persona_prompt: exact }), deps));
+  assert(provider.seen.some(req => req.messages.some(m => m.role === 'system' && typeof m.content === 'string' && m.content.includes(`\n\n${exact}\n\nToday`))));
+  assert(out.some(f => 'persona' in f && f.persona.source === 'editor_test'));
 });
