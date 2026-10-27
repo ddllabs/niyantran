@@ -44,3 +44,9 @@ The first focused attempt reached PostgreSQL before crash recovery completed and
 No implementation code changed during this recovery turn. The earlier 6,640 application tests, 1,423 Edge tests, lint, build, router and client-script checks remain applicable. SQL execution used synthetic disposable databases only; no hosted migration, mapping repair, ingestion, provider request, publication or deployment occurred. The local candidate is ready for owner review, not production-accepted. Working changes remain uncommitted on `task/corpus-record-contract`.
 
 Recovery logs are retained under ignored `ingest/f257-review-20261028/verification-logs/`: `f257-sql-recovery-focused.log` (startup failure), `f257-sql-recovery-focused-ready.log`, and `f257-sql-recovery-full.log`.
+
+## Release review — 2026-10-28 IST
+
+Owner authorized PR, merge after CI, production deployment, verified association repairs and cross-desk NTER checks. Larger batches remain held. Integrated current main (persona rollout) in f2541a73; retained both sets of regression tests. Independent mapping/SQL and UI/server reviews found no blocker. Integrated application suite: 6,649 tests in 436 files; Edge suite: 1,440 passed; lint/build/router passed. Full integrated SQL suite and CI are pending.
+
+Read-only hosted revalidation checked all 5,638 approved associations in groups of 250 against full row/document/chunk fingerprints and source URL peers: zero stale/conflicting associations. The manifest remains SHA-256 102b734567d764aa354c838a7e1e3df292f444bfedcd3ea4d84d96f94c9beac7. This is preflight evidence; apply must still recheck under transaction locks. No mappings applied at this point.
