@@ -134,3 +134,10 @@ it('with an empty allowedLinks (a streaming answer), no link is clickable; witho
   expect(renderToStaticMarkup(<AiMarkdown allowedLinks={[]} streaming sources={[]} text="[x](https://pib.gov.in/x)"/>)).not.toContain('<a ');
   expect(renderToStaticMarkup(<AiMarkdown text="[x](https://pib.gov.in/x)"/>)).toContain('<a href="https://pib.gov.in/x"');
 });
+
+it('F261 renders a table inside a list item with citations and URL safety',()=>{
+ const html=renderToStaticMarkup(<AiMarkdown text={'- **Parts (a) & (b):** Summary [1]:\n\n  | Period | Amount |\n  |---|---|\n  | First | **12.5** [1] |\n  | Total | [Details](https://evil.invalid/) <img src=x onerror=alert(1)> |\n\n  Separately, another detail.\n\n- **Part (c):** Next.'} sources={[source]} allowedLinks={[]}/>);
+ expect(html).toContain('<table>');expect(html).toContain('<th>Period</th>');expect(html).toContain('<td><strong>12.5</strong>');
+ expect(html).toContain('cite-bubble');expect(html).not.toContain('|---|');expect(html).not.toContain('<img');expect(html).not.toContain('href=');
+ expect(html).toMatch(/<li>.*<table>.*<\/table>.*Separately, another detail.*<\/li>/);expect(html.match(/<li>/g)).toHaveLength(2);
+});

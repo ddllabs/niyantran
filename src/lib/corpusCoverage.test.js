@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { COVERAGE_TTL_MS, coverageOf, documentModules, indexedDocumentKeys, recheckCoverage, refreshCoverage, resetCoverageCache, webDefaultFor } from './corpusCoverage.js';
+import { COVERAGE_TTL_MS, coverageOf, recordAvailability, documentModules, indexedDocumentKeys, recheckCoverage, refreshCoverage, resetCoverageCache, webDefaultFor } from './corpusCoverage.js';
 
 /** A Supabase query chain that answers with `rows`, recording what it was asked. */
 function client(rows, { error = null, calls = [] } = {}) {
@@ -416,4 +416,55 @@ it('F257 a stale indexed Bill key cannot give a mapped tuple a false Full text b
  found.add('bill:2007:70');
  expect(coverageOf(chip,found)).toBe('unmapped');
  expect(db.rpc).toHaveBeenCalledWith('record_resolve_document_keys',{p_keys:['desk-record:["national","Bills","current-row"]']});
+});
+
+it('F261 distinguishes metadata-only, missing stored record and full-text lookup error', async () => {
+ const key='desk-record:["national","Parliamentary Question Database","q1"]';
+ const chip={kind:'row',document_key:key};
+ const db={rpc:vi.fn(async()=>({data:[{document_key:key,coverage:'unmapped'}],error:null}))};
+ expect(recordAvailability(chip,await refreshCoverage([key],db))).toEqual({record:'stored',text:'unmapped'});
+ db.rpc.mockResolvedValue({data:[],error:null});
+ expect(recordAvailability(chip,await refreshCoverage([key],db))).toEqual({record:'snapshot',text:null});
+ resetCoverageCache();
+ db.rpc.mockResolvedValue({data:null,error:{message:'offline'}});
+ expect(recordAvailability(chip,await refreshCoverage([key],db))).toEqual({record:'unknown',text:'error'});
+});
+
+it('F261 a failed periodic text check keeps metadata capability without claiming stale full text',async()=>{
+ const key='desk-record:["national","Parliamentary Question Database","q2"]';
+ const chip={kind:'row',document_key:key};
+ const db={rpc:vi.fn(async()=>({data:[{document_key:key,coverage:'full'}],error:null}))};
+ await refreshCoverage([key],db);
+ db.rpc.mockRejectedValue(new Error('network'));
+ expect(recordAvailability(chip,await recheckCoverage([key],db))).toEqual({record:'stored',text:'error'});
+ db.rpc.mockResolvedValue({data:[{document_key:key,coverage:'unavailable'}],error:null});
+ expect(recordAvailability(chip,await refreshCoverage([key],db))).toEqual({record:'stored',text:'unavailable'});
+});
+
+it('F261 a failed refresh preserves a known snapshot without promoting it to stored metadata',async()=>{
+ const key='desk-record:["national","Parliamentary Question Database","missing"]';
+ const chip={kind:'row',document_key:key};
+ const db={rpc:vi.fn(async()=>({data:[],error:null}))};
+ await refreshCoverage([key],db);
+ db.rpc.mockRejectedValue(new Error('offline'));
+ expect(recordAvailability(chip,await refreshCoverage([key],db))).toEqual({record:'snapshot',text:'error'});
+});
+
+it('F261 an older success cannot promote snapshot identity after a newer lookup fails',async()=>{
+ const key='desk-record:["national","Parliamentary Question Database","race"]';
+ const chip={kind:'row',document_key:key};
+ await refreshCoverage([key],{rpc:async()=>({data:[],error:null})},()=>0);
+ let finish;
+ const old=refreshCoverage([key],{rpc:()=>new Promise(resolve=>{finish=resolve;})},()=>10);
+ await refreshCoverage([key],{rpc:async()=>({data:null,error:{message:'offline'}})},()=>20);
+ finish({data:[{document_key:key,coverage:'full'}],error:null});await old;
+ expect(recordAvailability(chip,new Set())).toEqual({record:'snapshot',text:'error'});
+});
+
+it('F261 successful recovery clears a prior lookup error with a ticking real-time clock',async()=>{
+ const key='desk-record:["national","Parliamentary Question Database","recovery"]';
+ const chip={kind:'row',document_key:key};let tick=0;const now=()=>++tick;
+ await refreshCoverage([key],{rpc:async()=>({data:null,error:{message:'offline'}})},now);
+ const indexed=await refreshCoverage([key],{rpc:async()=>({data:[{document_key:key,coverage:'full'}],error:null})},now);
+ expect(recordAvailability(chip,indexed)).toEqual({record:'stored',text:'full'});
 });

@@ -4,11 +4,9 @@ import { titleCaseCaps } from './feedText.js';
 
 /**
  * Parliamentary Question Database → record panel (F124 N3). Rows are the Lok Sabha question register
- * (Digital Sansad): who asked which ministry what, and on what date. The register holds no answer
- * text and an empty status on every row, so the lifecycle ends in an answer that is "not on record"
- * and no badge is drawn unless a row really carries a status. The analysis pack (ctx.packs, loaded
- * by the panel host) adds a short brief, why it matters and watch-for for the few questions it
- * covers. Pure and synchronous: it reads the saved pack only and never fetches or generates anything.
+ * (Digital Sansad): who asked which ministry what, and on what date. Register
+ * answer fields and current accessible corpus coverage are independent. Saved
+ * register analysis remains labelled as such; nothing is fetched or generated here.
  */
 const MAX_RELATED = 3;
 const ISO_DATE = /^\d{4}-\d{2}(-\d{2})?([T ].*)?$/;
@@ -43,6 +41,15 @@ function memberIndex(rows) {
 }
 
 export default function nationalQuestions(row, ctx = {}) {
+  const textState = {
+    error: 'Text lookup failed', full: 'Full text available', partial: 'Partial text available',
+    unmapped: 'No verified text link', registered: 'Text not indexed',
+    incomplete: 'Text index incomplete', held: 'Text link under review',
+    unavailable: 'Linked text inaccessible', snapshot: 'Stored record unverified',
+  }[ctx.coverage] || 'Text coverage unverified';
+  const coverageNote = ctx.coverage === 'full'
+    ? 'Linked full text is indexed and accessible. Ask AI to inspect the answer; register answer fields remain independent.'
+    : 'The question register describes the question, not the ministry answer. Text coverage is checked separately; missing register fields do not establish answer absence.';
   const packs = ctx.packs?.ready ? ctx.packs : null;
   const a = packs ? analysisFor(row, packs.analysis) : null;
 
@@ -101,6 +108,7 @@ export default function nationalQuestions(row, ctx = {}) {
 
   return {
     title: subject || 'Question',
+    briefContext: 'Based on register fields, not retrieved answer text. This saved brief may describe earlier coverage; use Ask AI to check current text coverage.',
     meta: [house, type ? `${type} question` : ''].filter(Boolean),
     badge: status && status !== 'source_status' ? { text: sentence(status), tone: 'grey' } : undefined,
     links: sourceLinks(row, isPdf ? 'Question (PDF)' : 'Source on Sansad'),
@@ -112,9 +120,9 @@ export default function nationalQuestions(row, ctx = {}) {
         right: asOf ? `register as of ${asOf}` : undefined,
         steps: [
           { label: 'Tabled', detail: tabled || 'Date not on record', done: true },
-          { label: 'Answer', detail: 'Not on record' },
+          { label: 'Answer', detail: textState },
         ],
-        caption: "The register holds no answer text, so the ministry's answer is not on record here.",
+        caption: coverageNote,
       },
     },
     about: {
@@ -141,7 +149,7 @@ export default function nationalQuestions(row, ctx = {}) {
         asOf,
         flags: [...(asOf ? [] : ['as-of not on record']), ...provenanceFlags(row)],
       },
-      note: `A question is a member's claim, not a finding: the premise in it is the member's own and is not verified here. The ministry's answer is not on record here.`,
+      note: `A question is a member's claim, not a finding: the premise in it is the member's own and is not verified here. ${coverageNote}`,
     },
   };
 }

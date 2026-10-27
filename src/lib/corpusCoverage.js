@@ -12,9 +12,16 @@ export const COVERAGE_TTL_MS = 60_000;
  * the question.
  */
 const known = new Map();
+const lookupErrors = new Map();
+const recordStates = new Map();
+const latestLookup = new Map();
+let lookupSequence = 0;
 
 export function resetCoverageCache() {
   known.clear();
+  lookupErrors.clear();
+  recordStates.clear();
+  latestLookup.clear();
   modulesRequest = null;
 }
 
@@ -28,25 +35,24 @@ function fresh(key, now) {
 
 /**
  * Asks the database about `keys` in one request and records the answers. A
- * failed request records nothing. An answer lands only if no newer lookup has
- * answered the key meanwhile, so a slow request cannot undo a refresh.
+ * failed request records a separate lookup error, never a negative coverage answer.
+ * Only the latest lookup for a key may update text or metadata capability.
  */
-async function lookUp(keys, client, now) {
+async function performLookup(keys, client, at, sequence) {
   if (!keys.length || !client) return;
-  const at = now();
   const law = keys.filter(k => k.startsWith('law-record:'));
   const records = keys.filter(k => k.startsWith('desk-record:') || k.startsWith('document-id:'));
   const legacy = keys.filter(k => !k.startsWith('law-record:') && !k.startsWith('desk-record:') && !k.startsWith('document-id:'));
   const states = new Map();
   for (let i = 0; i < records.length; i += 24) {
     const result = await client.rpc('record_resolve_document_keys', { p_keys: records.slice(i, i + 24) });
-    if (result.error) return;
+    if (result.error) return false;
     for (const row of result.data || []) states.set(row.document_key, row.coverage);
   }
   const answers = [];
   for (let i = 0; i < law.length; i += 12) {
     const result = await client.rpc('law_resolve_document_keys', { p_keys: law.slice(i, i + 12) });
-    if (result.error) return;
+    if (result.error) return false;
     answers.push(...(result.data || []));
   }
   const { data, error } = legacy.length ? await client
@@ -54,11 +60,31 @@ async function lookUp(keys, client, now) {
     .select('metadata->>document_key')
     .in('metadata->>document_key', legacy)
     .not('indexed_at', 'is', null) : { data: [], error: null };
-  if (error) return;
+  if (error) return false;
   const found = new Set([...answers, ...(data || [])].map((r) => r.document_key).filter(Boolean));
   for (const k of keys) {
+    if (latestLookup.get(k) !== sequence) continue;
+    if (k.startsWith('desk-record:') && (!recordStates.has(k) || recordStates.get(k).at <= at)) {
+      recordStates.set(k, { value: states.has(k) ? 'stored' : 'snapshot', at });
+    }
     const prev = known.get(k);
-    if (!prev || prev.at <= at) known.set(k, { value: states.has(k) ? states.get(k) === 'full' : found.has(k), state: states.get(k) || (k.startsWith('desk-record:') || k.startsWith('document-id:') ? 'unavailable' : null), at });
+    if (!prev || prev.at <= at) known.set(k, { value: states.has(k) ? states.get(k) === 'full' : found.has(k), state: states.get(k) || (k.startsWith('desk-record:') ? 'snapshot' : k.startsWith('document-id:') ? 'unavailable' : null), at });
+  }
+  return true;
+}
+
+async function lookUp(keys, client, now) {
+  if (!keys.length || !client) return;
+  const at = now();
+  const sequence = ++lookupSequence;
+  for (const key of keys) latestLookup.set(key, sequence);
+  let ok = false;
+  try { ok = await performLookup(keys, client, at, sequence); } catch { /* A transport failure proves no coverage state. */ }
+  for (const key of keys) {
+    if (latestLookup.get(key) !== sequence) continue;
+    if ((known.get(key)?.at ?? -Infinity) > at || (lookupErrors.get(key) ?? -Infinity) > at) continue;
+    if (ok) lookupErrors.delete(key);
+    else lookupErrors.set(key, at);
   }
 }
 
@@ -145,6 +171,17 @@ export function coverageOf(attachment, indexed, now = Date.now) {
   // The last answer, even past its lifetime: re-querying is the caller's job (indexedDocumentKeys,
   // refreshCoverage), and a badge that blanks every minute tells the reader nothing.
   return known.get(key)?.value === false ? 'row' : null;
+}
+
+/** Record metadata capability is independent of the linked document's readiness.
+ * A successful empty desk RPC means the stored identity was not accessible; it
+ * does not say whether any document exists. Failed lookups establish neither. */
+export function recordAvailability(attachment, indexed) {
+  const key = attachmentCoverageKey(attachment);
+  const text = lookupErrors.has(key) ? 'error' : coverageOf(attachment, indexed);
+  if (!['row', 'record'].includes(attachment?.kind)) return { record: null, text };
+  if (!key) return { record: 'snapshot', text: null };
+  return { record: recordStates.get(key)?.value || 'unknown', text: text === 'snapshot' ? null : text };
 }
 
 /** The one in-flight or settled document_modules() request, or null when none is worth keeping. */

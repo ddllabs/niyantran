@@ -67,7 +67,7 @@ const DOCS_WORK_EN = 'Work mode opens the evidence behind an answer: the passage
 const DOCS_WORK_HI = 'Work mode उत्तर के पीछे का साक्ष्य खोलता है: अंश, या रिकॉर्ड।';
 
 function contextLabel({ attachments, selected, featureName }) {
-  const attached = (attachments || []).map((a) => a.title || a.feature).filter(Boolean);
+  const attached = (attachments || []).map((a) => (/parliamentary question/i.test(a.feature || '') ? a.preview?.subject : '') || a.title || a.feature).filter(Boolean);
   const picked =
     selected?.conflict_name ||
     selected?.bill_name ||

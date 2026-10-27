@@ -6,9 +6,9 @@ import { applyParliamentaryQuestionShapingToFeed } from './shapeQuestions.js';
 const INTERNAL = /archive|wired|Sansad answer fields|Has-answer|missing on every row/i;
 
 describe('the Parliamentary Questions note (F163)', () => {
-  it('says answers are not in the dataset yet when no row records one', () => {
+  it('describes register answer fields without claiming corpus answer absence', () => {
     const note = applyParliamentaryQuestionShapingToFeed({ feature: 'Parliamentary Question Database', rows: [{ title: 'Q1' }, { title: 'Q2' }] }).meta.boardNote;
-    expect(note).toBe('Search covers all 2 questions. Answers are not in this dataset yet, so "Has answer" shows Not reported.');
+    expect(note).toBe('Search covers all 2 questions. "Has answer" describes the question register only; Not reported does not establish whether answer text is available.');
     expect(note).not.toMatch(INTERNAL);
   });
 

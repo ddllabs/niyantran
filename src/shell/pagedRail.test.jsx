@@ -3,9 +3,10 @@
 // record's related rows are asked of the server.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const hooks = vi.hoisted(() => ({ index: 0, overrides: {}, runEffects: false, related: null }));
+const hooks = vi.hoisted(() => ({ index: 0, overrides: {}, runEffects: false, related: null, coverage: null }));
 vi.mock('react', async (original) => ({ ...await original(),
   useState: (init) => {
+    if (hooks.coverage && init?.key === null && 'value' in init) return [hooks.coverage, vi.fn()];
     // useRelatedRows' state, wherever it falls in a component's hooks.
     if (hooks.related && init && typeof init === 'object' && 'key' in init && 'rows' in init) return [hooks.related, vi.fn()];
     const i = hooks.index++; return [i in hooks.overrides ? hooks.overrides[i] : typeof init === 'function' ? init() : init, vi.fn()]; },
@@ -90,4 +91,20 @@ describe('the record panel on a paged module (F156)', () => {
     expect(titles.join(' ')).toMatch(/Server Sent/i);
     expect(titles.join(' ')).not.toMatch(/Page Neighbour/i);
   });
+});
+
+it('F261 the Parliamentary host supplies verified coverage without rewriting register fields',()=>{
+ const selected={id:'q1',subject:'Flood management',mp_name:'Member Name',has_answer:'Not reported'};
+ const feed=paged({feature:'Parliamentary Question Database',rows:[selected],paged:false});
+ const key='desk-record:["national","Parliamentary Question Database","q1"]';
+ hooks.coverage={key,value:'full'};
+ const tree=RailContent({view:'record',feed,selected,onSelect:vi.fn(),loading:false});
+ const host=nodes(tree).find(n=>typeof n.type==='function'&&n.props?.adapter);
+ const panel=host.type(host.props);
+ expect(panel.props.model.glance.visual.steps[1].detail).toBe('Full text available');
+ expect(selected.has_answer).toBe('Not reported');
+ hooks.coverage={key:'another-record',value:'full'};
+ const other=host.type(host.props);
+ expect(other.props.model.glance.visual.steps[1].detail).toBe('Text coverage unverified');
+ hooks.coverage=null;
 });

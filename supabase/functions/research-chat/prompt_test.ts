@@ -590,3 +590,7 @@ Deno.test('the exact persona bytes survive the prompt sandwich, including outer 
   const p = buildSystemPrompt({ persona, today: 'today', catalogue: '', focus: 'attached' });
   assertStringIncludes(p, `${PERSONA_PREAMBLE}\n\n${persona}\n\nToday is today.`);
 });
+
+Deno.test('F261 synthesis is not labelled verbatim without an exact retrieved quotation',()=>{
+ assertStringIncludes(SYSTEM_PROMPT_STATIC,'Do not label a synthesis, summary or reconstructed table as verbatim');
+});
