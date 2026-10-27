@@ -1,10 +1,10 @@
 # Message for the corpus ingestion agent
 
-> **Status: Living.** 2026-10-28. F257–F260 released through PR #62; existing reviewed mappings applied. New ingestion and larger batches remain held.
+> **Status: Living.** 2026-10-28. F257–F260 released through PR #62 and F261 through PR #64; existing reviewed mappings applied. New ingestion and larger batches remain held.
 
 ## Copyable message
 
-Keep ingestion and collection expansion paused. Preserve your corpus branch, checkpoints and receipts. Fetch `origin/main`, confirm it contains merge `8f01b348de0ff3edf7fd457a81f474515369d15b` (PR #62), and work on a separate task branch. Integrate main deliberately; do not discard uncommitted work, rewrite shared history, or touch another agent's branch. Follow AGENTS.md: leave a scoped reviewable diff unless separately authorized to publish it.
+Keep ingestion and collection expansion paused. Preserve your corpus branch, checkpoints and receipts. Fetch `origin/main`, confirm it contains merge `69922e738d34b0bcfc690656f0c78ef1bc95bee6` (PR #64), including PR #62, and work on a separate task branch. Integrate main deliberately; do not discard uncommitted work, rewrite shared history, or touch another agent's branch. Follow AGENTS.md: leave a scoped reviewable diff unless separately authorized to publish it.
 
 ### Read first
 
@@ -12,6 +12,7 @@ Keep ingestion and collection expansion paused. Preserve your corpus branch, che
 - `docs/plans/open-work.md` and `docs/specs/2026-10-28-corpus-record-retrieval-contract.md`.
 - `docs/operations/2026-10-28-corpus-repair-review/README.md`, `verification.md` and `release.md` in that folder.
 - `docs/operations/supplied-text-import.md`, `docs/operations/law-listing-backend-contract.md`, `docs/operations/law-listing-client-guide.md`.
+- `docs/specs/2026-10-28-f261-record-availability.md` and `docs/operations/2026-10-28-f261-release.md`.
 - Existing ingestion scripts and their tests; `scripts/record-mapping-repair.mjs` and `scripts/record-mapping-repair.test.mjs`.
 
 ### What went wrong
@@ -40,6 +41,10 @@ Preserve full URL identity, validate metadata and text hashes, bind reviewed row
 
 Verify authenticated Full text coverage, generic attached-record questions, exact document scope in traces, substantive answers, accurate attribution, citations and reader navigation, plus registration and mapping idempotency. Test missing/partial/held/revoked records as well as successes. Preserve checkpoints and enforce document, chunk and spend limits. A successful indexing job alone is not completion.
 
-The Parliamentary register's old answer-status copy, cached record briefs and MP-named attachment suggestions are tracked separately as F261. Do not mistake that text for missing vectors or attempt re-ingestion to correct it.
+F261 is now released: Parliamentary record panels show current text coverage separately from source-register answer fields; cached briefs explain their metadata-only basis; new and saved attachment labels use question subjects. Nested Markdown tables render with citations. Prompt guidance distinguishes synthesis from exact quotations. Do not regenerate OCR or embeddings to correct display text.
+
+Treat capability states precisely. Full text requires current accessible indexed documents through verified mappings; partial, held and incomplete states remain distinct. Record only means usable stored metadata with no currently usable full-text mapping. Record snapshot means the stored row identity could not be verified; do not promote it to server-citable metadata. A lookup error is unknown, not proof of absence and not permission to invent a mapping. Automatic web context is separate from attached-document evidence and explicit web overrides remain binding. Source-register has_answer fields are not an embedding-status API.
+
+Do not patch shared frontend/server/search code or the separate F262 empty-chat history issue from the ingestion task. Report platform defects with evidence to the supervisor. The completed F261 checks do not authorize new ingestion or certify every future collection.
 
 No queue resumes, new batches, re-ingestion, production mappings, schema changes, merges or deployments are authorized by this message. Return the reconciliation and proposed script changes for review. The recommended next release is a bounded 100-document validation cohort, followed by 1,000 only after acceptance and explicit owner approval. Neither cohort is authorized yet.
