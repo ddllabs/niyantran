@@ -33,6 +33,7 @@ export function AiPersonasPage() {
   const dirty = Boolean(state && text !== state.draft_text);
   const history = data?.history.filter(e => e.persona === dbPersona(typeId)) ?? [];
   const status = personaEditorState(state, text);
+  const publication = history.find(e => e.revision_id === state?.active_id && ['initialize', 'publish', 'rollback'].includes(e.action));
 
   async function operation(action) {
     setBusy(true); setError(''); setNotice('');
@@ -72,7 +73,7 @@ export function AiPersonasPage() {
         <button className="adm-btn" disabled={busy} onClick={() => operation('initialize')}>Initialize baseline versions</button></div> :
       <div className="adm-persona-work" role="tabpanel" id="adm-persona-panel" aria-labelledby={`adm-persona-tab-${typeId}`}>
         <div className="adm-card">
-          <p className="adm-hint" role="status">{status} · Active {state?.active_id} · revision {state?.generation}</p>
+          <p className="adm-hint" role="status">{status} · Active {state?.active_id} · revision {state?.generation}<br />Published: {publication ? <time dateTime={publication.created_at}>{new Date(publication.created_at).toLocaleString()}</time> : 'date unavailable in recent history'}</p>
           <label className="adm-field"><span>{meta.label} · {bytes.toLocaleString()} / 100,000 bytes</span>
             <textarea className="adm-persona-body" value={text} spellCheck={false} name="persona-prompt" disabled={busy}
               onChange={e => { const value = e.target.value; setEditors(map => ({ ...map, [typeId]: value })); setNotice(''); }} />

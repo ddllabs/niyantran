@@ -5,11 +5,17 @@ import { functionsUrl } from './supabaseClient.js';
 export async function adminPersonas(input, { signal } = {}) {
   const identity = await verifiedLocalIdentity();
   if (!identity || !await localIdentityIsCurrent(identity)) throw new Error('Sign in with the pilot admin account.');
-  const response = await fetch(functionsUrl('admin-personas'), {
-    method: input ? 'POST' : 'GET', signal,
-    headers: { authorization: `Bearer ${identity.token}`, 'content-type': 'application/json' },
-    ...(input ? { body: JSON.stringify(input) } : {}),
-  });
+  let response;
+  try {
+    response = await fetch(functionsUrl('admin-personas'), {
+      method: input ? 'POST' : 'GET', signal,
+      headers: { authorization: `Bearer ${identity.token}`, 'content-type': 'application/json' },
+      ...(input ? { body: JSON.stringify(input) } : {}),
+    });
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    throw new Error('Persona service could not be reached. Your editor text is retained; reload server versions before retrying.');
+  }
   const data = await response.json().catch(() => ({}));
   if (!await localIdentityIsCurrent(identity)) throw new Error('Account changed. Reload the persona editor.');
   if (!response.ok) {

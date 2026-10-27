@@ -26,3 +26,10 @@ describe('server persona editor', () => {
     await expect(adminPersonas()).rejects.toThrow('Account changed');
   });
 });
+
+it('turns a transport failure into an actionable message without losing editor text', async () => {
+  verifiedLocalIdentity.mockResolvedValue({id:'pilot',token:'fixture'});
+  localIdentityIsCurrent.mockResolvedValue(true);
+  vi.stubGlobal('fetch',vi.fn(async()=>{throw new TypeError('Failed to fetch');}));
+  await expect(adminPersonas()).rejects.toThrow('Your editor text is retained; reload server versions before retrying.');
+});
