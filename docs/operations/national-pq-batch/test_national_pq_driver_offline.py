@@ -144,5 +144,45 @@ class Driver(unittest.TestCase):
             g['submit_tranche'](P, 'T1')
 
 
+    def test_section_runs_batches_until_no_eligible_answer_remains(self):
+        g, db = self.g, self.db
+        g['NATIONAL'] = self.tmp.name
+        g['SECTION_LOG'] = pathlib.Path(self.tmp.name) / 'staging' / 'pq-section-status.json'
+        g['setup'] = lambda sha: None
+        real_importer = g['importer']
+
+        def importer(corpus, decisions, report, *extra):
+            if '--submit' not in extra:
+                return real_importer(corpus, decisions, report, *extra)   # dry runs use the real importer
+            plan = json.loads((pathlib.Path(report).parents[1] / 'plan.json').read_text())
+            n = 0
+            for line in open(corpus):
+                r = json.loads(line)
+                if not any(x['source_key'] == r['source_key'] for x in db['documents']):
+                    i = 'id-' + r['source_key'][:8]
+                    db['documents'].append({'id': i, 'source_key': r['source_key'], 'file_url': r['file_url'], 'file_name': r['file_name'],
+                                            'content_sha256': r['text_sha256'], 'ocr_text': r['text'], 'desk_tier': 'national',
+                                            'desk_feature': g['P_'].FEATURE, 'origin': 'supplied-text', 'indexed_at': '2026-10-27T16:00:00Z'})
+                    db['chunks'][i] = plan['plan_rows'][r['source_key']]['chunks']
+                n += 1
+            s = {'type': 'summary', 'submitted': n, 'uncertain': 0, 'held': 0, 'registration_held': 0}
+            pathlib.Path(report).write_text(json.dumps(s) + '\n')
+            return 0, [s]
+        g['importer'] = importer
+        last = g['run_section']('test', 'Tamanesh Kauri (test)', first=2)
+        self.assertTrue(last['event'].startswith('finished'))
+        log = json.loads(g['SECTION_LOG'].read_text())['log']
+        self.assertIn((4, 'no eligible answer remains; section complete'), [(x.get('batch'), x['event']) for x in log])
+        self.assertEqual([(x['batch'], x['event']) for x in log if x['event'] in ('submitted', 'verified')],
+                         [(2, 'submitted'), (2, 'verified'), (3, 'submitted'), (3, 'verified')])
+        self.assertEqual(len([d for d in db['documents'] if d.get('origin') == 'supplied-text']), 8)  # 9 records, 1 held
+        b3 = json.loads((pathlib.Path(self.tmp.name) / 'staging' / 'pq-batch-03' / 'plan.json').read_text())
+        self.assertEqual((b3['decision'], b3['docs']), ('owner-authorized-20261027-national-pq-b03', 4))
+        self.assertTrue((pathlib.Path(self.tmp.name) / 'staging' / 'pq-batch-03' / 'ledger-national-pq-b03.csv').exists())
+        # a rerun resumes from the recorded state and submits nothing new
+        g['importer'] = lambda *a: self.fail('nothing left to submit') if '--submit' in a else real_importer(*a)
+        self.assertTrue(g['run_section']('test', 'Tamanesh Kauri (test)', first=2)['event'].startswith('finished'))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=1)

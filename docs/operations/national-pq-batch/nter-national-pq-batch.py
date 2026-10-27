@@ -10,6 +10,11 @@
 #   MODE = 'submit' per tranche: presence check -> submit (resume an incomplete submission by re-reading the database)
 #                   -> wait for indexing -> per-document verification (text hash, chunks, vectors, section, URL, desk row)
 #                   -> ledger (status verified). Stops at the end of the batch.
+#   run_section()   batches 2, 3, ... (owner, 2026-10-27 21:10 IST: "Go ahead and keep doing all in this section"):
+#                   each batch is planned, dry-run and submitted exactly as above, from what is still eligible after the
+#                   earlier batches; a batch's registrations also drive the indexing of the one before, which is verified
+#                   as soon as it is fully indexed. A failed verification stops new submissions. The run ends when no
+#                   eligible answer remains; held answers stay held.
 # Any deviation stops with the reason in status.json; reports are never overwritten; every step is resumable.
 import base64, csv, glob, gzip, hashlib, http.client, io, json, os, pathlib, re, subprocess, tarfile, time, urllib.error, urllib.parse, urllib.request, zipfile
 from collections import Counter
@@ -38,6 +43,19 @@ PQ_CORE = 'docs/operations/national-pq-batch/nter-national-pq-core.py'
 
 class Stop(Exception):
     pass
+
+
+class Exhausted(Exception):
+    """No eligible answer remains in the pack (everything else is stored or held)."""
+
+
+def configure(n, approver=None):
+    """Point the driver at batch n: its decision prefix and its own staging folder."""
+    global BATCH, DECISION, ST, APPROVER
+    BATCH, DECISION = n, f'owner-authorized-20261027-national-pq-b{n:02d}'
+    ST = pathlib.Path(NATIONAL + f'/staging/pq-batch-{n:02d}')
+    if approver:
+        APPROVER = approver
 
 
 def sha(p):
@@ -326,17 +344,19 @@ def plan():
             holds['over answer-read limits'] += 1; continue
         if len(sel) < DOCS:
             sel.append(r)
-    if len(sel) < DOCS:
+    if len(sel) < DOCS and len(elig) > len(probe):
         raise Stop(f'only {len(sel)} eligible documents in the probe; widen PROBE')
+    if not sel:
+        raise Exhausted()
     T = {}
-    for ti in range(0, DOCS, TRANCHE):
+    for ti in range(0, len(sel), TRANCHE):
         t = f'T{ti // TRANCHE + 1}'
         rs = sel[ti:ti + TRANCHE]
         T[t] = {'docs': len(rs), 'chunks': sum(chunks[r['source_key']] for r in rs), 'keys': [r['source_key'] for r in rs]}
     plan_rows = {r['source_key']: {'chunks': chunks[r['source_key']], 'text_sha256': r['content_sha256'], 'url': r['file_url'],
                                    'row_keys': [str(l['row_key']) for l in r['links']], 'file_name': r['file_name']} for r in sel}
     P = {'batch': BATCH, 'decision': DECISION, 'approver': APPROVER, 'repo_sha': REPO_SHA, 'pack_sha256': ZIP_SHA, 'member_sha256': member_sha,
-         'rules_sha256': P_.RULES_SHA256, 'docs': DOCS, 'chunks': sum(v['chunks'] for v in T.values()), 'tranches': T, 'holds': dict(holds),
+         'rules_sha256': P_.RULES_SHA256, 'docs': len(sel), 'chunks': sum(v['chunks'] for v in T.values()), 'tranches': T, 'holds': dict(holds),
          'hold_examples': examples, 'eligible_before_chunking': len(elig), 'pack_records': len(recs),
          'fingerprint_sorted_key_chunks_text': P_.fingerprint((k, v['chunks'], v['text_sha256']) for k, v in plan_rows.items()),
          'plan_rows': plan_rows}
@@ -356,7 +376,7 @@ def write_ledger(P, by_key, live=None):
             g = (live or {}).get(k) or {}
             w.writerow(P_.ledger_row(BATCH, t, order, by_key[k], P['plan_rows'][k]['chunks'], g.get('status', 'planned'),
                                      g.get('id', ''), g.get('indexed_at', '')))
-    p = ST / 'ledger-national-pq-b01.csv'
+    p = ST / f'ledger-national-pq-b{BATCH:02d}.csv'
     tmp = p.with_name(p.name + '.tmp'); tmp.write_text(out.getvalue(), encoding='utf-8'); tmp.replace(p)
 
 
@@ -550,3 +570,99 @@ def run(mode, repo_sha):
         forget_creds()
         _SECRETS.clear()
     return load_state().get('last')
+
+
+# ─── the rest of the section ───────────────────────────────────────────────
+SECTION_LOG = pathlib.Path(NATIONAL + '/staging/pq-section-status.json')
+
+
+def section_status(**kw):
+    s = json.loads(SECTION_LOG.read_text()) if SECTION_LOG.exists() else {'started_at': now(), 'log': []}
+    s['log'].append({'at': now(), **kw}); s['last'] = {'at': now(), **kw}
+    write_json(SECTION_LOG, s)
+    print(json.dumps({'at': now(), **kw}, default=str)[:900], flush=True)
+
+
+def _verify_batch(n, approver):
+    configure(n, approver)
+    P = json.loads((ST / 'plan.json').read_text())
+    res = verify(P, records_for(P))
+    if res['problems'] or not res['fingerprint_matches_plan']:
+        raise Stop(f"batch {n}: verification failed for {res['problem_count']} documents")
+    status(event='verified', docs=res['docs'], chunks=res['chunks'], fingerprint=res['fingerprint'])
+    section_status(batch=n, event='verified', docs=res['docs'], chunks=res['chunks'], fingerprint=res['fingerprint'])
+
+
+def _indexed(n, approver):
+    configure(n, approver)
+    keys = list(json.loads((ST / 'plan.json').read_text())['plan_rows'])
+    got = signed(docs_for, keys)
+    return sum(1 for k in keys if (got.get(k) or {}).get('indexed_at')), len(keys)
+
+
+def _phase(n):
+    p = pathlib.Path(NATIONAL + f'/staging/pq-batch-{n:02d}/status.json')
+    log = json.loads(p.read_text()).get('log', []) if p.exists() else []
+    events = {x.get('event') for x in log}
+    return 'verified' if 'verified' in events else 'submitted' if 'all tranches submitted' in events else None
+
+
+def run_section(repo_sha, approver, first=2, last=99):
+    """Batches first..last until the pack has no eligible answer left; see the header."""
+    setup(repo_sha)
+    pending = []
+    try:
+        n = first
+        while n <= last:
+            configure(n, approver)
+            ph = _phase(n)
+            if ph == 'verified':
+                n += 1; continue
+            if ph != 'submitted':
+                try:
+                    out = plan()
+                except Exhausted:
+                    section_status(batch=n, event='no eligible answer remains; section complete')
+                    break
+                P, by_key = out if isinstance(out, tuple) else (out, records_for(out))
+                if not all(v.get('manifest_sha256') for v in P['tranches'].values()):
+                    dry_runs(P, by_key)
+                section_status(batch=n, event='planned', docs=P['docs'], chunks=P['chunks'], ceiling=P.get('cost_ceiling_usd'),
+                               fingerprint=P['fingerprint_sorted_key_chunks_text'])
+                for t, v in P['tranches'].items():
+                    if sha(ST / t / 'decisions.jsonl') != v['manifest_sha256'] or sha(ST / t / 'corpus.jsonl') != v['corpus_sha256']:
+                        raise Stop(f'batch {n} {t}: manifest or corpus changed since the dry run')
+                for t in P['tranches']:
+                    submit_tranche(P, t)
+                status(event='all tranches submitted', docs=P['docs'])
+                section_status(batch=n, event='submitted', docs=P['docs'], chunks=P['chunks'])
+            pending.append(n)
+            # verify every earlier batch that is fully indexed before starting the next one
+            for m in list(pending):
+                done, total = _indexed(m, approver)
+                if done == total:
+                    _verify_batch(m, approver); pending.remove(m)
+            configure(n, approver)
+            if json.loads((ST / 'plan.json').read_text())['docs'] < DOCS:
+                break  # the last, partial batch
+            n += 1
+        t0 = time.time()
+        while pending:
+            m = pending[0]
+            done, total = _indexed(m, approver)
+            section_status(batch=m, event='indexing', indexed=done, of=total)
+            if done == total:
+                _verify_batch(m, approver); pending.pop(0); continue
+            if (time.time() - t0) / 60 > INDEX_TIMEOUT_MIN * 2:
+                raise Stop(f'batch {m}: only {done}/{total} indexed after {INDEX_TIMEOUT_MIN * 2} minutes')
+            time.sleep(180)
+        section_status(event='finished: every eligible question answer in the section is stored and verified')
+    except Stop as e:
+        section_status(event='STOPPED', reason=str(e))
+    except Exception as e:
+        section_status(event='STOPPED (unexpected error)', reason=f'{type(e).__name__}: {e}'[:600])
+        raise
+    finally:
+        forget_creds()
+        _SECRETS.clear()
+    return json.loads(SECTION_LOG.read_text()).get('last')

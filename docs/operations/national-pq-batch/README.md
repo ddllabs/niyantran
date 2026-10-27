@@ -20,6 +20,12 @@
   Law registration is unchanged. The SQL fixture `supplied_text_national` proves it, as do the Law listing fixtures
   re-run on top of the migration and the unchanged Deno and importer suites.
 
+- **The rest of the section.** Tamanesh Kauri, chat, 2026-10-27 21:10 IST, after batch 1: "Go ahead and keep doing all
+  in this section." `run_section()` runs batches 2, 3, … with decision prefixes `owner-authorized-20261027-national-pq-bNN`,
+  each in its own staging folder `pq-batch-NN/`, until no eligible answer remains. Each batch is checked and
+  dry-run exactly like batch 1. Answers on hold stay held. A failed verification stops new submissions. Progress is
+  logged in `staging/pq-section-status.json`.
+
 ## Where the documents go on nter.pro
 
 - **Section.** Each document is stored as `documents.desk_tier = 'national'`,
