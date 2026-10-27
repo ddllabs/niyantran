@@ -49,3 +49,12 @@ describe('runPersonaProbe', () => {
     expect(send).not.toHaveBeenCalled();
   });
 });
+
+it('sends unsaved text exactly and returns the server prompt fingerprint', async () => {
+  const exact = '  Persona π\n ';
+  const meta = {source:'editor_test',version:null,hash:'a'.repeat(64)};
+  const send = vi.fn(async () => sse([{persona:meta},{chunk:'answer'},'[DONE]']));
+  const result = await runPersonaProbe({typeId:'academic',promptText:exact,message:'Test'}, {send});
+  expect(send.mock.calls[0][0].body.persona_prompt).toBe(exact);
+  expect(result.personaMeta).toEqual(meta);
+});

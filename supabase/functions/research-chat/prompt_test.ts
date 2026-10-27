@@ -584,3 +584,9 @@ Deno.test('F256: web provenance and economic period instructions do not invent a
   assertStringIncludes(SYSTEM_PROMPT_STATIC, 'A year label alone does not establish calendar-year or fiscal-year');
   assertStringIncludes(SYSTEM_PROMPT_STATIC, 'update date is not the observation period');
 });
+
+Deno.test('the exact persona bytes survive the prompt sandwich, including outer whitespace', () => {
+  const persona = ' \nExact persona π\n  ';
+  const p = buildSystemPrompt({ persona, today: 'today', catalogue: '', focus: 'attached' });
+  assertStringIncludes(p, `${PERSONA_PREAMBLE}\n\n${persona}\n\nToday is today.`);
+});

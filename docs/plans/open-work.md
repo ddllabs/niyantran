@@ -13,6 +13,7 @@
 
 
 
+
 - [ ] **F252 — Law provider-tail latency and uncertainty calibration (deferred future work).** Owner deferred on 2026-10-25; not a blocker for unrelated work. Resume only under a new scoped task, using observed slow requests/timeouts to prioritize.  F251's compact-evidence optimization and source corrections are released, but wider latency is not solved: Navinchandra timed out at120s in a private run, retried in96s; Jet took87.705s on NTER with most time inside two provider calls. A private Globiz date response also had unnecessary uncertainty despite sufficient evidence, although final live date passed. Investigate using measured, bounded comparisons; preserve High reasoning, attribution/citations, correction limits and cost accounting. Prior latency/throughput routing experiments were rejected; do not reintroduce them without new evidence. No ingestion or larger batches. [F251 evidence](../operations/law-answer-qualification-release.md).
 
 - [ ] **F246 — Law baseline source-membership refresh.** Canonical seeding captures a reviewed snapshot; protected legacy refreshes cannot add, change or remove its source-only memberships. Before claiming ongoing official-register coverage, specify and implement a provenance-checked membership refresh with stable identities, explicit retirement policy, audit evidence and tests preserving corpus attachments. This is separate from automatic publication of newly admitted supported corpus documents. Other forum adapters, revisions/translations and compound fallback also remain outside the first NCLT adapter. No current ingestion authorization.
@@ -1446,6 +1447,8 @@ orientation list is compared item by item in the
 
 
 ## 1. Done
+
+- [x] **Published AI personas for all users — 2026-10-28 (`88140bd3`, PR #61).** Owner-authorized rollout: active users consume their own published persona; only active platform admins manage drafts, tests, publication and rollback. Migration applied, admin-personas v2/research-chat v106 verified, global consumption enabled, all six prompt hashes/revisions preserved. Full local app/Edge tests and required CI jobs passed; production frontend assignment remains behind the protected merge checks. [Spec](../specs/2026-10-28-persona-global-rollout.md), [release evidence](2026-10-28-persona-global-rollout.md).
 
 - [x] **F243 — Globiz NCLT listing released.** PR #14 merged `258827a0`; branch, PR and main app/SQL CI passed. Production domain serves 435 rows; guarded one-row mirror correction applied. Company/case searches return exactly one order. All 434 old rows and Globiz document/80 chunks/job fingerprints unchanged. No re-ingestion or paid calls. [Evidence](2026-10-23-globiz-listing.md).
 

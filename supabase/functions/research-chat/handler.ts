@@ -1,3 +1,4 @@
+import type { ResolvedPersona } from '../_shared/personaPilot.ts';
 import { reviewLawAnswer, lawReviewReasoning, LAW_REVIEW_RESERVE_MS } from './lawAnswer.ts';
 import { hasAnswerContent, placeholderAnswer, placeholderPrefix } from './answerValidation.ts';
 // The research turn (streaming spec §E). Framework-free and dependency
@@ -241,7 +242,8 @@ export interface HandlerDeps {
   plan(userId: string): Promise<ProfilePlan | null>;
   pricing(modelId: string): Promise<Pricing | null>;
   /** The system persona prompt; `probe` is the admin persona probe, honoured only for admins. */
-  persona(userId: string, probe?: string): Promise<string>;
+  persona(userId: string, probe?: string, override?: string, report?: (meta: Omit<ResolvedPersona, 'text'>) => void): Promise<string>;
+  canEditPersona?(userId: string): Promise<boolean>;
   catalogue(tier?: string): string;
   /** Desk modules with indexed source documents, as the exact
    * `(desk_tier, desk_feature)` pairs `documents` holds. Read from the corpus,
@@ -381,6 +383,11 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
     return json({ error: 'invalid request', fieldErrors: validated.fieldErrors }, 400, headers);
   }
   const request = validated.request;
+  if (request.persona_prompt !== undefined) {
+    try {
+      if (!await deps.canEditPersona?.(caller.userId)) return json({ error: 'Persona editing requires an active platform admin' }, 403, headers);
+    } catch { return json({ error: 'Persona access unavailable' }, 503, headers); }
+  }
 
   const identity = {
     ownerId: caller.userId,
@@ -895,9 +902,14 @@ async function runTurnBody(
   const messageId = context.claim.assistant.id;
   // 2. Prompt inputs.
   const handles = createHandleAssigner();
+  const activity: unknown[] = [];
   const evidence: EvidenceMap = new Map();
   const [persona, history] = await Promise.all([
-    deps.persona(caller.userId, request.persona_probe),
+    deps.persona(caller.userId, request.persona_probe, request.persona_prompt, meta => {
+      sender.send({ persona: meta });
+      activity.push({ type: 'persona', ...meta });
+      context.checkpoint({ activity: [...activity] });
+    }),
     deps.db.recentMessages(conversation.id, [context.claim.user_message_id, context.claim.assistant.id]),
   ]);
   signal.throwIfAborted();
@@ -1053,7 +1065,6 @@ async function runTurnBody(
 
   // 4. Run the loop, streaming as it goes.
   const decoder = createAnswerDecoder();
-  const activity: unknown[] = [];
   let streamed = '';
   let searchMs = 0;
   let writingStart = 0;

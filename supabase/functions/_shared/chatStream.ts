@@ -20,6 +20,7 @@ export type WebReason =
 export type ToolPhase = 'start' | 'end';
 
 export type ChatFrame =
+  | { persona: { source: string; version: string | null; hash: string; reason?: string } }
   | { conversation: { id: string; title: string } }
   | { reasoning: string }
   | { tool: { name: string; phase: ToolPhase; input?: unknown; step: number; resultCount?: number; searches?: number; latencyMs?: number; status?: 'ok' | 'error' | 'cancelled'; requestedTopK?: number; embeddingMs?: number; retrievalMs?: number; found?: { document_id: string; title: string; pages: number[] }[] } }
@@ -53,6 +54,7 @@ export type ChatFrame =
 
 /** The frame names, for exhaustiveness checks and the client-side parser. */
 export const CHAT_FRAME_KEYS = [
+  'persona',
   'conversation',
   'reasoning',
   'tool',

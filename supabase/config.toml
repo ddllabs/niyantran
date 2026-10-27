@@ -449,3 +449,6 @@ verify_jwt = false
 # Dictation verifies the caller through Auth and checks the active profile before OpenAI.
 [functions.transcribe-audio]
 verify_jwt = false
+
+[functions.admin-personas]
+verify_jwt = false

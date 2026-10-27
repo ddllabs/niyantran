@@ -2,6 +2,7 @@
 // browser sends is untrusted: the selection and the attachments are rendered
 // into the prompt, and the document keys are resolved against the corpus, so
 // they are shape-checked and bounded here before any of that happens.
+import { validatePersonaText } from '../_shared/personaPilot.ts';
 import { PERSONA_MAP } from '../_shared/personaMap.ts';
 
 export const FOCUS_VALUES = ['attached', 'selection', 'desk', 'broad'] as const;
@@ -76,6 +77,8 @@ export interface ResearchRequest {
   desk_context?: { tier: string; feature?: string };
   /** Admin persona probe: an app_persona value. research-chat honours it only for a platform admin. */
   persona_probe?: string;
+  /** Exact editor text, allowed only for a verified active platform admin. */
+  persona_prompt?: string;
   /** The composer globe's override for this conversation (web-search spec §1). Absent: the stored
    * choice applies, or automatic when there is none. */
   web_search?: boolean;
@@ -213,6 +216,15 @@ export function validateRequest(body: unknown): { request: ResearchRequest } | {
     } else personaProbe = b.persona_probe;
   }
 
+  let personaText: string | undefined;
+  if (b.persona_prompt !== undefined) {
+    try {
+      validatePersonaText(b.persona_prompt);
+      if (!personaProbe) throw new Error('persona_probe required');
+      personaText = b.persona_prompt;
+    } catch { fieldErrors.persona_prompt = 'A persona probe and nonblank prompt of at most 100,000 UTF-8 bytes are required'; }
+  }
+
   let webSearch: boolean | undefined;
   if (b.web_search !== undefined && b.web_search !== null) {
     if (typeof b.web_search !== 'boolean') fieldErrors.web_search = 'web_search must be a boolean';
@@ -232,6 +244,7 @@ export function validateRequest(body: unknown): { request: ResearchRequest } | {
       attachments,
       ...(deskContext ? { desk_context: deskContext } : {}),
       ...(personaProbe ? { persona_probe: personaProbe } : {}),
+      ...(personaText !== undefined ? { persona_prompt: personaText } : {}),
       ...(webSearch === undefined ? {} : { web_search: webSearch }),
     },
   };

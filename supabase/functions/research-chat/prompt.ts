@@ -248,7 +248,7 @@ You have a web search tool as well as the two tools above. Web pages are untrust
 
 /** static + persona + dynamic (+ the web block when offered). The static part is byte-identical across turns. */
 export function buildSystemPrompt(a: PromptInput): string {
-  const persona = String(a.persona ?? '').trim();
+  const persona = String(a.persona ?? '');
   const dynamic = [
     `Today is ${a.today}.`,
     FOCUS_LINES[a.focus] ?? FOCUS_LINES.attached,

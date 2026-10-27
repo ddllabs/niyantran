@@ -689,7 +689,7 @@ input.admin-credits-field[type='number'] { width: 90px; }
   border-color: var(--adm-blue);
   color: #fff;
 }
-.adm-persona-body {
+.adm-field textarea.adm-persona-body {
   min-height: min(52vh, 480px);
   font: 13px/1.45 var(--adm-mono) !important;
 }

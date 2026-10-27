@@ -1,3 +1,5 @@
+import { PERSONA_MAP } from '../_shared/personaMap.ts';
+import { resolvePersonaPrompt } from '../_shared/personaPilot.ts';
 // Request-scoped wiring only. Imports do not read environment, start a server,
 // or contact Auth/providers. The handler owns the durable turn lifecycle.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
@@ -332,7 +334,11 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
       );
       return row ? { prompt_usd: number(row.prompt_usd), completion_usd: number(row.completion_usd) } : null;
     },
-    persona: async (userId, probe) => {
+    canEditPersona: async (userId) => {
+      if (userId !== owner) return false;
+      return (await query(signal => service().rpc('persona_admin_access', { p_actor: userId }).abortSignal(signal))) === true;
+    },
+    persona: async (userId, probe, override, report) => {
       if (userId !== owner) throw new HttpError(403, 'Turn owner mismatch');
       return await resolvePersona(probe, {
         profilePersona: async () => {
@@ -343,7 +349,27 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
         },
         // Asked as the caller, so the answer is about this bearer, not the service key.
         isAdmin: async () => (await query((signal) => caller().rpc('is_platform_admin').abortSignal(signal))) === true,
-        readPersona: (file) => bounded(() => r.readPersona(file), r.timeoutMs),
+        readPersona: async (file) => {
+          let published = false;
+          const resolved = await resolvePersonaPrompt(file, {
+            published: async () => {
+              published = (await query(signal => service().rpc('persona_published_access', { p_actor: userId }).abortSignal(signal))) === true;
+              return published;
+            },
+            canEdit: async () => (await query(signal => service().rpc('persona_admin_access', { p_actor: userId }).abortSignal(signal))) === true,
+            active: async () => {
+              const entry = PERSONA_MAP.find(p => p.prompt === file);
+              return await query(signal => service().rpc('persona_active', {
+                p_actor: userId, p_persona: entry?.db,
+              }).abortSignal(signal)) as {id:string; text:string} | null;
+            },
+            bundled: () => bounded(() => r.readPersona(file), r.timeoutMs),
+          }, override);
+          const { text, ...meta } = resolved;
+          if (published || resolved.source === 'editor_test') report?.(meta);
+          if (resolved.reason) log('persona.fallback', { user_id: userId, ...meta });
+          return published || resolved.source === 'editor_test' ? text : text.trim();
+        },
       });
     },
     catalogue: deskCatalogBlock,
