@@ -9,7 +9,7 @@ import { dbPersona } from './personaMap.js';
 import { readSseFrames } from './researchChat.js';
 
 export async function runPersonaProbe(
-  { typeId, message, conversationId = null, signal },
+  { typeId, message, promptText, conversationId = null, signal },
   { send = sendResearchTurn, frames = readSseFrames } = {},
 ) {
   const persona = dbPersona(typeId);
@@ -25,6 +25,7 @@ export async function runPersonaProbe(
       focus: 'attached',
       attachments: [],
       persona_probe: persona,
+      ...(promptText !== undefined ? { persona_prompt: promptText } : {}),
       ...(conversationId ? { conversation_id: conversationId } : {}),
     },
   });
@@ -35,9 +36,11 @@ export async function runPersonaProbe(
 
   let answer = '';
   let model = '';
+  let personaMeta;
   let conversation = conversationId;
   for await (const frame of frames(response, signal)) {
-    if (frame.conversation?.id) conversation = frame.conversation.id;
+    if (frame.persona) personaMeta = frame.persona;
+    else if (frame.conversation?.id) conversation = frame.conversation.id;
     else if (typeof frame.chunk === 'string') answer += frame.chunk;
     else if (frame.patch && Number.isInteger(frame.patch.from) && typeof frame.patch.text === 'string') {
       answer = answer.slice(0, frame.patch.from) + frame.patch.text;
@@ -45,5 +48,5 @@ export async function runPersonaProbe(
     else if (typeof frame.error === 'string') throw new Error(frame.error);
   }
   if (!answer.trim()) throw new Error('Empty response from AI research service');
-  return { text: answer, model, conversationId: conversation };
+  return { text: answer, model, conversationId: conversation, ...(personaMeta ? { personaMeta } : {}) };
 }
