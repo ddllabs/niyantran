@@ -1,0 +1,227 @@
+{
+ "decision": "owner-authorized-20261026-law-auto-b09",
+ "approver": "Tamanesh Kauri (standing approval for 5 batches, 2026-10-26 21:07 IST)",
+ "inputs": {
+  "ingestion_scripts": "cf3e753",
+  "driver": "docs/operations/law-autopilot/nter-law-autopilot.py",
+  "driver_runs": [
+   {
+    "commit": "590419a62492792aebf8e45c3e5bc183642199be",
+    "sha256": "6869cfbfe379416fd71ba36d5d4f0832864f82fea02ca18cca445538d8feb8f9",
+    "covered": "plan, dry run, T1 submit-1, refused resume"
+   },
+   {
+    "commit": "8b3133fd78cffe7fc03fddc3728c8660e69e791f",
+    "sha256": "673f72d32dd825131abc2edd7e4e3ff5a09da4e32d3cfba36527c65f71e98ab6",
+    "covered": "T1 resume, T2-T5, indexing, verification"
+   }
+  ],
+  "core_sha256": "f99814a4d9db27c8572b5c72dc8f39c799a22eda6898c9e9b82ce0086cba6797",
+  "plan_json_sha256": "2cb73a31c768c25bd3d3df48e470206cc356560eb8844c747779fac72d537e4a",
+  "cohort_tsv_sha256": "93d37fa1d417619cfde3eb508a6e0bc02cc8e1410e54c39da16c7c6b6b369bc6",
+  "members_screened": [
+   "2023__part-00001",
+   "2023__part-00002",
+   "2023__part-00003",
+   "2023__part-00004",
+   "2023__part-00005",
+   "2023__part-00006",
+   "2023__part-00007",
+   "2023__part-00008",
+   "2023__part-00009"
+  ]
+ },
+ "selection_holds": {
+  "no case number": 1492,
+  "near-duplicate text": 15,
+  "over answer-read limits": 3,
+  "not an official order PDF URL": 1
+ },
+ "tranches": {
+  "T1": {
+   "members": [
+    "2023__part-00001",
+    "2023__part-00002",
+    "2023__part-00003",
+    "2023__part-00004",
+    "2023__part-00005"
+   ],
+   "docs": 205,
+   "chunks": 3630,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.19231,
+   "manifest_sha256": "e711a84f824466059cd5b650dbffb728e73559eebcd59667e4607cf459c18f86",
+   "mismatches": 0,
+   "uncertain_final": 0,
+   "held": 0,
+   "registered_utc": "23:03–00:04",
+   "embed_tokens": 859349,
+   "embed_cost_usd": 0.017187,
+   "submissions": [
+    {
+     "report": "submit-1.jsonl",
+     "note": "first importer attempt exited before writing (pre-write retry after 90 s); the retried run registered 122, then one uncertain status read stopped it (23:08)"
+    },
+    {
+     "reconcile": "reconcile-2 (driver 590419a)",
+     "note": "resume refused: 13 documents registered seconds before the stop were not yet published, so the API could not show them and their text hash could not be checked; stopped 23:14, nothing written"
+    },
+    {
+     "report": "submit-2.jsonl (driver 8b3133f)",
+     "submitted": 83,
+     "already_registered": 122,
+     "uncertain": 0,
+     "note": "resumed 23:48; all 122 visible and matching the plan text hash; 83 registered; complete 00:04"
+    }
+   ]
+  },
+  "T2": {
+   "members": [
+    "2023__part-00005",
+    "2023__part-00006",
+    "2023__part-00007"
+   ],
+   "docs": 205,
+   "chunks": 4412,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.234083,
+   "manifest_sha256": "e7ac10714ecf2489f4ac5f21145c0adba2457cc83e3cd1b3c20b25e01b693b80",
+   "mismatches": 0,
+   "uncertain_final": 0,
+   "held": 0,
+   "registered_utc": "00:11–00:19",
+   "embed_tokens": 1029965,
+   "embed_cost_usd": 0.020599
+  },
+  "T3": {
+   "members": [
+    "2023__part-00007"
+   ],
+   "docs": 205,
+   "chunks": 5028,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.267257,
+   "manifest_sha256": "78ee235aa9df53f01d3423dbd4d0af6a402c9b8655a149010a2b5633ce818f5d",
+   "mismatches": 0,
+   "uncertain_final": 0,
+   "held": 0,
+   "registered_utc": "00:26–00:34",
+   "embed_tokens": 1175228,
+   "embed_cost_usd": 0.023505
+  },
+  "T4": {
+   "members": [
+    "2023__part-00007",
+    "2023__part-00008"
+   ],
+   "docs": 205,
+   "chunks": 5129,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.272147,
+   "manifest_sha256": "efa7f24a19b2983a29d139c42b85b53f4ae5f256cde2513eeb429cbf4f8fbee3",
+   "mismatches": 0,
+   "uncertain_final": 0,
+   "held": 0,
+   "registered_utc": "00:41–00:48",
+   "embed_tokens": 1196291,
+   "embed_cost_usd": 0.023926
+  },
+  "T5": {
+   "members": [
+    "2023__part-00008",
+    "2023__part-00009"
+   ],
+   "docs": 180,
+   "chunks": 4019,
+   "create": 180,
+   "link": 0,
+   "cost_ceiling": 0.213556,
+   "manifest_sha256": "ef4c7747f03d9d5be62ab02cfd09f2f122d13538895bbb77e5c0f75eb4114a96",
+   "mismatches": 0,
+   "uncertain_final": 0,
+   "held": 0,
+   "registered_utc": "00:55–01:01",
+   "embed_tokens": 950672,
+   "embed_cost_usd": 0.019013
+  }
+ },
+ "verification": {
+  "docs": 1000,
+  "indexed": 1000,
+  "published": 1000,
+  "chunks": 22218,
+  "missing_vectors": 0,
+  "non_1536_vectors": 0,
+  "stored_text_hash_valid": 1000,
+  "one_job_each": 1000,
+  "jobs_succeeded": 1000,
+  "ocr_pages": 0,
+  "listing_url_equals_order_url": 1000,
+  "one_membership_each": 1000,
+  "distinct_records": 1000,
+  "one_document_per_record": 1000,
+  "new_listings_created": 1000,
+  "cohort_fingerprint_sha256": "1d4823101605607caaee01116cc50f0b1ac606ff0c694dbae546e09c1f2296fd",
+  "cohort_fingerprint_matches": true,
+  "autopilot_verify": "verified 2026-10-27T02:23:57Z",
+  "same_case_and_date_groups_with_batch9_docs": 0,
+  "same_case_and_date_groups_total": 6,
+  "possible_duplicate_or_overlapping_pairs_for_owner_review": [
+   {
+    "keys": [
+     "9a4c2ee179c4082b",
+     "1b551478588dfa33"
+    ],
+    "title": "Dharti Dredging and Infrastructure Limited",
+    "note": "both 2023-07-20, both batch 9, same CP 329/7/HDB/2020; 48 of the 49 chunks of the shorter order (I.A. 385/2023, resolution plan approval) recur in the 174-chunk order; case strings differ and sizes differ >3x, so neither the same-case hold nor the near-duplicate hold compared them"
+   }
+  ],
+  "other_shared_chunk_note": "62ee577e1cfe7e6b / 17f76dc37b3c9f31 share 4 of 11 chunks: different companies (Ecoman Enviro, Transtreasure Services), standard wording"
+ },
+ "cost": {
+  "embed_tokens": 5211505,
+  "embed_cost_usd": 0.1042301,
+  "ceiling_usd": 1.179353,
+  "ocr_or_chat_spend": 0
+ },
+ "deltas": {
+  "documents": [
+   8569,
+   9569
+  ],
+  "chunks": [
+   271848,
+   294066
+  ],
+  "law_documents": [
+   5110,
+   6110
+  ],
+  "law_records": [
+   5439,
+   6439
+  ],
+  "memberships": [
+   5545,
+   6545
+  ],
+  "links": [
+   5110,
+   6110
+  ],
+  "publications": [
+   5110,
+   6110
+  ]
+ },
+ "timing_utc": {
+  "planned": "2026-10-26 22:51:24",
+  "first_job": "2026-10-26 23:03:30",
+  "last_indexed": "2026-10-27 02:18:27",
+  "verified": "2026-10-27 02:23:57"
+ }
+}
