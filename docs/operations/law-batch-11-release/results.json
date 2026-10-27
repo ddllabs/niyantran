@@ -1,0 +1,198 @@
+{
+ "decision": "owner-authorized-20261026-law-auto-b11",
+ "approver": "Tamanesh Kauri (standing approval for 5 batches, 2026-10-26 21:07 IST)",
+ "inputs": {
+  "ingestion_scripts": "cf3e753",
+  "driver": "docs/operations/law-autopilot/nter-law-autopilot.py",
+  "driver_commit": "ea40c445f3fa308396c58cda0ab7702fbe1d8955",
+  "driver_sha256": "282068c2febaff46fcf76d14f91cc7c99fa7a74eea4a4b35b74d408d13f697a2",
+  "core_sha256": "19299c5248128240b18e5134f2929cddfe60658f7e79d88d040d44cf96defe63",
+  "plan_json_sha256": "17560dfc3e082070a583c3f03d1342e5e1d7917273d9bc7c36f9ad04f6be6a0b",
+  "cohort_tsv_sha256": "762bc65811112d49ec17898d6f0f4bc0485ad481526d822cbb637eb1f1476387",
+  "members_screened": [
+   "2022__part-00006",
+   "2022__part-00007",
+   "2022__part-00008",
+   "2022__part-00009",
+   "2022__part-00010",
+   "2022__part-00011",
+   "2022__part-00012",
+   "2022__part-00013",
+   "2022__part-00014",
+   "2021__part-00001",
+   "2021__part-00002",
+   "2021__part-00003",
+   "2021__part-00004",
+   "2021__part-00005",
+   "2021__part-00006",
+   "2021__part-00007",
+   "2021__part-00008",
+   "2021__part-00009",
+   "2021__part-00010",
+   "2021__part-00011",
+   "2021__part-00012",
+   "2020__part-00001",
+   "2020__part-00002",
+   "2020__part-00003",
+   "2020__part-00004",
+   "2020__part-00005",
+   "2020__part-00006",
+   "2020__part-00007",
+   "2020__part-00008",
+   "2020__part-00009",
+   "2020__part-00010",
+   "2020__part-00011",
+   "2020__part-00012",
+   "2020__part-00013",
+   "2019__part-00001",
+   "2019__part-00002",
+   "2019__part-00003",
+   "2019__part-00004",
+   "2019__part-00005",
+   "2019__part-00006",
+   "2019__part-00007",
+   "2019__part-00008",
+   "2019__part-00009",
+   "2019__part-00010",
+   "2019__part-00011",
+   "2019__part-00012",
+   "2019__part-00013",
+   "2018__part-00001",
+   "2017__part-00001",
+   "2017__part-00002",
+   "2017__part-00003"
+  ],
+  "pack_exhausted": true,
+  "next_cursor": 79
+ },
+ "selection_holds": {
+  "no case number": 3428,
+  "over answer-read limits": 7,
+  "near-duplicate text": 4,
+  "not an official order PDF URL": 19,
+  "possible duplicate order (same case number and order date)": 2
+ },
+ "selected_by_year": {
+  "2022": 131,
+  "2021": 104,
+  "2020": 122,
+  "2019": 67,
+  "2018": 12,
+  "2017": 3
+ },
+ "tranches": {
+  "T1": {
+   "members_first_last": [
+    "2022__part-00006",
+    "2021__part-00008"
+   ],
+   "member_count": 17,
+   "docs": 194,
+   "chunks": 3650,
+   "create": 194,
+   "link": 0,
+   "cost_ceiling": 0.193819,
+   "manifest_sha256": "7332926341e0629b3f42f4701a3a05aa10f311c661f790155cf8440f0ce8126d",
+   "mismatches": 0,
+   "submissions": 1,
+   "uncertain": 0,
+   "held": 0,
+   "registered_utc": "07:07–07:14",
+   "embed_tokens": 857079,
+   "embed_cost_usd": 0.017142,
+   "note": "first read-only reconcile exited before writing (one HTTP 503 on a mapping request, 06:56); the pre-write retry ran it again after 90 s and it passed"
+  },
+  "T2": {
+   "members_first_last": [
+    "2021__part-00009",
+    "2017__part-00003"
+   ],
+   "member_count": 31,
+   "docs": 245,
+   "chunks": 5626,
+   "create": 245,
+   "link": 0,
+   "cost_ceiling": 0.30014,
+   "manifest_sha256": "fe5b3698378804712633bfb9d990ee9153a4a8daece488f35462d819b5f0c9a8",
+   "mismatches": 0,
+   "submissions": 1,
+   "uncertain": 0,
+   "held": 0,
+   "registered_utc": "07:23–07:32",
+   "embed_tokens": 1300961,
+   "embed_cost_usd": 0.026019
+  }
+ },
+ "verification": {
+  "docs": 439,
+  "indexed": 439,
+  "published": 439,
+  "chunks": 9276,
+  "missing_vectors": 0,
+  "non_1536_vectors": 0,
+  "stored_text_hash_valid": 439,
+  "one_job_each": 439,
+  "jobs_succeeded": 439,
+  "ocr_pages": 0,
+  "listing_url_equals_order_url": 439,
+  "one_membership_each": 439,
+  "distinct_records": 439,
+  "one_document_per_record": 439,
+  "new_listings_created": 439,
+  "cohort_fingerprint_sha256": "6d68007eb65cc4af369cfaf92d9318130b2e7c129c311817fc61338cbdac44f5",
+  "cohort_fingerprint_matches": true,
+  "autopilot_verify": "verified 2026-10-27T08:29:08Z; run finished (batches 7-11)",
+  "same_case_and_date_groups_with_batch11_docs": 0,
+  "same_case_and_date_groups_total": 6,
+  "possible_duplicate_or_overlapping_pairs_for_owner_review": [],
+  "shared_chunk_note": "69d80dd946b6133a / 9696555fa3753a21 share 2 of 4 chunks: Bank of Baroda petitions against different respondents (standard wording)",
+  "metadata_note": "69d80dd946b6133a is CP (IB)-714(MB)/2022 but carries order date 2021-12-16 in the pack citation (likely 2022-12-16, as its sibling order); left as supplied"
+ },
+ "cost": {
+  "embed_tokens": 2158040,
+  "embed_cost_usd": 0.0431608,
+  "ceiling_usd": 0.493959,
+  "ocr_or_chat_spend": 0
+ },
+ "deltas": {
+  "documents": [
+   10569,
+   11008
+  ],
+  "chunks": [
+   316713,
+   325989
+  ],
+  "law_documents": [
+   7110,
+   7549
+  ],
+  "law_records": [
+   7439,
+   7878
+  ],
+  "memberships": [
+   7545,
+   7984
+  ],
+  "links": [
+   7110,
+   7549
+  ],
+  "publications": [
+   7110,
+   7549
+  ]
+ },
+ "timing_utc": {
+  "planned": "2026-10-27 06:56:13",
+  "first_job": "2026-10-27 07:07:27",
+  "last_indexed": "2026-10-27 08:23:45",
+  "verified": "2026-10-27 08:29:08"
+ },
+ "autopilot_totals_batches_7_11": {
+  "docs": 4439,
+  "embed_tokens": 25776835,
+  "embed_cost_usd": 0.515537
+ }
+}
