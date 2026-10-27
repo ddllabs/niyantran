@@ -19,8 +19,8 @@ Deno.serve(req => handleAdminPersonas(req, {
     }).abortSignal(AbortSignal.any([req.signal, AbortSignal.timeout(10_000)]));
     if (error) throw new HttpError(error.code === '40001' ? 409 : error.code === '42501' ? 403 : error.code === 'P0002' ? 404 : 503,
       error.code === '40001' ? 'Version conflict. Reload the server version; your editor text has been retained.' : 'Persona operation unavailable');
-    const settings = await serviceClient().from('persona_pilot_settings').select('enabled,global_enabled').eq('singleton', true).single()
-      .abortSignal(AbortSignal.any([req.signal, AbortSignal.timeout(10_000)]));
+    const settings = await serviceClient().from('persona_pilot_settings').select('enabled,global_enabled').eq('singleton', true)
+      .abortSignal(AbortSignal.any([req.signal, AbortSignal.timeout(10_000)])).single();
     if (settings.error) throw new HttpError(503, 'Persona audience unavailable');
     return { ...data, audience: !settings.data.enabled ? 'disabled' : settings.data.global_enabled ? 'all_users' : 'pilot' };
   },
