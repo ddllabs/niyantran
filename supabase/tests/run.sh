@@ -82,7 +82,7 @@ chain() {
   case "$1" in
     persona_prompts)
       CONTAINER=$PLAIN
-      FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(as_non_superuser 20261027175415_admin_persona_prompts.sql)") ;;
+      FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(as_non_superuser 20261027175415_admin_persona_prompts.sql)" "$(as_non_superuser 20261027185300_persona_audit_actor_retention.sql)") ;;
     law_listing)
       chain supplied_text
       FILES+=("$(as_non_superuser 20261023184450_law_listing_publication.sql)") ;;

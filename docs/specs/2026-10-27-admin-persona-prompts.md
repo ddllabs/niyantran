@@ -18,7 +18,7 @@ Provide server-backed drafts, current-text probes, explicit publication, immutab
 
 ## Contracts and acceptance
 
-Service-only storage RPCs enforce atomic expected-revision checks and maintain actor/timestamp history. The authenticated admin-personas function independently verifies identity and admin status. Prompt content is never logged. Only the pilot may send a bounded persona_prompt override to research-chat; other attempts are rejected.
+Service-only storage RPCs enforce atomic expected-revision checks and maintain actor/timestamp history. Audit actors remain historical UUIDs after Auth deletion; deleting the pilot owner clears its owner pointer without deleting history or adding an account-deletion blocker. The authenticated admin-personas function independently verifies identity and admin status. Prompt content is never logged. Only the pilot may send a bounded persona_prompt override to research-chat; other attempts are rejected.
 
 Admin UI distinguishes unsaved, saved and published content, supports prior-version activation, handles conflicts without losing edits, and shows exact source/version/hash for probes. Customers and other admins retain bundled behavior.
 

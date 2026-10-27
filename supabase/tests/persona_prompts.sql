@@ -41,4 +41,9 @@ SELECT pg_temp.assert_true(NOT public.persona_pilot_access('00000000-0000-4000-8
 UPDATE public.persona_pilot_settings SET enabled=true;
 UPDATE public.user_profiles SET status='suspended' where user_id='00000000-0000-4000-8000-000000000001';
 SELECT pg_temp.assert_true(NOT public.persona_pilot_access('00000000-0000-4000-8000-000000000001'),'revoked admin cannot use pilot');
+-- The feature must not block the existing Auth account-deletion lifecycle.
+DELETE FROM auth.users WHERE id='00000000-0000-4000-8000-000000000001';
+SELECT pg_temp.assert_true((SELECT owner_id IS NULL FROM public.persona_pilot_settings),'deleted owner loses pilot eligibility');
+SELECT pg_temp.assert_true((SELECT count(*) FROM public.persona_prompt_revisions WHERE created_by='00000000-0000-4000-8000-000000000001') > 0,'immutable historical actor is retained');
+SELECT pg_temp.assert_true((SELECT count(*) FROM public.persona_prompt_events WHERE actor_id='00000000-0000-4000-8000-000000000001') > 0,'audit events survive account deletion');
 ROLLBACK;
