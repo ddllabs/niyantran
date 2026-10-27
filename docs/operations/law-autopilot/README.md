@@ -42,6 +42,11 @@
    - already in the database by key or URL;
    - same normalized case number and order date as an existing document or an earlier candidate (the first copy is
      kept and later ones are held);
+   - **contained in a same-date order**: when the two texts differ in size by more than 3× (pairs the near-duplicate
+     rule skips) and the order date is the same, at least 80% of the smaller text's shingles must not appear in the
+     larger, compared exactly. MinHash pre-filters, and the smaller side needs at least 50 shingles. Added before
+     batch 11 after one such pair appeared in each of batches 7, 9 and 10: Master Weaver, Dharti Dredging and MSA
+     Developers;
    - **near-duplicate text**, measured as exact shingle containment, checked against ingested documents and earlier
      eligible candidates in the same window. A document is held at ≥ 0.90 together with the same case number, order
      date or PDF hash tail, or at ≥ 0.97 on its own when both texts have at least 300 shingles. MinHash is used only to
@@ -116,6 +121,7 @@ Offline test: `python3 -I test_autopilot_offline.py`. It uses a fake screener, i
 - a resume refused when a registered document's text differs;
 - the 5-report bound;
 - a resume that waits for registered documents to become visible;
+- the same-date containment hold, both end to end and as a unit test;
 - the size guard.
 
 With retries or resumes turned off, the corresponding scenarios stop, as batch 7 T1 did.

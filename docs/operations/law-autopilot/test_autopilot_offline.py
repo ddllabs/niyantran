@@ -278,6 +278,22 @@ s2 = json.loads((M['ST'] / 'b16' / 'T1' / 'submit-2-status.json').read_text())['
 print('not-yet-visible wait ok:', st['batches']['16']['phase'] == 'verified', len(waits) == 2, s2['already_registered'] == 12,
       len(DB) - before == 30, not (M['ST'] / 'b16' / 'T1' / 'submit-3.jsonl').exists())
 HIDE['keys'] = set(); HIDE['left'] = 0
+# 10. a short order contained in a much longer ingested order of the same date is held (batches 7, 9, 10 pattern)
+M['BATCHES'] = [17]
+long_text = ' '.join(random.choice(vocab) for _ in range(4000))
+DB['law:trib:IBBI_NCLT:ibbi_nclt-long000000000001'] = {'id': 'long1', 'source_key': 'law:trib:IBBI_NCLT:ibbi_nclt-long000000000001',
+    'file_url': 'https://ibbi.gov.in/uploads/order/' + 'e' * 32 + '.pdf', 'indexed_at': 'x', 'ocr_text': long_text,
+    'citation': {'case_number': 'CP 999/2024', 'order_date': '2024-03-03'}}
+DB['law:trib:IBBI_NCLT:ibbi_nclt-long000000000001']['content_sha256'] = hashlib.sha256(long_text.encode()).hexdigest()
+short_key = 'law:trib:IBBI_NCLT:ibbi_nclt-20' + '0' * 14
+POOL['2024__part-00020'] = [{'source_key': short_key, 'text': ' '.join(long_text.split()[1000:1500]), 'file_url':
+    'https://ibbi.gov.in/uploads/order/' + 'd' * 32 + '.pdf', 'case': 'IA 12 in CP 999/2024', 'date': '2024-03-03'}] + [
+    {'source_key': f'law:trib:IBBI_NCLT:ibbi_nclt-20{j:014d}', 'text': mk_text(), 'file_url': f'https://ibbi.gov.in/uploads/order/{hashlib.md5(f"20-{j}".encode()).hexdigest()}.pdf',
+     'case': f'CP 20-{j}/2024', 'date': '2024-03-03'} for j in range(1, 40)]
+M['MEMBERS'].insert(json.loads((M['ST'] / 'autopilot-status.json').read_text()).get('cursor', 0), ('documents/tribunals/IBBI_NCLT/2024__part-00020.jsonl.gz', 'x'))
+M['run_batch'](17)
+P17 = json.loads((M['ST'] / 'b17' / 'plan.json').read_text())
+print('contained hold ok:', P17['holds'].get('contained in a same-date order') == 1, short_key not in P17['plan_rows'])
 # 3. very unequal sizes are never compared; a short order fully inside a long one is not held by the estimate alone
 import numpy as np
 big = ' '.join(random.choice(vocab) for _ in range(20000)); small = ' '.join(big.split()[:400])
@@ -285,3 +301,6 @@ reg = {'sigs': np.zeros((0, 256), dtype=np.uint64), 'ns': np.array([]), 'meta': 
 bs = M['C'].shingles(big); M['C'].reg_add(reg, 'big', 'A', '2024-01-01', '', M['C'].minhash(bs), len(bs))
 ss = M['C'].shingles(small)
 print('size guard ok:', M['C'].similar_hold({'case_number': 'A', 'order_date': '2024-01-01', 'file_url': ''}, ss, M['C'].minhash(ss), reg, lambda i: bs) is None)
+cs = M['C'].shingles(small)
+print('contained rule ok:', M['C'].contained_hold({'order_date': '2024-01-01'}, cs, M['C'].minhash(cs), reg, lambda i: bs) is not None,
+      M['C'].contained_hold({'order_date': '2024-02-02'}, cs, M['C'].minhash(cs), reg, lambda i: bs) is None)

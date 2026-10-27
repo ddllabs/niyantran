@@ -453,10 +453,16 @@ def select(n, db, reg):
                        or C.similar_hold(r, sh, sig, batch_reg, lambda j: batch_reg['sh'][j]))
                 if hit:
                     reasons.append('near-duplicate text of ' + hit['key'][-16:] + f" (containment {hit['containment']})")
+                else:
+                    hit = (C.contained_hold(r, sh, sig, reg, db_shingles)
+                           or C.contained_hold(r, sh, sig, batch_reg, lambda j: batch_reg['sh'][j]))
+                    if hit:
+                        reasons.append('contained in a same-date order ' + hit['key'][-16:] + f" (containment {hit['containment']})")
             r['hold_reasons'] = reasons
             if reasons:
                 for x in reasons:
-                    holds['near-duplicate text' if x.startswith('near-duplicate') else x] += 1
+                    holds['near-duplicate text' if x.startswith('near-duplicate')
+                          else 'contained in a same-date order' if x.startswith('contained in') else x] += 1
             else:
                 if len(elig) < DOCS_PER_BATCH:
                     elig.append(r)

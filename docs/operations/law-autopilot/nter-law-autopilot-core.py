@@ -73,6 +73,31 @@ def similar_hold(c, sh, sig, reg, get_sh):
     return None
 
 
+def contained_hold(c, sh, sig, reg, get_sh, min_frac=0.80, min_shingles=50):
+    """A short order contained in a much longer order of the same date (seen in batches 7, 9 and 10: an I.A. order whose
+    text recurs inside the full order). Covers exactly the pairs similar_hold skips: set sizes more than 3x apart and the
+    same order date. MinHash pre-filters (estimated containment >= 0.5); the decision is exact: at least min_frac of the
+    smaller shingle set inside the larger, with at least min_shingles on the smaller side."""
+    n = len(sh)
+    if not len(reg['ns']) or n == 0 or not c.get('order_date'):
+        return None
+    ns = reg['ns']
+    dates = np.array([m['date'] for m in reg['meta']], dtype=object)
+    far = np.maximum(n, ns) > 3 * np.maximum(1, np.minimum(n, ns))
+    cand = np.nonzero(far & (dates == c['order_date']) & (np.minimum(n, ns) >= min_shingles))[0]
+    if not len(cand):
+        return None
+    est = containment(sig, n, reg['sigs'][cand], ns[cand])
+    for j in np.argsort(-est):
+        if est[j] < 0.5:
+            break
+        i = int(cand[j]); other = get_sh(i)
+        exact = len(np.intersect1d(sh, other, assume_unique=True)) / max(1, min(n, len(other)))
+        if exact >= min_frac:
+            return {'key': reg['meta'][i]['key'], 'containment': round(float(exact), 3), 'tie': True}
+    return None
+
+
 def reg_add(reg, key, case, date, url, sig, n, sh=None):
     reg['sigs'] = np.vstack([reg['sigs'], sig[None, :]]) if len(reg['ns']) else sig[None, :].copy()
     reg['ns'] = np.append(reg['ns'], n)
