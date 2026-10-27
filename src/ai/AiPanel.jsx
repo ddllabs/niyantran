@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { setChatAttachments } from '../lib/aiThreads.js';
 import { filesFromDrop, handOffAiDrop, materializeAiDrop, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
-import { documentKey, deskRowKey } from '../lib/deskRows.js';
+import { documentKey, deskRowKey, recordDocumentKey, recordAttachmentIdentity, attachmentCoverageKey } from '../lib/deskRows.js';
 import { COVERAGE_TTL_MS, coverageOf, recheckCoverage, refreshCoverage } from '../lib/corpusCoverage.js';
 import useResearchThread from './useResearchThread.js';
 import './research.css';
@@ -124,7 +124,7 @@ function contextualPrompts({ attachments, selected, featureName }) {
 }
 
 function rowTitle(row) {
-  return row.bill_name || row.title || row.name || row.subject || row.conflict_name || row.commodity || 'Selected record';
+  return row.bill_name || row.subject || row.title || row.name || row.conflict_name || row.commodity || 'Selected record';
 }
 
 /**
@@ -132,16 +132,20 @@ function rowTitle(row) {
  * same bill when their document keys are: `rowPinKey` reads `bill_number`
  * first, and Bill No. 70 of 2007 and Bill No. 70 of 2010 share one.
  */
-export function rowIsPinned(pins, row) {
+export function rowIsPinned(pins, row, tier, feature) {
   if (!row) return false;
-  const doc = documentKey(row);
+  const doc = tier && feature ? recordDocumentKey(tier, feature, deskRowKey(row)) : documentKey(row);
   const key = rowPinKey(row);
   const title = row.bill_name || row.title || row.name;
   return (pins || []).some((a) => {
-    if (a?.kind !== 'row') return false;
-    if (doc && a.document_key) return a.document_key === doc;
+    if (!['row', 'record'].includes(a?.kind)) return false;
+    const identity = recordAttachmentIdentity(a);
+    if (!tier && !feature && doc && a.document_key) return doc === a.document_key;
+    if (tier && identity?.tier !== tier || feature && identity?.feature !== feature) return false;
+    if (doc && identity?.document_key) return identity.document_key === doc;
+    if (identity?.row_key) return identity.row_key === deskRowKey(row);
     if (doc?.startsWith('law-record:')) return Boolean(key && rowPinKey(a.preview || {}) === key);
-    return Boolean((key && rowPinKey(a.preview || {}) === key) || (title && a.title === title));
+    return key ? rowPinKey(a.preview || {}) === key : Boolean(title && a.title === title);
   });
 }
 
@@ -180,10 +184,9 @@ export function requestAttachments(pins) {
       kind: a.kind === 'row' || a.kind === 'record' ? a.kind : 'file',
       title: String(a.title || a.feature || 'Attachment'),
       text: String(a.text || a.preview?.record_text || ''),
-      ...(a.feature ? { feature: a.feature } : {}),
-      ...(a.tab || a.tier ? { tier: a.tab || a.tier } : {}),
-      ...(a.preview ? { row_key: deskRowKey(a.preview) } : {}),
-      ...(a.document_key ? { document_key: a.document_key } : {}),
+      ...(a.feature ? {feature:a.feature} : {}),
+      ...(a.tab || a.tier ? {tier:a.tab || a.tier} : {}),
+      ...(recordAttachmentIdentity(a) || {}),
     }))
     .filter((a) => (a.kind === 'document' ? a.document_id : a.text));
 }
@@ -195,14 +198,14 @@ export function requestAttachments(pins) {
  * the selected row whenever the send would pin it - sent as the selection with a module name, as an
  * attachment without one - and null when it is already a chip or has nothing to send.
  */
-export function webPredictionRecords(pins, selected) {
+export function webPredictionRecords(pins, selected, tier, feature) {
   let selection = null;
   try { selection = selected && selected.status !== 'source_status' ? researchSelection(selected) : null; }
   catch { selection = null; } // the send itself refuses this row and says why
-  const key = selection ? documentKey(selected) : null;
+  const key = selection && tier && feature ? recordDocumentKey(tier, feature, deskRowKey(selected)) : null;
   return {
     attachments: requestAttachments(pins),
-    selectedRecord: selection && !rowIsPinned(pins, selected) ? { kind: 'row', ...(key ? { document_key: key } : {}) } : null,
+    selectedRecord: selection && !rowIsPinned(pins, selected, tier, feature) ? { kind: 'row', ...(key ? { document_key: key, tier, feature, row_key: deskRowKey(selected) } : {}) } : null,
   };
 }
 
@@ -227,8 +230,8 @@ export function focusForDocument(focus) {
 export function confiningCount(attachments, indexed) {
   const seen = new Set();
   for (const a of attachments || []) {
-    if (coverageOf(a, indexed) !== 'full') continue;
-    seen.add(a.kind === 'document' ? `id:${a.document_id}` : `key:${a.document_key}`);
+    if (a.kind !== 'document' && coverageOf(a, indexed) !== 'full') continue;
+    seen.add(a.kind === 'document' ? `id:${a.document_id}` : `key:${attachmentCoverageKey(a)}`);
   }
   return seen.size;
 }
@@ -450,6 +453,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const labelOf = useCallback((id) => registry.models.find((x) => x.model_id === id)?.label || id, [registry.models]);
   const modelChoice = research.choice;
   const seedOwner = useRef(null);
+  const explicitFocusContext = useRef(null);
   const scroller = useRef(null);
   const box = useRef(null);
   const fileRef = useRef(null);
@@ -464,7 +468,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     [state],
   );
   const attachments = chat?.attachments || [];
-  const attachedKeys = attachments.map((a) => a.document_key).filter(Boolean).join('\u0000');
+  const attachedKeys = attachments.map(attachmentCoverageKey).filter(Boolean).join('\u0000');
   useEffect(() => {
     // panel-loading A: a hidden panel stays mounted; its coverage re-check waits until it reopens.
     if (!open) return undefined;
@@ -473,7 +477,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     return stop ?? undefined;
   }, [attachedKeys, open]);
   // F130: the globe's prediction, from the records the next send will carry (webPredictionRecords).
-  const predictionRecords = useMemo(() => webPredictionRecords(chat?.attachments, selected), [chat?.attachments, selected]);
+  const predictionRecords = useMemo(() => webPredictionRecords(chat?.attachments, selected, tab, featureName), [chat?.attachments, selected, tab, featureName]);
   const deskContext = useMemo(
     () => (featureName || tab ? { tier: tab || '', ...(featureName ? { feature: featureName } : {}) } : null),
     [featureName, tab],
@@ -603,6 +607,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       return bits;
     }).then(applied => {
       if (!applied || research.actions.getSnapshot().identityVersion !== version) return;
+      if (seed.row || seed.drop?.kind === 'row' || (!seed.attachFeed && selected)) { setFocus('attached'); setScopeNotice('Attached only — searches stay within these records.'); }
       onSeedConsumed?.();
     });
     return undefined;
@@ -632,10 +637,11 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     if (!research.ready) { void handOffAiDrop(e); return; }
     const payload = readAiDrag(e);
     const files = [...(e.dataTransfer?.files || [])];
-    await research.actions.attach(async () => [
+    const applied = await research.actions.attach(async () => [
       ...(payload ? await materializeAiDrop(payload, { feed, feature: featureName, tier: tab, selected }) : []),
       ...await filesFromDrop({ dataTransfer: { files, items: [] } }),
     ]);
+    if (applied && payload?.kind === 'row') { setFocus('attached'); setScopeNotice('Attached only — searches stay within these records.'); }
   }
 
   async function onPickFiles(e) {
@@ -687,18 +693,20 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     // always pinned it; this one sent the selection and forgot it, so a
     // follow-up asked after a reload - with only the module attached - searched
     // the whole record.
-    if (selection && !rowIsPinned(pins, selected)) {
+    if (selection && !rowIsPinned(pins, selected, tab, featureName)) {
       const bits = await materializeAiDrop(
         { kind: 'row', row: selected, feature: featureName, tab, title: rowTitle(selected) },
         { feed, feature: featureName, tier: tab, selected, hydrate: false },
       );
       if (await research.actions.attach(async () => bits)) pins = [...pins, ...bits];
     }
+    const sendFocus = selectionFocus(focus, selection ? `${current?.id || ''}|${contextKey}` : null, explicitFocusContext.current);
+    if (sendFocus !== focus) { setFocus(sendFocus); setScopeNotice('Attached only — searches stay within these records.'); }
     const sendsSelection = Boolean(selection && featureName);
     const body = {
       ...(current?.id ? { conversation_id: current.id } : {}),
       message: text,
-      focus,
+      focus: sendFocus,
       ...(modelChoice.modelId ? { model: modelChoice.modelId } : {}),
       // An explicit value always, including 'off': the server reads an omitted
       // field as its own default, so omission can no longer mean "no reasoning".
@@ -709,13 +717,13 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               tier: tab || '',
               feature: featureName,
               row: selection,
-              ...(documentKey(selected) ? { document_key: documentKey(selected) } : {}),
+              ...(recordDocumentKey(tab, featureName, deskRowKey(selected)) ? { document_key: recordDocumentKey(tab, featureName, deskRowKey(selected)) } : {}),
             },
           }
         : {}),
       // The selected row's own chip is left out while the selection is sent: the
       // selection carries the same record and key, verified against desk_rows.
-      attachments: requestAttachments(pins.filter((a) => !(sendsSelection && rowIsPinned([a], selected)))),
+      attachments: requestAttachments(pins.filter((a) => !(sendsSelection && rowIsPinned([a], selected, tab, featureName)))),
       ...(featureName || tab ? { desk_context: { tier: tab || '', ...(featureName ? { feature: featureName } : {}) } } : {}),
     };
 
@@ -1011,6 +1019,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                     tabIndex={-1}
                     className={`ai-v2-pop-opt${o.id === focus ? ' on' : ''}`}
                     onClick={() => {
+                      explicitFocusContext.current = `${chat?.id || ''}|${contextKey}`;
                       setFocus(o.id);
                       setFocusOpen(false);
                       setScopeNotice('');
@@ -1243,4 +1252,8 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     {evidence && viewerSlot === undefined ? evidence : null}
     </>
   );
+}
+
+export function selectionFocus(focus, selectionKey, explicitChoiceKey) {
+  return selectionKey && explicitChoiceKey !== selectionKey ? 'attached' : focus;
 }

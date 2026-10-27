@@ -197,7 +197,7 @@ export function turnTraceRows(a: {
   messageId: string;
   steps: TraceStep[];
   web?: WebTraceStep[];
-  answer?: { latencyMs: number; aborted: boolean; error?: string | null };
+  answer?: { latencyMs: number; aborted: boolean; error?: string | null; scope?: Record<string, unknown> };
 }): LinkedTraceRow[] {
   const rows: LinkedTraceRow[] = a.steps.map((s) => ({
     user_id: a.userId,
@@ -241,7 +241,7 @@ export function turnTraceRows(a: {
       message_id: a.messageId,
       step_index: rows.length + 1,
       step_type: 'answer',
-      input: null,
+      input: a.answer.scope ? JSON.stringify(a.answer.scope) : null,
       result_count: null,
       top_similarity: null,
       latency_ms: Math.max(0, Math.round(a.answer.latencyMs)),

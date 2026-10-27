@@ -1,28 +1,6 @@
-/**
- * Which attached records have full text behind them, and which are only a row.
- *
- * A desk row carries `document_key` (`bill:2026:153`); a document carries the
- * same string at `metadata->>'document_key'`. research-chat scopes document
- * search to the keys a turn sends (validate.ts documentKeysOf), so a record
- * whose key matches no indexed document can only ever be answered from its
- * tabular columns - the turn reports "Search widened" and cites desk rows.
- *
- * That is honest but it arrives too late, after the question. Coverage is
- * sparse and unevenly so: of 9,415 distinct desk keys, 1,235 resolve to an
- * indexed document. Nothing in the panel said which kind of record you had
- * attached, so "why did it not read the bill" had no answer on screen.
- *
- * Read live rather than materialised onto desk_rows. The answer changes only
- * when the corpus is ingested, but it is a two-sided fact - the loader writes
- * the rows and the ingest writes the documents - so a stored flag has two
- * writers and can be wrong in a way this cannot. `documents_document_key`
- * already indexes the expression, and a turn attaches at most twelve records.
- *
- * Answers expire (Amendment A, D9). Admins now link, unlink and delete
- * documents from the Documents page, so an answer is trusted for
- * COVERAGE_TTL_MS, and the panel calls `refreshCoverage` when a key is newly
- * attached, so a change shows without a reload.
- */
+/** Coverage uses canonical Law, legacy Bill, and reviewed cross-desk associations.
+ * An unresolved association is not proof that OCR text is absent. */
+import { attachmentCoverageKey } from './deskRows.js';
 import { supabase as defaultClient } from './supabaseClient.js';
 
 /** How long one key's answer is trusted (D9). */
@@ -57,7 +35,14 @@ async function lookUp(keys, client, now) {
   if (!keys.length || !client) return;
   const at = now();
   const law = keys.filter(k => k.startsWith('law-record:'));
-  const legacy = keys.filter(k => !k.startsWith('law-record:'));
+  const records = keys.filter(k => k.startsWith('desk-record:') || k.startsWith('document-id:'));
+  const legacy = keys.filter(k => !k.startsWith('law-record:') && !k.startsWith('desk-record:') && !k.startsWith('document-id:'));
+  const states = new Map();
+  for (let i = 0; i < records.length; i += 24) {
+    const result = await client.rpc('record_resolve_document_keys', { p_keys: records.slice(i, i + 24) });
+    if (result.error) return;
+    for (const row of result.data || []) states.set(row.document_key, row.coverage);
+  }
   const answers = [];
   for (let i = 0; i < law.length; i += 12) {
     const result = await client.rpc('law_resolve_document_keys', { p_keys: law.slice(i, i + 12) });
@@ -73,7 +58,7 @@ async function lookUp(keys, client, now) {
   const found = new Set([...answers, ...(data || [])].map((r) => r.document_key).filter(Boolean));
   for (const k of keys) {
     const prev = known.get(k);
-    if (!prev || prev.at <= at) known.set(k, { value: found.has(k), at });
+    if (!prev || prev.at <= at) known.set(k, { value: states.has(k) ? states.get(k) === 'full' : found.has(k), state: states.get(k) || (k.startsWith('desk-record:') || k.startsWith('document-id:') ? 'unavailable' : null), at });
   }
 }
 
@@ -143,8 +128,8 @@ export async function recheckCoverage(keys, client = defaultClient, now = Date.n
  * that has not answered yet, or a "no" past COVERAGE_TTL_MS that has not been
  * asked again.
  *
- * A `document` chip ("Ask about this document") names a document opened from
- * a citation, so it is in the corpus by construction and needs no lookup.
+ * Direct document chips use the same current readiness/permission lookup. A
+ * saved citation is not proof that its document remains accessible or indexed.
  *
  * @param {{ kind?: string, document_id?: string, document_key?: string }} attachment
  * @param {Set<string> | null} indexed
@@ -152,10 +137,11 @@ export async function recheckCoverage(keys, client = defaultClient, now = Date.n
  * @returns {'full' | 'row' | null}
  */
 export function coverageOf(attachment, indexed, now = Date.now) {
-  if (attachment?.kind === 'document') return attachment.document_id ? 'full' : null;
-  const key = attachment?.document_key;
+  const key = attachmentCoverageKey(attachment);
+  if (!key && ['row', 'record'].includes(attachment?.kind)) return 'unmapped';
   if (!key || !indexed) return null;
   if (indexed.has(key)) return 'full';
+  if (known.get(key)?.state) return known.get(key).state;
   // The last answer, even past its lifetime: re-querying is the caller's job (indexedDocumentKeys,
   // refreshCoverage), and a badge that blanks every minute tells the reader nothing.
   return known.get(key)?.value === false ? 'row' : null;

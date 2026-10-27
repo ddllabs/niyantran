@@ -1,5 +1,13 @@
 # Open work: the one list
 
+- [ ] **F257 — Cross-desk record/document mapping and corpus reconciliation.** Implemented locally; production/review held. Link indexed sources to verified listing identities, reconcile existing inputs without re-ingestion, and require mapping/website acceptance for future collections. [Spec](../specs/2026-10-28-corpus-record-retrieval-contract.md), [client handoff](../operations/2026-10-28-corpus-client-handoff.md).
+- [ ] **F258 — Large-feature search false emptiness.** Read-only paired test: current RPC 0 versus exact same-feature 40 with a stored cross-topic vector; PQ has44,027 embedded chunks, above15,000 threshold. Original generic-query vector not replayed. Local same-scope recovery and replica tests implemented (100,000-chunk recovery bound); production/review held. [Spec](../specs/2026-10-28-corpus-record-retrieval-contract.md).
+- [ ] **F259 — Enforce retrieval boundaries without implicit widening.** Implemented locally; production/review held. Attached/selection remain within documents; desk remains within module; only explicit broad context crosses desks. Preserve separate web/privacy policy. [Spec](../specs/2026-10-28-corpus-record-retrieval-contract.md).
+- [ ] **F260 — Reject empty successful answers.** Recorded Parliamentary response contains widening notice plus empty HTML. Implemented locally; production/review held. Semantic-content gate and bounded repair/failure with honest persisted status. [Spec](../specs/2026-10-28-corpus-record-retrieval-contract.md).
+
+
+- [ ] **Editable AI personas — 2026-10-27.** Owner approved implementation: server drafts, current-text tests, publish/rollback and account-restricted production pilot. Customer activation requires separate approval. [Spec](../specs/2026-10-27-admin-persona-prompts.md), [plan](2026-10-27-admin-persona-prompts.md). Branch task/admin-persona-prompts; deployed baseline and owner identity must be verified before pilot activation.
+
 
 
 
@@ -67,7 +75,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F257 is next) and goes in the
+- A new finding gets the next free `F` number (F261 is next) and goes in the
   right section.
 
 ## Frontend follow-up
@@ -3546,3 +3554,5 @@ R7 wider-corpus continuation: [413-document release completed](../research/2026-
 ## Done — 2026-10-25 reviewed preview integration
 
 - [x] **nter.news and discovery integration.** Owner authorized production publication; [PR58](https://github.com/ddllabs/niyantran/pull/58) merged at `a2c69f625cf3e1734a0d1bd83859bc4b0fb2fca1`, preserving reviewed runtime `b7a772a1`. Both required jobs passed on final PR head `cef285c4` (push40175036438 and PR40175040027). News/date/image/logo/heading and citation/search/view-state work is integrated; no Supabase data/schema, corpus, billing or auth-policy changes. [Release gates and recovery](2026-10-25-preview-production-release.md); exact-main CI/deployment and live acceptance receipt is supplied in the delivery report. Full record indexing remains open separately.
+
+F257–F260 local evidence and remaining release gates: [review report](../operations/2026-10-28-corpus-repair-review/README.md). Local Docker recovered on 2026-10-28 IST; the complete SQL suite passed all 59 fixtures and 59 migration-removal controls. F257–F260 are ready for owner review locally, remain uncommitted, and stay open pending integration and separately authorized production acceptance. Mapping repairs and larger batches remain held.

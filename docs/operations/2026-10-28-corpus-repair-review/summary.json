@@ -1,0 +1,21 @@
+{
+  "contract_version": 1,
+  "status": "review_required",
+  "adapter": "national-pq-exact-source-v1",
+  "captured_from": "2026-10-27T19:06:57.883461+00:00",
+  "captured_through": "2026-10-27T19:12:12.291358+00:00",
+  "documents": 5947,
+  "chunks": 50198,
+  "vectors": 50198,
+  "ready_documents": 4749,
+  "candidate_associations": 5638,
+  "held_documents": 1198,
+  "manifest_sha256": "102b734567d764aa354c838a7e1e3df292f444bfedcd3ea4d84d96f94c9beac7",
+  "holds_by_reason": {
+    "index_incomplete": 1116,
+    "no_exact_listing": 82,
+    "screening_not_verified": 82,
+    "unapproved_source": 82,
+    "unsupported_collection": 82
+  }
+}

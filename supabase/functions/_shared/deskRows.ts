@@ -238,3 +238,10 @@ export function toDeskRow(a: { tier: string; feature: string; raw: unknown; snap
     snapshot_at: a.snapshotAt,
   };
 }
+
+
+/** Lookup pointer only; authoritative links are resolved under caller RLS. */
+export function recordDocumentKey(tier: string, feature: string, rowKey: string): string | null {
+  return [tier, feature, rowKey].every(v => typeof v === 'string' && v.trim())
+    ? `desk-record:${JSON.stringify([tier, feature, rowKey])}` : null;
+}

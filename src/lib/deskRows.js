@@ -101,10 +101,10 @@ export function billDocumentKey(row) {
 }
 
 /** Verified Law links are resolved server-side; a key is only a lookup pointer. */
-export function documentKey(row) {
+export function documentKey(row, tier, feature) {
   const key = row?.document_key;
   if (typeof key === 'string' && /^law-record:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)) return key.toLowerCase();
-  return billDocumentKey(row);
+  return billDocumentKey(row) || (row && tier && feature ? recordDocumentKey(tier, feature, deskRowKey(row)) : null);
 }
 
 /** Scalars as strings, empties and nested values dropped — the `row` column. */
@@ -130,4 +130,48 @@ export function toDeskRow({ tier, feature, raw, snapshotAt }) {
     document_key: billDocumentKey(flat),
     snapshot_at: snapshotAt,
   };
+}
+
+/** Lookup pointer only. The server re-resolves the stored tuple and approved links. */
+export function recordDocumentKey(tier, feature, rowKey) {
+  return [tier, feature, rowKey].every(v => typeof v === 'string' && v.trim())
+    ? `desk-record:${JSON.stringify([tier, feature, rowKey])}` : null;
+}
+
+/** Recover only stable saved identity, never the fallback hash of a preview.
+ * Preview fields may have been truncated or omitted before the chip was saved. */
+export function recordAttachmentIdentity(attachment) {
+  if (!['row', 'record'].includes(attachment?.kind)) return null;
+  let tier = attachment.tab || attachment.tier || '';
+  let feature = attachment.feature || '';
+  let rowKey = typeof attachment.row_key === 'string' ? attachment.row_key : '';
+  const key = attachment.document_key;
+  if (typeof key === 'string' && key.startsWith('desk-record:')) {
+    try {
+      const tuple = JSON.parse(key.slice(12));
+      if (!Array.isArray(tuple) || tuple.length !== 3 || !tuple.every(v => typeof v === 'string' && v.trim())) return null;
+      if (tier && tier !== tuple[0] || feature && feature !== tuple[1] || rowKey && rowKey !== tuple[2]) return null;
+      [tier, feature, rowKey] = tuple;
+    } catch { return null; }
+  }
+  // id is rowPinKey's highest-priority field; lower-priority preview fields
+  // cannot prove that a higher-priority field was not omitted by truncation.
+  if (!rowKey && attachment.preview?.id != null) rowKey = String(attachment.preview.id).trim().toLowerCase().slice(0, 160);
+  const preview = attachment.preview || {};
+  // An uncapped legacy preview has fewer than 32 keys. Extra preview-only
+  // fields may conservatively hold a complete row, but cannot make a capped
+  // preview look complete. Only explicit identity fields are recoverable.
+  if (!rowKey && Object.keys(preview).length < 32) rowKey = rowPinKey(preview);
+  if (rowKey && tier && feature) return { tier, feature, row_key: rowKey,
+    document_key: recordDocumentKey(tier, feature, rowKey) };
+  // Server accepts record document keys only after confirming this tuple.
+  // A legacy key alone must not advertise coverage the request cannot reach.
+  return null;
+}
+
+export function attachmentCoverageKey(attachment) {
+  if (attachment?.kind === 'document') return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(attachment.document_id || '')
+    ? `document-id:${attachment.document_id.toLowerCase()}` : null;
+  if (['row', 'record'].includes(attachment?.kind)) return recordAttachmentIdentity(attachment)?.document_key || null;
+  return attachment?.document_key || null;
 }

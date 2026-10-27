@@ -240,9 +240,12 @@ export interface AgentInput {
   window: Message[];
   userTurn: string;
   scopedDocumentIds: string[];
-  /** The reader's retrieval scope, not a hint to the model. 'attached' is the
-   * only value that binds here: it promises the answer stays inside what was
-   * attached, so a search that leaves them has to say so. */
+  /** Server-verified records; never populated from browser row contents. */
+  scopedRows?: DeskRow[];
+  /** Desk metadata scope exists even when that module has no indexed text. */
+  rowFeatureScope?: { tier: string; feature?: string };
+  /** Hard retrieval boundary: attached/selection use verified identities,
+   * desk uses its module, and only explicit broad permits corpus search. */
   focus?: Focus;
   /** Small talk asks nothing, so retrieving nothing is the right outcome and the
    * no-search push-back must not fire. Derived from the same message as
@@ -320,6 +323,8 @@ function inputKey(a: AgentInput): string {
     a.window,
     a.userTurn,
     a.scopedDocumentIds,
+    a.scopedRows ?? [],
+    a.rowFeatureScope ?? null,
     a.focus ?? null,
     a.scopeSent ?? true,
     a.featureScope ? [a.featureScope.tier, a.featureScope.feature] : null,
@@ -565,12 +570,16 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
   const checkAbort = () => deps.request.signal?.throwIfAborted();
   checkAbort();
   const messages = state.messages;
+  const documentUnavailable = a.documentSearchUnavailable ||
+    ((a.focus === 'attached' || a.focus === 'selection') && !a.scopedDocumentIds.length) ||
+    (a.focus === 'desk' && !a.featureScope);
 
   async function searchAttempt(
     call: ToolCall,
     args: DocumentSearchArgs | SearchDeskRowsArgs,
     scope?: string[],
     topK?: number,
+    localRows?: DeskRowsResult,
   ): Promise<Chunk[] | DeskRowsResult | null> {
     checkAbort();
     if (budget.searches >= BUDGET.maxSearches) return null;
@@ -582,7 +591,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       name,
       toolCallId: call.id,
       input: args,
-      scoped: !!scope?.length,
+      scoped: !!scope?.length || !!localRows || a.focus === 'desk',
       chunkIds: [],
       rowKeys: [],
       resultCount: 0,
@@ -598,7 +607,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       // signal in their closures; we also check it before and after each await.
       const result = name === 'search_documents'
         ? await deps.searchDocuments(args as DocumentSearchArgs, scope, topK, (phase, ms) => { trace[phase] = (trace[phase] ?? 0) + ms; })
-        : await deps.searchDeskRows(args as SearchDeskRowsArgs);
+        : localRows ?? await deps.searchDeskRows(args as SearchDeskRowsArgs);
       checkAbort();
       if (Array.isArray(result)) {
         trace.chunkIds = result.map((c) => c.id);
@@ -622,14 +631,6 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     }
   }
 
-  /** Said once, and only after the wider search has actually run: an announcement
-   * of a search the budget refused would be a second untruth, not a disclosure. */
-  function widenScope(reason: WidenedScope): void {
-    if (state.widened) return;
-    state.widened = reason;
-    deps.onEvent({ widened: reason });
-  }
-
   async function execute(call: ToolCall): Promise<string> {
     if (call.name !== 'search_documents' && call.name !== 'search_desk_rows') {
       return 'UNKNOWN_TOOL: use search_documents or search_desk_rows.';
@@ -642,7 +643,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     const args = parsed && (call.name === 'search_documents' ? documentArguments(parsed) : rowArguments(parsed));
     if (!args) return 'INVALID_TOOL_ARGUMENTS: provide arguments matching the tool schema.';
     if (call.name === 'search_documents') {
-      if (a.documentSearchUnavailable) return 'NO_INDEXED_SOURCE: This scope has no indexed source text. Use its verified row fields and, only when offered, web search for context. Do not substitute unrelated documents or claim to have searched unavailable text.';
+      if (documentUnavailable) return 'NO_INDEXED_SOURCE: No searchable document could be resolved for this scope. Text may exist but its mapping, indexing or access may need review. Use its verified row fields and, only when offered, web search for context. Do not substitute unrelated documents or claim to have searched unavailable text.';
       // An attachment scopes every search of the turn, not just the first.
       // Gating this on the first one made a refinement corpus-wide while the
       // reader was still asking about the attached bill, and made leaving the
@@ -662,30 +663,14 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       // a model argument never loosens either one.
       const module = !confines && a.focus === 'desk' ? a.featureScope : undefined;
       const asked = args as DocumentSearchArgs;
-      const scoped: DocumentSearchArgs = module
+      const scoped: DocumentSearchArgs = scope ? { query: asked.query } : module
         ? { query: asked.query, desk_tier: module.tier, desk_feature: module.feature }
         : asked;
-      // A widened search asks for widenedTopK passages when a caller sets it; otherwise the default.
-      const wideK = deps.widenedTopK ?? undefined;
-      let found = await searchAttempt(call, scoped, scope, !scope && confines ? wideK : undefined) as Chunk[] | null;
-      // A focus that confines, over an attachment the corpus has never indexed,
-      // cannot scope to nothing - so it searches everything, which is what the
-      // reported session did on every bill while the focus control said
-      // otherwise. Whichever focus made the promise owes the reader the same
-      // disclosure, so this tracks `confines` rather than naming one value.
-      if (found && !scope && confines) widenScope(a.scopeSent === false ? 'unkeyed' : 'unresolved');
-      if (found && !found.length && scope) {
-        found = await searchAttempt(call, args, undefined, wideK) as Chunk[] | null;
-        if (found) widenScope('empty');
+      // Missing identity and empty results are not permission to leave the scope.
+      if (confines && !scope || a.focus === 'desk' && !module) {
+        return 'NO_INDEXED_SOURCE: No verified document scope is available. Do not search unrelated documents.';
       }
-      // The module held nothing for this query: once more without it, as the
-      // model asked, and the reader is told the answer left the module. A desk
-      // module with no documents never gets here - it has no featureScope - so
-      // it searches unfiltered in silence, as the coverage line already says.
-      if (found && !found.length && module) {
-        found = await searchAttempt(call, args, undefined, wideK) as Chunk[] | null;
-        if (found) widenScope('feature-empty');
-      }
+      const found = await searchAttempt(call, scoped, scope) as Chunk[] | null;
       if (!found) return EXHAUSTED;
       state.lawReviewChunks = retainLawReview(state.lawReviewChunks, found);
       // The draft reply stays capped. Additional Law passages are handled only at final review.
@@ -697,11 +682,34 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
           kept.map((c) => renderChunk(deps.handles.assign(c.id), c)).join('\n\n')
         : 'NO_RESULTS';
     }
-    const found = await searchAttempt(call, args) as DeskRowsResult | null;
+    const rowArgs = args as SearchDeskRowsArgs;
+    const confines = a.focus === 'attached' || a.focus === 'selection';
+    const module = a.focus === 'desk' ? a.rowFeatureScope ?? a.featureScope : undefined;
+    if (a.focus === 'desk' && !module) return 'NO_VERIFIED_ROW_SCOPE: No desk module was resolved.';
+    // A model cannot turn a selected record into a module-wide count. Confined
+    // rows come from verified identities, not a global query followed by filtering.
+    const safeArgs = module ? { ...rowArgs, tier: module.tier, feature: module.feature } : rowArgs;
+    let localRows: DeskRowsResult | undefined;
+    if (confines) {
+      const rows = [...new Map((a.scopedRows ?? []).map(row => [rowSourceKey(row), row])).values()];
+      const fields = new Set(rows.flatMap(row => Object.keys(row.row)));
+      const unknown = Object.keys(rowArgs.filters ?? {}).filter(key => !fields.has(key));
+      if (unknown.length) return 'SCOPED_ROWS_ONLY: Unknown filter field in verified attached records. This is not a zero count. Available fields: ' + [...fields].join(', ');
+      if (rowArgs.date_from || rowArgs.date_to) {
+        return 'SCOPED_ROWS_ONLY: Date-range counts are unavailable in attached/selection scope. Use the verified attached fields; do not infer a module total.';
+      }
+      const filtered = rows.filter(row =>
+        (!rowArgs.query || row.record_text.toLowerCase().includes(rowArgs.query.toLowerCase())) &&
+        Object.entries(rowArgs.filters ?? {}).every(([key, value]) =>
+          typeof row.row[key] === 'string' && row.row[key].toLowerCase() === value.toLowerCase()));
+      localRows = { rows: filtered.slice(0, Math.max(1, Math.min(50, rowArgs.limit ?? 20))), total: filtered.length,
+        snapshot_at: null, scope: 'Only verified selected/attached records; not a module-wide count' };
+    }
+    const found = await searchAttempt(call, safeArgs, undefined, undefined, localRows) as DeskRowsResult | null;
     if (!found) return EXHAUSTED;
     for (const row of found.rows) state.rows.set(rowSourceKey(row), row);
     const rendered = renderDeskRows(found, found.rows.map((r) => deps.handles.assign(rowSourceKey(r))));
-    return rendered === 'NO_RESULTS' ? rendered : UNTRUSTED + rendered;
+    return rendered === 'NO_RESULTS' ? rendered : UNTRUSTED + (confines ? 'SCOPE: Only verified selected/attached records. Counts below are not module-wide totals.\n\n' : '') + rendered;
   }
 
   async function completeToolReplies(): Promise<void> {
@@ -758,7 +766,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
   // search the model had already made - the same execution path, so handles, traces, the budget,
   // widening and the found list are unchanged - and the first call can answer at once.
   const presearch = a.presearch?.trim().slice(0, PRESEARCH_MAX_CHARS);
-  if (presearch && !a.documentSearchUnavailable && !a.conversational && !state.presearched && budget.modelAttempts === 0 && budget.searches === 0) {
+  if (presearch && !documentUnavailable && !a.conversational && !state.presearched && budget.modelAttempts === 0 && budget.searches === 0) {
     state.presearched = true;
     const call: ToolCall = { type: 'tool-call', id: PRESEARCH_ID, name: 'search_documents', args: JSON.stringify({ query: presearch }) };
     messages.push({
@@ -1015,7 +1023,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         await completeToolReplies();
         carryWeb();
       } else if (
-        !a.conversational && !a.documentSearchUnavailable && !state.webPages.length &&
+        !a.conversational && !documentUnavailable && !state.webPages.length &&
         !state.pressedToSearch && budget.searches === 0 &&
         budget.modelAttempts < BUDGET.maxSteps - 1
       ) {

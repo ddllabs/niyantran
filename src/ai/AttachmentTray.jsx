@@ -9,6 +9,17 @@ export default function AttachmentTray({ attachments, indexedKeys, locked, onRem
   const file = a => {
     const module = isModuleAttachment(a);
     const cover = coverageOf(a, indexedKeys);
+    const coverageLabels = {
+      full: [hi ? 'पूर्ण पाठ' : 'Full text', 'All linked text is indexed and accessible'],
+      row: [hi ? 'केवल रिकॉर्ड' : 'Record only', 'No indexed text resolves through this record key'],
+      unmapped: ['Mapping unavailable', 'No verified accessible document link; OCR may already exist'],
+      unavailable: ['Coverage unavailable', 'The record or its document link is not accessible'],
+      partial: ['Partial text', 'Some linked documents are not ready or accessible'],
+      registered: ['Not indexed', 'Linked document registered; indexing is incomplete'],
+      incomplete: ['Index incomplete', 'Linked text has missing embeddings'],
+      held: ['Mapping held', 'Linked source identity changed and needs review'],
+    };
+    const coverLabel = coverageLabels[cover];
     // F178: why a file was not sent, and what was cut, in text a touch reader can read (not only a tooltip).
     const notSent = a.kind === 'file' && a.error ? fileMessage(a.error, lang) : '';
     const note = a.note ? fileMessage(a.note, lang) : '';
@@ -25,9 +36,7 @@ export default function AttachmentTray({ attachments, indexedKeys, locked, onRem
       {a.kind === 'file' && a.error ? <em className="ai-v2-file-cover not-sent">{hi ? 'नहीं भेजा' : 'Not sent'}</em> : null}
       {a.kind === 'document' ? <em className="ai-v2-file-cover document" title={hi ? 'केवल संलग्न या चयन फोकस में खोज इस दस्तावेज़ तक सीमित है' : 'Under Attached or Selection focus, searches are limited to attached documents'}>{hi ? 'दस्तावेज़' : 'Document'}</em> : null}
       {module ? <em className="ai-v2-file-cover module" title={hi ? 'मॉड्यूल की नमूना पंक्तियाँ, पूरा दस्तावेज़ नहीं' : 'A sample of module rows, not the full document text'}>{hi ? 'मॉड्यूल' : 'Module'}</em> : null}
-      {cover ? <em className={`ai-v2-file-cover${cover === 'full' ? ' full' : ''}`} title={cover === 'full' ? (hi ? 'पूरा पाठ अनुक्रमित है' : 'Full text is indexed and can be quoted') : (hi ? 'केवल तालिका पंक्ति उपलब्ध है' : 'Only the desk row is available; no indexed text')}>
-        {cover === 'full' ? (hi ? 'पूर्ण पाठ' : 'Full text') : (hi ? 'केवल रिकॉर्ड' : 'Record only')}
-      </em> : null}
+      {coverLabel ? <em className={`ai-v2-file-cover${cover === 'full' ? ' full' : ''}`} title={coverLabel[1]}>{coverLabel[0]}</em> : null}
       <button type="button" aria-label={`${hi ? 'हटाएँ' : 'Remove'} ${a.title}`} aria-describedby={notSent || note ? messageId : undefined} disabled={locked} onClick={() => onRemove(a.id)}><X size={14} aria-hidden="true" /></button>
     </li>;
   };

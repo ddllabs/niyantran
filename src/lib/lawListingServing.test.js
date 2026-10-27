@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { serveLawListingPage } from '../../server/lawListingPage.mjs';
 import { serveFeaturePage } from '../../server/featurePage.mjs';
 import { serveLawLanding } from '../../server/lawLandingSummary.mjs';
-import { documentKey } from './deskRows.js';
+import { documentKey, attachmentCoverageKey } from './deskRows.js';
 import { projectLawSummary } from './lawLandingSummary.js';
 import { refreshCoverage, resetCoverageCache } from './corpusCoverage.js';
 const feature = 'NCLT / NCLAT (Insolvency)';
@@ -73,6 +73,8 @@ it('keeps canonical pages and landing counts out of shared CDN caches', async ()
 it('Law coverage errors leave availability unknown rather than claiming missing text', async () => {
   const { coverageOf } = await import('./corpusCoverage.js');
   const client = { rpc: async () => ({ data: null, error: { message: 'denied' } }) };
-  const indexed = await refreshCoverage([key], client);
-  expect(coverageOf({ kind: 'row', document_key: key }, indexed)).toBeNull();
+  const row = {kind:'row',tab:'law',feature,row_key:'order-1',document_key:key};
+  const indexed = await refreshCoverage([attachmentCoverageKey(row)], client);
+  expect(coverageOf(row, indexed)).toBeNull();
+  expect(coverageOf({kind:'row',document_key:key}, indexed)).toBe('unmapped');
 });
