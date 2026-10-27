@@ -28,7 +28,8 @@
 
   - The last document was indexed at 05:44.
   - The Colab runtime disconnected at about 05:13, while the autopilot was polling for indexing. Indexing is
-    server-side, so it finished regardless. The autopilot's own per-document verification runs again when it restarts.
+    server-side, so it finished regardless. After the owner reconnected Drive access, the autopilot restarted and
+    verified the batch at 06:20.
 - **Verified (read-only SQL, `verify.sql`):**
   - 1,000/1,000 indexed and published, with 22,647 chunks.
   - The cohort fingerprint over sorted `source_key|chunks|text_sha256` matches the plan (`8e3f687b…7cd1`).

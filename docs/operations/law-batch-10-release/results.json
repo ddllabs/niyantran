@@ -149,7 +149,7 @@
   "new_listings_created": 1000,
   "cohort_fingerprint_sha256": "8e3f687b10017b0c0db388d598cdec8f67fbbe0a6d4241ebeeafe1c075907cd1",
   "cohort_fingerprint_matches": true,
-  "autopilot_verify": "not yet run: the Colab runtime disconnected at ~05:13 UTC while waiting for indexing; this read-only SQL check covers the same per-document conditions; the autopilot re-verifies on restart",
+  "autopilot_verify": "verified 2026-10-27T06:20:42Z after the runtime was reconnected (the first runtime disconnected at ~05:13 UTC while polling for indexing)",
   "same_case_and_date_groups_with_batch10_docs": 0,
   "same_case_and_date_groups_total": 6,
   "possible_duplicate_or_overlapping_pairs_for_owner_review": [
@@ -202,6 +202,7 @@
  "timing_utc": {
   "planned": "2026-10-27 02:32:55",
   "first_job": "2026-10-27 02:41:27",
-  "last_indexed": "2026-10-27 05:44:02"
+  "last_indexed": "2026-10-27 05:44:02",
+  "verified": "2026-10-27 06:20:42"
  }
 }
