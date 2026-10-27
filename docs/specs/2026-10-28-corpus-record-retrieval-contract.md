@@ -1,6 +1,6 @@
 # Corpus records: mapping, search, scope and answer completion
 
-> **Status: Living.** Implementation approved locally, 2026-10-28. Production changes, deployments and re-ingestion remain on hold.
+> **Status: Living.** Released through PR #62 / `8f01b348`, 2026-10-28. Reviewed existing mappings applied without re-ingestion; new batches remain held. See the [release receipt](../operations/2026-10-28-corpus-repair-review/release.md).
 
 ## Summary for reviewers
 
@@ -13,7 +13,7 @@ Indexed text is not enough: a listing must resolve to the correct accessible doc
 | retrieval-scope | Enforce document/selection/desk boundaries through every retrieval attempt | Mapping; filtered search for acceptance |
 | answer-completion | Reject empty or placeholder answers before successful persistence | None |
 
-Proposed order: mapping and safe reconciliation; filtered search; scope integration; answer completion; combined acceptance. Local implementation is approved; production acceptance remains held.
+Implementation order: mapping and safe reconciliation; filtered search; scope integration; answer completion; combined acceptance. The original investigation below is a dated baseline; current release evidence is linked above.
 
 ## 1. Verified evidence and limits
 
@@ -115,4 +115,4 @@ Require privacy-safe per-turn diagnostics: requested/effective focus, authoritat
 
 ## Implemented local interface
 
-The lookup pointer is `desk-record:["tier","feature","row_key"]`. It proves no association by itself. Both coverage and research resolve the current caller-visible row through the same RPC. Current Bill/Law keys delegate to their existing adapters; ordinary reviewed links use `record_document_links`. Direct citations use `document-id:<uuid>` with current RLS/index/vector checks. Stale browser legacy keys cannot override the stored row. The final adapter SQL and full 59-fixture SQL suite passed after local Docker recovery; production is unchanged and remains held for owner review.
+The lookup pointer is `desk-record:["tier","feature","row_key"]`. It proves no association by itself. Both coverage and research resolve the current caller-visible row through the same RPC. Current Bill/Law keys delegate to their existing adapters; ordinary reviewed links use `record_document_links`. Direct citations use `document-id:<uuid>` with current RLS/index/vector checks. Stale browser legacy keys cannot override the stored row. The final adapter SQL and full 59-fixture SQL suite passed after local Docker recovery. Subsequent integrated CI and approved production release are recorded in the release receipt.
