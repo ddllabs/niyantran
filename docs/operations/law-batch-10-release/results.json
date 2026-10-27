@@ -1,0 +1,207 @@
+{
+ "decision": "owner-authorized-20261026-law-auto-b10",
+ "approver": "Tamanesh Kauri (standing approval for 5 batches, 2026-10-26 21:07 IST)",
+ "inputs": {
+  "ingestion_scripts": "cf3e753",
+  "driver": "docs/operations/law-autopilot/nter-law-autopilot.py",
+  "driver_commit": "8b3133fd78cffe7fc03fddc3728c8660e69e791f",
+  "driver_sha256": "673f72d32dd825131abc2edd7e4e3ff5a09da4e32d3cfba36527c65f71e98ab6",
+  "core_sha256": "f99814a4d9db27c8572b5c72dc8f39c799a22eda6898c9e9b82ce0086cba6797",
+  "plan_json_sha256": "284320255c5d7257d267e0b9e07890986c40b90e9a1acff63ac27d68ac6f1880",
+  "cohort_tsv_sha256": "d37c2f7a3f095657b18290273a65dce9c5d78100c5489050870cd6b6363b7cdf",
+  "members_screened": [
+   "2023__part-00009",
+   "2023__part-00010",
+   "2023__part-00011",
+   "2023__part-00012",
+   "2023__part-00013",
+   "2022__part-00001",
+   "2022__part-00002",
+   "2022__part-00003",
+   "2022__part-00004",
+   "2022__part-00005",
+   "2022__part-00006"
+  ]
+ },
+ "selection_holds": {
+  "no case number": 738,
+  "near-duplicate text": 26,
+  "not an official order PDF URL": 2,
+  "over answer-read limits": 3
+ },
+ "tranches": {
+  "T1": {
+   "members": [
+    "2023__part-00009",
+    "2023__part-00010"
+   ],
+   "docs": 205,
+   "chunks": 4289,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.228729,
+   "manifest_sha256": "e2a4c6d9dcff43c5b7bd6735d20ff9eac7201e9c713b290a7cffc05504f2b0f6",
+   "mismatches": 0,
+   "submissions": 1,
+   "uncertain": 0,
+   "held": 0,
+   "registered_utc": "02:41–02:48",
+   "embed_tokens": 1019414,
+   "embed_cost_usd": 0.020388
+  },
+  "T2": {
+   "members": [
+    "2023__part-00010"
+   ],
+   "docs": 205,
+   "chunks": 4795,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.253282,
+   "manifest_sha256": "0c68bcff42a9e230355184a60db0ab37e80f6dc93ee71fca1318290aaf9caec7",
+   "mismatches": 0,
+   "submissions": 1,
+   "uncertain": 0,
+   "held": 0,
+   "registered_utc": "02:56–03:03",
+   "embed_tokens": 1111524,
+   "embed_cost_usd": 0.02223
+  },
+  "T3": {
+   "members": [
+    "2023__part-00010",
+    "2023__part-00011"
+   ],
+   "docs": 205,
+   "chunks": 4062,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.214526,
+   "manifest_sha256": "82871cb8ab4d566a203c84f7d1181421faacbf6a28fea5009b03e36b1d77a527",
+   "mismatches": 0,
+   "submissions": 1,
+   "uncertain": 0,
+   "held": 0,
+   "registered_utc": "03:11–03:18",
+   "embed_tokens": 953704,
+   "embed_cost_usd": 0.019074
+  },
+  "T4": {
+   "members": [
+    "2023__part-00011",
+    "2023__part-00012"
+   ],
+   "docs": 205,
+   "chunks": 5044,
+   "create": 205,
+   "link": 0,
+   "cost_ceiling": 0.266879,
+   "manifest_sha256": "05f086ce224299471b0e4b4fdbaa54c5359268072ac9fa4d870b43fb92dc0509",
+   "mismatches": 0,
+   "submissions": 1,
+   "uncertain": 0,
+   "held": 0,
+   "registered_utc": "03:25–03:32",
+   "embed_tokens": 1175362,
+   "embed_cost_usd": 0.023507
+  },
+  "T5": {
+   "members": [
+    "2023__part-00012",
+    "2023__part-00013",
+    "2022__part-00001",
+    "2022__part-00002",
+    "2022__part-00003",
+    "2022__part-00004",
+    "2022__part-00005",
+    "2022__part-00006"
+   ],
+   "docs": 180,
+   "chunks": 4457,
+   "create": 180,
+   "link": 0,
+   "cost_ceiling": 0.236816,
+   "manifest_sha256": "d452ec0b09267e00a596413c48677dcc70ae20a0c9e0c9f92365298c550441df",
+   "mismatches": 0,
+   "submissions": 1,
+   "uncertain": 0,
+   "held": 0,
+   "registered_utc": "03:39–03:45",
+   "embed_tokens": 1039002,
+   "embed_cost_usd": 0.02078
+  }
+ },
+ "verification": {
+  "docs": 1000,
+  "indexed": 1000,
+  "published": 1000,
+  "chunks": 22647,
+  "missing_vectors": 0,
+  "non_1536_vectors": 0,
+  "stored_text_hash_valid": 1000,
+  "one_job_each": 1000,
+  "jobs_succeeded": 1000,
+  "ocr_pages": 0,
+  "listing_url_equals_order_url": 1000,
+  "one_membership_each": 1000,
+  "distinct_records": 1000,
+  "one_document_per_record": 1000,
+  "new_listings_created": 1000,
+  "cohort_fingerprint_sha256": "8e3f687b10017b0c0db388d598cdec8f67fbbe0a6d4241ebeeafe1c075907cd1",
+  "cohort_fingerprint_matches": true,
+  "autopilot_verify": "not yet run: the Colab runtime disconnected at ~05:13 UTC while waiting for indexing; this read-only SQL check covers the same per-document conditions; the autopilot re-verifies on restart",
+  "same_case_and_date_groups_with_batch10_docs": 0,
+  "same_case_and_date_groups_total": 6,
+  "possible_duplicate_or_overlapping_pairs_for_owner_review": [
+   {
+    "keys": [
+     "dae6d05550bdb5c3",
+     "912189341684a077"
+    ],
+    "title": "MSA Developers Private Limited",
+    "note": "both 2023-10-13, both batch 10, same I.A. 4224/2021 in CP IB-806-PB-2019 (case strings formatted differently); 5 of the 6 chunks of the shorter order recur in the 34-chunk order; sizes differ >3x"
+   }
+  ]
+ },
+ "cost": {
+  "embed_tokens": 5299006,
+  "embed_cost_usd": 0.10598012,
+  "ceiling_usd": 1.200232,
+  "ocr_or_chat_spend": 0
+ },
+ "deltas": {
+  "documents": [
+   9569,
+   10569
+  ],
+  "chunks": [
+   294066,
+   316713
+  ],
+  "law_documents": [
+   6110,
+   7110
+  ],
+  "law_records": [
+   6439,
+   7439
+  ],
+  "memberships": [
+   6545,
+   7545
+  ],
+  "links": [
+   6110,
+   7110
+  ],
+  "publications": [
+   6110,
+   7110
+  ]
+ },
+ "timing_utc": {
+  "planned": "2026-10-27 02:32:55",
+  "first_job": "2026-10-27 02:41:27",
+  "last_indexed": "2026-10-27 05:44:02"
+ }
+}
