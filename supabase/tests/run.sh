@@ -83,6 +83,9 @@ chain() {
     law_listing)
       chain supplied_text
       FILES+=("$(as_non_superuser 20261023184450_law_listing_publication.sql)") ;;
+    supplied_text_national)
+      chain law_listing
+      FILES+=("$(as_non_superuser 20261027120000_supplied_text_national_questions.sql)") ;;
     supplied_text)
       chain corpus_records
       FILES+=("$(as_non_superuser 20261022230537_supplied_text_connection.sql)") ;;

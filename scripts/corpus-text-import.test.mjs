@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { runImport } from './corpus-text-import.mjs';
-import { input } from '../supabase/functions/_shared/suppliedText_fixture.ts';
+import { input, nationalQuestion } from '../supabase/functions/_shared/suppliedText_fixture.ts';
 const hash = (b) => createHash('sha256').update(b).digest('hex');
 async function fixture(t, records) {
   const dir = await mkdtemp(join(tmpdir(), 'corpus-import-test-'));
@@ -177,4 +177,34 @@ test('CLI returns incomplete for live mapping holds and pending publication',asy
   mode=state;const f=await ncltFixture(t);
   await assert.rejects(()=>run(process.execPath,['--experimental-strip-types','scripts/corpus-text-import.mjs','--corpus',f.files[0],'--decisions',f.decisions,'--report',f.report,'--submit','--approval',f.approval,'--target',`http://127.0.0.1:${server.address().port}`,'--max-estimated-cost-usd','1'],{env:{...process.env,NTER_INGEST_ACCESS_TOKEN:'admin-test',SUPABASE_PUBLISHABLE_KEY:'public'}}),e=>{assert.equal(e.code,state==='held'?3:2);return true;});
  }
+});
+async function nationalFixture(t) {
+  const dir = await mkdtemp(join(tmpdir(), 'corpus-import-national-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const r = await nationalQuestion();
+  const bytes = gzipSync(JSON.stringify(r) + '\n');
+  const file = join(dir, 'corpus.jsonl.gz');
+  await writeFile(file, bytes);
+  const manifest = JSON.stringify({ source_key: r.source_key, text_sha256: r.text_sha256, file_sha256: hash(bytes), desk_feature: r.desk_feature, review: r.review }) + '\n';
+  const decisions = join(dir, 'decisions.jsonl');
+  await writeFile(decisions, manifest);
+  return { files: [file], decisions, report: join(dir, 'report.jsonl'), approval: hash(manifest) };
+}
+test('a National question needs the cost envelope and registers without any Law listing call', async (t) => {
+  const f = await nationalFixture(t);
+  const dry = await runImport(f, () => { throw Error('no network'); });
+  assert.equal(dry.ready, 1);
+  assert.ok(dry.estimated_cost_ceiling_usd > 0);
+  const o = { ...f, submit: true, target: 'https://fixture.supabase.co', token: 'admin-token', publishableKey: 'public' };
+  const actions = [];
+  const request = async (url, opts) => {
+    const body = JSON.parse(opts.body); actions.push(body.action);
+    return new Response(JSON.stringify({ ok: true, status: 'queued', document_id: 'doc', job_id: 'job', existing: false, payload_sha256: body.confirm_sha256 }), { status: 200 });
+  };
+  await assert.rejects(() => runImport({ ...o, report: f.report + '.a' }, request), /cost/);
+  await assert.rejects(() => runImport({ ...o, report: f.report + '.b', maxEstimatedCostUsd: 1e-12 }, request), /cost/);
+  assert.deepEqual(actions, []);
+  const out = await runImport({ ...o, report: f.report + '.c', maxEstimatedCostUsd: 1 }, request);
+  assert.equal(out.submitted, 1);
+  assert.deepEqual(actions, ['register_text']);
 });

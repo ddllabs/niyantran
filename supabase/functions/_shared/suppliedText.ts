@@ -5,6 +5,13 @@ import { chunkTextWithContext } from './textContext.ts';
 import { sha256Hex } from './textNormalise.ts';
 
 export const SUPPLIED_TEXT = Object.freeze({ maxChars: 600_000, maxChunks: 800, bodyBytes: 4_000_000, version: 1 });
+/**
+ * The one National module admitted besides Law (owner decision 2026-10-27): Lok Sabha question answers from the
+ * National citation pack. Their source_key is the pack's 40-hex SHA-1 and the source must be the official sansad.in
+ * PDF; the database (ingest_register_text_unmapped) re-checks both and requires a desk row with that URL.
+ */
+export const NATIONAL_QUESTIONS = Object.freeze({ tier: 'national', feature: 'Parliamentary Question Database' });
+const NATIONAL_KEY = /^[0-9a-f]{40}$/;
 const SHA = /^[a-f0-9]{64}$/;
 function object(v: unknown, name: string): Record<string, unknown> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(`${name} must be an object`);
@@ -27,7 +34,10 @@ export async function prepareSuppliedText(value: unknown) {
   const r = object(value, 'record');
   if (r.adapter_version !== undefined && r.adapter_version !== SUPPLIED_TEXT.version) throw new Error('unsupported adapter version');
   const source_key = string(r.source_key, 'source_key');
-  if (!source_key.startsWith('law:')) throw new Error('this adapter requires a Law source_key');
+  const law = source_key.startsWith('law:');
+  if (!law && !NATIONAL_KEY.test(source_key)) {
+    throw new Error('this adapter requires a Law or National question source_key');
+  }
   const title = string(r.title, 'title', 300);
   const text = string(r.text, 'text', SUPPLIED_TEXT.maxChars);
   if (!text.isWellFormed()) throw new Error('text has invalid Unicode');
@@ -35,8 +45,17 @@ export async function prepareSuppliedText(value: unknown) {
   if (r.text_sha256 !== hash || (r.content_sha256 !== undefined && r.content_sha256 !== hash)) {
     throw new Error('text hash mismatch');
   }
-  if (!DESK_CATALOG.some((e) => e.tier === r.desk_tier && e.feature === r.desk_feature) || r.desk_tier !== 'law') {
+  const deskOk = law
+    ? r.desk_tier === 'law'
+    : r.desk_tier === NATIONAL_QUESTIONS.tier && r.desk_feature === NATIONAL_QUESTIONS.feature;
+  if (!DESK_CATALOG.some((e) => e.tier === r.desk_tier && e.feature === r.desk_feature) || !deskOk) {
     throw new Error('unsupported desk feature');
+  }
+  if (!law) {
+    const u = typeof r.file_url === 'string' ? new URL(r.file_url) : null;
+    if (!u || u.protocol !== 'https:' || u.hostname !== 'sansad.in' || !/\.pdf$/i.test(u.pathname)) {
+      throw new Error('a National question needs its official sansad.in PDF file_url');
+    }
   }
   if (r.text_quality !== undefined && r.text_quality !== 'ok') throw new Error('incomplete or unreviewed text quality');
   if (r.page_split != null && !['exact', 'none'].includes(String(r.page_split))) {

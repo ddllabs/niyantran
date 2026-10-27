@@ -3,7 +3,7 @@ import { prepareSuppliedText } from './suppliedText.ts';
 import { sha256Hex } from './textNormalise.ts';
 import { chunkTextWithContext } from './textContext.ts';
 
-import { input } from './suppliedText_fixture.ts';
+import { input, nationalQuestion } from './suppliedText_fixture.ts';
 Deno.test('supplied text uses existing chunker and converts code points without changing text', async () => {
   const r = await input();
   const p = await prepareSuppliedText(r);
@@ -49,4 +49,25 @@ Deno.test('repeated text chunk identities use the same deduplication as legacy i
  const r=await input(); const text='# Repeated\n\nA court order.\n\n# Repeated\n\nA court order.\n';const h=await sha256Hex(text);
  const p=await prepareSuppliedText({...r,text,text_sha256:h,pages:[],review:{...r.review,text_sha256:h}});
  assertEquals(p.chunks.length,1);assertEquals(text.slice(p.chunks[0].charFrom,p.chunks[0].charTo),p.chunks[0].content);
+});
+Deno.test('National question answers are admitted only for their own module and official sansad.in PDF', async () => {
+  const q = await nationalQuestion();
+  const p = await prepareSuppliedText(q);
+  assertEquals(p.input.desk_tier, 'national');
+  assertEquals(p.input.desk_feature, 'Parliamentary Question Database');
+  assertEquals(p.input.file_url, q.file_url);
+  assertEquals(p.chunks, await chunkTextWithContext(q.text));
+  await assertRejects(() => prepareSuppliedText({ ...q, desk_feature: 'Bill Passage Probability Index' }), Error, 'feature');
+  await assertRejects(() => prepareSuppliedText({ ...q, desk_tier: 'law' }), Error, 'feature');
+  await assertRejects(() => prepareSuppliedText({ ...q, file_url: 'https://example.org/AU1.pdf' }), Error, 'sansad.in');
+  await assertRejects(() => prepareSuppliedText({ ...q, file_url: 'http://sansad.in/x/AU1.pdf' }), Error, 'sansad.in');
+  await assertRejects(() => prepareSuppliedText({ ...q, file_url: undefined }), Error, 'sansad.in');
+  await assertRejects(() => prepareSuppliedText({ ...q, source_key: 'national:x', review: { ...q.review, source_key: 'national:x' } }), Error, 'source_key');
+  await assertRejects(() => prepareSuppliedText({ ...q, source_key: 'A'.repeat(40), review: { ...q.review, source_key: 'A'.repeat(40) } }), Error, 'source_key');
+});
+Deno.test('Law keeps its own module rule: a Law source cannot claim the National question module', async () => {
+  const r = await input();
+  await assertRejects(() => prepareSuppliedText({ ...r, desk_tier: 'national', desk_feature: 'Parliamentary Question Database' }), Error, 'feature');
+  const q = await nationalQuestion();
+  await assertRejects(() => prepareSuppliedText({ ...q, desk_tier: 'law', desk_feature: 'Order Archive by Topic (Cross-Court)' }), Error, 'feature');
 });
