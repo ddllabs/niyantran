@@ -90,6 +90,9 @@ describe('F60 marketing and admin controls', () => {
     expect(nodes(tree, node => node.type === 'form')).toHaveLength(1);
   });
   it('persona tabs have roving focus and select their labelled panel with End', () => {
+    render(AiPersonasPage);
+    hooks.states[0] = { states: ['policy_analyst','journalist','upsc_aspirant','corporate_affairs','legal_researcher','academic'].map(persona => ({ persona, draft_id: 'v1', active_id: 'v1', draft_text: 'default', active_text: 'default', generation: 1 })), history: [] };
+    hooks.states[3] = false;
     let tree = render(AiPersonasPage);
     const tabs = role(tree, 'tab');
     expect(tabs.filter((tab) => tab.props.tabIndex === 0)).toHaveLength(1);

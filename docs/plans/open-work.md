@@ -1,5 +1,7 @@
 # Open work: the one list
 
+- [ ] **Editable AI personas — 2026-10-27.** Owner approved implementation: server drafts, current-text tests, publish/rollback and account-restricted production pilot. Customer activation requires separate approval. [Spec](../specs/2026-10-27-admin-persona-prompts.md), [plan](2026-10-27-admin-persona-prompts.md). Branch task/admin-persona-prompts; deployed baseline and owner identity must be verified before pilot activation.
+
 
 
 

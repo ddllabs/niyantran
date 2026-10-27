@@ -937,3 +937,36 @@ Deno.test('Law resolution stays within twelve keys per RPC and never substitutes
   await assertRejects(() => d.db.resolveDocumentIds({ keys: [keys[0]], ids: [] }), Error, 'Research service unavailable');
   assertEquals(f.calls.filter(c => c.table === 'documents').length, 0);
 });
+
+Deno.test('persona runtime fetches the next published revision each turn and confines RPCs to the verified owner', async () => {
+  const f = fixture();
+  let active = { id: 'v1', text: '  Active π\n ' };
+  f.setReply((_side, table, _op, value) => {
+    if (table === 'user_profiles') return {data:{persona:'academic'},error:null};
+    if (table === 'persona_pilot_access') return {data:true,error:null};
+    if (table === 'persona_admin') {
+      assertEquals((value as Record<string,unknown>).p_actor,'verified-owner');
+      assertEquals((value as Record<string,unknown>).p_persona,'academic');
+      return {data:active,error:null};
+    }
+    return {data:false,error:null};
+  });
+  const d = createDependencies(request(), f.runtime);
+  await d.requireUser(request());
+  const diagnostics: unknown[] = [];
+  assertEquals(await d.persona('verified-owner',undefined,undefined,(m: unknown)=>diagnostics.push(m)), active.text);
+  active = {id:'v2',text:'New active'};
+  assertEquals(await d.persona('verified-owner'), 'New active');
+  assertEquals(f.calls.filter(c=>c.table==='persona_admin').length,2);
+  assertEquals((diagnostics[0] as {version:string}).version,'v1');
+  await assertRejects(()=>d.persona('foreign'));
+});
+Deno.test('ordinary callers keep the preexisting trimmed bundled system prompt and cannot test overrides', async () => {
+  const f=fixture();
+  f.setReply((_side,table)=>({data:table==='user_profiles'?{persona:'academic'}:false,error:null}));
+  const d=createDependencies(request(),{...f.runtime,readPersona:()=>Promise.resolve('  Bundled\n ')});
+  await d.requireUser(request());
+  assertEquals(await d.persona('verified-owner'),'Bundled');
+  assertEquals(f.calls.filter(c=>c.table==='persona_admin').length,0);
+  await assertRejects(()=>d.persona('verified-owner',undefined,'Malicious override'));
+});

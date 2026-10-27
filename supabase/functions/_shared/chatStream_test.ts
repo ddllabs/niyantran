@@ -65,6 +65,7 @@ Deno.test('done() is idempotent and an unknown frame name is refused before it r
 
 Deno.test('every declared frame key round-trips through frameKey', () => {
   const samples: ChatFrame[] = [
+    { persona: { source: 'published', version: 'v1', hash: 'a'.repeat(64) } },
     { conversation: { id: 'c', title: 't' } },
     { reasoning: 'r' },
     { tool: { name: 'search_documents', phase: 'start', step: 1 } },

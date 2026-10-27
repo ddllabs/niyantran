@@ -195,3 +195,15 @@ Deno.test('an empty desk_context feature counts as absent', () => {
     assertEquals(validated.request.desk_context, { tier: 'national' });
   }
 });
+
+Deno.test('editor override retains exact text, needs a persona probe and participates in replay identity', async () => {
+  const exact = '  π\n ';
+  const first = validateRequest({ ...base, persona_probe: 'academic', persona_prompt: exact });
+  assert('request' in first);
+  assertEquals(first.request.persona_prompt, exact);
+  assert('fieldErrors' in validateRequest({ ...base, persona_prompt: exact }));
+  assert('fieldErrors' in validateRequest({ ...base, persona_probe: 'academic', persona_prompt: 'π'.repeat(50001) }));
+  const second = validateRequest({ ...base, persona_probe: 'academic', persona_prompt: exact + 'x' });
+  assert('request' in second);
+  assert((await fingerprintRequest(first.request)) !== (await fingerprintRequest(second.request)));
+});

@@ -203,7 +203,7 @@ export default function AdminApp() {
           {view === 'apis' && <ApisPage />}
           {view === 'users' && <UsersPage users={users} onChange={refreshUsers} />}
           {view === 'ai' && <AiModelsPage />}
-          {view === 'personas' && <AiPersonasPage />}
+          {view === 'personas' && <AiPersonasPage key={access.user.id} />}
           {view === 'documents' && (
             <Suspense fallback={<p className="adm-lede">Loading…</p>}>
               <DocumentsPage />
