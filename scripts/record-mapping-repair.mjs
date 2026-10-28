@@ -6,6 +6,9 @@ import { pathToFileURL } from 'node:url';
 const hash = s => createHash('sha256').update(s).digest('hex');
 const normal = s => String(s ?? '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 const sha = s => /^[a-f0-9]{64}$/.test(s ?? '');
+// The answer file a Lok Sabha question URL names; same rule as pq_answer_key (SQL) and pqAnswerKey (suppliedText.ts).
+const PQ_URL=/^https:\/\/sansad\.in\/getFile\/loksabhaquestions\/annex\/([0-9]{1,4})\/([A-Za-z0-9_]{1,64})\.pdf(\?source=pqals)?$/;
+export const pqAnswerKey = u => { const m=typeof u==='string'?PQ_URL.exec(u):null; return m?`pq:ls:${m[1]}:${m[2]}`:null; };
 const isoDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s ?? '') ? s : /^(\d{2})\.(\d{2})\.(\d{4})$/.test(s ?? '') ? s.split('.').reverse().join('-') : null;
 export function planRepairs(pages) {
  const urlOwners=new Map();
@@ -24,11 +27,14 @@ export function planRepairs(pages) {
    let url;try{url=new URL(d.file_url);}catch{/* held below */}
    if(!url||url.protocol!=='https:'||!['sansad.in','sansad.gov.in'].includes(url.hostname)||url.username||url.password)reasons.push('unapproved_source');
    if(d.url_aliases!==0 || urlOwners.get(d.file_url)?.size>1)reasons.push('source_alias_requires_review');
+   const answerKey=pqAnswerKey(d.file_url);
+   if(!answerKey||(d.document_key_suggested!=null&&d.document_key_suggested!==answerKey))reasons.push('answer_key_conflict');
    if(!d.rows?.length)reasons.push('no_exact_listing');
    const rowKeys=new Set();
    for(const r of d.rows || []) {
     if(rowKeys.has(r.row_key))reasons.push('duplicate_listing_identity');rowKeys.add(r.row_key);
     if(r.tier!==d.desk_tier||r.feature!==d.desk_feature||r.row?.source_url!==d.file_url||!r.row_key||!sha(r.expected_fingerprint))reasons.push('row_identity_unverified');
+    if(pqAnswerKey(r.row?.source_url)!==answerKey)reasons.push('answer_key_conflict');
     if(!normal(c.house)||normal(c.house)!==normal(r.row?.house))reasons.push('house_conflict');
     if(!normal(c.subject)||normal(c.subject)!==normal(r.row?.subject))reasons.push('subject_conflict');
     if(!isoDate(c.answered_on)||isoDate(c.answered_on)!==isoDate(r.row?.date))reasons.push('date_conflict');

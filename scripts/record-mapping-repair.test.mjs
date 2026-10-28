@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { planRepairs, renderRepairSql } from './record-mapping-repair.mjs';
-const doc = () => ({id:'11111111-1111-4111-8111-111111111111',source_key:'s1',title:'Film support',file_url:'https://sansad.in/getFile/a.pdf?source=pqals',content_sha256:'a'.repeat(64),indexed_at:'2026-10-27T00:00:00Z',desk_tier:'national',desk_feature:'Parliamentary Question Database',chunks:5,vectors:5,url_aliases:0,citation:{kind:'parliamentary_question',house:'Lok Sabha',subject:'Film support',answered_on:'01.04.2026',ministry:'Information'},review:{status:'eligible',checks:{identity:true,completeness:true,sensitivity:true,dedupe:true,rights:true}},rows:[{tier:'national',feature:'Parliamentary Question Database',row_key:'234',row:{house:'Lok Sabha',subject:'Film support',date:'2026-04-01',ministry:'Information',source_url:'https://sansad.in/getFile/a.pdf?source=pqals'},expected_fingerprint:'b'.repeat(64)}]});
+import { planRepairs, renderRepairSql, pqAnswerKey } from './record-mapping-repair.mjs';
+const doc = () => ({id:'11111111-1111-4111-8111-111111111111',source_key:'s1',title:'Film support',file_url:'https://sansad.in/getFile/loksabhaquestions/annex/187/AU234_FilmAb.pdf?source=pqals',content_sha256:'a'.repeat(64),indexed_at:'2026-10-27T00:00:00Z',desk_tier:'national',desk_feature:'Parliamentary Question Database',chunks:5,vectors:5,url_aliases:0,citation:{kind:'parliamentary_question',house:'Lok Sabha',subject:'Film support',answered_on:'01.04.2026',ministry:'Information'},review:{status:'eligible',checks:{identity:true,completeness:true,sensitivity:true,dedupe:true,rights:true}},rows:[{tier:'national',feature:'Parliamentary Question Database',row_key:'234',row:{house:'Lok Sabha',subject:'Film support',date:'2026-04-01',ministry:'Information',source_url:'https://sansad.in/getFile/loksabhaquestions/annex/187/AU234_FilmAb.pdf?source=pqals'},expected_fingerprint:'b'.repeat(64)}]});
 const page = d => ({captured_at:'2026-10-27T19:06:57Z',documents:d});
 test('one answer may map several MP rows without creating documents', () => {
  const d=doc(); d.rows.push({...d.rows[0],row_key:'235'});
@@ -30,4 +30,11 @@ test('render rejects invalid limits, held/candidate overlap and duplicate rows',
 test('planner independently detects competing full URLs across distinct IDs', () => {
  const a=doc(),b={...doc(),id:'22222222-2222-4222-8222-222222222222'};
  const p=planRepairs([page([a]),page([b])]);assert.equal(p.candidates.length,0);assert.equal(p.held.length,2);
+});
+test('F266: the answer key must name the same Lok Sabha answer file for the document, its suggested key and every row', () => {
+ assert.equal(pqAnswerKey(doc().file_url),'pq:ls:187:AU234_FilmAb');
+ assert.equal(planRepairs([page([{...doc(),document_key_suggested:'pq:ls:187:AU234_FilmAb'}])]).candidates.length,1);
+ for(const mutate of [d=>{d.document_key_suggested='pq:ls:187:AU999_Other'},d=>{d.file_url='https://sansad.in/getFile/a.pdf?source=pqals';d.rows[0].row.source_url=d.file_url}]){
+  const d=doc();mutate(d);const p=planRepairs([page([d])]);assert.equal(p.candidates.length,0);assert.ok(p.held[0].reasons.includes('answer_key_conflict'));
+ }
 });

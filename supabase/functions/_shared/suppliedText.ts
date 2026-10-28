@@ -6,6 +6,19 @@ import { sha256Hex } from './textNormalise.ts';
 
 export const SUPPLIED_TEXT = Object.freeze({ maxChars: 600_000, maxChunks: 800, bodyBytes: 4_000_000, version: 1 });
 const SHA = /^[a-f0-9]{64}$/;
+/**
+ * The one National module admitted besides Law (owner 2026-10-27; F266): Lok Sabha question answers. The source_key
+ * is the citation pack's 40-hex SHA-1 and the source is the official sansad.in answer file. The database
+ * (ingest_register_text_unmapped) re-checks this and writes the listing links in the same transaction.
+ */
+export const NATIONAL_QUESTIONS = Object.freeze({ tier: 'national', feature: 'Parliamentary Question Database' });
+const NATIONAL_KEY = /^[0-9a-f]{40}$/;
+const PQ_URL = /^https:\/\/sansad\.in\/getFile\/loksabhaquestions\/annex\/([0-9]{1,4})\/([A-Za-z0-9_]{1,64})\.pdf(\?source=pqals)?$/;
+/** The answer document a Lok Sabha question URL names, `pq:ls:<session>:<file stem>`; null otherwise (pq_answer_key in SQL). */
+export function pqAnswerKey(url: unknown): string | null {
+  const m = typeof url === 'string' ? PQ_URL.exec(url) : null;
+  return m ? `pq:ls:${m[1]}:${m[2]}` : null;
+}
 function object(v: unknown, name: string): Record<string, unknown> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(`${name} must be an object`);
   return v as Record<string, unknown>;
@@ -27,7 +40,8 @@ export async function prepareSuppliedText(value: unknown) {
   const r = object(value, 'record');
   if (r.adapter_version !== undefined && r.adapter_version !== SUPPLIED_TEXT.version) throw new Error('unsupported adapter version');
   const source_key = string(r.source_key, 'source_key');
-  if (!source_key.startsWith('law:')) throw new Error('this adapter requires a Law source_key');
+  const law = source_key.startsWith('law:');
+  if (!law && !NATIONAL_KEY.test(source_key)) throw new Error('this adapter requires a Law or National question source_key');
   const title = string(r.title, 'title', 300);
   const text = string(r.text, 'text', SUPPLIED_TEXT.maxChars);
   if (!text.isWellFormed()) throw new Error('text has invalid Unicode');
@@ -35,8 +49,18 @@ export async function prepareSuppliedText(value: unknown) {
   if (r.text_sha256 !== hash || (r.content_sha256 !== undefined && r.content_sha256 !== hash)) {
     throw new Error('text hash mismatch');
   }
-  if (!DESK_CATALOG.some((e) => e.tier === r.desk_tier && e.feature === r.desk_feature) || r.desk_tier !== 'law') {
+  const deskOk = law
+    ? r.desk_tier === 'law'
+    : r.desk_tier === NATIONAL_QUESTIONS.tier && r.desk_feature === NATIONAL_QUESTIONS.feature;
+  if (!DESK_CATALOG.some((e) => e.tier === r.desk_tier && e.feature === r.desk_feature) || !deskOk) {
     throw new Error('unsupported desk feature');
+  }
+  if (!law) {
+    const key = pqAnswerKey(r.file_url);
+    if (!key) throw new Error('a National question needs its official sansad.in answer file_url');
+    if (r.document_key_suggested !== undefined && r.document_key_suggested !== key) {
+      throw new Error('document_key_suggested does not match the answer file_url');
+    }
   }
   if (r.text_quality !== undefined && r.text_quality !== 'ok') throw new Error('incomplete or unreviewed text quality');
   if (r.page_split != null && !['exact', 'none'].includes(String(r.page_split))) {
