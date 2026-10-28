@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { serveLawListingPage } from '../../server/lawListingPage.mjs';
+import { publicLawFilter, publicLawPage, publicLawSort } from './pagedFeatures.js';
 import { serveFeaturePage } from '../../server/featurePage.mjs';
 import { serveLawLanding } from '../../server/lawLandingSummary.mjs';
 import { documentKey, attachmentCoverageKey } from './deskRows.js';
@@ -77,4 +78,45 @@ it('Law coverage errors leave availability unknown rather than claiming missing 
   const indexed = await refreshCoverage([attachmentCoverageKey(row)], client);
   expect(coverageOf(row, indexed)).toBeNull();
   expect(coverageOf({kind:'row',document_key:key}, indexed)).toBe('unmapped');
+});
+
+it('F264 canonical Law public pages omit operational readiness while preserving source rows and identities',async()=>{
+ const stored={active:true,rows:[{id:'stable',title:'Globiz',availability:'indexed',document_key:key},{id:'notice',title:'Announcement',availability:'source-only'}],total:2,totalAll:436};
+ const result=await serveLawListingPage(params(),{env,fetch:async()=>({ok:true,json:async()=>stored})});
+ expect(result.body.columns.some(column=>column.key==='availability')).toBe(false);
+ expect(result.body.filterGroups.some(group=>group.col==='availability')).toBe(false);
+ expect(result.body.rows[0]).toMatchObject({id:'stable',document_key:key});
+ expect(result.body.rows.every(row=>!Object.hasOwn(row,'availability'))).toBe(true);
+ expect(JSON.stringify(result.body)).not.toMatch(/Indexed text|Source only|Text availability|indexed-document count|verified indexed attachments/);
+ expect(stored.rows[0].availability).toBe('indexed');
+ expect(stored.rows[1].availability).toBe('source-only');
+});
+
+it('F264 retained operational Law sort and filters cannot constrain public pages',async()=>{
+ const search=params();search.set('sort','availability');search.set('dir','asc');
+ search.set('filter',JSON.stringify([{col:'availability',value:'indexed'},{col:'court',value:'NCLT'}]));
+ const fetch=vi.fn(async()=>({ok:true,json:async()=>({active:true,rows:[],total:0,totalAll:436})}));
+ await serveLawListingPage(search,{env,fetch});
+ expect(JSON.parse(fetch.mock.calls[0][1].body).p).toMatchObject({sort:'date',dir:'desc',filter:[{col:'court',value:'NCLT'}]});
+ expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it('F264 a single saved readiness filter object, or a list left empty, means no Law filter',async()=>{
+ expect(publicLawFilter(feature,{col:'availability',value:'indexed'})).toBeNull();
+ expect(publicLawFilter(feature,[{col:'availability',value:'indexed'}])).toBeNull();
+ const court={col:'court',value:'NCLT'};
+ expect(publicLawFilter(feature,court)).toBe(court);
+ const search=params();search.set('filter',JSON.stringify([{col:'availability',value:'indexed'}]));
+ const fetch=vi.fn(async()=>({ok:true,json:async()=>({active:true,rows:[],total:0,totalAll:436})}));
+ await serveLawListingPage(search,{env,fetch});
+ expect(JSON.parse(fetch.mock.calls[0][1].body).p.filter).toEqual([]);
+});
+
+it('F264 other modules keep their filter, sort and page objects unchanged',()=>{
+ const filter=[{col:'availability',value:'indexed'}],sort={key:'availability',dir:'asc'},page={rows:[{availability:'x'}],columns:[{key:'availability'}]};
+ for(const other of ['Bill Passage Probability Index','Parliamentary Question Database']){
+  expect(publicLawFilter(other,filter)).toBe(filter);
+  expect(publicLawSort(other,sort)).toBe(sort);
+  expect(publicLawPage(other,page)).toBe(page);
+ }
 });

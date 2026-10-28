@@ -3,7 +3,7 @@ import { rowSelectionProps } from '../shell/rowSelection.js';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchFeature, fetchFeaturePage } from '../lib/featureFeed.js';
 import { featureFeedApiEnabled } from '../lib/apiMode.js';
-import { canonicalQ, isPagedFeature, LAW_LISTING_FEATURE } from '../lib/pagedFeatures.js';
+import { canonicalQ, isPagedFeature, LAW_LISTING_FEATURE, publicLawFilter, publicLawPage, publicLawSort } from '../lib/pagedFeatures.js';
 import { pendingDeskRow, fetchPendingDeskRow } from '../ai/openRowSource.js';
 import { openAiResearch, rowDragProps } from '../lib/aiDrop.js';
 import { deskRowKey } from '../lib/deskRows.js';
@@ -121,15 +121,20 @@ export default function DeskView({
   onSelect,
   onLoading,
   reload,
-  vizFilter,
+  vizFilter: savedVizFilter,
   onClearViz,
   onReveal,
   workspaceScope = '',
 }) {
   const [q, setQ] = useWorkspaceState('table.q', '', workspaceScope);
   const deferredQ = useDeferredValue(q);
-  const [sort, setSort] = useWorkspaceState('table.sort', { key: '', dir: 'asc' }, workspaceScope);
-  const [feed, setFeed] = useState(null);
+  const [savedSort, setSort] = useWorkspaceState('table.sort', { key: '', dir: 'asc' }, workspaceScope);
+  // F264: a saved Law view or a page cached before the release may still hold the retired text
+  // readiness column, filter or sort; the public view drops them (pagedFeatures.js).
+  const sort = useMemo(() => publicLawSort(featureName, savedSort), [featureName, savedSort]);
+  const vizFilter = useMemo(() => publicLawFilter(featureName, savedVizFilter), [featureName, savedVizFilter]);
+  const [storedFeed, setFeed] = useState(null);
+  const feed = useMemo(() => publicLawPage(featureName, storedFeed), [featureName, storedFeed]);
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(true);
   const [visibleKeys, setVisibleKeys] = useState(null);
@@ -333,9 +338,10 @@ export default function DeskView({
         }
         return null;
       })
-      .then((body) => {
+      .then((answer) => {
         if (ac.signal.aborted) return;
         setPaging(false);
+        const body = publicLawPage(featureName, answer);
         if (!body) {
           // The API is not on this host or failed: the whole module, browsed here, as before.
           setPagedMode(false);

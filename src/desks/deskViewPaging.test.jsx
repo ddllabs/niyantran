@@ -20,6 +20,7 @@ vi.mock('../lib/apiMode.js', () => ({ featureFeedApiEnabled: () => true, liveApi
 import DeskView from './DeskView.jsx';
 import { openInDesk, pendingDeskRow } from '../ai/openRowSource.js';
 import { deskRowKey } from '../lib/deskRows.js';
+import { LAW_LISTING_FEATURE } from '../lib/pagedFeatures.js';
 
 // DeskView's useState order: q 0, sort 1, feed 2, err 3, loading 4, visibleKeys 5, reloadTick 6,
 // pageAt 7, hasAnswerFilter 8, pagedMode 9, pagedQ 10, paging 11.
@@ -35,10 +36,41 @@ function nodes(tree) { if (!tree || typeof tree !== 'object') return []; if (Arr
 const text = (tree) => nodes(tree).flatMap((n) => [n.props?.children].flat()).filter((c) => typeof c === 'string' || typeof c === 'number').map(String);
 const render = (props = {}) => DeskView({ featureName: BILLS, tier: 'national', selected: null, onSelect: vi.fn(), onFeed: vi.fn(), onLoading: vi.fn(), ...props });
 const tick = () => new Promise((r) => setTimeout(r, 0));
+const oldLawPage=()=>paged({tier:'judiciary',feature:LAW_LISTING_FEATURE,rows:[{id:'order',title:'Company order',availability:'indexed'}],total:1,
+ columns:[{key:'title',label:'Title'},{key:'availability',label:'Text availability'}],
+ filterGroups:[{col:'availability',title:'Text availability',options:[{label:'Indexed text',filterValue:'indexed',filterCol:'availability'}]},{col:'court',title:'Forum',options:[]}],
+ source:{adapter:'law-canonical',note:''}});
 
 beforeEach(() => {
   hooks.index = 0; hooks.overrides = {}; hooks.setters = {}; hooks.runEffects = false;
   api.page.mockReset(); api.whole.mockReset();
+});
+
+it('F264 cached Law columns and retained readiness selections cannot leak into public rows or filter chrome',()=>{
+ hooks.overrides={2:oldLawPage(),4:false,5:['availability']};
+ const tree=render({featureName:LAW_LISTING_FEATURE,tier:'judiciary',vizFilter:[{col:'availability',value:'indexed'}]});
+ expect(text(tree).join(' ')).not.toMatch(/Text availability|Indexed text|indexed/);
+ const all=nodes(tree);
+ expect(all.filter(n=>n.type==='th').map(n=>text(n)[0])).toEqual(['Title']);
+ expect(all.find(n=>n.type?.name==='VizFilterChip').props.vizFilter).toBeNull();
+ const menu=all.find(n=>n.type?.name==='TableFilterPop');
+ expect(menu.props.feed.filterGroups.map(group=>group.col)).toEqual(['court']);
+ const row=all.find(n=>n.type?.name==='CorpusCapability').props.row;
+ expect(row.id).toBe('order');expect(row).not.toHaveProperty('availability');
+});
+
+it('F264 a retained Law readiness sort/filter is dropped before the browser requests a page',()=>{
+ api.page.mockReturnValue(new Promise(()=>{}));hooks.runEffects=true;
+ hooks.overrides={1:{key:'availability',dir:'asc'}};
+ render({featureName:LAW_LISTING_FEATURE,tier:'judiciary',vizFilter:[{col:'availability',value:'indexed'},{col:'court',value:'NCLT'}]});
+ expect(api.page.mock.calls[0][0]).toMatchObject({sort:'date',dir:'desc',filter:[{col:'court',value:'NCLT'}]});
+});
+
+it('F264 old paged API envelopes are sanitized before the shell receives their records',async()=>{
+ api.page.mockResolvedValue(oldLawPage());hooks.runEffects=true;
+ const onFeed=vi.fn();render({featureName:LAW_LISTING_FEATURE,tier:'judiciary',onFeed});await tick();
+ expect(onFeed.mock.calls[0][0].rows[0]).not.toHaveProperty('availability');
+ expect(onFeed.mock.calls[0][0].columns.map(column=>column.key)).toEqual(['title']);
 });
 
 describe('a paged module on screen (F156)', () => {
