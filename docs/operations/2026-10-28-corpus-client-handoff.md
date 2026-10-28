@@ -1,6 +1,6 @@
 # Message for the corpus ingestion agent
 
-> **Status: Living.** 2026-10-29. F257–F260 released through PR #62, F261 through PR #64, F264 through PRs #66 and #67, and F266 through PR #70 (merge `498152f3fcfa00849778751f04046803a79f35e7`); all reviewed mappings applied. Ingestion may resume only under the rules below, one owner-approved cohort at a time.
+> **Status: Living.** 2026-10-29. F257–F260 released through PR #62, F261 through PR #64, F264 through PRs #66 and #67, and F266 through PRs #70 and #72 (merge `60f453f15063924d44d3f04e402b4a3427be0320`); all reviewed mappings applied. Ingestion may resume only under the rules below, one owner-approved cohort at a time.
 
 ## F264 addendum — released 2026-10-28
 
@@ -25,11 +25,12 @@ Lok Sabha question answers are admitted only together with their links to the li
 5. **Website acceptance for every cohort:** signed in, open at least five records from the cohort, confirm Full text, ask one attached-record question per record and confirm the cited passage is the right document. Record the result in the receipt. An indexing job alone is not completion.
 6. **No shared code, migrations, deploys or direct SQL.** Change client scripts only on your branch and send them for review; shared code, migrations and deployments go only through reviewed pull requests to `main`, done by the supervisor. Hiding or changing records is a reviewed operation, never direct SQL.
 7. **Access.** Do not use a stored admin password. Each approved run uses a short-lived access token issued by the owner for that run.
-8. **Collections.** Admitted: Law (NCLT / IBBI orders, through the listing adapter) and Lok Sabha question answers (through F266). Everything else, including Rajya Sabha, Bills and regulators, stays held until a reviewed adapter exists.
+8. **Listing rows are not yours to load.** Question ids are pinned to their questions and the desk-row loader refuses to renumber them or to change a linked row; never run `scripts/load-desk-rows.mjs`, `scripts/pq-row-refresh.sql` or any listing change. A missing or wrong listing row is reported to the owner.
+9. **Collections.** Admitted: Law (NCLT / IBBI orders, through the listing adapter) and Lok Sabha question answers (through F266). Everything else, including Rajya Sabha, Bills and regulators, stays held until a reviewed adapter exists.
 
 ## Copyable message
 
-Ingestion stays paused until the owner approves your next cohort's manifest; then follow the rules above exactly. Preserve your corpus branch, checkpoints and receipts. Fetch `origin/main`, confirm it contains merge `498152f3fcfa00849778751f04046803a79f35e7` (PR #70), including PRs #62, #64, #66 and #67, and work on a separate task branch. Integrate main deliberately; do not discard uncommitted work, rewrite shared history, or touch another agent's branch. Follow AGENTS.md: leave a scoped reviewable diff unless separately authorized to publish it.
+Ingestion stays paused until the owner approves your next cohort's manifest; then follow the rules above exactly. Preserve your corpus branch, checkpoints and receipts. Fetch `origin/main`, confirm it contains merge `60f453f15063924d44d3f04e402b4a3427be0320` (PR #72), including PRs #62, #64, #66, #67 and #70, and work on a separate task branch. Integrate main deliberately; do not discard uncommitted work, rewrite shared history, or touch another agent's branch. Follow AGENTS.md: leave a scoped reviewable diff unless separately authorized to publish it.
 
 ### Read first
 
