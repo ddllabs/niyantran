@@ -235,6 +235,18 @@ function fakeDeps(
     findDeskRow: () => Promise.resolve(null),
     indexedDocumentKeys: () => Promise.resolve([]),
     webSearchOverride: (_id, requested) => Promise.resolve(requested ?? null),
+    resolveDocumentScope: async (scope) => {
+      const [ids, indexed] = await Promise.all([
+        db.resolveDocumentIds({ keys: scope.keys, ids: scope.ids }), db.indexedDocumentKeys(scope.keys),
+      ]);
+      const byKey: Record<string, { coverage: string; ids: string[] }> = {};
+      for (const key of scope.keys) byKey[key] = indexed.includes(key)
+        ? { coverage: 'full', ids: ids.length ? ids : ['indexed-test-document'] }
+        : { coverage: 'unmapped', ids: [] };
+      for (const id of scope.ids) byKey[`document-id:${id}`] = ids.includes(id)
+        ? { coverage: 'full', ids: [id] } : { coverage: 'unavailable', ids: [] };
+      return { ids, byKey };
+    },
     ...dbOver,
   };
   const deps: HandlerDeps = {
@@ -3489,7 +3501,7 @@ Deno.test('current indexed pinned bill anchors pre-search instead of previous su
   assertEquals(queries, ['National Anti-Doping (Amendment) Bill, 2025 — tell me about this bill']);
 });
 
-Deno.test('an indexed current selection does not force web because an old pin lacks full text', async () => {
+Deno.test('an unverified old pin does not enable or force web for an indexed current selection', async () => {
   const provider = scripted([...DECLINES, [text(envelope('Record answer.')), finish()]]);
   const { deps, rec } = fakeDeps(provider, {}, {
     findDeskRow: () => Promise.resolve({ ...storedRow(), document_key: 'bill:current' }),
@@ -3497,7 +3509,7 @@ Deno.test('an indexed current selection does not force web because an old pin la
   });
   await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, message: 'tell me about this bill',
     attachments: [{ kind: 'record', title: 'Previous bill', text: 'Previous row', document_key: 'bill:previous' }] }), deps));
-  assertEquals(rec.messages[0].usage?.web_offered, true);
+  assertEquals(rec.messages[0].usage?.web_offered, false);
   assertEquals(rec.messages[0].usage?.web_required, false);
   assertEquals(provider.seen.filter(r => r.tool_choice === 'required').length, 0);
 });
@@ -4130,4 +4142,99 @@ Deno.test('the pilot editor text reaches the main LLM unchanged and emits its fi
   const out = await frames(await handleResearchChat(post({ ...BODY, persona_probe: 'academic', persona_prompt: exact }), deps));
   assert(provider.seen.some(req => req.messages.some(m => m.role === 'system' && typeof m.content === 'string' && m.content.includes(`\n\n${exact}\n\nToday`))));
   assert(out.some(f => 'persona' in f && f.persona.source === 'editor_test'));
+});
+
+Deno.test('F264 unverified snapshot never triggers automatic web', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('I only have the supplied record.')), finish()]]);
+  const { deps } = fakeDeps(provider, {}, { findDeskRow: () => Promise.resolve(null) });
+  const got = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: 'f264-snapshot' }), deps));
+  assertEquals(webFrame(got)?.offered, false);
+  assert(provider.seen.every(r => !r.serverTools));
+});
+
+Deno.test('F264 partial ready documents stay scoped and do not trigger automatic web', async () => {
+  const key = storedRow().document_key!;
+  const scopes: (string[] | undefined)[] = [];
+  const { deps } = fakeDeps(documentTurn(1), { searchDocuments: (_args, ids) => {
+    scopes.push(ids); return Promise.resolve([{ ...chunk('partial'), document_id: DOC_A }]);
+  } }, { findDeskRow: () => Promise.resolve(storedRow()),
+    resolveDocumentScope: () => Promise.resolve({ ids: [DOC_A], byKey: { [key]: { coverage: 'partial', ids: [DOC_A] } } }),
+    indexedDocumentKeys: () => Promise.resolve([]), resolveDocumentIds: () => Promise.resolve([DOC_A]),
+  });
+  const got = await frames(await handleResearchChat(post({ ...BODY, turn_key: 'f264-partial', focus: 'selection',
+    selection: { tier: 'national', feature: storedRow().feature, row: { bill_name: 'THE DELIMITATION BILL, 2026.' } },
+  }), deps));
+  assertEquals(webFrame(got)?.offered, false);
+  assertEquals(scopes, [[DOC_A]]);
+});
+
+for (const [coverage, offered] of [['unmapped', true], ['registered', true], ['incomplete', true], ['held', false], ['unavailable', false]] as const) {
+  Deno.test(`F264 verified record ${coverage} has safe automatic web decision`, async () => {
+    const key = storedRow().document_key!;
+    const provider = scripted([...DECLINES, [text(envelope('Answer from the record.')), finish()]]);
+    const { deps } = fakeDeps(provider, {}, { findDeskRow: () => Promise.resolve(storedRow()),
+      resolveDocumentScope: () => Promise.resolve({ ids: [], byKey: { [key]: { coverage, ids: [] } } }),
+    });
+    const got = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: `f264-${coverage}` }), deps));
+    assertEquals(webFrame(got)?.offered, offered);
+    if (!offered) assertEquals(webFrame(got)?.reason, 'coverage-unknown');
+  });
+}
+
+Deno.test('F264 missing direct document and override-read error stay off without searching outside scope', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('The document is unavailable.')), finish()]]);
+  let searches = 0;
+  const { deps } = fakeDeps(provider, { searchDocuments: () => { searches++; return Promise.resolve([]); } }, {
+    resolveDocumentScope: () => Promise.resolve({ ids: [], byKey: { [`document-id:${DOC_A}`]: { coverage: 'unavailable', ids: [] } } }),
+    webSearchOverride: () => Promise.reject(new Error('unavailable')),
+  });
+  const got = await frames(await handleResearchChat(post({ ...BODY, turn_key: 'f264-revoked', focus: 'attached', attachments: [docChip('Revoked')] }), deps));
+  assertEquals(webFrame(got), { offered: false, mode: 'off', reason: 'override-off' });
+  assertEquals(searches, 0);
+  assert(provider.seen.every(r => !r.serverTools));
+});
+
+Deno.test('F264 explicit web off remains binding when another verified record has no text', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('Record answer.')), finish()]]);
+  const { deps } = fakeDeps(provider, {}, { findDeskRow: () => Promise.resolve(ROW_ONLY) });
+  const got = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: 'f264-off', web_search: false }), deps));
+  assertEquals(webFrame(got), { offered: false, mode: 'off', reason: 'override-off' });
+  assert(provider.seen.every(r => !r.serverTools));
+});
+
+Deno.test('F264 ready partial passages retain document citations with explicit web off', async () => {
+  const key = storedRow().document_key!;
+  let research = 0;
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    if (researching(req)) {
+      if (research++ === 0) { yield { type: 'tool-call', id: 'partial', name: 'search_documents', args: '{"query":"committee"}' }; yield finish('tool_calls'); }
+      else yield finish();
+      return;
+    }
+    const handle = [...JSON.stringify(req.messages).matchAll(/ref:[a-z0-9]{6}-\d+/g)].at(-1)?.[0] ?? 'ref:missing-1';
+    yield text(envelope('The available passage describes the committee [1].', [{ id: 1, source: handle }])); yield finish();
+  };
+  const scopes: (string[] | undefined)[] = [];
+  const { deps, rec } = fakeDeps({ stream }, { searchDocuments: (_args, ids) => {
+    scopes.push(ids); return Promise.resolve([{ ...chunk('partial-citation'), document_id: DOC_A }]);
+  } }, { findDeskRow: () => Promise.resolve(storedRow()),
+    resolveDocumentScope: () => Promise.resolve({ ids: [DOC_A], byKey: { [key]: { coverage: 'partial', ids: [DOC_A] } } }),
+  });
+  const got = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: 'f264-partial-citation', web_search: false }), deps));
+  assertEquals(webFrame(got)?.offered, false);
+  assertEquals(scopes, [[DOC_A]]);
+  assert(rec.messages[0].sources.some(source => source.kind === 'text' && source.document_id === DOC_A));
+});
+
+Deno.test('F264 resolver errors fail the turn before any provider or widened search', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('Unexpected answer.')), finish()]]);
+  let searches = 0;
+  const { deps, rec } = fakeDeps(provider, { searchDocuments: () => { searches++; return Promise.resolve([]); } }, {
+    findDeskRow: () => Promise.resolve(storedRow()), resolveDocumentScope: () => Promise.reject(new Error('lookup failed')),
+  });
+  const got = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: 'f264-error' }), deps));
+  assertEquals(provider.seen.length, 0);
+  assertEquals(searches, 0);
+  assertEquals(rec.messages[0].status, 'error');
+  assertEquals(webFrame(got), undefined);
 });

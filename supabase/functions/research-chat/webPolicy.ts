@@ -12,12 +12,14 @@ export interface WebScope {
   focus: Focus;
   /**
    * attached/selection: the rows and records in scope (uploaded files are not
-   * records and are left out). `indexed`: its document_key resolves to a
-   * document with indexed_at set. A missing key is `indexed: false`.
+   * records and are left out). `indexed` is true when a ready document is
+   * available, false for verified metadata-only records, null when unknown.
    */
-  records: { key: string | null; indexed: boolean }[];
-  /** An "Ask about this document" chip is in scope (indexed by construction). */
+  records: { key: string | null; indexed: boolean | null }[];
+  /** A direct document chip resolved to currently accessible text. */
   documentAttached: boolean;
+  /** A direct document was not resolved as currently accessible and ready. */
+  documentUnknown?: boolean;
   /** desk focus: whether the open module is among document_modules(); null when no module is open. */
   moduleHasDocuments: boolean | null;
 }
@@ -39,7 +41,8 @@ function automatic(scope: WebScope): { on: boolean; reason: WebReason } {
       if (scope.moduleHasDocuments === true) return { on: false, reason: 'documents-in-scope' };
       return { on: false, reason: 'no-record' };
     default: // 'attached' | 'selection'
-      if (scope.records.some((r) => !r.indexed)) return { on: true, reason: 'record-without-document' };
+      if (scope.records.some((r) => r.indexed === false)) return { on: true, reason: 'record-without-document' };
+      if (scope.records.some((r) => r.indexed === null) || scope.documentUnknown) return { on: false, reason: 'coverage-unknown' };
       if (scope.records.length || scope.documentAttached) return { on: false, reason: 'documents-in-scope' };
       return { on: false, reason: 'no-record' };
   }

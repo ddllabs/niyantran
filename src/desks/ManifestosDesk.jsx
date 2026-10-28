@@ -6,6 +6,7 @@ import { applyVizFilter } from '../lib/nationalKpi.js';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import TableFilterPop, { choiceGroup, matchesChoice } from '../shell/TableFilterPop.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 import { getStatusToneClass } from '../lib/format.js';
 
 const STATUS_HELP = {
@@ -119,7 +120,7 @@ export default function ManifestosDesk({ workspaceScope = '', selected, onSelect
               >
                 <td>{r.party}</td>
                 <td>{r.year}</td>
-                <td>{r.promise || r.title}</td>
+                <td>{r.promise || r.title}<CorpusCapability row={r} feed={{tier:'national',feature:'Manifestos'}} /></td>
                 <td>{r.domain}</td>
                 <td title={STATUS_HELP[r.verifiable_status] || ''}>
                   <span className={`soft-pill ${getStatusToneClass(r.verifiable_status || r.status)}`}>

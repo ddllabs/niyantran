@@ -651,3 +651,12 @@ Deno.test('Law endpoints map only to the scoped RPC contracts', async () => {
     ['law_publication_status', { p_document: 'doc' }],
   ]);
 });
+
+Deno.test('readiness uses caller session and never creates the service client', async () => {
+  const { client, log } = recordingClient(() => ({ data: { contract_version: 1, visibility: 'admin', observed_at: '2026-10-28T00:00:00Z', items: [], has_more: false, next_cursor: null }, error: null }));
+  let bearer: string | null = null;
+  const db = supabaseAdminDb(() => { throw Error('service client must not be created'); }, token => { bearer=token; return client; });
+  const q = {kind:'records' as const,tier:'national',feature:'Parliamentary Question Database',limit:50,ids:[],cohort:null,cursor:null};
+  assertEquals((await db.readiness!(q,'caller-session')).error,null);
+  assertEquals(bearer,'caller-session');assertEquals(log[0].rpc,'admin_corpus_readiness');assertEquals(log[0].args,{p:q});
+});

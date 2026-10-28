@@ -4,6 +4,7 @@ import { applyVizFilter } from '../lib/nationalKpi.js';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 
 export default function ProjectsDesk({ selected, onSelect, vizFilter, onClearViz }) {
   const all = FLAGSHIP_PROGRAMMES.map(([programme, domain, verifiable_status, activity]) => ({
@@ -14,7 +15,7 @@ export default function ProjectsDesk({ selected, onSelect, vizFilter, onClearViz
     title: programme,
   }));
   const rows = all.filter((r) => applyVizFilter(r, vizFilter));
-  const feed = { feature: 'Centre-sanctioned Projects Monitor', rows: all };
+  const feed = { tier: 'national', feature: 'Centre-sanctioned Projects Monitor', rows: all };
   return (
     <div className="nat-panel">
       <div className="feed-head">
@@ -44,7 +45,7 @@ export default function ProjectsDesk({ selected, onSelect, vizFilter, onClearViz
           <tbody>
             {rows.map((r) => (
               <tr key={r.programme} className={selected?.programme === r.programme ? 'on' : ''} {...rowSelectionProps(() => onSelect?.(r))} {...rowDragProps(r, { title: r.programme, feature: 'Centre-sanctioned Projects Monitor' })}>
-                <td>{r.programme}</td>
+                <td>{r.programme}<CorpusCapability row={r} feed={feed} /></td>
                 <td>{r.domain}</td>
                 <td>{r.verifiable_status}</td>
                 <td>

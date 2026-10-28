@@ -40,6 +40,9 @@ it('by default each tick asks the database again, even when the last answer is a
   vi.setSystemTime(Date.now() - 10);
   db.rows = [{ document_key: 'bill:2025:XLV' }];
   await vi.advanceTimersByTimeAsync(60_000);
+  expect(db.calls).toBe(2);
+  // The shared scheduler uses the actual answer lifetime, including this clock correction.
+  await vi.advanceTimersByTimeAsync(10);
   expect(db.calls).toBe(3);
   expect(answers.at(-1)).toEqual(['bill:2025:XLV']);
   stop();

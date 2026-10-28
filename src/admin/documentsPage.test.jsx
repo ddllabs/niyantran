@@ -453,7 +453,7 @@ describe('DocumentsPage', () => {
   it('opens on the records of the bill desk, then documents without a record, the upload panel and the jobs', () => {
     const markup = renderToStaticMarkup(createElement(DocumentsPage, { api: api() }));
     expect(markup).toContain('<h1 class="adm-h1">Documents</h1>');
-    expect(cards(markup)).toEqual(['Records', 'Documents without a record', 'Upload', 'Ingest jobs']);
+    expect(cards(markup)).toEqual(['Corpus desk', 'Corpus readiness — read only', 'Legacy Bill upload management', 'Documents without a legacy Bill link', 'Upload', 'Ingest jobs']);
     expect(markup).toMatch(/<option value="national\|Bill Passage Probability Index" selected="">/);
     expect(markup).toContain('Loading records…');
     expect(markup).toContain('Loading documents…');

@@ -162,6 +162,11 @@ export interface AssistantMessage {
   timing: Timing | null;
 }
 
+export interface DocumentScopeResolution {
+  ids: string[];
+  byKey: Record<string, { coverage: string; ids: string[] }>;
+}
+
 export interface UserDb {
   recentMessages(
     conversationId: string,
@@ -175,6 +180,8 @@ export interface UserDb {
    * document is dropped, so it discloses as unresolved rather than scoping
    * every search to a document with nothing to search. */
   resolveDocumentIds(scope: { keys: string[]; ids: string[] }): Promise<string[]>;
+  /** One caller-visible lookup supplies both ready IDs and coverage policy. */
+  resolveDocumentScope(scope: { keys: string[]; ids: string[]; signal?: AbortSignal }): Promise<DocumentScopeResolution>;
   /** The stored row, so a client-supplied selection can be trusted before it is cited. */
   findDeskRow(tier: string, feature: string, rowKey: string): Promise<DeskRow | null>;
   /** The keys among `keys` that name a document with indexed_at set: what decides whether a
@@ -984,11 +991,14 @@ async function runTurnBody(
   const conversational = isConversational(request.message);
   // 3. Web search (F130, web-search spec §1): decided once, before the first model call, and said
   //    to the reader. Every lookup here is best-effort; none can fail the turn.
-  const [webScope, webOverride] = await Promise.all([
-    webScopeOf(deps, mappedRequest, selectionKey, modules, modulesKnown),
+  const documentKeys = documentKeysOf(mappedRequest);
+  const documentIds = documentIdsOf(request);
+  const [resolution, webOverride] = await Promise.all([
+    deps.db.resolveDocumentScope({ keys: documentKeys, ids: documentIds, signal }),
     // A failed read falls back to off, not automatic: "off" may be the reader's privacy choice.
     deps.db.webSearchOverride(conversation.id, request.web_search).catch(() => request.web_search ?? false),
   ]);
+  const webScope = webScopeOf(mappedRequest, verifiedSelection, attachmentRows, resolution, modules, modulesKnown);
   const web = decideWebSearch({
     scope: webScope,
     override: webOverride,
@@ -1006,9 +1016,7 @@ async function runTurnBody(
   const safeText = (s: string) =>
     s ? checkLinks(s, [...webSeen, ...evidenceUrls(evidence)], { scanCode: true }).text : s;
 
-  const documentKeys = documentKeysOf(mappedRequest);
-  const documentIds = documentIdsOf(request);
-  const scopedDocumentIds = await deps.db.resolveDocumentIds({ keys: documentKeys, ids: documentIds });
+  const scopedDocumentIds = resolution.ids;
   // Missing source text is not permission to substitute unrelated nearest neighbours.
   // Broad context remains deliberate cross-desk research; mixed attachments still
   // search their resolved documents and obtain missing context through web policy.
@@ -1058,7 +1066,7 @@ async function runTurnBody(
   const userTurn = buildUserTurn(request.message, attachments, verifiedHandles, { smallTalk: conversational });
   const targetRecords = request.focus === 'selection' && request.selection && isContextQuestion(request.message)
     ? webScope.records.slice(-1) : webScope.records;
-  const requiredWeb = web.offered && targetRecords.some(r => !r.indexed) &&
+  const requiredWeb = web.offered && targetRecords.some(r => r.indexed === false) &&
     !webScope.documentAttached && requiresWebContext(request.message);
 
   signal.throwIfAborted();
@@ -1770,32 +1778,36 @@ function makeAssistantMessage(
   };
 }
 
-/**
- * What the turn's scope says about embeddings (web-search spec §1): each row or record in scope
- * (uploaded files are not records) with whether its document key names an indexed document, and,
- * under desk focus, whether the open module has documents. A failed lookup is not evidence that a
- * document is missing: a keyed record then counts as indexed, and an unknown module as no module.
- */
-async function webScopeOf(
-  deps: HandlerDeps,
+/** Build policy from the same caller-visible IDs used for retrieval. A missing
+ * row or inaccessible/held mapping is unknown, not proof that text is absent. */
+function webScopeOf(
   request: ResearchRequest,
-  selectionKey: string | null,
+  selection: DeskRow | undefined,
+  attachmentRows: (DeskRow | null)[],
+  resolution: DocumentScopeResolution,
   modules: DocumentModule[],
   modulesKnown: boolean,
-): Promise<WebScope> {
-  const keys = [
-    ...request.attachments.flatMap((a) => (a.kind === 'row' || a.kind === 'record' ? [a.document_key ?? null] : [])),
-    ...(request.selection ? [selectionKey] : []),
-  ];
-  const wanted = [...new Set(keys.filter((k): k is string => typeof k === 'string' && k.trim().length > 0))];
-  const indexed = wanted.length
-    ? await deps.db.indexedDocumentKeys(wanted).then((found) => new Set(found)).catch(() => null)
-    : new Set<string>();
+): WebScope {
+  const record = (row: DeskRow | null | undefined) => {
+    if (!row) return { key: null, indexed: null };
+    const key = row.document_key;
+    if (!key) return { key: null, indexed: false };
+    const result = resolution.byKey[key];
+    if (!result) return { key, indexed: null };
+    if (result.ids.length) return { key, indexed: true };
+    return { key, indexed: ['unmapped', 'registered', 'incomplete'].includes(result.coverage) ? false : null };
+  };
+  const records = request.attachments.flatMap((a, i) =>
+    a.kind === 'row' || a.kind === 'record' ? [record(attachmentRows[i])] : []);
+  if (request.selection) records.push(record(selection));
+  const direct = request.attachments.filter(a => a.kind === 'document');
+  const directResults = direct.map(a => resolution.byKey[`document-id:${a.document_id}`]);
   const context = request.desk_context;
   return {
     focus: request.focus,
-    records: keys.map((key) => ({ key, indexed: Boolean(key) && (indexed === null || indexed.has(key!)) })),
-    documentAttached: request.attachments.some((a) => a.kind === 'document'),
+    records,
+    documentAttached: directResults.some(r => !!r?.ids.length),
+    documentUnknown: directResults.some(r => !r?.ids.length),
     moduleHasDocuments: context?.feature && modulesKnown
       ? Boolean(featureScopeOf({ focus: 'desk', desk_context: context }, modules))
       : null,

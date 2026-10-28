@@ -5,6 +5,7 @@ import { applyVizFilter } from '../lib/nationalKpi.js';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 
 const FY = '2025–26';
 
@@ -40,7 +41,7 @@ export default function BudgetDesk({ selected, onSelect, onFeed, vizFilter, onCl
   }));
 
   const schemeRows = all.filter((r) => applyVizFilter(r, vizFilter));
-  const feed = { feature: 'Budget Utilisation Tracker', rows: [...keyRows, ...all] };
+  const feed = { tier: 'national', feature: 'Budget Utilisation Tracker', rows: [...keyRows, ...all] };
 
   useEffect(() => {
     onFeed?.({
@@ -132,7 +133,7 @@ export default function BudgetDesk({ selected, onSelect, onFeed, vizFilter, onCl
                 {...rowSelectionProps(() => (selected?.scheme === r.scheme && selected?.type === 'scheme_be' ? onSelect?.(null, { toggled: r }) : onSelect?.(r)))}
                 {...rowDragProps(r, { title: r.scheme, feature: 'Budget Utilisation Tracker' })}
               >
-                <td>{r.scheme}</td>
+                <td>{r.scheme}<CorpusCapability row={r} feed={feed} /></td>
                 <td>{r.ministry}</td>
                 <td>{r.fy}</td>
                 <td className="num">~{Number(r.be_cr).toLocaleString('en-IN')}</td>

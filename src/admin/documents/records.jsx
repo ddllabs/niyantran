@@ -31,11 +31,11 @@ export function DeskPicker({ value, pairs, onChange, disabled = false }) {
     <label className="adm-field span2">
       <span>Desk</span>
       <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} name="document-desk">
-        <optgroup label="Desks with records">
+        <optgroup label="Legacy Bill management">
           {keyed.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
           {aliases.map((c) => <option key={c.value} value={c.value}>{`${c.label} — ${c.note}`}</option>)}
         </optgroup>
-        <optgroup label="No record keys yet — standalone uploads only">
+        <optgroup label="Other desks — read-only readiness and standalone uploads">
           {keyless.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
         </optgroup>
       </select>

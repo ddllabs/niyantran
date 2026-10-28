@@ -5,6 +5,7 @@ import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
 import { plainNote } from '../lib/plainSourceNote.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 
 export default function IndustryDesk({ feed, statusRow, selected, onSelect, vizFilter, onClearViz }) {
   const rows = (feed?.rows || []).filter((r) => r.status !== 'source_status').filter((r) => applyVizFilter(r, vizFilter));
@@ -74,7 +75,7 @@ export default function IndustryDesk({ feed, statusRow, selected, onSelect, vizF
               <tbody>
                 {rows.slice(0, 40).map((r, i) => (
                   <tr key={r.id || i} {...rowDragProps(r, { title: r.title || r.indicator, feature: feed?.feature })}>
-                    <td>{r.title || r.indicator || '—'}</td>
+                    <td>{r.title || r.indicator || '—'}<CorpusCapability row={r} feed={feed} /></td>
                     <td>{r.date || r.year || '—'}</td>
                     <td className="num">{r.value ?? r.n ?? '—'}</td>
                   </tr>

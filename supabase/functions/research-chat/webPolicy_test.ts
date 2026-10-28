@@ -370,3 +370,10 @@ Deno.test('webSourcesOf drops a page with an unusable URL and de-duplicates by n
 Deno.test('webSourcesOf falls back to the URL when a page has no title', () => {
   assertEquals(webSourcesOf([page('https://a.example/1', '  ')], '')[0].title, 'https://a.example/1');
 });
+
+Deno.test('F264 unknown record and revoked direct document never authorize automatic web', () => {
+  assertEquals(decide({ records: [{ key: null, indexed: null }] }), { offered: false, mode: 'auto', reason: 'coverage-unknown' });
+  assertEquals(decide({ documentUnknown: true }), { offered: false, mode: 'auto', reason: 'coverage-unknown' });
+  assertEquals(decide({ records: [{ key: null, indexed: null }] }, { override: true }).offered, true);
+  assertEquals(decide({ records: [{ key: null, indexed: false }] }, { override: false }).offered, false);
+});

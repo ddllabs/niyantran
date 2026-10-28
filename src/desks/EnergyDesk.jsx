@@ -5,6 +5,7 @@ import { applyVizFilter } from '../lib/nationalKpi.js';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { aiDragProps } from '../lib/aiDrop.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 import { downloadJson, withExportProvenance } from '../lib/exportProvenance.js';
 
 const AI_SUMMARY =
@@ -180,7 +181,7 @@ export default function EnergyDesk({ feed, selected, onSelect, onAsk, vizFilter,
                       {...aiDragProps({ kind: 'row', feature: feed?.feature, title: m.name, row: m })}
                     >
                       <span className="geo-card-dot" style={{ color: s.c, background: s.c }} />
-                      <span className="geo-card-nm">{m.name}</span>
+                      <span className="geo-card-nm">{m.name}<CorpusCapability row={m} feed={feed} /></span>
                       <span className="geo-card-st" style={{ background: `${s.c}22`, color: s.c }}>
                         {s.l}
                       </span>

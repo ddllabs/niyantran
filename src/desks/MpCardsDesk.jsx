@@ -4,6 +4,7 @@ import { applyVizFilter } from '../lib/nationalKpi.js';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 
 function metric(row, keys) {
   for (const k of keys) {
@@ -83,6 +84,7 @@ export default function MpCardsDesk({ workspaceScope = '', feed, selected, onSel
               {...rowDragProps(r, { title: name, feature: 'MP Report Cards' })}
             >
               <strong>{name}</strong>
+              <CorpusCapability row={r} feed={feed} />
               <span>{[r.party, r.constituency || r.state].filter(Boolean).join(' · ') || r.house || '—'}</span>
               <ul className="nat-mp-metrics">
                 <MetricLine label="Attendance" value={attendance} />

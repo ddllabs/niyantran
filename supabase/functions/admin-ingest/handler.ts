@@ -35,6 +35,8 @@ import {
   type LinkResult,
   type PreparedPart,
   type RecordsResult,
+  type ReadinessQuery,
+  type ReadinessResult,
   type RecordStatus,
   type RegisterPart,
   SHA256,
@@ -126,6 +128,7 @@ export interface StagedObject {
 }
 
 export interface AdminIngestDb {
+  readiness?(q: ReadinessQuery, token: string): Promise<DbResult<ReadinessResult>>;
   lawListing?(action: string, p: Record<string, unknown>): Promise<DbResult<Record<string, unknown>>>;
   registerText?(p: Record<string, unknown>): Promise<DbResult<{ document_id: string; job_id: string; status: string; existing: boolean }>>;
   /** Documents whose file_sha256 is this, with the status of each one's latest job. */
@@ -1041,6 +1044,30 @@ export async function handleAdminIngest(req: Request, deps: AdminIngestDeps): Pr
     const ctx: Ctx = { deps, userId: caller.userId, log, hubs: new Map() };
     let result: unknown;
     switch (body.action) {
+      case 'readiness-records':
+      case 'readiness-documents': {
+        const kind = body.action === 'readiness-records' ? 'records' : 'documents';
+        const { tier, feature } = resolveDesk(body.desk_tier, body.desk_feature, []).catalog;
+        const limit = body.limit === undefined ? 50 : int(body.limit, 'limit', 1, 100);
+        const ids = body.ids === undefined ? [] : body.ids;
+        if (!Array.isArray(ids) || ids.length > 100) throw bad('ids must contain at most 100 exact identities');
+        const exactIds = [...new Set(ids.map((v) => kind === 'documents' ? uuid(v, 'document id') : text(v, 'row key', 1024)))];
+        const cohort = body.cohort == null ? null : text(body.cohort, 'cohort review decision', 300);
+        if (kind === 'records' && cohort) throw bad('cohort is a document review decision filter');
+        const cursor = body.cursor == null ? null : text(body.cursor, 'cursor', 4096);
+        if (cursor) {
+          let value: unknown; try { value = JSON.parse(cursor); } catch { throw bad('invalid readiness cursor'); }
+          const c = object(value, 'cursor');
+          if (c.kind !== kind || c.tier !== tier || c.feature !== feature || c.cohort !== cohort
+            || JSON.stringify(c.ids) !== JSON.stringify(exactIds) || typeof c.after !== 'string'
+            || !c.after || c.after.length > 1024 || (kind === 'documents' && !UUID.test(c.after))) throw bad('cursor does not match readiness filters');
+        }
+        if (!deps.db.readiness) throw new Refusal('unavailable', 'Readiness inspection is unavailable.');
+        const out = await deps.db.readiness({ kind, tier, feature, limit, ids: exactIds, cohort, cursor }, caller.token);
+        if (out.error || !out.data) throw new Refusal('unavailable', 'Readiness inspection failed; no absence conclusion is available.');
+        result = { ok: true, ...out.data };
+        break;
+      }
       case 'law-reconcile':
       case 'law-publish':
       case 'law-status':

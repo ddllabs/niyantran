@@ -4,6 +4,7 @@ import { plural } from './documents/format.js';
 import { JobsTable, mergeJobs, shouldPoll } from './documents/jobs.jsx';
 import { BILL_DESK, linkExistingRequest, pairValue, recordsDesk, runAction, draftFor } from './documents/model.js';
 import { DeskPicker, RecordsSection } from './documents/records.jsx';
+import { ReadinessSection } from './documents/readiness.jsx';
 import { UnlinkedSection } from './documents/unlinked.jsx';
 import {
   DuplicateWarning, KeyHolderWarning, PartProgress, PlanSummary, ResultLine, UploadForm, UploadTarget, hintsOf, splitOf, uploadFile, validateDraft,
@@ -283,11 +284,13 @@ export default function DocumentsPage({ api: injectedApi } = {}) {
         follow every ingest job. Legacy text is read-only here.
       </p>
 
+      <div className="adm-card"><h2>Corpus desk</h2><div className="adm-form">
+        <DeskPicker value={deskValue} pairs={pairs} onChange={setDeskValue} />
+      </div></div>
+      {desk ? <ReadinessSection key={`readiness:${deskValue}`} api={api} desk={desk} /> : null}
+
       <div className="adm-card">
-        <h2>Records</h2>
-        <div className="adm-form">
-          <DeskPicker value={deskValue} pairs={pairs} onChange={setDeskValue} />
-        </div>
+        <h2>Legacy Bill upload management</h2>
         {desk?.keyed ? (
           <RecordsSection
             key={`${desk.tier}|${desk.feature}`}
@@ -301,7 +304,7 @@ export default function DocumentsPage({ api: injectedApi } = {}) {
           />
         ) : (
           <div className="adm-hint">
-            <p style={{ margin: 0 }}>This desk has no record keys yet, so its documents cannot be linked to records. Standalone uploads only.</p>
+            <p style={{ margin: 0 }}>Record readiness for this desk is available above. Legacy Bill link controls do not apply here; new uploads use the standalone upload flow.</p>
             <div className="adm-actions">
               <button className="adm-btn tiny ghost" type="button" disabled={uploading} onClick={() => chooseTarget(standaloneTarget())}>Upload to this desk</button>
             </div>
@@ -309,9 +312,9 @@ export default function DocumentsPage({ api: injectedApi } = {}) {
         )}
       </div>
 
-      {desk ? (
+      {desk?.keyed ? (
         <div className="adm-card">
-          <h2>Documents without a record</h2>
+          <h2>Documents without a legacy Bill link</h2>
           <UnlinkedSection key={`${desk.tier}|${desk.feature}`} api={api} desk={desk} reloadToken={reloadToken} onChanged={reloadLists} />
         </div>
       ) : null}

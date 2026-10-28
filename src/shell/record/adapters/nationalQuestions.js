@@ -41,15 +41,10 @@ function memberIndex(rows) {
 }
 
 export default function nationalQuestions(row, ctx = {}) {
-  const textState = {
-    error: 'Text lookup failed', full: 'Full text available', partial: 'Partial text available',
-    unmapped: 'No verified text link', registered: 'Text not indexed',
-    incomplete: 'Text index incomplete', held: 'Text link under review',
-    unavailable: 'Linked text inaccessible', snapshot: 'Stored record unverified',
-  }[ctx.coverage] || 'Text coverage unverified';
+  const textState = ctx.coverage === 'full' ? 'Full text' : 'Record only';
   const coverageNote = ctx.coverage === 'full'
-    ? 'Linked full text is indexed and accessible. Ask AI to inspect the answer; register answer fields remain independent.'
-    : 'The question register describes the question, not the ministry answer. Text coverage is checked separately; missing register fields do not establish answer absence.';
+    ? 'Full text is available for research. Ask AI to inspect the answer; register answer fields remain independent.'
+    : 'Research can use the question details shown here. Missing register fields do not establish whether an answer is available.';
   const packs = ctx.packs?.ready ? ctx.packs : null;
   const a = packs ? analysisFor(row, packs.analysis) : null;
 
@@ -108,7 +103,7 @@ export default function nationalQuestions(row, ctx = {}) {
 
   return {
     title: subject || 'Question',
-    briefContext: 'Based on register fields, not retrieved answer text. This saved brief may describe earlier coverage; use Ask AI to check current text coverage.',
+    briefContext: 'Based on register fields, not retrieved answer text. This saved brief may describe an earlier version; use Ask AI to research the current answer.',
     meta: [house, type ? `${type} question` : ''].filter(Boolean),
     badge: status && status !== 'source_status' ? { text: sentence(status), tone: 'grey' } : undefined,
     links: sourceLinks(row, isPdf ? 'Question (PDF)' : 'Source on Sansad'),

@@ -1,4 +1,5 @@
 import { useWorkspaceState } from '../shell/workspaceState.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 import { useEffect, useMemo, useState } from 'react';
 import { PIG_SEC_META } from '../data/nationalCurated.js';
 import { applyVizFilter } from '../lib/nationalKpi.js';
@@ -296,14 +297,14 @@ export default function PolicyGraphDesk({ workspaceScope = '', feed, selected, o
           </div>
         </div>
         <div className="pig-right">
-          <PigPanel node={node} model={model} onGo={clickNode} selected={selected} />
+          <PigPanel node={node} model={model} onGo={clickNode} selected={selected} feed={feed} />
         </div>
       </div>
     </div>
   );
 }
 
-function PigPanel({ node, model, onGo }) {
+function PigPanel({ node, model, onGo, feed }) {
   if (!node || node.id === 'india') {
     return (
       <div className="pig-empty">
@@ -324,6 +325,7 @@ function PigPanel({ node, model, onGo }) {
           {node.sector} · {node.domain} · BILL
         </div>
         <div className="pig-p-title">{node.raw.bill_name || node.label}</div>
+        <CorpusCapability row={node.raw} feed={feed} />
         <div className="pig-p-badges">
           <span className={`pig-badge ${tone}`}>{stage}</span>
           {node.raw.house ? <span className="pig-badge">{node.raw.house}</span> : null}
@@ -364,6 +366,7 @@ function PigPanel({ node, model, onGo }) {
             <li key={b.id}>
               <button type="button" onClick={() => onGo(b.id)}>
                 {b.label.slice(0, 60)}
+                <CorpusCapability row={b.raw} feed={feed} />
               </button>
               <span className="st">{b.stage}</span>
             </li>

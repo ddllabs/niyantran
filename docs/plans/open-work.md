@@ -1,5 +1,7 @@
 # Open work: the one list
 
+- [ ] **F264 — Two public corpus capabilities and admin readiness.** Local implementation and verification ready for owner review (not released): Full text / Record only across public record surfaces, preserved RAG/web policy, bounded admin diagnostics and client handoff. No production or ingestion. [Spec](../specs/2026-10-28-public-corpus-capability.md), [plan](2026-10-28-public-corpus-capability.md).
+
 - [ ] **F263 — Make feature-search recovery fixture prove the recovery branch.** Docs-only PR #65 CI 40594375279 failed `recovery matches exact oracle`, while parallel same-head run 40594341876 passed. Read-only EXPLAIN confirms the oracle uses an exact full-vector sort; the helper may legitimately return a full approximate result without recovery. The fixture does not prove branch entry. First 80 synthetic far vectors have 80 full-precision distances but one halfvec distance, supporting (not reproducing) nondeterministic ANN selection. Diagnose and make the fixture deterministic with causal evidence; do not change production retrieval or weaken scope/recall checks merely to turn CI green. F261 runtime passed its own branch, PR and main CI.
 
 - [ ] **F262 — Empty unsent chat appears as a deletion confirmation in History.** During F261 live acceptance, opening History from New research displayed “Delete New research and its 0 messages?” without selecting Delete. Cancelled; no deletion. Investigate empty chat identity versus the pendingDelete sentinel in AiPanel before a scoped fix; preserve real deletion confirmation. Separate from corpus/display readiness. [Observation](../operations/2026-10-28-f261-release.md).
@@ -76,7 +78,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F263 is next) and goes in the
+- A new finding gets the next free `F` number (F265 is next) and goes in the
   right section.
 
 ## Frontend follow-up

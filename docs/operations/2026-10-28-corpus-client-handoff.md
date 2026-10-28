@@ -2,6 +2,16 @@
 
 > **Status: Living.** 2026-10-28. F257–F260 released through PR #62 and F261 through PR #64; existing reviewed mappings applied. New ingestion and larger batches remain held.
 
+## F264 local review addendum — not released
+
+The two-label public capability/admin-readiness increment is implemented and locally verified, awaiting owner review. Do not assume it is deployed or use a local draft contract as permission to resume ingestion. The final release commit, migration/function/frontend verification and client acceptance receipt must be supplied after owner review. Read [the readiness contract and runnable export guide](corpus-readiness.md) before preparing an inspection report. PR #64 remains the last released behavior documented below.
+
+Public Full text / Record only labels are presentation, not ingestion admission evidence. Preserve operational reason codes in reports and admin inspection. A Record only label does not prove missing OCR, missing embeddings or a missing mapping; never re-ingest solely to change it. Partial documents may have usable indexed passages. Null legacy keys do not prove Law/ordinary records are unlinked.
+
+Before proposing the next cohort, reconcile stable listing tuples and current caller-visible document associations, complete vectors and publication/access separately. Keep immutable document/text/chunk hashes, all aliases, collection adapters, holds, checkpoints and exact retry evidence. Readiness pages are bounded observations, not a complete alias inventory or transactional snapshot; they cannot replace approved mapping repair manifests. Admin visibility is not proof of public-user access.
+
+Keep the existing ingestion engine and its dry-run/manifest approvals. Unsupported adapters remain held. After the release is accepted, prepare 100 documents for separately approved validation before proposing 1,000. No batch, mapping repair, queue restart, OCR regeneration or embedding replacement is authorized by this addendum.
+
 ## Copyable message
 
 Keep ingestion and collection expansion paused. Preserve your corpus branch, checkpoints and receipts. Fetch `origin/main`, confirm it contains merge `69922e738d34b0bcfc690656f0c78ef1bc95bee6` (PR #64), including PR #62, and work on a separate task branch. Integrate main deliberately; do not discard uncommitted work, rewrite shared history, or touch another agent's branch. Follow AGENTS.md: leave a scoped reviewable diff unless separately authorized to publish it.

@@ -302,28 +302,36 @@ describe('documentModules', () => {
 describe('webDefaultFor', () => {
   const modules = [{ desk_tier: 'National', desk_feature: 'Bills' }];
   const indexedKeys = new Set(['bill:2026:153']);
-  const row = (document_key) => ({ kind: 'row', title: 'A row', ...(document_key ? { document_key } : {}) });
+  const row = (id) => ({ kind: 'row', title: 'A row', ...(id ? { document_key: `desk-record:${JSON.stringify(['national','Bills',id])}` } : {}) });
+  beforeEach(async () => {
+    const full = row('bill:2026:153').document_key;
+    const metadata = row('bill:2026:999').document_key;
+    await refreshCoverage([full, metadata], { rpc: async () => ({ data: [
+      { document_key: full, document_id: 'ready', coverage: 'full' },
+      { document_key: metadata, document_id: null, coverage: 'unmapped' },
+    ], error: null }) });
+  });
 
   it('broad focus is off', () => {
     expect(webDefaultFor({ focus: 'broad', attachments: [row()], indexedKeys, deskContext: null, modules })).toEqual({ on: false, reason: 'broad' });
   });
 
-  it.each(['attached', 'selection'])('%s: a row without a document key is on', (focus) => {
-    expect(webDefaultFor({ focus, attachments: [row()], indexedKeys, modules })).toEqual({ on: true, reason: 'record-without-document' });
+  it.each(['attached', 'selection'])('%s: a supplied snapshot does not enable automatic web', (focus) => {
+    expect(webDefaultFor({ focus, attachments: [row()], indexedKeys, modules })).toEqual({ on: false, reason: null });
   });
 
   it('a record whose key is not indexed is on; a record whose key is indexed is off', () => {
     expect(webDefaultFor({ focus: 'attached', attachments: [row('bill:2026:999')], indexedKeys, modules })).toEqual({ on: true, reason: 'record-without-document' });
-    expect(webDefaultFor({ focus: 'attached', attachments: [{ kind: 'record', document_key: 'bill:2026:999' }], indexedKeys, modules })).toEqual({ on: true, reason: 'record-without-document' });
+    expect(webDefaultFor({ focus: 'attached', attachments: [{ ...row('bill:2026:999'), kind: 'record' }], indexedKeys, modules })).toEqual({ on: true, reason: 'record-without-document' });
     expect(webDefaultFor({ focus: 'attached', attachments: [row('bill:2026:153')], indexedKeys, modules })).toEqual({ on: false, reason: 'documents-in-scope' });
   });
 
   it('one record without a document is enough, among records that have one', () => {
-    expect(webDefaultFor({ focus: 'attached', attachments: [row('bill:2026:153'), row()], indexedKeys, modules })).toEqual({ on: true, reason: 'record-without-document' });
+    expect(webDefaultFor({ focus: 'attached', attachments: [row('bill:2026:153'), row('bill:2026:999')], indexedKeys, modules })).toEqual({ on: true, reason: 'record-without-document' });
   });
 
-  it('a document attachment is indexed by construction', () => {
-    expect(webDefaultFor({ focus: 'attached', attachments: [{ kind: 'document', document_id: 'd1' }], indexedKeys: null, modules })).toEqual({ on: false, reason: 'documents-in-scope' });
+  it('a direct document without current evidence remains unknown', () => {
+    expect(webDefaultFor({ focus: 'attached', attachments: [{ kind: 'document', document_id: 'd1' }], indexedKeys: null, modules })).toEqual({ on: false, reason: null });
   });
 
   it('an uploaded file is not a record: only files, or nothing attached, is no-record', () => {
@@ -337,9 +345,9 @@ describe('webDefaultFor', () => {
   });
 
   it('a keyed record whose coverage has not answered yet is unknown: off, with no reason', () => {
-    expect(webDefaultFor({ focus: 'attached', attachments: [row('bill:2026:153')], indexedKeys: null, modules })).toEqual({ on: false, reason: null });
-    // A record that definitely has no document is on whatever the lookup says.
-    expect(webDefaultFor({ focus: 'attached', attachments: [row('bill:2026:153'), row()], indexedKeys: null, modules })).toEqual({ on: true, reason: 'record-without-document' });
+    expect(webDefaultFor({ focus: 'attached', attachments: [row('not-looked-up')], indexedKeys: null, modules })).toEqual({ on: false, reason: null });
+    // A successful metadata-only resolution is policy evidence; the supplied Set is not.
+    expect(webDefaultFor({ focus: 'attached', attachments: [row('not-looked-up'), row('bill:2026:999')], indexedKeys: null, modules })).toEqual({ on: true, reason: 'record-without-document' });
   });
 
   it('desk focus follows the open module', () => {

@@ -6,6 +6,7 @@ import { Sparkline, VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { applyVizFilter } from '../lib/nationalKpi.js';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 import { dedupeNewsRows } from '../lib/newsDedup.js';
 import { applyRecordChecklistToFeed } from '../lib/recordChecklist.js';
 import { fetchFeature } from '../lib/featureFeed.js';
@@ -177,6 +178,7 @@ export default function StatementsDesk({ workspaceScope = '', onSelect, onFeed, 
                     ) : (
                       r.title
                     )}
+                    <CorpusCapability row={{...r,person,topic:'—'}} feed={{tier:'national',feature:FEATURE}} />
                   </td>
                   <td>{r.source || '—'}</td>
                   <td>—</td>

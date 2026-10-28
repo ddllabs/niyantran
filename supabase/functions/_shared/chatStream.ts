@@ -6,6 +6,7 @@ import type { WebSource } from './webSearch.ts';
 
 /** Why web search was or was not offered on a turn (web-search spec §1, §4). */
 export type WebReason =
+  | 'coverage-unknown'
   | 'record-without-document'
   | 'module-without-documents'
   | 'documents-in-scope'

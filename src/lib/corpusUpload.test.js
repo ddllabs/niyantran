@@ -849,3 +849,14 @@ describe('uploadPlan: record links (Amendment A)', () => {
     expect(err).toMatchObject({ code: 'key_held', status: 409 });
   });
 });
+
+describe('readiness inspection client', () => {
+  it('sends only bounded read-only fields and refuses malformed diagnostic responses', async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ ok: true, contract_version: 1, visibility: 'admin', items: [], has_more: false, next_cursor: null, observed_at: '2026-10-28T00:00:00Z' })));
+    const api = createAdminIngestApi({ fetch, url: 'u', accessToken: async () => 't' });
+    await api.readinessRecords({ desk_tier: 'national', desk_feature: 'Parliamentary Question Database', limit: 50, actor: 'forged', action: 'delete' });
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ action: 'readiness-records', desk_tier: 'national', desk_feature: 'Parliamentary Question Database', limit: 50 });
+    fetch.mockImplementation(async () => new Response(JSON.stringify({ ok: true })));
+    await expect(api.readinessDocuments({ desk_tier: 'law', desk_feature: 'NCLT / NCLAT (Insolvency)' })).rejects.toMatchObject({ code: 'bad_response' });
+  });
+});
