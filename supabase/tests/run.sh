@@ -92,6 +92,8 @@ chain() {
     pq_admission_links)
       chain record_document_associations
       FILES+=("$(as_non_superuser 20261028130000_pq_admission_links.sql)") ;;
+    pq_row_refresh)
+      chain pq_admission_links ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;
@@ -800,6 +802,8 @@ fixture_sql() {
   while IFS= read -r line; do
     if [ "$line" = '\i backend/sql/operations/reset_test_billing.sql' ]; then
       cat backend/sql/operations/reset_test_billing.sql
+    elif [ "$line" = '\i scripts/pq-row-refresh.sql' ]; then
+      cat scripts/pq-row-refresh.sql
     else
       printf '%s\n' "$line"
     fi

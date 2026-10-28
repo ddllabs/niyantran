@@ -1,7 +1,7 @@
 # Parliamentary questions: records first
 
 > **Status: Living.** Owner approved steps 4.1–4.3 on 2026-10-28 ("approve steps 1–3, build on main, re-run
-> the 6"); 4.4 is a follow-up. Tracked as open-work F266. Implementation notes are in section 9.
+> the 6") and the rest on 2026-10-29 ("fix everything first"). Tracked as open-work F266. Implementation notes are in section 9.
 
 ## 1. Current state (measured on NTER, 2026-10-28, read-only)
 
@@ -142,3 +142,23 @@ Bills, Regulatory and other collections (each needs its own adapter); changes to
   which succeeded 2026-10-28 18:05 UTC) giving 1,207 links; 82 held. The 82 are the 2026-09-21
   imports: no `file_url`, no screening review and no citation, so the reviewed path cannot approve
   them. They stay held for the owner's decision.
+
+## 10. Step 4.4 and the listing fields (2026-10-29)
+
+- **4.4, changed in build: pin the ids, do not re-key.** Each question row's key stays its `id`
+  ("1"–"8000"). Re-keying would have had to move 6,845 links, 8 cached briefs and saved chat
+  references that live only in users' browsers. Instead the id is pinned to its question: every
+  id names a unique answer file plus asking member (checked on NTER: 8,000 of 8,000 distinct).
+  `src/lib/questionRowIdentity.test.js` fails CI if the shipped file renumbers ids 1–8000, and the
+  loader (`scripts/load-desk-rows.mjs`, `guardDeskRowSync` in `src/lib/deskRowSync.js`) refuses to
+  write a renumbered question file. New questions may only take ids above 8000.
+- **Linked rows change only through a reviewed refresh.** Links carry a hash of their row, so the
+  loader also refuses to change or delete any linked row, in any module. `scripts/pq-row-refresh.sql`
+  is that refresh for the question rows: one transaction that updates the rows and re-binds their
+  links through `record_mapping_remove` / `record_mapping_apply`, keeping each link's decision,
+  evidence and creation time; fixture `supabase/tests/pq_row_refresh.sql`.
+- **Session and "Has answer".** `src/lib/shapeQuestions.js` now takes the session from the answer
+  URL (`187`) and shows "Has answer: Yes" where sansad.in publishes the answer file, unless the
+  source records otherwise. The refresh writes the same values to the stored rows, so the AI's search
+  text and the website agree (pre-flight: the refreshed rows equal the new shaping for 8,000 of
+  8,000 rows).

@@ -33,6 +33,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
 import { deskRowsFor, installDiskFetch, loadableModules } from '../src/lib/deskRowsFeed.js';
+import { guardDeskRowSync } from '../src/lib/deskRowSync.js';
 import { planDeskRowSync } from '../src/lib/deskRowSync.js';
 import { handbookDeskRows } from '../src/lib/handbookDeskRows.js';
 
@@ -96,6 +97,21 @@ async function storedRows(client, tab, feature) {
   }
 }
 
+/** Row keys of one module that carry record links (F257/F266), paged like storedRows. */
+async function linkedKeys(client, tab, feature) {
+  const out = new Set();
+  const page = 1000;
+  for (let from = 0; ; from += page) {
+    const res = ok(
+      await client.from('record_document_links').select('row_key')
+        .eq('tier', tab).eq('feature', feature).order('row_key', { ascending: true }).range(from, from + page - 1),
+      `record_document_links read (${feature}, from ${from})`,
+    );
+    for (const r of res.data || []) out.add(r.row_key);
+    if (!res.data || res.data.length < page) return [...out];
+  }
+}
+
 /** Delete the keys a module no longer shows, in slices small enough for a URL. */
 async function deleteKeys(client, tab, feature, keys) {
   let n = 0;
@@ -145,7 +161,16 @@ async function main(argv) {
       const r = hb
         ? { tab: hb.tier, feature: hb.feature, shown: hb.rows.length + (hb.dropped.bad_record || 0), rows: hb.rows, collisions: hb.collisions, snapshot: { at: hb.snapshotAt, source: 'register' } }
         : await deskRowsFor(mod, { publicDir: resolve(ROOT, 'public'), fallbackSnapshot: loadedAt });
-      const plan = planDeskRowSync(await storedRows(client, r.tab, r.feature), r.rows, { ignoreSnapshot: r.snapshot.source === 'run' });
+      const existing = await storedRows(client, r.tab, r.feature);
+      const plan = planDeskRowSync(existing, r.rows, { ignoreSnapshot: r.snapshot.source === 'run' });
+      // F266: never renumber question rows, never change or delete a linked row through a load.
+      const guard = guardDeskRowSync({ feature: r.feature, existing, plan, linkedKeys: await linkedKeys(client, r.tab, r.feature) });
+      if (!guard.ok) {
+        const sample = (keys) => keys.slice(0, 5).join(', ');
+        throw new Error(`${r.feature}: refused before writing. Renumbered rows ${guard.renumbered.length} (${sample(guard.renumbered)}); `
+          + `linked rows changed ${guard.linkedChanged.length} (${sample(guard.linkedChanged)}); linked rows deleted ${guard.linkedDeleted.length} (${sample(guard.linkedDeleted)}). `
+          + 'Linked rows change only through the reviewed refresh (scripts/pq-row-refresh.sql); a renumbered question file must not load.');
+      }
       let upserted = 0;
       let pruned = 0;
       if (!opts.dryRun) {
