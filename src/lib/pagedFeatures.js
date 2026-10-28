@@ -26,6 +26,44 @@ export function isPagedFeature(feature) {
   return PAGED_FEATURES.includes(String(feature || '').trim());
 }
 
+// F264: Law's text readiness is an admin diagnostic. Public pages show the Full text / Record only
+// label instead, so the column, its filter and sort, and the row field never reach the public view.
+const LAW_READINESS_KEYS = new Set(['availability']);
+
+/**
+ * A Law filter without readiness clauses: the same value when it has none, null when nothing is
+ * left. A filter may be one clause object or a list of them.
+ */
+export function publicLawFilter(feature, filter) {
+  if (feature !== LAW_LISTING_FEATURE || !filter || typeof filter !== 'object') return filter;
+  if (!Array.isArray(filter)) return LAW_READINESS_KEYS.has(filter.col) ? null : filter;
+  if (!filter.some((f) => LAW_READINESS_KEYS.has(f?.col))) return filter;
+  const kept = filter.filter((f) => !LAW_READINESS_KEYS.has(f?.col));
+  return kept.length ? kept : null;
+}
+
+/** A Law sort on a readiness key falls back to newest first (the same object otherwise). */
+export function publicLawSort(feature, sort) {
+  return feature === LAW_LISTING_FEATURE && LAW_READINESS_KEYS.has(sort?.key) ? { key: 'date', dir: 'desc' } : sort;
+}
+
+/** A Law page without readiness columns, filters or row fields (the same object when clean). */
+export function publicLawPage(feature, body) {
+  if (feature !== LAW_LISTING_FEATURE || !body || typeof body !== 'object') return body;
+  const strip = (row) => {
+    if (!row || typeof row !== 'object' || ![...LAW_READINESS_KEYS].some((k) => Object.hasOwn(row, k))) return row;
+    const out = { ...row };
+    for (const k of LAW_READINESS_KEYS) delete out[k];
+    return out;
+  };
+  return {
+    ...body,
+    ...(Array.isArray(body.rows) && { rows: body.rows.map(strip) }),
+    ...(Array.isArray(body.columns) && { columns: body.columns.filter((c) => !LAW_READINESS_KEYS.has(c?.key)) }),
+    ...(Array.isArray(body.filterGroups) && { filterGroups: body.filterGroups.filter((g) => !LAW_READINESS_KEYS.has(g?.col)) }),
+  };
+}
+
 /**
  * The rows a record panel lists beside a selected row (same sector for a bill, same member for a
  * question), newest first, as one filtered page of up to 200; null when the row has none.

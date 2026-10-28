@@ -1,9 +1,9 @@
-import { parsePageQuery, LAW_LISTING_FEATURE } from '../src/lib/pagedFeatures.js';
+import { parsePageQuery, LAW_LISTING_FEATURE, publicLawFilter, publicLawPage, publicLawSort } from '../src/lib/pagedFeatures.js';
 
 const columns = [
   { key: 'title', label: 'Title' }, { key: 'date', label: 'Date' },
   { key: 'court', label: 'Forum' }, { key: 'record_type', label: 'Document type' },
-  { key: 'availability', label: 'Text availability' }, { key: 'source_url', label: 'Source' },
+  { key: 'source_url', label: 'Source' },
 ];
 
 /** Bounded canonical read. Only an explicit pre-seed response allows the legacy register. */
@@ -18,6 +18,10 @@ export async function serveLawListingPage(searchParams, { env = process.env, fet
   // A publishable key is not a JWT; omit Authorization for anonymous reads.
   if (authorization) headers.Authorization = authorization;
   const { ok: _ok, answer: _answer, ...p } = opts;
+  // F264: a link or saved view may still carry the retired readiness sort or filter.
+  const sort = publicLawSort(LAW_LISTING_FEATURE, { key: p.sort, dir: p.dir });
+  p.sort = sort.key; p.dir = sort.dir;
+  p.filter = publicLawFilter(LAW_LISTING_FEATURE, p.filter) || [];
   if (!p.sort) { p.sort = 'date'; p.dir = 'desc'; }
   const response = await fetch(`${url.replace(/\/$/, '')}/rest/v1/rpc/law_listing_page`, {
     method: 'POST', headers, body: JSON.stringify({ p }), signal: AbortSignal.timeout(15000),
@@ -29,16 +33,15 @@ export async function serveLawListingPage(searchParams, { env = process.env, fet
     || !Number.isInteger(data.total) || data.total < 0 || !Number.isInteger(data.totalAll) || data.totalAll < data.total) {
     throw new Error('Invalid Law listing response');
   }
-  return { status: 200, body: {
+  return { status: 200, body: publicLawPage(LAW_LISTING_FEATURE, {
     ok: true, feature: LAW_LISTING_FEATURE, tier: 'judiciary', paged: true, prepared: true,
     rows: data.rows, total: data.total, totalAll: data.totalAll, page: p.page, pageSize: p.pageSize,
     columns, filterGroups: [
       ['record_type', 'Document type', [['tribunal_order', 'Tribunal orders'], ['announcement', 'Public announcements']]],
-      ['availability', 'Text availability', [['indexed', 'Indexed text'], ['source-only', 'Source only']]],
       ['court', 'Forum', [['NCLT', 'NCLT'], ['IBBI', 'IBBI']]],
     ].map(([col, title, values]) => ({ id: col, col, title, options: values.map(([value, label]) => ({ label, filterCol: col, filterValue: value })) })),
-    overview: { title: 'Legal records', kpis: [{ label: 'Listings', value: data.totalAll, sub: 'Orders and announcements; not an indexed-document count' }], charts: [], note: 'Orders and public announcements are separate records. Text availability reflects verified indexed attachments.' },
+    overview: { title: 'Legal records', kpis: [{ label: 'Listings', value: data.totalAll, sub: 'Orders and announcements' }], charts: [], note: 'Orders and public announcements are separate records.' },
     source: { adapter: 'law-canonical', links: [], note: 'Published legal records and verified document attachments.' },
     fallback: false,
-  } };
+  }) };
 }
