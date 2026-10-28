@@ -131,6 +131,8 @@ export async function runImport(options, request = fetch) {
           entry.chunks = p.chunks.length;
           entry.costCeiling = p.chunks.reduce((n,c) => n + Buffer.byteLength(c.embedding_input, 'utf8'), 0) * EMBED_PRICE_USD_PER_TOKEN * 3;
           entry.lawListing = r.source_key.startsWith('law:trib:IBBI_NCLT:') || d.desk_feature === 'NCLT / NCLAT (Insolvency)';
+          // Lok Sabha answers (F266) have no listing step: every one is new paid work under the cost ceiling.
+          entry.national = p.input.desk_tier === 'national';
           entry.file_sha256 = sha;
           entry.line = line;
           entry.path = join(dir, hash(r.source_key) + '.json');
@@ -163,7 +165,7 @@ export async function runImport(options, request = fetch) {
     }
     if (submit && totalChunks > maxChunks) throw Error('cohort exceeds max-chunks budget; split the reviewed manifest');
     summary.chunks = totalChunks;
-    const lawNew = [...selected.values()].filter(e => e.status === 'ready' && e.lawListing && !e.mapping?.document_id);
+    const lawNew = [...selected.values()].filter(e => e.status === 'ready' && ((e.lawListing && !e.mapping?.document_id) || e.national));
     summary.estimated_cost_ceiling_usd = lawNew.reduce((n,e) => n + e.costCeiling, 0);
     if (submit && lawNew.length && (!Number.isFinite(options.maxEstimatedCostUsd) || options.maxEstimatedCostUsd <= 0 || summary.estimated_cost_ceiling_usd > options.maxEstimatedCostUsd)) throw Error('explicit max-estimated-cost-usd required and must cover the conservative cost estimate');
     output = await open(report, 'wx', 0o600);

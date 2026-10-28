@@ -1,8 +1,7 @@
 # Parliamentary questions: records first
 
-> **Status: Living. Proposed, awaiting the owner's approval** (open-work F266). Written 2026-10-28
-> after the review of the client's corpus branch. Nothing here is implemented or authorized:
-> no ingestion, no mapping apply and no data-file change without separate approval.
+> **Status: Living.** Owner approved steps 4.1–4.3 on 2026-10-28 ("approve steps 1–3, build on main, re-run
+> the 6"); 4.4 is a follow-up. Tracked as open-work F266. Implementation notes are in section 9.
 
 ## 1. Current state (measured on NTER, 2026-10-28, read-only)
 
@@ -124,3 +123,22 @@ Bills, Regulatory and other collections (each needs its own adapter); changes to
 1. Approve 4.1–4.3 as one task, with 4.4 as a follow-up?
 2. F265 first: merge the client's National admission change, or build 4.2 on the current `main` code?
 3. The 6 failed documents: re-run their ingest jobs, or discard?
+
+## 9. Implementation notes (2026-10-28)
+
+- **4.1, changed in build: the key is computed, not stored.** `desk_rows.document_key` already has a
+  meaning: a `bill:` or `law-record:` value there is resolved against `documents.metadata`, and the
+  admin coverage counts read it the same way. Writing `pq:ls:` keys there would have made question
+  rows look like unmatched legacy keys. Changing a row's JSON would also invalidate every saved link,
+  which carries a hash of the row. So the key is one function, `pq_answer_key(url)` in SQL (the
+  same rule as `pqAnswerKey` in `_shared/suppliedText.ts` and in `scripts/record-mapping-repair.mjs`),
+  applied to the row's own `source_url` wherever identity is checked. No row is reloaded.
+- **4.2** is migration `20261028130000_pq_admission_links.sql`: National admission as NTER already
+  runs it (F265) plus the corroboration checks and the links, in one transaction. A document already
+  holding the URL, or an older pack import holding the same answer by its pack path, refuses it.
+  Fixture `supabase/tests/pq_admission_links.sql`.
+- **4.3 dry run** (`scripts/record-mapping-inventory.sql`, then the planner): 1,198 unlinked
+  documents; 1,116 ready (all indexed with every vector, 11,521 chunks, including the 6 re-run jobs,
+  which succeeded 2026-10-28 18:05 UTC) giving 1,207 links; 82 held. The 82 are the 2026-09-21
+  imports: no `file_url`, no screening review and no citation, so the reviewed path cannot approve
+  them. They stay held for the owner's decision.

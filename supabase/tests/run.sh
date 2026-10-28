@@ -89,6 +89,9 @@ chain() {
     record_document_associations)
       chain law_listing
       FILES+=("$(as_non_superuser 20261027185747_record_document_associations.sql)") ;;
+    pq_admission_links)
+      chain record_document_associations
+      FILES+=("$(as_non_superuser 20261028130000_pq_admission_links.sql)") ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;

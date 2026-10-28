@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { runImport } from './corpus-text-import.mjs';
-import { input } from '../supabase/functions/_shared/suppliedText_fixture.ts';
+import { input, nationalQuestion } from '../supabase/functions/_shared/suppliedText_fixture.ts';
 const hash = (b) => createHash('sha256').update(b).digest('hex');
 async function fixture(t, records) {
   const dir = await mkdtemp(join(tmpdir(), 'corpus-import-test-'));
@@ -177,4 +177,16 @@ test('CLI returns incomplete for live mapping holds and pending publication',asy
   mode=state;const f=await ncltFixture(t);
   await assert.rejects(()=>run(process.execPath,['--experimental-strip-types','scripts/corpus-text-import.mjs','--corpus',f.files[0],'--decisions',f.decisions,'--report',f.report,'--submit','--approval',f.approval,'--target',`http://127.0.0.1:${server.address().port}`,'--max-estimated-cost-usd','1'],{env:{...process.env,NTER_INGEST_ACCESS_TOKEN:'admin-test',SUPABASE_PUBLISHABLE_KEY:'public'}}),e=>{assert.equal(e.code,state==='held'?3:2);return true;});
  }
+});
+test('Lok Sabha answers are new paid work: submission needs a cost ceiling that covers them (F266)',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'corpus-import-pq-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const q=await nationalQuestion();const bytes=gzipSync(JSON.stringify(q)+'\n');const file=join(dir,'corpus.jsonl.gz');await writeFile(file,bytes);
+ const manifest=JSON.stringify({source_key:q.source_key,text_sha256:q.text_sha256,file_sha256:hash(bytes),desk_feature:q.desk_feature,review:q.review})+'\n';
+ const decisions=join(dir,'decisions.jsonl');await writeFile(decisions,manifest);
+ const o={files:[file],decisions,approval:hash(manifest),submit:true,target:'https://fixture.supabase.co',token:'admin-token',publishableKey:'public'};
+ const request=async()=>{throw Error('network reached before the envelope check');};
+ await assert.rejects(()=>runImport({...o,report:join(dir,'r1.jsonl')},request),/cost/);
+ await assert.rejects(()=>runImport({...o,report:join(dir,'r2.jsonl'),maxEstimatedCostUsd:1e-12},request),/cost/);
+ const dry=await runImport({files:[file],decisions,report:join(dir,'r3.jsonl')},request);
+ assert.equal(dry.ready,1);assert.ok(dry.estimated_cost_ceiling_usd>0);
 });
