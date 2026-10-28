@@ -312,3 +312,13 @@ export interface DeleteResult {
   ok: true;
   deleted: true;
 }
+
+/** F264 read-only inspection; never admission or ordinary-caller permission evidence. */
+export interface ReadinessQuery {
+  kind: 'records' | 'documents'; tier: string; feature: string; limit: number;
+  ids: string[]; cohort: string | null; cursor: string | null;
+}
+export interface ReadinessResult {
+  contract_version: 1; visibility: 'admin'; observed_at: string;
+  items: Record<string, unknown>[]; has_more: boolean; next_cursor: string | null;
+}

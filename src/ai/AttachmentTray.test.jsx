@@ -64,11 +64,11 @@ it('F261 labels metadata-only and snapshot records independently of text failure
  await refreshCoverage([key],db);
  expect(render([chip])).toContain('>Record only<');expect(render([chip])).not.toContain('>Mapping unavailable<');
  db.rpc.mockResolvedValue({data:[],error:null});await refreshCoverage([key],db);
- expect(render([chip])).toContain('>Record snapshot<');expect(render([chip])).toContain('stored record identity could not be verified');
+ expect(render([chip])).toContain('>Record only<');expect(render([chip])).not.toContain('snapshot');
  db.rpc.mockResolvedValue({data:[{document_key:key,coverage:'full'}],error:null});await refreshCoverage([key],db);
  db.rpc.mockRejectedValue(new Error('offline'));await recheckCoverage([key],db);
- const failed=render([chip]);expect(failed).toContain('>Record only<');expect(failed).toContain('>Text lookup failed<');expect(failed).not.toContain('>Full text<');
- for(const [state,label] of [['full','Full text'],['partial','Partial text'],['registered','Not indexed'],['incomplete','Index incomplete'],['held','Mapping held'],['unavailable','Text coverage unavailable']]){
+ const failed=render([chip]);expect(failed).toContain('>Record only<');expect(failed).not.toContain('Text lookup failed');expect(failed).not.toContain('>Full text<');
+ for(const [state,label] of [['full','Full text'],['partial','Record only'],['registered','Record only'],['incomplete','Record only'],['held','Record only'],['unavailable','Record only']]){
    db.rpc.mockResolvedValue({data:[{document_key:key,coverage:state}],error:null});
    const indexed=await refreshCoverage([key],db);
    const html=renderToStaticMarkup(<AttachmentTray attachments={[chip]} indexedKeys={indexed} onRemove={()=>{}} lang="en"/>);
@@ -80,12 +80,24 @@ it('F261 a pending or initially failed identity lookup does not claim verified m
  resetCoverageCache();
  const key='desk-record:["national","Parliamentary Question Database","unverified"]';
  const chip={id:'u',kind:'row',title:'Supplied question',document_key:key};
- const pending=render([chip]);expect(pending).toContain('>Record unverified<');expect(pending).not.toContain('>Record only<');
+ const pending=render([chip]);expect(pending).toContain('>Record only<');expect(pending).not.toContain('unverified');
  await refreshCoverage([key],{rpc:async()=>({data:null,error:{message:'offline'}})});
- const failed=render([chip]);expect(failed).toContain('>Record unverified<');expect(failed).toContain('>Text lookup failed<');expect(failed).not.toContain('>Record only<');
+ const failed=render([chip]);expect(failed).toContain('>Record only<');expect(failed).not.toContain('Text lookup failed');expect(failed).not.toContain('>Full text<');
 });
 
 it('F261 saved Parliamentary chips display the subject instead of the member label',()=>{
  const html=render([{id:'saved',kind:'row',title:'Member Name',feature:'Parliamentary Question Database',preview:{subject:'Flood management'}}]);
  expect(html).toContain('>Flood management</span>');expect(html).toContain('aria-label="Remove Flood management"');expect(html).not.toContain('Member Name');
+});
+
+it('F264 public attachments have one capability with no technical visible, title or ARIA states', async () => {
+ resetCoverageCache();
+ const key='desk-record:["national","Questions","public"]';
+ const chip={id:'public',kind:'row',title:'Question',document_key:key};
+ for (const state of ['unmapped','partial','registered','incomplete','held','unavailable']) {
+   await refreshCoverage([key],{rpc:async()=>({data:[{document_key:key,coverage:state}],error:null})});
+   const html=render([chip]);
+   expect(html.match(/>Record only</g)).toHaveLength(1);
+   expect(html).not.toMatch(/Partial text|Not indexed|Index incomplete|Mapping held|coverage unavailable|snapshot|unverified|indexed|embedding|mapping/i);
+ }
 });

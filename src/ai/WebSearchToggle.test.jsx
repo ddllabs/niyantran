@@ -19,15 +19,15 @@ const off = (reason) => ({ on: false, reason });
 describe('webToggleView: what the globe shows and why', () => {
   it('follows the predicted default when the reader has not overridden it', () => {
     expect(webToggleView({ predicted: on('record-without-document'), focus: 'attached' }))
-      .toEqual({ on: true, disabled: false, label: 'Web search on (automatic): this record has no indexed document' });
+      .toEqual({ on: true, disabled: false, label: 'Web search on (automatic): research can use this record and web sources' });
     expect(webToggleView({ predicted: on('module-without-documents'), focus: 'desk' }).label)
-      .toBe('Web search on (automatic): this module has no indexed documents');
+      .toBe('Web search on (automatic): research can use web sources for this module');
     expect(webToggleView({ predicted: off('documents-in-scope'), focus: 'attached' }))
-      .toEqual({ on: false, disabled: false, label: 'Web search off (automatic): this record has indexed documents' });
+      .toEqual({ on: false, disabled: false, label: 'Web search off (automatic): research can use text from this record' });
     expect(webToggleView({ predicted: off('documents-in-scope'), focus: 'desk' }).label)
-      .toBe('Web search off (automatic): this module has indexed documents');
+      .toBe('Web search off (automatic): research can use text from this module');
     expect(webToggleView({ predicted: off('broad'), focus: 'broad' }).label)
-      .toBe('Web search off (automatic): broad questions use the indexed documents');
+      .toBe('Web search off (automatic): broad questions can use sources across desks');
     expect(webToggleView({ predicted: off('no-record'), focus: 'attached' }).label)
       .toBe('Web search off (automatic): no record is in scope');
   });
@@ -56,7 +56,7 @@ describe('webToggleView: what the globe shows and why', () => {
   it('the server\'s decision for the turn in flight wins when it disagrees with the prediction', () => {
     const view = webToggleView({ predicted: off('documents-in-scope'), focus: 'attached', streaming: true,
       server: { offered: true, mode: 'auto', reason: 'record-without-document' } });
-    expect(view).toEqual({ on: true, disabled: true, label: 'Web search on (automatic): this record has no indexed document' });
+    expect(view).toEqual({ on: true, disabled: true, label: 'Web search on (automatic): research can use this record and web sources' });
     expect(webToggleView({ override: true, streaming: true, server: { offered: false, mode: 'on', reason: 'conversational' } }))
       .toMatchObject({ on: false, label: 'Web search off: this message needs no search' });
     expect(webToggleView({ override: true, streaming: true, server: { offered: false, mode: 'on', reason: 'model-unsupported' } }))
@@ -104,8 +104,8 @@ describe('WebSearchToggle', () => {
     const html = renderToStaticMarkup(<WebSearchToggle predicted={on('record-without-document')} focus="attached" onChange={() => {}} />);
     expect(html).toMatch(/^<button type="button"/);
     expect(html).toContain('aria-pressed="true"');
-    expect(html).toContain('aria-label="Web search on (automatic): this record has no indexed document"');
-    expect(html).toContain('title="Web search on (automatic): this record has no indexed document"');
+    expect(html).toContain('aria-label="Web search on (automatic): research can use this record and web sources"');
+    expect(html).toContain('title="Web search on (automatic): research can use this record and web sources"');
     expect(html).toContain('<svg');
     expect(html).toContain('aria-hidden="true"');
     expect(html).toMatch(/<span[^>]*>Web<\/span>/);
@@ -161,13 +161,13 @@ describe('predictWeb', () => {
     const indexedKeys = await indexedDocumentKeys(['desk-record:["national","Bills","153"]', 'desk-record:["national","Bills","999"]'], db([{ document_key: 'desk-record:["national","Bills","153"]' }]));
     expect(predictWeb({ focus: 'attached', attachments: [row('desk-record:["national","Bills","153"]')], indexedKeys })).toEqual({ on: false, reason: 'documents-in-scope' });
     expect(predictWeb({ focus: 'attached', attachments: [row('desk-record:["national","Bills","999"]')], indexedKeys })).toEqual({ on: true, reason: 'record-without-document' });
-    expect(predictWeb({ focus: 'attached', attachments: [row()], indexedKeys })).toEqual({ on: true, reason: 'record-without-document' });
+    expect(predictWeb({ focus: 'attached', attachments: [row()], indexedKeys })).toEqual({ on: false, reason: null });
     expect(predictWeb({ focus: 'broad', attachments: [row()], indexedKeys })).toEqual({ on: false, reason: 'broad' });
   });
 
-  it('the row about to be pinned counts, so a selected row with no key is on', () => {
-    expect(predictWeb({ focus: 'selection', attachments: [], selectedRecord: row() })).toEqual({ on: true, reason: 'record-without-document' });
-    expect(predictWeb({ focus: 'attached', attachments: [], selectedRecord: row() })).toEqual({ on: true, reason: 'record-without-document' });
+  it('a selected snapshot has no automatic web policy evidence', () => {
+    expect(predictWeb({ focus: 'selection', attachments: [], selectedRecord: row() })).toEqual({ on: false, reason: null });
+    expect(predictWeb({ focus: 'attached', attachments: [], selectedRecord: row() })).toEqual({ on: false, reason: null });
     // Desk and broad focus ignore it.
     expect(predictWeb({ focus: 'broad', attachments: [], selectedRecord: row() })).toEqual({ on: false, reason: 'broad' });
   });
@@ -210,10 +210,10 @@ describe('the globe in the composer', () => {
     expect(model).toBeGreaterThan(globe);
   });
 
-  it('predicts on for a chip that has no document key', () => {
+  it('keeps automatic web off for a supplied snapshot', () => {
     const html = render();
-    expect(html).toContain('aria-pressed="true"');
-    expect(html).toContain('Web search on (automatic): this record has no indexed document');
+    expect(html).toContain('aria-pressed="false"');
+    expect(html).toContain('Web search off (automatic)');
   });
 
   it('shows the reader\'s override from the thread over the prediction', () => {

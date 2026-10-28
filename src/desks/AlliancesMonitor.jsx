@@ -10,6 +10,7 @@ import { applyVizFilter } from '../lib/nationalKpi.js';
 import TableFilterPop, { choiceGroup, matchesChoice } from '../shell/TableFilterPop.jsx';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 
 export default function AlliancesMonitor({ workspaceScope = '', feed, selected, onSelect, flags, vizFilter, onClearViz }) {
   const list = useMemo(
@@ -143,7 +144,7 @@ export default function AlliancesMonitor({ workspaceScope = '', feed, selected, 
                 <label>
                   {p.latestDate} · {p.short}
                 </label>
-                <span title={p.latest}>{p.latest}</span>
+                <span title={p.latest}>{p.latest}</span><CorpusCapability row={p.row || p} feed={feed} />
               </button>
             ))}
           </div>
@@ -227,7 +228,7 @@ export default function AlliancesMonitor({ workspaceScope = '', feed, selected, 
                     }}
                     {...rowDragProps(p.row || p, { title: p.name, feature: feed?.feature })}
                   >
-                    <td title={p.name}>{p.name}</td>
+                    <td title={p.name}>{p.name}<CorpusCapability row={p.row || p} feed={feed} /></td>
                     <td className="alw-kind" title={p.category}>
                       {p.category}
                     </td>

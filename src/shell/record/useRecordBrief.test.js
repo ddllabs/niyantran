@@ -3,6 +3,9 @@
 // unmount or a new record, and never shows the previous record's brief.
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
+// The mock factory can be reinstantiated after earlier module graphs; every import
+// must configure the same lookup spy rather than a new function per factory call.
+const briefLookup = vi.hoisted(() => ({ getRecordBrief: vi.fn() }));
 const hooks = vi.hoisted(() => ({ values: [], index: 0, effect: null, deps: null, cleanup: null }));
 vi.mock('react', async (original) => ({
   ...await original(),
@@ -17,7 +20,7 @@ vi.mock('react', async (original) => ({
     }
   },
 }));
-vi.mock('../../lib/deskBrief.js', () => ({ entryFingerprintFnv: (row) => JSON.stringify(row), getRecordBrief: vi.fn() }));
+vi.mock('../../lib/deskBrief.js', () => ({ entryFingerprintFnv: (row) => JSON.stringify(row), getRecordBrief: briefLookup.getRecordBrief }));
 import { getRecordBrief } from '../../lib/deskBrief.js';
 import { clearRecordBriefCache, RECORD_BRIEF_ANIMATION_MS, RECORD_BRIEF_POLL_MS, RECORD_BRIEF_WAIT_MS, useRecordBrief } from './useRecordBrief.js';
 

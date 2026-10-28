@@ -99,16 +99,16 @@ describe('National questions adapter', () => {
       expect(v.steps.map((s) => s.label)).toEqual(['Tabled', 'Answer']);
       expect(v.steps[0]).toMatchObject({ done: true, detail: expect.stringMatching(/\d{4}/) });
       expect(v.steps[1].done).toBeFalsy();
-      expect(v.steps[1].detail).toBe('Text coverage unverified');
+      expect(v.steps[1].detail).toBe('Record only');
       expect(v.steps.filter((s) => s.now).length).toBeLessThanOrEqual(1);
-      expect(v.caption).toMatch(/missing register fields do not establish answer absence/i);
+      expect(v.caption).toMatch(/missing register fields do not establish whether an answer is available/i);
     }
   });
 
   it('keeps the lifecycle\'s answer step undone even when a row carries answer-like words', () => {
     const v = nationalQuestions({ ...plain, status: 'Answered', answer_text: 'Yes', has_answer: 'Yes' }, ctx()).glance.visual;
     expect(v.steps[1].done).toBeFalsy();
-    expect(v.steps[1].detail).toBe('Text coverage unverified');
+    expect(v.steps[1].detail).toBe('Record only');
   });
 
   it('lists member, party, ministry, house, type and date as the About rows', () => {
@@ -220,7 +220,7 @@ describe('National questions adapter', () => {
     expect(f.provenance.asOf).toBe('07 Sep 2026');
     expect(f.provenance.flags).toEqual([]);
     expect(f.note).toMatch(/member's claim, not a finding/i);
-    expect(f.note).toMatch(/missing register fields do not establish answer absence/i);
+    expect(f.note).toMatch(/missing register fields do not establish whether an answer is available/i);
   });
 
   it('flags a missing as-of date and an unconfirmed provenance', () => {
@@ -270,7 +270,7 @@ describe('National questions adapter', () => {
 
 it('F261 separates register fields from verified full-text coverage',()=>{
  const m=nationalQuestions(plain,{...ctx(),coverage:'full'});
- expect(m.glance.visual.steps[1].detail).toBe('Full text available');
+ expect(m.glance.visual.steps[1].detail).toBe('Full text');
  expect(m.glance.visual.caption).not.toMatch(/no answer text|answer is not on record/i);
  expect(m.footer.note).not.toMatch(/answer is not on record here/i);
  expect(m.briefContext).toMatch(/register fields.*not.*answer text/i);

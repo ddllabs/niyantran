@@ -1644,3 +1644,22 @@ Deno.test('law publication actions validate bounds and route only after platform
   assertEquals(denied.status, 403);
   assertEquals(calls.length, 1);
 });
+
+Deno.test('readiness: platform admin receives bounded read-only diagnostics through caller token', async () => {
+  const w = world(); const d = deps(w); let got: unknown;
+  d.db.readiness = async (q, token) => { got = { q, token }; return { data: { contract_version: 1, items: [], has_more: false, next_cursor: null, visibility: 'admin', observed_at: '2026-10-28T00:00:00Z' }, error: null }; };
+  const response = await handleAdminIngest(post({ action: 'readiness-records', desk_tier: 'national', desk_feature: 'Parliamentary Question Database' }), d);
+  assertEquals(response.status, 200);
+  assertEquals(got, { q: { kind: 'records', tier: 'national', feature: 'Parliamentary Question Database', limit: 50, ids: [], cohort: null, cursor: null }, token: TOKEN });
+  assertEquals(w.workerStarts, 0); assertEquals(w.rpc, []);
+});
+Deno.test('readiness: nonadmins and malformed bounds never reach inspection', async () => {
+  for (const body of [{ limit: 101 }, { ids: Array(101).fill('x') }, { cursor: 'not-json' }, { cohort: 'review', action: 'readiness-records' }]) {
+    const w = world(); const d = deps(w); d.db.readiness = () => { throw Error('must not inspect'); };
+    const response = await handleAdminIngest(post({ action: 'readiness-documents', desk_tier: 'national', desk_feature: 'Parliamentary Question Database', ...body }), d);
+    assertEquals(response.status, 400);
+  }
+  const w = world(); const d = deps(w, { isAdmin: false });
+  d.db.readiness = () => { throw Error('must not inspect'); };
+  assertEquals((await handleAdminIngest(post({ action: 'readiness-records' }), d)).status, 403);
+});

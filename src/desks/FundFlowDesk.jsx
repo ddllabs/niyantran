@@ -3,6 +3,7 @@ import { rowSelectionProps } from '../shell/rowSelection.js';
 import { useMemo } from 'react';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 
 function fmtCr(n) {
   if (n == null || n === '') return '—';
@@ -146,7 +147,7 @@ export default function FundFlowDesk({ workspaceScope = '', feed, selected, onSe
                   })}
                 >
                   <td className="fund-flow-sticky num">{r.line}</td>
-                  <td className="fund-flow-sticky fund-flow-cat">{r.category || r.title}</td>
+                  <td className="fund-flow-sticky fund-flow-cat">{r.category || r.title}{!r.is_aggregate ? <CorpusCapability row={r} feed={feed} /> : null}</td>
                   {PERIODS.map((p) => (
                     <PeriodCells key={p.key} row={r} prefix={p.key} />
                   ))}

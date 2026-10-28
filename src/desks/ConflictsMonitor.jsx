@@ -13,6 +13,7 @@ import TableFilterPop, { choiceGroup, matchesChoice } from '../shell/TableFilter
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { openAiResearch, rowDragProps } from '../lib/aiDrop.js';
 import { downloadJson, withExportProvenance } from '../lib/exportProvenance.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 
 function developmentParts(t) {
   const headline = String(t?.headline || '').trim();
@@ -302,7 +303,7 @@ export default function ConflictsMonitor({ workspaceScope = '', feed, selected, 
                   >
                     <i style={{ background: s.color }} />
                     <span>
-                      <b>{c.name}</b>
+                      <b>{c.name}</b><CorpusCapability row={c.row} feed={feed} />
                       <small>
                         {regionGroup(c.region)}
                         {c.since ? ` · ${c.since}` : ''}
@@ -386,7 +387,7 @@ export default function ConflictsMonitor({ workspaceScope = '', feed, selected, 
                         </span>
                       </td>
                       <td className="theatre">
-                        <span>{c.name}</span>
+                        <span>{c.name}</span><CorpusCapability row={c.row} feed={feed} />
                       </td>
                       <td>{regionGroup(c.region)}</td>
                       <td>{c.since}</td>

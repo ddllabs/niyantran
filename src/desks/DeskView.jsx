@@ -7,6 +7,7 @@ import { canonicalQ, isPagedFeature, LAW_LISTING_FEATURE } from '../lib/pagedFea
 import { pendingDeskRow, fetchPendingDeskRow } from '../ai/openRowSource.js';
 import { openAiResearch, rowDragProps } from '../lib/aiDrop.js';
 import { deskRowKey } from '../lib/deskRows.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 import { cellText, filterRows, isArticleHref, sortRows } from '../lib/normalise.js';
 import { buildTableSearchIndex, searchTableRows, shouldIndexSearch } from '../lib/tableSearch.js';
 import { formatCell, formatDate, formatStatus, getStatusToneClass, truncateTwoLines } from '../lib/format.js';
@@ -977,6 +978,7 @@ export default function DeskView({
                                     ) : (
                                       <span className="name-link">{display}</span>
                                     )}
+                                    <CorpusCapability row={row} feed={feed} />
                                   </span>
                                 ) : c.pill && text !== '-' ? (
                                   <span className={`soft-pill ${getStatusToneClass(raw || display)}`}>{display}</span>

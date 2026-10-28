@@ -5,6 +5,7 @@ import { applyVizFilter } from '../lib/nationalKpi.js';
 import TableFilterPop, { choiceGroup, matchesChoice } from '../shell/TableFilterPop.jsx';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 
 function tone(status, kind) {
   const s = `${status} ${kind}`.toLowerCase();
@@ -132,7 +133,7 @@ export default function NuclearWatch({ workspaceScope = '', feed, selected, onSe
                   <div className="nww-facility">
                     <i className="nww-dot" />
                     <div>
-                      <strong title={p.name}>{p.name}</strong>
+                      <strong title={p.name}>{p.name}</strong><CorpusCapability row={p.row || p} feed={feed} />
                       <small>{p.country}</small>
                     </div>
                   </div>

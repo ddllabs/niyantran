@@ -78,7 +78,7 @@ const JOB_COLUMNS = 'id, document_id, status, stage, ocr_pages, pages_total, att
   'documents(title, source_key, desk_tier, desk_feature, indexed_at, document_key:metadata->>document_key)';
 
 /** AdminIngestDb over PostgREST with the service client (the handler has checked the caller). */
-export function supabaseAdminDb(client: () => SupabaseClient): AdminIngestDb {
+export function supabaseAdminDb(client: () => SupabaseClient, callerClient: (token: string) => SupabaseClient = userClient): AdminIngestDb {
   async function rpc<T>(name: string, args: Record<string, unknown>): Promise<DbResult<T>> {
     const { data, error } = await client().rpc(name, args);
     return error ? { data: null, error: dbError(error) } : { data: data as T, error: null };
@@ -108,6 +108,18 @@ export function supabaseAdminDb(client: () => SupabaseClient): AdminIngestDb {
   }
 
   return {
+    async readiness(q, token) {
+      const { data, error } = await callerClient(token).rpc('admin_corpus_readiness', { p: q });
+      if (error) return { data: null, error: dbError(error) };
+      if (!data || data.contract_version !== 1 || data.visibility !== 'admin' || !Array.isArray(data.items)
+        || data.items.length > q.limit || typeof data.observed_at !== 'string'
+        || !Number.isFinite(Date.parse(data.observed_at)) || typeof data.has_more !== 'boolean'
+        || data.has_more !== (typeof data.next_cursor === 'string' && data.next_cursor.length > 0)
+        || !(data.next_cursor === null || typeof data.next_cursor === 'string')) {
+        return { data: null, error: { message: 'unexpected readiness response' } };
+      }
+      return { data, error: null };
+    },
     async lawListing(action, p) {
       if (action === 'law-status') return await rpc('law_publication_status', { p_document: p.document_id });
       return await rpc(action === 'law-reconcile' ? 'law_reconcile' : 'law_publish', { p });
@@ -465,7 +477,7 @@ export function createAdminIngestHandler(overrides: Partial<Runtime> = {}): (req
   return (req) =>
     handleAdminIngest(req, {
       isAdmin: platformAdmin(r.userClient),
-      db: supabaseAdminDb(r.serviceClient),
+      db: supabaseAdminDb(r.serviceClient, r.userClient),
       storage: supabaseAdminStorage(
         r.serviceClient,
         (path) => objectFetcher({ fetch: r.fetch, url: required('SUPABASE_URL'), key: r.secretKey() })(path),

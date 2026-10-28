@@ -589,7 +589,7 @@ export default function TerminalShell({ onLogout }) {
               lang={lang}
             /></LazyView>
           ) : (
-            <><RecordFocus focus={recordFocus} feature={featureName} onReturn={() => setRecordFocus(null)} /><div className="workspace-results" hidden={Boolean(recordFocus)}><LazyView><DeskView
+            <><RecordFocus focus={recordFocus} tier={feedTier} feature={featureName} onReturn={() => setRecordFocus(null)} /><div className="workspace-results" hidden={Boolean(recordFocus)}><LazyView><DeskView
               key={`${user?.id || user?.email || ''}:${feedTier}:${featureName}`}
               tier={feedTier}
               featureName={featureName}

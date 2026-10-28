@@ -80,6 +80,9 @@ m() { echo "$MIG/$1"; }
 # fixture name -> container, then the ordered bootstrap files.
 chain() {
   case "$1" in
+    admin_corpus_readiness)
+      chain record_document_associations
+      FILES+=("$(as_non_superuser 20261027231901_admin_corpus_readiness.sql)") ;;
     feature_search_recovery)
       chain unscoped_ef_search
       FILES+=("$(as_non_superuser 20261027185840_feature_search_recovery.sql)") ;;

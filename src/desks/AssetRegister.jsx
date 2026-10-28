@@ -10,6 +10,7 @@ import { applyVizFilter } from '../lib/nationalKpi.js';
 import TableFilterPop, { choiceGroup, matchesChoice } from '../shell/TableFilterPop.jsx';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 
 function filterOptions(list, key) {
   return [...new Set(list.map((p) => p[key]).filter(Boolean))].sort();
@@ -242,6 +243,7 @@ export default function AssetRegister({ feed, selected, onSelect, featureName, v
                       ) : (
                         cell(p, i)
                       )}
+                      {i === 0 ? <CorpusCapability row={p.row || p} feed={feed} /> : null}
                     </td>
                   ))}
                 </tr>

@@ -5,7 +5,7 @@ import { setChatAttachments } from '../lib/aiThreads.js';
 import { filesFromDrop, handOffAiDrop, materializeAiDrop, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
 import { documentKey, deskRowKey, recordDocumentKey, recordAttachmentIdentity, attachmentCoverageKey } from '../lib/deskRows.js';
-import { COVERAGE_TTL_MS, coverageOf, recheckCoverage, refreshCoverage } from '../lib/corpusCoverage.js';
+import { COVERAGE_TTL_MS, observeCoverage, publicCorpusCapability, readyDocumentIds, recheckCoverage, refreshCoverage } from '../lib/corpusCoverage.js';
 import useResearchThread from './useResearchThread.js';
 import './research.css';
 import './chat-presentation.css';
@@ -226,12 +226,15 @@ export function focusForDocument(focus) {
   return focus === 'broad' || focus === 'desk' ? 'attached' : focus;
 }
 
-/** How many distinct attached documents a confined search covers. */
+/** Distinct attached items with current usable text. Multiple record pins can share
+ * one source, so this is an item count, never a claim about distinct documents. */
 export function confiningCount(attachments, indexed) {
   const seen = new Set();
   for (const a of attachments || []) {
-    if (a.kind !== 'document' && coverageOf(a, indexed) !== 'full') continue;
-    seen.add(a.kind === 'document' ? `id:${a.document_id}` : `key:${attachmentCoverageKey(a)}`);
+    if (!['row', 'record', 'document'].includes(a?.kind)) continue;
+    const key = attachmentCoverageKey(a);
+    if (!key || (!readyDocumentIds(a).length && publicCorpusCapability(a) !== 'full')) continue;
+    seen.add(key);
   }
   return seen.size;
 }
@@ -240,10 +243,10 @@ export function confiningCount(attachments, indexed) {
 export function documentNotice({ switched, count, hi = false }) {
   const many = count > 1;
   if (hi) {
-    const n = many ? ` ${count} संलग्न दस्तावेज़ों में खोज।` : '';
+    const n = many ? ` ${count} संलग्न सामग्री से पाठ उपलब्ध है।` : '';
     return switched ? `फोकस “केवल संलग्न” पर सेट किया गया, ताकि प्रश्न केवल संलग्न दस्तावेज़ों में खोजें।${n}` : `दस्तावेज़ संलग्न किया गया।${n}`;
   }
-  const n = many ? ` Searching ${count} attached documents.` : '';
+  const n = many ? ` Text is available from ${count} attached items.` : '';
   return switched ? `Focus set to Attached so questions search only the attached documents.${n}` : `Document attached.${n}`;
 }
 
@@ -375,6 +378,7 @@ const FOCUS_KEY = 'niyantranAiFocus';
 export function watchCoverage(attachedKeys, onAnswer, { refresh = refreshCoverage, recheck = recheckCoverage, every = COVERAGE_TTL_MS } = {}) {
   const keys = String(attachedKeys || '').split('\u0000').filter(Boolean);
   if (!keys.length) return null;
+  if (refresh === refreshCoverage && recheck === recheckCoverage && every === COVERAGE_TTL_MS) return observeCoverage(keys, onAnswer);
   let alive = true;
   const ask = (lookup) => { lookup(keys).then((set) => { if (alive) onAnswer(set); }).catch(() => {}); };
   ask(refresh);

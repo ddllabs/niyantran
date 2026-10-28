@@ -5,6 +5,7 @@ import { applyVizFilter } from '../lib/nationalKpi.js';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { aiDragProps } from '../lib/aiDrop.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 import { downloadJson, withExportProvenance } from '../lib/exportProvenance.js';
 import { liveApiEnabled } from '../lib/apiMode.js';
 
@@ -185,7 +186,7 @@ export default function ChokepointsDesk({ feed, selected, onSelect, onAsk, vizFi
                     onClick={() => onSelect?.(p.row)}
                     {...aiDragProps({ kind: 'row', feature: feed?.feature, title: p.name, row: p.row || p })}
                   >
-                    <span className="geo-bar-l">{p.name}</span>
+                    <span className="geo-bar-l">{p.name}<CorpusCapability row={p.row || p} feed={feed} /></span>
                     <span className="geo-bar-t">
                       <i style={{ width: `${Math.max(2, Math.min(100, n))}%`, background: s.c }} />
                     </span>
@@ -207,7 +208,7 @@ export default function ChokepointsDesk({ feed, selected, onSelect, onAsk, vizFi
                   <div key={p.id} className={`geo-card${on && openId === p.id ? ' open' : ''}${p.id === selectedId ? ' hl' : ''}`}>
                     <button type="button" className="geo-card-h" onClick={() => { onSelect?.(p.row); setOpenId((id) => (id === p.id ? '' : p.id)); }} {...aiDragProps({ kind: 'row', feature: feed?.feature, title: p.name, row: p.row || p })}>
                       <span className="geo-card-dot" style={{ color: s.c, background: s.c }} />
-                      <span className="geo-card-nm">{p.name}</span>
+                      <span className="geo-card-nm">{p.name}<CorpusCapability row={p.row || p} feed={feed} /></span>
                       <span className="geo-card-st" style={{ background: `${s.c}22`, color: s.c }}>
                         {s.l}
                       </span>

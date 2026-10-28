@@ -5,6 +5,7 @@ import { applyVizFilter } from '../lib/nationalKpi.js';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { aiDragProps, openAiResearch } from '../lib/aiDrop.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 
 const AI_SUMMARY =
   'The tracked cohort skews toward long-tenure strongmen (Putin 1999-, Xi 2012-, Erdogan 2014-). Democratic incumbents face fragmented parliaments and fiscal constraint. Watch succession/health risk in the Gulf and the impact of 2026 elections on Ukraine support.';
@@ -124,7 +125,7 @@ export default function LeadersDesk({ workspaceScope = '', feed, selected, onSel
                         {l.flag ? <span className="geo-e-flag">{l.flag}</span> : null}
                         <span className="geo-mono">{l.iso || isoOf(l.id) || '?'}</span>
                         <div>
-                          <div className="geo-e-nm">{name}</div>
+                          <div className="geo-e-nm">{name}<CorpusCapability row={l} feed={feed} /></div>
                           <div className="geo-e-sub">
                             {l.country || '—'} · {l.office || l.role || 'Office not reported'}
                           </div>

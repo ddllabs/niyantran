@@ -101,10 +101,10 @@ it('F261 the Parliamentary host supplies verified coverage without rewriting reg
  const tree=RailContent({view:'record',feed,selected,onSelect:vi.fn(),loading:false});
  const host=nodes(tree).find(n=>typeof n.type==='function'&&n.props?.adapter);
  const panel=host.type(host.props);
- expect(panel.props.model.glance.visual.steps[1].detail).toBe('Full text available');
+ expect(panel.props.model.glance.visual.steps[1].detail).toBe('Full text');
  expect(selected.has_answer).toBe('Not reported');
  hooks.coverage={key:'another-record',value:'full'};
  const other=host.type(host.props);
- expect(other.props.model.glance.visual.steps[1].detail).toBe('Text coverage unverified');
+ expect(other.props.model.glance.visual.steps[1].detail).toBe('Record only');
  hooks.coverage=null;
 });

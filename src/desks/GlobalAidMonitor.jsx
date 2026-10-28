@@ -5,6 +5,7 @@ import { applyVizFilter } from '../lib/nationalKpi.js';
 import TableFilterPop, { choiceGroup, matchesChoice } from '../shell/TableFilterPop.jsx';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 import { liveApiEnabled } from '../lib/apiMode.js';
 
 export default function GlobalAidMonitor({ workspaceScope = '', feed, selected, onSelect, vizFilter, onClearViz }) {
@@ -206,7 +207,7 @@ export default function GlobalAidMonitor({ workspaceScope = '', feed, selected, 
             <tbody>
               {view.map((p) => (
                 <tr key={p.id} className={p.id === current?.id ? 'alw-row-selected' : ''} onClick={() => pick(p)} {...rowDragProps(p.row || p, { title: p.name, feature: feed?.feature })}>
-                  <td title={p.name}>{p.name}</td>
+                  <td title={p.name}>{p.name}<CorpusCapability row={p.row || p} feed={feed} /></td>
                   <td className="alw-kind">
                     {p.agency}
                     <div className="gaw-sub">{p.region}</div>

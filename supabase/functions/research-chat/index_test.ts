@@ -997,3 +997,83 @@ Deno.test('ordinary callers keep the preexisting trimmed bundled system prompt a
   assertEquals(f.calls.filter(c=>c.table==='persona_active').length,0);
   await assertRejects(()=>d.persona('verified-owner',undefined,'Malicious override'));
 });
+
+Deno.test('F264 one caller resolution retains partial IDs and unavailable direct documents', async () => {
+  const f = fixture();
+  const key = 'desk-record:["national","Questions","123"]';
+  f.setReply((_side, table, _op, value) => ({ data: table === 'record_resolve_document_keys'
+    ? (value as { p_keys: string[] }).p_keys.flatMap(k => k === key
+      ? [{ document_key: k, document_id: DOC_A, coverage: 'partial' }, { document_key: k, document_id: null, coverage: 'partial' }]
+      : [{ document_key: k, document_id: null, coverage: 'unavailable' }]) : [], error: null }));
+  const d = createDependencies(request(), f.runtime); await d.requireUser(request());
+  const result = await d.db.resolveDocumentScope({ keys: [key], ids: [DOC_B] });
+  assertEquals(result.ids, [DOC_A]);
+  assertEquals(result.byKey[key], { coverage: 'partial', ids: [DOC_A] });
+  assertEquals(result.byKey[`document-id:${DOC_B}`], { coverage: 'unavailable', ids: [] });
+  const calls = f.calls.filter(c => c.table === 'record_resolve_document_keys');
+  assertEquals(calls.length, 1);
+  assertEquals(calls[0].side, 'caller');
+});
+
+Deno.test('F264 combined resolution uses one record RPC where old scope and policy used three', async () => {
+  const f = fixture();
+  const key = 'desk-record:["national","Questions","123"]';
+  f.setReply((_side, table, _op, value) => ({ data: table === 'record_resolve_document_keys'
+    ? (value as { p_keys: string[] }).p_keys.map(k => ({ document_key: k, document_id: DOC_A, coverage: 'full' })) : [], error: null }));
+  const d = createDependencies(request(), f.runtime); await d.requireUser(request());
+  await d.db.indexedDocumentKeys([key]);
+  await d.db.resolveDocumentIds({ keys: [key], ids: [DOC_B] });
+  assertEquals(f.calls.filter(c => c.table === 'record_resolve_document_keys').length, 3);
+  f.calls.length = 0;
+  const result = await d.db.resolveDocumentScope({ keys: [key], ids: [DOC_B] });
+  assertEquals(result.ids, [DOC_A]);
+  assertEquals(f.calls.filter(c => c.table === 'record_resolve_document_keys').length, 1);
+});
+
+Deno.test('F264 one failing adapter does not discard another adapter’s ready IDs or assert absence', async () => {
+  const f = fixture();
+  const key = 'desk-record:["national","Questions","123"]';
+  const law = 'law-record:12345678-1234-1234-1234-123456789abc';
+  f.setReply((_side, table) => table === 'law_resolve_document_keys'
+    ? { data: null, error: { message: 'unavailable' } }
+    : table === 'record_resolve_document_keys'
+    ? { data: [{ document_key: key, document_id: DOC_A, coverage: 'partial' }], error: null }
+    : { data: [], error: null });
+  const d = createDependencies(request(), f.runtime); await d.requireUser(request());
+  const result = await d.db.resolveDocumentScope({ keys: [key, law, 'bill:missing'], ids: [] });
+  assertEquals(result.ids, [DOC_A]);
+  assertEquals(result.byKey[key], { coverage: 'partial', ids: [DOC_A] });
+  assertEquals(result.byKey[law], undefined);
+  assertEquals(result.byKey['bill:missing'], undefined);
+});
+
+Deno.test('F264 aborted scope lookup propagates cancellation before any adapter call', async () => {
+  const f = fixture(); const d = createDependencies(request(), f.runtime); await d.requireUser(request());
+  const controller = new AbortController(); controller.abort();
+  await assertRejects(() => d.db.resolveDocumentScope({ keys: ['bill:missing'], ids: [], signal: controller.signal }));
+  assertEquals(f.calls.filter(c => c.table === 'documents').length, 0);
+});
+
+Deno.test('F264 a failed record batch preserves ready IDs from a separate batch', async () => {
+  const f = fixture(); const keys = Array.from({ length: 25 }, (_, i) => `desk-record:["national","Questions","${i}"]`);
+  f.setReply((_side, table, _op, value) => {
+    if (table !== 'record_resolve_document_keys') return { data: [], error: null };
+    const batch = (value as { p_keys: string[] }).p_keys;
+    return batch.length === 24 ? { data: null, error: { message: 'batch failed' } }
+      : { data: [{ document_key: batch[0], document_id: DOC_A, coverage: 'full' }], error: null };
+  });
+  const d = createDependencies(request(), f.runtime); await d.requireUser(request());
+  const result = await d.db.resolveDocumentScope({ keys, ids: [] });
+  assertEquals(result.ids, [DOC_A]);
+  assertEquals(result.byKey[keys[0]], undefined);
+  assertEquals(result.byKey[keys[24]], { coverage: 'full', ids: [DOC_A] });
+});
+
+Deno.test('F264 in-flight scope cancellation propagates and stops waiting for adapter', async () => {
+  const f = fixture(); f.setReply((_side, table) => table === 'record_resolve_document_keys' ? new Promise(() => {}) : { data: [], error: null });
+  const d = createDependencies(request(), f.runtime); await d.requireUser(request());
+  const controller = new AbortController();
+  const pending = d.db.resolveDocumentScope({ keys: ['desk-record:["national","Questions","1"]'], ids: [], signal: controller.signal });
+  await Promise.resolve(); controller.abort();
+  await assertRejects(() => pending);
+});

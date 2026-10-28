@@ -71,11 +71,11 @@ beforeEach(() => vi.clearAllMocks());
 // ─── The records view ────────────────────────────────────────────────────────
 
 describe('DeskPicker', () => {
-  it('lists the bill desk first, Policy Intelligence Graph as the same records, and keyless desks as standalone only', () => {
+  it('lists legacy Bill management separately from other desks with read-only readiness', () => {
     const markup = renderToStaticMarkup(createElement(DeskPicker, { value: 'national|Bill Passage Probability Index', pairs: PAIRS, onChange: () => {} }));
     expect(markup.indexOf('Bill Passage Probability Index')).toBeLessThan(markup.indexOf('Policy Intelligence Graph'));
     expect(markup).toContain('national · Policy Intelligence Graph — same records as Bill Passage');
-    expect(markup).toContain('<optgroup label="No record keys yet — standalone uploads only"><option value="global|Treaties">global · Treaties</option><option value="national|Union Budget">national · Union Budget</option></optgroup>');
+    expect(markup).toContain('<optgroup label="Other desks — read-only readiness and standalone uploads"><option value="global|Treaties">global · Treaties</option><option value="national|Union Budget">national · Union Budget</option></optgroup>');
   });
 });
 

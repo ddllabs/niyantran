@@ -5,6 +5,7 @@ import { commodityGroups } from '../lib/commodityGroups.js';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { openAiResearch } from '../lib/aiDrop.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 
 const AI_SUMMARY =
   'Energy and precious metals carry a geopolitical risk premium (Middle East, Red Sea, safe-haven gold). Soft commodities (cocoa, coffee) are climate-driven. The through-line to watch: any Hormuz/Red Sea shock transmits straight into oil, freight and food-import inflation for net importers like India.';
@@ -24,11 +25,11 @@ const PROMPTS = [
 // F122: the levels are the pack's illustrative values; the Pink Sheet is offered only to check them.
 const SOURCES = [['World Bank Pink Sheet (for checking)', 'https://www.worldbank.org/en/research/commodity-markets']];
 
-function BarRow({ label, pct, val, up, on, onPick }) {
+function BarRow({ label, pct, val, up, on, onPick, row, feed }) {
   const n = Math.max(2, Math.min(100, Number(pct) || 2));
   return (
     <button type="button" className={`geo-bar${on ? ' on' : ''}`} aria-pressed={on} data-commodity={label} onClick={onPick}>
-      <span className="geo-bar-l">{label}</span>
+      <span className="geo-bar-l">{label}{row ? <CorpusCapability row={row} feed={feed} /> : null}</span>
       <span className="geo-bar-t">
         <i style={{ width: `${n}%`, background: up ? '#22c55e' : '#ef4444' }} />
       </span>
@@ -38,7 +39,7 @@ function BarRow({ label, pct, val, up, on, onPick }) {
 }
 
 /** A benchmark row opens its record (F121): clicking selects the feed row, clicking it again clears it. */
-function GroupPanel({ title, items, rowFor, selected, onSelect }) {
+function GroupPanel({ title, items, rowFor, selected, onSelect, feed }) {
   return (
     <section className="geo-panel">
       <div className="geo-panel-h">
@@ -50,7 +51,7 @@ function GroupPanel({ title, items, rowFor, selected, onSelect }) {
           const up = String(change || '').trim().startsWith('+');
           const row = rowFor(name);
           const on = Boolean(row && selected && (selected === row || (selected.commodity || selected.title) === name));
-          return <BarRow key={name} label={name} pct={pct} val={`${level}  ${change}`} up={up} on={on} onPick={() => row && (on ? onSelect?.(null, { toggled: row }) : onSelect?.(row))} />;
+          return <BarRow key={name} label={name} row={row} feed={feed} pct={pct} val={`${level}  ${change}`} up={up} on={on} onPick={() => row && (on ? onSelect?.(null, { toggled: row }) : onSelect?.(row))} />;
         })}
       </div>
     </section>
@@ -117,13 +118,13 @@ export default function CommoditiesDesk({ workspaceScope = '', feed, selected, o
         <div className="geo-grid">
             <div>
               {groups.slice(0, 2).map((g) => (
-                <GroupPanel key={g.g} title={g.g} items={g.items || []} rowFor={rowFor} selected={selected} onSelect={onSelect} />
+                <GroupPanel key={g.g} title={g.g} items={g.items || []} rowFor={rowFor} selected={selected} onSelect={onSelect} feed={feed} />
               ))}
             </div>
             <div>
               <GeoAi summary={AI_SUMMARY} prompts={PROMPTS} onAsk={goAsk} />
               {groups.slice(2).map((g) => (
-                <GroupPanel key={g.g} title={g.g} items={g.items || []} rowFor={rowFor} selected={selected} onSelect={onSelect} />
+                <GroupPanel key={g.g} title={g.g} items={g.items || []} rowFor={rowFor} selected={selected} onSelect={onSelect} feed={feed} />
               ))}
               <GeoSources links={SOURCES} asOf={asOfLabel} note={`Levels are illustrative benchmark values, as of ${asOfLabel}; no live price feed is connected.`} />
             </div>

@@ -433,6 +433,39 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
         );
         if (observedCancellations.get(id) === timestamp) observedCancellations.delete(id);
       },
+      resolveDocumentScope: async ({ keys, ids, signal }) => {
+        signal?.throwIfAborted();
+        const lawKeys = keys.filter(key => key.startsWith('law-record:'));
+        const recordKeys = [...new Set([...keys.filter(key => key.startsWith('desk-record:')), ...ids.map(id => `document-id:${id}`)])];
+        const legacyKeys = keys.filter(key => !key.startsWith('law-record:') && !key.startsWith('desk-record:'));
+        type Row = { document_key: string; document_id: string | null; coverage: string };
+        const reads: Promise<Row[]>[] = [];
+        if (legacyKeys.length) reads.push(query<{ id: string; document_key: string }[]>((s) => caller().from('documents')
+          .select('id,document_key:metadata->>document_key').in('metadata->>document_key', legacyKeys)
+          .not('indexed_at', 'is', null).abortSignal(s), signal).then(rows =>
+            (rows ?? []).map(row => ({ document_key: row.document_key, document_id: row.id, coverage: 'full' }))));
+        for (let i = 0; i < lawKeys.length; i += 12) {
+          const batch = lawKeys.slice(i, i + 12);
+          reads.push(query<{ document_key: string; document_id: string }[]>((s) => caller().rpc('law_resolve_document_keys', { p_keys: batch }).abortSignal(s), signal)
+            .then(rows => (rows ?? []).map(row => ({ ...row, coverage: 'full' }))));
+        }
+        for (let i = 0; i < recordKeys.length; i += 24) {
+          const batch = recordKeys.slice(i, i + 24);
+          reads.push(query<Row[]>((s) => caller().rpc('record_resolve_document_keys', { p_keys: batch }).abortSignal(s), signal)
+            .then(rows => rows ?? []));
+        }
+        const settled = await Promise.allSettled(reads);
+        signal?.throwIfAborted();
+        const byKey: Record<string, { coverage: string; ids: string[] }> = {};
+        for (const read of settled) {
+          if (read.status !== 'fulfilled') continue; // Failed batch is unknown, never absence.
+          for (const row of read.value) {
+            const entry = byKey[row.document_key] ??= { coverage: row.coverage, ids: [] };
+            if (row.document_id && !entry.ids.includes(row.document_id)) entry.ids.push(row.document_id);
+          }
+        }
+        return { byKey, ids: [...new Set(Object.values(byKey).flatMap(row => row.ids))] };
+      },
       resolveDocumentIds: async ({ keys, ids }) => {
         // Two reads rather than one `or`: a key is free text, and PostgREST's
         // `or` grammar would need it quoted. Both keep only indexed documents,

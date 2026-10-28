@@ -69,3 +69,8 @@ At final completion repeat full independent audit, usage/receipt reconciliation,
 Run `node --experimental-strip-types --test scripts/corpus-*.test.mjs`, `npm test`, the full Deno suite, lint, build, and applicable disposable SQL fixtures. No production failure injection. Version-4 context relies on the existing page-contract SQL support for `embed_hash` and section metadata; no new migration is included in this integration. Function deployment and live evaluation require separate authorization.
 
 See [integration review](../plans/2026-10-12-corpus-integration.md) for current test evidence and local commit disposition. Historical stages, exploratory repairs and mapping-only proposals are preserved as evidence, not executable queues.
+
+
+## Public capability versus ingestion readiness (F264, local review)
+
+The proposed Full text / Record only display is not an admission or completion signal. Operational readiness remains separately verified: registration, complete indexing, reviewed mapping, publication/access and retrieval/citation acceptance. Read-only admin diagnostics retain detailed states; paged observations do not prove a complete mapping inventory. Do not retry ingestion merely because a public badge says Record only. Existing OCR, identities, chunk hashes, manifests, checkpoints, collection boundaries and authorization gates remain binding. This increment is not yet released and authorizes no production action. See [F264 spec](../specs/2026-10-28-public-corpus-capability.md) and [client handoff](2026-10-28-corpus-client-handoff.md).

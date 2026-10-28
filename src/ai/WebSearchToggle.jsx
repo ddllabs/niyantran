@@ -7,8 +7,8 @@
  * the override to the opposite of what is shown. A model that cannot search, and a turn in flight,
  * disable it.
  */
-import { useEffect, useMemo, useState } from 'react';
-import { coverageOf, documentModules, indexedDocumentKeys, webDefaultFor } from '../lib/corpusCoverage.js';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { coverageCallerVersion, documentModules, observeCoverage, subscribeCoverage, webDefaultFor } from '../lib/corpusCoverage.js';
 
 /** Models that never get the web tool: a `:free` model, or one the admin has switched off (spec section 1). */
 export function isWebGated(model) {
@@ -24,11 +24,12 @@ const WORDS = {
     gated: "This model can't search the web",
     conversational: 'Web search off: this message needs no search',
     reasons: {
-      'record-without-document': () => 'this record has no indexed document',
-      'module-without-documents': () => 'this module has no indexed documents',
-      'documents-in-scope': (module) => (module ? 'this module has indexed documents' : 'this record has indexed documents'),
+      'record-without-document': () => 'research can use this record and web sources',
+      'module-without-documents': () => 'research can use web sources for this module',
+      'documents-in-scope': (module) => (module ? 'research can use text from this module' : 'research can use text from this record'),
+      'coverage-unknown': () => 'research will check available sources when you send',
       'no-record': () => 'no record is in scope',
-      broad: () => 'broad questions use the indexed documents',
+      broad: () => 'broad questions can use sources across desks',
     },
   },
   hi: {
@@ -38,11 +39,12 @@ const WORDS = {
     gated: 'यह मॉडल वेब पर खोज नहीं कर सकता',
     conversational: 'वेब खोज बंद: इस संदेश को खोज की ज़रूरत नहीं',
     reasons: {
-      'record-without-document': () => 'इस रिकॉर्ड का कोई अनुक्रमित दस्तावेज़ नहीं है',
-      'module-without-documents': () => 'इस मॉड्यूल में कोई अनुक्रमित दस्तावेज़ नहीं है',
-      'documents-in-scope': (module) => (module ? 'इस मॉड्यूल के अनुक्रमित दस्तावेज़ मौजूद हैं' : 'इस रिकॉर्ड के अनुक्रमित दस्तावेज़ मौजूद हैं'),
+      'record-without-document': () => 'शोध इस रिकॉर्ड और वेब स्रोतों का उपयोग कर सकता है',
+      'module-without-documents': () => 'शोध इस मॉड्यूल के लिए वेब स्रोतों का उपयोग कर सकता है',
+      'documents-in-scope': (module) => (module ? 'शोध इस मॉड्यूल के पाठ का उपयोग कर सकता है' : 'शोध इस रिकॉर्ड के पाठ का उपयोग कर सकता है'),
+      'coverage-unknown': () => 'भेजने पर शोध उपलब्ध स्रोतों की जाँच करेगा',
       'no-record': () => 'कोई रिकॉर्ड दायरे में नहीं है',
-      broad: () => 'व्यापक प्रश्न अनुक्रमित दस्तावेज़ों से उत्तर पाते हैं',
+      broad: () => 'व्यापक प्रश्न अलग डेस्कों के स्रोतों का उपयोग कर सकते हैं',
     },
   },
 };
@@ -84,8 +86,7 @@ export function predictWeb({ focus, attachments = [], selectedRecord = null, ind
   const records = focus === 'attached' || focus === 'selection'
     ? [...(attachments || []), ...(selectedRecord ? [selectedRecord] : [])] : (attachments || []);
   const merged = indexedKeys || selectedIndexed ? new Set([...(indexedKeys || []), ...(selectedIndexed || [])]) : null;
-  const pending = records.some((a) => (a?.kind === 'row' || a?.kind === 'record') && a.document_key && coverageOf(a, merged) === null);
-  return webDefaultFor({ focus, attachments: records, indexedKeys: pending ? null : merged || new Set(), deskContext, modules });
+  return webDefaultFor({ focus, attachments: records, indexedKeys: merged, deskContext, modules });
 }
 
 /**
@@ -96,20 +97,20 @@ export function predictWeb({ focus, attachments = [], selectedRecord = null, ind
 export function useWebPrediction({ focus, attachments, selectedRecord, indexedKeys, deskContext, open = true }) {
   const selectedKey = selectedRecord?.document_key || '';
   const [selectedAnswer, setSelectedAnswer] = useState({ key: '', set: null });
-  const [modules, setModules] = useState(null);
+  const callerVersion = useSyncExternalStore(subscribeCoverage, coverageCallerVersion, coverageCallerVersion);
+  const [moduleAnswer, setModules] = useState(null);
   useEffect(() => {
     if (!open || !selectedKey) return undefined;
-    let alive = true;
-    indexedDocumentKeys([selectedKey]).then((set) => { if (alive) setSelectedAnswer({ key: selectedKey, set }); }).catch(() => {});
-    return () => { alive = false; };
+    return observeCoverage([selectedKey], set => setSelectedAnswer({ key: selectedKey, set })) || undefined;
   }, [selectedKey, open]);
   useEffect(() => {
     if (!open || focus !== 'desk') return undefined;
     let alive = true;
-    documentModules().then((rows) => { if (alive && rows) setModules(rows); }).catch(() => {});
+    documentModules().then((rows) => { if (alive && rows) setModules({ rows, callerVersion }); }).catch(() => {});
     return () => { alive = false; };
-  }, [focus, open]);
+  }, [focus, open, callerVersion]);
   const selectedIndexed = selectedAnswer.key === selectedKey ? selectedAnswer.set : null;
+  const modules = moduleAnswer?.callerVersion === callerVersion ? moduleAnswer.rows : null;
   return useMemo(
     () => predictWeb({ focus, attachments, selectedRecord, indexedKeys, selectedIndexed, deskContext, modules }),
     [focus, attachments, selectedRecord, indexedKeys, selectedIndexed, deskContext, modules],

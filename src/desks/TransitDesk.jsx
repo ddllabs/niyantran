@@ -21,6 +21,7 @@ import {
   zoomLabel,
 } from '../lib/transit.js';
 import { liveApiEnabled } from '../lib/apiMode.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 
 const TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile';
 
@@ -982,7 +983,7 @@ export default function TransitDesk({ workspaceScope = '', onFeed, onSelect, onL
                           onClick={() => (s.icao ? openAir(s) : openShip(s))}
                         >
                           <span className="sb-res-sw" style={{ background: s.icao ? altColor(s.alt) : (CATS[s.cat] || CATS.other).c }} />
-                          <span className="sb-res-nm">{s.name || s.flt || s.icao || `MMSI ${s.mmsi}`}</span>
+                          <span className="sb-res-nm">{s.name || s.flt || s.icao || `MMSI ${s.mmsi}`}<CorpusCapability row={s.icao ? rowFromAir(s) : rowFromShip(s)} feed={{tier:'global',feature:'Transit'}} /></span>
                           <span className="sb-res-t">
                             {s.icao ? (s.alt != null ? `${Math.round(s.alt / 1000)} km` : '') : (CATS[s.cat] || CATS.other).l.split(' · ')[0]}
                           </span>
@@ -1005,6 +1006,7 @@ export default function TransitDesk({ workspaceScope = '', onFeed, onSelect, onL
                   <div className="sb-d-cat" style={{ color: cat.c }}>
                     {cat.l}
                   </div>
+                  <CorpusCapability row={rowFromShip(ship)} feed={{tier:'global',feature:'Transit'}} />
                   <div className="sb-d-sec">POSITION</div>
                   <Row k="Location" v={locLabel(ship.lat, ship.lon)} />
                   <Row k="Coordinates" v={`${ship.lat.toFixed(4)}°, ${ship.lon.toFixed(4)}°`} />
@@ -1035,6 +1037,7 @@ export default function TransitDesk({ workspaceScope = '', onFeed, onSelect, onL
                   <div className="sb-d-cat" style={{ color: altColor(air.alt) }}>
                     Aircraft · {air.cat || 'unknown'}
                   </div>
+                  <CorpusCapability row={rowFromAir(air)} feed={{tier:'global',feature:'Transit'}} />
                   <div className="sb-d-sec">POSITION</div>
                   <Row k="Coordinates" v={`${air.lat.toFixed(4)}°, ${air.lon.toFixed(4)}°`} />
                   <Row k="Altitude" v={air.alt != null ? `${air.alt} m` : '—'} />

@@ -4,6 +4,7 @@ import { applyVizFilter } from '../lib/nationalKpi.js';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
+import CorpusCapability from '../shell/CorpusCapability.jsx';
 import { dedupeNewsRows } from '../lib/newsDedup.js';
 import { applyRecordChecklistToFeed } from '../lib/recordChecklist.js';
 import { fetchFeature } from '../lib/featureFeed.js';
@@ -122,7 +123,7 @@ export default function MorningBriefDesk({ workspaceScope = '', onSelect, onFeed
                     {section} · {source} · {published}
                     {r.related_count > 0 ? ` · +${r.related_count} related` : ''}
                   </span>
-                  <span className="nat-brief-headline">{r.title}</span>
+                  <span className="nat-brief-headline">{r.title}<CorpusCapability row={{...r,section,headline:r.title,topic:section,region:r.region || 'India'}} feed={{tier:'national',feature:FEATURE}} /></span>
                 </button>
               </li>
             );

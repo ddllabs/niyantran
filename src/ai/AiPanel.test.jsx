@@ -246,18 +246,23 @@ it('asking about a document moves broad and desk focus to attached, with a notic
   expect(r.notice).not.toMatch(/Focus set/);
  }
 });
-it('the notice counts the attached documents the search is shared with',async()=>{
+it('the notice counts currently usable attached items without claiming distinct document counts',async()=>{
  const {askAboutDocument}=await import('./AiPanel.jsx');
- const other={id:'a1',kind:'document',title:'Other',document_id:'d-other'};
+ const {refreshCoverage,resetCoverageCache}=await import('../lib/corpusCoverage.js');
+ resetCoverageCache();
+ const other={id:'a1',kind:'document',title:'Other',document_id:'00000000-0000-0000-0000-000000000002'};
  const bill={id:'a2',kind:'row',title:'Bill',document_key:'bill:2007:70',tab:'national',feature:'Bills',row_key:'70'};
+ const keys=[`document-id:${other.document_id}`,`document-id:${CITED.document_id}`,'desk-record:["national","Bills","70"]'];
+ await refreshCoverage(keys,{rpc:async()=>({data:keys.map(document_key=>({document_key,document_id:'ready',coverage:'full'})),error:null})});
  const r=await askAboutDocument(CITED,{attach:attachSpy().attach,focus:'broad',attachments:[other,bill],indexed:new Set(['desk-record:["national","Bills","70"]'])});
- expect(r.notice).toBe('Focus set to Attached so questions search only the attached documents. Searching 3 attached documents.');
- // The same document attached twice is one document; a row with no indexed text confines nothing.
+ expect(r.notice).toBe('Focus set to Attached so questions search only the attached documents. Text is available from 3 attached items.');
+ // A duplicate chip counts once; removing the row's text leaves the document alone.
+ await refreshCoverage([keys[2]],{rpc:async()=>({data:[{document_key:keys[2],coverage:'unmapped',document_id:null}],error:null})});
  const same={id:'a3',kind:'document',title:CITED.title,document_id:CITED.document_id};
  const one=await askAboutDocument(CITED,{attach:attachSpy().attach,focus:'attached',attachments:[same,bill],indexed:new Set()});
  expect(one.notice).toBe('Document attached.');
  const two=await askAboutDocument(CITED,{attach:attachSpy().attach,focus:'attached',attachments:[other]});
- expect(two.notice).toBe('Document attached. Searching 2 attached documents.');
+ expect(two.notice).toBe('Document attached. Text is available from 2 attached items.');
 });
 it('a locked thread attaches nothing and leaves focus alone',async()=>{
  const {askAboutDocument}=await import('./AiPanel.jsx');

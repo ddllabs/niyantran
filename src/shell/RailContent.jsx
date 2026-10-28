@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { recordAvailability, refreshCoverage, COVERAGE_TTL_MS } from '../lib/corpusCoverage.js';
+import { publicCorpusCapability, observeCoverage } from '../lib/corpusCoverage.js';
 import { documentKey } from '../lib/deskRows.js';
+import CorpusCapability from './CorpusCapability.jsx';
 import FeedLoader from './FeedLoader.jsx';
 import { feedOverview } from '../lib/analytics.js';
 import { fetchFeaturePage } from '../lib/featureFeed.js';
@@ -65,14 +66,9 @@ function RecordPanelWithBrief({ adapter, selected, feed, loading, onSelect }) {
   const [textCoverage, setTextCoverage] = useState({ key: null, value: null });
   useEffect(() => {
     if (!coverageKey) return undefined;
-    let live = true;
-    const check = () => refreshCoverage([coverageKey]).then((indexed) => {
-      const { record, text } = recordAvailability({ kind: 'row', document_key: coverageKey }, indexed);
-      if (live) setTextCoverage({ key: coverageKey, value: text || (record === 'snapshot' ? 'snapshot' : null) });
-    }).catch(() => { if (live) setTextCoverage({ key: coverageKey, value: null }); });
-    check();
-    const timer = setInterval(check, COVERAGE_TTL_MS);
-    return () => { live = false; clearInterval(timer); };
+    return observeCoverage([coverageKey], () => {
+      setTextCoverage({ key: coverageKey, value: publicCorpusCapability({ kind: 'row', document_key: coverageKey }) });
+    }) || undefined;
   }, [coverageKey]);
   const coverage = textCoverage.key === coverageKey ? textCoverage.value : null;
   return (
@@ -212,6 +208,7 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
             </p>
           )}
 
+          {selected && selected.status !== 'source_status' ? <div className="record-capability"><CorpusCapability row={selected} feed={feed} /></div> : null}
           {terminal && !selected ? (
             <div className="rail-empty">
               <p className="muted">Analytics stay empty until live or stored rows exist for this destination.</p>

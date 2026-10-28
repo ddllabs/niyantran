@@ -5,6 +5,7 @@ import { supabase as defaultClient } from './supabaseClient.js';
 
 /** How long one key's answer is trusted (D9). */
 export const COVERAGE_TTL_MS = 60_000;
+export const COVERAGE_LOOKUP_TIMEOUT_MS = 15_000;
 
 /**
  * document_key -> { value: boolean, at: number }. `at` is when the lookup that
@@ -16,13 +17,39 @@ const lookupErrors = new Map();
 const recordStates = new Map();
 const latestLookup = new Map();
 let lookupSequence = 0;
+let cacheGeneration = 0;
+const lookupFlights = new Map();
+const runningRpcs = new Set();
+const readyIds = new Map();
+const subscribers = new Set();
+let revision = 0;
+const changed = (keys = null) => {
+  revision += 1;
+  for (const subscription of subscribers) {
+    if (!keys || !subscription.keys || keys.some(key => subscription.keys.has(key))) subscription.notify();
+  }
+};
+export const subscribeCoverage = (notify, keys = null) => {
+  const subscription = { notify, keys: keys && new Set(keys) };
+  subscribers.add(subscription);
+  return () => subscribers.delete(subscription);
+};
+export const coverageRevision = () => revision;
+export const coverageCallerVersion = () => cacheGeneration;
 
 export function resetCoverageCache() {
+  cacheGeneration += 1;
+  for (const request of runningRpcs) request.abort();
   known.clear();
   lookupErrors.clear();
   recordStates.clear();
   latestLookup.clear();
+  lookupFlights.clear();
+  readyIds.clear();
+  checked.clear();
+  pending.clear();
   modulesRequest = null;
+  changed();
 }
 
 const keysOf = (keys) => [...new Set((keys || []).filter((k) => typeof k === 'string' && k.trim()))];
@@ -33,37 +60,96 @@ function fresh(key, now) {
   return entry && now() - entry.at < COVERAGE_TTL_MS ? entry.value : undefined;
 }
 
+// The limit belongs to the client, not one lookup: new viewport mounts and chat
+// requests can overlap older batches. Queued work rechecks its caller and readers.
+const rpcQueues = new WeakMap();
+function coverageRpc(client, name, keys, context) {
+  let queue = rpcQueues.get(client);
+  if (!queue) { queue = { active: 0, jobs: [] }; rpcQueues.set(client, queue); }
+  const drain = () => {
+    while (queue.active < 2 && queue.jobs.length) queue.jobs.shift()();
+  };
+  return new Promise((resolve, reject) => {
+    queue.jobs.push(() => {
+      const wanted = context.generation === cacheGeneration
+        ? keys.filter(key => !context.visible || context.visible(key) || context.retained.has(key)) : [];
+      if (!wanted.length) { resolve(null); return; }
+      queue.active += 1;
+      for (const key of wanted) context.attempted.add(key);
+      const controller = new AbortController();
+      let settled = false;
+      const request = { abort: () => controller.abort() };
+      runningRpcs.add(request);
+      const finish = (error, result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        runningRpcs.delete(request);
+        controller.signal.removeEventListener('abort', aborted);
+        queue.active -= 1;
+        if (error) reject(error); else resolve(result);
+        drain();
+      };
+      // Let every transport abort listener run before a replacement acquires the slot.
+      // Supabase's builder forwards this signal to fetch; no network promise has to
+      // settle by itself for a signed-out caller's hung request to release its slot.
+      const aborted = () => queueMicrotask(() => finish(new DOMException('Coverage lookup aborted', 'AbortError')));
+      controller.signal.addEventListener('abort', aborted, { once: true });
+      const timeout = setTimeout(request.abort, COVERAGE_LOOKUP_TIMEOUT_MS);
+      try {
+        const transport = client.rpc(name, { p_keys: wanted });
+        const response = typeof transport?.abortSignal === 'function' ? transport.abortSignal(controller.signal) : transport;
+        Promise.resolve(response).then(result => finish(null, result), error => finish(error));
+      } catch (error) { finish(error); }
+    });
+    drain();
+  });
+}
+
 /**
  * Asks the database about `keys` in one request and records the answers. A
  * failed request records a separate lookup error, never a negative coverage answer.
  * Only the latest lookup for a key may update text or metadata capability.
  */
-async function performLookup(keys, client, at, sequence) {
+async function performLookup(keys, client, at, sequence, context) {
   if (!keys.length || !client) return;
   const law = keys.filter(k => k.startsWith('law-record:'));
   const records = keys.filter(k => k.startsWith('desk-record:') || k.startsWith('document-id:'));
   const legacy = keys.filter(k => !k.startsWith('law-record:') && !k.startsWith('desk-record:') && !k.startsWith('document-id:'));
   const states = new Map();
-  for (let i = 0; i < records.length; i += 24) {
-    const result = await client.rpc('record_resolve_document_keys', { p_keys: records.slice(i, i + 24) });
-    if (result.error) return false;
-    for (const row of result.data || []) states.set(row.document_key, row.coverage);
+  const ids = new Map();
+  for (let i = 0; i < records.length; i += 48) {
+    const batches = [records.slice(i, i + 24), records.slice(i + 24, i + 48)].filter(batch => batch.length);
+    const results = await Promise.all(batches.map(batch => coverageRpc(client, 'record_resolve_document_keys', batch, context)));
+    for (const result of results) {
+      if (!result) continue;
+      if (result.error || !Array.isArray(result.data)) return false;
+      for (const row of result.data) {
+        states.set(row.document_key, row.coverage);
+        if (row.document_id) ids.set(row.document_key, [...(ids.get(row.document_key) || []), row.document_id]);
+      }
+    }
   }
   const answers = [];
   for (let i = 0; i < law.length; i += 12) {
-    const result = await client.rpc('law_resolve_document_keys', { p_keys: law.slice(i, i + 12) });
+    const result = await coverageRpc(client, 'law_resolve_document_keys', law.slice(i, i + 12), context);
+    if (!result) continue;
     if (result.error) return false;
     answers.push(...(result.data || []));
   }
-  const { data, error } = legacy.length ? await client
+  const legacyWanted = legacy.filter(key => context.generation === cacheGeneration
+    && (!context.visible || context.visible(key) || context.retained.has(key)));
+  for (const key of legacyWanted) context.attempted.add(key);
+  const { data, error } = legacyWanted.length ? await client
     .from('documents')
     .select('metadata->>document_key')
-    .in('metadata->>document_key', legacy)
+    .in('metadata->>document_key', legacyWanted)
     .not('indexed_at', 'is', null) : { data: [], error: null };
   if (error) return false;
   const found = new Set([...answers, ...(data || [])].map((r) => r.document_key).filter(Boolean));
   for (const k of keys) {
-    if (latestLookup.get(k) !== sequence) continue;
+    if (latestLookup.get(k) !== sequence || !context.attempted.has(k)) continue;
+    readyIds.set(k, [...new Set(ids.get(k) || [])]);
     if (k.startsWith('desk-record:') && (!recordStates.has(k) || recordStates.get(k).at <= at)) {
       recordStates.set(k, { value: states.has(k) ? 'stored' : 'snapshot', at });
     }
@@ -73,22 +159,72 @@ async function performLookup(keys, client, at, sequence) {
   return true;
 }
 
-async function lookUp(keys, client, now) {
+async function lookUp(keys, client, now, context) {
   if (!keys.length || !client) return;
   const at = now();
   const sequence = ++lookupSequence;
   for (const key of keys) latestLookup.set(key, sequence);
   let ok = false;
-  try { ok = await performLookup(keys, client, at, sequence); } catch { /* A transport failure proves no coverage state. */ }
+  try { ok = await performLookup(keys, client, at, sequence, context); } catch { /* A transport failure proves no coverage state. */ }
   for (const key of keys) {
-    if (latestLookup.get(key) !== sequence) continue;
+    if (latestLookup.get(key) !== sequence || !context.attempted.has(key)) continue;
     if ((known.get(key)?.at ?? -Infinity) > at || (lookupErrors.get(key) ?? -Infinity) > at) continue;
     if (ok) lookupErrors.delete(key);
     else lookupErrors.set(key, at);
   }
+  changed(keys);
 }
 
 const indexedOf = (keys, now) => new Set(keys.filter((k) => fresh(k, now) === true));
+
+function coalescedLookup(keys, client, now, force = false, observerContext = null) {
+  const generation = cacheGeneration;
+  const waiting = new Set();
+  const wanted = keys.filter(key => {
+    const flight = lookupFlights.get(key);
+    if (!force && flight?.client === client && flight.generation === generation) {
+      // A direct read retains interest even if the badge that began it unmounts.
+      if (!observerContext) flight.context.retained.add(key);
+      waiting.add(flight.promise.then(() => {
+        if (observerContext && flight.context.attempted.has(key)) observerContext.attempted.add(key);
+      }));
+      return false;
+    }
+    return true;
+  });
+  if (wanted.length) {
+    const context = { generation, retained: new Set(), attempted: new Set(), ...observerContext };
+    const promise = lookUp(wanted, client, now, context).finally(() => {
+      for (const key of wanted) if (lookupFlights.get(key)?.promise === promise) lookupFlights.delete(key);
+    });
+    for (const key of wanted) lookupFlights.set(key, { client, generation, promise, context });
+    waiting.add(promise);
+  }
+  return Promise.all(waiting);
+}
+
+/** A forced refresh can supersede the flight a direct reader originally joined.
+ * Follow current same-caller work within one bounded read deadline. An unfinished
+ * read remains unknown; an empty returned Set is never proof that text is absent. */
+async function waitForCurrentLookups(keys, client, generation, deadline, initial) {
+  while (generation === cacheGeneration && Date.now() < deadline) {
+    const current = keys.map(key => lookupFlights.get(key))
+      .filter(flight => flight?.client === client && flight.generation === generation);
+    if (!current.length && !initial) return;
+    let timeout;
+    let unsubscribe;
+    try {
+      await Promise.race([
+        Promise.all([...current.map(flight => flight.promise), ...(initial ? [initial] : [])]),
+        // A replacement may finish before its predecessor. Wake on invalidation or
+        // completion and reread the current flight instead of waiting for obsolete work.
+        new Promise(resolve => { unsubscribe = subscribeCoverage(resolve, keys); }),
+        new Promise(resolve => { timeout = setTimeout(resolve, deadline - Date.now()); }),
+      ]);
+    } finally { clearTimeout(timeout); unsubscribe?.(); }
+    initial = null;
+  }
+}
 
 /**
  * The subset of `keys` that has indexed text behind it.
@@ -97,7 +233,7 @@ const indexedOf = (keys, now) => new Set(keys.filter((k) => fresh(k, now) === tr
  * ago) are looked up in one request; keys with a fresh answer are not asked
  * about again. A failed lookup answers nothing rather than answering "no",
  * because "no full text" is a claim about the corpus and a network error is
- * not evidence for it - the caller shows no badge instead of a wrong one.
+ * not evidence for it. Public Record only describes supplied fields, not absence.
  *
  * @param {string[]} keys
  * @param {object} [client]  a Supabase client
@@ -106,8 +242,11 @@ const indexedOf = (keys, now) => new Set(keys.filter((k) => fresh(k, now) === tr
  */
 export async function indexedDocumentKeys(keys, client = defaultClient, now = Date.now) {
   const wanted = keysOf(keys);
-  await lookUp(wanted.filter((k) => fresh(k, now) === undefined), client, now);
-  return indexedOf(wanted, now);
+  const generation = cacheGeneration;
+  const deadline = Date.now() + COVERAGE_LOOKUP_TIMEOUT_MS;
+  const initial = coalescedLookup(wanted.filter((k) => fresh(k, now) === undefined), client, now);
+  await waitForCurrentLookups(wanted, client, generation, deadline, initial);
+  return generation === cacheGeneration ? indexedOf(wanted, now) : new Set();
 }
 
 /**
@@ -126,7 +265,10 @@ export async function refreshCoverage(keys, client = defaultClient, now = Date.n
   const wanted = keysOf(keys);
   if (!wanted.length || !client) return new Set();
   for (const k of wanted) known.delete(k);
-  await lookUp(wanted, client, now);
+  changed(wanted);
+  // Explicit invalidation starts a new generation of this key's answer. Ordinary reads
+  // (including badges/prediction) share it, rather than issuing a second request.
+  await coalescedLookup(wanted, client, now, true);
   return indexedOf(wanted, now);
 }
 
@@ -143,7 +285,7 @@ export async function refreshCoverage(keys, client = defaultClient, now = Date.n
  */
 export async function recheckCoverage(keys, client = defaultClient, now = Date.now) {
   const wanted = keysOf(keys);
-  await lookUp(wanted, client, now);
+  await coalescedLookup(wanted, client, now);
   return new Set(wanted.filter((k) => known.get(k)?.value === true));
 }
 
@@ -182,6 +324,93 @@ export function recordAvailability(attachment, indexed) {
   if (!['row', 'record'].includes(attachment?.kind)) return { record: null, text };
   if (!key) return { record: 'snapshot', text: null };
   return { record: recordStates.get(key)?.value || 'unknown', text: text === 'snapshot' ? null : text };
+}
+
+/** Public capability describes what can be used now, never why text is unavailable.
+ * The supplied record fields remain usable even when their stored identity is unknown.
+ * Neither a saved chip nor a caller-owned Set is evidence of current Full text. */
+export function publicCorpusCapability(attachment, now = Date.now) {
+  const key = attachmentCoverageKey(attachment);
+  return key && !lookupErrors.has(key) && fresh(key, now) === true ? 'full' : 'record';
+}
+
+/** Individually ready sources remain useful when the complete association is partial. */
+export function readyDocumentIds(attachment, now = Date.now) {
+  const key = attachmentCoverageKey(attachment);
+  return key && !lookupErrors.has(key) && fresh(key, now) !== undefined ? readyIds.get(key) || [] : [];
+}
+
+/** One scheduler for visible listing records, selected records and chat pins. Mounted badges
+ * register keys; they do not own polling loops. Same-frame mounts share bounded RPC batches. */
+const observed = new Map();
+const checked = new Map();
+const pending = new Set();
+let timer = null;
+let authSubscription = null;
+const nextCheckAt = key => ((lookupErrors.has(key) ? checked.get(key) : known.get(key)?.at) ?? checked.get(key) ?? -Infinity) + COVERAGE_TTL_MS;
+
+function scheduleCoverage(delay = 0) {
+  if (timer !== null || !observed.size) return;
+  timer = setTimeout(async () => {
+    timer = null;
+    const now = Date.now();
+    const generation = cacheGeneration;
+    const keys = [...observed.keys()].filter(key => !pending.has(key) && now >= nextCheckAt(key));
+    for (const key of keys) pending.add(key);
+    if (keys.length) {
+      changed(keys); // Expired Full text is removed while the new lookup is pending.
+      const context = { visible: key => observed.has(key), attempted: new Set() };
+      await coalescedLookup(keys.filter(key => fresh(key, Date.now) === undefined), defaultClient, Date.now, false, context);
+      if (generation !== cacheGeneration) { scheduleCoverage(); return; }
+      for (const key of keys) {
+        pending.delete(key);
+        if (context.attempted.has(key)) checked.set(key, Date.now());
+      }
+    }
+    if (observed.size) {
+      const waiting = [...observed.keys()].filter(key => !pending.has(key));
+      if (waiting.length) {
+        const due = Math.min(...waiting.map(nextCheckAt));
+        scheduleCoverage(Math.max(1, due - Date.now()));
+      }
+    }
+  }, delay);
+}
+
+function watchCoverageIdentity() {
+  // Supabase changes callers through this event. Clear all prior evidence before any late
+  // request can publish it; never retain a token in the cache or its keys.
+  if (!authSubscription && defaultClient?.auth?.onAuthStateChange) {
+    authSubscription = defaultClient.auth.onAuthStateChange(() => {
+      resetCoverageCache();
+      if (timer !== null) { clearTimeout(timer); timer = null; }
+      queueMicrotask(() => scheduleCoverage());
+    });
+  }
+}
+
+// Install before any public consumer can populate/read the cache, including consumers
+// whose lookups precede their first mounted badge. This callback performs no Auth calls.
+watchCoverageIdentity();
+
+export function observeCoverage(keys, onAnswer) {
+  const wanted = keysOf(keys);
+  if (!wanted.length || !defaultClient) return null;
+  for (const key of wanted) observed.set(key, (observed.get(key) || 0) + 1);
+  const notify = () => onAnswer?.(indexedOf(wanted, Date.now));
+  const unsubscribe = subscribeCoverage(notify, wanted);
+  notify();
+  // A new visible key must not wait for another key's refresh timer.
+  if (timer !== null) { clearTimeout(timer); timer = null; }
+  scheduleCoverage();
+  return () => {
+    unsubscribe();
+    for (const key of wanted) {
+      const count = observed.get(key) - 1;
+      if (count) observed.set(key, count); else observed.delete(key);
+    }
+    if (!observed.size && timer !== null) { clearTimeout(timer); timer = null; }
+  };
 }
 
 /** The one in-flight or settled document_modules() request, or null when none is worth keeping. */
@@ -247,14 +476,19 @@ export function webDefaultFor({ focus, attachments = [], indexedKeys = null, des
       ? { on: false, reason: 'documents-in-scope' }
       : { on: true, reason: 'module-without-documents' };
   }
-  const records = (attachments || []).filter((a) => a?.kind === 'row' || a?.kind === 'record');
+  const records = (attachments || []).filter((a) => ['row', 'record', 'document'].includes(a?.kind));
   let unknown = false;
   for (const a of records) {
-    if (!a.document_key) return { on: true, reason: 'record-without-document' };
-    if (!indexedKeys) unknown = true;
-    else if (!indexedKeys.has(a.document_key)) return { on: true, reason: 'record-without-document' };
+    const key = attachmentCoverageKey(a);
+    const entry = known.get(key);
+    if (!key || !entry || fresh(key, Date.now) === undefined || lookupErrors.has(key)) { unknown = true; continue; }
+    if (readyDocumentIds(a).length || entry.value === true) continue;
+    if (recordStates.get(key)?.value === 'stored' && ['unmapped', 'registered', 'incomplete'].includes(entry.state)) {
+      return { on: true, reason: 'record-without-document' };
+    }
+    unknown = true;
   }
   if (unknown) return { on: false, reason: null };
-  if (records.length || (attachments || []).some((a) => a?.kind === 'document')) return { on: false, reason: 'documents-in-scope' };
+  if (records.length) return { on: false, reason: 'documents-in-scope' };
   return { on: false, reason: 'no-record' };
 }

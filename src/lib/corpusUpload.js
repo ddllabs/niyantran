@@ -462,7 +462,19 @@ export function createAdminIngestApi({
     .map(([key, value]) => [key, typeof value === 'string' ? value.trim() : value])
     .filter(([, value]) => value !== undefined && value !== null && value !== ''));
 
+  async function readiness(action, { desk_tier, desk_feature, ids, cohort, cursor, limit } = {}) {
+    const answer = await call(action, { desk_tier, desk_feature, ...optional({ ids, cohort, cursor, limit }) });
+    if (answer.contract_version !== 1 || answer.visibility !== 'admin' || !Array.isArray(answer.items)
+      || typeof answer.has_more !== 'boolean' || typeof answer.observed_at !== 'string'
+      || !(answer.next_cursor === null || typeof answer.next_cursor === 'string')
+      || answer.has_more !== (typeof answer.next_cursor === 'string')) {
+      throw new UploadError('bad_response', 'Readiness inspection returned an invalid page; reload before drawing conclusions.');
+    }
+    return answer;
+  }
   return {
+    readinessRecords: (request) => readiness('readiness-records', request),
+    readinessDocuments: (request) => readiness('readiness-documents', request),
     prepare: (request) => call('prepare', request),
     verify: (request) => call('verify', request),
     register: (request) => call('register', request),
