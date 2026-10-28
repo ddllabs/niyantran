@@ -1,7 +1,10 @@
 /**
  * Parliamentary questions — display shaping for the 8k archive sample.
- * Does not invent answer text; Has answer stays Not reported when the pack has no answer field.
+ * Does not invent answer text. "Has answer" is Yes where the source records an answer or sansad.in
+ * publishes the question's answer file (its annex URL, F266); the session comes from that URL when
+ * the pack has no session field.
  */
+import { pqAnswerKey, pqSession } from './pqAnswerKey.js';
 
 function empty(v) {
   return v == null || String(v).trim() === '' || String(v).trim() === '—';
@@ -12,7 +15,11 @@ function answerState(row) {
     .filter((v) => !empty(v))
     .map((v) => String(v))
     .join(' ');
-  if (!blob) return { has_answer: 'Not reported', has_answer_key: 'unknown' };
+  if (!blob) {
+    return pqAnswerKey(row.source_url)
+      ? { has_answer: 'Yes', has_answer_key: 'yes' }
+      : { has_answer: 'Not reported', has_answer_key: 'unknown' };
+  }
   if (/unanswered|pending|no answer|awaiting/i.test(blob)) {
     return { has_answer: 'No', has_answer_key: 'no' };
   }
@@ -33,7 +40,7 @@ export function shapeParliamentaryQuestionRows(rows) {
       mp_name: r.mp_name || r.member || 'Not reported',
       ministry: r.ministry || 'Not reported',
       house: r.house || 'Not reported',
-      session: empty(r.session) ? (empty(r.ls_session) ? 'Not reported' : r.ls_session) : r.session,
+      session: empty(r.session) ? (empty(r.ls_session) ? (pqSession(r.source_url) || 'Not reported') : r.ls_session) : r.session,
       question_type: r.question_type || 'Not reported',
       ...ans,
     };
@@ -52,7 +59,7 @@ export function applyParliamentaryQuestionShapingToFeed(feed) {
       ...(feed.meta || {}),
       boardNote:
         known > 0
-          ? `Search covers all ${rows.length.toLocaleString('en-IN')} questions. "Has answer" is filled only where the source records whether a question was answered.`
+          ? `Search covers all ${rows.length.toLocaleString('en-IN')} questions. "Has answer" is Yes where sansad.in publishes the answer or the source records one; "Session" is sansad.in's session number.`
           : `Search covers all ${rows.length.toLocaleString('en-IN')} questions. "Has answer" describes the question register only; Not reported does not establish whether answer text is available.`,
     },
   };
