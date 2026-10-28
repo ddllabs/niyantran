@@ -24,8 +24,10 @@ describe('Parliamentary question ids are pinned to their questions (F266)', () =
 
   it('ids are unique, each row names one answer file, and answer file plus member is unique', () => {
     expect(new Set(rows.map((r) => r.id)).size).toBe(rows.length);
-    expect(rows.every((r) => pqAnswerKey(r.source_url))).toBe(true);
-    expect(new Set(rows.map((r) => questionIdentity(r))).size).toBe(rows.length);
+    // The pinned range names Lok Sabha answers; rows added above it (Rajya Sabha too) need only a unique id.
+    expect(rows.filter((r) => Number(r.id) <= PINNED.count).every((r) => pqAnswerKey(r.source_url))).toBe(true);
+    const identities = rows.map((r) => questionIdentity(r)).filter(Boolean);
+    expect(new Set(identities).size).toBe(identities.length);
   });
 
   it('the answer-key rule is the same in the browser, the Edge Function, the planner and SQL', () => {

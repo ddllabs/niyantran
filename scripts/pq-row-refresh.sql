@@ -7,22 +7,38 @@
 --
 --   supabase db query --linked --project-ref <ref> -f scripts/pq-row-refresh.sql
 --
+-- Then load the question module (scripts/load-desk-rows.mjs --feature "Parliamentary Question Database")
+-- so the search text matches; the load guard passes because the rows already equal the shaping.
+-- The counts printed at the end may not be shown by every client; confirm with a read query.
+--
 -- Re-runnable: rows already refreshed are skipped and their links left alone.
 begin;
 set local statement_timeout = '900s';
 set local lock_timeout = '10s';
-lock table public.desk_rows in share row exclusive mode;
+-- EXCLUSIVE blocks every writer and row lock (admission, record_mapping_apply) but not readers.
+lock table public.desk_rows in exclusive mode;
 
+-- The same rules as src/lib/shapeQuestions.js: a field is empty when null, blank, a dash or the
+-- shaping's "Not reported"; an existing session or ls_session is kept; Has answer only where no
+-- answer field says otherwise.
 create temp table pq_refresh on commit drop as
-select q.tier, q.feature, q.row_key, q.row as old_row,
-       q.row || jsonb_build_object('session', split_part(public.pq_answer_key(q.row->>'source_url'), ':', 3),
-                                   'has_answer', 'Yes', 'has_answer_key', 'yes') as new_row
-  from public.desk_rows q
- where q.tier = 'national' and q.feature = 'Parliamentary Question Database'
-   and public.pq_answer_key(q.row->>'source_url') is not null
-   and btrim(concat_ws('', q.row->>'answer', q.row->>'answer_text', q.row->>'answer_status', q.row->>'status')) in ('', '—')
-   and (q.row->>'session' is distinct from split_part(public.pq_answer_key(q.row->>'source_url'), ':', 3)
-     or q.row->>'has_answer' is distinct from 'Yes' or q.row->>'has_answer_key' is distinct from 'yes');
+with q as (
+  select r.tier, r.feature, r.row_key, r.row,
+         split_part(public.pq_answer_key(r.row->>'source_url'), ':', 3) as url_session,
+         (select bool_and(btrim(coalesce(r.row->>f, '')) in ('', '—'))
+            from unnest(array['answer','answer_text','answer_status','status']) f) as no_answer_field,
+         btrim(coalesce(r.row->>'session', '')) in ('', '—', 'Not reported')
+           and btrim(coalesce(r.row->>'ls_session', '')) in ('', '—') as no_session
+    from public.desk_rows r
+   where r.tier = 'national' and r.feature = 'Parliamentary Question Database'
+     and public.pq_answer_key(r.row->>'source_url') is not null
+)
+select tier, feature, row_key, row as old_row,
+       row || case when no_session then jsonb_build_object('session', url_session) else '{}'::jsonb end
+           || case when no_answer_field then jsonb_build_object('has_answer', 'Yes', 'has_answer_key', 'yes') else '{}'::jsonb end as new_row
+  from q
+ where (no_session and row->>'session' is distinct from url_session)
+    or (no_answer_field and (row->>'has_answer' is distinct from 'Yes' or row->>'has_answer_key' is distinct from 'yes'));
 
 create temp table pq_rebind on commit drop as
 select l.* from public.record_document_links l join pq_refresh p using (tier, feature, row_key);
@@ -35,6 +51,10 @@ do $$ begin
                 or l.document_identity_sha256 is distinct from encode(sha256(convert_to(jsonb_build_object('source_key',d.source_key,'metadata',d.metadata)::text,'UTF8')),'hex')
                 or l.source_url is distinct from d.file_url or l.text_sha256 is distinct from d.content_sha256) then
     raise exception 'pq refresh: a link is not intact before the refresh; nothing changed';
+  end if;
+  if exists (select 1 from pq_rebind l join public.documents d on d.id = l.document_id
+              join public.documents o on o.file_url = d.file_url and o.id <> d.id) then
+    raise exception 'pq refresh: another document shares a linked answer URL; review the alias first; nothing changed';
   end if;
 end $$;
 
@@ -69,6 +89,12 @@ do $$ begin
          and n.row_sha256 = encode(sha256(convert_to((select q.row from public.desk_rows q where q.tier=n.tier and q.feature=n.feature and q.row_key=n.row_key)::text,'UTF8')),'hex'))
      <> (select count(*) from pq_rebind) then
     raise exception 'pq refresh: re-bound links do not match the links before; nothing changed';
+  end if;
+  -- No link on a refreshed row, from any source, may still be bound to the old row.
+  if exists (select 1 from public.record_document_links n join public.desk_rows q using (tier, feature, row_key)
+              join pq_refresh p using (tier, feature, row_key)
+             where n.row_sha256 is distinct from encode(sha256(convert_to(q.row::text,'UTF8')),'hex')) then
+    raise exception 'pq refresh: a link on a refreshed row is not bound to it; nothing changed';
   end if;
   if (select count(*) from public.desk_rows q join pq_refresh p using (tier, feature, row_key) where q.row = p.new_row)
      <> (select count(*) from pq_refresh) then

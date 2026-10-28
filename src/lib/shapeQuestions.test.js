@@ -15,7 +15,7 @@ describe('the Parliamentary Questions note (F163)', () => {
 
   it('says "Has answer" is filled where the source records it when some rows do', () => {
     const note = applyParliamentaryQuestionShapingToFeed({ feature: 'Parliamentary Question Database', rows: [{ title: 'Q1', answer_status: 'Answered' }, { title: 'Q2' }] }).meta.boardNote;
-    expect(note).toBe('Search covers all 2 questions. "Has answer" is Yes where sansad.in publishes the answer or the source records one.');
+    expect(note).toBe('Search covers all 2 questions. "Has answer" is Yes where sansad.in publishes the answer or the source records one; "Session" is sansad.in\'s session number.');
     expect(note).not.toMatch(INTERNAL);
   });
 });

@@ -59,7 +59,7 @@ export function applyParliamentaryQuestionShapingToFeed(feed) {
       ...(feed.meta || {}),
       boardNote:
         known > 0
-          ? `Search covers all ${rows.length.toLocaleString('en-IN')} questions. "Has answer" is Yes where sansad.in publishes the answer or the source records one.`
+          ? `Search covers all ${rows.length.toLocaleString('en-IN')} questions. "Has answer" is Yes where sansad.in publishes the answer or the source records one; "Session" is sansad.in's session number.`
           : `Search covers all ${rows.length.toLocaleString('en-IN')} questions. "Has answer" describes the question register only; Not reported does not establish whether answer text is available.`,
     },
   };

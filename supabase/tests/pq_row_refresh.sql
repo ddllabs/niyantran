@@ -37,6 +37,26 @@ create temp table before_links as select * from public.record_document_links;
 grant select on before_links to authenticated;
 select pg_temp.ok((select count(*) from before_links)=2, 'two links before');
 
+-- Without re-binding, changed rows lose Full text: the Full text assertion below can fail.
+begin;
+update public.desk_rows set row = row || '{"session":"187","has_answer":"Yes","has_answer_key":"yes"}'::jsonb where row_key in ('7820','7821');
+set local role authenticated;
+select pg_temp.ok((select count(*) from public.record_resolve_document_keys(array[
+  'desk-record:["national","Parliamentary Question Database","7820"]','desk-record:["national","Parliamentary Question Database","7821"]'])
+  where coverage='full')=0, 'rows changed without re-binding are not Full text');
+rollback;
+
+-- A link that is not intact refuses the whole refresh: rows and links stay as they were.
+update public.record_document_links set row_sha256 = repeat('0',64) where row_key = '7820';
+\set ON_ERROR_STOP off
+\i scripts/pq-row-refresh.sql
+\set ON_ERROR_STOP on
+select pg_temp.ok((select row->>'session'='Not reported' from public.desk_rows where row_key='7820')
+  and (select row->>'session'='Not reported' from public.desk_rows where row_key='9')
+  and (select count(*) from public.record_document_links)=2
+  and (select row_sha256=repeat('0',64) from public.record_document_links where row_key='7820'), 'a broken link aborts the whole refresh');
+update public.record_document_links l set row_sha256 = b.row_sha256 from before_links b where l.row_key = b.row_key and l.document_id = b.document_id;
+
 -- A load that changed these rows would leave the links held; the refresh re-binds them.
 \i scripts/pq-row-refresh.sql
 

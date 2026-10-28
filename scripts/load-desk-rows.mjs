@@ -144,6 +144,7 @@ async function main(argv) {
 
   const restore = installDiskFetch(resolve(ROOT, 'public'));
   const loadedAt = new Date().toISOString();
+  const refusals = [];
   const totals = { modules: 0, withRows: 0, rows: 0, collisions: 0, unchanged: 0, upserted: 0, pruned: 0, snapshot: {} };
   try {
     // F201 T9b: the handbook modules from their register file, each shaped as deskRowsFor answers.
@@ -167,9 +168,13 @@ async function main(argv) {
       const guard = guardDeskRowSync({ feature: r.feature, existing, plan, linkedKeys: await linkedKeys(client, r.tab, r.feature) });
       if (!guard.ok) {
         const sample = (keys) => keys.slice(0, 5).join(', ');
-        throw new Error(`${r.feature}: refused before writing. Renumbered rows ${guard.renumbered.length} (${sample(guard.renumbered)}); `
+        const refusal = (`${r.feature}: refused before writing. Renumbered rows ${guard.renumbered.length} (${sample(guard.renumbered)}); `
           + `linked rows changed ${guard.linkedChanged.length} (${sample(guard.linkedChanged)}); linked rows deleted ${guard.linkedDeleted.length} (${sample(guard.linkedDeleted)}). `
           + 'Linked rows change only through the reviewed refresh (scripts/pq-row-refresh.sql); a renumbered question file must not load.');
+        // A live run stops before writing this module; a dry run reports every refused module.
+        if (!opts.dryRun) throw new Error(refusal);
+        refusals.push(refusal);
+        continue;
       }
       let upserted = 0;
       let pruned = 0;
@@ -197,6 +202,10 @@ async function main(argv) {
     restore();
   }
   console.log('totals', totals);
+  if (refusals.length) {
+    for (const r of refusals) console.error(r);
+    process.exitCode = 4;
+  }
   return totals;
 }
 
