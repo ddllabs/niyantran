@@ -27,7 +27,9 @@
   `corpus_sha256` that batch 6's `plan.json` recorded when the driver extracted it from the pinned pack member
   (`474bb46e…8441` in `NTER_citation_pack_v1.1_2026-10-05.zip`, `459b354c…dc9b8`).
 - **Selection rule.** The plan's order, skipping only a candidate whose own conservative ceiling exceeds US$0.004.
-  - That excludes one answer, `AU2083_d6yKQK` (164 chunks, US$0.0084 alone, 17% of the limit). It stays for a later cohort.
+  - Two of the 135 exceed it: `AU2083_d6yKQK` (164 chunks, US$0.0084 alone, 17% of the limit) and `AS161_XfyBmh`
+    (66 chunks, US$0.0077), so `candidate-keys.txt` has 133 keys. Only `AU2083_d6yKQK` falls inside the first 100;
+    `AS161_XfyBmh` came after them anyway. Both stay for a later cohort.
   - The first 100 in plan order (all 135 with no skip) gave 988 chunks and US$0.0547, over the limit.
   - `candidate-keys.txt` holds the 133 ordered keys. `pq-validation-cohort.py` takes the first 100 that pass.
 - **Reproducible.** Rebuilding from the input and `candidate-keys.txt` gives a byte-identical manifest and corpus (checked).
@@ -45,7 +47,7 @@
 
 1. Re-run `cohort-live-check.sql` (read-only). It must give the expected row in its header.
 2. In Colab, launch `run-validation-cohort-1.py` from the pinned commit (header). It:
-   - checks out that commit and pinned Node 24;
+   - checks out that commit and pinned Node 24, and refuses unless `scripts/` and `supabase/` are byte-identical to `main` `498152f`;
    - verifies the committed manifest hash equals the approved one;
    - rebuilds the cohort from the staged input and requires the same two hashes;
    - re-runs the dry run and requires 100 / 0 / 829 / ≤ US$0.05;

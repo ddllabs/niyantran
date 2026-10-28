@@ -16,8 +16,9 @@ the owner issues for that run (see validation-cohort README).
 
 Each selected record is re-checked against the same text and identity rules as the section screen
 (nter-national-pq-core.py, rules sha256 bound into every decision), in the supplied-record form. The F266 signature
-reproduces the server's pq_norm / pq_date comparison (house, subject, ministry, answer date): a port difference can
-only produce a false mismatch, never a false match, because the live check compares md5 digests.
+reproduces the server's pq_norm / pq_date comparison (house, subject, ministry, answer date). It is a pre-check, not
+the admission itself: if Python's isalnum and Postgres [:alnum:] ever disagree on a character, the live check could pass
+while admission refuses. That is safe: the server then refuses with a named reason, writes nothing, and the importer stops.
 """
 import argparse, hashlib, importlib.util, json, os, pathlib, re, sys, unicodedata
 

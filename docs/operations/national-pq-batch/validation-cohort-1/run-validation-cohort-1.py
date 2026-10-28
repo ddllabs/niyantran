@@ -28,6 +28,7 @@ NODE_TGZ = 'https://registry.npmjs.org/node-linux-x64/-/node-linux-x64-24.22.1.t
 NODE_SHA = 'ca7d16d263263ffaa9e8133de2cc138152afb8177f984df31bb255492513d8c8'
 NODE = W / 'node24' / 'package' / 'bin' / 'node'
 HERE = 'docs/operations/national-pq-batch'
+MAIN_SHA = '498152f3fcfa00849778751f04046803a79f35e7'   # F266 on main: the importer and adapter must be byte-identical to it
 
 
 class Stop(Exception):
@@ -44,7 +45,8 @@ def sha(p):
 
 def last(report):
     with open(report) as f:
-        return [json.loads(l) for l in f][-1]
+        rows = [json.loads(l) for l in f if l.strip()]
+    return rows[-1] if rows else None
 
 
 def importer(args, env=None):
@@ -64,6 +66,10 @@ def run(repo_sha):
     subprocess.run(['git', '-C', str(REPO), 'checkout', '-q', '-f', 'FETCH_HEAD'], check=True)
     if subprocess.run(['git', '-C', str(REPO), 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip() != repo_sha:
         raise Stop('checkout is not the pinned commit')
+    # The importer and the shared adapter it loads must be exactly main's (F266); only client files may differ.
+    subprocess.run(['git', '-C', str(REPO), 'fetch', '--depth', '1', '-q', 'origin', MAIN_SHA], check=True)
+    if subprocess.run(['git', '-C', str(REPO), 'diff', '--quiet', MAIN_SHA, 'HEAD', '--', 'scripts', 'supabase']).returncode != 0:
+        raise Stop('scripts/ or supabase/ differ from main 498152f: refusing to submit with changed shared code')
     if not NODE.exists():
         (W / 'node24').mkdir(exist_ok=True)
         tgz = W / 'node24' / 'node.tgz'
@@ -104,7 +110,7 @@ def run(repo_sha):
     if r.returncode != 0:
         raise Stop('dry run failed: ' + r.stderr[-400:])
     s = last(dry)
-    if (s['manifest_sha256'], s['ready'], s['held'], s['chunks']) != (APPROVED_MANIFEST, DOCS, 0, CHUNKS) \
+    if not s or (s['manifest_sha256'], s['ready'], s['held'], s['chunks']) != (APPROVED_MANIFEST, DOCS, 0, CHUNKS) \
             or s['estimated_cost_ceiling_usd'] > MAX_COST_USD:
         raise Stop(f'dry run differs from the approved cohort: {s}')
     print('dry run equals the approved cohort:', json.dumps(s))
