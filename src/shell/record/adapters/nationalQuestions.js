@@ -41,9 +41,11 @@ function memberIndex(rows) {
 }
 
 export default function nationalQuestions(row, ctx = {}) {
-  const textState = ctx.coverage === 'full' ? 'Full text' : 'Record only';
+  const pending = ctx.coverage === 'pending';
+  const textState = ctx.coverage === 'full' ? 'Full text' : pending ? 'Checking…' : 'Record only';
   const coverageNote = ctx.coverage === 'full'
     ? 'Full text is available for research. Ask AI to inspect the answer; register answer fields remain independent.'
+    : pending ? 'Checking whether full text is available for research.'
     : 'Research can use the question details shown here. Missing register fields do not establish whether an answer is available.';
   const packs = ctx.packs?.ready ? ctx.packs : null;
   const a = packs ? analysisFor(row, packs.analysis) : null;

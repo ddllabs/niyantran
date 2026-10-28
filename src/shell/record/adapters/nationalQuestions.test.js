@@ -111,6 +111,13 @@ describe('National questions adapter', () => {
     expect(v.steps[1].detail).toBe('Record only');
   });
 
+  it('F270 says the text is being checked while coverage is pending, not Record only', () => {
+    const v = nationalQuestions(plain, { ...ctx(), coverage: 'pending' }).glance.visual;
+    expect(v.steps[1].detail).toBe('Checking…');
+    expect(v.caption).toMatch(/checking whether full text is available/i);
+    expect(nationalQuestions(plain, { ...ctx(), coverage: 'full' }).glance.visual.steps[1].detail).toBe('Full text');
+  });
+
   it('lists member, party, ministry, house, type and date as the About rows', () => {
     const rows = Object.fromEntries(nationalQuestions(plain, ctx()).about.rows);
     expect(rows).toEqual({

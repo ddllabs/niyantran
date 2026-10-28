@@ -42,3 +42,28 @@ it('F264 partial ready IDs remain usable while unknown and held states do not en
   await coverage.refreshCoverage([key], response('unmapped'));
   expect(coverage.webDefaultFor({ focus: 'attached', attachments: [chip] })).toEqual({ on: true, reason: 'record-without-document' });
 });
+
+it('F270 a record is pending until its lookup answers, then Full text or Record only, never pending after a failure', async () => {
+  expect(coverage.corpusCapabilityPending(chip)).toBe(true);
+  expect(coverage.corpusCapabilityPending(null)).toBe(false);
+  expect(coverage.corpusCapabilityPending({ kind: 'row' })).toBe(false);
+  await coverage.refreshCoverage([key], response('full', ['ready']));
+  expect(coverage.corpusCapabilityPending(chip)).toBe(false);
+  expect(coverage.publicCorpusCapability(chip)).toBe('full');
+  await coverage.refreshCoverage([key], response('unmapped'));
+  expect(coverage.corpusCapabilityPending(chip)).toBe(false);
+  expect(coverage.publicCorpusCapability(chip)).toBe('record');
+  await coverage.refreshCoverage([key], { rpc: async () => ({ error: { message: 'offline' } }) });
+  expect(coverage.corpusCapabilityPending(chip)).toBe(false);
+  expect(coverage.publicCorpusCapability(chip)).toBe('record');
+  coverage.resetCoverageCache();
+  expect(coverage.corpusCapabilityPending(chip)).toBe(true);
+});
+
+it('F270 an expired answer is pending again while it is re-checked, not Record only', async () => {
+  vi.useFakeTimers();
+  await coverage.refreshCoverage([key], response('full', ['ready']));
+  await vi.advanceTimersByTimeAsync(coverage.COVERAGE_TTL_MS);
+  expect(coverage.corpusCapabilityPending(chip)).toBe(true);
+  expect(coverage.publicCorpusCapability(chip)).toBe('record');
+});

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { publicCorpusCapability, observeCoverage } from '../lib/corpusCoverage.js';
+import { corpusCapabilityPending, publicCorpusCapability, observeCoverage } from '../lib/corpusCoverage.js';
 import { documentKey } from '../lib/deskRows.js';
 import CorpusCapability from './CorpusCapability.jsx';
 import FeedLoader from './FeedLoader.jsx';
@@ -67,7 +67,8 @@ function RecordPanelWithBrief({ adapter, selected, feed, loading, onSelect }) {
   useEffect(() => {
     if (!coverageKey) return undefined;
     return observeCoverage([coverageKey], () => {
-      setTextCoverage({ key: coverageKey, value: publicCorpusCapability({ kind: 'row', document_key: coverageKey }) });
+      const record = { kind: 'row', document_key: coverageKey };
+      setTextCoverage({ key: coverageKey, value: corpusCapabilityPending(record) ? 'pending' : publicCorpusCapability(record) });
     }) || undefined;
   }, [coverageKey]);
   const coverage = textCoverage.key === coverageKey ? textCoverage.value : null;
