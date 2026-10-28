@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { attachmentCoverageKey, deskRowKey, recordDocumentKey } from '../lib/deskRows.js';
-import { observeCoverage, publicCorpusCapability, subscribeCoverage } from '../lib/corpusCoverage.js';
+import { corpusCapabilityPending, observeCoverage, publicCorpusCapability, subscribeCoverage } from '../lib/corpusCoverage.js';
 import './corpusCapability.css';
 
 const unsupportedIndicator = row => row && !String(row.indicator || '').trim() && /^not wired\b/i.test(String(row.authority || ''));
@@ -15,7 +15,10 @@ export function capabilityRecord(row, feed) {
 export function useCorpusCapability(attachment, active = true) {
   const key = attachmentCoverageKey(attachment) || '';
   const subscribe = useCallback(notify => subscribeCoverage(notify, [key]), [key]);
-  const snapshot = useCallback(() => publicCorpusCapability(key ? { document_key: key } : null), [key]);
+  const snapshot = useCallback(() => {
+    const record = key ? { document_key: key } : null;
+    return corpusCapabilityPending(record) ? 'pending' : publicCorpusCapability(record);
+  }, [key]);
   useEffect(() => observeCoverage(active && key ? [key] : []) || undefined, [key, active]);
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
@@ -35,8 +38,12 @@ export default function CorpusCapability({ attachment, row, feed, lang = 'en' })
   }, [present, key]);
   const capability = useCorpusCapability(supplied, visible);
   if (!supplied) return null;
-  const full = capability === 'full';
   const hi = lang === 'hi';
+  if (capability === 'pending') {
+    const checking = hi ? 'जाँच हो रही है' : 'Checking';
+    return <span ref={host} className="corpus-capability pending" aria-busy="true" aria-label={checking} title={checking}>…</span>;
+  }
+  const full = capability === 'full';
   const label = hi ? full ? 'पूर्ण पाठ' : 'केवल रिकॉर्ड' : full ? 'Full text' : 'Record only';
   const title = hi
     ? full ? 'शोध के लिए पूरा पाठ उपलब्ध है।' : 'शोध में यहाँ दिखाए गए रिकॉर्ड के विवरण का उपयोग किया जा सकता है।'

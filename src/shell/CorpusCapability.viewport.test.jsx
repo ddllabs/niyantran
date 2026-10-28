@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const hooks = vi.hoisted(() => ({ index: 0, slots: [], effects: [] }));
-const coverage = vi.hoisted(() => ({ observe: vi.fn(), stop: vi.fn() }));
+const coverage = vi.hoisted(() => ({ observe: vi.fn(), stop: vi.fn(), state: 'record' }));
 vi.mock('../lib/corpusCoverage.js', () => ({
-  observeCoverage: coverage.observe, publicCorpusCapability: () => 'record', subscribeCoverage: () => () => {},
+  observeCoverage: coverage.observe, subscribeCoverage: () => () => {},
+  publicCorpusCapability: () => coverage.state === 'full' ? 'full' : 'record',
+  corpusCapabilityPending: () => coverage.state === 'pending',
 }));
 vi.mock('react', async original => ({ ...await original(),
   useRef: value => { const i=hooks.index++; hooks.slots[i] ??= {current:value}; return hooks.slots[i]; },
@@ -27,7 +29,7 @@ function render(row) {
  return tree;
 }
 beforeEach(()=>{
- hooks.index=0; hooks.slots=[]; hooks.effects=[]; observers=[];
+ hooks.index=0; hooks.slots=[]; hooks.effects=[]; observers=[]; coverage.state='record';
  coverage.observe.mockReset().mockImplementation(keys=>keys.length ? coverage.stop : null); coverage.stop.mockReset();
  vi.stubGlobal('IntersectionObserver',class {
   constructor(callback) { this.callback=callback; this.observe=vi.fn(); this.disconnect=vi.fn(); observers.push(this); }
@@ -54,4 +56,15 @@ it('F264 changing visible identity releases the old key and observes the exact n
  expect(observers[0].disconnect).toHaveBeenCalledTimes(1);
  expect(coverage.stop).toHaveBeenCalledTimes(1);
  expect(coverage.observe).toHaveBeenLastCalledWith(['desk-record:["national","Questions","two"]']);
+});
+
+it('F270 an unchecked record shows a neutral indicator, not Record only, and no capability text',()=>{
+ coverage.state='pending';
+ const tree=render({id:'one'});
+ expect(tree.props.className).toBe('corpus-capability pending');
+ expect(tree.props['aria-busy']).toBe('true');
+ expect(tree.props.children).not.toMatch(/record only|full text/i);
+ expect(tree.props.title).not.toMatch(/record only|full text/i);
+ coverage.state='full'; expect(render({id:'one'}).props.children).toBe('Full text');
+ coverage.state='record'; expect(render({id:'one'}).props.children).toBe('Record only');
 });
