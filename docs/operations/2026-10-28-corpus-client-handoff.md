@@ -1,10 +1,10 @@
 # Message for the corpus ingestion agent
 
-> **Status: Living.** 2026-10-28. F257–F260 released through PR #62 and F261 through PR #64; existing reviewed mappings applied. New ingestion and larger batches remain held.
+> **Status: Living.** 2026-10-28. F257–F260 released through PR #62, F261 through PR #64 and F264 through PRs #66 and #67 (merge `3fad9b973c6efc484373f959dae1522467722935`); existing reviewed mappings applied. New ingestion and larger batches remain held.
 
-## F264 local review addendum — not released
+## F264 addendum — released 2026-10-28
 
-The two-label public capability/admin-readiness increment is implemented and locally verified, awaiting owner review. Do not assume it is deployed or use a local draft contract as permission to resume ingestion. The final release commit, migration/function/frontend verification and client acceptance receipt must be supplied after owner review. Read [the readiness contract and runnable export guide](corpus-readiness.md) before preparing an inspection report. PR #64 remains the last released behavior documented below.
+The two-label public capability/admin-readiness increment is released and accepted on NTER: [release evidence](2026-10-28-f264-release.md). The release does not authorize resuming ingestion. Read [the readiness contract and runnable export guide](corpus-readiness.md) before preparing an inspection report. Revised ingestion rules after the 2026-10-28 review of the corpus branch (identity, shared code, approvals, receipts) await the owner's decision; see open-work F265–F269.
 
 Public Full text / Record only labels are presentation, not ingestion admission evidence. Preserve operational reason codes in reports and admin inspection. A Record only label does not prove missing OCR, missing embeddings or a missing mapping; never re-ingest solely to change it. Partial documents may have usable indexed passages. Null legacy keys do not prove Law/ordinary records are unlinked.
 
@@ -14,7 +14,7 @@ Keep the existing ingestion engine and its dry-run/manifest approvals. Unsupport
 
 ## Copyable message
 
-Keep ingestion and collection expansion paused. Preserve your corpus branch, checkpoints and receipts. Fetch `origin/main`, confirm it contains merge `69922e738d34b0bcfc690656f0c78ef1bc95bee6` (PR #64), including PR #62, and work on a separate task branch. Integrate main deliberately; do not discard uncommitted work, rewrite shared history, or touch another agent's branch. Follow AGENTS.md: leave a scoped reviewable diff unless separately authorized to publish it.
+Keep ingestion and collection expansion paused. Preserve your corpus branch, checkpoints and receipts. Fetch `origin/main`, confirm it contains merge `3fad9b973c6efc484373f959dae1522467722935` (PR #67), including PRs #62, #64 and #66, and work on a separate task branch. Integrate main deliberately; do not discard uncommitted work, rewrite shared history, or touch another agent's branch. Follow AGENTS.md: leave a scoped reviewable diff unless separately authorized to publish it.
 
 ### Read first
 

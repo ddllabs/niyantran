@@ -1,6 +1,6 @@
 # Corpus readiness inspection and public capability
 
-> **Status: Living.** F264 local implementation under review, 2026-10-28. Not deployed. No ingestion or mapping approval.
+> **Status: Living.** F264 released and accepted on NTER, 2026-10-28 ([release evidence](2026-10-28-f264-release.md)). No ingestion or mapping approval.
 
 ## Two public capabilities
 
