@@ -31,14 +31,15 @@ language sql immutable parallel safe set search_path = pg_catalog as $$
  end
 $$;
 revoke all on function public.pq_answer_key(text), public.pq_norm(text), public.pq_date(text) from public, anon;
-grant execute on function public.pq_answer_key(text), public.pq_norm(text), public.pq_date(text) to authenticated, service_role;
+revoke all on function public.pq_answer_key(text), public.pq_norm(text), public.pq_date(text) from authenticated;
+grant execute on function public.pq_answer_key(text), public.pq_norm(text), public.pq_date(text) to service_role;
 
 create or replace function public.ingest_register_text_unmapped(p jsonb) returns jsonb
 language plpgsql security definer set search_path = public, extensions as $$
 declare
  r jsonb; d public.documents%rowtype; j public.ingest_jobs%rowtype;
  saved public.ingest_text_inputs%rowtype; h text; expected jsonb; meta jsonb; v_tier text;
- v_key text; c jsonb; w record; n integer := 0;
+ v_key text; c jsonb; w record; n integer := 0; v_rows text[] := '{}';
 begin
  if jsonb_typeof(p) is distinct from 'object' or octet_length(p->>'payload') > 4000000 then raise exception 'supplied text: bad payload'; end if;
  h := encode(sha256(convert_to(p->>'payload','UTF8')),'hex');
@@ -77,21 +78,15 @@ begin
    if r ? 'document_key_suggested' and r->>'document_key_suggested' is distinct from v_key then
      raise exception 'supplied text: national question held: answer_key_conflict';
    end if;
-   if exists(select 1 from public.documents x where x.desk_tier='national' and x.file_url = r->>'file_url') then
-     raise exception 'supplied text: conflict: another document holds this file_url';
-   end if;
-   -- Older pack imports carry no file_url; their pack path names the same answer file.
-   if exists(select 1 from public.documents x
-              where x.desk_tier='national' and x.desk_feature='Parliamentary Question Database'
-                and (x.metadata->>'document_key_suggested' = v_key
-                  or x.metadata->>'source_path' like '%/' || split_part(v_key,':',3) || '\_' || split_part(v_key,':',4) || '.pdf')) then
-     raise exception 'supplied text: conflict: another document holds this answer';
-   end if;
+   -- One answer file, one document: serialize every admission of this answer whatever its source_key,
+   -- then lock the rows, and only then look for another holder (it may have committed meanwhile).
+   perform pg_advisory_xact_lock(hashtextextended(v_key,724893));
    for w in select q.row_key, q.row from public.desk_rows q
              where q.tier='national' and q.feature='Parliamentary Question Database'
                and q.row->>'source_url' = r->>'file_url'
              order by q.row_key for update loop
      n := n + 1;
+     v_rows := v_rows || w.row_key;
      if public.pq_answer_key(w.row->>'source_url') is distinct from v_key then
        raise exception 'supplied text: national question held: answer_key_conflict'; end if;
      if public.pq_norm(c->>'house') is null or public.pq_norm(c->>'house') is distinct from public.pq_norm(w.row->>'house') then
@@ -103,6 +98,18 @@ begin
      if public.pq_norm(c->>'ministry') is null or public.pq_norm(c->>'ministry') is distinct from public.pq_norm(w.row->>'ministry') then
        raise exception 'supplied text: national question held: ministry_conflict'; end if;
    end loop;
+   if exists(select 1 from public.documents x where x.desk_tier='national'
+              and (x.file_url = r->>'file_url' or public.pq_answer_key(x.file_url) = v_key)) then
+     raise exception 'supplied text: conflict: another document holds this file_url';
+   end if;
+   -- Older pack imports carry no file_url; their pack file name names the same answer file.
+   if exists(select 1 from public.documents x
+              where x.desk_tier='national' and x.desk_feature='Parliamentary Question Database'
+                and (x.metadata->>'document_key_suggested' = v_key
+                  or lower(regexp_replace(coalesce(x.metadata->>'source_path',''),'^.*/',''))
+                     = lower(split_part(v_key,':',3) || '_' || split_part(v_key,':',4) || '.pdf'))) then
+     raise exception 'supplied text: conflict: another document holds this answer';
+   end if;
    if n = 0 then raise exception 'supplied text: national question has no desk row for its file_url'; end if;
  end if;
  meta := (r - 'text' - 'pages' - 'sections' - 'source_key' - 'title' - 'desk_tier' - 'desk_feature') ||
@@ -125,13 +132,12 @@ begin
      public.record_mapping_fingerprint(q.tier,q.feature,q.row_key,d.id),
      'admission:pq-answer-key-v1','supplied-text admission',h
    from public.desk_rows q
-   where q.tier='national' and q.feature='Parliamentary Question Database' and q.row->>'source_url' = d.file_url;
+   where q.tier='national' and q.feature='Parliamentary Question Database' and q.row_key = any(v_rows);
    update public.record_document_links l
       set expected_link_count=(select count(*) from public.record_document_links x
                                 where x.tier=l.tier and x.feature=l.feature and x.row_key=l.row_key)
     where l.tier='national' and l.feature='Parliamentary Question Database'
-      and l.row_key in (select q.row_key from public.desk_rows q
-                         where q.tier='national' and q.feature='Parliamentary Question Database' and q.row->>'source_url' = d.file_url);
+      and l.row_key = any(v_rows);
  end if;
  return jsonb_build_object('document_id',d.id,'job_id',j.id,'status',j.status,'existing',false,
    'links', case when v_tier = 'national' then n end);
