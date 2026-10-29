@@ -334,6 +334,15 @@ export function publicCorpusCapability(attachment, now = Date.now) {
   return key && !lookupErrors.has(key) && fresh(key, now) === true ? 'full' : 'record';
 }
 
+/** True while a record's current answer has not arrived (F270): never looked up, or expired and
+ * not yet re-checked. A failed lookup is not pending; it reads Record only, and so does every key
+ * when there is no client to ask. Badges show a neutral indicator while pending instead of
+ * claiming Record only for text that may be ready. */
+export function corpusCapabilityPending(attachment, now = Date.now) {
+  const key = attachmentCoverageKey(attachment);
+  return Boolean(defaultClient && key && !lookupErrors.has(key) && fresh(key, now) === undefined);
+}
+
 /** Individually ready sources remain useful when the complete association is partial. */
 export function readyDocumentIds(attachment, now = Date.now) {
   const key = attachmentCoverageKey(attachment);

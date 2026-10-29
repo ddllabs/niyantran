@@ -4,7 +4,7 @@ vi.mock('./supabaseClient.js', () => ({ supabase: {
   rpc: db.rpc,
   auth: { onAuthStateChange: callback => { db.auth = callback; return { data: { subscription: {} } }; } },
 } }));
-import { COVERAGE_TTL_MS, indexedDocumentKeys, observeCoverage, publicCorpusCapability, refreshCoverage, resetCoverageCache } from './corpusCoverage.js';
+import { COVERAGE_TTL_MS, corpusCapabilityPending, indexedDocumentKeys, observeCoverage, publicCorpusCapability, refreshCoverage, resetCoverageCache } from './corpusCoverage.js';
 const key = n => `desk-record:["national","Questions","${n}"]`;
 const result = keys => ({ data: keys.map(document_key => ({ document_key, document_id: 'ready', coverage: 'full' })), error: null });
 let stops = [];
@@ -248,4 +248,20 @@ it('F264 a completed replacement releases direct readers while the obsolete pred
  await newer;
  finishes[0]();await vi.advanceTimersByTimeAsync(0);
  expect(publicCorpusCapability({document_key:key(1)})).toBe('full');
+});
+
+it('F270 an observed record leaves the pending state once its lookup answers or fails', async () => {
+ const chip = { kind: 'row', document_key: key(1) };
+ db.rpc.mockResolvedValueOnce(result([key(1)]));
+ observe([key(1)]);
+ expect(corpusCapabilityPending(chip)).toBe(true);
+ await vi.advanceTimersByTimeAsync(0);
+ expect(corpusCapabilityPending(chip)).toBe(false);
+ expect(publicCorpusCapability(chip)).toBe('full');
+ const failed = { kind: 'row', document_key: key(2) };
+ db.rpc.mockResolvedValueOnce({ data: null, error: { message: 'offline' } });
+ observe([key(2)]);
+ await vi.advanceTimersByTimeAsync(0);
+ expect(corpusCapabilityPending(failed)).toBe(false);
+ expect(publicCorpusCapability(failed)).toBe('record');
 });

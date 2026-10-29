@@ -2,7 +2,7 @@
 // rows with what desk_rows holds, upserts new or changed rows, and deletes the
 // keys that disappeared, instead of rewriting all 34,184 rows every run.
 import { describe, expect, it } from 'vitest';
-import { canonicalJson, planDeskRowSync } from './deskRowSync.js';
+import { canonicalJson, guardDeskRowSync, planDeskRowSync } from './deskRowSync.js';
 
 const row = (key, extra = {}) => ({
   tier: 'national', feature: 'Bill Passage Probability Index', row_key: key,
@@ -42,5 +42,40 @@ describe('planDeskRowSync', () => {
 
   it('canonicalJson sorts keys at every depth', () => {
     expect(canonicalJson({ b: 1, a: { d: [2, { z: 1, y: 2 }], c: null } })).toBe('{"a":{"c":null,"d":[2,{"y":2,"z":1}]},"b":1}');
+  });
+});
+
+describe('the load guard (F266)', () => {
+  const url = (stem) => `https://sansad.in/getFile/loksabhaquestions/annex/187/${stem}.pdf?source=pqals`;
+  const row = (id, stem, mp, extra = {}) => ({ row_key: id, row: { id, source_url: url(stem), mp_name: mp, ...extra } });
+  const feature = 'Parliamentary Question Database';
+
+  it('refuses a question file whose ids were renumbered', () => {
+    const existing = [row('1', 'AU1_a', 'A'), row('2', 'AU2_b', 'B')];
+    const incoming = [row('1', 'AU2_b', 'B'), row('2', 'AU1_a', 'A')];
+    const g = guardDeskRowSync({ feature, existing, plan: planDeskRowSync(existing, incoming), linkedKeys: [] });
+    expect(g).toMatchObject({ ok: false, renumbered: ['1', '2'] });
+  });
+
+  it('refuses to change or delete a linked row, and allows other changes', () => {
+    const existing = [row('1', 'AU1_a', 'A'), row('2', 'AU2_b', 'B'), row('3', 'AU3_c', 'C')];
+    const incoming = [row('1', 'AU1_a', 'A', { session: '187' }), row('2', 'AU2_b', 'B', { session: '187' })];
+    const plan = planDeskRowSync(existing, incoming);
+    expect(guardDeskRowSync({ feature, existing, plan, linkedKeys: ['1', '3'] })).toMatchObject({ ok: false, renumbered: [], linkedChanged: ['1'], linkedDeleted: ['3'] });
+    expect(guardDeskRowSync({ feature, existing, plan, linkedKeys: [] }).ok).toBe(true);
+  });
+
+  it('passes an unchanged linked row whose search text alone changed', () => {
+    const existing = [{ ...row('1', 'AU1_a', 'A'), record_text: 'old order' }];
+    const incoming = [{ ...row('1', 'AU1_a', 'A'), record_text: 'new order' }];
+    const plan = planDeskRowSync(existing, incoming);
+    expect(plan.upserts).toHaveLength(1);
+    expect(guardDeskRowSync({ feature, existing, plan, linkedKeys: ['1'] }).ok).toBe(true);
+  });
+
+  it('checks renumbering only for the question module', () => {
+    const existing = [row('1', 'AU1_a', 'A')];
+    const incoming = [row('1', 'AU2_b', 'B')];
+    expect(guardDeskRowSync({ feature: 'Other', existing, plan: planDeskRowSync(existing, incoming), linkedKeys: [] }).ok).toBe(true);
   });
 });

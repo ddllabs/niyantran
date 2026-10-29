@@ -80,7 +80,8 @@ it('F261 a pending or initially failed identity lookup does not claim verified m
  resetCoverageCache();
  const key='desk-record:["national","Parliamentary Question Database","unverified"]';
  const chip={id:'u',kind:'row',title:'Supplied question',document_key:key};
- const pending=render([chip]);expect(pending).toContain('>Record only<');expect(pending).not.toContain('unverified');
+ // F270: before the lookup answers the chip shows a neutral indicator, neither label.
+ const pending=render([chip]);expect(pending).toContain('corpus-capability pending');expect(pending).not.toMatch(/>Record only<|>Full text<|unverified/);
  await refreshCoverage([key],{rpc:async()=>({data:null,error:{message:'offline'}})});
  const failed=render([chip]);expect(failed).toContain('>Record only<');expect(failed).not.toContain('Text lookup failed');expect(failed).not.toContain('>Full text<');
 });
