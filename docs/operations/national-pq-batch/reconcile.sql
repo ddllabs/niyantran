@@ -1,8 +1,10 @@
 -- Read-only reconciliation of the client's Lok Sabha answer batches (b01-b06) against live NTER.
 -- Status: Living (2026-10-29). Writes nothing. Each statement is independent; run one at a time.
 -- Selects the batches by decision prefix; the result figures of 2026-10-29 are in reconciliation-2026-10-29.md.
+-- Rule 6 (2026-10-29): production reads only inside a read-only transaction that is rolled back.
 
 -- 1. Per batch: registered, indexed, chunks/vectors, text hashes, links, jobs, spend, fingerprint.
+begin transaction read only;
 with d as (select id, source_key, file_url, indexed_at, content_sha256, ocr_text,
                   substring(metadata->'review'->>'decision_id' from 'national-pq-(b\d+)') b
              from public.documents where metadata->'review'->>'decision_id' like 'owner-authorized-20261027-national-pq-b%'),
@@ -22,8 +24,10 @@ select b, count(*) docs, count(indexed_at) indexed, sum(c.n) chunks, sum(c.v) ve
   sum(j.jobs) jobs, sum(j.ok) succeeded, sum(j.pend) pending, sum(j.ocr) ocr_pages, sum(j.tok) tokens, round(sum(j.cost)::numeric, 6) cost_usd,
   encode(sha256(convert_to(string_agg(d.source_key || '|' || c.n || '|' || d.content_sha256, e'\n' order by d.source_key),'UTF8')),'hex') fingerprint
 from d join c using (id) join j using (id) join l using (id) join r using (id) group by b order by b;
+rollback;
 
 -- 2. Per document (export): document id, source key, exact URL, answer key, text hash, chunks, vectors, listing tuples, link decision.
+begin transaction read only;
 select substring(d.metadata->'review'->>'decision_id' from 'national-pq-(b\d+-t\d+)') batch_tranche,
        d.id document_id, d.source_key, d.file_url, d.metadata->>'document_key_suggested' answer_key, d.content_sha256,
        d.indexed_at, (select count(*) from public.document_chunks k where k.document_id = d.id) chunks,
@@ -35,9 +39,11 @@ select substring(d.metadata->'review'->>'decision_id' from 'national-pq-(b\d+-t\
 from public.documents d
 where d.metadata->'review'->>'decision_id' like 'owner-authorized-20261027-national-pq-b%'
 order by 1, d.source_key;
+rollback;
 
 -- 3. Per-batch hash of the complete per-document tuple
 --    id|source_key|file_url|content_sha256|chunks|vectors|answer_key|linked row_keys (sorted by source_key).
+begin transaction read only;
 with d as (select id, source_key, file_url, content_sha256, metadata->>'document_key_suggested' ak,
                   substring(metadata->'review'->>'decision_id' from 'national-pq-(b\d+)') b
              from public.documents where metadata->'review'->>'decision_id' like 'owner-authorized-20261027-national-pq-b%')
@@ -47,9 +53,10 @@ select b, count(*), encode(sha256(convert_to(string_agg(concat_ws('|', d.id, d.s
          (select string_agg(l.row_key, ',' order by l.row_key::int) from public.record_document_links l where l.document_id = d.id)),
          e'\n' order by d.source_key),'UTF8')),'hex') tuple_sha256
 from d group by b order by b;
+rollback;
 
 -- 4. Caller visibility: the same documents, chunks and links as a signed-in (authenticated) reader under RLS.
-begin read only;
+begin transaction read only;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"role":"authenticated"}', true) is null;
 select (select count(*) from public.documents where metadata->'review'->>'decision_id' like 'owner-authorized-20261027-national-pq-b%') docs,
@@ -60,6 +67,7 @@ select (select count(*) from public.documents where metadata->'review'->>'decisi
 rollback;
 
 -- 5. Answer files on the listing with no document (by URL, answer key or older pack path): the next cohort's universe.
+begin transaction read only;
 with u as materialized (select distinct r.row->>'source_url' url from public.desk_rows r
                          where r.tier = 'national' and r.feature = 'Parliamentary Question Database'),
 uk as materialized (select url, public.pq_answer_key(url) k from u),
@@ -73,3 +81,4 @@ select count(*) answer_files, count(*) filter (where k in (select k from dk)) he
   count(*) filter (where k is not null and k not in (select k from dk where k is not null)
                      and lower(split_part(k,':',3) || '_' || split_part(k,':',4) || '.pdf') not in (select f from pk where f is not null)) open_answers
 from uk;
+rollback;

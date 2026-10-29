@@ -2,8 +2,8 @@
 #
 # Status: Living (2026-10-29). Runs only after the owner has approved, in writing, the exact manifest hash below
 # (rule 1). It never chains to another cohort (rule 2), states --max-chunks 2000 and --max-estimated-cost-usd 0.05
-# (rule 3), and uses a short-lived platform-admin access token that the owner issues for this run and types at the
-# prompt; nothing is read from stored secrets except the public publishable key, and no password is used (rule 7).
+# (rule 3). Rule 7: the person running it signs in on nter.pro with their own admin account and types that session's
+# access token at the prompt; nothing is read from stored secrets except the public publishable key, and no password is used.
 #
 # Launch (one cell):
 #   REPO_SHA = '<commit of this file on task/client-corpus-claude-2026-10-29>'
@@ -28,7 +28,7 @@ NODE_TGZ = 'https://registry.npmjs.org/node-linux-x64/-/node-linux-x64-24.22.1.t
 NODE_SHA = 'ca7d16d263263ffaa9e8133de2cc138152afb8177f984df31bb255492513d8c8'
 NODE = W / 'node24' / 'package' / 'bin' / 'node'
 HERE = 'docs/operations/national-pq-batch'
-MAIN_SHA = '498152f3fcfa00849778751f04046803a79f35e7'   # F266 on main: the importer and adapter must be byte-identical to it
+MAIN_SHA = '8820f6349fbf2ad4e0ecbaa699dc5b5076b44b38'   # main at PR #75: the importer, functions and migrations must be byte-identical to it
 
 
 class Stop(Exception):
@@ -69,7 +69,7 @@ def run(repo_sha):
     # The importer and the shared adapter it loads must be exactly main's (F266); only client files may differ.
     subprocess.run(['git', '-C', str(REPO), 'fetch', '--depth', '1', '-q', 'origin', MAIN_SHA], check=True)
     if subprocess.run(['git', '-C', str(REPO), 'diff', '--quiet', MAIN_SHA, 'HEAD', '--', 'scripts', 'supabase']).returncode != 0:
-        raise Stop('scripts/ or supabase/ differ from main 498152f: refusing to submit with changed shared code')
+        raise Stop('scripts/ or supabase/ differ from main 8820f63: refusing to submit with changed shared code')
     if not NODE.exists():
         (W / 'node24').mkdir(exist_ok=True)
         tgz = W / 'node24' / 'node.tgz'
@@ -115,11 +115,11 @@ def run(repo_sha):
         raise Stop(f'dry run differs from the approved cohort: {s}')
     print('dry run equals the approved cohort:', json.dumps(s))
 
-    # 4. The owner's short-lived token for this run; typed, never stored, never printed.
+    # 4. The runner's own nter.pro session token for this run (rule 7); typed, never stored, never printed.
     env = dict(os.environ)
     from google.colab import userdata
     env['SUPABASE_PUBLISHABLE_KEY'] = userdata.get('SUPABASE_PUBLISHABLE_KEY')
-    env['NTER_INGEST_ACCESS_TOKEN'] = getpass.getpass('Short-lived platform-admin access token for this run: ').strip()
+    env['NTER_INGEST_ACCESS_TOKEN'] = getpass.getpass('Access token of your own nter.pro admin session, for this run only: ').strip()
     if not env['SUPABASE_PUBLISHABLE_KEY'] or not env['NTER_INGEST_ACCESS_TOKEN']:
         raise Stop('publishable key or access token missing')
 

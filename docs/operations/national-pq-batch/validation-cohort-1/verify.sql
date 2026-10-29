@@ -2,6 +2,8 @@
 -- Status: Living (2026-10-29). Expected when complete: docs 100, indexed 100, text_hash_valid 100, chunks 829,
 -- vectors 829, all_1536 true, national 100, linked_docs 100, links 114, links_equal_rows 100, url_eq true, text_eq true,
 -- one_job_ok 100, ocr_pages 0, fingerprint equal to the plan (cohort.json documents; README), cost <= 0.05.
+-- Rule 6 (2026-10-29): production reads only inside a read-only transaction that is rolled back.
+begin transaction read only;
 with d as (
   select * from public.documents
   where desk_feature = 'Parliamentary Question Database' and metadata->>'origin' = 'supplied-text'
@@ -31,3 +33,4 @@ select count(*) docs, count(indexed_at) indexed,
        count(*) filter (where j.jobs = 1 and j.ok = 1) one_job_ok, sum(j.ocr) ocr_pages, sum(j.tok) tokens, round(sum(j.cost)::numeric, 6) cost_usd,
        encode(sha256(convert_to(string_agg(d.source_key || '|' || c.n || '|' || d.content_sha256, e'\n' order by d.source_key), 'UTF8')), 'hex') fingerprint
 from d join c using (id) join j using (id) join l using (id) join r using (id);
+rollback;

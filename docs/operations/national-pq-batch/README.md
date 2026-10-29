@@ -195,3 +195,12 @@ Both run the real importer in dry-run mode. No network is used.
   - natural-language answers on the website;
   - per-record grounding. Question rows carry no `document_key`, and the frontend's `documentKey()` reads only bill
     and Law keys, so the module-level assistant sees these answers but "ask about this record" does not attach them.
+
+## Website acceptance (rule 5)
+
+**Passed, 2026-10-29.** Done by the developer on 2026-10-29 in the owner's signed-in session on www.nter.pro (production `41839f07`), one answer from each of batches 1, 2, 3, 5 and 6, and recorded as passed for batches 1–6 ([F266 release evidence](../2026-10-29-f266-release.md#website-acceptance-of-the-clients-batches-16-2026-10-29-rule-5)). Each answer was found through the listing search, showed Full text, opened in the record panel, was attached alone to a new research chat and asked one question; the reply cited exactly one source, the right answer, and every quoted passage or figure checked was in that document's stored chunks. Not repeated here (developer's instruction).
+
+| Answer file | Row | Question | Checked in the stored text |
+|---|---|---|---|
+| `AU2659_qUh6ik.pdf` | 7948 | Infrastructure Development and Modernisation of Sports Facilities | the quoted reply ("no new proposal has been received…"), Dakshina Kannada |
+

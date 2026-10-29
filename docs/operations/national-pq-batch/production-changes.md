@@ -31,7 +31,7 @@ The exact minute of each deploy was not recorded.
 | Date (UTC) | Statement | Purpose |
 |---|---|---|
 | 2026-10-27, decision 14:56 IST; receipt 09:30 UTC | One transaction, service SQL: `law_records.visible = false` on 3 records; `law_publications` for 3 documents set `status = 'held'` with decision `owner-authorized-20261027-law-retire-contained-orders` | Retire three contained Law orders (owner: "Keep the longer orders as you listed"). Reversible; receipt and reversal SQL in `docs/operations/law-retire-contained-orders/README.md` (old branch, `1cb9d0f`). **Rule 6 now makes this kind of change a reviewed operation, never direct SQL** |
-| 2026-10-24 (next-100, next-1,000), 2026-10-26 (Law batches 5–8), 2026-10-27 (Law batches 9–11; PQ batch 1, about 14:15) | `analyze` on the touched tables (the receipts say "the touched tables"; for PQ batch 1: `documents`, `document_chunks`, `desk_rows`) | Planner statistics after each bulk load, as AGENTS.md requires. No data change. Not run after PQ batches 2–6 |
+| 2026-10-24 (next-100, next-1,000), 2026-10-26 (Law batches 5–8), 2026-10-27 (Law batches 9–11; PQ batch 1, about 14:15) | `analyze` on the touched tables (the receipts say "the touched tables"; for PQ batch 1: `documents`, `document_chunks`, `desk_rows`) | Planner statistics after each bulk load, as AGENTS.md then required. No data change. Not run after PQ batches 2–6. **Since 2026-10-29 rule 6 forbids this too; the developer runs `ANALYZE` (done 2026-10-29)** |
 
 ## 4. Ingestion registrations (through `admin-ingest`, not SQL)
 

@@ -4,7 +4,8 @@
 > 19:25–19:45 UTC (29 Oct 00:55–01:15 IST), after F266 (`main` at `498152f`). Read-only `SELECT`s only, in
 > [`reconcile.sql`](reconcile.sql); the visibility check runs inside `begin read only … rollback` as `authenticated`.
 > This replaces the cutoff-bound inventory of 2026-10-28 00:30 IST (project note `nter-national-pq-handoff-2026-10-28`).
-> It proposes no action on these documents.
+> It proposes no action on these documents. Most of its queries ran through the database connector as plain read-only `SELECT`s;
+> since 2026-10-29 rule 6 requires `begin transaction read only; … rollback;`, and `reconcile.sql` now wraps every query that way.
 
 ## Counts, kept separate
 
@@ -21,7 +22,7 @@
 - **Indexed:** 59,503 chunks, all with 1536-d vectors; stored text hash valid on every document; one `succeeded` job per document; 0 pending, 0 failed; 0 OCR pages.
 - **Linked:** 6,845 links in `record_document_links`, exactly one per listing row naming the document's answer file. Every link's `source_url` equals the document's `file_url`, and its `text_sha256` equals the document's `content_sha256`. 4,749 documents (5,638 links) under `owner-authorized-20261028-f257-mapping-repair`; 1,116 documents (1,207 links) under `F266-backfill-2026-10-28`. No other document in the section has a link.
 - **Published / visible:** as `authenticated` under RLS: 5,865 documents, 59,503 chunks, 6,845 links visible. For every one of the 6,845 linked rows, the resolver's rule (`record_resolve_document_keys`, replicated set-based) gives `full`. 24 rows (4 per batch) put through the function itself: 24 `full`, each with a document. Admin-side computation; not a browser check.
-- **Website-accepted:** none recorded. Rule 5 acceptance for these batches is outstanding.
+- **Website-accepted:** none recorded at this observation. **Update 2026-10-29:** the developer recorded website acceptance as passed for batches 1–6, signed in, one answer each from batches 1, 2, 3, 5 and 6 (`../2026-10-29-f266-release.md`); see each receipt.
 
 ## Identity
 

@@ -2,7 +2,7 @@
 
 > **Status: Living (2026-10-29).** Handoff step (c): prepared and dry-run only. **Nothing has been submitted.** Submission
 > needs the owner's written approval of the exact manifest hash below (rule 1); then one run, a receipt and website
-> acceptance, and stop (rules 2, 4, 5). Built on `main` `498152f` (F266 admission).
+> acceptance, and stop (rules 2, 4, 5). Built on `main` `498152f` (F266 admission); merged with and re-pinned to `main` `8820f63` (PR #75) on 2026-10-29, dry run re-run with identical results.
 
 ## What is proposed
 
@@ -39,6 +39,7 @@
 | Check | Result |
 |---|---|
 | Screen rules (`nter-national-pq-core.py`, rules sha256 `5cb2d67c…730c`), re-run on the supplied records | 100 pass, 0 held: text hash, character count, exact page spans, 300–300,000 characters, an ANSWER section, URL shape, file name, answer key = URL key, session/house, question type and number, title number, number and answer date in the text |
+| Dry run re-run 2026-10-29 on the branch merged with `main` `8820f63` (Node 22.22.0) | cohort rebuilt from the staged input and `candidate-keys.txt`: manifest and corpus byte-identical; report byte-identical to `dry-run.jsonl` (sha256 `222a68b3…8343`): 100 ready, 0 held, 829 chunks, ceiling US$0.046490 |
 | Dry run, `main`'s importer (`scripts/corpus-text-import.mjs` with `main`'s `suppliedText.ts`), offline | selected 100, ready 100, held 0, chunks 829, ceiling US$0.046490, manifest `a3525a9d…` (`dry-run.jsonl`, no corpus text) |
 | Live, read-only (`cohort-live-check.sql`, 2026-10-28 about 19:45 UTC, 29 Oct 01:15 IST) | 0 already held by a document (by URL or URL variant, answer key, or older pack path); all 100 have listing rows (114); all 114 rows corroborate under the server's own `pq_norm` / `pq_date` (house, subject, ministry, date); answer key equals on all 114 → **no F266 refusal predicted** |
 | Near-duplicate / containment | checked against all stored answers and earlier candidates at batch-6 planning; nothing has been added to the section since except batch 6 itself |
@@ -47,11 +48,11 @@
 
 1. Re-run `cohort-live-check.sql` (read-only). It must give the expected row in its header.
 2. In Colab, launch `run-validation-cohort-1.py` from the pinned commit (header). It:
-   - checks out that commit and pinned Node 24, and refuses unless `scripts/` and `supabase/` are byte-identical to `main` `498152f`;
+   - checks out that commit and pinned Node 24, and refuses unless `scripts/` and `supabase/` are byte-identical to `main` `8820f63`;
    - verifies the committed manifest hash equals the approved one;
    - rebuilds the cohort from the staged input and requires the same two hashes;
    - re-runs the dry run and requires 100 / 0 / 829 / ≤ US$0.05;
-   - asks for the owner's **short-lived access token** at a prompt (never stored or printed; no password);
+   - asks the person running it, signed in on nter.pro with their own admin account, for **that session's access token** at a prompt (rule 7; never stored or printed; no password);
    - submits once with `--approval a3525a9d… --max-chunks 2000 --max-estimated-cost-usd 0.05`;
    - writes `staging/pq-validation-01/submit-1.jsonl` and `submit-1-status.json`, and stops.
 
