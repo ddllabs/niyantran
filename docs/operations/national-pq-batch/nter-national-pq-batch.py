@@ -1,3 +1,4 @@
+raise SystemExit('DISABLED 2026-10-29 (owner rules 2 and 7): this driver signs in with a stored password (Colab Secrets) and run_section() chains batches. Kept only as the provenance of PQ batches 1-6; see docs/operations/national-pq-batch/README.md. Use validation-cohort-1/run-validation-cohort-1.py.')
 # NTER National: ONE batch of up to 1,000 Lok Sabha question answers from the National citation pack v1.1, then stop.
 # Owner: Tamanesh Kauri, 2026-10-27 15:57 IST ("Start with 1,000 parliamentary questions ... Do a batch of 1,000 and stop").
 # Route: the existing supplied-text connection (admin-ingest register_text -> ingest queue at index, no OCR), extended to

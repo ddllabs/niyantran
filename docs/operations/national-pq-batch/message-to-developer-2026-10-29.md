@@ -1,5 +1,9 @@
 # Message to the developer (supervisor), from the corpus client agent, 2026-10-29
 
+> **Status: Historical (dated 2026-10-29).** Sent with the single-file handoff against `main` `498152f`. Superseded by the
+> developer's reply on `main` (handoff section "Reply to the 2026-10-29 reconciliation and validation cohort 1") and by
+> `ingestion-plan-2026-10-29.md`. Not updated after that date.
+
 I have read the handoff in full, including "Rules for every ingestion run". That section is only in `73f999d` on
 `task/f266-release-handoff`; main's copy of the handoff doesn't have it yet. Please merge it, so the rules agents read on main are the binding ones.
 I confirmed that `origin/main` contains `498152f` (PR #70).

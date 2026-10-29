@@ -10,6 +10,21 @@
 > [`reconciliation-2026-10-29.md`](reconciliation-2026-10-29.md). Production changes:
 > [`production-changes.md`](production-changes.md).
 
+## Disabled drivers (2026-10-29)
+
+Both files below now start with a `raise SystemExit(…)` line naming owner rules 2 and 7, so they refuse to run and refuse to load:
+- **The PQ section driver** signs in with a password stored in Colab Secrets, which rule 7 forbids, and `run_section()` chains batches, which rule 2 forbids.
+- **The Law autopilot core** is only loaded by those drivers.
+
+They are kept only as the provenance of PQ batches 1–6 and Law batches 7–11. Everything below the guard line is byte-identical to the original; `test_national_pq_driver_offline.py` checks that, and shows that both refuse.
+
+| File | Original sha256 (without the guard line) | Original commit |
+|---|---|---|
+| `nter-national-pq-batch.py` | `ff5990f609cae0aef387d758c503f84a9d6b15b1c8eff044bbb27187ddc7fd0a` | `3815735d30c31be29615e1698a2789b1a13f7ad6` (branch `task/client-law-ingestion-claude-2026-10-23`); carried unchanged to this branch in `1bbff81` |
+| `../law-autopilot/nter-law-autopilot-core.py` | `19299c5248128240b18e5134f2929cddfe60658f7e79d88d040d44cf96defe63` | `ea40c445f3fa308396c58cda0ab7702fbe1d8955` (same branch); carried unchanged in `1bbff81` |
+
+New runs use `validation-cohort-1/run-validation-cohort-1.py`: one cohort, and the runner's own session token typed at the prompt.
+
 ## Authorization
 
 - **Batch.** Tamanesh Kauri, chat, 2026-10-27 15:57 IST: "Start with 1,000 parliamentary questions … check whether
@@ -108,7 +123,7 @@ python3 -I docs/operations/national-pq-batch/test_national_pq_offline.py
 python3 -I docs/operations/national-pq-batch/test_national_pq_driver_offline.py
 ```
 
-Both run the real importer in dry-run mode. No network is used.
+The first runs the real importer in dry-run mode. The second now checks that the disabled driver refuses to run, and that the rest of it is byte-identical to the original. No network is used.
 
 ## Batch 1 receipt (verified 2026-10-27 14:14 UTC)
 

@@ -1,93 +1,93 @@
 # Plan for further ingestion (Law and Lok Sabha answers)
 
-> **Status: Living (2026-10-29).** A proposal under the owner's 2026-10-29 rules. It authorizes nothing: each step below
-> is one cohort, with its own manifest hash approved in writing by the owner, then a receipt and website acceptance, then a stop.
-> The numbers come from the read-only reconciliation of 2026-10-29.
+> **Status: Living (2026-10-29, updated to `main` `4cc23a7`).** A proposal under the owner's rules for every ingestion
+> run (`docs/operations/2026-10-28-corpus-client-handoff.md`). It authorizes nothing. Each step is one cohort and follows
+> the same order:
+> developer review of the scripts and dry run → reviewed pull request to `main` → the owner's written approval of the exact
+> manifest hash → one run → receipt and website acceptance → stop.
+> Numbers come from the read-only reconciliation of 2026-10-29 and the developer's reply on `main`.
 
 ## Where things stand
 
 | Collection | In production | Left to ingest | State |
 |---|---|---|---|
-| Lok Sabha answers (`Parliamentary Question Database`) | 5,865 client documents, all indexed and linked; 82 September imports held unlinked | **893** answer files with a listing row and no document | Validation cohort 1 (100) prepared, awaiting approval |
-| Law (NCLT / IBBI orders) | 7,549 documents (7,546 served; 3 retired) | The pinned IBBI_NCLT parts were exhausted by Law batch 11 | Next Law source not yet screened |
-| Rajya Sabha, Bills, regulators, other National | — | — | **Held**: no reviewed adapter (rule 8) |
+| Lok Sabha answers (`Parliamentary Question Database`) | 5,865 client documents, all indexed and linked, **60,611 chunks** in the section; website acceptance of batches 1–6 passed on 2026-10-29 | **893** answer files with a listing row and no document | Validation cohort 1 (100) prepared; branch pushed (`5dba5f6`), reviewed by the developer |
+| Law (NCLT / IBBI orders) | 7,549 documents (7,546 served; 3 retired); NCLT / NCLAT section at **225,273 chunks** | The pinned IBBI_NCLT parts were exhausted by Law batch 11 | Next Law source not yet screened |
+| Rajya Sabha, Bills, regulators, other National | — | — | **Held**: no reviewed adapter (rule 9) |
+
+**The 82 imports of 2026-09-21 are decided:** kept held and unlinked, no action (owner). They are not part of this plan.
 
 The 893 Lok Sabha answer files break down as:
 
 | Group | Count | Path |
 |---|---|---|
 | Validation cohort 1 | 100 | Step 1 |
-| Rest of batch 6 T5: 33 eligible, plus 2 held for size (`AU2083_d6yKQK`, `AS161_XfyBmh`) | 35 | Step 3 |
-| Eligible at the 2026-10-27 screen, never planned | 488 | Step 3, re-screened from the pack |
-| Held by the screen's text rules | about 270 | Step 4, owner decisions per reason |
+| Rest of batch 6 T5: 33 eligible, plus 2 held for size (`AU2083_d6yKQK`, `AS161_XfyBmh`) | 35 | Step 2 |
+| Eligible at the 2026-10-27 screen, never planned | 488 | Step 2, re-screened from the pack |
+| Held by the screen's text rules | about 270 | Step 3 (`last_page_empty` only); the rest stay held |
 
 ## Steps
 
 ### Step 1: Lok Sabha validation cohort 1 (100)
 
-Prepared, nothing submitted.
-- Manifest `a3525a9d…f29c`; 829 chunks; ceiling US$0.0465 against the US$0.05 limit; about US$0.0036 expected.
-- See `validation-cohort-1/README.md`.
+Prepared and dry-run; nothing submitted.
+- **Manifest:** `a3525a9d7a6e53a559b9e3c737a19fd0cffdb4a5db5d4e21a65c436ae792f29c`.
+- **Size and cost:** 829 chunks; ceiling US$0.0465 against the US$0.05 limit; about US$0.0036 expected.
+- **Details:** `validation-cohort-1/README.md`.
 
-Needs from the owner:
-- written approval of that manifest hash;
-- permission to push this task branch, so Colab can fetch the pinned script;
-- a short-lived token typed at the prompt.
+Order:
+1. Done: branch pushed; scripts, tests and dry run reviewed by the developer at `5dba5f66`.
+2. The developer raises the reviewed pull request to `main`.
+3. The owner, Tamanesh Kauri, approves that manifest hash in writing (rule 1).
+4. One run of `run-validation-cohort-1.py`. The person running it signs in on nter.pro with their own admin account and types that session's access token at the prompt (rule 7).
 
 Done when:
-- `verify.sql` matches the expected values in its header (100 documents indexed, 829 vectors, 114 links, fingerprint equal to the plan, cost ≤ US$0.05);
-- the receipt is committed;
-- five records pass website acceptance, signed in: Full text, plus one attached-record question each, citing the right answer.
+- `verify.sql` (read-only transaction) matches its header: 100 indexed, 829 vectors, 114 links, fingerprint equal to the plan, cost ≤ US$0.05;
+- the receipt is committed on the branch;
+- the five proposed records pass website acceptance, signed in: Full text, plus one attached-record question each, citing the right answer.
 
-### Step 2: review the results, then stop
+Then stop. The developer reviews the receipt and acceptance; any failure is traced first, with platform defects going to the developer and nothing re-ingested.
 
-The owner and the developer review the receipt and the acceptance before anything larger.
-- If any record failed acceptance, the cause is found first. Platform defects go to the developer; nothing is re-ingested.
-- The client-script diff on this branch goes for review: `pq-validation-cohort.py`, `pq-cohort-ceilings.mjs`, their tests and the run script.
+### Step 2: Lok Sabha remainder cohort (expected about 520)
 
-### Step 3: Lok Sabha remainder cohort (up to 1,000, expected about 520)
-
-Only after step 2 passes and the owner approves.
-- **Selection:** re-screen the pack member in Colab, read-only, against live state with the same rules. Expected: about 488 never planned, plus 33 left in batch 6 T5, minus anything held.
-- **Large answers:** the two held for size can join here, because the limit for this cohort is set per cohort.
-- **Manifest:** one, with the exact chunk count and ceiling from the dry run, sent to the owner.
-- **Limits:** stated per submission. Expect roughly 4,300 chunks and a ceiling of about US$0.25; actual spend about US$0.02.
+Only after cohort 1 is accepted, and in the same order: review → pull request → owner approval → one run.
+- **Selection:** re-screen the pack member in Colab with the same rules, against live state read-only. Expected: about 488 never planned, plus the 33 left in batch 6 T5, minus anything held.
+- **Large answers:** the two held for size are included, so the cohort stays representative.
+- **Limits:** one manifest, with `--max-chunks` and `--max-estimated-cost-usd` set from its dry run. Expect about 4,300 chunks and a ceiling of about US$0.25; actual spend about US$0.02.
 - **Pre-submit check:** the same live corroboration as cohort 1 (no holder; every listing row passes the F266 house, subject, ministry and date checks).
-- **Acceptance:** website acceptance on five records again, then the receipt, then stop.
+- **Then:** website acceptance on five records, the receipt, and stop.
 
-### Step 4: the held Lok Sabha answers (about 270): owner decisions, not ingestion
+### Step 3: `last_page_empty` holds (121): a proposal, only after cohort 1 is accepted
 
-Each reason needs its own owner decision. Nothing is re-OCRed or forced.
-- **`last_page_empty` (121):** the text is complete but the last PDF page is blank.
-  - Possible fix: a reviewed rule change that accepts a trailing empty page. That is a client screen change for review; the server already accepts `page_split` `exact` or `none`.
-- **`unsplit_multipage` (21), `approximate` (8), `page split none` (82 September imports):** need a page-integrity decision. The 82 also need a decision on whether to re-register them with a URL or leave them held; F266 refuses a second document for the same answer.
-- **Date not found (59), number not found (53), no answer section (34):** likely OCR or layout problems. Review a sample; the default is to keep them held.
-- **Near-duplicates (2–3), over limits (2), too short (1):** hold.
+These answers' text is complete; only the last PDF page is blank.
+- **Proposal:** a reviewed client screen change that accepts a trailing empty page, with its own causal test, shown to fail without the change.
+- **Approval:** if accepted, those answers form their own cohort, with their own manifest and approval.
 
-### Step 5: Law: the next orders
+All other screen holds stay held by default, with no re-OCR and nothing forced:
+- `unsplit_multipage` (21) and `approximate` (8);
+- answer date not found (59), question number not found (53), no answer section (34);
+- near-duplicates (2–3), over limits (2), too short (1).
 
-The admitted Law collection is NCLT / IBBI orders, through the listing adapter. The next source is unscreened:
-- either later IBBI_NCLT parts of the legal ZIP, if any remain;
-- or the next tribunal parts the adapter already supports.
+### Step 4: Law validation cohort (100 orders)
 
-The path is the same as for Lok Sabha:
-1. Screen with `scripts/law-cohort-screen.py` against the live reconciliation.
-2. A **100-order validation cohort** (at most 2,000 chunks and US$0.05), approved by hash, with receipt and acceptance, then stop.
-3. Then up to 1,000 per cohort, each approved separately.
+May follow after the Lok Sabha cohort, under rule 3's Law limits: **at most 4,000 chunks and US$0.25**.
+- **Selection:** the cohort must be representative of typical orders, not short orders chosen to fit. Earlier Law batches averaged about 31 chunks per order.
+- **Source:** NCLT / IBBI orders through the listing adapter. The next source is unscreened: later IBBI_NCLT parts of the legal ZIP, if any remain, or the next tribunal parts the adapter already supports.
+- **Path:** screen with `scripts/law-cohort-screen.py` against live state read-only; dry run; review; pull request; owner approval of the hash; one run; receipt and website acceptance; stop.
 
-Watch Law's chunk size: earlier Law batches averaged about 31 chunks per order, so 100 orders may exceed 2,000 chunks. The 100 must be chosen to fit, as in Lok Sabha cohort 1.
+**Law cohorts of 1,000 wait for F272.** The NCLT / NCLAT section already has 225,273 searchable chunks, above the 100,000 fallback-search bound. An underfilled Law search there fails explicitly instead of recovering.
 
-### Step 6: every other collection stays held
+### Step 5: every other collection stays held
 
-Rajya Sabha, Bills, regulators and the other National modules each need a reviewed adapter and policy boundary from the developer first.
+Rajya Sabha, Bills, regulators and the other National modules each need a reviewed adapter and policy boundary from the developer first (rule 9).
 
 ## Limits that apply to every step
 
-- **Owner approval:** one cohort per approval, by manifest hash; approvals are never chained.
-- **Runtime limits:** `--max-chunks` and `--max-estimated-cost-usd` on every submission. Validation cohorts: at most 2,000 chunks and US$0.05.
-- **Access:** a short-lived token typed at run time. No stored password; the old Colab Secrets password should be deleted and rotated.
-- **No shared changes:** no shared code, migrations, deploys or SQL writes from the client. Reconciliation queries are read-only.
-- **Search capacity:** feature search recovers within a feature only up to 100,000 eligible chunks (F264 note).
-  - The Lok Sabha feature has about 59,500 chunks now; about 64,600 after steps 1 and 3.
-  - Before any collection's feature nears 100,000, the developer needs to confirm capacity.
-- **Receipts:** every cohort gets a receipt on the branch: manifest and hash, approval, counts (screened, registered, indexed, linked, held with reasons), actual spend and verification output.
+- **Owner approval:** the owner is the only approver, one cohort per approval, by manifest hash. The developer reviews the scripts, dry run and receipts before each approval request and after each run. Approvals are never chained (rules 1–2).
+- **Runtime limits:** `--max-chunks` and `--max-estimated-cost-usd` on every submission, set from the dry run. Validation cohorts: Lok Sabha at most 2,000 chunks and US$0.05; Law at most 4,000 chunks and US$0.25 (rule 3).
+- **Access:** the runner's own nter.pro admin session token, typed at run time. No stored password anywhere (rule 7). The disabled drivers that used one now refuse to run (see `README.md`).
+- **No shared changes:** no shared code, migrations, deploys, listing changes or SQL writes from the client, including `ANALYZE`. Production reads only inside `begin transaction read only; … rollback;`, with each query committed beside the receipt that uses it (rules 6 and 8).
+- **Search capacity (F272):** fallback search within a section is bounded at 100,000 searchable chunks.
+  - Lok Sabha is at 60,611: about 61,400 after step 1 and about 65,700 after step 2, still under the bound.
+  - NCLT / NCLAT (225,273) is already over it.
+- **Receipts:** every cohort gets a receipt on the branch: manifest and hash, approval, counts (screened, registered, indexed, linked, held with reasons), actual spend, verification output and website acceptance (rules 4–5).

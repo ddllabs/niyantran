@@ -1,3 +1,4 @@
+raise SystemExit('DISABLED 2026-10-29 (owner rules 2 and 7): this core is loaded only by the Law autopilot and the PQ section driver, which sign in with a stored password and chain batches. Kept only as the provenance of Law batches 7-11 and PQ batches 1-6; see docs/operations/national-pq-batch/README.md.')
 # NTER Law autopilot core: pure, offline-testable helpers (no Colab, no network). Loaded by nter-law-autopilot.py.
 # Near-duplicate detection (MinHash over 5-word shingles), eligibility holds, tranche planning and REST paging.
 import json, math, re, urllib.parse, zlib
