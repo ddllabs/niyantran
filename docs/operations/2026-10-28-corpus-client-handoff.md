@@ -26,9 +26,21 @@ The receipts for batches 2–6, the production-change list, the reconciliation a
 - **Unchanged since `498152f`:** `scripts/corpus-text-import.mjs`, `supabase/functions` and `supabase/migrations`, so cohort 1's dry run and manifest `a3525a9d7a6e53a559b9e3c737a19fd0cffdb4a5db5d4e21a65c436ae792f29c` remain valid. `scripts/load-desk-rows.mjs`, `scripts/pq-row-refresh.sql` and two SQL fixtures did change, so a guard that requires `scripts/` and `supabase/` to equal `498152f` must be re-pinned to the current `main` commit, and the dry run re-run.
 - **Push.** The owner authorizes pushing `task/client-corpus-claude-2026-10-29` to `origin`, that branch only, after merging current `main` into it. Never push to `main`; the developer reviews the branch and carries the receipts and client scripts to `main` through a reviewed pull request.
 - **Cohort 1 is not yet approved.** After the push the developer reviews `pq-validation-cohort.py`, `pq-cohort-ceilings.mjs`, the tests and `run-validation-cohort-1.py`; then the owner approves the hash in writing.
-- **Website acceptance for batches 1–6 passed** on 2026-10-29, done by the developer, signed in, on one answer from each of five batches ([F266 release evidence](2026-10-29-f266-release.md)); record it in your receipts and do not repeat it.
+- **Website acceptance for batches 1–6 passed** on 2026-10-29, done by the developer, signed in, on one answer from each batch (b04's added later the same day; [F266 release evidence](2026-10-29-f266-release.md)); record it in your receipts and do not repeat it.
 - **Search capacity** (F272): fallback search within one listing section is bounded at 100,000 searchable chunks. Lok Sabha answers have 60,611 and stay under it. NCLT / NCLAT (Insolvency) already has 225,273, so an underfilled Law search there fails explicitly instead of recovering. The Law validation cohort may proceed; Law cohorts of 1,000 wait for F272.
 - **The 121 `last_page_empty` holds** may be proposed after cohort 1 is accepted, as a reviewed client screen change with its own causal test. The other screen holds stay held by default.
+
+## Developer review of the client branch (2026-10-29)
+
+`task/client-corpus-claude-2026-10-29` was reviewed at `5dba5f66` and, after the requested fixes, at `4316929c5e2978267e0a689854f3cd417c1dc36c`, and carried to `main` by the pull request that adds this section.
+
+- **Shared code:** `scripts/` and `supabase/` equal `main`; everything the importer loads is inside them, so the run script's guard (pinned to `8820f63`) covers it.
+- **Cohort 1:** manifest `a3525a9d7a6e53a559b9e3c737a19fd0cffdb4a5db5d4e21a65c436ae792f29c` and the dry-run summary (100 ready, 0 held, 829 chunks, ceiling US$0.046490) match. A separate read-only check found none of the 100 already stored (by text hash, file or link, in any section); all 100 have listing rows (114), and ministry, date and subject agree on all 114 (7 subjects differ only by a double space in the listing).
+- **Tests:** the three offline suites pass (9, 11 and 3 tests).
+- **Fixed on review:** the ingestion plan now follows the rules on `main`; the developer message is Historical; the PQ section driver and the Law autopilot core refuse to run (they signed in with a stored password and chained batches), with their originals recorded in the client README.
+- **Not run by the developer:** the cohort rebuild from the staged input, which is on the client's Drive.
+
+**Cohort 1 is still not approved.** The owner's written approval names the manifest hash above, the commit to run from (this pull request's merge commit on `main`) and the run script's sha256 `050da4fad739ff16f0bc2e37b300eccee2442dd23d4647c562a0bf823f11f15b`. The run then follows `national-pq-batch/validation-cohort-1/README.md`: live check, one submission within 2,000 chunks and US$0.05, `verify.sql`, receipt, five-record website acceptance, stop.
 
 ## Rules for every ingestion run (owner, 2026-10-29)
 
