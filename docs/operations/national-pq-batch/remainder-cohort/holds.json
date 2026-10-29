@@ -1,0 +1,824 @@
+{
+ "held": {
+  "pq:ls:182:AU1204_DMD5nm": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:182:AU1253_TgYpeO": [
+   "near-duplicate text of 0bb4126ca931c8f8 (containment 0.906)"
+  ],
+  "pq:ls:182:AU125_bTN19O": [
+   "question number not found in the text"
+  ],
+  "pq:ls:182:AU1266_Ern2gS": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:182:AU1397_6Q9MZs": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:182:AU1402_aHgXTC": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:182:AU1422_nQUjhs": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:182:AU1497_JqV64M": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:182:AU1571_hnchbj": [
+   "question number not found in the text",
+   "answer date not found in the text"
+  ],
+  "pq:ls:182:AU1593_Tc8OzC": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:182:AU1874_byygKc": [
+   "no answer section"
+  ],
+  "pq:ls:182:AU195_ijBVWL": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:182:AU2011_Pbiup6": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:182:AU2041_kjNqY9": [
+   "no answer section"
+  ],
+  "pq:ls:182:AU2538_kTxWVy": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:182:AU2605_HxUpOn": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:182:AU2674_QAZxsJ": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:182:AU2726_CUP7bt": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:182:AU272_E85OJH": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:182:AU2740_t3IAJV": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:182:AU3029_4sjyTR": [
+   "no answer section"
+  ],
+  "pq:ls:182:AU3041_DrKhNk": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:182:AU3171_IJOXxa": [
+   "question number not found in the text"
+  ],
+  "pq:ls:182:AU652_7mY1oG": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:182:AU697_57VlL6": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:182:AU730_xbmuhO": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:182:AU768_pCX3sl": [
+   "no answer section"
+  ],
+  "pq:ls:182:AU7_wF98S8": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:182:AU874_yqwiAp": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:182:AU894_5WicMD": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:182:AU918_ibhc4V": [
+   "no answer section"
+  ],
+  "pq:ls:182:AU937_QyweDx": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU108_002bSP": [
+   "question number not found in the text"
+  ],
+  "pq:ls:183:AU1172_kP4vG5": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU1179_NfKss6": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU1181_QphQnd": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU1344_zi50W3": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU1451_h0ykhY": [
+   "question number not found in the text"
+  ],
+  "pq:ls:183:AU1507_hn6mZ3": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU1536_K1IUkQ": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU155_OwtVCD": [
+   "question number not found in the text"
+  ],
+  "pq:ls:183:AU1589_ok33Tc": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU1903_BzO8Ye": [
+   "no answer section"
+  ],
+  "pq:ls:183:AU2002_y3k2pG": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU2074_jWv5o2": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:183:AU2262_kXSib2": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:183:AU2404_MfyE0f": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU2536_CX2tmy": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:183:AU258_L7f7pn": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU2624_h8valE": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU2658_rvuPSE": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:183:AU2739_sxQSpg": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU303_P6J4Mc": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:183:AU308_hx36p2": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU314_5hhDzZ": [
+   "question number not found in the text"
+  ],
+  "pq:ls:183:AU3310_NYO067": [
+   "question number not found in the text"
+  ],
+  "pq:ls:183:AU3388_R5rzyn": [
+   "question number not found in the text"
+  ],
+  "pq:ls:183:AU3415_7YoPQ4": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:183:AU3456_6y3l6A": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:183:AU3711_PsVVhx": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU3750_Jyv8EC": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:183:AU3776_egqcCK": [
+   "question number not found in the text"
+  ],
+  "pq:ls:183:AU3860_P2CrfL": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU3_NnZsgO": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU4236_m5Xm9n": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU4265_Q4gK1f": [
+   "no answer section"
+  ],
+  "pq:ls:183:AU4327_ycIKN1": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU60_zfNX2w": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU758_8f5fEP": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU75_TQ0lOt": [
+   "page split approximate"
+  ],
+  "pq:ls:183:AU770_5QKEUh": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU823_yMOxIz": [
+   "no answer section"
+  ],
+  "pq:ls:183:AU855_UVRFQY": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:183:AU871_rfIOdg": [
+   "question number not found in the text"
+  ],
+  "pq:ls:183:AU878_wqm4nA": [
+   "no answer section"
+  ],
+  "pq:ls:184:AS229_0zTPXb": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AS235_xpEoj4": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:184:AS279_IvVr0r": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU1350_hVpwRk": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU1448_p1hXTk": [
+   "page split approximate"
+  ],
+  "pq:ls:184:AU1689_FYTwWt": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU1877_vgA8qJ": [
+   "question number not found in the text"
+  ],
+  "pq:ls:184:AU203_T57yvD": [
+   "no answer section"
+  ],
+  "pq:ls:184:AU2084_k8K63G": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU213_ojVuw5": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU2160_f2NkMF": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:184:AU2310_PIF9Hd": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU2532_FJQUJ1": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU2592_dveMW7": [
+   "question number not found in the text"
+  ],
+  "pq:ls:184:AU2658_LaLSiI": [
+   "question number not found in the text"
+  ],
+  "pq:ls:184:AU2808_xYaS3e": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:184:AU2818_6h8bBQ": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:184:AU2856_I27ivN": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:184:AU2993_3Z6Sm3": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU3048_H8vXlT": [
+   "question number not found in the text"
+  ],
+  "pq:ls:184:AU3075_iEpke4": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU3106_BtMuLK": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU3218_PYWWtD": [
+   "question number not found in the text"
+  ],
+  "pq:ls:184:AU373_dvSyMn": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU3961_32AWzm": [
+   "question number not found in the text"
+  ],
+  "pq:ls:184:AU4026_DqvaXl": [
+   "page split approximate"
+  ],
+  "pq:ls:184:AU4075_FMda1a": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:184:AU4193_ozmnle": [
+   "question number not found in the text"
+  ],
+  "pq:ls:184:AU4213_uglNWZ": [
+   "question number not found in the text"
+  ],
+  "pq:ls:184:AU4291_IMqxzO": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU4328_OhDfvD": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU4389_JWASE8": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU4415_Q2Gliz": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU4509_3Fllgt": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU471_uTfww2": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU4857_fEcI2E": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU4979_K3hXoa": [
+   "question number not found in the text"
+  ],
+  "pq:ls:184:AU5093_bPbc0N": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU5096_X48rtX": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:184:AU5121_RrF4az": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU5126_IsgDh3": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU5132_oO3tyE": [
+   "question number not found in the text"
+  ],
+  "pq:ls:184:AU5166_IapTgK": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:184:AU5279_7P4Ygh": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU5288_EUBjuP": [
+   "no answer section",
+   "question number not found in the text"
+  ],
+  "pq:ls:184:AU5724_QYx0O9": [
+   "no answer section"
+  ],
+  "pq:ls:184:AU632_LoZRSx": [
+   "question number not found in the text"
+  ],
+  "pq:ls:184:AU67_h6s0DR": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU927_7nyAie": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:184:AU937_WrSdHv": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AS256_m5ddWY": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AS315_9lzeuG": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AS316_wuJNAh": [
+   "no answer section"
+  ],
+  "pq:ls:185:AS364_V5q5jG": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU10_BOZ8Hf": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU1108_2kmlEW": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:185:AU126_vPU3Zf": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU1386_jufGB7": [
+   "question number not found in the text"
+  ],
+  "pq:ls:185:AU1420_kqEVxB": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:185:AU1472_BuTnvo": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU1477_WyDIdB": [
+   "question number not found in the text"
+  ],
+  "pq:ls:185:AU1490_flJStR": [
+   "question number not found in the text"
+  ],
+  "pq:ls:185:AU150_PQJLK9": [
+   "question number not found in the text"
+  ],
+  "pq:ls:185:AU1655_9emkWb": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU1689_0pKUOL": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU1696_weBOfY": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:185:AU1697_scVB9Q": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU1751_6aOFaG": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU1886_ZiwaqD": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU1888_89N88l": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU1908_NMhLkK": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU2345_qLs5DG": [
+   "question number not found in the text"
+  ],
+  "pq:ls:185:AU2484_4vBaQJ": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU2486_Py3fqD": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU2704_qgdWKM": [
+   "no answer section"
+  ],
+  "pq:ls:185:AU2740_vFJNea": [
+   "question number not found in the text"
+  ],
+  "pq:ls:185:AU2807_XjjAp4": [
+   "page split approximate"
+  ],
+  "pq:ls:185:AU2853_U0ym7G": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU3222_tVjEmL": [
+   "no answer section"
+  ],
+  "pq:ls:185:AU3269_9SKqi3": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU3285_8PPDKt": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU3353_B2HSv6": [
+   "no answer section"
+  ],
+  "pq:ls:185:AU3389_GFz9C0": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU3407_963umA": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU3490_duFLg0": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU3552_vjBwIi": [
+   "question number not found in the text"
+  ],
+  "pq:ls:185:AU3563_icpZ61": [
+   "question number not found in the text"
+  ],
+  "pq:ls:185:AU3654_7pzLY1": [
+   "question number not found in the text"
+  ],
+  "pq:ls:185:AU3677_aOPLY5": [
+   "no answer section"
+  ],
+  "pq:ls:185:AU3719_qBv49n": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU3864_5inQiz": [
+   "near-duplicate text of d84804d8452f930c (containment 0.981)"
+  ],
+  "pq:ls:185:AU4013_DoB2KR": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:185:AU4096_tfPiq8": [
+   "over answer-read limits"
+  ],
+  "pq:ls:185:AU4102_x8Kzt6": [
+   "question number not found in the text"
+  ],
+  "pq:ls:185:AU4372_8S7gYD": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:185:AU4475_ttY1uw": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU4485_3pIB32": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU4510_JTkz5Q": [
+   "page split approximate"
+  ],
+  "pq:ls:185:AU4515_fbjuQZ": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU4585_4h999B": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU4703_GMpOcI": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:185:AU535_PAVvpY": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU539_kYE7tq": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:185:AU587_MbLRTY": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:185:AU603_bSi6eD": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:185:AU70_Oj9T1o": [
+   "question number not found in the text"
+  ],
+  "pq:ls:185:AU715_pouPZX": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:185:AU944_Dsw0Rt": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:186:AS19_nBMGVj": [
+   "no answer section"
+  ],
+  "pq:ls:186:AS7_XJdYDT": [
+   "no answer section"
+  ],
+  "pq:ls:186:AU1362_5ISCXh": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:186:AU1472_fhYeMg": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:186:AU1478_Vi54ty": [
+   "no answer section",
+   "question number not found in the text"
+  ],
+  "pq:ls:186:AU1505_WsIbKb": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:186:AU1615_QUjB6t": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:186:AU1623_5iaHA7": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:186:AU1663_r1mOQB": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:186:AU1688_NNoAhP": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:186:AU1698_57OeLW": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:186:AU1699_2xhJTV": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:186:AU1727_AqiWDr": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:186:AU1805_WXRrbO": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:186:AU1976_37fxUw": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:186:AU200_i7JDkY": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:186:AU2019_wqs6pa": [
+   "page split approximate"
+  ],
+  "pq:ls:186:AU2087_FKxjE8": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:186:AU2728_mRvO5I": [
+   "no answer section",
+   "question number not found in the text",
+   "answer date not found in the text"
+  ],
+  "pq:ls:186:AU2776_3nlniT": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:186:AU2780_sPIaFf": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:186:AU2786_cBK3Ye": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:186:AU2820_qP0rqs": [
+   "page split approximate"
+  ],
+  "pq:ls:186:AU2947_XaP4CC": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:186:AU3021_P2byS0": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:186:AU3031_pw7K1w": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:186:AU317_avCLLI": [
+   "no answer section",
+   "question number not found in the text"
+  ],
+  "pq:ls:186:AU342_JoVvlM": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:186:AU413_o9knQC": [
+   "question number not found in the text"
+  ],
+  "pq:ls:186:AU471_gbMu6G": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:186:AU979_JLk9mJ": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AS235_O5kHnf": [
+   "no answer section"
+  ],
+  "pq:ls:187:AS328_WAhUzw": [
+   "no answer section"
+  ],
+  "pq:ls:187:AU1284_LwbIy7": [
+   "no answer section"
+  ],
+  "pq:ls:187:AU1382_IclnE8": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:187:AU1462_yTNb6X": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU1575_v63Mta": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU1776_VLzC9Y": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU1847_yIHGin": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU1893_Z4Vvqc": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU1903_bBU0gJ": [
+   "page split approximate"
+  ],
+  "pq:ls:187:AU1980_HxLWUb": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU2044_x5zwW5": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU2083_W7Smch": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU2114_howzWc": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU2407_Yb9IXu": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU3008_QVLyP5": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU3017_G8k9QA": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU3026_qr2eq9": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU3058_0fA2pD": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU3060_xS9HHJ": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU3130_bcyIS4": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU3172_T8I9PN": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU3554_Yer5t1": [
+   "question number not found in the text"
+  ],
+  "pq:ls:187:AU3580_IJoM9l": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU3854_wqngLA": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU4203_68TLvA": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU4218_efAUOO": [
+   "question number not found in the text"
+  ],
+  "pq:ls:187:AU4241_2OJu61": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU4328_DOulP7": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU4338_r1UOiW": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU4367_1mIleb": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU4664_CVBPJo": [
+   "question number not found in the text"
+  ],
+  "pq:ls:187:AU4668_Nq9qqA": [
+   "question number not found in the text"
+  ],
+  "pq:ls:187:AU4711_w4cV2d": [
+   "no answer section"
+  ],
+  "pq:ls:187:AU4725_LCag9a": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU4977_1XOHFE": [
+   "over answer-read limits"
+  ],
+  "pq:ls:187:AU4983_2rRrKa": [
+   "question number not found in the text",
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU5236_KeG0tt": [
+   "no answer section"
+  ],
+  "pq:ls:187:AU5293_oMdyg9": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU5331_Ptyo2D": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU5518_WSinlq": [
+   "page split unsplit_multipage"
+  ],
+  "pq:ls:187:AU5520_LqL7jw": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU5531_JhVpR5": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU5762_274r35": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU5999_M1ljuZ": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU6086_Z92Hjm": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU6141_P5nicL": [
+   "no answer section",
+   "question number not found in the text",
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU6146_sum6U0": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU6175_USX1ip": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU6176_esHjf1": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU6184_RISeLA": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU6195_nWiVcx": [
+   "answer date not found in the text"
+  ],
+  "pq:ls:187:AU6300_JCVdzZ": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU676_TIfb4s": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU747_X0byrZ": [
+   "page split last_page_empty"
+  ],
+  "pq:ls:187:AU821_qpTR8u": [
+   "question number not found in the text"
+  ]
+ },
+ "open_keys_without_pack_record": []
+}
