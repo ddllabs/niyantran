@@ -48,6 +48,11 @@ Done when:
 
 Then stop. The developer reviews the receipt and acceptance; any failure is traced first, with platform defects going to the developer and nothing re-ingested.
 
+> **Update 2026-10-30.**
+> - **Step 1 ran:** 100 indexed and linked, US$0.003604. Website acceptance is incomplete: the chat provider failed. See `validation-cohort-1/receipt.md`.
+> - **Step 2 is prepared** in `remainder-cohort/` at the owner's request, before the developers have accepted step 1. It has 523 answers, manifest `8b1ac8f3…0b27`, 5,234 chunks and a US$0.305 ceiling. Nothing has been submitted.
+> - **The rest of National v1.1, and v1.2,** are planned in `../national-plan-v1.1-to-v1.2-2026-10-30.md`.
+
 ### Step 2: Lok Sabha remainder cohort (expected about 520)
 
 Only after cohort 1 is accepted, and in the same order: review → pull request → owner approval → one run.

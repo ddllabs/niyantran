@@ -1,0 +1,21 @@
+{
+ "exit": 0,
+ "report_sha256": "5bb8426f56035219fb5ef61ca5fdd52de3aca7be183319870a471831bad27c91",
+ "summary": {
+  "type": "summary",
+  "manifest_sha256": "a3525a9d7a6e53a559b9e3c737a19fd0cffdb4a5db5d4e21a65c436ae792f29c",
+  "selected": 100,
+  "ready": 100,
+  "held": 0,
+  "submitted": 100,
+  "uncertain": 0,
+  "registration_held": 0,
+  "already_registered": 0,
+  "published": 0,
+  "publication_pending": 0,
+  "publication_held": 0,
+  "chunks": 829,
+  "estimated_cost_ceiling_usd": 0.046490219999999985
+ },
+ "stderr_tail": ""
+}
