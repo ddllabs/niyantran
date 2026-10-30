@@ -17,7 +17,7 @@ import hashlib, json, os, pathlib, subprocess, tarfile, urllib.request
 DECISION_ID = 'national-pq-lastpage-20261031-v1'
 NATIONAL = '/content/drive/MyDrive/Data Handover/National/v1.1'
 PACK = pathlib.Path(NATIONAL + '/file to ingest/NTER_citation_pack_v1.1_2026-10-05.zip')
-OUT = pathlib.Path(NATIONAL + '/staging/pq-lastpage-01/prepare')
+OUT = pathlib.Path(NATIONAL + '/staging/pq-lastpage-01/prepare-2')   # prepare/ is pass 1 of 2026-10-31 (superseded: no 256-chunk hold)
 W = pathlib.Path('/content/nter-pq-lastpage')
 REPO = W / 'niyantran'
 NODE_TGZ = 'https://registry.npmjs.org/node-linux-x64/-/node-linux-x64-24.22.1.tgz'
@@ -71,21 +71,35 @@ def prepare(repo_sha):
         raise Stop('open-answer-keys.txt is not the reviewed list')
     if OUT.exists() and any(OUT.iterdir()):
         raise Stop(f'{OUT} already holds a preparation; it is never overwritten')
+    def build_once(build, over_file=None):
+        subprocess.run(['rm', '-rf', str(build)], check=True)
+        r = subprocess.run(['python3', '-I', '-B', str(REPO / HERE / 'pq-last-page-cohort.py'), 'prepare', '--pack', str(PACK),
+                            '--open-keys', str(REPO / HERE / 'remainder-cohort' / 'open-answer-keys.txt'),
+                            '--exclude-cohort', str(REPO / HERE / 'remainder-cohort' / 'cohort.json'),
+                            *(['--over-limit', str(over_file)] if over_file else []),
+                            '--decision-id', DECISION_ID, '--out', str(build)], capture_output=True, text=True)
+        print(r.stdout[-2000:], r.stderr[-2000:])
+        if r.returncode != 0:
+            raise Stop('preparation refused; nothing staged')
+        dry = build / 'dry-run.jsonl'
+        r = subprocess.run([str(NODE), '--experimental-strip-types', 'scripts/corpus-text-import.mjs', '--corpus', str(build / 'corpus.jsonl'),
+                            '--decisions', str(build / 'decisions.jsonl'), '--report', str(dry)], cwd=REPO, capture_output=True, text=True)
+        if r.returncode != 0:
+            raise Stop('dry run failed: ' + r.stderr[-600:])
+        return [json.loads(l) for l in dry.read_text().splitlines() if l.strip()]
+
+    # Pass 1 measures exact chunks; answers over the screen's 256-chunk limit are held in pass 2 (the section driver's order).
+    rows = build_once(W / 'build-1')
+    over = sorted(f"pq:ls:{l.split(chr(9))[2].replace('/', ':')}" for l in (W / 'build-1' / 'plan.tsv').read_text().splitlines()
+                  if next((x.get('chunks') or 0) for x in rows if x.get('source_key') == l.split(chr(9))[0]) > 256)
+    over_file = W / 'over-limit-keys.txt'
+    over_file.write_text(''.join(k + '\n' for k in over))
+    print('over the 256-chunk limit:', over)
     build = W / 'build'
-    subprocess.run(['rm', '-rf', str(build)], check=True)
-    r = subprocess.run(['python3', '-I', '-B', str(REPO / HERE / 'pq-last-page-cohort.py'), 'prepare', '--pack', str(PACK),
-                        '--open-keys', str(REPO / HERE / 'remainder-cohort' / 'open-answer-keys.txt'),
-                        '--exclude-cohort', str(REPO / HERE / 'remainder-cohort' / 'cohort.json'),
-                        '--decision-id', DECISION_ID, '--out', str(build)], capture_output=True, text=True)
-    print(r.stdout[-2000:], r.stderr[-2000:])
-    if r.returncode != 0:
-        raise Stop('preparation refused; nothing staged')
-    dry = build / 'dry-run.jsonl'
-    r = subprocess.run([str(NODE), '--experimental-strip-types', 'scripts/corpus-text-import.mjs', '--corpus', str(build / 'corpus.jsonl'),
-                        '--decisions', str(build / 'decisions.jsonl'), '--report', str(dry)], cwd=REPO, capture_output=True, text=True)
-    if r.returncode != 0:
-        raise Stop('dry run failed: ' + r.stderr[-600:])
-    rows = [json.loads(l) for l in dry.read_text().splitlines() if l.strip()]
+    rows = build_once(build, over_file)
+    if any((x.get('chunks') or 0) > 256 for x in rows if x.get('source_key')):
+        raise Stop('an answer over 256 chunks remains after pass 2')
+    (build / 'over-limit-keys.txt').write_bytes(over_file.read_bytes())
     chunks = {x['source_key']: x.get('chunks') for x in rows if x.get('source_key')}
     status = {x['source_key']: x.get('status') for x in rows if x.get('source_key')}
     with open(build / 'review.tsv', 'w') as f:   # compact, no text: key, text hash, stem, chunks, dry-run status
@@ -98,12 +112,12 @@ def prepare(repo_sha):
                'exclude_cohort_sha256': sha(REPO / HERE / 'remainder-cohort' / 'cohort.json'),
                'open_keys_sha256': sha(REPO / HERE / 'remainder-cohort' / 'open-answer-keys.txt'),
                **{k: meta[k] for k in ('count', 'candidates', 'held', 'hold_reasons', 'excluded_answers', 'member_sha256',
-                                       'pack_records', 'near_duplicate_registry', 'cohort_corpus_sha256', 'decisions_sha256')},
+                                       'pack_records', 'near_duplicate_registry', 'cohort_corpus_sha256', 'decisions_sha256', 'over_limit_keys')},
                'dry_run': rows[-1], 'files_sha256': {n: sha(build / n) for n in ('corpus.jsonl', 'decisions.jsonl', 'cohort.json',
-                                                                                  'holds.json', 'checks.txt', 'review.tsv', 'dry-run.jsonl')}}
+                                                                                  'holds.json', 'checks.txt', 'review.tsv', 'dry-run.jsonl', 'over-limit-keys.txt')}}
     (build / 'summary.json').write_text(json.dumps(summary, indent=1))
     OUT.mkdir(parents=True, exist_ok=True)
-    for n in ('corpus.jsonl', 'decisions.jsonl', 'cohort.json', 'holds.json', 'checks.txt', 'review.tsv', 'dry-run.jsonl', 'summary.json'):
+    for n in ('corpus.jsonl', 'decisions.jsonl', 'cohort.json', 'holds.json', 'checks.txt', 'review.tsv', 'dry-run.jsonl', 'over-limit-keys.txt', 'summary.json'):
         (OUT / n).write_bytes((build / n).read_bytes())
     print(json.dumps({k: summary[k] for k in ('count', 'candidates', 'held', 'hold_reasons', 'decisions_sha256')}, indent=1))
     print('dry run:', json.dumps(rows[-1]))

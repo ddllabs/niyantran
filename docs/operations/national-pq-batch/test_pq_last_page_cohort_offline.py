@@ -36,9 +36,9 @@ def make_pack(d, records):
     return p
 
 
-def prepare(d, pack, keys, out='out', exclude=None):
+def prepare(d, pack, keys, out='out', exclude=None, over=None):
     kp = pathlib.Path(d) / 'open.txt'; kp.write_text('\n'.join(keys) + '\n')
-    L.prepare(type('A', (), dict(pack=str(pack), open_keys=str(kp), exclude_cohort=exclude, decision_id='national-pq-lastpage-test-v1',
+    L.prepare(type('A', (), dict(pack=str(pack), open_keys=str(kp), exclude_cohort=exclude, over_limit=over, decision_id='national-pq-lastpage-test-v1',
                                  out=str(pathlib.Path(d) / out))))
     return pathlib.Path(d) / out
 
@@ -116,6 +116,16 @@ class StillHeld(unittest.TestCase):
             ex = pathlib.Path(d) / 'ex.json'; ex.write_text(json.dumps({'documents': [{'answer_key': KEY}]}))
             with self.assertRaises(SystemExit):
                 prepare(d, make_pack(d, [candidate()]), [KEY], exclude=[str(ex)])
+
+
+class OverLimit(unittest.TestCase):
+    def test_an_answer_measured_over_256_chunks_is_held(self):
+        with tempfile.TemporaryDirectory() as d:
+            ol = pathlib.Path(d) / 'over.txt'; ol.write_text(KEY + '\n')
+            other = last_page_empty(TR.rec('cc' * 20, 'AU867_yyyyy2', TR.DIFFERENT[2], row='7832'))
+            out = prepare(d, make_pack(d, [candidate(), other]), [KEY, 'pq:ls:184:AU867_yyyyy2'], over=str(ol))
+            self.assertEqual(json.loads((out / 'holds.json').read_text())['held'], {KEY: ['over answer-read limits (more than 256 chunks)']})
+            self.assertEqual(json.loads((out / 'cohort.json').read_text())['count'], 1)
 
 
 class Importer(unittest.TestCase):

@@ -4,7 +4,7 @@ no credentials, never submits.
 
     python3 -I pq-last-page-cohort.py prepare --pack <NTER_citation_pack_v1.1_2026-10-05.zip> \
         --open-keys remainder-cohort/open-answer-keys.txt --exclude-cohort remainder-cohort/cohort.json \
-        --decision-id <id> --out <new empty dir>
+        [--over-limit last-page-cohort/over-limit-keys.txt] --decision-id <id> --out <new empty dir>
 
 Status: Living (2026-10-31). The one screen change (developers, 2026-10-31): accept a trailing last page only if it is
 empty after whitespace normalisation. Every other rule is the remainder cohort's, unchanged (pq-remainder-cohort.py).
@@ -19,7 +19,9 @@ A `last_page_empty` record is held, with a named reason, when:
   - page_count is not len(pages) + 1 ('last_page_empty: page count is not listed pages + 1');
   - any listed page is empty after whitespace normalisation ('last_page_empty: an empty page before the last');
   - the text after the last listed page has any non-whitespace character ('last_page_empty: the last page has text');
-  - or any rule of the remainder screen fails (spans, hash, identity, links, near-duplicates, ...).
+  - or any rule of the remainder screen fails (spans, hash, identity, links, near-duplicates, ...);
+  - or its answer key is in --over-limit: answers the importer's exact offline dry run measured at more than 256 chunks
+    (C.MAX_CHUNKS, the section screen's 'at most 256 chunks' rule, which the section driver applied after its dry run).
 Records with any other page split are screened exactly as before; only last_page_empty records are candidates here.
 """
 import argparse, copy, hashlib, importlib.util, json, pathlib, re, sys
@@ -76,6 +78,10 @@ def prepare(a):
         with open(p) as f:
             excluded |= {d['answer_key'] for d in json.load(f)['documents']}
     open_set = set(open_keys) - excluded
+    over = set()
+    if a.over_limit:
+        with open(a.over_limit) as f:
+            over = {k.strip() for k in f if k.strip()}
     recs, member_sha = R.pack_records(a.pack)
     cands = [r for r in recs if R.answer_key(r) in open_set and r.get('page_split') == SPLIT]
     cand_keys = {R.answer_key(r) for r in cands}
@@ -108,6 +114,8 @@ def prepare(a):
                 if hit:
                     h.append(f"contained in a same-date answer {hit['key'][-16:]} (containment {hit['containment']})")
             N.reg_add(reg, fixed['source_key'], c['case_number'], c['order_date'], '', sig, len(sh), sh)
+            if not h and R.answer_key(r) in over:
+                h.append(f'over answer-read limits (more than {C.MAX_CHUNKS} chunks)')
         if h:
             holds[R.answer_key(r)] = h
             for x in h:
@@ -139,7 +147,7 @@ def prepare(a):
             'package_id': C.PACKAGE, 'mapping_version': C.MAPPING_VERSION, 'pack_sha256': R.PACK_SHA256, 'member_sha256': member_sha,
             'pack_records': len(recs), 'near_duplicate_registry': texts, 'open_keys': len(open_keys),
             'open_keys_sha256': R.sha256_file(a.open_keys), 'excluded_cohorts': [str(p) for p in a.exclude_cohort or []],
-            'excluded_answers': len(excluded), 'candidates': len(cands), 'held': len(holds),
+            'excluded_answers': len(excluded), 'over_limit_keys': sorted(over), 'candidates': len(cands), 'held': len(holds),
             'hold_reasons': dict(sorted(reasons.items())), 'cohort_corpus_sha256': corpus_sha, 'decisions_sha256': R.sha256_file(dp),
             'documents': [{'source_key': r['source_key'], 'answer_key': R.answer_key(r), 'file_url': r['file_url'],
                            'text_sha256': r['content_sha256'], 'n_chars': r['n_chars'], 'pages': r['page_count'],
@@ -155,7 +163,8 @@ def main(argv=None):
     sub = p.add_subparsers(dest='cmd', required=True)
     q = sub.add_parser('prepare')
     q.add_argument('--pack', required=True); q.add_argument('--open-keys', required=True)
-    q.add_argument('--exclude-cohort', action='append'); q.add_argument('--decision-id', required=True)
+    q.add_argument('--exclude-cohort', action='append'); q.add_argument('--over-limit')
+    q.add_argument('--decision-id', required=True)
     q.add_argument('--out', required=True)
     a = p.parse_args(argv)
     if a.cmd == 'prepare':

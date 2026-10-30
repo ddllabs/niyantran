@@ -1,0 +1,1170 @@
+{
+ "decision_id": "national-pq-lastpage-20261031-v1",
+ "count": 114,
+ "rules_sha256": "5cb2d67cbf10a7a4f1c478566da63be0b0fae68b473978b6b3dceda02f91730c",
+ "screen_change": "accept a trailing last page only if empty after whitespace normalisation (made explicit as one empty page)",
+ "package_id": "NTER_citation_pack_v1.1_2026-10-05.zip:citation_pack_v1/documents/parliamentary_questions.jsonl.gz",
+ "mapping_version": "national-pq-v1",
+ "pack_sha256": "459b354cb64360655877187c42566b07a21de579e8b97beb49df9117b16dc9b8",
+ "member_sha256": "474bb46e43277054cb8e2f521e46ef289fb850cb2374cf499f20e2e308b28441",
+ "pack_records": 6840,
+ "near_duplicate_registry": 6719,
+ "open_keys": 793,
+ "open_keys_sha256": "6655391450c0eecbfcb693781f436912d6196f90f20b89a54db5c9b6d5e16092",
+ "excluded_cohorts": [
+  "/content/nter-pq-lastpage/niyantran/docs/operations/national-pq-batch/remainder-cohort/cohort.json"
+ ],
+ "excluded_answers": 523,
+ "candidates": 121,
+ "held": 7,
+ "hold_reasons": {
+  "answer date not found in the text": 1,
+  "contained in a same-date answer 6afe5a289c835619": 1,
+  "last_page_empty: an empty page before the last": 2,
+  "question number not found in the text": 3
+ },
+ "cohort_corpus_sha256": "f9a6ed0b9784607aa65ef57165adec23086d1c5bf6ea8d09b6eb9990d875ed7d",
+ "decisions_sha256": "669885172a5fe92c6fd54d3bad12a871ca64bfd7f963838bf98509e7aad141e2",
+ "documents": [
+  {
+   "source_key": "e6c3c2efbae8e885576c88b86732621b816764d1",
+   "answer_key": "pq:ls:187:AU6300_JCVdzZ",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU6300_JCVdzZ.pdf?source=pqals",
+   "text_sha256": "7317b7c9dc34ddfa9179fa22b394f598f2d504fa18a982ea86e2915063f96485",
+   "n_chars": 15549,
+   "pages": 7,
+   "answered_on": "02.04.2026",
+   "title": "Lok Sabha Unstarred Question No. 6300: Offshore Oil and Gas Projects in Andhra Pradesh"
+  },
+  {
+   "source_key": "f2a8524803a2573a5513f1512bf7b386ce0c20e9",
+   "answer_key": "pq:ls:187:AU6086_Z92Hjm",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU6086_Z92Hjm.pdf?source=pqals",
+   "text_sha256": "2b5c5fa5c962cb89cc2c776665eeec2ffe55471173a2f12ff3f2970216839a54",
+   "n_chars": 19357,
+   "pages": 9,
+   "answered_on": "01.04.2026",
+   "title": "Lok Sabha Unstarred Question No. 6086: Development of AI Eco System"
+  },
+  {
+   "source_key": "12e7cea186e88a1e21f4b6c2876673f24a25d90b",
+   "answer_key": "pq:ls:187:AU5762_274r35",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU5762_274r35.pdf?source=pqals",
+   "text_sha256": "4a0c3f0e5502d977fa80a80c6890da0275cad48b0eafb66ae184f7820f9def8c",
+   "n_chars": 4941,
+   "pages": 3,
+   "answered_on": "30.03.2026",
+   "title": "Lok Sabha Unstarred Question No. 5762: Teacher Vacancies and Training in West Bengal"
+  },
+  {
+   "source_key": "0aec3b7ffa64a945b041cb1ec0b14ab15a0cf70c",
+   "answer_key": "pq:ls:187:AU5531_JhVpR5",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU5531_JhVpR5.pdf?source=pqals",
+   "text_sha256": "e4cb559b84b3df947ef3044a0b72894762d16804d618b2fa4752f9b2b57d308a",
+   "n_chars": 13263,
+   "pages": 5,
+   "answered_on": "27.03.2026",
+   "title": "Lok Sabha Unstarred Question No. 5531: Fertilizer Usage and Subsidy Rationalisation"
+  },
+  {
+   "source_key": "d4cbf043d57d876bbe61fdeed25d4c1d787504cb",
+   "answer_key": "pq:ls:187:AU5520_LqL7jw",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU5520_LqL7jw.pdf?source=pqals",
+   "text_sha256": "5a9fa6f09d30f18dc4f6dc6f2d891d952d4bb186c9bcea0325c13b79d64f4c25",
+   "n_chars": 5794,
+   "pages": 3,
+   "answered_on": "25.03.2026",
+   "title": "Lok Sabha Unstarred Question No. 5520: Impact of Renewable Energy Penetration on Grid Stability"
+  },
+  {
+   "source_key": "93142a811ef1945b7b9a88e6ebc409270bfbef51",
+   "answer_key": "pq:ls:187:AU4725_LCag9a",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU4725_LCag9a.pdf?source=pqals",
+   "text_sha256": "59717c2ba6b57cc69b57548b0103d45bca2270e95fe0496bf86cb649f6eef13d",
+   "n_chars": 28489,
+   "pages": 7,
+   "answered_on": "20.03.2026",
+   "title": "Lok Sabha Unstarred Question No. 4725: Rising Fertilizer Prices"
+  },
+  {
+   "source_key": "64872b28c1d173e86392d742359fe288fcfea537",
+   "answer_key": "pq:ls:187:AU4203_68TLvA",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU4203_68TLvA.pdf?source=pqals",
+   "text_sha256": "bd7594c8c5c2578ccc022b0e851aa30a1e3bfa9ab5dee93d3516ed6274b63253",
+   "n_chars": 7559,
+   "pages": 4,
+   "answered_on": "18.03.2026",
+   "title": "Lok Sabha Unstarred Question No. 4203: National Database to Improve AI Safety"
+  },
+  {
+   "source_key": "cd572d2c6cdbbaa7517fa0012f64ace8f1f4e4b7",
+   "answer_key": "pq:ls:187:AU3854_wqngLA",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU3854_wqngLA.pdf?source=pqals",
+   "text_sha256": "f97b763c977631ad5e398a8e07e9cb1332376a16e67fb0e92d47afb672feda63",
+   "n_chars": 6586,
+   "pages": 3,
+   "answered_on": "16.03.2026",
+   "title": "Lok Sabha Unstarred Question No. 3854: Diversion of Forest and Agriculture Land"
+  },
+  {
+   "source_key": "970f8a0a8717503c23b073c3d610523ba85b2e80",
+   "answer_key": "pq:ls:187:AU3580_IJoM9l",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU3580_IJoM9l.pdf?source=pqals",
+   "text_sha256": "98806967a2878bcb8873fcf583bcd5be9c2ae45fa56c86134a5fb6624016d0fa",
+   "n_chars": 5852,
+   "pages": 3,
+   "answered_on": "13.03.2026",
+   "title": "Lok Sabha Unstarred Question No. 3580: Vacant Posts in Government Hospitals"
+  },
+  {
+   "source_key": "e346bbc4fd5eea80cdb3b977e108772679fda2f6",
+   "answer_key": "pq:ls:187:AU3008_QVLyP5",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU3008_QVLyP5.pdf?source=pqals",
+   "text_sha256": "fac2d1f6033932e2c8e9b98076868f0a2e7b1c600fb79cf8441dc7688c76dc62",
+   "n_chars": 11478,
+   "pages": 6,
+   "answered_on": "11.03.2026",
+   "title": "Lok Sabha Unstarred Question No. 3008: Digital India Programme in Tirunelveli"
+  },
+  {
+   "source_key": "fd1f7de80f2751fedd3e72eee28d7545ec83d838",
+   "answer_key": "pq:ls:187:AU3060_xS9HHJ",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU3060_xS9HHJ.pdf?source=pqals",
+   "text_sha256": "b8c678c5cd44d9a6abe634238f1478362bf16a546b0831bae9c3d090991be8d4",
+   "n_chars": 7917,
+   "pages": 4,
+   "answered_on": "11.03.2026",
+   "title": "Lok Sabha Unstarred Question No. 3060: Expenditure incurred on India AI Impact Summit 2026"
+  },
+  {
+   "source_key": "69d6b500c801ec4edbfc98ff0d738f568a1784b4",
+   "answer_key": "pq:ls:187:AU2407_Yb9IXu",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU2407_Yb9IXu.pdf?source=pqals",
+   "text_sha256": "2678e1cf6f30281bd39f0f2ce0ac50b1eed3d2e95e788d7d872e6b1bfd21cf8d",
+   "n_chars": 6657,
+   "pages": 4,
+   "answered_on": "13.02.2026",
+   "title": "Lok Sabha Unstarred Question No. 2407: Incidence of Cervical Cancer"
+  },
+  {
+   "source_key": "f6ef0e45c7d97f47c66a61fd542328226d6fbf38",
+   "answer_key": "pq:ls:187:AU2083_W7Smch",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU2083_W7Smch.pdf?source=pqals",
+   "text_sha256": "a7efc03d4b3f8681ceed92c4986f370f72d2447d6e3f4d29c40812887b50a7b8",
+   "n_chars": 4651,
+   "pages": 4,
+   "answered_on": "12.02.2026",
+   "title": "Lok Sabha Unstarred Question No. 2083: Roll out of Digi Yatra"
+  },
+  {
+   "source_key": "a2b45dddefa75b6c9fb9a9c42eeeecb75d5bf65c",
+   "answer_key": "pq:ls:187:AU2114_howzWc",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU2114_howzWc.pdf?source=pqals",
+   "text_sha256": "733bd3998eb0f91145c52b126ae6a390c8821dd61de3570b2dc25a19b1735bd5",
+   "n_chars": 55742,
+   "pages": 27,
+   "answered_on": "12.02.2026",
+   "title": "Lok Sabha Unstarred Question No. 2114: Implementation of Welfare Schemes for STs"
+  },
+  {
+   "source_key": "9195790cf10a3de13e029b027b0218f4c919070e",
+   "answer_key": "pq:ls:187:AU1893_Z4Vvqc",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU1893_Z4Vvqc.pdf?source=pqals",
+   "text_sha256": "9dbd78236d8658c3240431a7c29149e4ec5c65a08b74ce13d56c7d7056acfd0e",
+   "n_chars": 6424,
+   "pages": 4,
+   "answered_on": "11.02.2026",
+   "title": "Lok Sabha Unstarred Question No. 1893: Technical Internship Programme"
+  },
+  {
+   "source_key": "4e412db52f5c008e6998e0204ceaae2a6ef1dfea",
+   "answer_key": "pq:ls:187:AU1776_VLzC9Y",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU1776_VLzC9Y.pdf?source=pqals",
+   "text_sha256": "cdf6a48cb12e41e5ec412bc44292a68197dbe4a25e929fed5a10137b6569c025",
+   "n_chars": 13100,
+   "pages": 10,
+   "answered_on": "10.02.2026",
+   "title": "Lok Sabha Unstarred Question No. 1776: Details of Unique Disability ID"
+  },
+  {
+   "source_key": "a66b965ba7c2a2d80b3944ca666f604b9abaebd6",
+   "answer_key": "pq:ls:187:AU1462_yTNb6X",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU1462_yTNb6X.pdf?source=pqals",
+   "text_sha256": "06be579f54e9bdabf9bbe5829f7373795125ca8aeb2ef9b947635f2fc43293e3",
+   "n_chars": 7551,
+   "pages": 4,
+   "answered_on": "09.02.2026",
+   "title": "Lok Sabha Unstarred Question No. 1462: Quality and Accessibility of Government Schools in Karnataka"
+  },
+  {
+   "source_key": "b761a8110ed5879d2c9619a48c4b689e23002c4a",
+   "answer_key": "pq:ls:187:AU747_X0byrZ",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU747_X0byrZ.pdf?source=pqals",
+   "text_sha256": "7246135b66ce0bcf46dc53175bbdb7208b187a5b05ed8982fe16e4a74eb44a81",
+   "n_chars": 4810,
+   "pages": 3,
+   "answered_on": "04.02.2026",
+   "title": "Lok Sabha Unstarred Question No. 747: Digital Village Pilot Project in Tamil Nadu"
+  },
+  {
+   "source_key": "2f9375c9abca0bed5b48bfb3fdcde9c9418e03f4",
+   "answer_key": "pq:ls:186:AU3021_P2byS0",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/186/AU3021_P2byS0.pdf?source=pqals",
+   "text_sha256": "5b8881b78458219eec98a8384a5299838de91cf4961e40bfcfa4d6def98168f6",
+   "n_chars": 21049,
+   "pages": 10,
+   "answered_on": "18.12.2025",
+   "title": "Lok Sabha Unstarred Question No. 3021: Allotment of Fuel Outlets and Expansion of Piped Gas Network"
+  },
+  {
+   "source_key": "c005cb8e3e6a24b909221b426086997137892792",
+   "answer_key": "pq:ls:186:AU2776_3nlniT",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/186/AU2776_3nlniT.pdf?source=pqals",
+   "text_sha256": "85d82c9059beced9e0c92115d250a9c3d05d1249ed2d2aed860d67cdbb490111",
+   "n_chars": 3665,
+   "pages": 3,
+   "answered_on": "17.12.2025",
+   "title": "Lok Sabha Unstarred Question No. 2776: Increase of Data Secrecy Concern"
+  },
+  {
+   "source_key": "da2f7eeceab746850a211d1213efee2056608e08",
+   "answer_key": "pq:ls:186:AU2780_sPIaFf",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/186/AU2780_sPIaFf.pdf?source=pqals",
+   "text_sha256": "e80cedba39c9897b502b81abee14adc8219b77e96193dd671daa7eb9c08dd19c",
+   "n_chars": 7600,
+   "pages": 5,
+   "answered_on": "17.12.2025",
+   "title": "Lok Sabha Unstarred Question No. 2780: Manufacturing of Mobile Handsets"
+  },
+  {
+   "source_key": "2b324e7447bad2cb730243219c923b3ed460bc92",
+   "answer_key": "pq:ls:186:AU2786_cBK3Ye",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/186/AU2786_cBK3Ye.pdf?source=pqals",
+   "text_sha256": "5dcaa11c98aa5bff07fa82d955b160666aeb7e4f77a936a709bf36507f96da92",
+   "n_chars": 11451,
+   "pages": 6,
+   "answered_on": "17.12.2025",
+   "title": "Lok Sabha Unstarred Question No. 2786: Digitization of Records"
+  },
+  {
+   "source_key": "d992736d22353a1460658ce468b4cc140a30bb9f",
+   "answer_key": "pq:ls:186:AU1976_37fxUw",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/186/AU1976_37fxUw.pdf?source=pqals",
+   "text_sha256": "c16c02518c4a32b702e9e966712bf0a7b2f04490a79cc25d2c4ffa0fa8478fa0",
+   "n_chars": 25916,
+   "pages": 8,
+   "answered_on": "11.12.2025",
+   "title": "Lok Sabha Unstarred Question No. 1976: Post-Harvest Losses"
+  },
+  {
+   "source_key": "2b535f2f323766fc52c0fb1b56593a440048b450",
+   "answer_key": "pq:ls:186:AU1623_5iaHA7",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/186/AU1623_5iaHA7.pdf?source=pqals",
+   "text_sha256": "4620cedc9343058dbbbb3a305d69f7d7adea8aa1f4c7989917ab8cdf7c75ebbe",
+   "n_chars": 4775,
+   "pages": 3,
+   "answered_on": "10.12.2025",
+   "title": "Lok Sabha Unstarred Question No. 1623: Cyber Security Audit"
+  },
+  {
+   "source_key": "4c4cfb8d440096fe33c2bdd0a0e8210df1ff836a",
+   "answer_key": "pq:ls:186:AU1727_AqiWDr",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/186/AU1727_AqiWDr.pdf?source=pqals",
+   "text_sha256": "0e46467fcd9799bc95e5108a73e58d453d817712bc70d722684fd733e9200c5c",
+   "n_chars": 4063,
+   "pages": 5,
+   "answered_on": "10.12.2025",
+   "title": "Lok Sabha Unstarred Question No. 1727: AIR Stations in Dakshina Kannada"
+  },
+  {
+   "source_key": "d0acd05126926c90026d5f8589c5a8030f671709",
+   "answer_key": "pq:ls:186:AU1805_WXRrbO",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/186/AU1805_WXRrbO.pdf?source=pqals",
+   "text_sha256": "a48fae988894a867aab87ddc5465d7c019d5b3aeaff41395f6ee83568d9ece04",
+   "n_chars": 3535,
+   "pages": 3,
+   "answered_on": "10.12.2025",
+   "title": "Lok Sabha Unstarred Question No. 1805: Cost and Oversight of Zoho-Based Email Migration"
+  },
+  {
+   "source_key": "d1d4cbcfc0dec5ad7fa05e3a1e0a01267441d820",
+   "answer_key": "pq:ls:186:AU1472_fhYeMg",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/186/AU1472_fhYeMg.pdf?source=pqals",
+   "text_sha256": "447d6b0d45a392af7b5f594fa5021c87f6814d061996822c578967d515b30924",
+   "n_chars": 6921,
+   "pages": 4,
+   "answered_on": "09.12.2025",
+   "title": "Lok Sabha Unstarred Question No. 1472: National Cooperative Database"
+  },
+  {
+   "source_key": "a53cb4be0256fbb502009bd865ef390aacc0cfda",
+   "answer_key": "pq:ls:186:AU1362_5ISCXh",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/186/AU1362_5ISCXh.pdf?source=pqals",
+   "text_sha256": "a2e189aa8acb7a9f9305aafb861ad245f3bee55ad1c42ea1fb36edf577254ffe",
+   "n_chars": 8855,
+   "pages": 4,
+   "answered_on": "08.12.2025",
+   "title": "Lok Sabha Unstarred Question No. 1362: Prevention of Stubble burning"
+  },
+  {
+   "source_key": "28a0516ebeef616473d475a1cb041881a90967ea",
+   "answer_key": "pq:ls:186:AU979_JLk9mJ",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/186/AU979_JLk9mJ.pdf?source=pqals",
+   "text_sha256": "d1659328651683a0cf36a7e19d23a7a2f7a6b7936bf00fd1beb2accb7379e06f",
+   "n_chars": 14210,
+   "pages": 4,
+   "answered_on": "05.12.2025",
+   "title": "Lok Sabha Unstarred Question No. 979: Complaints Against Black Marketing of DAP"
+  },
+  {
+   "source_key": "651b0d5ac0332a18844ed2d0be8fd0bc6f8c8eb9",
+   "answer_key": "pq:ls:186:AU200_i7JDkY",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/186/AU200_i7JDkY.pdf?source=pqals",
+   "text_sha256": "530829d0455c0be2f171a7bd1da21c7f3c056ea38ed572dd01b829660462e1bd",
+   "n_chars": 4287,
+   "pages": 3,
+   "answered_on": "01.12.2025",
+   "title": "Lok Sabha Unstarred Question No. 200: Decline in Forest Area in Hingoli, Maharashtra"
+  },
+  {
+   "source_key": "f9cc291a71bec1293cb15a9ebbd067d7aff954f4",
+   "answer_key": "pq:ls:185:AU4475_ttY1uw",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU4475_ttY1uw.pdf?source=pqals",
+   "text_sha256": "d16838e7a4b0d4dee2c4a0e678a3659bc2d07ef4fe135e8d683ac36a0de2cd24",
+   "n_chars": 5377,
+   "pages": 4,
+   "answered_on": "20.08.2025",
+   "title": "Lok Sabha Unstarred Question No. 4475: Setting up of Laptop Manufacturing Units"
+  },
+  {
+   "source_key": "0bb0342f262406957ce7511b76fcd5f894b78c92",
+   "answer_key": "pq:ls:185:AU4485_3pIB32",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU4485_3pIB32.pdf?source=pqals",
+   "text_sha256": "aa4d8cf504c15060cf6934a3b10b9845ecfeec8e0e6d97067d27c44df119861a",
+   "n_chars": 5556,
+   "pages": 3,
+   "answered_on": "20.08.2025",
+   "title": "Lok Sabha Unstarred Question No. 4485: Notification of State and Central Forensic Science Laboratories"
+  },
+  {
+   "source_key": "d7a11a9515c4a9946c6e96314ce25716137e3dd8",
+   "answer_key": "pq:ls:185:AU4515_fbjuQZ",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU4515_fbjuQZ.pdf?source=pqals",
+   "text_sha256": "57b19a595ff2235fe25f9445df9dbc0c90d96f34e7d10e59f08e4c56e67526ae",
+   "n_chars": 9862,
+   "pages": 5,
+   "answered_on": "20.08.2025",
+   "title": "Lok Sabha Unstarred Question No. 4515: National Vision for Governance Reforms in Amrit Kaal"
+  },
+  {
+   "source_key": "f74aa40d58af74ced171370da10f178a0fb5928a",
+   "answer_key": "pq:ls:185:AU4585_4h999B",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU4585_4h999B.pdf?source=pqals",
+   "text_sha256": "b5be528758f57181d34794324a9c29538a4c57e3dcfe9afa06aa5e95d8be63e9",
+   "n_chars": 7597,
+   "pages": 4,
+   "answered_on": "20.08.2025",
+   "title": "Lok Sabha Unstarred Question No. 4585: Make in India"
+  },
+  {
+   "source_key": "a33f286d5828703180d7cdbd96a08316b66712cd",
+   "answer_key": "pq:ls:185:AS364_V5q5jG",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AS364_V5q5jG.pdf?source=pqals",
+   "text_sha256": "002d2068e9cde5d7d52839007b79b18b440db9c3511335a19d5329cfd145c50f",
+   "n_chars": 22500,
+   "pages": 7,
+   "answered_on": "19.08.2025",
+   "title": "Lok Sabha Starred Question No. 364: New Multi-State Cooperative Societies for Dairy Sector"
+  },
+  {
+   "source_key": "b274127bfa65d980685d526fc9aa2d2eb0ca3302",
+   "answer_key": "pq:ls:185:AU3719_qBv49n",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU3719_qBv49n.pdf?source=pqals",
+   "text_sha256": "cfac8cd98d0e674e1e6ee72114d4d7ee70521051b2a04e8d3c9a74a89bcebf7f",
+   "n_chars": 12607,
+   "pages": 5,
+   "answered_on": "12.08.2025",
+   "title": "Lok Sabha Unstarred Question No. 3719: Animal Husbandry Infrastructure Development Fund"
+  },
+  {
+   "source_key": "2e5b726ee9c001e5a33c8702fb118017b32718a9",
+   "answer_key": "pq:ls:185:AS315_9lzeuG",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AS315_9lzeuG.pdf?source=pqals",
+   "text_sha256": "879262113826afdf600da0bcddcf85070aceac8630179d4aaf2b63ce2181fd64",
+   "n_chars": 1841,
+   "pages": 3,
+   "answered_on": "11.08.2025",
+   "title": "Lok Sabha Starred Question No. 315: Appointment of Lecturers in Manipur"
+  },
+  {
+   "source_key": "9136db54dab390046676a9907d72acfd2247d997",
+   "answer_key": "pq:ls:185:AU3490_duFLg0",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU3490_duFLg0.pdf?source=pqals",
+   "text_sha256": "6550222d332463abe4e05c25df98553dae96e1a8411906390325f24df5049592",
+   "n_chars": 8788,
+   "pages": 4,
+   "answered_on": "11.08.2025",
+   "title": "Lok Sabha Unstarred Question No. 3490: Mission Lifestyle for Environment"
+  },
+  {
+   "source_key": "a83efda8a564455bd2c1d93acae92115710f4d82",
+   "answer_key": "pq:ls:185:AU3269_9SKqi3",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU3269_9SKqi3.pdf?source=pqals",
+   "text_sha256": "2b003fda84df3d3f9f14ab29966a3af4a86cd8c929bf8e13101989ed02067bc5",
+   "n_chars": 5580,
+   "pages": 4,
+   "answered_on": "08.08.2025",
+   "title": "Lok Sabha Unstarred Question No. 3269: Saksham Anganwadi"
+  },
+  {
+   "source_key": "cdace71ecb23377d72a7b858f45d8e4300788e6a",
+   "answer_key": "pq:ls:185:AU3285_8PPDKt",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU3285_8PPDKt.pdf?source=pqals",
+   "text_sha256": "664154c26cd081de2ca114ee978e261fa36bc4cf200241250b2ff62e3e335385",
+   "n_chars": 3502,
+   "pages": 3,
+   "answered_on": "08.08.2025",
+   "title": "Lok Sabha Unstarred Question No. 3285: Shortage of Staff in AIIMS, Jodhpur"
+  },
+  {
+   "source_key": "20c1c5f5edbe4c3b7e974329e5caef42b5ab0819",
+   "answer_key": "pq:ls:185:AU3389_GFz9C0",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU3389_GFz9C0.pdf?source=pqals",
+   "text_sha256": "713a427deceddaf0ca8968f91941bb593213ac220c572fde61612451932b6402",
+   "n_chars": 6226,
+   "pages": 3,
+   "answered_on": "08.08.2025",
+   "title": "Lok Sabha Unstarred Question No. 3389: Resolution of Gas Pricing Dispute"
+  },
+  {
+   "source_key": "7d6889a876dd000d241c4d84a9a1ef353da2fcd1",
+   "answer_key": "pq:ls:185:AU3407_963umA",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU3407_963umA.pdf?source=pqals",
+   "text_sha256": "a674a2b17537629b7ec423e2bcbc510b13fa476064359418900c7102a84a0e84",
+   "n_chars": 10681,
+   "pages": 4,
+   "answered_on": "08.08.2025",
+   "title": "Lok Sabha Unstarred Question No. 3407: Delay in Supply of Fertilizers"
+  },
+  {
+   "source_key": "fd19a689962d045e7b601485d9e2ffe86e1c84a3",
+   "answer_key": "pq:ls:185:AS256_m5ddWY",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AS256_m5ddWY.pdf?source=pqals",
+   "text_sha256": "caf674922b81afa61b656848245932ff6b2c801284fec7b6d463947066a319cb",
+   "n_chars": 23029,
+   "pages": 14,
+   "answered_on": "06.08.2025",
+   "title": "Lok Sabha Starred Question No. 256: Software Exports from Software Technology Parks"
+  },
+  {
+   "source_key": "ca7685235b5b1446847614ac6430014cd1b225e7",
+   "answer_key": "pq:ls:185:AU2853_U0ym7G",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU2853_U0ym7G.pdf?source=pqals",
+   "text_sha256": "ce3e6e3730fcb96369823e04fa0f226c3564555199a441b864bd8e6db9fbf4d7",
+   "n_chars": 3442,
+   "pages": 3,
+   "answered_on": "06.08.2025",
+   "title": "Lok Sabha Unstarred Question No. 2853: Issues in Biometric Verification of Aadhaar Cards"
+  },
+  {
+   "source_key": "3be2d9584032dfeaf8a69b85c3fef0a8b9d99722",
+   "answer_key": "pq:ls:185:AU2484_4vBaQJ",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU2484_4vBaQJ.pdf?source=pqals",
+   "text_sha256": "97c85d5ae9e2911bbac7034aed4a78052aafe6ffce621b0acb996f8844beaf94",
+   "n_chars": 2737,
+   "pages": 3,
+   "answered_on": "04.08.2025",
+   "title": "Lok Sabha Unstarred Question No. 2484: Introduction of Third Language in Primary Classes"
+  },
+  {
+   "source_key": "8dcc54163cb31d28a3d8c6328336eceb593233a8",
+   "answer_key": "pq:ls:185:AU2486_Py3fqD",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU2486_Py3fqD.pdf?source=pqals",
+   "text_sha256": "433661f703b9cdd88aed01b760fd5855dfae606b525a5913c228be6377dcc5df",
+   "n_chars": 11615,
+   "pages": 5,
+   "answered_on": "04.08.2025",
+   "title": "Lok Sabha Unstarred Question No. 2486: Establishment of Schools under PM-SHRI Scheme in Chhattisgarh and Andhra Pradesh"
+  },
+  {
+   "source_key": "472a9913ffa0500f487a047040cc606a56c561a7",
+   "answer_key": "pq:ls:185:AU1886_ZiwaqD",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU1886_ZiwaqD.pdf?source=pqals",
+   "text_sha256": "253d2a84a6a8a22bce9f46b4f8c404e97797ce42bece464f91274c689b702e2a",
+   "n_chars": 5498,
+   "pages": 4,
+   "answered_on": "31.07.2025",
+   "title": "Lok Sabha Unstarred Question No. 1886: Sanctioned Mega Food Parks and Cold Chain Projects in Ratlam"
+  },
+  {
+   "source_key": "52971adb1842aac0f3a5e784e8cbcba0f59bafc5",
+   "answer_key": "pq:ls:185:AU1888_89N88l",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU1888_89N88l.pdf?source=pqals",
+   "text_sha256": "70137af4a41b6610bf860b434a6cff1c94cb2b036214738a3104779d8ee19828",
+   "n_chars": 16450,
+   "pages": 11,
+   "answered_on": "31.07.2025",
+   "title": "Lok Sabha Unstarred Question No. 1888: Funds allocated under PMKSY"
+  },
+  {
+   "source_key": "cde4f07c0fbddbb8b508d998beb05043f5f5c0dd",
+   "answer_key": "pq:ls:185:AU1908_NMhLkK",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU1908_NMhLkK.pdf?source=pqals",
+   "text_sha256": "d2a64fe26eb3e85c57d83398ad8fee4c0f0989a8e22f12fe9f29ffb528f5765a",
+   "n_chars": 7524,
+   "pages": 4,
+   "answered_on": "31.07.2025",
+   "title": "Lok Sabha Unstarred Question No. 1908: Strengthening of Power Distribution Infrastructure in Jamui"
+  },
+  {
+   "source_key": "57e1641c70b0c406da4960540d5ae44444999152",
+   "answer_key": "pq:ls:185:AU1655_9emkWb",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU1655_9emkWb.pdf?source=pqals",
+   "text_sha256": "654ad030bd85c95cc61e56a71eec238033c9b5591e2455478c1b240f7de23a0f",
+   "n_chars": 3379,
+   "pages": 3,
+   "answered_on": "30.07.2025",
+   "title": "Lok Sabha Unstarred Question No. 1655: API Checks for User Consent under DPDP"
+  },
+  {
+   "source_key": "8647aefa3c3c208d00a8b9dae0b15bb775352e4b",
+   "answer_key": "pq:ls:185:AU1689_0pKUOL",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU1689_0pKUOL.pdf?source=pqals",
+   "text_sha256": "098e34008ae8d41922bcfdb394cf37f1233242892a6062f06e2da95e3f8c1f8f",
+   "n_chars": 3949,
+   "pages": 3,
+   "answered_on": "30.07.2025",
+   "title": "Lok Sabha Unstarred Question No. 1689: Solar Parks in Punjab"
+  },
+  {
+   "source_key": "9b418e549cd53764eea8697512a3654927cddf4d",
+   "answer_key": "pq:ls:185:AU1697_scVB9Q",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU1697_scVB9Q.pdf?source=pqals",
+   "text_sha256": "dc75b04e8c9c4167d4c00be660472c08e4dfe5e313b649151ec277fa26a1545b",
+   "n_chars": 4898,
+   "pages": 3,
+   "answered_on": "30.07.2025",
+   "title": "Lok Sabha Unstarred Question No. 1697: Creation of Employment in Electronics and IT Sector"
+  },
+  {
+   "source_key": "e2e16dda7080160b250a0979d869fb43b7637c62",
+   "answer_key": "pq:ls:185:AU1751_6aOFaG",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU1751_6aOFaG.pdf?source=pqals",
+   "text_sha256": "6f162b22e6fa8ebf1995189266536a95488ca39b43ce675d198da9d1108d1fc9",
+   "n_chars": 5984,
+   "pages": 4,
+   "answered_on": "30.07.2025",
+   "title": "Lok Sabha Unstarred Question No. 1751: IT Hardware Manufacturing Units"
+  },
+  {
+   "source_key": "6079d03f0014bb75480bd779bedb6277533378f9",
+   "answer_key": "pq:ls:185:AU1472_BuTnvo",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU1472_BuTnvo.pdf?source=pqals",
+   "text_sha256": "8aae1fa2b96199f1dfb93fa677c5635c3dab4bf11d3c040b2e6c23108534d609",
+   "n_chars": 9734,
+   "pages": 7,
+   "answered_on": "29.07.2025",
+   "title": "Lok Sabha Unstarred Question No. 1472: Welfare of Coconut Cultivators"
+  },
+  {
+   "source_key": "8c953a1ec5a9addbe0f081785395decd34bea43f",
+   "answer_key": "pq:ls:185:AU944_Dsw0Rt",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU944_Dsw0Rt.pdf?source=pqals",
+   "text_sha256": "337539eb0ebf560dc6ccb74a435b45d98c98cc4a839fd48afb95071a87ae36b2",
+   "n_chars": 10619,
+   "pages": 5,
+   "answered_on": "25.07.2025",
+   "title": "Lok Sabha Unstarred Question No. 944: Legal Awareness Camps"
+  },
+  {
+   "source_key": "afec3829444f4aff4e903eeb07afeea5995a1c4f",
+   "answer_key": "pq:ls:185:AU715_pouPZX",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU715_pouPZX.pdf?source=pqals",
+   "text_sha256": "156748ce55c08ca793cec8390eddec79726931f64a4c63f5c63a6d182fb6c486",
+   "n_chars": 19839,
+   "pages": 9,
+   "answered_on": "24.07.2025",
+   "title": "Lok Sabha Unstarred Question No. 715: Mega Food Parks and Cold Chain Projects under PMKSY"
+  },
+  {
+   "source_key": "650eb707178af36ef760a97f3f85a4665b714386",
+   "answer_key": "pq:ls:185:AU535_PAVvpY",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU535_PAVvpY.pdf?source=pqals",
+   "text_sha256": "dda85a6830f4956b40eb173b49fca37fd246c413a32bb2e29fe76dad34e84134",
+   "n_chars": 4097,
+   "pages": 3,
+   "answered_on": "23.07.2025",
+   "title": "Lok Sabha Unstarred Question No. 535: Electronics Components Manufacturing Scheme"
+  },
+  {
+   "source_key": "b3bcd3f223fbd01b811cb9824157e3162209fa8c",
+   "answer_key": "pq:ls:185:AU10_BOZ8Hf",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU10_BOZ8Hf.pdf?source=pqals",
+   "text_sha256": "7ea30f2a02eeb1311aaa3b681a5d355563b3c917e4a6beef083c3d1bde2ffb9d",
+   "n_chars": 10229,
+   "pages": 8,
+   "answered_on": "21.07.2025",
+   "title": "Lok Sabha Unstarred Question No. 10: Removal of Non-operational Companies"
+  },
+  {
+   "source_key": "6d7bf541364cbf6f3c1c83471c554954350e10b6",
+   "answer_key": "pq:ls:185:AU126_vPU3Zf",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/185/AU126_vPU3Zf.pdf?source=pqals",
+   "text_sha256": "5b1f65b40138ea06334007d1e229986eea98b369fcfb7d5551e58002ee1cc612",
+   "n_chars": 12190,
+   "pages": 5,
+   "answered_on": "21.07.2025",
+   "title": "Lok Sabha Unstarred Question No. 126: Achievement of Forest Cover"
+  },
+  {
+   "source_key": "552f167b284e02106bd88c92c3522a9fdbbc8499",
+   "answer_key": "pq:ls:184:AU5093_bPbc0N",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU5093_bPbc0N.pdf?source=pqals",
+   "text_sha256": "a031cfb22c7de6308e19d68065e109d1dd18d60111d808acf4cbda42ad4ee592",
+   "n_chars": 7304,
+   "pages": 4,
+   "answered_on": "02.04.2025",
+   "title": "Lok Sabha Unstarred Question No. 5093: Semiconductor Manufacturing Units"
+  },
+  {
+   "source_key": "686defa359b331f2006189672f462bc936a388ec",
+   "answer_key": "pq:ls:184:AU5121_RrF4az",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU5121_RrF4az.pdf?source=pqals",
+   "text_sha256": "71d7713d2505d6232e57fe76fb36822da51cfb27792cdbf63923b45fd671755a",
+   "n_chars": 36809,
+   "pages": 15,
+   "answered_on": "02.04.2025",
+   "title": "Lok Sabha Unstarred Question No. 5121: AI Safety Institute"
+  },
+  {
+   "source_key": "2428036ef3b3f72d906d0ff1da6f5da8d88763ce",
+   "answer_key": "pq:ls:184:AU5126_IsgDh3",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU5126_IsgDh3.pdf?source=pqals",
+   "text_sha256": "e7efde15429f93257238ab733b058bea6138cd7650a1c2f4207456e0b1cad325",
+   "n_chars": 7498,
+   "pages": 4,
+   "answered_on": "02.04.2025",
+   "title": "Lok Sabha Unstarred Question No. 5126: Digital India Common Service Centre"
+  },
+  {
+   "source_key": "e15c114e7e71bacab427e6d364c5afcf654453de",
+   "answer_key": "pq:ls:184:AU5279_7P4Ygh",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU5279_7P4Ygh.pdf?source=pqals",
+   "text_sha256": "27b8bc293be02fad55a8bb35d3f61c149b91e2ffa43539b03c2750fdfc873e8f",
+   "n_chars": 6650,
+   "pages": 4,
+   "answered_on": "02.04.2025",
+   "title": "Lok Sabha Unstarred Question No. 5279: Increase in Digital Literacy"
+  },
+  {
+   "source_key": "222394ee431488c8b94afe5ee44eb8a747561a19",
+   "answer_key": "pq:ls:184:AU4857_fEcI2E",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU4857_fEcI2E.pdf?source=pqals",
+   "text_sha256": "8314dd7522fe2ea6bda7e26e8388901c6e44b7e2b73e5987f1e179ef377d4ff7",
+   "n_chars": 5797,
+   "pages": 3,
+   "answered_on": "01.04.2025",
+   "title": "Lok Sabha Unstarred Question No. 4857: Livestock Health and Disease Control Programme"
+  },
+  {
+   "source_key": "17edfc7c477c9896deee2806fb0fc87c2a48c88a",
+   "answer_key": "pq:ls:184:AU4389_JWASE8",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU4389_JWASE8.pdf?source=pqals",
+   "text_sha256": "11b525ecb7cca2f6fb5d7f94a1e3204c523ab91ea736f84e0870bcb0688ada37",
+   "n_chars": 6978,
+   "pages": 4,
+   "answered_on": "27.03.2025",
+   "title": "Lok Sabha Unstarred Question No. 4389: Domestic Passenger Data"
+  },
+  {
+   "source_key": "a37abd3590fb6f18792aab568f8d94cd70a0b286",
+   "answer_key": "pq:ls:184:AU4415_Q2Gliz",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU4415_Q2Gliz.pdf?source=pqals",
+   "text_sha256": "c6ad8cb5987e569f318eb10346873a6cf5ce2591b626207374037c133643d02a",
+   "n_chars": 10751,
+   "pages": 5,
+   "answered_on": "27.03.2025",
+   "title": "Lok Sabha Unstarred Question No. 4415: Projects sanctioned under PMKSY"
+  },
+  {
+   "source_key": "8d04e29f31a1ee43db9aa5826b67fc5d5785f347",
+   "answer_key": "pq:ls:184:AU4509_3Fllgt",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU4509_3Fllgt.pdf?source=pqals",
+   "text_sha256": "9df322c54017cb811d251f8e151268422b858d7f7711b66117b25daed7a859ad",
+   "n_chars": 5893,
+   "pages": 4,
+   "answered_on": "27.03.2025",
+   "title": "Lok Sabha Unstarred Question No. 4509: Setting up of New Petrol Pumps/Gas Agencies in Mohanlalganj"
+  },
+  {
+   "source_key": "ad6e0424e5e7951f160feaae10377fadec401773",
+   "answer_key": "pq:ls:184:AU4291_IMqxzO",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU4291_IMqxzO.pdf?source=pqals",
+   "text_sha256": "78cc413a9633d2865c441301e7cc4a8b9f6bf2efcf609d7b0b935491bdadb971",
+   "n_chars": 8847,
+   "pages": 4,
+   "answered_on": "26.03.2025",
+   "title": "Lok Sabha Unstarred Question No. 4291: Cybersecurity Threats and National Preparedness"
+  },
+  {
+   "source_key": "37b08beb41e23543847f57106de62d2861be82a7",
+   "answer_key": "pq:ls:184:AU4328_OhDfvD",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU4328_OhDfvD.pdf?source=pqals",
+   "text_sha256": "c26de93d73e2167188f90c7547a8a75fdc2aa746e9e241c8a7920ce88b9c11b9",
+   "n_chars": 2666,
+   "pages": 3,
+   "answered_on": "26.03.2025",
+   "title": "Lok Sabha Unstarred Question No. 4328: Flood Management and Infrastructure Development in NER"
+  },
+  {
+   "source_key": "313c0b14383a7fc67c17033e67b6b05377d6bdc7",
+   "answer_key": "pq:ls:184:AS279_IvVr0r",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AS279_IvVr0r.pdf?source=pqals",
+   "text_sha256": "d133b0ee04200d3a1a777d9f2e7618e7e1921043531859a69782cc6d2dd51850",
+   "n_chars": 6662,
+   "pages": 4,
+   "answered_on": "19.03.2025",
+   "title": "Lok Sabha Starred Question No. 279: Online Pornography"
+  },
+  {
+   "source_key": "9a389a1121f915aaa0d86080d4b27632d673b6e5",
+   "answer_key": "pq:ls:184:AS229_0zTPXb",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AS229_0zTPXb.pdf?source=pqals",
+   "text_sha256": "78ac8962cee3e9263817f713a3a87c2e66adccf4f9ff1372ae1a51d4a922df23",
+   "n_chars": 3696,
+   "pages": 3,
+   "answered_on": "17.03.2025",
+   "title": "Lok Sabha Starred Question No. 229: Development of KVs/JNVs in Madhya Pradesh"
+  },
+  {
+   "source_key": "141da0ec7ff2e28b61b20381cac51d46a3786ba1",
+   "answer_key": "pq:ls:184:AU2532_FJQUJ1",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU2532_FJQUJ1.pdf?source=pqals",
+   "text_sha256": "5d8dbc2b4a929ea95b36699eac34b1c3edacee3d92ceba4f596b75467e4b32db",
+   "n_chars": 8919,
+   "pages": 3,
+   "answered_on": "17.03.2025",
+   "title": "Lok Sabha Unstarred Question No. 2532: Basic Infrastructure of Rural Schools"
+  },
+  {
+   "source_key": "c58d3b9b3d1c76fa26e51571895366e85c9f63bb",
+   "answer_key": "pq:ls:184:AU2310_PIF9Hd",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU2310_PIF9Hd.pdf?source=pqals",
+   "text_sha256": "ab1dee809604c0c5624ade63cafe3b0c3f0f77ec1bc9098ffe2ac4d62d37e6c9",
+   "n_chars": 5513,
+   "pages": 4,
+   "answered_on": "13.03.2025",
+   "title": "Lok Sabha Unstarred Question No. 2310: LPG Connections under PMUY in Jharkhand"
+  },
+  {
+   "source_key": "7bf3b524bf0b67435fd6e83b44b07468fa300b89",
+   "answer_key": "pq:ls:184:AU2084_k8K63G",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU2084_k8K63G.pdf?source=pqals",
+   "text_sha256": "056ef8ed0d1adb98d07c12b6e16515303d5f286986dc8c1c7e5427b10c669e1c",
+   "n_chars": 10362,
+   "pages": 5,
+   "answered_on": "12.03.2025",
+   "title": "Lok Sabha Unstarred Question No. 2084: National Supercomputing Mission"
+  },
+  {
+   "source_key": "d98c99dee5587c5c621312f512b73516bcd6d8f2",
+   "answer_key": "pq:ls:184:AU1689_FYTwWt",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU1689_FYTwWt.pdf?source=pqals",
+   "text_sha256": "9fa276446b51ab6a2e146359305b6c5b82988ec011af47e0604c61979cbe5e05",
+   "n_chars": 8380,
+   "pages": 4,
+   "answered_on": "10.03.2025",
+   "title": "Lok Sabha Unstarred Question No. 1689: Enhancement and Improvement of PMIS"
+  },
+  {
+   "source_key": "77a34659a20c9ae8aa8774228605a1a6098e7ad6",
+   "answer_key": "pq:ls:184:AU1350_hVpwRk",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU1350_hVpwRk.pdf?source=pqals",
+   "text_sha256": "e1b6ffd508cf9e209623843a2b284292cc3b66d450c562b8be2cfea0d23b18db",
+   "n_chars": 230972,
+   "pages": 74,
+   "answered_on": "11.02.2025",
+   "title": "Lok Sabha Unstarred Question No. 1350: Upgradation of Modern Banking"
+  },
+  {
+   "source_key": "8ccd62cadc77003927a01763bb75eb154c98d394",
+   "answer_key": "pq:ls:184:AU927_7nyAie",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU927_7nyAie.pdf?source=pqals",
+   "text_sha256": "26f926c15accacb22fb71c347103dce721caa28ce98bc78a59497ffc8b16c659",
+   "n_chars": 6723,
+   "pages": 3,
+   "answered_on": "10.02.2025",
+   "title": "Lok Sabha Unstarred Question No. 927: Funds Allocated/Utilized under Sports and Physical Education (PE) Component of SSA"
+  },
+  {
+   "source_key": "298190c2732fa27b298e5471184eea6a1d8fcc3d",
+   "answer_key": "pq:ls:184:AU937_WrSdHv",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU937_WrSdHv.pdf?source=pqals",
+   "text_sha256": "195ec5e7ac902c0cec50f8121fefa0b35563d554bc8b232d5c99650f926115b8",
+   "n_chars": 4109,
+   "pages": 3,
+   "answered_on": "10.02.2025",
+   "title": "Lok Sabha Unstarred Question No. 937: Promotion of Indian Languages"
+  },
+  {
+   "source_key": "453c49f67aab75ab91d93298451546bb332be40b",
+   "answer_key": "pq:ls:184:AU471_uTfww2",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU471_uTfww2.pdf?source=pqals",
+   "text_sha256": "6ea88368faaf9de99db1c5a48561234dfe54af1c5172eaf6fce9c291f656d1b2",
+   "n_chars": 8933,
+   "pages": 5,
+   "answered_on": "06.02.2025",
+   "title": "Lok Sabha Unstarred Question No. 471: Bharatmala Pariyojana"
+  },
+  {
+   "source_key": "a2c26e64194eff82dbfcc88fbbc212856faa42a4",
+   "answer_key": "pq:ls:184:AU373_dvSyMn",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU373_dvSyMn.pdf?source=pqals",
+   "text_sha256": "da6e62346a3a0ede36433cc298e36b116129c1d0490ca67203978e415bcb3b21",
+   "n_chars": 14529,
+   "pages": 7,
+   "answered_on": "04.02.2025",
+   "title": "Lok Sabha Unstarred Question No. 373: Upliftment Scheme for Social, Economical Condition of Farmers"
+  },
+  {
+   "source_key": "38458dde17f22f85ccf69a047ed83467601ba5e4",
+   "answer_key": "pq:ls:184:AU67_h6s0DR",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU67_h6s0DR.pdf?source=pqals",
+   "text_sha256": "23eb7a45c389a528e98cc7e30c216dfd681fc6bfa967c3f4028e2d5753a184ee",
+   "n_chars": 3861,
+   "pages": 3,
+   "answered_on": "03.02.2025",
+   "title": "Lok Sabha Unstarred Question No. 67: Death of Endangered Olive Ridley Turtles"
+  },
+  {
+   "source_key": "79b17fdc68a8e185f36415c83cf95185df193555",
+   "answer_key": "pq:ls:184:AU213_ojVuw5",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU213_ojVuw5.pdf?source=pqals",
+   "text_sha256": "cbe1b209ffbbaf9afdc8e19b86fe544a0166c887679a2332642ff131e7af88fb",
+   "n_chars": 4938,
+   "pages": 3,
+   "answered_on": "03.02.2025",
+   "title": "Lok Sabha Unstarred Question No. 213: Menace of Wild Boars"
+  },
+  {
+   "source_key": "ee6ba15584c13d4160de44504f5c769f890a1e73",
+   "answer_key": "pq:ls:183:AU4327_ycIKN1",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU4327_ycIKN1.pdf?source=pqals",
+   "text_sha256": "ec8bc3b5dc7c0118f5881473c9e48d3d954f81f2317038d32e40a02a39977b8e",
+   "n_chars": 9522,
+   "pages": 5,
+   "answered_on": "20.12.2024",
+   "title": "Lok Sabha Unstarred Question No. 4327: National Legal Services Authority"
+  },
+  {
+   "source_key": "292d2569133553469b76dc06ebe0ff693faddd5e",
+   "answer_key": "pq:ls:183:AU3711_PsVVhx",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU3711_PsVVhx.pdf?source=pqals",
+   "text_sha256": "1fbb5dfc479590ce596236736fdd4203f439be056dee57f89cd380faf26cc941",
+   "n_chars": 6899,
+   "pages": 3,
+   "answered_on": "18.12.2024",
+   "title": "Lok Sabha Unstarred Question No. 3711: PM-KUSUM in North Eastern Region"
+  },
+  {
+   "source_key": "e4d29900edce7e26349fba2fb89744af475f61f7",
+   "answer_key": "pq:ls:183:AU3860_P2CrfL",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU3860_P2CrfL.pdf?source=pqals",
+   "text_sha256": "f9c2e7124ed059887d39ec8dd358b4b2c5f1e229b459788627f28bc5122c94ad",
+   "n_chars": 4646,
+   "pages": 3,
+   "answered_on": "18.12.2024",
+   "title": "Lok Sabha Unstarred Question No. 3860: IT Rules, 2021"
+  },
+  {
+   "source_key": "9670da409ab550ded4a1fc22aacc243f247efe56",
+   "answer_key": "pq:ls:183:AU2624_h8valE",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU2624_h8valE.pdf?source=pqals",
+   "text_sha256": "ce7b1550348cccc1710ac20df7405b5e42932df9483661b13a3d400a5598d9e0",
+   "n_chars": 7279,
+   "pages": 3,
+   "answered_on": "11.12.2024",
+   "title": "Lok Sabha Unstarred Question No. 2624: Awareness about Cyber Threats"
+  },
+  {
+   "source_key": "bc6b3a0fe64bc61d8e71881174290f2e58214227",
+   "answer_key": "pq:ls:183:AU2739_sxQSpg",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU2739_sxQSpg.pdf?source=pqals",
+   "text_sha256": "6a94c0d0ec31a2673c131035dc954d28deb387195b79747f4fcbfeb82ca7b6a3",
+   "n_chars": 4791,
+   "pages": 3,
+   "answered_on": "11.12.2024",
+   "title": "Lok Sabha Unstarred Question No. 2739: Expansion of Digital India Programme"
+  },
+  {
+   "source_key": "cef3bb3332099a32c0b7667f1300bcc7b43b9e8d",
+   "answer_key": "pq:ls:183:AU2404_MfyE0f",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU2404_MfyE0f.pdf?source=pqals",
+   "text_sha256": "0368c46e62d7c706d60d7819a743d353815bfbe41b2d76fec03b51ad25f3ce22",
+   "n_chars": 11312,
+   "pages": 5,
+   "answered_on": "10.12.2024",
+   "title": "Lok Sabha Unstarred Question No. 2404: MSP for Crops"
+  },
+  {
+   "source_key": "a7e046f22ea436e6ae956689f8af5d7a9692d9ff",
+   "answer_key": "pq:ls:183:AU2002_y3k2pG",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU2002_y3k2pG.pdf?source=pqals",
+   "text_sha256": "6e8369dd23f156db7fd797c1ad26dea316d94bf18e5cc47202128e610f6cc1c4",
+   "n_chars": 6199,
+   "pages": 4,
+   "answered_on": "06.12.2024",
+   "title": "Lok Sabha Unstarred Question No. 2002: Production of DAP Fertilizer"
+  },
+  {
+   "source_key": "ffdc138c98d1b393b4f92ee329a288716e247483",
+   "answer_key": "pq:ls:183:AU1507_hn6mZ3",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU1507_hn6mZ3.pdf?source=pqals",
+   "text_sha256": "7a04830ced4006e10d1af4e995f38983a8fa8497064fc68b658a2b57d71f7b59",
+   "n_chars": 8313,
+   "pages": 5,
+   "answered_on": "04.12.2024",
+   "title": "Lok Sabha Unstarred Question No. 1507: ALMM for Solar Modules"
+  },
+  {
+   "source_key": "cdf5edbd8a66a1bcce4cc67efdff424d88ff1362",
+   "answer_key": "pq:ls:183:AU1536_K1IUkQ",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU1536_K1IUkQ.pdf?source=pqals",
+   "text_sha256": "d8dcb150599d18e3fa393ff20e49a461d1a12491a2e3520284e99733e3b9447e",
+   "n_chars": 5026,
+   "pages": 3,
+   "answered_on": "04.12.2024",
+   "title": "Lok Sabha Unstarred Question No. 1536: Cases of Misinformation and Fake News"
+  },
+  {
+   "source_key": "91a3893fad882315595023a00cc863b8792e4418",
+   "answer_key": "pq:ls:183:AU1589_ok33Tc",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU1589_ok33Tc.pdf?source=pqals",
+   "text_sha256": "d2fe6a6423bc43f993c7e029ce7fc4a4dcc5f936e8e74dec2885610239c82fab",
+   "n_chars": 6796,
+   "pages": 4,
+   "answered_on": "04.12.2024",
+   "title": "Lok Sabha Unstarred Question No. 1589: India AI Mission"
+  },
+  {
+   "source_key": "2a85bcb38af632a4af20070a20a8ea8dd75b3e27",
+   "answer_key": "pq:ls:183:AU1172_kP4vG5",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU1172_kP4vG5.pdf?source=pqals",
+   "text_sha256": "d10f4726e3f621adbdcd5f7c4e792ef24aa4b33ef8594a282bc979ec8fbec340",
+   "n_chars": 7849,
+   "pages": 3,
+   "answered_on": "03.12.2024",
+   "title": "Lok Sabha Unstarred Question No. 1172: Kisan Credit Cards (KCC)"
+  },
+  {
+   "source_key": "a08cd1557bef7e0735575022ae92247d0466f2a7",
+   "answer_key": "pq:ls:183:AU1179_NfKss6",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU1179_NfKss6.pdf?source=pqals",
+   "text_sha256": "4c55adcbd626f477e60bacdc3685cb187bbe1fd28c52ad7eae64e9aa086db022",
+   "n_chars": 18724,
+   "pages": 8,
+   "answered_on": "03.12.2024",
+   "title": "Lok Sabha Unstarred Question No. 1179: e-Panchayat Facility"
+  },
+  {
+   "source_key": "e1ff2e0db4c016afb8ab35d013581afed5bf6561",
+   "answer_key": "pq:ls:183:AU1181_QphQnd",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU1181_QphQnd.pdf?source=pqals",
+   "text_sha256": "bd6032a07649ad8411208ba6b08cc99881b329e2b72c9fa8a880a7bd554ebe13",
+   "n_chars": 42465,
+   "pages": 20,
+   "answered_on": "03.12.2024",
+   "title": "Lok Sabha Unstarred Question No. 1181: Computerization and Strengthening of Primary Cooperative Societies"
+  },
+  {
+   "source_key": "82ed7da2347c5c6d3e0dba4ca11321080997e3f6",
+   "answer_key": "pq:ls:183:AU1344_zi50W3",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU1344_zi50W3.pdf?source=pqals",
+   "text_sha256": "8ca64e52329257b7fdc0c40339d1bb7b43718c564785d8a3131b5726a7895a25",
+   "n_chars": 13540,
+   "pages": 5,
+   "answered_on": "03.12.2024",
+   "title": "Lok Sabha Unstarred Question No. 1344: Increase in MSP of Various Crops"
+  },
+  {
+   "source_key": "9c720c1f392a1b7b7b613863f38277e8482ef460",
+   "answer_key": "pq:ls:183:AU770_5QKEUh",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU770_5QKEUh.pdf?source=pqals",
+   "text_sha256": "79380728b70c4b2c56524a77c972b9d3a6233580dd1b192c592c4b6cba21816b",
+   "n_chars": 37465,
+   "pages": 10,
+   "answered_on": "29.11.2024",
+   "title": "Lok Sabha Unstarred Question No. 770: Methods of AYUSH"
+  },
+  {
+   "source_key": "700a9601419355c788a4d1bb74633ae53454f8ac",
+   "answer_key": "pq:ls:183:AU855_UVRFQY",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU855_UVRFQY.pdf?source=pqals",
+   "text_sha256": "37491c149d2d3a6b639d922386bf9a9501535d98063f1714b5623ae0e7281c23",
+   "n_chars": 20005,
+   "pages": 7,
+   "answered_on": "29.11.2024",
+   "title": "Lok Sabha Unstarred Question No. 855: Price of Imported Fertilisers"
+  },
+  {
+   "source_key": "5a120c656e21ec4c34ac9f22bccceeb639da61e4",
+   "answer_key": "pq:ls:183:AU258_L7f7pn",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU258_L7f7pn.pdf?source=pqals",
+   "text_sha256": "8cd84819ff2e313e54aefff3f8ee367a6414618bfb112bab6ba536e40f7f2091",
+   "n_chars": 5654,
+   "pages": 3,
+   "answered_on": "27.11.2024",
+   "title": "Lok Sabha Unstarred Question No. 258: Grievance Redressal Mechanism for Cyber Fraud"
+  },
+  {
+   "source_key": "144a5c6a54dea46994e39eed93d03c7b446b95a3",
+   "answer_key": "pq:ls:183:AU308_hx36p2",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU308_hx36p2.pdf?source=pqals",
+   "text_sha256": "d7cfe6893b7fa672e0eab533b116c39d17d7ec20fd56e057a2b99a05eaa1b8f8",
+   "n_chars": 7422,
+   "pages": 5,
+   "answered_on": "27.11.2024",
+   "title": "Lok Sabha Unstarred Question No. 308: Solar Enrgy Policy"
+  },
+  {
+   "source_key": "7df546d12142ec85c05dabb212fbafac04843f04",
+   "answer_key": "pq:ls:183:AU3_NnZsgO",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU3_NnZsgO.pdf?source=pqals",
+   "text_sha256": "1f4be2b0cbf1d51f371c9c00c5bc7addd07a89c7267323ea3bd0010aae3e4ece",
+   "n_chars": 6576,
+   "pages": 4,
+   "answered_on": "25.11.2024",
+   "title": "Lok Sabha Unstarred Question No. 3: Mahila Samman Savings Certificate (MSSC) Scheme"
+  },
+  {
+   "source_key": "3a9d979b78690b9c337c20b771afa1e552e1bf94",
+   "answer_key": "pq:ls:183:AU60_zfNX2w",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/183/AU60_zfNX2w.pdf?source=pqals",
+   "text_sha256": "f3179d05666e0a28a13e86ce8701043d36357f7946d1c844705726ae2e3c2390",
+   "n_chars": 5487,
+   "pages": 3,
+   "answered_on": "25.11.2024",
+   "title": "Lok Sabha Unstarred Question No. 60: Suicide Cases of SC/ST and OBC Students in IITs"
+  },
+  {
+   "source_key": "fc4658b4e6c3ff7abc995e66bcf627906a48a071",
+   "answer_key": "pq:ls:182:AU3041_DrKhNk",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/182/AU3041_DrKhNk.pdf?source=pqals",
+   "text_sha256": "a7a43f13e3a441380f58a4f743db9daf7e4ddc2bae706ed390435da75442bc2d",
+   "n_chars": 13845,
+   "pages": 6,
+   "answered_on": "09.08.2024",
+   "title": "Lok Sabha Unstarred Question No. 3041: Storage Capacity of Fertilizer Plants"
+  },
+  {
+   "source_key": "ba2aa3facc3dca5157b54e69ca9da1692b63dd31",
+   "answer_key": "pq:ls:182:AU2538_kTxWVy",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/182/AU2538_kTxWVy.pdf?source=pqals",
+   "text_sha256": "5d5b4ce078a9a171b1e838ef0498bd2e5cbc77dd4dbc976e3e483d07ade7793b",
+   "n_chars": 5314,
+   "pages": 3,
+   "answered_on": "07.08.2024",
+   "title": "Lok Sabha Unstarred Question No. 2538: Cases regarding Selling of Adulterated and Expiry Goods"
+  },
+  {
+   "source_key": "b8141c504cc99f36d306436534717df983fac8e6",
+   "answer_key": "pq:ls:182:AU2726_CUP7bt",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/182/AU2726_CUP7bt.pdf?source=pqals",
+   "text_sha256": "20fdc499685e54e1b39460585e1895f6a2cc837acc147f56a4412fc81ff10ce5",
+   "n_chars": 10995,
+   "pages": 5,
+   "answered_on": "07.08.2024",
+   "title": "Lok Sabha Unstarred Question No. 2726: Pradhan Mantri Gramin Digital Saksharta Abhiyan (PMGDISHA)"
+  },
+  {
+   "source_key": "632da49159668aaf0142b5c08d67c0eb8553e410",
+   "answer_key": "pq:ls:182:AU2740_t3IAJV",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/182/AU2740_t3IAJV.pdf?source=pqals",
+   "text_sha256": "eaac21d458d0211d507362ca70e4d66d4b3cf2304196ad02cda773955dcd5003",
+   "n_chars": 5742,
+   "pages": 3,
+   "answered_on": "07.08.2024",
+   "title": "Lok Sabha Unstarred Question No. 2740: Research and Development"
+  },
+  {
+   "source_key": "9207da0aa5bf600befdcff6b1b66cc1e61816b51",
+   "answer_key": "pq:ls:182:AU2011_Pbiup6",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/182/AU2011_Pbiup6.pdf?source=pqals",
+   "text_sha256": "81a79e3daa792a12305eed3ebf350a5d848bfc74345a3bdb1e52edc130d50302",
+   "n_chars": 22831,
+   "pages": 9,
+   "answered_on": "02.08.2024",
+   "title": "Lok Sabha Unstarred Question No. 2011: Vacancies in Judiciary"
+  },
+  {
+   "source_key": "eb12ad3c84217ed266e6412dc05dc574e2b8daa1",
+   "answer_key": "pq:ls:182:AU1397_6Q9MZs",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/182/AU1397_6Q9MZs.pdf?source=pqals",
+   "text_sha256": "ffb5bc02c7d6b788c19d3e89fe6eba5c0f874abcee7ba86ddac3079d569e8d31",
+   "n_chars": 9932,
+   "pages": 5,
+   "answered_on": "31.07.2024",
+   "title": "Lok Sabha Unstarred Question No. 1397: PMGDISHA"
+  },
+  {
+   "source_key": "7f62c20620530a2320928e4bcf2a7512cd8169cb",
+   "answer_key": "pq:ls:182:AU1402_aHgXTC",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/182/AU1402_aHgXTC.pdf?source=pqals",
+   "text_sha256": "e296299dcdd524aebab1baf0ae6eed1258bdfe7ac3d7312314e35dd7502fc984",
+   "n_chars": 4361,
+   "pages": 3,
+   "answered_on": "31.07.2024",
+   "title": "Lok Sabha Unstarred Question No. 1402: Digital Personal Data Protection Act, 2023"
+  },
+  {
+   "source_key": "ab25693cbf3980b5bdf20493e4dc81f9df79b71d",
+   "answer_key": "pq:ls:182:AU1266_Ern2gS",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/182/AU1266_Ern2gS.pdf?source=pqals",
+   "text_sha256": "3c89b8cf82b52945029acdecd8b4b2487fea5a5a459e479bb45191e715faf247",
+   "n_chars": 4619,
+   "pages": 4,
+   "answered_on": "30.07.2024",
+   "title": "Lok Sabha Unstarred Question No. 1266: Implementation of PM-KISAN Scheme"
+  },
+  {
+   "source_key": "8b2be2eb68fa09c85932140370c5568d445c9417",
+   "answer_key": "pq:ls:182:AU937_QyweDx",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/182/AU937_QyweDx.pdf?source=pqals",
+   "text_sha256": "175b4bc54d678b14947e8eedab7d8f3bb08c0493643cbe91968e71ce5ccdf5ab",
+   "n_chars": 8061,
+   "pages": 4,
+   "answered_on": "29.07.2024",
+   "title": "Lok Sabha Unstarred Question No. 937: Funds utilised under CSR"
+  },
+  {
+   "source_key": "06c4c4432fc141b6e5cdcd2765fe4f897a9671f8",
+   "answer_key": "pq:ls:182:AU874_yqwiAp",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/182/AU874_yqwiAp.pdf?source=pqals",
+   "text_sha256": "4a38d0e62f8f3854e9d3ee32f050a01f3dd67be07a9f6c4f8e77053519ba1994",
+   "n_chars": 10381,
+   "pages": 6,
+   "answered_on": "26.07.2024",
+   "title": "Lok Sabha Unstarred Question No. 874: Schemes for Women and Children"
+  },
+  {
+   "source_key": "af23ec1626f36f52a988dbf33684155a1ce0c4c5",
+   "answer_key": "pq:ls:182:AU652_7mY1oG",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/182/AU652_7mY1oG.pdf?source=pqals",
+   "text_sha256": "3b712ff9611d1e9f72f6ca2601fa026efc72d7520bd2c005fd8eb3fbe4098bfc",
+   "n_chars": 24164,
+   "pages": 7,
+   "answered_on": "25.07.2024",
+   "title": "Lok Sabha Unstarred Question No. 652: Issuance of Tenders for Smart City Projects"
+  },
+  {
+   "source_key": "358b5064c21321f7f1dba19c6ce904769aacc65a",
+   "answer_key": "pq:ls:182:AU272_E85OJH",
+   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/182/AU272_E85OJH.pdf?source=pqals",
+   "text_sha256": "f28275a2a84022798d1986b0ec81accafc7ea2ea5200a1efb11a39de02325265",
+   "n_chars": 5477,
+   "pages": 3,
+   "answered_on": "24.07.2024",
+   "title": "Lok Sabha Unstarred Question No. 272: Status of Digital India Programme"
+  }
+ ]
+}
