@@ -1,6 +1,6 @@
 {
  "decision_id": "national-pq-lastpage-20261031-v1",
- "count": 114,
+ "count": 113,
  "rules_sha256": "5cb2d67cbf10a7a4f1c478566da63be0b0fae68b473978b6b3dceda02f91730c",
  "screen_change": "accept a trailing last page only if empty after whitespace normalisation (made explicit as one empty page)",
  "package_id": "NTER_citation_pack_v1.1_2026-10-05.zip:citation_pack_v1/documents/parliamentary_questions.jsonl.gz",
@@ -15,16 +15,20 @@
   "/content/nter-pq-lastpage/niyantran/docs/operations/national-pq-batch/remainder-cohort/cohort.json"
  ],
  "excluded_answers": 523,
+ "over_limit_keys": [
+  "pq:ls:184:AU1350_hVpwRk"
+ ],
  "candidates": 121,
- "held": 7,
+ "held": 8,
  "hold_reasons": {
   "answer date not found in the text": 1,
   "contained in a same-date answer 6afe5a289c835619": 1,
   "last_page_empty: an empty page before the last": 2,
+  "over answer-read limits": 1,
   "question number not found in the text": 3
  },
- "cohort_corpus_sha256": "f9a6ed0b9784607aa65ef57165adec23086d1c5bf6ea8d09b6eb9990d875ed7d",
- "decisions_sha256": "669885172a5fe92c6fd54d3bad12a871ca64bfd7f963838bf98509e7aad141e2",
+ "cohort_corpus_sha256": "2958bbaabc261704fa0cd9d7b89708ca2e6b19c0f56b5484d2026fbd6348efe4",
+ "decisions_sha256": "17315259a79bc4987a0e2b49a5dfed089394df62c32b79c83b0d005ebf0c1005",
  "documents": [
   {
    "source_key": "e6c3c2efbae8e885576c88b86732621b816764d1",
@@ -775,16 +779,6 @@
    "pages": 4,
    "answered_on": "10.03.2025",
    "title": "Lok Sabha Unstarred Question No. 1689: Enhancement and Improvement of PMIS"
-  },
-  {
-   "source_key": "77a34659a20c9ae8aa8774228605a1a6098e7ad6",
-   "answer_key": "pq:ls:184:AU1350_hVpwRk",
-   "file_url": "https://sansad.in/getFile/loksabhaquestions/annex/184/AU1350_hVpwRk.pdf?source=pqals",
-   "text_sha256": "e1b6ffd508cf9e209623843a2b284292cc3b66d450c562b8be2cfea0d23b18db",
-   "n_chars": 230972,
-   "pages": 74,
-   "answered_on": "11.02.2025",
-   "title": "Lok Sabha Unstarred Question No. 1350: Upgradation of Modern Banking"
   },
   {
    "source_key": "8ccd62cadc77003927a01763bb75eb154c98d394",

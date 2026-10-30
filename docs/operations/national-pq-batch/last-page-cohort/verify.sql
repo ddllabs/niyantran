@@ -1,8 +1,8 @@
 -- Lok Sabha last_page_empty cohort: read-only verification after submission (one aggregate row). Writes nothing.
--- Status: Living (2026-10-31). Expected when complete: docs 114, indexed 114, text_hash_valid 114, chunks 1680,
--- vectors 1680, all_1536 true, national 114, linked_docs 114, links 135, links_equal_rows 114, url_eq true, text_eq true,
--- link_decisions admission:pq-answer-key-v1, one_job_ok 114, ocr_pages 0, cost <= 0.11 (about 0.0073 expected),
--- fingerprint 2c19e42556a48f3ef3e38f90f1f219980bb79a2e2f3a52e97b05119d153f73c0 (sorted source_key|chunks|text_sha256 from review.tsv).
+-- Status: Living (2026-10-31). Expected when complete: docs 113, indexed 113, text_hash_valid 113, chunks 1390,
+-- vectors 1390, all_1536 true, national 113, linked_docs 113, links 134, links_equal_rows 113, url_eq true, text_eq true,
+-- link_decisions admission:pq-answer-key-v1, one_job_ok 113, ocr_pages 0, cost <= 0.09 (about 0.006 expected),
+-- fingerprint c5ccfbbd6887af6ee393091c476b8e8ad0f3c6aba7af0203e1e7619453493a2e (sorted source_key|chunks|text_sha256 from review.tsv).
 -- Rule 6 (2026-10-29): production reads only inside a read-only transaction that is rolled back.
 begin transaction read only;
 with d as (

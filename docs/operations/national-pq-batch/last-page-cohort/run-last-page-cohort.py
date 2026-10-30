@@ -1,8 +1,8 @@
-# Lok Sabha last_page_empty cohort (114 answers): ONE submission, then stop. Google Colab, Python 3.
+# Lok Sabha last_page_empty cohort (113 answers): ONE submission, then stop. Google Colab, Python 3.
 #
 # Status: Living (2026-10-30). Runs only after the developers have reviewed it and the owner has approved, in writing,
 # the exact manifest hash below (rule 1). It never chains to another cohort (rule 2). Limits come from the reviewed dry
-# run: --max-chunks 1700 --max-estimated-cost-usd 0.11 (rule 3). Rule 7: the person running it signs in on nter.pro with
+# run: --max-chunks 1400 --max-estimated-cost-usd 0.09 (rule 3). Rule 7: the person running it signs in on nter.pro with
 # their own admin account and types that session's access token at the prompt; it is never stored or printed, and no
 # password is used. One token covers the whole run: the script refuses to start unless the token has at least
 # MIN_TOKEN_MINUTES left (expected run time about 35 minutes), reading only the token's own expiry claim.
@@ -14,18 +14,18 @@
 #   print(hashlib.sha256(src).hexdigest())   # compare with the hash in the approval message before running
 #   exec(compile(src, 'run-last-page-cohort.py', 'exec')); run(REPO_SHA)
 #
-# A 114-answer run takes about 8-12 minutes; a token may still expire mid-run. If the importer stops on an uncertain outcome
+# A 113-answer run takes about 8-12 minutes; a token may still expire mid-run. If the importer stops on an uncertain outcome
 # (exit 2), the script records the status and stops; nothing is retried. The only remedy is resume(REPO_SHA), after the
 # owner's written decision, with a fresh owner token: it re-runs the importer's own idempotent submission of the same
 # approved manifest into the next report (already registered answers come back as existing). Never a hand-typed cell.
 # resume() refuses unless the last submission recorded exit 2. The launch commit is the merge commit the developers give.
 import base64, getpass, hashlib, json, os, pathlib, re, subprocess, tarfile, time, urllib.request
 
-APPROVED_MANIFEST = '669885172a5fe92c6fd54d3bad12a871ca64bfd7f963838bf98509e7aad141e2'   # decisions.jsonl sha256
-COHORT_CORPUS = 'f9a6ed0b9784607aa65ef57165adec23086d1c5bf6ea8d09b6eb9990d875ed7d'       # rebuilt corpus.jsonl sha256
+APPROVED_MANIFEST = '17315259a79bc4987a0e2b49a5dfed089394df62c32b79c83b0d005ebf0c1005'   # decisions.jsonl sha256
+COHORT_CORPUS = '2958bbaabc261704fa0cd9d7b89708ca2e6b19c0f56b5484d2026fbd6348efe4'       # rebuilt corpus.jsonl sha256
 OPEN_KEYS = '6655391450c0eecbfcb693781f436912d6196f90f20b89a54db5c9b6d5e16092'            # open-answer-keys.txt sha256
 DECISION_ID = 'national-pq-lastpage-20261031-v1'
-DOCS, CHUNKS, MAX_CHUNKS, MAX_COST_USD = 114, 1680, 1700, 0.11
+DOCS, CHUNKS, MAX_CHUNKS, MAX_COST_USD = 113, 1390, 1400, 0.09
 MIN_TOKEN_MINUTES = 50
 TARGET = 'https://vfgcppstyzjarlzyqdac.supabase.co'
 NATIONAL = '/content/drive/MyDrive/Data Handover/National/v1.1'
