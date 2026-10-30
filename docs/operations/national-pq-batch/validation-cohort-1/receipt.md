@@ -1,7 +1,8 @@
 # Lok Sabha validation cohort 1: receipt (`national-pq-validation-20261029-v100`)
 
-> **Status: Historical (dated 2026-10-30).** Rule 4 receipt. **Ingestion complete and verified; website acceptance
-> incomplete** (the chat model provider failed; see below). Times are UTC, with IST in brackets.
+> **Status: Historical (dated 2026-10-30).** Rule 4 receipt. **Complete and accepted.** Ingestion is verified (the
+> developers re-ran `verify.sql`: equal). Website acceptance passed on 2026-10-30, done by the developers on the default
+> model, Gemini - Flash (below). Times are UTC, with IST in brackets.
 
 ## Approval
 
@@ -41,6 +42,7 @@
    - The importer's own retry path: the same approved manifest and limits, a new report file. The 54 already in returned as existing; 46 were new.
    - Exit 0: 100 registered, 0 uncertain, 0 refused.
    - The resume was typed as a notebook cell, because the run script deliberately refuses to submit twice. It used the script's own functions and the same pinned checkout.
+   - **Developers, 2026-10-30:** the hand-typed resume cell was accepted once only and must never be repeated. Later cohorts resume only through a reviewed `resume()` in their run script.
 
 ## Counts
 
@@ -52,7 +54,7 @@
 | Indexed (every chunk vectored, 1536-d) | **100**: 829 chunks |
 | Linked to listing rows | **100 documents, 114 links**, decision `admission:pq-answer-key-v1` (written at admission) |
 | Visible to signed-in readers (resolver, R3) | 5 of 5 acceptance records (8 rows), `full`, right file |
-| Website-accepted | **0 of 5: incomplete** (below) |
+| Website-accepted | **5 of 5** (developers, 2026-10-30; below) |
 
 ## Spend
 
@@ -69,7 +71,23 @@ fingerprint 090b78173e528bde969738af95631bd17236879dfe851e60c25415b1448c3baa  (e
 
 Every value equals the header's expectation.
 
-## Website acceptance (rule 5): incomplete
+## Website acceptance (rule 5): passed
+
+Done by the developers on 2026-10-30, signed in on production `e1584346`, with the default model **Gemini - Flash (low)**:
+736 credits in total. Each answer cited one source, the right answer file, and every listed item is in the stored text.
+
+| Record | Answer file | Checked |
+|---|---|---|
+| Dairy Farming | `AU2515_4ZRTdy.pdf` | Rajiv Ranjan Singh alias Lalan Singh; Rashtriya Gokul Mission, NPDD, NLM; Kisan Credit Card |
+| New Agricultural Policy (starred) | `AS220_iNFz3I.pdf` | Shivraj Singh Chouhan; both quoted sentences; NMSA |
+| 10-day bagless guidelines | `AU2182_DgjJUX.pdf` | Jayant Chaudhary; "in consultation with concerned stakeholders"; 29 July 2024 launch |
+| Internet Shutdown | `AU2739_sDP7PH.pdf` | 2017 Temporary Suspension Rules; 10.11.2020; "not maintained centrally" |
+| Increasing Cyber Crimes | `AU2504_KA5sLT.pdf` | Bandi Sanjay Kumar; ₹2,400 crore / 7.6 lakh complaints; 5.8 lakh SIMs; CyTrain 96,288 |
+
+"Gemini 2.5 Lite", whose provider failed in the agent's first attempt below, has since been removed from the model list
+(developers, 2026-10-30).
+
+### The agent's first attempt (2026-10-29, superseded by the table above)
 
 Signed in on www.nter.pro, 2026-10-29 19:40–19:42 (01:10–01:12 IST, 30 Oct), in the owner's Chrome, account shown as "V", MAX plan.
 
@@ -92,7 +110,7 @@ Signed in on www.nter.pro, 2026-10-29 19:40–19:42 (01:10–01:12 IST, 30 Oct),
 | Internet Shutdown | 3994, 4829 | `AU2739_sDP7PH.pdf` |
 | Increasing Cyber Crimes | 216 | `AU2504_KA5sLT.pdf` |
 
-**Still needed:** repeat the five attached-record questions once the provider works, or with a model the developers choose, and record the result here.
+Superseded: the developers completed acceptance on 2026-10-30 (table above).
 
 ## For the developers
 

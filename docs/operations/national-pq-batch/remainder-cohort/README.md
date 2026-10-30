@@ -6,9 +6,10 @@
 > Prepared at the owner's request of 2026-10-30, 01:19 IST ("finish the parliamentary question in one go, ensure i dont have
 > to give token multiple times"), with his go-ahead to prepare before the developers accept cohort 1 ("Prepare now").
 >
-> Order from here: the developers accept validation cohort 1 (its receipt is `../validation-cohort-1/receipt.md`, website
-> acceptance still open); they review this folder and the new tooling; they merge. Then the owner approves the manifest
-> hash in one message, there is one run with one token, a receipt and website acceptance, and stop.
+> **Developers, 2026-10-30:** validation cohort 1 is complete and accepted (`../validation-cohort-1/receipt.md`). This
+> cohort passes their data checks and is **not approved: it must not run yet**. They review the run-script fixes and merge,
+> and send the merge commit. The owner then approves in the developers' exact wording (manifest, run script sha256 from the
+> merged commit, the merge commit, 5,300 chunks and US$0.31). Then one run, a receipt, website acceptance, and stop.
 
 ## What is proposed
 
@@ -25,7 +26,8 @@
 | Expected listing links at admission | **632** rows for the 523 answer files |
 | Plan fingerprint (sorted `source_key\|chunks\|text_sha256`) | `b83f8cf9688b1cae31d55b8101d84c52a70ca0358fdd8473b9c01b00fc9b8aa0` |
 | Run script | `run-remainder-cohort.py` (sha256 in the approval message, after merge) |
-| Expected run time | about 35 minutes (cohort 1: about 3.7 s per answer). One token covers it: the script refuses a token with under 50 minutes left |
+| Expected run time | **35–50 minutes** (cohort 1: about 3.7 s per answer). The script refuses a token with under 50 minutes left, but a token may still expire mid-run |
+| Launch commit | the **merge commit the developers give**, never a branch commit |
 
 The plan expected about 4,300 chunks and a US$0.25 ceiling; the exact dry run gives 5,234 and US$0.305, because the two
 large answers held from cohort 1 (`AU2083_d6yKQK`, 164 chunks; `AS161_XfyBmh`, 66) are included. These limits are
@@ -95,9 +97,12 @@ Open these five records signed in. Confirm Full text and the right PDF, then ask
    - stops.
 
    It refuses if a submission report already exists.
-3. **If the importer stops uncertain** (exit 2, as cohort 1 did on an HTTP 503): stop and report.
-   - The owner may then decide, in writing, to finish the same manifest with `resume()`.
-   - `resume()` re-runs the importer's idempotent submission into the next report: registered answers return as existing.
+3. **If the importer stops uncertain** (exit 2, as cohort 1 did on an HTTP 503, or because the token expired mid-run): stop and report.
+   - **The only remedy is `resume()` with a fresh owner token**, after the owner's decision. Never a hand-typed cell (developers, 2026-10-30: cohort 1's was accepted once only).
+   - `resume()` re-runs the importer's idempotent submission of the same manifest into the next report: registered answers return as existing.
+   - `resume()` refuses unless the last submission recorded exit 2. It refuses any other exit code, a missing status file (treated as uncertain: report), and a staged manifest or corpus whose hash changed.
+   - Every submission writes `submit-N-status.json` in a `finally` block, in exclusive mode. `run()` refuses if any `submit-*` file exists.
+   - On any other stop: report and stop.
 4. **After indexing**, run `verify.sql`; the expected values are in its header. Then the receipt, website acceptance, and stop.
 
 ## Files
@@ -111,3 +116,4 @@ Open these five records signed in. Confirm Full text and the right PDF, then ask
   - `pq-remainder-cohort.py`;
   - `pq-near-duplicate.py`: a verbatim copy of the Law core's dedupe functions, so the disabled core is never loaded;
   - `test_pq_remainder_cohort_offline.py`: 6 tests. They prove the copy is byte-identical and that the near-duplicate test fails with the rule disabled, and they run the real importer.
+  - `test_run_remainder_cohort_offline.py`: 16 tests of the run script with getpass, Colab userdata and subprocess stubbed. They cover the token lifetime, a malformed token, the five `resume()` refusals and a missing status, the double-submit guard, status-on-crash and the shared-code guard. A `Causal` test removes each check from the script's source and shows its test fails.

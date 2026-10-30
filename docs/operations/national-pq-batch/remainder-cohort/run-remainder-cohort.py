@@ -14,11 +14,12 @@
 #   print(hashlib.sha256(src).hexdigest())   # compare with the hash in the approval message before running
 #   exec(compile(src, 'run-remainder-cohort.py', 'exec')); run(REPO_SHA)
 #
-# If the importer stops on an uncertain outcome (exit 2), the script stops and writes the status; nothing is retried.
-# resume(REPO_SHA) exists only for the case the owner then decides, in writing, to finish the same approved manifest:
-# it re-runs the importer's own idempotent submission into the next report (already registered answers come back as
-# existing; nothing else changes), with a fresh token.
-import base64, getpass, hashlib, json, os, pathlib, subprocess, tarfile, time, urllib.request
+# A 523-answer run takes 35-50 minutes, so a token may expire mid-run. If the importer stops on an uncertain outcome
+# (exit 2), the script records the status and stops; nothing is retried. The only remedy is resume(REPO_SHA), after the
+# owner's written decision, with a fresh owner token: it re-runs the importer's own idempotent submission of the same
+# approved manifest into the next report (already registered answers come back as existing). Never a hand-typed cell.
+# resume() refuses unless the last submission recorded exit 2. The launch commit is the merge commit the developers give.
+import base64, getpass, hashlib, json, os, pathlib, re, subprocess, tarfile, time, urllib.request
 
 APPROVED_MANIFEST = '8b1ac8f3b9f1cbe856063fc419c091b10f69c0f5e8483ff13fb7113a72750b27'   # decisions.jsonl sha256
 COHORT_CORPUS = '781c224017c3710097d2b899b95e2c5c64f1c93cae2d666fcdbcf03787a46b52'       # rebuilt corpus.jsonl sha256
@@ -102,7 +103,7 @@ def token_env():
         part = tok.split('.')[1]
         exp = json.loads(base64.urlsafe_b64decode(part + '=' * (-len(part) % 4)))['exp']
     except Exception:
-        raise Stop('that does not look like a session access token')
+        raise Stop('that does not look like a session access token') from None
     left = (exp - time.time()) / 60
     print(f'token valid for about {left:.0f} more minutes')
     if left < MIN_TOKEN_MINUTES:
@@ -112,16 +113,22 @@ def token_env():
 
 
 def submit(n, env):
-    report = ST / f'submit-{n}.jsonl'
-    if report.exists():
-        raise Stop(f'{report} exists; reports are never overwritten')
-    r = importer(['--corpus', str(ST / 'corpus.jsonl'), '--decisions', str(ST / 'decisions.jsonl'), '--report', str(report),
-                  '--submit', '--approval', APPROVED_MANIFEST, '--target', TARGET,
-                  '--max-chunks', str(MAX_CHUNKS), '--max-estimated-cost-usd', str(MAX_COST_USD)], env)
-    env.pop('NTER_INGEST_ACCESS_TOKEN', None)
-    out = {'exit': r.returncode, 'report_sha256': sha(report) if report.exists() else None,
-           'summary': last(report) if report.exists() else None, 'stderr_tail': r.stderr[-300:] if r.returncode else ''}
-    (ST / f'submit-{n}-status.json').write_text(json.dumps(out, indent=1))
+    """One importer submission into submit-<n>.jsonl. Its status file is always written (try/finally), in exclusive mode."""
+    report, status = ST / f'submit-{n}.jsonl', ST / f'submit-{n}-status.json'
+    if report.exists() or status.exists():
+        raise Stop(f'{report.name} or {status.name} exists; reports are never overwritten')
+    out = {'exit': None, 'report_sha256': None, 'summary': None, 'stderr_tail': ''}
+    try:
+        r = importer(['--corpus', str(ST / 'corpus.jsonl'), '--decisions', str(ST / 'decisions.jsonl'), '--report', str(report),
+                      '--submit', '--approval', APPROVED_MANIFEST, '--target', TARGET,
+                      '--max-chunks', str(MAX_CHUNKS), '--max-estimated-cost-usd', str(MAX_COST_USD)], env)
+        out['exit'], out['stderr_tail'] = r.returncode, (r.stderr[-300:] if r.returncode else '')
+    finally:
+        env.pop('NTER_INGEST_ACCESS_TOKEN', None)
+        if report.exists():
+            out['report_sha256'], out['summary'] = sha(report), last(report)
+        with open(status, 'x') as f:
+            f.write(json.dumps(out, indent=1))
     print(json.dumps(out, indent=1))
     print('STOP. Report the result to the owner; indexing, verification and website acceptance follow. No further cohort.')
 
@@ -129,7 +136,7 @@ def submit(n, env):
 def run(repo_sha):
     setup(repo_sha)
     ST.mkdir(parents=True, exist_ok=True)
-    if any(ST.glob('submit-*.jsonl')):
+    if any(ST.glob('submit-*')):
         raise Stop(f'{ST} already holds a submission report: reconcile it with the owner; never resubmit from here')
     # Rebuild the cohort from the pinned pack; it must reproduce the approved manifest and corpus exactly.
     build = W / 'build'
@@ -162,14 +169,19 @@ def run(repo_sha):
 
 
 def resume(repo_sha):
-    """Only after the owner decides, in writing, to finish the same approved manifest after an uncertain stop."""
+    """Only after an uncertain stop (exit 2) and the owner's written decision to finish the same approved manifest."""
     setup(repo_sha)
-    reports = sorted(ST.glob('submit-*.jsonl'))
-    if not reports:
-        raise Stop('nothing to resume: run() first')
+    numbers = sorted({int(m.group(1)) for p in ST.glob('submit-*') for m in [re.fullmatch(r'submit-(\d+)(?:\.jsonl|-status\.json)', p.name)] if m})
+    if not numbers:
+        raise Stop('nothing to resume: no submission report exists')
+    n = numbers[-1]
+    status = ST / f'submit-{n}-status.json'
+    if not status.exists():
+        raise Stop(f'submit-{n} has no status file: treat it as uncertain and report it to the owner and developers; '
+                   'resume() does not run without a recorded exit 2')
+    code = json.loads(status.read_text()).get('exit')
+    if code != 2:
+        raise Stop(f'resume() runs only after an uncertain stop (exit 2); submit-{n} exited {code}: report and stop')
     if sha(ST / 'decisions.jsonl') != APPROVED_MANIFEST or sha(ST / 'corpus.jsonl') != COHORT_CORPUS:
-        raise Stop('staged cohort differs from the approved manifest')
-    prev = json.loads((ST / f'submit-{len(reports)}-status.json').read_text())
-    if prev.get('exit') == 0:
-        raise Stop('the last submission finished (exit 0): nothing to resume')
-    submit(len(reports) + 1, token_env())
+        raise Stop('staged cohort differs from the approved manifest: resume refused')
+    submit(n + 1, token_env())
