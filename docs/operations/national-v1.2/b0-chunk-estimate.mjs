@@ -10,6 +10,6 @@ for await (const line of rl) {
   const { k, t } = JSON.parse(line);
   const spans = chunkUnit({ unitKey: 'document', text: t || '', sourceKind: 'document' });
   let tokens = 0;
-  for (const s of spans) tokens += estimateTokens((t || '').slice(s.from, s.to));
+  for (const s of spans) tokens += estimateTokens(s.content);   // fixed 2026-10-31: the first B0 run sliced by undefined offsets, so its tokens_est column is void
   process.stdout.write(`${k}\t${spans.length}\t${tokens}\n`);
 }
