@@ -40,6 +40,10 @@ const NOT_INDIAN_ELECTION = [
   'Double Chance Saloon – bet YES to have two chances to win',
 ];
 
+// Open markets close on 10 March next year, so they are still open whenever the suite runs.
+const OPEN_UNTIL = Date.UTC(new Date().getUTCFullYear() + 1, 2, 10);
+const OPEN_UNTIL_DAY = new Date(OPEN_UNTIL).toISOString().slice(0, 10);
+
 const market = (over) => ({
   id: over.id || over.question,
   question: 'Who will win the 2025 Delhi Elections?',
@@ -48,7 +52,7 @@ const market = (over) => ({
   probability: 0.5,
   volume: 100,
   volume24Hours: 1,
-  closeTime: Date.parse('2027-03-10T00:00:00Z'),
+  closeTime: OPEN_UNTIL,
   isResolved: false,
   token: 'MANA',
   ...over,
@@ -70,7 +74,7 @@ describe('election market rows (F196)', () => {
         title: 'Who will be the prime minister of India after the next election?',
         question: 'Who will be the prime minister of India after the next election?',
         market_type: 'Multiple choice', probability: '', top_outcome: 'Narendra Modi', top_outcome_pct: '41.2',
-        total_volume: 1952, close_time: '2027-03-10', resolved: 'No', source_url: 'https://manifold.markets/x/b',
+        total_volume: 1952, close_time: OPEN_UNTIL_DAY, resolved: 'No', source_url: 'https://manifold.markets/x/b',
       }),
       expect.objectContaining({
         question: 'PM Modi (BJP) wins Bihar election?', market_type: 'Yes / no', probability: '98.7', top_outcome: '',

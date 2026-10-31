@@ -46,6 +46,30 @@ Feature routing must name an existing Law feature in `supabase/functions/_shared
 
 Resolve `__full` replacement precedence, repeated member occurrences, revision-specific duplicate winners, sensitive serving policy and the report's exceptions before generating eligible decisions. Do not import a duplicate alias as a second searchable document just because it has identical text. The three companion checksum differences also remain a package-release check. Known `partial`/`cut_at_*` page declarations, bad hashes/spans and unsupported features fail even with an eligible review.
 
+## The Law source archive
+
+Every Law cohort so far was screened from one archive. Use that archive and nothing rebuilt from it.
+
+| | |
+|---|---|
+| File | `NTER_legal_pack_v1.1_FULL_2026-10-18.zip`. A browser copy may carry a `-001` suffix; the content is what counts. Its internal folder is `NTER_legal_pack_v1.2_FULL_2026-10-18/`. |
+| Size | 79,418,376,315 bytes, 17,059 members |
+| sha256 | `aab23dedfd60b593c98702127fcb3246daaed3e6689fc6c699eb167c4712ebf4` |
+| Where | Google Drive (DDL Labs). Read it there, from Colab with Drive mounted; a local copy is not needed. |
+
+The sha256 was computed on 2026-10-31 from the developer's local copy. The same copy matched what cohort 2 recorded (`law-cohort-2-release/eligibility-evidence.json`): the size, and the sha256 of `documents/tribunals/IBBI_NCLT/2026__part-00006.jsonl.gz` and of the three policy members.
+
+Before a run on a copy, check it:
+- **Each run:** check the size and the members the run uses. The screener's `--expect-member-sha256` and `--expect-policy-hashes` already refuse a different member.
+- **Once per new copy:** check the whole-file sha256. Hashing 74 GB takes about four minutes on a laptop's disk and longer through a Drive mount.
+
+```bash
+stat -c %s "$ZIP"          # 79418376315 (on macOS: stat -f %z)
+sha256sum "$ZIP"           # aab23ded…12ebf4 as above (on macOS: shasum -a 256)
+```
+
+A copy that differs is a different pack. Stop and report it; do not screen from it.
+
 ## Preparing a bounded cohort with the screener
 
 `scripts/law-cohort-screen.py` prepares one bounded cohort from one pinned ZIP member, offline and read-only. It is not the whole-pack decision generator, and it does not change what the importer checks.
