@@ -20,7 +20,7 @@
 | Shared code | `scripts/`, `supabase/`, `src/`, `api/`, `server/` identical between `e1584346` and M (empty `git diff`); the script's own guard also passed |
 | Cohort corpus (rebuilt in Colab, private) | `781c224017c3710097d2b899b95e2c5c64f1c93cae2d666fcdbcf03787a46b52` (the script requires it) |
 | Limits | `--max-chunks 5300 --max-estimated-cost-usd 0.31` |
-| Runner | Colab `Untitled7.ipynb` under tamanesh1993@gmail.com. Tokens: the owner's own nter.pro sessions, typed by the owner at the prompt; never seen, stored or logged by the agent. No password used |
+| Runner | Colab `Untitled7.ipynb` under the owner's Google account (address redacted from the public repository, 2026-10-31). Tokens: the owner's own nter.pro sessions, typed by the owner at the prompt; never seen, stored or logged by the agent. No password used |
 
 ## Run log
 
