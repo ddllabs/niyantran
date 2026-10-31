@@ -105,7 +105,35 @@ export async function runImport(options, request = fetch) {
     uncertain: 0,
     registration_held: 0,
     already_registered: 0, published: 0, publication_pending: 0, publication_held: 0,
+    // `submitted` counts every confirmed registration; `existing` says how many of those the server already held.
+    existing: 0, retried: 0,
   };
+  const retryDelayMs = options.retryDelayMs ?? 10_000;
+  const LOST = 'registration outcome unknown; reconcile exact manifest';
+  async function registerOnce(body, expectedSha, timeoutMs) {
+    let response;
+    try {
+      response = await request(url, {
+        method: 'POST',
+        redirect: 'error',
+        signal: AbortSignal.timeout(timeoutMs),
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, apikey: publishableKey },
+        body,
+      });
+    } catch {
+      return { status: 'uncertain', reason: LOST, retry: true };
+    }
+    if (!response.ok) {
+      if ([400, 413, 422].includes(response.status)) return { status: 'held', reason: `HTTP ${response.status}` };
+      return { status: 'uncertain', reason: `HTTP ${response.status}`, retry: response.status >= 500 || response.status === 429 };
+    }
+    let result;
+    try { result = await response.json(); } catch { return { status: 'uncertain', reason: LOST, retry: true }; }
+    if (!result.ok || !result.job_id || !result.document_id || result.payload_sha256 !== expectedSha) {
+      return { status: 'uncertain', reason: LOST, retry: false };
+    }
+    return { status: 'registered', result };
+  }
   try {
     for (const file of files) {
       const sha = await fileHash(file);
@@ -206,40 +234,40 @@ export async function runImport(options, request = fetch) {
           // Persist intent BEFORE sending. A crash after this line requires rerunning the exact
           // manifest; registration itself is idempotent, with the DB as the authoritative ledger.
           await append({ ...row, status: 'submitting' });
+          let body;
           try {
             const record = JSON.parse(await readFile(e.path, 'utf8'));
-            const response = await request(url, {
-              method: 'POST',
-              redirect: 'error',
-              signal: AbortSignal.timeout(30_000),
-              headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, apikey: publishableKey },
-              body: JSON.stringify({ action: 'register_text', record, confirm_sha256: e.payload_sha256, ...(e.mapping ? { expected_mapping_fingerprint: e.mapping.fingerprint } : {}) }),
-            });
-            if (!response.ok) {
-              row.status = [400, 413, 422].includes(response.status) ? 'held' : 'uncertain';
-              row.reason = `HTTP ${response.status}`;
-              if (row.status === 'held') summary.registration_held++;
-              if (row.status === 'uncertain') {
-                summary.uncertain++;
-                stopped = true;
-              }
-            } else {
-              const result = await response.json();
-              if (!result.ok || !result.job_id || !result.document_id || result.payload_sha256 !== e.payload_sha256) {
-                throw Error('unconfirmed registration');
-              }
-              row.status = 'registered';
-              row.job_id = result.job_id;
-              row.document_id = result.document_id;
-              row.job_status = result.status;
-              row.existing = result.existing;
-              summary.submitted++;
-            }
+            body = JSON.stringify({ action: 'register_text', record, confirm_sha256: e.payload_sha256, ...(e.mapping ? { expected_mapping_fingerprint: e.mapping.fingerprint } : {}) });
           } catch {
-            row.status = 'uncertain';
-            row.reason = 'registration outcome unknown; reconcile exact manifest';
-            summary.uncertain++;
-            stopped = true;
+            body = null;
+          }
+          // Registration is idempotent: the same payload returns the document it already made. An answer
+          // lost to a timeout or a server error is asked for once more, with a longer wait, before the
+          // run stops (F274: a committed registration whose response took 45 s).
+          let outcome = body === null ? { status: 'uncertain', reason: LOST, retry: false } : await registerOnce(body, e.payload_sha256, 30_000);
+          if (outcome.retry) {
+            summary.retried++;
+            row.first_attempt = outcome.reason;
+            await new Promise((done) => setTimeout(done, retryDelayMs));
+            outcome = await registerOnce(body, e.payload_sha256, 120_000);
+          }
+          if (outcome.status === 'registered') {
+            const result = outcome.result;
+            row.status = 'registered';
+            row.job_id = result.job_id;
+            row.document_id = result.document_id;
+            row.job_status = result.status;
+            row.existing = result.existing;
+            summary.submitted++;
+            if (result.existing === true) summary.existing++;
+          } else {
+            row.status = outcome.status;
+            row.reason = outcome.reason;
+            if (outcome.status === 'held') summary.registration_held++;
+            else {
+              summary.uncertain++;
+              stopped = true;
+            }
           }
         }
       }

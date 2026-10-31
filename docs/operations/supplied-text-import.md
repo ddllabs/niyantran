@@ -131,7 +131,13 @@ A registration can immediately start paid embedding work through the existing sc
 
 The database is the authoritative checkpoint. Rerunning the exact unchanged manifest into a **new report path** returns the same jobs and document IDs. Changed text, metadata, routing or review evidence for an existing source is refused without overwriting it, including preexisting legacy/PDF documents. Existing-source revisions require a separate reviewed revision workflow; changing the source key to force admission is not a valid workaround.
 
-The client records `submitting` before each request and records the receipt afterwards. A network timeout, unexpected response, authorization failure or service failure stops further submissions and records an uncertain outcome. Reconcile the existing job first; rerunning the unchanged manifest is safe for registration. Do not infer absence from a lost response.
+The client records `submitting` before each request and records the receipt afterwards. Registration is idempotent: the same payload returns the document it already made (`existing: true`).
+
+- **Lost answer (timeout, network error, unreadable reply, HTTP 5xx or 429):** the client waits 10 seconds and asks once more, with a 120-second timeout (F274: a committed registration once took 45 seconds to answer). The report row keeps the first failure as `first_attempt`, and the summary counts it under `retried`.
+- **Retry confirmed:** the run continues.
+- **Retry also lost, or any other unexpected response, including an authorization failure:** further submissions stop and the outcome is recorded as uncertain. Reconcile the existing job first; rerunning the unchanged manifest is safe for registration. Do not infer absence from a lost response.
+
+`submitted` counts every confirmed registration; `existing` says how many of those the server already held.
 
 The worker reuses committed chunks with matching embedding hashes. An expired supplied-text claim, or a caught failure after entering the index loop, is held for operator reconciliation rather than automatically retried. Paid provider work may have succeeded before a lost commit/acknowledgement; **exactly-once billing is not guaranteed**. Manual retry after reconciliation can incur additional cost for uncommitted vectors. A normal time-budget yield queues the next bounded step without invoking OCR.
 

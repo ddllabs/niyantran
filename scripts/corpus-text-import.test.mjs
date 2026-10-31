@@ -87,22 +87,58 @@ test('changed approval and unbound corpus refuse before network', async (t) => {
   assert.equal(out.held, 1);
   assert.equal(out.ready, 0);
 });
-test('lost registration acknowledgement is reported as uncertain, without automatic replay', async (t) => {
+const submitOpts = { submit: true, target: 'https://fixture.supabase.co', token: 'admin-token', publishableKey: 'public', retryDelayMs: 0 };
+const registered = (body, existing) => new Response(JSON.stringify({
+  ok: true, status: 'queued', document_id: 'doc', job_id: 'job', existing, payload_sha256: JSON.parse(body).confirm_sha256,
+}), { status: 200 });
+test('a registration lost twice is reported as uncertain and stops the run (F274)', async (t) => {
   const f = await fixture(t);
   let calls = 0;
-  const out = await runImport({
-    ...f,
-    submit: true,
-    target: 'https://fixture.supabase.co',
-    token: 'admin-token',
-    publishableKey: 'public',
-  }, async () => {
+  const out = await runImport({ ...f, ...submitOpts }, async () => {
     calls++;
     throw Error('connection lost after write');
   });
-  assert.equal(calls, 1);
+  assert.equal(calls, 2);
   assert.equal(out.uncertain, 1);
+  assert.equal(out.retried, 1);
   assert.match(await readFile(f.report, 'utf8'), /submitting/);
+});
+test('a lost registration is asked once more and the run continues when it is confirmed (F274)', async (t) => {
+  const f = await fixture(t);
+  let calls = 0;
+  const out = await runImport({ ...f, ...submitOpts }, async (_url, opts) => {
+    calls++;
+    if (calls === 1) throw Error('The operation was aborted due to timeout');
+    return registered(opts.body, true);
+  });
+  assert.equal(calls, 2);
+  assert.equal(out.uncertain, 0);
+  assert.equal(out.submitted, 1);
+  assert.equal(out.existing, 1);
+  assert.equal(out.retried, 1);
+  const row = (await readFile(f.report, 'utf8')).trim().split('\n').map((l) => JSON.parse(l)).find((r) => r.status === 'registered');
+  assert.equal(row.existing, true);
+  assert.equal(row.first_attempt, 'registration outcome unknown; reconcile exact manifest');
+});
+test('a server error is asked once more; an unauthorized token is not', async (t) => {
+  const f = await fixture(t);
+  let calls = 0;
+  const out = await runImport({ ...f, ...submitOpts }, async (_url, opts) => {
+    calls++;
+    return calls === 1 ? new Response('', { status: 503 }) : registered(opts.body, false);
+  });
+  assert.equal(calls, 2);
+  assert.equal(out.submitted, 1);
+  assert.equal(out.existing, 0);
+  const g = await fixture(t);
+  let denied = 0;
+  const refused = await runImport({ ...g, ...submitOpts }, async () => {
+    denied++;
+    return new Response('', { status: 401 });
+  });
+  assert.equal(denied, 1);
+  assert.equal(refused.uncertain, 1);
+  assert.equal(refused.retried, 0);
 });
 test('known incomplete text is held even with an eligible decision', async (t) => {
   const r = await input();
