@@ -1,7 +1,7 @@
 # Lok Sabha remainder cohort (523): receipt (`national-pq-remainder-20261030-v1`)
 
-> **Status: Historical (dated 2026-10-31).** Rule 4 receipt. Ingestion is **complete and verified**: `verify.sql` equals
-> its header. Website acceptance: see below. Times are UTC, with IST in brackets.
+> **Status: Historical (dated 2026-10-31).** Rule 4 receipt. **Complete and accepted.** Ingestion is verified (`verify.sql` equals its
+> header) and website acceptance passed 5 of 5 (below). Times are UTC, with IST in brackets.
 
 ## Approval
 
@@ -70,7 +70,26 @@ Every value equals the header's expectation.
 
 ## Website acceptance (rule 5)
 
-ACCEPTANCE_PENDING
+**Passed, 5 of 5.** Done by the agent on 2026-10-31 17:00–17:08 (22:30–22:38 IST), signed in as the owner on www.nter.pro
+(account "V", MAX). Each record: found through record search; record panel "Full text"; its "Question (PDF)" link is the
+right sansad.in file; "Ask AI about this question" attached it alone (focus Attached only) to a new, empty research chat;
+model **Gemini - Flash · Low** (the menu's "Default"; see finding 7); one question; web off.
+
+| Record (row opened) | Answer file | Question asked about | Answer | Sources | Credits |
+|---|---|---|---|---|---|
+| Closing of Iron Industrial Unit at Giridih (7314) | `AU2083_d6yKQK.pdf` | Act and section for CPCB directions; re-opening protocol | Section 5, Environment (Protection) Act, 1986; Standard Protocol … (March 2023); Office Order dated January 01, 2024 | 1, right file | 149 |
+| Drugs under DPCO, starred (6083) | `AS161_XfyBmh.pdf` | Ceiling prices; new-drug retail prices; MRP cap | 926 scheduled formulations as on 30.07.2024; around 2,894 new drugs; not more than 10% in 12 months | 1, right file | 304 |
+| Paper Leaks in India in Last 10 Years (1355) | `AU10_3ev8MA.pdf` | NEET(UG) date; committee; Supreme Court order | 5 May 2024; High-Level Committee 22.6.24, report in two months; order 18.7.2024 in WP (Civil) No. 335/2024 | 1, right file | 110 |
+| Training for Panchayati Raj Representatives (2577) | `AU1332_xkywjc.pdf` | MoU institutes; minister | IIM Ahmedabad, Amritsar, Bodh Gaya, Jammu, Shillong, Rohtak; IIT Dhanbad; IRMA (8); Prof. S.P. Singh Baghel | 1, right file | 130 |
+| Rail Service to Poonch and Rajouri District (623) | `AU1507_byiDVL.pdf` | Survey length, route, cost | 223 km via Akhnur and Rajauri; ₹22,771 crore | 1, right file | 99.8 |
+
+Total: about 793 credits. **Every figure above is in the stored text** (read-only checks of `documents.ocr_text`; the
+January 2024 office order is stored as "JanuarY 01,01,2024", an OCR artefact of the source PDF). Retrieval trace
+(`chat_turn_traces`, R5): each turn's search returned chunks only from its own answer file (40, 40, 9, 20 and 5 chunks).
+All five model calls (`google/gemini-3.8-flash`) succeeded. No wrong file, no "Record only", no figure outside the text.
+
+Signed-in coverage through the released resolver (R4): all 15 listing rows of the five records are `full`, each on the
+right file.
 
 ## Deviations and findings
 
@@ -80,6 +99,9 @@ ACCEPTANCE_PENDING
 4. **Agent error:** a mis-click re-ran the launch cell; `run()`'s double-submit guard refused it. Nothing was sent.
 5. **Report counter:** submission 2's summary says `already_registered: 0`, though 329 of its `registered` lines carry `existing: true`. The summary's `submitted` counts existing documents too. Worth a look in the importer's summary; it does not affect the result.
 6. **256-chunk rule** (from the last-page cohort): `pq-remainder-cohort.py` does not enforce it. Not relevant here (the largest answer has 164 chunks).
+
+7. **Model default:** the chat opened on "Gemini - Lite · Minimal" (apparently the account's last choice), while the menu marks "Gemini - Flash" as "Default". The agent selected Gemini - Flash, as the procedure names, before the first question, and used it for all five; no switch after any failure.
+8. **A failed Lite call at 17:07:33** (`google/gemini-2.5-flash-lite`, status `error`, `model_call_logs`) beside the fifth turn's successful Flash call. Probably a side call (follow-up suggestions); the answer was unaffected. As in cohort 1, the Lite provider path is failing.
 
 ## Files
 

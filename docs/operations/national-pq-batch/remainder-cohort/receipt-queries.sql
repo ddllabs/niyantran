@@ -39,3 +39,11 @@ from public.record_resolve_document_keys(array[
  'desk-record:["national", "Parliamentary Question Database", "623"]']) r
 left join public.documents d on d.id = r.document_id;
 rollback;
+
+-- R5. Website acceptance turns: retrieval scope and model calls (2026-10-31 16:58-17:10 UTC).
+begin transaction read only;
+select t.created_at, t.step_type, t.result_count, cardinality(t.chunk_ids) n_chunks,
+  (select string_agg(distinct d.file_name, ',') from public.document_chunks k join public.documents d on d.id = k.document_id where k.id = any(t.chunk_ids)) files
+from public.chat_turn_traces t where t.created_at between '2026-10-31 16:58:00+00' and '2026-10-31 17:10:00+00' order by t.created_at, t.step_index;
+select created_at, status, model_requested from public.model_call_logs where created_at between '2026-10-31 16:58:00+00' and '2026-10-31 17:10:00+00' and caller ilike '%chat%' order by created_at;
+rollback;
