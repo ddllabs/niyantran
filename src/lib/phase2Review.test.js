@@ -49,7 +49,7 @@ describe('loaders keep what they have (review 3)', () => {
   });
 
   it('Manifold: one failed search does not discard the others', async () => {
-    const market = (id, q) => ({ id, question: q, probability: 0.5, url: `https://manifold.markets/${id}`, outcomeType: 'BINARY', isResolved: false, closeTime: Date.parse('2027-01-01'), volume: 100 });
+    const market = (id, q) => ({ id, question: q, probability: 0.5, url: `https://manifold.markets/${id}`, outcomeType: 'BINARY', isResolved: false, closeTime: Date.now() + 365 * 86400000, volume: 100 }); // open a year past the test clock
     vi.stubGlobal('fetch', vi.fn(async (url) => {
       const u = String(url);
       if (/term=politics/.test(u)) return { ok: false, status: 500, json: async () => ({}) };

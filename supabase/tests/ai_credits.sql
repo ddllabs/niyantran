@@ -637,7 +637,9 @@ SELECT pg_temp.assert_true((SELECT starts_at = '2026-09-30 10:00+00' AND expires
 SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c009');
 INSERT INTO public.plan_grants (user_id, plan, status, period_end, source, created_at)
   VALUES ('00000000-0000-4000-8000-00000000c009', 'pro', 'active', NULL, 'manual', now() - interval '3 months 5 days');
-SELECT pg_temp.assert_true((SELECT count(*) = 1 AND min(source_key) LIKE 'grant:%:3' AND min(starts_at) = now() - interval '5 days'
+-- Expect the grant's own date + 3 months: now() - '3 months 5 days' clamps at month ends, so now() - 5 days is not always it.
+SELECT pg_temp.assert_true((SELECT count(*) = 1 AND min(source_key) LIKE 'grant:%:3'
+    AND min(starts_at) = (SELECT created_at + interval '3 months' FROM public.plan_grants WHERE user_id = '00000000-0000-4000-8000-00000000c009')
   FROM public.credit_lots WHERE user_id = '00000000-0000-4000-8000-00000000c009'),
   'a user away for three months gets the current cycle only');
 -- Re-subscribing after a lapse, rollover, and a rollover never rolls.
