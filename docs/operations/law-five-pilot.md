@@ -2,7 +2,7 @@
 
 > **Status: Living.** 2026-10-23. Connector released and hosted five-document pilot passed on NTER. The exact rerun created no duplicates and made no new embedding calls.
 
-Use Python 3, Node 24 and this exact repository revision. Both operators use the same original `NTER_legal_pack_v1.1_FULL_2026-10-18-001.zip`. Its internal folder says v1.2; do not rename or rebuild the archive. Run from the repository root with paths appropriate to your laptop:
+Use Python 3, Node 24 and this exact repository revision. Both operators use the same original `NTER_legal_pack_v1.1_FULL_2026-10-18-001.zip`. Its internal folder says v1.2; do not rename or rebuild the archive. Its size and sha256 are in [the cohort guide](supplied-text-import.md#the-law-source-archive); check a copy against them before use. Run from the repository root with paths appropriate to your laptop:
 
 ```bash
 python3 scripts/law-five-extract.py \
