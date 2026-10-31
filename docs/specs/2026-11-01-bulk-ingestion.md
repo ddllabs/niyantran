@@ -97,6 +97,16 @@ The current `section` key in chunk `metadata` stays. The ontology in `supabase/f
 (83 entries: global 16, national 12, state 22, law 12, economics 6, carbon 4, sports 6, entertainment 5) is the
 partition and facet vocabulary. Its tiers are too coarse to partition by: law alone is 57% of chunks today.
 
+**Typed columns, not a JSON filter.** Supabase's documented filter pattern is a `jsonb` metadata column matched with
+`metadata @> filter` inside the match function, which is the same filter-after-the-index search as today. Facets are
+ordinary typed, indexed columns instead:
+- the partition key has to be a column;
+- the planner keeps statistics on columns and can estimate how selective a filter is;
+- iterative index scans filter on them during the walk.
+
+Supabase Vector Buckets (S3-backed, in preview) also filter on metadata. They are a candidate for F279's external
+store, not for this step.
+
 ### 4.2 Hybrid search
 
 Legal and parliamentary questions often turn on exact identifiers: case numbers, section numbers, bill titles,
@@ -125,6 +135,35 @@ section. A chunk that says "the respondent's appeal is dismissed" then also carr
 - **Production.** The partition migration rebuilds the chunk table and its indexes. It is tested end to end on a
   disposable database, with SQL fixtures for the access policies, and applied to production only with the
   developer's explicit authorization of that migration.
+
+### 4.5 Existing chunks and new chunks
+
+**Existing chunks are backfilled once, inside the migration.** Only the context headers call the embedding API.
+
+| Part | Existing 391,555 chunks | New chunks |
+|---|---|---|
+| Partition | copied into the partitioned table with their vectors unchanged; per-partition indexes built; then the tables swap. Built side by side, so search keeps running until the swap | land in their feature's partition on insert |
+| Facets | filled by SQL from each document's stored metadata. No source files, no OCR and no API calls | written by the worker on insert; the trigger keeps them equal to the document |
+| Keyword search | generated column, computed during the copy | computed on insert |
+| Context headers | re-embedded in background batches, about US$2–3. The old vector serves until the new one replaces it | embedded with the header from the start |
+
+**What the stored metadata already holds** (measured 2026-11-01, read-only). Documents keep their source fields in
+`metadata.citation`:
+
+| Feature | Facet fields present | Coverage |
+|---|---|---|
+| NCLT / NCLAT | case number, order date, forum, bench, section, order type | case number and order date on all 7,549 documents; bench filled on none |
+| Parliamentary Questions | question number, answered on, ministry, house, session, subject | number and ministry on 6,601 of 6,683; no ISO answer date, so dates are absent or need normalising |
+| Bills | bill number, year, house, ministry, status, introduced on | 1,149 of 2,893 |
+| Regulatory, Budget, Industry | source host and document type only | the regulator or ministry has to be derived |
+
+`metadata.as_of` is the pack date (one or three values per feature), not the document's date, so it is not a facet.
+
+**Rules for the backfill:**
+- A facet that is null never matches a filter on it. So a facet is offered as a filter only once its coverage in that
+  feature is measured and recorded (plan step 2).
+- Missing facets are filled from the packs and listings during each collection's adapter work, not by OCR or guessing.
+  The Bills gap (1,744 documents without citation fields) is part of the Bills adapter.
 
 ## 5. Ingestion design
 
@@ -243,10 +282,10 @@ The retrieval steps (2–6) are developer work and do not wait for the owner's m
 parallel.
 
 1. Inventory (client agent, read-only), then the developers' overlap analysis.
-2. Retrieval eval set and baseline on today's shape (§4.4), on a disposable copy.
+2. Retrieval eval set and baseline on today's shape (§4.4), on a disposable copy, with facet coverage per feature (§4.5).
 3. Partitioned `document_chunks` with chunk facets and the sync trigger: migration, access-policy fixtures (with a
    vacuity check), search RPCs updated, and the eval rerun. This retires F272's 100,000-chunk bound for partitioned
-   features.
+   features. Existing chunks are backfilled inside this migration (§4.5); the vectors are copied, not recomputed.
 4. Hybrid search (§4.2), gated by the eval.
 5. Contextual headers and re-embedding (§4.3), gated by the eval.
 6. Bills adapter (F275) on the new shape, writing facets from its first document.
