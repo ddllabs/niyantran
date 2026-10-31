@@ -11,6 +11,14 @@
   - **Importer fix (this branch):** a lost answer (timeout, network error, HTTP 5xx or 429) is asked for once more after 10 seconds with a 120-second timeout; registration is idempotent, and the server's per-source lock prevents duplicates. Only a second loss stops the run. The summary adds `existing` and `retried` counts; `submitted` is unchanged, because the batch driver relies on it.
   - **Open:** watch for further stalls; report to Supabase if they recur.
 - [ ] **F275 — Developer decisions in the client's National plan.** From `docs/operations/national-plan-v1.1-to-v1.2-2026-10-30.md` (client branch): a Bills adapter with admission links (6,813 bills; R7's 315); a listing decision for regulatory documents (2,845, no listing rows); whether and how MP profiles (3,157, personal data) are served; how the v1.2 pack's 1,819 destructive text replacements are applied; `servable=false` enforcement; and a server-issued single-use ingestion grant bound to one approved manifest (would replace the per-run session token, F268). None is authorized by the plan. 2026-10-31, from the B0 report (`docs/operations/national-v1.2/b0-report.md`): v1.2's 10,492 candidate affidavits (personal data, 1,354 `servable=false`, about 617k chunks, six times the F272 bound; affidavits were kept out of scope on 2026-09-30), its 565 MP profiles, the 82 Lok Sabha replacements of the held September imports, the delta's `links/desk_row_links.csv`, and the load order on top of v1.1.
+
+- [ ] **F278 — Bulk corpus ingestion.** About 18 million documents to ingest, against about 850 documents an hour and one owner approval and sign-in per run today. [Spec](../specs/2026-11-01-bulk-ingestion.md), a draft:
+  - collection-level owner approval;
+  - a developer-run, server-side bulk pipeline with automatic stops and automated acceptance;
+  - an inventory first;
+  - a ramp of 10k, 100k, then 1M documents.
+  It needs the owner's sign-off, in one consolidated message, before it replaces the rules for every ingestion run.
+- [ ] **F279 — Corpus capacity decision.** The database holds 17,496 documents, 391,555 chunks and 6.5 GB (about 14 kB per chunk), with a 1.5 GB HNSW index. At 18 million documents that becomes about 400 million chunks and about 6.5 TB, and feature search already breaks above 100,000 chunks (F272). Decide partitioning, two tiers, an external vector store, or a larger instance, from the inventory and measurements, and record it in `docs/decisions/` before the corpus passes 1 million documents.
 - [ ] **F271 — The client agent's production database connector.** The client agent reads NTER through a Supabase connector (2026-10-29 reconciliation). Handoff rule 6 allows only read-only transactions, but the connector's own credential may allow writes. Owner action: confirm which credential it uses and replace it with a read-only role or remove it; rotate the Colab Secrets ingestion password (`NTER_INGEST_EMAIL` / `NTER_INGEST_PASSWORD`, F268).
 - [ ] **F272 — Feature search capacity above 100,000 chunks.** `match_documents_feature` recovers an underfilled feature search exactly only up to 100,000 eligible chunks, then raises `FEATURE_SEARCH_RECOVERY_LIMIT` (2026-10-27 migration). Measured 2026-10-29: NCLT / NCLAT (Insolvency) 225,273 chunks, Bill Passage Probability Index 89,014, Parliamentary Question Database 60,611. Measure how often Law searches underfill and provision per-feature indexing (or another bounded exact path) before Law cohorts of 1,000; a Law validation cohort may proceed.
 - [x] **F265 — Production ran corpus code that was not on `main`.** *Done 2026-10-28: PR #70 (`498152f3`) carries National admission on `main`; migration `pq_admission_links` applied (NTER `20261028185850`); `admin-ingest` v10 and `ingest-worker` v7 deployed from `main` and equal to it file for file. The orphan NTER history row `20261027110836` stays as a recorded difference. [Release evidence](../operations/2026-10-29-f266-release.md).*
@@ -96,7 +104,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F278 is next) and goes in the
+- A new finding gets the next free `F` number (F280 is next) and goes in the
   right section.
 
 ## Frontend follow-up
