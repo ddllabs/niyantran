@@ -563,7 +563,7 @@ SELECT pg_temp.assert_true((SELECT count(*) = 1 AND min(source_key) = 'grant:' |
 SELECT pg_temp.assert_true(NOT EXISTS (SELECT FROM private.credit_due_cycles('00000000-0000-4000-8000-00000000c006', now())
     WHERE source_key = 'grant:' || (SELECT id FROM public.plan_grants WHERE payment_id = 'p6_2')),
   'an early renewal''s lot is not usable before its base');
-SELECT pg_temp.assert_true((SELECT starts_at = now() + interval '1 month' AND expires_at = now() + interval '2 months'
+SELECT pg_temp.assert_true((SELECT starts_at = now() + interval '1 month' AND expires_at = now() + interval '1 month' + interval '1 month'
   FROM private.credit_due_cycles('00000000-0000-4000-8000-00000000c006', now() + interval '1 month')
   WHERE source_key = 'grant:' || (SELECT id FROM public.plan_grants WHERE payment_id = 'p6_2')),
   'the renewal''s cycle starts where the paid month ends');
@@ -627,6 +627,8 @@ SELECT pg_temp.assert_true((SELECT starts_at = '2026-02-28 10:00+00' AND expires
   FROM public.credit_lots WHERE user_id = '00000000-0000-4000-8000-00000000c008'
     AND source_key = 'grant:' || (SELECT id FROM public.plan_grants WHERE user_id = '00000000-0000-4000-8000-00000000c008') || ':1'),
   'manual cycle 1 from 31 January runs 28 February to 31 March');
+-- Mint cycle 8 at a fixed time: the insert trigger refreshes at now(), which is not always inside cycle 8.
+SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c008', '2026-10-15 00:00+00');
 SELECT pg_temp.assert_true((SELECT starts_at = '2026-09-30 10:00+00' AND expires_at = '2026-10-31 10:00+00'
   FROM public.credit_lots WHERE user_id = '00000000-0000-4000-8000-00000000c008'
     AND source_key = 'grant:' || (SELECT id FROM public.plan_grants WHERE user_id = '00000000-0000-4000-8000-00000000c008') || ':8'),
