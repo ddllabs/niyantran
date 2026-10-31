@@ -423,7 +423,7 @@ api/router.js (Single Consolidated Serverless Gateway), in the order it matches:
   ├─ /api/user-prefs                           → server/userPrefsApi.mjs         account
   ├─ GET /api/billing/config, /quote           → server/billingApi.mjs           public
   ├─ POST /api/billing/create-order            → server/billingApi.mjs           account
-  ├─ POST /api/billing/verify                  → server/billingApi.mjs           account; grants the paid period (grant_paid_plan()), then issues the invoice
+  ├─ POST /api/billing/verify                  → server/billingApi.mjs           account; the capture function (billing_cycle_capture_v3() for current orders) grants the paid period to the anchor-day month end, then issues the invoice
   ├─ POST /api/billing/invoice                 → server/billingApi.mjs           account; local demo record only, refused (403) on a serverless host
   ├─ GET /api/billing/invoices                 → server/billingApi.mjs           account; the caller's own invoices
   ├─ GET /api/billing/invoice/:id              → server/billingApi.mjs           account; read under RLS (owner or admin)
