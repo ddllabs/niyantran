@@ -1,0 +1,53 @@
+{
+ "repo_sha": "99910102a57b3d91a61321f42711fd34c08edda1",
+ "main_sha": "e15843463809bb6698347689762dd4e76a9bd1e4",
+ "decision_id": "national-pq-lastpage-20261031-v1",
+ "prepare_script_sha256": "432ce8a7561157a14a20e6171e27fe26452fff097bb85b5e84488552dc95ead9",
+ "exclude_cohort_sha256": "3552d8b51460f536af74520fef57b947a96f79b24bce384263b3012ddc06f9f4",
+ "open_keys_sha256": "6655391450c0eecbfcb693781f436912d6196f90f20b89a54db5c9b6d5e16092",
+ "count": 113,
+ "candidates": 121,
+ "held": 8,
+ "hold_reasons": {
+  "answer date not found in the text": 1,
+  "contained in a same-date answer 6afe5a289c835619": 1,
+  "last_page_empty: an empty page before the last": 2,
+  "over answer-read limits": 1,
+  "question number not found in the text": 3
+ },
+ "excluded_answers": 523,
+ "member_sha256": "474bb46e43277054cb8e2f521e46ef289fb850cb2374cf499f20e2e308b28441",
+ "pack_records": 6840,
+ "near_duplicate_registry": 6719,
+ "cohort_corpus_sha256": "2958bbaabc261704fa0cd9d7b89708ca2e6b19c0f56b5484d2026fbd6348efe4",
+ "decisions_sha256": "17315259a79bc4987a0e2b49a5dfed089394df62c32b79c83b0d005ebf0c1005",
+ "over_limit_keys": [
+  "pq:ls:184:AU1350_hVpwRk"
+ ],
+ "dry_run": {
+  "type": "summary",
+  "manifest_sha256": "17315259a79bc4987a0e2b49a5dfed089394df62c32b79c83b0d005ebf0c1005",
+  "selected": 113,
+  "ready": 113,
+  "held": 0,
+  "submitted": 0,
+  "uncertain": 0,
+  "registration_held": 0,
+  "already_registered": 0,
+  "published": 0,
+  "publication_pending": 0,
+  "publication_held": 0,
+  "chunks": 1390,
+  "estimated_cost_ceiling_usd": 0.08372856000000001
+ },
+ "files_sha256": {
+  "corpus.jsonl": "2958bbaabc261704fa0cd9d7b89708ca2e6b19c0f56b5484d2026fbd6348efe4",
+  "decisions.jsonl": "17315259a79bc4987a0e2b49a5dfed089394df62c32b79c83b0d005ebf0c1005",
+  "cohort.json": "39e9500241eeeff245b34df3f3398c54bbed55dbfa92d398d80d2357733179a4",
+  "holds.json": "113e370d295b4af8105ff1f4f88a6bd38df18ea14d247281260fb684002ac4ee",
+  "checks.txt": "d7f8aac04597bdb3df5fadee9f47d300778a5e67927a3df1e530a0db929b2643",
+  "review.tsv": "b12bab78c4e7b51d199eeb6951c9ac6041793da8c8952319918231fa5bd03c4d",
+  "dry-run.jsonl": "4771f8afb7a40ab3cf46098ebb2cb719063804dfef1972a8d94361d9195f7a95",
+  "over-limit-keys.txt": "cbcdd568cda4d2d88c3f63acbf6e1235604795995d777140cad438bc342f2658"
+ }
+}

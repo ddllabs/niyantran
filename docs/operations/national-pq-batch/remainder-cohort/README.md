@@ -112,8 +112,8 @@ Open these five records signed in. Confirm Full text and the right PDF, then ask
 - `cohort.json`, `holds.json`, `review.tsv`, `checks.txt`, `dry-run.jsonl` and `prepare-summary.json`: no corpus text.
 - `cohort-live-check.sql`, `verify.sql`.
 - `prepare-remainder-colab.py`, `run-remainder-cohort.py`.
-- Tooling, one level up:
+- Tooling, one level up in `docs/operations/national-pq-batch/` (not in this folder):
   - `pq-remainder-cohort.py`;
   - `pq-near-duplicate.py`: a verbatim copy of the Law core's dedupe functions, so the disabled core is never loaded;
   - `test_pq_remainder_cohort_offline.py`: 6 tests. They prove the copy is byte-identical and that the near-duplicate test fails with the rule disabled, and they run the real importer.
-  - `test_run_remainder_cohort_offline.py`: 16 tests of the run script with getpass, Colab userdata and subprocess stubbed. They cover the token lifetime, a malformed token, the five `resume()` refusals and a missing status, the double-submit guard, status-on-crash and the shared-code guard. A `Causal` test removes each check from the script's source and shows its test fails.
+  - `../test_run_remainder_cohort_offline.py` (parent folder): 16 tests of the run script with getpass, Colab userdata and subprocess stubbed. They cover the token lifetime, a malformed token, the five `resume()` refusals and a missing status, the double-submit guard, status-on-crash and the shared-code guard. A `Causal` test removes each check from the script's source and shows its test fails.
