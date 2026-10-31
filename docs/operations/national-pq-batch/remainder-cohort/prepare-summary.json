@@ -1,0 +1,51 @@
+{
+ "repo_sha": "557bfbfb044e973f3be4299e349c516cc91d0dfb",
+ "main_sha": "e15843463809bb6698347689762dd4e76a9bd1e4",
+ "decision_id": "national-pq-remainder-20261030-v1",
+ "prepare_script_sha256": "f037bd9b34ea2b1d7f35d8ab8b8a5110f95bf0a475c9d9d7c13854e4ce739414",
+ "open_keys_sha256": "6655391450c0eecbfcb693781f436912d6196f90f20b89a54db5c9b6d5e16092",
+ "count": 523,
+ "candidates": 793,
+ "held": 270,
+ "hold_reasons": {
+  "answer date not found in the text": 52,
+  "near-duplicate text": 2,
+  "no answer section": 28,
+  "over answer-read limits": 2,
+  "page split approximate": 8,
+  "page split last_page_empty": 121,
+  "page split unsplit_multipage": 21,
+  "question number not found in the text": 45
+ },
+ "open_keys_without_pack_record": 0,
+ "member_sha256": "474bb46e43277054cb8e2f521e46ef289fb850cb2374cf499f20e2e308b28441",
+ "pack_records": 6840,
+ "near_duplicate_registry": 6047,
+ "cohort_corpus_sha256": "781c224017c3710097d2b899b95e2c5c64f1c93cae2d666fcdbcf03787a46b52",
+ "decisions_sha256": "8b1ac8f3b9f1cbe856063fc419c091b10f69c0f5e8483ff13fb7113a72750b27",
+ "dry_run": {
+  "type": "summary",
+  "manifest_sha256": "8b1ac8f3b9f1cbe856063fc419c091b10f69c0f5e8483ff13fb7113a72750b27",
+  "selected": 523,
+  "ready": 523,
+  "held": 0,
+  "submitted": 0,
+  "uncertain": 0,
+  "registration_held": 0,
+  "already_registered": 0,
+  "published": 0,
+  "publication_pending": 0,
+  "publication_held": 0,
+  "chunks": 5234,
+  "estimated_cost_ceiling_usd": 0.3050760600000004
+ },
+ "files_sha256": {
+  "corpus.jsonl": "781c224017c3710097d2b899b95e2c5c64f1c93cae2d666fcdbcf03787a46b52",
+  "decisions.jsonl": "8b1ac8f3b9f1cbe856063fc419c091b10f69c0f5e8483ff13fb7113a72750b27",
+  "cohort.json": "3552d8b51460f536af74520fef57b947a96f79b24bce384263b3012ddc06f9f4",
+  "holds.json": "7c13455f31b69287d667d1d1d4fb8f0e9a785667cccca34f6cb765767b9e4bc0",
+  "checks.txt": "04bb962cdc74c48aa77fa6a8bf2b86ec4d9b4f2fd4c87fc7d071f71861b8440e",
+  "review.tsv": "35830d9f88845c80bc96d8f318c6052458bc74bca985a2ddae0a3a1dc78b9599",
+  "dry-run.jsonl": "8b07171c4fbeae9a4e2283c00fcf9a8f8310ba4d7305ad11eb035a0fbff073ab"
+ }
+}
