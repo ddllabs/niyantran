@@ -1,0 +1,98 @@
+{
+ "pack": "NTER_citation_pack_v1.2_DELTA_2026-10-06.zip",
+ "pack_sha256": "0cc3853f463ecd493e27528a64a961b981c61fd97689a43bd218a870abe3611e",
+ "records_tsv_sha256": "86dc149c4afaf29aec844f46775becf3e8d1a46c19877dc7eab6ba79313c3397",
+ "live_national_docs": 9424,
+ "members": {
+  "affidavits_eci.jsonl.gz": {
+   "records": 10492,
+   "features": {
+    "Candidate Affidavit Database (Structured + API)": 10492
+   },
+   "live_by_source_key": 0,
+   "live_by_content_sha256": 0,
+   "live_by_file_url": 0,
+   "replaces_text": 0,
+   "servable_false": 1354,
+   "retrieval_excluded": 1331,
+   "page_split": {
+    "none": 10492
+   },
+   "chunks_est": 616643,
+   "chars": 808836898
+  },
+  "bills_links_fixed.jsonl.gz": {
+   "records": 100,
+   "features": {
+    "Bill Passage Probability Index": 100
+   },
+   "live_by_source_key": 16,
+   "live_by_content_sha256": 13,
+   "live_by_file_url": 8,
+   "replaces_text": 0,
+   "servable_false": 0,
+   "retrieval_excluded": 0,
+   "page_split": {
+    "exact": 75,
+    "none": 24,
+    "unsplit_multipage": 1
+   },
+   "chunks_est": 2246,
+   "chars": 1533716
+  },
+  "bills_recovered.jsonl.gz": {
+   "records": 55,
+   "features": {
+    "Bill Passage Probability Index": 55
+   },
+   "live_by_source_key": 0,
+   "live_by_content_sha256": 0,
+   "live_by_file_url": 0,
+   "replaces_text": 0,
+   "servable_false": 0,
+   "retrieval_excluded": 0,
+   "page_split": {
+    "exact": 55
+   },
+   "chunks_est": 1103,
+   "chars": 807091
+  },
+  "mp_profiles_current.jsonl.gz": {
+   "records": 565,
+   "features": {
+    "MP Profiles & Performance (MPLAD attendance debates)": 565
+   },
+   "live_by_source_key": 0,
+   "live_by_content_sha256": 0,
+   "live_by_file_url": 0,
+   "replaces_text": 0,
+   "servable_false": 0,
+   "retrieval_excluded": 0,
+   "page_split": {
+    "none": 565
+   },
+   "chunks_est": 565,
+   "chars": 315220
+  },
+  "ocr_repaged.jsonl.gz": {
+   "records": 1819,
+   "features": {
+    "Bill Passage Probability Index": 1732,
+    "Budget Utilisation & Schemes": 3,
+    "Parliamentary Question Database": 82,
+    "Regulatory Body Watch (RBI SEBI TRAI CCI)": 2
+   },
+   "live_by_source_key": 1796,
+   "live_by_content_sha256": 1,
+   "live_by_file_url": 1601,
+   "replaces_text": 1819,
+   "servable_false": 0,
+   "retrieval_excluded": 0,
+   "page_split": {
+    "exact": 1819
+   },
+   "chunks_est": 42219,
+   "chars": 29421130
+  }
+ }
+}
