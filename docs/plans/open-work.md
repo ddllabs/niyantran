@@ -91,7 +91,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F276 is next) and goes in the
+- A new finding gets the next free `F` number (F277 is next) and goes in the
   right section.
 
 ## Frontend follow-up
@@ -99,6 +99,9 @@
 - [ ] **F235 — Indian Sports redundant browser fallback.** Chrome shows direct Google News RSS canceled after same-origin feature-feed succeeds (200,227stories); console empty and publisher navigation works. Review unnecessary parallel fallback requests separately; no CORS failure proven by this observation. The long-open blank tab recovered on reload and was not reproduced in a fresh session; keep this limitation in browser evidence.
 
 ## Billing acceptance follow-up
+
+- [ ] **F276 — Billing fixtures tied to the calendar; legacy renewal arithmetic.** On 2026-10-31 the SQL fixtures job failed on every run, main included (`0ef60067`). Three assertions depended on the run date: `ai_credits.sql` and `inr_plans.sql` expected a renewal to end at `now() + 2 months`, but the code adds one month to the previous end, and on the 31st those differ (31 Oct + 1 month + 1 month = 30 Dec, + 2 months = 31 Dec). `ai_credits.sql` also asserted manual cycle 8, a lot only the `plan_grants` insert trigger mints when `now()` falls between 30 Sep and 31 Oct 2026 10:00 UTC, so that one would have failed permanently from then on. Fixed on `task/billing-fixtures-month-end`: the expected end is the chained arithmetic, and cycle 8 is minted by an explicit refresh at 2026-10-15. The original fixtures fail locally at 12:04 UTC on 31 Oct, the fixed ones pass with the vacuity checks. No billing code changed.
+  Product finding: customers are not affected. Paid checkout uses `private.billing_month_end` (anchor day in IST, so a plan bought on the 31st renews on the 30th or 28th and returns to the 31st), and manual grants are anchored to the grant. Only the legacy `public.grant_paid_plan` chains months and drifts; it is service-role only, has no caller in the app, and NTER has 0 payment grants through it (read-only, 31 Oct: 4 payment grants, all with a billing period; 2 manual). Open: (a) retire `grant_paid_plan` in a reviewed migration when billing work resumes; (b) audit the other SQL and application fixtures for assertions that depend on the run date.
 
 ## Development toolchain follow-up
 
