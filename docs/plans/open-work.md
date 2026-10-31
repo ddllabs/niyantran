@@ -91,7 +91,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F277 is next) and goes in the
+- A new finding gets the next free `F` number (F278 is next) and goes in the
   right section.
 
 ## Frontend follow-up
@@ -100,13 +100,7 @@
 
 ## Billing acceptance follow-up
 
-- [ ] **F276 — Billing fixtures tied to the calendar; legacy renewal arithmetic.** On 2026-10-31 the SQL fixtures job failed on every run, main included (`0ef60067`). Three assertions depended on the run date: `ai_credits.sql` and `inr_plans.sql` expected a renewal to end at `now() + 2 months`, but the code adds one month to the previous end, and on the 31st those differ (31 Oct + 1 month + 1 month = 30 Dec, + 2 months = 31 Dec). `ai_credits.sql` also asserted manual cycle 8, a lot only the `plan_grants` insert trigger mints when `now()` falls between 30 Sep and 31 Oct 2026 10:00 UTC, so that one would have failed permanently from then on. Fixed on `task/billing-fixtures-month-end`: the expected end is the chained arithmetic, and cycle 8 is minted by an explicit refresh at 2026-10-15. The original fixtures fail locally at 12:04 UTC on 31 Oct, the fixed ones pass with the vacuity checks. No billing code changed.
-  Product finding: customers are not affected. Paid checkout uses `private.billing_month_end` (anchor day in IST, so a plan bought on the 31st renews on the 30th or 28th and returns to the 31st), and manual grants are anchored to the grant. Only the legacy `public.grant_paid_plan` chains months and drifts; it is service-role only, has no caller in the app, and NTER has 0 payment grants through it (read-only, 31 Oct: 4 payment grants, all with a billing period; 2 manual). Payments have been live since 2026-10-22, so (a) is a change to the live payment database.
-  (a) Retire `grant_paid_plan`: prepared in PR #82 ([plan](2026-10-31-retire-grant-paid-plan.md)). Not applied; waits for the owner's approval.
-  (b) Run-date audit, done 2026-10-31. All three suites ran on fake clocks at 1 Nov, 30 Nov 20:00 UTC (already 1 Dec in IST), 31 Dec 2026, 31 Jan, 1 Mar and 15 Jul 2027, and 29 Feb 2028: the SQL fixtures in a libfaketime Postgres, Vitest with a shifted `Date`, and Deno with a `--preload` shift. Two more fixtures depended on the date:
-  - `ai_credits.sql` "away for three months" expected `now() - 5 days`. At month ends, `now() - '3 months 5 days'` clamps (from 31 Dec it gives 25 Sep), so it now expects the grant date + 3 months.
-  - The Manifold market tests (`electionMarkets.test.js`, `phase2Review.test.js`) used fixed close dates. CI would have failed from 1 Jan 2027 and 10 Mar 2027; open markets now close a year after the test clock.
-  After the fixes, all 64 SQL fixtures (with the concurrency, Down and vacuity checks), 6,723 app tests and 1,465 Edge tests pass at every date. Open: a manual GitHub Actions job that runs these dates, if the owner wants a standing guard (a CI configuration change).
+- [ ] **F277 — Optional standing check for date-dependent tests.** A manual GitHub Actions job that runs the three suites on fake clocks at month ends, the UTC/IST day boundary, a leap day and a far-future date, the way the F276 audit did by hand. It is a CI configuration change, so it waits for the owner's decision.
 
 ## Development toolchain follow-up
 
@@ -1472,6 +1466,10 @@ orientation list is compared item by item in the
 
 ## 1. Done
 
+- [x] **F276 — Billing fixtures tied to the calendar; legacy renewal arithmetic.** Closed 2026-10-31.
+  - **Fixtures:** on 31 Oct every SQL fixtures run failed, main included. Fixed in PR #81 / `ac0477b4`: renewals now expect the code's chained arithmetic, and manual cycle 8 is minted at a fixed date.
+  - **Audit:** all three suites ran on fake clocks from 1 Nov 2026 to 29 Feb 2028. Two more date-dependent tests were found and fixed in PR #84 / `97683eeb`: the "away for three months" fixture, and the Manifold market tests, which would have failed from 1 Jan 2027.
+  - **Legacy grant retired:** customers were never affected, because checkout renews on the anchor day. The uncalled legacy `grant_paid_plan`, the only code that chained months, was dropped. PR #82 / `c175e33b`; NTER migration `20261031165846 retire_grant_paid_plan`. See the [evidence](2026-10-31-retire-grant-paid-plan.md#applied-2026-10-31).
 - [x] **F257 — Cross-desk record/document mapping and corpus reconciliation.** Released in PR #62 / `8f01b348`; see [production receipt](../operations/2026-10-28-corpus-repair-review/release.md).
 - [x] **F258 — Large-feature search false emptiness.** Released in PR #62 / `8f01b348`; see [production receipt](../operations/2026-10-28-corpus-repair-review/release.md).
 - [x] **F259 — Enforce retrieval boundaries without implicit widening.** Released in PR #62 / `8f01b348`; see [production receipt](../operations/2026-10-28-corpus-repair-review/release.md).

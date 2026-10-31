@@ -1,7 +1,7 @@
 # Retire `grant_paid_plan` (F276)
 
-> **Status: Living.** Prepared 2026-10-31. **Not applied.** Applying the migration to NTER changes the live
-> payment database and needs the owner's explicit approval. Open work: [F276](open-work.md).
+> **Status: Living.** Prepared and applied 2026-10-31, with the owner's approval ("approve PR 82, merge and
+> apply the migration"). Merged in PR #82 / `c175e33b`. Open work: F276, now Done in [open-work](open-work.md).
 
 ## Current state
 
@@ -55,3 +55,19 @@ their own, so they still test the function as it was. They are unchanged.
 
 Re-run the `grant_paid_plan` definition, and its `service_role` grant, from
 `20261012120000_inr_plans.sql`. No data is changed by the drop.
+
+## Applied 2026-10-31
+
+1. **CI:** PR #82 was brought up to date with main (`c489caeb`). Both required jobs passed, and it merged as `c175e33b`.
+2. **Read-only pre-check, just before applying:**
+   - the function was present, and no function body named it;
+   - 6 grants: 4 payment grants, all through checkout, with 0 legacy payment grants; and 2 manual grants;
+   - 4 billing periods;
+   - latest migration `20261028185850`.
+3. **Applied on NTER** from `main`: `20261031165846 retire_grant_paid_plan`.
+4. **Read-only verification:**
+   - `grant_paid_plan` is gone, and this is the only new migration.
+   - `billing_cycle_capture_v3`, `billing_capture`, `grant_manual_plan` and `credit_due_cycles_legacy` are present.
+   - The v3 capture can be run by `service_role` only, not by `authenticated` or `anon`. `grant_manual_plan` can still be run by `service_role`.
+   - Grants (6), payment grants (4) and billing periods (4) are unchanged.
+   - `billing_month_end` still gives 28 Feb, 31 Mar and 30 Apr for a 31 January anchor.
