@@ -24,7 +24,7 @@
 | Run script | `run-validation-cohort-1.py` at `e158434`; sha256 printed in Colab: `050da4fa…f15b` (equal to the approval) |
 | Code checkout | `e15843463809bb6698347689762dd4e76a9bd1e4`. The guard passed: `scripts/` and `supabase/` are byte-identical to `8820f63` |
 | Limits | `--max-chunks 2000 --max-estimated-cost-usd 0.05` |
-| Runner | Colab notebook `Untitled7.ipynb` under tamanesh1993@gmail.com. Token: the owner's own nter.pro session, typed by the owner at the prompt (never seen, stored or logged by the agent). No password used |
+| Runner | Colab notebook `Untitled7.ipynb` under the owner's Google account (address redacted from the public repository, 2026-10-31). Token: the owner's own nter.pro session, typed by the owner at the prompt (never seen, stored or logged by the agent). No password used |
 
 ## Run log
 
