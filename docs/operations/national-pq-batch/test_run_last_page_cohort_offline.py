@@ -2,7 +2,8 @@
 #   python3 -I -B docs/operations/national-pq-batch/test_run_last_page_cohort_offline.py
 # 1. It is run-remainder-cohort.py with only the listed lines changed: the cohort constants (hashes, decision id, counts,
 #    limits, staging folder, work folder), header comments naming them, the committed-cohort folder, and the rebuild command
-#    (this cohort's prepare script plus --exclude-cohort and --over-limit arguments). Any other difference fails.
+#    (this cohort's prepare script plus --exclude-cohort and --over-limit arguments), and the shared-code baseline
+#    (main at PR #87, 2026-11-01: PR #80's merge carried two billing test fixtures). Any other difference fails.
 # 2. The 16 run-script tests of test_run_remainder_cohort_offline.py run unchanged against this script, and the causal
 #    test removes each check from this script's source and shows the matching test fails.
 import difflib, importlib.util, pathlib, unittest
@@ -30,6 +31,8 @@ ALLOWED = {
     ("COHORT_CORPUS = '781c224017c3710097d2b899b95e2c5c64f1c93cae2d666fcdbcf03787a46b52'       # rebuilt corpus.jsonl sha256",
      "COHORT_CORPUS = '2958bbaabc261704fa0cd9d7b89708ca2e6b19c0f56b5484d2026fbd6348efe4'       # rebuilt corpus.jsonl sha256"),
     ("DECISION_ID = 'national-pq-remainder-20261030-v1'", "DECISION_ID = 'national-pq-lastpage-20261031-v1'"),
+    ("MAIN_SHA = 'e15843463809bb6698347689762dd4e76a9bd1e4'   # main at PR #77: the importer and shared code must be byte-identical",
+     "MAIN_SHA = 'e5275e709d375e31775884c6da617ed8d408e242'   # main at PR #87: the importer and shared code must be byte-identical"),
     ('DOCS, CHUNKS, MAX_CHUNKS, MAX_COST_USD = 523, 5234, 5300, 0.31', 'DOCS, CHUNKS, MAX_CHUNKS, MAX_COST_USD = 113, 1390, 1400, 0.09'),
     ("ST = pathlib.Path(NATIONAL + '/staging/pq-remainder-01')", "ST = pathlib.Path(NATIONAL + '/staging/pq-lastpage-01')"),
     ("W = pathlib.Path('/content/nter-pq-remainder')", "W = pathlib.Path('/content/nter-pq-lastpage')"),

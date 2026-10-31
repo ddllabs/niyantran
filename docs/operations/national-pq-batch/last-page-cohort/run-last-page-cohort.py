@@ -37,7 +37,7 @@ NODE_TGZ = 'https://registry.npmjs.org/node-linux-x64/-/node-linux-x64-24.22.1.t
 NODE_SHA = 'ca7d16d263263ffaa9e8133de2cc138152afb8177f984df31bb255492513d8c8'
 NODE = W / 'node24' / 'package' / 'bin' / 'node'
 HERE = 'docs/operations/national-pq-batch'
-MAIN_SHA = 'e15843463809bb6698347689762dd4e76a9bd1e4'   # main at PR #77: the importer and shared code must be byte-identical
+MAIN_SHA = 'e5275e709d375e31775884c6da617ed8d408e242'   # main at PR #87: the importer and shared code must be byte-identical
 
 
 class Stop(Exception):
