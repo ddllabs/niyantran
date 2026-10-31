@@ -56,7 +56,7 @@ SELECT pg_temp.assert_true((SELECT plan_period_end = now() + interval '1 month' 
 SELECT public.grant_paid_plan('00000000-0000-4000-8000-0000000001b2', 'plus', 'month', 'pay_1');
 SELECT pg_temp.assert_true((SELECT plan_period_end = now() + interval '1 month' FROM public.user_profiles WHERE email = 'b@example.test'), 'the same payment id does not extend twice');
 SELECT public.grant_paid_plan('00000000-0000-4000-8000-0000000001b2', 'plus', 'month', 'pay_2');
-SELECT pg_temp.assert_true((SELECT plan_period_end = now() + interval '2 months' FROM public.user_profiles WHERE email = 'b@example.test'), 'a renewal extends from the current end');
+SELECT pg_temp.assert_true((SELECT plan_period_end = now() + interval '1 month' + interval '1 month' FROM public.user_profiles WHERE email = 'b@example.test'), 'a renewal extends from the current end');
 SELECT pg_temp.assert_true(public.grant_paid_plan('00000000-0000-4000-8000-0000000001b2', 'max', 'month', 'pay_3') @> '{"plan":"max"}', 'a change of plan starts from now');
 SELECT pg_temp.assert_true((SELECT plan_period_end = now() + interval '1 month' FROM public.user_profiles WHERE email = 'b@example.test'), 'a plan change grants one month from now');
 SELECT pg_temp.assert_true(public.grant_paid_plan('00000000-0000-4000-8000-0000000001c3', 'pro', 'month', 'pay_4') @> '{"plan":"pro"}', 'a verified payment grants Pro');
