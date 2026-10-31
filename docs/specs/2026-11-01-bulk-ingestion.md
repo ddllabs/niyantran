@@ -114,6 +114,16 @@ question numbers. Meaning-based search alone ranks those poorly.
 - Each partition gets a full-text column (generated `tsvector`) with a GIN index. The text configuration is chosen by
   the eval in §4.4.
 - The search RPCs run the keyword and vector searches in the same scope and combine them with reciprocal rank fusion.
+- **This is Supabase's own hybrid search pattern** (`docs/guides/ai/hybrid-search`): a SQL function over a
+  generated `tsvector` column with a GIN index plus an HNSW index, fused by RRF. Supabase offers it as a recipe, not a
+  managed feature. We adapt it in four ways:
+  - both searches run inside the partition and facet scope, since the recipe's vector side searches the whole table;
+  - cosine distance on `halfvec`, matching the existing index;
+  - the access check last;
+  - a cap on keyword matches before ranking, because `ts_rank_cd` cannot use the index and a common word can match
+    millions of chunks.
+- **Hindi and bilingual text.** `pgroonga` is available on NTER and not installed. It is the candidate if the eval
+  shows Postgres's built-in text search failing on Hindi documents.
 
 ### 4.3 Contextual chunk headers
 
@@ -210,13 +220,17 @@ Results go into the batch receipt automatically. A batch whose sample fails stop
 Partitioning by feature is decided in §4.1. It fixes scoping, not size: at about 400 million chunks the partitions'
 HNSW indexes still total about 1.5 TB, and an index outside memory is slow. Options to evaluate against the real
 inventory, on top of the partitions:
-1. **Smaller vectors:** binary or lower-dimension vectors in the index, re-ranked with the full vectors, to cut index
+1. **A disk-based index (pgvectorscale, StreamingDiskANN):** built to search vectors larger than memory, with
+   compressed vectors and label filtering. On 2026-11-01 `vectorscale` was not in NTER's available extensions, and
+   Supabase's docs have no page for it. It is evaluated only if Supabase offers it on NTER, measured against HNSW per
+   partition on the same eval.
+2. **Smaller vectors:** binary or lower-dimension vectors in the index, re-ranked with the full vectors, to cut index
    memory several-fold.
-2. **Two tiers:** every document stored with metadata and keyword search, and embeddings only where meaning-based
+3. **Two tiers:** every document stored with metadata and keyword search, and embeddings only where meaning-based
    search is needed (or computed on first use).
-3. **External vector store:** a dedicated store for vectors (one namespace per partition), with Postgres keeping the
+4. **External vector store:** a dedicated store for vectors (one namespace per partition), with Postgres keeping the
    records, text and links.
-4. **Bigger instance or read replicas:** this raises cost without changing the shape.
+5. **Bigger instance or read replicas:** this raises cost without changing the shape.
 
 The decision is recorded in `docs/decisions/` with measured costs, latency and the F272 bound for each candidate. It is
 made before the ramp passes 1 million documents.
