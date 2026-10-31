@@ -1,0 +1,15 @@
+-- Retire public.grant_paid_plan (open-work F276).
+--
+-- Paid plans are granted only by the billing checkout's capture functions
+-- (public.billing_cycle_capture_v3 for current orders), which end each period with
+-- private.billing_month_end: the purchase's anchor day in IST, so a plan bought on
+-- 31 January renews on 28 February, 31 March and 30 April.
+-- grant_paid_plan, the pre-checkout grant, added a month to the previous end, so
+-- renewals drifted after short months (31 Jan -> 28 Feb -> 28 Mar). Nothing calls
+-- it: server/billingApi.mjs uses the checkout functions, no function body names it,
+-- and NTER held no payment grant made through it on 2026-10-31.
+--
+-- Grants it made stay in public.plan_grants and are still served by
+-- private.credit_due_cycles_legacy. Rollback: re-run the function definition and
+-- its service_role grant from 20261012120000_inr_plans.sql.
+DROP FUNCTION IF EXISTS public.grant_paid_plan(uuid, text, text, text);

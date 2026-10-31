@@ -112,6 +112,9 @@ chain() {
     billing_unused_topup_refund)
       chain billing_manual_grace
       FILES+=("$(as_non_superuser 20261021150010_billing_unused_topup_refund.sql)") ;;
+    grant_paid_plan_retired)
+      chain billing_unused_topup_refund
+      FILES+=("$(as_non_superuser 20261031130000_retire_grant_paid_plan.sql)") ;;
     profile_authority)
       CONTAINER=$PLAIN
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$WORK/0001_email_only.sql" "$(m 20260921000012_profile_authority.sql)") ;;
