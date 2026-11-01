@@ -517,6 +517,12 @@ describe('renderReport', () => {
     expect(md).toMatch(/Cost: \$0\.0000 \(0 embedding tokens\)/);
   });
 
+  it('names the database a replica run used, and says nothing about one when the fingerprint has none', () => {
+    const withDb = run({ fingerprint: { ...run().fingerprint, database: 'niyantran_rehearsal_x' } });
+    expect(renderReport(withDb)).toMatch(/- Database: niyantran_rehearsal_x/);
+    expect(renderReport(run())).not.toMatch(/- Database:/);
+  });
+
   it('tabulates each mode overall and per feature, without ambiguous or owner questions', () => {
     const md = renderReport(run());
     const broad = md.slice(md.indexOf('## Mode: broad'), md.indexOf('## Mode: focused-multi'));
