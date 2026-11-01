@@ -17,6 +17,7 @@ export const MRR_CUTOFF = 40;
 
 /** The exact `documents.desk_feature` values, in the order reports list them. */
 export const FEATURES = [
+  'NCLT / NCLAT (Insolvency)',
   'Bill Passage Probability Index',
   'Regulatory Body Watch (RBI SEBI TRAI CCI)',
   'Parliamentary Question Database',
@@ -330,6 +331,17 @@ export function judgeNoWorse({ lines, baseline: rawBaseline = {}, candidate: raw
   }
 
   return { pass: failures.length === 0, failures, flags, lost, ...(lostDeveloper ? { lostDeveloper } : {}) };
+}
+
+/**
+ * The process exit code for a run's verdict (scripts/eval-retrieval.mjs): 0 when there is no
+ * verdict (no --compare) or it passes, 3 when it does not. 1 (error) and 2 (corpus fingerprint
+ * check failed) are the script's own. Anything but an explicit `pass: true` fails.
+ */
+export const EXIT_VERDICT_WORSE = 3;
+export function exitCodeFor(verdict) {
+  if (verdict === null || verdict === undefined) return 0;
+  return verdict.pass === true ? 0 : EXIT_VERDICT_WORSE;
 }
 
 /**
