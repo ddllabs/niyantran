@@ -36,6 +36,16 @@ A task agent implements one dispatched scope. It does not choose a different
 task, widen its scope, edit this coordination protocol, commit, merge, push, or
 deploy. It returns an uncommitted diff and an evidence report.
 
+### Model assignment (owner, 2026-11-01)
+
+- Sonnet: engineering tasks.
+- Haiku: documentation.
+- Opus: deeper builds (migrations, admission and authorization paths, concurrency, data movement) and code review.
+- Fable: whole-system review at phase gates.
+
+The supervisor decides parallel or sequential work under "Sequential and parallel work". A reviewer gets the code, the
+data and the rules, not the writer's conclusions, so its review stays independent.
+
 ## Agent-skills methodology
 
 Every task starts with `using-agent-skills`. Apply only the workflows that fit
