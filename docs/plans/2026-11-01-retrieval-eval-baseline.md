@@ -40,7 +40,9 @@
 
 - **Question line.** v1's schema (`validateQuestionLine`) unchanged, with one addition: `source` may be `developer`,
   validated like `owner` (one or more gold documents, `gold_chunk_id` may be null). A developer question's gold set is
-  the documents its writer read to write it, never documents found by searching.
+  the documents its writer read and found to answer it. Keyword lookup may find candidates to complete the set (sibling
+  orders, bill versions, repeated answers), but every gold document is read, and nothing is chosen by vector search or
+  `match_documents*`, the system being measured.
 - **Replica.** Database `niyantran_retrieval_replica` in `niyantran-corpus-test-db`; the harness's `--target replica`
   path is unchanged.
 
@@ -61,6 +63,17 @@
   `scripts/eval-retrieval.mjs`, so the no-worse bar counts generated questions only and developer questions are
   judged separately.
 - Landed after an independent Opus review: A1 `6d8872f8`, A2 `79eb9751`.
+- A0 replica, reloaded 2026-11-01 (2 h 12 min): 17,609 documents (17,606 indexed) and 392,945 chunks, equal to NTER per
+  feature; search functions, settings and the seven policies equal to live by fingerprint; `search-smoke.sql` returns
+  10 rows in all six modes. Its `replica_meta` predates A1's count columns; the counts were reconciled by hand.
+- A3 prep `cffbba1e` (Sonnet): `eval-retrieval.mjs` exits 3 when a `--compare` verdict is worse; NCLT is first in
+  the report order.
+- A2b `547614d8` (Opus, reviewed by a second Opus): 54 developer questions (NCLT 14, Bills 13, Parliamentary
+  Questions 13, Regulatory 14) with 97 gold documents. Review fixes: seven rewordings and two missed bills added to one gold set.
+  Known bias: most NCLT and CCI questions name the party, which favours keyword search; the next set should add
+  questions that name no party.
+- The v2 build runs without a separate `--dry-run`: the build validates the plan, carry-over and developer lines
+  before it spends anything, and a dry run would read every chunk from NTER a second time.
 - Task agents never read `.env.local`, call NTER or OpenRouter, or commit. The supervisor runs every command that
   reads NTER or spends money, and commits after verification.
 - Fable reviews at phase gates (the partition migration and before the first bulk batch), not this step.
