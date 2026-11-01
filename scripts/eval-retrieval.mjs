@@ -15,7 +15,9 @@
  * match_documents in each mode, as service_role. Calls run after 5 unscored warm-ups in a
  * seeded shuffle; a trivial PostgREST read is timed alongside as the network baseline.
  * Results hold ids and ranks only, never chunk content. `--compare` judges this run against
- * an earlier one with the spec's "no worse" bar.
+ * an earlier one with the spec's "no worse" bar: on the generated questions, and separately,
+ * with the same rules, on developer-written ones (`source: 'developer'`); the verdict fails when
+ * either fails. Owner questions are reported but never judged.
  *
  * Environment: SUPABASE_URL (or VITE_SUPABASE_URL), SUPABASE_SECRET_KEY (sb_secret_…).
  * Node fetch needs to run outside the Claude Code sandbox.

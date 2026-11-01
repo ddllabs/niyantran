@@ -138,25 +138,28 @@ export function fingerprintCheck(lines, currentChunks) {
   return { ok: missing.length === 0 && changed.length === 0, missing, changed };
 }
 
-/** The questions the "no worse" bars count: generated and not ambiguous. */
-function barLines(lines) {
-  return lines.filter((l) => !l.ambiguous && l.source !== 'owner');
+/**
+ * The questions a "no worse" bar counts: those of one source (generated, or developer-written)
+ * that are not ambiguous. Owner questions are never counted.
+ */
+function barLines(lines, source = 'generated') {
+  return lines.filter((l) => !l.ambiguous && l.source === source);
 }
 
 const within = (rank, k) => rank !== null && rank !== undefined && rank <= k;
 
 /**
  * Per-question document hit@k flips between two runs of one mode, on the
- * bar lines only. lost: a hit at ≤ k becomes > k or a miss; gained: the
+ * bar lines only (generated questions, or those of `source`). lost: a hit at ≤ k becomes > k or a miss; gained: the
  * reverse. A hard loss is a top-k hit that falls out of all 40 rows.
  * netLoss = lost − gained, overall and per feature (every feature present
  * is listed, with zeros when nothing moved).
  */
-export function compareRuns(lines, baselineOutcomes, candidateOutcomes, { k = 10 } = {}) {
+export function compareRuns(lines, baselineOutcomes, candidateOutcomes, { k = 10, source = 'generated' } = {}) {
   const lost = [];
   const gained = [];
   const hardLosses = [];
-  const counted = barLines(lines);
+  const counted = barLines(lines, source);
   const byFeature = {};
   for (const feature of sortedFeatures(counted)) byFeature[feature] = { lost: 0, gained: 0, netLoss: 0 };
   for (const line of counted) {
@@ -225,7 +228,7 @@ function changedOutcomes(lines, before, after) {
 
 /**
  * The spec's "no worse" bars ("No worse: the bar `retrieval-scope` must
- * meet"), on generated, non-ambiguous questions:
+ * meet"), on non-ambiguous questions:
  * 1. broad: overall document hit@10 net loss ≤ 2, and no hard loss.
  * 2. broad, per feature: net loss ≤ 2 for Bills and Regulatory, ≤ 1 otherwise.
  * 3. feature: per feature, document hit@10 ≥ that feature's broad baseline;
@@ -236,6 +239,11 @@ function changedOutcomes(lines, before, after) {
  * 5. latency, per mode in `latency` ({ baseline: ms[], candidate: ms[] }):
  *    candidate p95 ≤ 1.2 × baseline p95 + 20 ms; any call > 4000 ms fails,
  *    > 2000 ms is flagged. A mode with no baseline gets only the absolute bars.
+ *
+ * Bars 1 to 4 are judged on the generated questions, and again, with the same rules, on the
+ * developer-written ones when there are any; their failures begin "developer " and their lost
+ * questions are `lostDeveloper`. Owner questions are never counted. The call checks in bar 3 and
+ * bar 5 are made once, over every call. The verdict fails when either set fails.
  *
  * `baseline` holds outcomes for broad, focused and focused-multi; `candidate`
  * adds feature. Outcomes are best passed as Maps keyed by question id, since
@@ -248,46 +256,56 @@ export function judgeNoWorse({ lines, baseline: rawBaseline = {}, candidate: raw
   const candidate = normalise(rawCandidate);
   const failures = [];
   const flags = [];
-  const counted = barLines(lines);
   const ran = (mode) => candidate[mode] && (mode === 'feature' || baseline[mode]);
   for (const mode of required) if (!ran(mode)) failures.push(`${mode}: not run (candidate or baseline outcomes missing)`);
 
-  let lost = [];
-  if (ran('broad')) {
-    const c = compareRuns(counted, baseline.broad, candidate.broad);
-    lost = c.lost;
-    if (c.overall.netLoss > OVERALL_NET_LOSS_LIMIT) {
-      failures.push(`broad: overall document hit@10 net loss ${c.overall.netLoss} > ${OVERALL_NET_LOSS_LIMIT} (lost ${c.overall.lost}, gained ${c.overall.gained})`);
+  /** Bars 1 to 4 for the non-ambiguous questions of one source; returns the broad hit@10 losses. */
+  function judgeSource(source, { checkCalls }) {
+    const prefix = source === 'generated' ? '' : `${source} `;
+    const fail = (message) => failures.push(`${prefix}${message}`);
+    const counted = barLines(lines, source);
+    let lost = [];
+    if (ran('broad')) {
+      const c = compareRuns(counted, baseline.broad, candidate.broad, { source });
+      lost = c.lost;
+      if (c.overall.netLoss > OVERALL_NET_LOSS_LIMIT) {
+        fail(`broad: overall document hit@10 net loss ${c.overall.netLoss} > ${OVERALL_NET_LOSS_LIMIT} (lost ${c.overall.lost}, gained ${c.overall.gained})`);
+      }
+      if (c.hardLosses.length) {
+        fail(`broad: ${c.hardLosses.length} hard loss(es), top-10 to a miss beyond 40: ${c.hardLosses.map((q) => `${q.id} (rank ${fmtRank(q.before)} → ${fmtRank(q.after)})`).join(', ')}`);
+      }
+      for (const [feature, f] of Object.entries(c.byFeature)) {
+        const limit = FEATURE_NET_LOSS_LIMIT[feature] ?? DEFAULT_FEATURE_LIMIT;
+        if (f.netLoss > limit) fail(`broad: ${feature} document hit@10 net loss ${f.netLoss} > ${limit} (lost ${f.lost}, gained ${f.gained})`);
+      }
     }
-    if (c.hardLosses.length) {
-      failures.push(`broad: ${c.hardLosses.length} hard loss(es), top-10 to a miss beyond 40: ${c.hardLosses.map((q) => `${q.id} (rank ${fmtRank(q.before)} → ${fmtRank(q.after)})`).join(', ')}`);
+
+    if (candidate.feature && baseline.broad) {
+      for (const feature of sortedFeatures(counted)) {
+        const inFeature = counted.filter((l) => l.desk_feature === feature);
+        const got = hitCount(inFeature, candidate.feature, 10);
+        const floor = hitCount(inFeature, baseline.broad, 10);
+        if (got < floor) fail(`feature: ${feature} document hit@10 ${got} < broad baseline ${floor}`);
+      }
     }
-    for (const [feature, f] of Object.entries(c.byFeature)) {
-      const limit = FEATURE_NET_LOSS_LIMIT[feature] ?? DEFAULT_FEATURE_LIMIT;
-      if (f.netLoss > limit) failures.push(`broad: ${feature} document hit@10 net loss ${f.netLoss} > ${limit} (lost ${f.lost}, gained ${f.gained})`);
+    if (checkCalls && candidate.feature) {
+      const short = featureCalls.filter((c) => c.returned < c.expected);
+      if (short.length) {
+        fail(`feature: ${short.length} call(s) returned fewer rows than match_count: ${short.map((c) => `${c.id} (${c.returned}/${c.expected})`).join(', ')}`);
+      }
     }
+
+    for (const mode of ['focused', 'focused-multi']) {
+      if (!ran(mode)) continue;
+      const changed = changedOutcomes(counted, baseline[mode], candidate[mode]);
+      if (changed.length) fail(`${mode}: ${changed.length} question(s) changed outcome: ${changed.join('; ')}`);
+    }
+    return lost;
   }
 
-  if (candidate.feature && baseline.broad) {
-    for (const feature of sortedFeatures(counted)) {
-      const inFeature = counted.filter((l) => l.desk_feature === feature);
-      const got = hitCount(inFeature, candidate.feature, 10);
-      const floor = hitCount(inFeature, baseline.broad, 10);
-      if (got < floor) failures.push(`feature: ${feature} document hit@10 ${got} < broad baseline ${floor}`);
-    }
-  }
-  if (candidate.feature) {
-    const short = featureCalls.filter((c) => c.returned < c.expected);
-    if (short.length) {
-      failures.push(`feature: ${short.length} call(s) returned fewer rows than match_count: ${short.map((c) => `${c.id} (${c.returned}/${c.expected})`).join(', ')}`);
-    }
-  }
-
-  for (const mode of ['focused', 'focused-multi']) {
-    if (!ran(mode)) continue;
-    const changed = changedOutcomes(counted, baseline[mode], candidate[mode]);
-    if (changed.length) failures.push(`${mode}: ${changed.length} question(s) changed outcome: ${changed.join('; ')}`);
-  }
+  const lost = judgeSource('generated', { checkCalls: true });
+  const hasDeveloper = barLines(lines, 'developer').length > 0;
+  const lostDeveloper = hasDeveloper ? judgeSource('developer', { checkCalls: false }) : null;
 
   if (!latency || !Object.keys(latency).length) {
     failures.push('latency: no measurements');
@@ -311,7 +329,7 @@ export function judgeNoWorse({ lines, baseline: rawBaseline = {}, candidate: raw
     }
   }
 
-  return { pass: failures.length === 0, failures, flags, lost };
+  return { pass: failures.length === 0, failures, flags, lost, ...(lostDeveloper ? { lostDeveloper } : {}) };
 }
 
 /**
@@ -349,7 +367,8 @@ function tableRow(label, s, ambiguous) {
 
 function modeTable(lines, outcomes) {
   const ids = byId(lines, outcomes);
-  const generated = lines.filter((l) => l.source !== 'owner');
+  const generated = lines.filter((l) => l.source === 'generated');
+  const developer = lines.filter((l) => l.source === 'developer');
   const owner = lines.filter((l) => l.source === 'owner' && ids.get(l.id));
   const s = summariseByFeature(generated, ids, { excludeAmbiguous: true });
   const ambiguousIn = (feature) => generated.filter((l) => l.ambiguous && ids.get(l.id) && (!feature || l.desk_feature === feature)).length;
@@ -364,6 +383,12 @@ function modeTable(lines, outcomes) {
   for (const [feature, fs] of Object.entries(s.features)) rows.push(tableRow(feature, fs, ambiguousIn(feature)));
   const withAmbiguous = summariseByFeature(generated, ids);
   if (s.ambiguousExcluded) rows.push(tableRow('Overall incl. ambiguous', withAmbiguous.overall, '—'));
+  if (developer.some((l) => ids.get(l.id))) {
+    const d = summariseByFeature(developer, ids, { excludeAmbiguous: true });
+    const developerAmbiguous = (feature) => developer.filter((l) => l.ambiguous && ids.get(l.id) && (!feature || l.desk_feature === feature)).length;
+    rows.push(tableRow('Developer: Overall', d.overall, d.ambiguousExcluded));
+    for (const [feature, fs] of Object.entries(d.features)) rows.push(tableRow(`Developer: ${feature}`, fs, developerAmbiguous(feature)));
+  }
   if (owner.length) rows.push(tableRow('Owner questions', summarise(owner.map((l) => ids.get(l.id))), '—'));
   return rows.join('\n');
 }
@@ -383,8 +408,8 @@ function latencyLine(mode, m, networkMs) {
  *   migrationVersion }, cost: { embeddingTokens, usd },
  *   modes: { [mode]: { lines, outcomes, latencyMs, networkMs, responseBytes, skipped } },
  *   networkMs (used when a mode has none), verdict (a judgeNoWorse result, optional) }.
- * Tables exclude ambiguous and owner questions from the bar figures and show
- * them on their own rows. The output depends only on `run`: no clock reads.
+ * Tables exclude ambiguous, owner and developer questions from the generated bar figures and show
+ * the owner and developer ones on their own rows (developer rows only when there are developer questions). The output depends only on `run`: no clock reads.
  */
 export function renderReport(run) {
   const fp = run.fingerprint ?? {};
@@ -401,6 +426,9 @@ export function renderReport(run) {
     'Ranking is the row order returned by match_documents. Bar figures exclude ambiguous and owner questions.',
   ];
   const modes = Object.keys(run.modes ?? {}).sort(modeOrder);
+  if (modes.some((mode) => run.modes[mode].lines.some((l) => l.source === 'developer'))) {
+    out.push('Developer-written questions are left out of those figures and tabulated, and judged, on their own rows.');
+  }
   for (const mode of modes) {
     const m = run.modes[mode];
     out.push('', `## Mode: ${mode}`, '');
@@ -425,6 +453,14 @@ export function renderReport(run) {
       out.push('| Question | Feature | Before | After |', '| --- | --- | --- | --- |');
       const lost = [...v.lost].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
       for (const q of lost) out.push(`| ${q.id} | ${q.desk_feature} | ${fmtRank(q.before)} | ${fmtRank(q.after)} |`);
+    }
+    if (v.lostDeveloper) {
+      out.push('', `Lost developer questions (broad document hit@10): ${v.lostDeveloper.length}`, '');
+      if (v.lostDeveloper.length) {
+        out.push('| Question | Feature | Before | After |', '| --- | --- | --- | --- |');
+        const lostDeveloper = [...v.lostDeveloper].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+        for (const q of lostDeveloper) out.push(`| ${q.id} | ${q.desk_feature} | ${fmtRank(q.before)} | ${fmtRank(q.after)} |`);
+      }
     }
   }
   return `${out.join('\n')}\n`;

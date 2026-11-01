@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   compareRuns,
@@ -542,5 +543,201 @@ describe('renderReport', () => {
 
   it('is deterministic', () => {
     expect(renderReport(run())).toBe(renderReport(run()));
+  });
+});
+
+// v1-shaped sets hold only generated and owner questions. These tests pin what the harness made of
+// such a set before developer questions existed: the hashes were taken from the code as it was then,
+// so any change in how a v1 set is judged or reported fails here.
+describe('a v1-shaped set is judged and reported as it was before developer questions', () => {
+  const sha = (value) => createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
+  const v1Features = [...Array(8).fill(BILLS), ...Array(6).fill(REG), ...Array(5).fill(PQ), ...Array(3).fill(IND)];
+  const v1Lines = [
+    ...v1Features.map((f, i) => line(`q${String(i).padStart(2, '0')}`, { desk_feature: f, ambiguous: i % 7 === 3, distractor_ids: i % 2 ? ['d1', 'd2', 'd3', 'd4'] : [] })),
+    line('o01', { source: 'owner', gold_chunk_id: null, desk_feature: BILLS }),
+    line('o02', { source: 'owner', gold_chunk_id: null, desk_feature: PQ }),
+  ];
+  const base = () => new Map(v1Lines.map((l, i) => [l.id, at(1 + (i % 6))]));
+  function candidate() {
+    const m = base();
+    m.set('q00', at(25)); // top-10 to rank 25: lost
+    m.set('q01', at(null)); // hard loss
+    m.set('q09', at(15)); // lost in Regulatory
+    m.set('o01', at(null)); // owner: never counted in the bars
+    m.set('q03', at(null)); // ambiguous: never counted in the bars
+    return m;
+  }
+  const featureCalls = v1Lines.map((l, i) => ({ id: l.id, returned: i === 4 ? 12 : 40, expected: 40 }));
+  const latency = { broad: { baseline: Array(20).fill(100), candidate: Array(20).fill(150) }, feature: { baseline: [], candidate: [...Array(19).fill(90), 2500] } };
+  const input = () => ({
+    lines: v1Lines,
+    baseline: { broad: base(), focused: base(), 'focused-multi': base() },
+    candidate: { broad: candidate(), focused: candidate(), 'focused-multi': base(), feature: candidate() },
+    featureCalls,
+    latency,
+  });
+
+  it('judges the same', () => {
+    const got = judgeNoWorse(input());
+    expect(got.pass).toBe(false);
+    expect(Object.keys(got)).toEqual(['pass', 'failures', 'flags', 'lost']);
+    expect(sha(got)).toBe('8a76f175159204a9198c77d1b965af6420af2946496039e32962f60c72c8188a');
+  });
+
+  it('compares the same', () => {
+    expect(sha(compareRuns(v1Lines, base(), candidate()))).toBe('b06988bca9aa7b36fec814a80e556b13ef549c315d2a46e9cb9e20c6fe79dc3f');
+  });
+
+  it('reports the same', () => {
+    const modes = {
+      broad: { lines: v1Lines, outcomes: candidate(), latencyMs: [10, 20, 30], networkMs: [5], responseBytes: [100] },
+      focused: { lines: v1Lines, outcomes: base(), latencyMs: [10], networkMs: [5], responseBytes: [100] },
+    };
+    const verdict = judgeNoWorse(input());
+    const md = renderReport({ setVersion: 'questions.v1', commit: 'abc', fingerprint: { documents: 1, chunks: 2, latestIndexedAt: 'x', migrationVersion: 'm' }, modes, verdict });
+    expect(sha(md)).toBe('7d6fb33ddf5c0c5d09577e105228a6baf087653a71daa6b1c74eaf28f3c467fa');
+  });
+});
+
+describe('developer questions have their own figures and their own "no worse" judgement', () => {
+  const dev = (id, over = {}) => line(id, { source: 'developer', gold_chunk_id: null, gold_chunk_hash: null, ...over });
+  // 6 generated and 6 developer questions per feature, Bills and Regulatory; all rank-3 hits.
+  const generated = [...Array(6).fill(BILLS), ...Array(6).fill(REG)].map((f, i) => line(`g${String(i).padStart(2, '0')}`, { desk_feature: f }));
+  const developer = [...Array(6).fill(BILLS), ...Array(6).fill(REG)].map((f, i) => dev(`d${String(i).padStart(2, '0')}`, { desk_feature: f }));
+  const lines = [...generated, ...developer];
+  const hits = () => new Map(lines.map((l) => [l.id, at(3)]));
+  const ids = (list, feature) => list.filter((l) => l.desk_feature === feature).map((l) => l.id);
+  function input() {
+    return {
+      lines,
+      baseline: { broad: hits(), focused: hits(), 'focused-multi': hits() },
+      candidate: { broad: hits(), focused: hits(), 'focused-multi': hits(), feature: hits() },
+      featureCalls: lines.map((l) => ({ id: l.id, returned: 40, expected: 40 })),
+      latency: { broad: { baseline: Array(20).fill(100), candidate: Array(20).fill(100) }, feature: { baseline: [], candidate: Array(20).fill(90) } },
+    };
+  }
+  const lose = (outcomes, idList, after = 25) => { for (const id of idList) outcomes.set(id, at(after)); };
+
+  it('compareRuns counts generated questions by default and developer questions on request', () => {
+    const b = hits();
+    const c = hits();
+    lose(c, ids(developer, BILLS).slice(0, 2));
+    expect(compareRuns(lines, b, c).n).toBe(12);
+    expect(compareRuns(lines, b, c).overall.lost).toBe(0);
+    const d = compareRuns(lines, b, c, { source: 'developer' });
+    expect(d.n).toBe(12);
+    expect(d.overall.lost).toBe(2);
+    expect(d.byFeature[BILLS]).toEqual({ lost: 2, gained: 0, netLoss: 2 });
+  });
+
+  it('passes when nothing moved, with no developer key in the result unless developer questions exist', () => {
+    const got = judgeNoWorse(input());
+    expect(got).toMatchObject({ pass: true, failures: [], lost: [], lostDeveloper: [] });
+    const generatedOnly = judgeNoWorse({ ...input(), lines: generated });
+    expect(Object.keys(generatedOnly)).toEqual(['pass', 'failures', 'flags', 'lost']);
+  });
+
+  it('does not let developer losses count against the generated bars', () => {
+    const x = input();
+    lose(x.candidate.broad, ids(developer, BILLS).slice(0, 2));
+    const got = judgeNoWorse(x);
+    expect(got.lost).toEqual([]);
+    expect(got.failures.some((f) => /^broad: /.test(f))).toBe(false);
+  });
+
+  it('fails on a developer net loss over the limit, naming developer, and lists the lost questions apart', () => {
+    const x = input();
+    lose(x.candidate.broad, [...ids(developer, BILLS).slice(0, 2), ids(developer, REG)[0]]);
+    const got = judgeNoWorse(x);
+    expect(got.pass).toBe(false);
+    expect(got.failures).toEqual([expect.stringMatching(/^developer broad: overall document hit@10 net loss 3 > 2/)]);
+    expect(got.lost).toEqual([]);
+    expect(got.lostDeveloper.map((q) => q.id)).toEqual([...ids(developer, BILLS).slice(0, 2), ids(developer, REG)[0]]);
+  });
+
+  it('applies the per-feature limits and hard-loss rule to developer questions as to generated ones', () => {
+    const x = input();
+    x.candidate.broad.set(ids(developer, REG)[0], at(null));
+    const got = judgeNoWorse(x);
+    expect(got.failures).toEqual([expect.stringMatching(/^developer broad: 1 hard loss/)]);
+    const y = input();
+    lose(y.candidate.broad, ids(developer, REG).slice(0, 2));
+    expect(judgeNoWorse(y).failures).toEqual([]);
+  });
+
+  it('judges developer questions in feature mode and in the focused modes', () => {
+    const x = input();
+    lose(x.candidate.feature, ids(developer, BILLS).slice(0, 1), 25);
+    x.candidate.focused.set(ids(developer, REG)[1], at(4));
+    const got = judgeNoWorse(x);
+    expect(got.failures).toEqual(expect.arrayContaining([
+      expect.stringMatching(/^developer feature: .* document hit@10 5 < broad baseline 6/),
+      expect.stringMatching(/^developer focused: 1 question\(s\) changed outcome/),
+    ]));
+    expect(got.failures.some((f) => !f.startsWith('developer '))).toBe(false);
+  });
+
+  it('fails when either set fails', () => {
+    const x = input();
+    lose(x.candidate.broad, ids(generated, BILLS).slice(0, 3));
+    const got = judgeNoWorse(x);
+    expect(got.pass).toBe(false);
+    expect(got.failures).toEqual(expect.arrayContaining([expect.stringMatching(/^broad: Bill Passage Probability Index document hit@10 net loss 3 > 2/)]));
+    expect(got.failures.some((f) => f.startsWith('developer '))).toBe(false);
+    expect(got.lost).toHaveLength(3);
+  });
+
+  it('leaves ambiguous developer questions out of the developer bars', () => {
+    const x = { ...input(), lines: lines.map((l) => (l.id === 'd00' ? { ...l, ambiguous: true } : l)) };
+    lose(x.candidate.broad, ['d00'], null);
+    expect(judgeNoWorse(x).failures).toEqual([]);
+  });
+
+  it('reports latency and missing modes once, not once per set', () => {
+    const x = input();
+    delete x.candidate.feature;
+    const got = judgeNoWorse({ ...x, latency: undefined });
+    expect(got.failures.filter((f) => /^feature: not run/.test(f))).toHaveLength(1);
+    expect(got.failures.filter((f) => /latency: no measurements/.test(f))).toHaveLength(1);
+  });
+
+  describe('renderReport', () => {
+    const outcomes = new Map(lines.map((l) => [l.id, at(l.source === 'developer' ? 8 : 1)]));
+    const md = () => renderReport({
+      setVersion: 'questions.v2', commit: 'abc', fingerprint: { documents: 1, chunks: 2, latestIndexedAt: 'x', migrationVersion: 'm' },
+      modes: { broad: { lines, outcomes, latencyMs: [1], networkMs: [1], responseBytes: [1] } },
+    });
+
+    it('keeps developer questions out of the generated rows', () => {
+      const broad = md();
+      expect(broad).toMatch(/\| Overall \| 12 \| 0 \| 12\/12 \(100\.0%\) \|/);
+      expect(broad).toMatch(new RegExp(`\\| ${BILLS} \\| 6 \\| 0 \\| 6/6 \\(100\\.0%\\)`));
+    });
+
+    it('adds developer rows, overall and per feature, in feature order', () => {
+      const out = md();
+      expect(out).toMatch(/\| Developer: Overall \| 12 \| 0 \| 0\/12 \(0\.0%\) \| 12\/12 \(100\.0%\) \|/);
+      expect(out).toMatch(new RegExp(`\\| Developer: ${BILLS} \\| 6 \\| 0 \\|`));
+      expect(out).toMatch(new RegExp(`\\| Developer: ${REG.replace(/[()]/g, '\\$&')} \\| 6 \\| 0 \\|`));
+      expect(out.indexOf(`Developer: ${BILLS}`)).toBeLessThan(out.indexOf(`Developer: ${REG}`));
+    });
+
+    it('adds no developer rows when there are none', () => {
+      const generatedOnly = renderReport({
+        setVersion: 'questions.v1', commit: 'abc', fingerprint: {},
+        modes: { broad: { lines: generated, outcomes, latencyMs: [1], networkMs: [1], responseBytes: [1] } },
+      });
+      expect(generatedOnly).not.toMatch(/Developer/);
+    });
+
+    it('lists the developer lost questions apart in the comparison', () => {
+      const verdict = { pass: false, failures: ['developer broad: x'], flags: [], lost: [], lostDeveloper: [{ id: 'd01', desk_feature: BILLS, before: 3, after: 25 }] };
+      const out = renderReport({
+        setVersion: 'questions.v2', commit: 'abc', fingerprint: {}, verdict,
+        modes: { broad: { lines, outcomes, latencyMs: [1], networkMs: [1], responseBytes: [1] } },
+      });
+      expect(out).toContain('Lost developer questions (broad document hit@10): 1');
+      expect(out).toContain(`| d01 | ${BILLS} | 3 | 25 |`);
+    });
   });
 });
