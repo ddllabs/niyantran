@@ -1,0 +1,1150 @@
+{
+  "ticket": "F281",
+  "note": "The F281 batch: docs/research/2026-11-01-f281-broken-documents.md and docs/research/2026-11-01-f281-triage.md. \"id\" is filled by the supervisor with the full document id; \"prefix\" is its first 8 characters. Every Regulatory repair reads the official PDF, never the client pack text (the truncation is in the pack). source_sha256 is the SHA-256 of the official file as fetched on 2026-11-01; null means not fetched yet: prepare records it and pin writes it here after a look. Rekey titles, houses and statuses are the sansad listing record of the bill the text really is (a sibling record for the three synopses); the desk record name, when prepare reads exactly one, takes precedence.",
+  "documents": [
+    {
+      "id": null,
+      "prefix": "fb64d5ac",
+      "label": "Taxation Laws (Amendment) Bill 2025, as passed: glyph-ID text layer",
+      "action": "decode",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/PassedBothHouses/Tax828202552938PM.pdf?source=legislation",
+      "source_sha256": "58c9c6d778c8137981ae9e48efa1f88c0419bfa9013b5c1b2bf74151490c202b"
+    },
+    {
+      "id": null,
+      "prefix": "1f1ce52a",
+      "label": "Manipur GST (Amendment) Bill 2025, as passed: glyph-ID text layer",
+      "action": "decode",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/PassedBothHouses/101828202550643PM.pdf?source=legislation",
+      "source_sha256": "2f6a4527469f856f14d3fed087992b515aeceebbbd5be1a689469c0ffc5c86dc"
+    },
+    {
+      "id": null,
+      "prefix": "7fd68cf2",
+      "label": "Passport (Entry into India) Amendment Bill 2000: foreign cover page",
+      "action": "strip_cover",
+      "cover_marker": "AS INIRODUCED IN THE RAJYA SABHA",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/LI_2000.pdf?source=legislation",
+      "source_sha256": "b5874e79137f9d1e754e1a11060ce3736db9d35cbca1023cdb95d8c7ae6df0a0"
+    },
+    {
+      "id": null,
+      "prefix": "40b1cec9",
+      "label": "Multimodal Transportation of Goods (Amendment) Bill 2000: foreign cover page (AIIMS Act amendment bill)",
+      "action": "strip_cover",
+      "cover_marker": "# THE MULTIMODAL",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/XLIX_2000.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "c8289e6b",
+      "label": "TRAI consultation Notice_13052025: garbage OCR of a text-bearing PDF",
+      "action": "reextract",
+      "source_url": "https://www.trai.gov.in/sites/default/files/2025-05/Notice_13052025.pdf",
+      "source_sha256": "b03301867578b70a3e938fb8ee97306f184de0a83542869f9fd035a7419b6da9"
+    },
+    {
+      "id": null,
+      "prefix": "0485a5ac",
+      "label": "Stored as The Representation of the People (Amendment) Bill, 2004 (In… (bill:2004:25); the text is The Adoption of Children (Regulation) Bill, 2001",
+      "action": "rekey",
+      "new_document_key": "bill:2001:51",
+      "new_title": "The Adoption of Children (Regulation) Bill, 2001",
+      "new_house": "Lok Sabha",
+      "new_status": "Pending",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/884LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "0e4cbb57",
+      "label": "Stored as The Health Insurance (For Living Below Poverty Line) Bill, … (bill:2005:112); the text is The Population Stabilisation Bill, 1999",
+      "action": "rekey",
+      "new_document_key": "bill:1999:124",
+      "new_title": "The Population Stabilisation Bill, 1999",
+      "new_house": "Lok Sabha",
+      "new_status": "Pending",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/2353LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "144dc8ae",
+      "label": "Stored as The Scheduled Castes and the Scheduled Tribes (Prevention o… (bill:2010:141); the text is The Political Parties (Assistance and Regulation) Bill, 2000",
+      "action": "rekey",
+      "new_document_key": "bill:2000:205",
+      "new_title": "The Political Parties (Assistance and Regulation) Bill, 2000",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/5333LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "1a3b0519",
+      "label": "Stored as The Code of Criminal Procedure (Amendment) Bill, 2014 (Subs… (bill:2014:69); the text is The Medical Professin (Regulation) Bill, 1998",
+      "action": "rekey",
+      "new_document_key": "bill:1998:85",
+      "new_title": "The Medical Professin (Regulation) Bill, 1998",
+      "new_house": "Lok Sabha",
+      "new_status": "Pending",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/1485LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "24c09071",
+      "label": "Stored as The Constitution (Amendment) Bill, 2011 (Insertion of new C… (bill:2011:74); the text is The Contract Labour (Regulation and Abolition) (Amendment) …",
+      "action": "rekey",
+      "new_document_key": "bill:2005:94",
+      "new_title": "The Contract Labour (Regulation and Abolition) (Amendment) Bill, 2005 (Amendment of section 10)",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/1657LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "335d3607",
+      "label": "Stored as The Lakshadweep Coconut Tree Climbers (Welfare) Bill, 2012. (bill:2012:122); the text is The Constitution (Amendment) Bill, 2006 (Amendment of artic…",
+      "action": "rekey",
+      "new_document_key": "bill:2006:83",
+      "new_title": "The Constitution (Amendment) Bill, 2006 (Amendment of article 85)",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/3245LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "390311bf",
+      "label": "Stored as The Prevention of Social Disabilities Bill, 2004 (bill:2004:45); the text is The Constitution (Amendment) Bill, 2005 (Substitution of ne…",
+      "action": "rekey",
+      "new_document_key": "bill:2005:79",
+      "new_title": "The Constitution (Amendment) Bill, 2005 (Substitution of new article for article 253,etc.)",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/1307LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "424e0d04",
+      "label": "Stored as The Disinvestment of Public Sector Enterprises (Scrutiny by… (bill:2003:24); the text is The National Capital Territory of Delhi (Development) Bill,…",
+      "action": "rekey",
+      "new_document_key": "bill:2000:81",
+      "new_title": "The National Capital Territory of Delhi (Development) Bill, 2000",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/80LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "46b96b19",
+      "label": "Stored as The Nationalisation of Inter-State Rivers Bill, 2013. (bill:2013:11); the text is The National Parks Bill, 2000",
+      "action": "rekey",
+      "new_document_key": "bill:2000:167",
+      "new_title": "The National Parks Bill, 2000",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/4623LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "4a665c8b",
+      "label": "Stored as The Cinemtograph (Amendment) Bill, 1998 (Substituiton of ne… (bill:1998:24); the text is The Special Educational Facilities (For Children of Parents…",
+      "action": "rekey",
+      "new_document_key": "bill:2000:80",
+      "new_title": "The Special Educational Facilities (For Children of Parents Living in the Rural Villages) Bill, 2000",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/116LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "6393d754",
+      "label": "Stored as The Appropriation Bill, 2012. (bill:2012:27); the text is The Representation of the People (Amendment) Bill, 2000 (Am…",
+      "action": "rekey",
+      "new_document_key": "bill:2000:62",
+      "new_title": "The Representation of the People (Amendment) Bill, 2000 (Amendment of section 29A, etc.)",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/4543LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "671bcf49",
+      "label": "Stored as The Renewable Energy Resources Commission Bill, 2010. (bill:2010:142); the text is The Domestic Workers (Conditions of Service) Bill, 2000",
+      "action": "rekey",
+      "new_document_key": "bill:2000:200",
+      "new_title": "The Domestic Workers (Conditions of Service) Bill, 2000",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/5255LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "77ffa7df",
+      "label": "Stored as The Cow Protection Authority Bill, 2014. (bill:2014:149); the text is The Fruit and Vegetable Board Bill, 2006",
+      "action": "rekey",
+      "new_document_key": "bill:2006:81",
+      "new_title": "The Fruit and Vegetable Board Bill, 2006",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/2783LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "94fe0078",
+      "label": "Stored as The Identification of Callers Using Public Telephone Bill, … (bill:2015:150); the text is The Constitution (Amendment) Bill, 1998 (Insertion of new a…",
+      "action": "rekey",
+      "new_document_key": "bill:1998:32",
+      "new_title": "The Constitution (Amendment) Bill, 1998 (Insertion of new article 51B)",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/88LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "98abd091",
+      "label": "Stored as The Central Universities (Amendment) Bill, 2011 (Insertion … (bill:2011:116); the text is The Buy Indian Bill, 2004",
+      "action": "rekey",
+      "new_document_key": "bill:2004:88",
+      "new_title": "The Buy Indian Bill, 2004",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/2833LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "99250d51",
+      "label": "Stored as The Cultural Heritage Conservation Bill, 2010 (bill:2010:5); the text is The Constitution (Amendment) Bill, 1998 (Amendment of artic…",
+      "action": "rekey",
+      "new_document_key": "bill:1998:49",
+      "new_title": "The Constitution (Amendment) Bill, 1998 (Amendment of article 327)",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/363ls.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "a8403f6d",
+      "label": "Stored as The High Court of Kerala (Establishment of a Permanent Benc… (bill:2014:64); the text is The Constitution (Amendment) Bill, 1998 (Amendment of artic…",
+      "action": "rekey",
+      "new_document_key": "bill:1998:67",
+      "new_title": "The Constitution (Amendment) Bill, 1998 (Amendment of article 80)",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/941LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "b8b00f0c",
+      "label": "Stored as The Constitution (Scheduled Tribes) Order (Amendment) Bill,… (bill:2015:110); the text is The High Court at Allahabad (Establishment of a Permanent B…",
+      "action": "rekey",
+      "new_document_key": "bill:1998:8",
+      "new_title": "The High Court at Allahabad (Establishment of a Permanent Bench at Meerut) Bill, 1998",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/39LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "c4472f57",
+      "label": "Stored as The Promotion of Small Family Bill, 2005 (bill:2005:110); the text is The Representation of the People (Amendment) Bill, 2000 (Am…",
+      "action": "rekey",
+      "new_document_key": "bill:2000:130",
+      "new_title": "The Representation of the People (Amendment) Bill, 2000 (Amendment of section 8)",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/2086LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "d4f8c709",
+      "label": "Stored as The Protection of Farmers Bill, 2002 (bill:2003:35); the text is The Government of Union Territory of Lakshadweep Bill, 1998",
+      "action": "rekey",
+      "new_document_key": "bill:1998:43",
+      "new_title": "The Government of Union Territory of Lakshadweep Bill, 1998",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/929LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "e4a7d7d2",
+      "label": "Stored as The Climate Change Bill, 2012. (bill:2012:74); the text is The National Child Welfare Board Bill, 2005",
+      "action": "rekey",
+      "new_document_key": "bill:2005:96",
+      "new_title": "The National Child Welfare Board Bill, 2005",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/1748LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "e81c044c",
+      "label": "Stored as The University of Allahabad Bill, 2004 (bill:2004:26); the text is The Consumer Protection (Amendment) Bill, 2001 (Amendment o…",
+      "action": "rekey",
+      "new_document_key": "bill:2001:50",
+      "new_title": "The Consumer Protection (Amendment) Bill, 2001 (Amendment of section 2)",
+      "new_house": "Lok Sabha",
+      "new_status": "Pending",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/898LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "eb58009f",
+      "label": "Stored as The National Commission for Senior Citizens Bill, 2004 (bill:2004:20); the text is The Constitution (Amendment) Bill, 2001 (Insertion of new a…",
+      "action": "rekey",
+      "new_document_key": "bill:2001:47",
+      "new_title": "The Constitution (Amendment) Bill, 2001 (Insertion of new article 21A)",
+      "new_house": "Lok Sabha",
+      "new_status": "Pending",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/831LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "648594ab",
+      "label": "Stored as The Code of Criminal Procedure(Amendment) Bill, 2000 (Amend… (bill:2000:72); the text is The Judicial Administration Laws (Repeal) Bill, 2000",
+      "action": "rekey",
+      "new_document_key": "bill:2000:LXXII",
+      "new_title": "The Judicial Administration Laws (Repeal) Bill, 2000",
+      "new_house": "Rajya Sabha",
+      "new_status": "Assented",
+      "source_url": "https://sansad.in/getFile/BillsPDFFiles/synopsis/2000-72-Synop.pdf?source=loksabhadocs"
+    },
+    {
+      "id": null,
+      "prefix": "5fca207d",
+      "label": "Stored as The Constitution (Scheduled Castes) Order (Amendment) Bill,… (bill:2001:28); the text is The Pre-Natal Diagnostic Techniques (Regulation and Prevent…",
+      "action": "rekey",
+      "new_document_key": "bill:2001:XXVIII",
+      "new_title": "The Pre-Natal Diagnostic Techniques (Regulation and Prevention of Misuse) Amendment Bill, 2001",
+      "new_house": "Rajya Sabha",
+      "new_status": "Assented",
+      "source_url": "https://sansad.in/getFile/BillsPDFFiles/synopsis/2001-28-Synop.pdf?source=loksabhadocs"
+    },
+    {
+      "id": null,
+      "prefix": "3d51552f",
+      "label": "Stored as The Prevention of COrruption (Establishment of a Commission… (bill:2000:76); the text is The Indian Divorce (Amendment) Bill, 2001",
+      "action": "rekey",
+      "new_document_key": "bill:2000:LXXVI",
+      "new_title": "The Indian Divorce (Amendment) Bill, 2001",
+      "new_house": "Rajya Sabha",
+      "new_status": "Assented",
+      "source_url": "https://sansad.in/getFile/BillsPDFFiles/synopsis/2000-76-Synop.pdf?source=loksabhadocs"
+    },
+    {
+      "id": null,
+      "prefix": "4530253a",
+      "label": "Stored as The Medical Device Regulatory Authority Bill, 2015 (bill:2015:114); the text is The Prevention of COrruption (Establishment of a Commission…",
+      "action": "rekey",
+      "after": [
+        "3d51552f"
+      ],
+      "new_document_key": "bill:2000:76",
+      "new_title": "The Prevention of COrruption (Establishment of a Commission) Bill, 2000",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/107LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "f5ddf657",
+      "label": "Stored as The Forest (Conservation) Amendment Bill, 1998 (Insertion o… (bill:1998:26); no usable key for the text",
+      "action": "retitle_unlink",
+      "new_title": "The Constitution (Amendment) Bill, 2000 (Insertion of new article 16A)",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/78LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "0cfda1b0",
+      "label": "Stored as The Rural Electrification Bill, 2012. (bill:2012:31); no usable key for the text",
+      "action": "retitle_unlink",
+      "new_title": "The Code of Criminal Procedure (Amendment) Bill, 2000 (Amendment of section 167, etc.)",
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/4639LS.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "a17e769c",
+      "label": "Stored as The Constitution (Amendment) Bill, 2000 (Substitution of ne… (bill:2000:71); no usable key for the text",
+      "action": "retitle_unlink",
+      "new_title": "The Chit Funds (Amendment) Act, 2001",
+      "source_url": "https://sansad.in/getFile/BillsPDFFiles/synopsis/2000-71-Synop.pdf?source=loksabhadocs"
+    },
+    {
+      "id": null,
+      "prefix": "7268af49",
+      "label": "Stored as The Constitution Scheduled Castes Order (Amendment) Bill, 2… (bill:2002:11); no usable key for the text",
+      "action": "retitle_unlink",
+      "new_title": "The Appropriation (Railways) No. 2 Act, 2003",
+      "source_url": "https://sansad.in/getFile/BillsPDFFiles/synopsis/2002-11-Synop.pdf?source=loksabhadocs"
+    },
+    {
+      "id": null,
+      "prefix": "6f94685d",
+      "label": "Stored as The Electricity (Priority Supply to Rural Areas and Sector)… (bill:2005:22); no usable key for the text",
+      "action": "retitle_unlink",
+      "new_title": "The Finance (No. 2) Act, 2004",
+      "source_url": "https://sansad.in/getFile/BillsPDFFiles/synopsis/2005-22-Synop.pdf?source=loksabhadocs"
+    },
+    {
+      "id": null,
+      "prefix": "cbd4dbc1",
+      "label": "Stored as The Voluntary Organisations (Regulation) Bill, 2005 (bill:2005:54); no usable key for the text",
+      "action": "retitle_unlink",
+      "new_title": "The Drugs and Cosmetics (Amendment) Act, 2008",
+      "source_url": "https://sansad.in/getFile/BillsPDFFiles/synopsis/2005-54-Synop.pdf?source=loksabhadocs"
+    },
+    {
+      "id": null,
+      "prefix": "8bffca18",
+      "label": "Stored as The Constitution (Amendment) Bill, 2003 (Insertion of new a… (bill:2003:2); no usable key for the text",
+      "action": "retitle_unlink",
+      "new_title": "The Finance Act, 2003",
+      "source_url": "https://sansad.in/getFile/BillsPDFFiles/synopsis/2003-2-Synop.pdf?source=loksabhadocs"
+    },
+    {
+      "id": null,
+      "prefix": "ee462209",
+      "label": "Stored as The Constitution (Amendment) Bill, 2003 (Insertion of new a… (bill:2003:2); no usable key for the text",
+      "action": "retitle_unlink",
+      "new_title": "The Finance Act, 2003",
+      "source_url": "https://sansad.in/getFile/BillsPDFFiles/Notification/2003-2-gaz.pdf?source=loksabhadocs"
+    },
+    {
+      "id": null,
+      "prefix": "7020ee78",
+      "label": "Stored as The Post Graduate Institute of Medical Education and Resear… (bill:2000:LXXXI); no usable key for the text",
+      "action": "retitle_unlink",
+      "new_title": "The Chit Funds (Amendment) Bill, 2000",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/LXXXI_2000.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "afd4f0e8",
+      "label": "Stored as The Girl Child ( Compulsory Education and Welfare) Bill, 20… (bill:2000:XXIV); no usable key for the text",
+      "action": "retitle_unlink",
+      "new_title": "The Constitution (Amendment) Bill, 2000 (art. 198)",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/XXIV_2000.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "8777b653",
+      "label": "Stored as The Children of Parents Living Below Poverty Line (Special … (bill:2001:LXVII); no usable key for the text",
+      "action": "retitle_unlink",
+      "new_title": "The Reservation of Agro-based Industries for the Co-operatives of Unemployed Youth Bill, 2001",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/LXVII_2001.pdf?source=legislation"
+    },
+    {
+      "id": null,
+      "prefix": "1b7862fb",
+      "label": "Stored as The Appropriation (Railways) No.2 Bill, 2007 (bill:2007:46); no usable key for the text",
+      "action": "retitle_unlink",
+      "new_title": "The Prasar Bharati (Broadcasting Corporation of India) Amendment Act, 2011",
+      "source_url": "https://sansad.in/getFile/BillsPDFFiles/Notification/2007-46-gaz.pdf?source=loksabhadocs"
+    },
+    {
+      "id": null,
+      "prefix": "300194ff",
+      "label": "Stored as The Carriage by Air (Amendment) Bill, 2007 (bill:2007:50); no usable key for the text",
+      "action": "retitle_unlink",
+      "new_title": "The Carriage by Road Act, 2007",
+      "source_url": "https://sansad.in/getFile/BillsPDFFiles/Notification/2007-50-gaz.pdf?source=loksabhadocs"
+    },
+    {
+      "id": null,
+      "prefix": "b2d4bfff",
+      "label": "Stored as The Appropriation Bill,2001 (bill:2001:30); no usable key for the text",
+      "action": "retitle_unlink",
+      "new_title": "The Influx from Pakistan (Control) Repealing Act, 2001",
+      "source_url": "https://sansad.in/getFile/BillsPDFFiles/synopsis/2001-30-Synop.pdf?source=loksabhadocs"
+    },
+    {
+      "id": null,
+      "prefix": "06bfd36c",
+      "label": "CCI 1120091652344698 (Case No. 11 / 2009): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 42,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/1120091652344698.pdf",
+      "source_sha256": "34d42da70060687534a3a8a14f8c8ff1eb51677273e5764f99a56d4327601336"
+    },
+    {
+      "id": null,
+      "prefix": "e8a50ac3",
+      "label": "CCI 1120091652344669 (CASE NO. 11/2009): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 42,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/1120091652344669.pdf",
+      "source_sha256": "4c865a9cd559de5a6d78bd22d914e0e8975d809d52c1bdfbcfa285876bddd6ef"
+    },
+    {
+      "id": null,
+      "prefix": "bf254537",
+      "label": "CCI 0620091652348167 (Case No. 6 of 2009): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 37,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/0620091652348167.pdf",
+      "source_sha256": "802d5d82787e921db6597114e2c2ac232ca5058e64d3bf06444f18cfa79beee2"
+    },
+    {
+      "id": null,
+      "prefix": "4ec07fdb",
+      "label": "CCI 1520091652413985 (Case No. 15 of 2009): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 36,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/1520091652413985.pdf",
+      "source_sha256": "8c8ac0549b7391ce82eec7553350d8f87212ab0466d6896ab0648efb67dc71ef"
+    },
+    {
+      "id": null,
+      "prefix": "0e1e90b4",
+      "label": "TRAI_recommendation__Reconsideration_Roll_Out_Obligation (TELECOM REGULATORY AUTHORITY OF INDIA Mahanagar Doorsanchar): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "any",
+      "pages": 36,
+      "source_url": "https://www.trai.gov.in/sites/default/files/2024-09/Reconsideration_Roll_Out_Obligation.pdf",
+      "source_sha256": "bccd3e87a72974d45887749b88e8164782484a7c4f76dea6a909dcf2d029ff4e"
+    },
+    {
+      "id": null,
+      "prefix": "f60ab3ab",
+      "label": "TRAI_recommendation__Annexure_17_May_2017 (ISPA 1178/ISPAI/TRAI/17 March 28, 2017 The Chairman Telecom): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "any",
+      "pages": 36,
+      "source_url": "https://www.trai.gov.in/sites/default/files/2024-09/Annexure_17_May_2017.pdf",
+      "source_sha256": "e6a36b61af50da87454b024390e7065bd77c74b726f9875b0cb498c31ccf1e08"
+    },
+    {
+      "id": null,
+      "prefix": "7e119550",
+      "label": "CCI 0620091652347983 (CASE NO. 06/2009): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 35,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/0620091652347983.pdf",
+      "source_sha256": "cbb3a4ecb878caf22414acde212440ad16bbcf92fe7ced8b0e9720327f6b132c"
+    },
+    {
+      "id": null,
+      "prefix": "d4b84b38",
+      "label": "CCI 0320101652348626 (... Informant: M/s. Pandrol Ranee Technologies Pvt. Ltd., K): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 33,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/0320101652348626.pdf",
+      "source_sha256": "f9b8f0fa7ca5ed091867511a08c62a70b7904c7bebd3e10f1e8a1ef0867b6d20"
+    },
+    {
+      "id": null,
+      "prefix": "c24d6313",
+      "label": "TRAI_regulations__Fifth Amd_QOS_Reg_18082017 (1) (TO BE PUBLISHED IN THE GAZETTE OF INDIA, EXTRAORDINARY, PAR): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "any",
+      "pages": 33,
+      "source_url": "https://www.trai.gov.in/sites/default/files/2024-09/Fifth%20Amd_QOS_Reg_18082017%20%281%29.pdf",
+      "source_sha256": "e71530cf9fa9383ff70a398cc34e540d88ddc52df0928e68b4c67d33201d9da0"
+    },
+    {
+      "id": null,
+      "prefix": "5e32b9b2",
+      "label": "CCI 0420101652349455 (Case No. 04 of 2010): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 32,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/0420101652349455.pdf",
+      "source_sha256": "cea297f84152d2cfb1fbc74842b64931423add953925d8da73a70d35df32a995"
+    },
+    {
+      "id": null,
+      "prefix": "e77b7df8",
+      "label": "CCI 4020101652435911 (CASE No. 40/2010]): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 32,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/4020101652435911.pdf",
+      "source_sha256": "537f501a99df58509a22147ea8644075db01d919b62df5c53ad7d835487a553c"
+    },
+    {
+      "id": null,
+      "prefix": "0c47142d",
+      "label": "CCI 0420091652345968 (Case No. 04/2009): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 30,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/0420091652345968.pdf",
+      "source_sha256": "a95dbf492dc073dcac4dadf775d456f1da25b3b3480edf941535977b0de20d83"
+    },
+    {
+      "id": null,
+      "prefix": "e3dd1af0",
+      "label": "CCI 0420091652345995 (Case No. 4 of 2009): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 30,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/0420091652345995.pdf",
+      "source_sha256": "7ead4c74575a6a411869453dbf4d2c6e2441a8c238add675bc8f29e1a4fd0662"
+    },
+    {
+      "id": null,
+      "prefix": "bf8f3cb0",
+      "label": "CCI 1720111652436161 (Case No. 17/2011]): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 28,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/1720111652436161.pdf",
+      "source_sha256": "10b76f608f8e3529a7dfc8850212b4ad880705aa8e8d46d6e0321e0297649ed4"
+    },
+    {
+      "id": null,
+      "prefix": "16a02b9c",
+      "label": "CCI 0920111652435693 (Case No. 09/2011): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 27,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/0920111652435693.pdf",
+      "source_sha256": "9bf6fa2c46fd1c65108dfadd77f80ad0aff16f06a90e9f04b782ac9f2a63a887"
+    },
+    {
+      "id": null,
+      "prefix": "ea668fd4",
+      "label": "CCI 0320101652348656 (Case No. 3 / 2010): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 26,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/0320101652348656.pdf",
+      "source_sha256": "660d4e5d86245924babfd7c05b83901e8cab58d92955ad7686347060a0773f8d"
+    },
+    {
+      "id": null,
+      "prefix": "4138ec31",
+      "label": "TRAI_regulations__201209030250489400257regulation15jun07[1] (REGD. NO.D.L-33004/99 The Gazette of India EXTRAORDINARY 4T): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "any",
+      "pages": 26,
+      "source_url": "https://www.trai.gov.in/sites/default/files/2024-10/201209030250489400257regulation15jun07%5B1%5D.pdf",
+      "source_sha256": "aa40754af83b8ae62cb96554590699dd564e6d023b720a7daf2906b961ca7fee"
+    },
+    {
+      "id": null,
+      "prefix": "3f6669d6",
+      "label": "TRAI_press-release__PR_No104of2026 (RP-2/9/ (4) /2025-NSL-11 1/43286/2026 For immediate release): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "any",
+      "pages": 25,
+      "source_url": "https://www.trai.gov.in/sites/default/files/2026-07/PR_No104of2026.pdf",
+      "source_sha256": "50379be2ea42e7f22f600ff0d185bbdc2a7eaf4e7ed2015eeba7f216f7a4d21a"
+    },
+    {
+      "id": null,
+      "prefix": "7f65b7d8",
+      "label": "CCI 1320111652336541 (CASE NO.13/2011]): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 24,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/1320111652336541.pdf",
+      "source_sha256": "cdc1888d0b2f6d451a5e426adada74de8e609a9b43c32e21ee557af0ede83a17"
+    },
+    {
+      "id": null,
+      "prefix": "3918821f",
+      "label": "CCI 0620101652340397 (Case No 06/2010): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 24,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/0620101652340397.pdf",
+      "source_sha256": "57b3486e3d15cff2905db44adc6edb8699520e01adf507ebf9dded47170449f0"
+    },
+    {
+      "id": null,
+      "prefix": "961175e5",
+      "label": "TRAI_press-release__PR_No.19of2026 (For immediate release (Press Release No. 19/2026) Informati): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "any",
+      "pages": 24,
+      "source_url": "https://www.trai.gov.in/sites/default/files/2026-02/PR_No.19of2026.pdf",
+      "source_sha256": "2ffc0cbc5113babba9b23a369520edb4d3def75a0d8c55614fad6128d5eba43c"
+    },
+    {
+      "id": null,
+      "prefix": "9a32858f",
+      "label": "CCI 0620101652340443 (Case No. 06/2010): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 24,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/0620101652340443.pdf",
+      "source_sha256": "0839628bc5b351c8616515fa2d9ec9c6b75e20206db9f206bd955eecc9930e5a"
+    },
+    {
+      "id": null,
+      "prefix": "e84249d9",
+      "label": "CCI suo-moto-case-no-and-rtpe-0520091652426216 (RTPE 05/2009 of MRTPC): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 23,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/suo-moto-case-no-and-rtpe-0520091652426216.pdf",
+      "source_sha256": "b2f62c3d435d716a4e948e3ca3377e3beb4bfcb4ddf226ca2213b048712ef54a"
+    },
+    {
+      "id": null,
+      "prefix": "1c28b9b4",
+      "label": "CCI rtpe-092008-c-312009dgir1652502349 (CASE NO. RTPE 09/2008): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 23,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/rtpe-092008-c-312009dgir1652502349.pdf",
+      "source_sha256": "59b217b5e13db59ca7ba61b0884a63b46b354be53af19858c7de896c21bfff88"
+    },
+    {
+      "id": null,
+      "prefix": "1bbcd7fe",
+      "label": "CCI 2320101652349203 (Case No. 23/2010): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 23,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/2320101652349203.pdf",
+      "source_sha256": "096d97f86cedc0677eba9c2363da174c1cf2d41ba40fda54d739f0ac8fc47081"
+    },
+    {
+      "id": null,
+      "prefix": "fc973f30",
+      "label": "CCI 1020101652349721 (Case No. 10 of 2010): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 22,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/1020101652349721.pdf",
+      "source_sha256": "d2572560c824aeff8dc60f89da715d314ecaac33f40ac17784a3f3997e6d1bca"
+    },
+    {
+      "id": null,
+      "prefix": "b91a8617",
+      "label": "CCI 1720111652436198 (Case No. 17/2011): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 9,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/1720111652436198.pdf",
+      "source_sha256": "3b1ae1b84e3ed98756bd567d4a92472d3ced89ce80e31791fd2aee551b61bbf1"
+    },
+    {
+      "id": null,
+      "prefix": "a15a196e",
+      "label": "CCI 6320111652510964 (Case No. 63/2011): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 9,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/6320111652510964.pdf",
+      "source_sha256": "228dbb2f3811446b2399b841451336bfbf6e90a04390399f0e76fcf452e3204b"
+    },
+    {
+      "id": null,
+      "prefix": "b2c9cedc",
+      "label": "CCI 0920111652435719 (Case no. 09 of 2011): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 9,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/0920111652435719.pdf",
+      "source_sha256": "f02bfd071b5f2efce39924008d4fb4dbf74f2e80db39a995b29e4ec7061111e9"
+    },
+    {
+      "id": null,
+      "prefix": "e96cec36",
+      "label": "CCI 4920101652505578 (Case No 49/2010): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 8,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/4920101652505578.pdf",
+      "source_sha256": "fc01b4207124df7c54a48073e7cdcb6c37e1587a2aa08657bf0bbd695cdddd0d"
+    },
+    {
+      "id": null,
+      "prefix": "f1887d27",
+      "label": "CCI 5320111652511930 (Case No. 53/2011): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 8,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/5320111652511930.pdf",
+      "source_sha256": "41eb564a54f660e2a8536e126fa104cbdcd57917314b77b022a07466752e130a"
+    },
+    {
+      "id": null,
+      "prefix": "456b8787",
+      "label": "CCI 512017-542017-and-5620171652266041 (Case Nos. 51, 54 and 56 of 2017): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "any",
+      "pages": 8,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/512017-542017-and-5620171652266041.pdf",
+      "source_sha256": "251cc74fab46fe9790f6563b7211aa581f7928a1cdffd9fe237124a45dbe2d30"
+    },
+    {
+      "id": null,
+      "prefix": "5d43b55a",
+      "label": "CCI 2520111652505257 (Case No 25/2011]): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 8,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/2520111652505257.pdf",
+      "source_sha256": "de7cc68744e5b6ce4d931aed9bd0bdd011633f1754a3d964e5414ba78d50d7a4"
+    },
+    {
+      "id": null,
+      "prefix": "3c4976d6",
+      "label": "CCI 2120111652514230 (Case No. 21 / 2011): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 7,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/2120111652514230.pdf",
+      "source_sha256": "581f7b9052593f4ef9a7967a98ed38422cd9fc44874e2e66b7b7acc22eae0e5c"
+    },
+    {
+      "id": null,
+      "prefix": "0800503d",
+      "label": "CCI 4520111652503845 (Case No. 45/2011): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 7,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/4520111652503845.pdf",
+      "source_sha256": "8d13e5f63a50884384f7e30bb1e6f20c2af48ebdb211dc6541646376ba3feebc"
+    },
+    {
+      "id": null,
+      "prefix": "b493ecf7",
+      "label": "CCI 6520111652511436 (Case No.65/2011): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 7,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/6520111652511436.pdf",
+      "source_sha256": "a31274960b606cd217436602625752fb02fce4977838ad76069373476193d4f2"
+    },
+    {
+      "id": null,
+      "prefix": "b9913bd0",
+      "label": "CCI 8320111652441500 (Case No. 83/2011): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 7,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/8320111652441500.pdf",
+      "source_sha256": "62b4471090dfc0cde1bbb2e86b7b71d854000cbe59cd7647f780eb59e5402c08"
+    },
+    {
+      "id": null,
+      "prefix": "4b0d6909",
+      "label": "CCI 1820091652414560 (Case No.18/2009): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 7,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/1820091652414560.pdf",
+      "source_sha256": "0f0ebe7b868517f91a8af7091c3e7bab73fd6d8edadabf9b100b6ea151aa0bc3"
+    },
+    {
+      "id": null,
+      "prefix": "47e72be4",
+      "label": "CCI 3620101652507448 (CASE NO. 36/2010): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 7,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/3620101652507448.pdf",
+      "source_sha256": "ffe2cfee8c868ca6bc1d2d93d9910be03a08163baa5569d17de967c8df67df93"
+    },
+    {
+      "id": null,
+      "prefix": "8f2fafeb",
+      "label": "CCI 1920111652503041 (Case No. 19 of 2011): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 7,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/1920111652503041.pdf",
+      "source_sha256": "2c4bb670d584c2e4d6f4ed3fd6d0b371c4b214e62b9075a541ce6c38cf888735"
+    },
+    {
+      "id": null,
+      "prefix": "35bddb18",
+      "label": "CCI suo-moto-0220111652436480 (Suo-moto Case No. 02/ 2011]): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 7,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/suo-moto-0220111652436480.pdf",
+      "source_sha256": "d44f2bf5b4a2d8a8e7b04ef4705b3dafa6f8bc600e49d3d811d4c5c95e9abe75"
+    },
+    {
+      "id": null,
+      "prefix": "2aa9a1e3",
+      "label": "CCI 1120101652414762 (Case No. 11/2010): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 7,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/1120101652414762.pdf",
+      "source_sha256": "9e5e2d4e0bfa8d4690ecd141d5d7a563b56cd85c1a045df87422ff2f4d2612fd"
+    },
+    {
+      "id": null,
+      "prefix": "251ad63f",
+      "label": "CCI suo-motu-03-of-20111652434541 (Case No. 03 of 2011): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 7,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/suo-motu-03-of-20111652434541.pdf",
+      "source_sha256": "08bdfe8b6047495c1f985b8b65db644a0f34264684865f919c782a10d1a1e0ca"
+    },
+    {
+      "id": null,
+      "prefix": "6af22f44",
+      "label": "CCI 5320111652511915 (Case No. 53/2011]): stored text is partial or garbage",
+      "action": "ocr",
+      "ocr_kind": "cci-order",
+      "pages": 7,
+      "source_url": "https://www.cci.gov.in/images/antitrustorder/en/5320111652511915.pdf",
+      "source_sha256": "5c164b37045d7482c4dcefa205d5348a168ca6ee8da5ec5fab4b3bcfef8383d6"
+    },
+    {
+      "id": null,
+      "prefix": "712b7dab",
+      "label": "TRAI TCEPF (Amendment) Regulations 2011 gazette notice: Hindi column read as Latin",
+      "action": "ocr",
+      "ocr_kind": "bilingual-gazette",
+      "pages": 3,
+      "source_url": "https://www.trai.gov.in/sites/default/files/2024-10/201209030252173016627TCEPF-Regulation%5B1%5D.pdf",
+      "source_sha256": "f2b80c9c80c442a0732efd8b4e86cb0699f266cc4b429ebaa057fc52afbf4f51"
+    },
+    {
+      "id": null,
+      "prefix": "06dc6288",
+      "label": "The Constitution (Amendment) Bill, 2015 (Amendment of articles 15 and…: garbage or hallucinated OCR",
+      "action": "ocr",
+      "ocr_kind": "any",
+      "guard_title": true,
+      "pages": 6,
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/2463.pdf?source=legislation",
+      "source_sha256": null
+    },
+    {
+      "id": null,
+      "prefix": "0c258b6d",
+      "label": "The Capital Issues (Control) Repeal Bill, 1992: garbage or hallucinated OCR",
+      "action": "ocr",
+      "ocr_kind": "any",
+      "guard_title": true,
+      "pages": 4,
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/106_1992_Eng_LS.pdf?source=legislation",
+      "source_sha256": null
+    },
+    {
+      "id": null,
+      "prefix": "e777c56d",
+      "label": "The Constitution (Seventy-seventh Amendment) Bill, 1992 (Amendment of…: garbage or hallucinated OCR",
+      "action": "ocr",
+      "ocr_kind": "any",
+      "guard_title": true,
+      "pages": 4,
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/103_1992_Eng_LS.pdf?source=legislation",
+      "source_sha256": null
+    },
+    {
+      "id": null,
+      "prefix": "366b1414",
+      "label": "The Constitution (Scheduled Castes) (Union Territories) Order (Amendm…: garbage or hallucinated OCR",
+      "action": "ocr",
+      "ocr_kind": "any",
+      "guard_title": true,
+      "pages": 4,
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/7276LS.pdf?source=legislation",
+      "source_sha256": null
+    },
+    {
+      "id": null,
+      "prefix": "9611101e",
+      "label": "The Tea Companies (Acquisition and Transfer and Transfer of Sick Tea …: garbage or hallucinated OCR",
+      "action": "ocr",
+      "ocr_kind": "any",
+      "guard_title": true,
+      "pages": 3,
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/183_1991_LS_Eng.pdf?source=legislation",
+      "source_sha256": null
+    },
+    {
+      "id": null,
+      "prefix": "26b571c5",
+      "label": "The Jute Manufacturers Development Council (Amendment) Bill, 1990: garbage or hallucinated OCR",
+      "action": "ocr",
+      "ocr_kind": "any",
+      "guard_title": true,
+      "pages": 4,
+      "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/99_1990_LS_Eng.pdf?source=legislation",
+      "source_sha256": null
+    }
+  ],
+  "excluded": [
+    {
+      "ids": [
+        "7e43d403",
+        "ca1b65ba"
+      ],
+      "reason": "The crossed pair (the Semiconductor and the Population Control bills hold each other's key and title): left to the Bills adapter (F275)."
+    },
+    {
+      "ids": [
+        "091d3758",
+        "b3b2095c",
+        "0d05cf75"
+      ],
+      "reason": "Garbage OCR and no file_url: the only source is the pack file named in metadata.source_path, which this tool does not use."
+    },
+    {
+      "ids": [
+        "cc99b0d2"
+      ],
+      "reason": "Unclear: a gazette of the Scheduled Castes and Scheduled Tribes Orders (Amendment) Act 2002 under a Constitution (Scheduled Castes) Order bill title; probably a bill merged or renamed on enactment, not provable from the sources. Needs a decision."
+    },
+    {
+      "ids": [
+        "0384f9b5",
+        "1b801b87",
+        "624ae9cb"
+      ],
+      "reason": "Held by owner decision: no chunks on purpose (metadata.mapping_hold, 2026-10-09) until the key collision is resolved."
+    },
+    {
+      "ids": [
+        "0060da7b",
+        "05a53e87",
+        "05ad94f2",
+        "06625065",
+        "08381640",
+        "0d93d304",
+        "0f0266a3",
+        "0f52bacc",
+        "103d8107",
+        "107b56a7",
+        "16cf9644",
+        "1b09055c",
+        "1f654ea0",
+        "21169e05",
+        "21acca33",
+        "2c8ac66f",
+        "30b84885",
+        "31b833f3",
+        "320f2930",
+        "3444c2ea",
+        "35a01c2f",
+        "3761dce4",
+        "3876f489",
+        "3878acb8",
+        "38e80f53",
+        "3e90d32f",
+        "403a57a0",
+        "425240ee",
+        "43dee1aa",
+        "43df8c31",
+        "448f22dc",
+        "44e2d24b",
+        "460f4e00",
+        "469b3235",
+        "4841b037",
+        "48ba0e76",
+        "4959ecea",
+        "4b604bc6",
+        "4bea006b",
+        "4d5b7674",
+        "4e12da6c",
+        "4fc3ac9d",
+        "4fc9680e",
+        "5514dec6",
+        "55d75510",
+        "56a90d10",
+        "593503c9",
+        "5d323d17",
+        "5f95379f",
+        "607ac47c",
+        "6085515e",
+        "6158a885",
+        "66570353",
+        "6838a10f",
+        "6a1f17c8",
+        "6a335a5e",
+        "6d5159b0",
+        "6ed0647e",
+        "7142b662",
+        "78531f3b",
+        "7aab65e4",
+        "7cec5ecb",
+        "81ec9537",
+        "889be98b",
+        "8ff0f7e2",
+        "91a780b4",
+        "9477c332",
+        "94f281f3",
+        "9e5145ff",
+        "a12f83d7",
+        "a1661f06",
+        "a5cdf865",
+        "ab2ca385",
+        "ab91eb1c",
+        "abc7a2bc",
+        "ae2cd952",
+        "b645c2c4",
+        "b7f577fe",
+        "b91228c8",
+        "bca22b4e",
+        "bfcd7b3d",
+        "c04d1835",
+        "c1da125a",
+        "c6477ea4",
+        "c8c1a1da",
+        "ca4ba1eb",
+        "cb516acd",
+        "d049bf1d",
+        "d081662a",
+        "d0b707f1",
+        "d0e0ed30",
+        "d1d79bcf",
+        "d2c97f64",
+        "d80f53b6",
+        "d8ec310e",
+        "d8f422c2",
+        "e3c4b392",
+        "e51caa8d",
+        "e7010e87",
+        "e7c02a8c",
+        "e9df38c3",
+        "ee6a86ff",
+        "f11ff908",
+        "f1d93e39",
+        "f47b200a",
+        "f4a2836e",
+        "f5387967",
+        "fc44f56f"
+      ],
+      "reason": "False alarms: no key, a file name as the title, the text is a real bill. Not broken; re-titling them from the text is optional and not part of this batch."
+    },
+    {
+      "ids": [
+        "410ebf75",
+        "9726bbf4"
+      ],
+      "reason": "Trivial: three stray glyphs in one chunk, and ten characters in the last chunk. Not worth a re-ingest on their own."
+    },
+    {
+      "ids": [
+        "85377b0f",
+        "b77caf5d",
+        "17bb03c1"
+      ],
+      "reason": "False alarms with a small defect (a line or two of OCR noise before the bill; a file name as the title). Not requested for this batch."
+    },
+    {
+      "ids": [
+        "04cd2c4b",
+        "19e8dd76",
+        "3cbeef80",
+        "548fd359",
+        "6fffba70",
+        "70b72057",
+        "9c83ba9d",
+        "af83bcf2",
+        "c2a56a17",
+        "ea463d40",
+        "ecf06955"
+      ],
+      "reason": "Suspected stray cover (triage section 8 item 1: a pattern scan of the Rajya Sabha 2000 series found two different \"amend or repeal the X Act\" lines). The triage did not confirm them by id; add each as strip_cover only after reading its opening."
+    }
+  ]
+}
