@@ -43,11 +43,31 @@ SET LOCAL jit=off;
 ANALYZE documents; ANALYZE document_chunks;
 SET LOCAL enable_seqscan=off; SET LOCAL enable_sort=off;
 SET LOCAL hnsw.ef_search=40;
+-- F280: the oracle check below proves recovery only if the helper's approximate
+-- pass underfills. HNSW builds a random graph, and on some graphs (seen on x86_64,
+-- about 1 run in 30) that pass fills 40 with far chunks, so the helper returns an
+-- approximate set and recovery never runs. Search on a fixed graph is
+-- deterministic, so repeat the helper's pass here and rebuild until it underfills.
+DO $$
+DECLARE n int;
+BEGIN
+  FOR attempt IN 1..10 LOOP
+    PERFORM set_config('hnsw.ef_search','400',true);
+    SELECT count(*) INTO n FROM (SELECT c.id FROM document_chunks c JOIN documents d ON d.id=c.document_id
+      WHERE c.embedding IS NOT NULL AND d.indexed_at IS NOT NULL AND d.desk_feature='Small' AND d.desk_tier='national'
+      ORDER BY (c.embedding::halfvec(1536)) <=> (pg_temp.v(1)::halfvec(1536)) LIMIT 40) ann;
+    PERFORM set_config('hnsw.ef_search','40',true);
+    EXIT WHEN n < 40;
+    RAISE NOTICE 'F280: approximate pass filled on attempt %; rebuilding the HNSW index', attempt;
+    REINDEX INDEX document_chunks_embedding_halfvec_hnsw;
+  END LOOP;
+  PERFORM pg_temp.assert_true(n < 40,'approximate pass underfills, so the oracle check exercises recovery');
+END $$;
 SET LOCAL ROLE authenticated;
 CREATE TEMP TABLE got AS SELECT * FROM match_documents(pg_temp.v(1),40,NULL,'national','Small');
 SELECT pg_temp.assert_true((SELECT count(*) FROM got)=40,'large minority feature recovers 40 despite nearer other-feature vectors');
 SELECT pg_temp.assert_true((SELECT bool_and(desk_feature='Small' AND desk_tier='national') FROM got),'scope retained');
-CREATE TEMP TABLE expected AS SELECT c.id FROM document_chunks c JOIN documents d ON d.id=c.document_id WHERE c.embedding IS NOT NULL AND d.indexed_at IS NOT NULL AND d.desk_tier='national' AND d.desk_feature='Small' ORDER BY c.embedding <=> pg_temp.v(1) LIMIT 40;
+CREATE TEMP TABLE expected AS SELECT c.id FROM document_chunks c JOIN documents d ON d.id=c.document_id WHERE c.embedding IS NOT NULL AND d.indexed_at IS NOT NULL AND d.desk_tier='national' AND d.desk_feature='Small' ORDER BY c.embedding <=> pg_temp.v(1), c.id LIMIT 40;
 SELECT pg_temp.assert_true(NOT EXISTS(SELECT id FROM expected EXCEPT SELECT id FROM got),'recovery matches exact oracle');
 SELECT pg_temp.assert_true(current_setting('hnsw.ef_search')='40','setting restored');
 SELECT pg_temp.assert_true((SELECT count(*) FROM match_documents(pg_temp.v(1),40,array['f8100000-0000-0000-0000-000000000002'::uuid],'national','Large'))=2,'explicit IDs win over feature and corpus size');
