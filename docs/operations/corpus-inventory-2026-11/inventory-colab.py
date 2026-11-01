@@ -41,6 +41,11 @@ PACKS = [
     dict(id='citation_v1.1_companion', kind='folder', family='citation', path='NTER_citation_pack_v1.1_2026-10-05'),
 ]
 # Extracted copies of zips: every file is hashed and compared with the zip member at the same internal path.
+# Unreadable files whose readable copy in another pack is counted instead (developers, 2026-11-01): hashed raw, not decompressed.
+SUBSTITUTE = {
+    ('citation_v1.1_companion', 'gapfill/out/bills_recovered.jsonl.gz'): ('citation_v1.2_delta', 'citation_pack_v1/documents/bills_recovered.jsonl.gz'),
+    ('citation_v1.1_companion', 'gapfill/out/ocr_repaged.jsonl.gz'): ('citation_v1.2_delta', 'citation_pack_v1/documents/ocr_repaged.jsonl.gz'),
+}
 EXTRACTED = {
     'NTER_citation_pack_v1.3_DELTA_2026-10-08': 'citation_v1.3_delta',
     'NTER_citation_pack_v1.4_DELTA_2026-10-13': 'citation_v1.4_delta',
@@ -95,7 +100,7 @@ def collection_of(family, member):
     """Collection name for a member read as records, or None."""
     m = member
     if family == 'legal':
-        x = re.search(r'/documents/([^/]+)/[^/]+\.jsonl\.gz$', m)
+        x = re.search(r'/documents/([^/]+)/.+\.jsonl\.gz$', m)   # any depth: high courts and tribunals sit under court folders
         return x.group(1) if x and not m.endswith('.boxes.jsonl.gz') else None
     if family == 'citation':
         x = re.search(r'(?:^|/)documents/([^/]+?)(-\d\d)?\.jsonl\.gz$', m)
@@ -108,7 +113,7 @@ def collection_of(family, member):
             return 'documents'
         if re.search(r'01_original_corpus/ocr_raw/[^/]+\.jsonl(\.gz)?$', m):
             return 'ocr_raw'
-        if re.search(r'03_individual_ocr/[^/]+/[^/]+\.md$', m):
+        if re.search(r'03_individual_ocr/[^/]+/.+\.md$', m):   # any depth below the document folder
             return 'individual_ocr'
         return None
     if family == 'rows':
@@ -163,7 +168,15 @@ def setup(repo_sha):
 
 def _task(**k):
     k.setdefault('copy_of', None)
+    k.setdefault('substitute', None)
     return k
+
+
+def member_sha_of(tasks, by_task, pack, member):
+    for t in tasks:
+        if t['pack'] == pack and t['member'].endswith(member):
+            return by_task.get(t['task'], {}).get('sha256')
+    return None
 
 
 def plan():
@@ -197,9 +210,10 @@ def plan():
                     rel = str(f.relative_to(full))
                     col, ck = collection_of(p['family'], rel), count_kind(p['family'], rel)
                     sz = f.stat().st_size
+                    sub = SUBSTITUTE.get((p['id'], rel))
                     tasks.append(_task(task=f"{p['id']}:{rel}", pack=p['id'], family=p['family'], src='file', path=str(f), index=None,
-                                       member=rel, size=sz, usize=sz, mode='records' if col else ('count' if ck else 'hash'),
-                                       collection=col or ck))
+                                       member=rel, size=sz, usize=sz, mode='hash' if sub else ('records' if col else ('count' if ck else 'hash')),
+                                       collection=None if sub else (col or ck), substitute=sub))
     for folder, pack in EXTRACTED.items():
         for f in sorted((DH / folder).rglob('*')):
             if f.is_file():
@@ -257,7 +271,7 @@ def worker(wid, tasks, node, mjs, cwd, outdir):
                         elif t['mode'] == 'md':
                             text = stream.read().decode('utf-8', 'replace')
                             proc.stdin.write(b'\n' + json.dumps({'__task': t['task']}).encode() + b'\n')
-                            proc.stdin.write(json.dumps({'id': t['member'].split('/')[-2], 'text': text, 'source_path': 'pdf'}).encode() + b'\n')
+                            proc.stdin.write(json.dumps({'id': t['member'].split('03_individual_ocr/', 1)[1].split('/')[0], 'text': text, 'source_path': 'pdf'}).encode() + b'\n')
                         else:
                             lines, last = 0, b'\n'
                             for b in iter(lambda: stream.read(BLOCK), b''):
@@ -337,7 +351,7 @@ def aggregate(tasks, outdir, flagged, aliases):
     keysdir = W / 'keys'
     if keysdir.exists():
         shutil.rmtree(keysdir)
-    writers = {}
+    writers, unreadable = {}, []
     for wf in sorted(outdir.glob('w*.tsv')):
         cur = None
         with open(wf, 'r', encoding='utf-8', errors='replace') as fh:
@@ -349,7 +363,10 @@ def aggregate(tasks, outdir, flagged, aliases):
                     continue
                 pack, col = cur['pack'], cur['collection']
                 if p[0] == 'E':
-                    cols[(pack, col)]['unreadable'] += 1; continue
+                    cols[(pack, col)]['unreadable'] += 1
+                    unreadable.append(dict(pack=pack, collection=col, member=cur['member'], line=int(p[2]) if len(p) > 2 and p[2].isdigit() else None,
+                                           reason=p[1]))
+                    continue
                 p += [''] * (17 - len(p))
                 (_, key, tsha, dsha, chars, chunks, tokens, state, serv, rexcl, repl, lic, split, extr, feat, dtype, pf) = p[:17]
                 if cur['family'] == 'processed' and col in ('documents', 'ocr_raw'):
@@ -361,8 +378,9 @@ def aggregate(tasks, outdir, flagged, aliases):
                 c['serv_f'] += serv == 'F'; c['serv_t'] += serv == 'T'; c['rexcl'] += rexcl == 'T'; c['replaces'] += repl == 'T'
                 c['personal_licence'] += 'PERSONAL' in lic.upper()
                 if pf:
-                    c['personal_fields'] += 1
-                    for f in pf.split(','):
+                    fs = pf.split(',')
+                    c['personal_fields'] += any(not f.endswith('=true') for f in fs)   # a boolean flag is not personal data
+                    for f in fs:
                         c['pfields'][f] += 1
                 c['nokey'] += not key
                 c['licence'][lic] += 1; c['split'][split] += 1; c['extraction'][extr] += 1
@@ -441,7 +459,7 @@ def aggregate(tasks, outdir, flagged, aliases):
                everything=totals(lambda p: not p.startswith('extracted')))
     for p in pack_ids:
         tot['pack:' + p] = totals(lambda q, p=p: q == p)
-    return result, overlaps, tot
+    return result, overlaps, tot, unreadable
 
 
 def inventory(repo_sha, workers=None):
@@ -487,7 +505,11 @@ def inventory(repo_sha, workers=None):
     missing = [t['task'] for t in tasks if t['task'] not in by_task]
     legal = next(p for p in PACKS if p['family'] == 'legal')
     policy, flagged, aliases, not_in_pack = policy_legal(DH / legal['path'])
-    collections, overlaps, totals = aggregate(tasks, outdir, flagged, aliases)
+    collections, overlaps, totals, unreadable = aggregate(tasks, outdir, flagged, aliases)
+    substitutes = [dict(member=t['member'], pack=t['pack'], bytes=by_task.get(t['task'], {}).get('bytes'),
+                        sha256=by_task.get(t['task'], {}).get('sha256'), counted_instead=dict(zip(('pack', 'member'), t['substitute'])),
+                        counted_instead_sha256=member_sha_of(tasks, by_task, *t['substitute']))
+                   for t in tasks if t.get('substitute')]
     member_sha = {(t['pack'], t['member']): by_task.get(t['task'], {}).get('sha256') for t in tasks if t['src'] == 'zip'}
     extracted = {}
     for folder, pack in EXTRACTED.items():
@@ -530,7 +552,7 @@ def inventory(repo_sha, workers=None):
         chunker='chunkUnit({unitKey: document, sourceKind: document}) with CHUNK defaults; tokens = sum of estimateTokens per chunk',
         seconds=round(time.time() - t0), workers=n, node_exit=node_exit, task_errors=len(errs), tasks_without_result=len(missing),
         packs=packs, extracted_copies=extracted, working_folders=working, legal_policy=policy, legal_not_in_pack_rows=not_in_pack,
-        totals=totals, collections=collections, overlaps=overlaps)
+        totals=totals, collections=collections, overlaps=overlaps, unreadable_lines=unreadable, substitutes=substitutes)
     body = json.dumps(summary, indent=1, sort_keys=True, default=int)
     (OUT / 'summary.json').write_text(body)
     shutil.copytree(W / 'keys', OUT / 'keys', dirs_exist_ok=True)
