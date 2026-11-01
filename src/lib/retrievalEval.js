@@ -417,7 +417,7 @@ function latencyLine(mode, m, networkMs) {
 /**
  * The Markdown report for one run. `run`:
  * { setVersion, commit, fingerprint: { documents, chunks, latestIndexedAt,
- *   migrationVersion }, cost: { embeddingTokens, usd },
+ *   migrationVersion, database (optional: a replica run names its database) }, cost: { embeddingTokens, usd },
  *   modes: { [mode]: { lines, outcomes, latencyMs, networkMs, responseBytes, skipped } },
  *   networkMs (used when a mode has none), verdict (a judgeNoWorse result, optional) }.
  * Tables exclude ambiguous, owner and developer questions from the generated bar figures and show
@@ -432,6 +432,7 @@ export function renderReport(run) {
     `- Set: ${run.setVersion}`,
     `- Commit: ${run.commit}`,
     `- Migration version: ${fp.migrationVersion}`,
+    ...(fp.database ? [`- Database: ${fp.database}`] : []),
     `- Corpus fingerprint: ${fp.documents} documents, ${fp.chunks} chunks, latest indexed_at ${fp.latestIndexedAt}`,
     `- Cost: $${Number(cost.usd ?? 0).toFixed(4)} (${cost.embeddingTokens ?? 0} embedding tokens)`,
     '',
