@@ -1,0 +1,422 @@
+[
+ {
+  "id": "q-0001",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0002",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0003",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0005",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0006",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0007",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0008",
+  "source": "generated",
+  "exact_doc_rank": 5,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0009",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0010",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0011",
+  "source": "generated",
+  "exact_doc_rank": 14,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0012",
+  "source": "generated",
+  "exact_doc_rank": 21,
+  "feature_doc_rank": 21
+ },
+ {
+  "id": "q-0013",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0014",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0015",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0016",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0017",
+  "source": "generated",
+  "exact_doc_rank": 2,
+  "feature_doc_rank": 2
+ },
+ {
+  "id": "q-0018",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0019",
+  "source": "generated",
+  "exact_doc_rank": 3,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0020",
+  "source": "generated",
+  "exact_doc_rank": 2,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0021",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0022",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0024",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0026",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0027",
+  "source": "generated",
+  "exact_doc_rank": 4,
+  "feature_doc_rank": 4
+ },
+ {
+  "id": "q-0028",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0029",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0030",
+  "source": "generated",
+  "exact_doc_rank": 19,
+  "feature_doc_rank": 16
+ },
+ {
+  "id": "q-0031",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0032",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0034",
+  "source": "generated",
+  "exact_doc_rank": 4,
+  "feature_doc_rank": 4
+ },
+ {
+  "id": "q-0035",
+  "source": "generated",
+  "exact_doc_rank": 2,
+  "feature_doc_rank": 2
+ },
+ {
+  "id": "q-0036",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0037",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0039",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0040",
+  "source": "generated",
+  "exact_doc_rank": 25,
+  "feature_doc_rank": 25
+ },
+ {
+  "id": "q-0041",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0042",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0043",
+  "source": "generated",
+  "exact_doc_rank": 4,
+  "feature_doc_rank": 4
+ },
+ {
+  "id": "q-0044",
+  "source": "generated",
+  "exact_doc_rank": 26,
+  "feature_doc_rank": 24
+ },
+ {
+  "id": "q-0045",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0046",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0047",
+  "source": "generated",
+  "exact_doc_rank": 4,
+  "feature_doc_rank": 4
+ },
+ {
+  "id": "q-0048",
+  "source": "generated",
+  "exact_doc_rank": 20,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0049",
+  "source": "generated",
+  "exact_doc_rank": 2,
+  "feature_doc_rank": 2
+ },
+ {
+  "id": "q-0050",
+  "source": "generated",
+  "exact_doc_rank": 16,
+  "feature_doc_rank": 13
+ },
+ {
+  "id": "q-0051",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0052",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0053",
+  "source": "generated",
+  "exact_doc_rank": 2,
+  "feature_doc_rank": 2
+ },
+ {
+  "id": "q-0054",
+  "source": "generated",
+  "exact_doc_rank": 4,
+  "feature_doc_rank": 4
+ },
+ {
+  "id": "q-0055",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0056",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0058",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0059",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0060",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0061",
+  "source": "generated",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0062",
+  "source": "generated",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0268",
+  "source": "developer",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0269",
+  "source": "developer",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0270",
+  "source": "developer",
+  "exact_doc_rank": 3,
+  "feature_doc_rank": 3
+ },
+ {
+  "id": "q-0271",
+  "source": "developer",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0272",
+  "source": "developer",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0273",
+  "source": "developer",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0274",
+  "source": "developer",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0275",
+  "source": "developer",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0276",
+  "source": "developer",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0277",
+  "source": "developer",
+  "exact_doc_rank": null,
+  "feature_doc_rank": null
+ },
+ {
+  "id": "q-0278",
+  "source": "developer",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0279",
+  "source": "developer",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0280",
+  "source": "developer",
+  "exact_doc_rank": 1,
+  "feature_doc_rank": 1
+ },
+ {
+  "id": "q-0281",
+  "source": "developer",
+  "exact_doc_rank": 2,
+  "feature_doc_rank": 2
+ }
+]
