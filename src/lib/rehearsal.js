@@ -53,7 +53,7 @@ export function defaultRehearsalName(date) {
 
 /** Arguments of rehearse.mjs. Throws on anything unknown, so a typo cannot run a different rehearsal. */
 export function parseRehearseArgs(argv, now = new Date()) {
-  const out = { migration: null, name: null, source: REPLICA_DATABASE, keep: false, fresh: false, out: 'eval/retrieval/results', sampleMs: 3000, probeMs: 250 };
+  const out = { migration: null, name: null, source: REPLICA_DATABASE, keep: false, fresh: false, out: 'eval/retrieval/results', sampleMs: 3000, probeMs: 250, prelude: null, settings: [], noWrap: false };
   const value = (i, flag) => {
     const v = argv[i];
     if (v === undefined || v.startsWith('--')) throw new Error(`${flag} needs a value`);
@@ -73,6 +73,9 @@ export function parseRehearseArgs(argv, now = new Date()) {
     else if (a === '--out') out.out = value(++i, a);
     else if (a === '--sample-ms') out.sampleMs = interval(++i, a, 100, 60_000);
     else if (a === '--probe-ms') out.probeMs = interval(++i, a, 50, 10_000);
+    else if (a === '--prelude') out.prelude = value(++i, a);
+    else if (a === '--setting') out.settings.push(parseSetting(value(++i, a)));
+    else if (a === '--no-wrap') out.noWrap = true;
     else if (a === '--keep') out.keep = true;
     else if (a === '--fresh') out.fresh = true;
     else throw new Error(`unknown argument ${a}`);
@@ -83,6 +86,75 @@ export function parseRehearseArgs(argv, now = new Date()) {
   assertSourceDatabase(out.source);
   if (out.name === out.source) throw new Error('--name and --source are the same database');
   return out;
+}
+
+const SETTING_NAME = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/;
+
+/** `name=value` of --setting: a plain or dotted GUC name, and a non-empty value without line breaks or NUL. */
+export function parseSetting(text) {
+  const at = String(text).indexOf('=');
+  const name = at === -1 ? '' : text.slice(0, at);
+  const value = at === -1 ? '' : text.slice(at + 1);
+  if (!SETTING_NAME.test(name) || value === '' || /[\n\r\0]/.test(value)) {
+    throw new Error(`--setting needs name=value (a setting name, then a non-empty value on one line), got ${JSON.stringify(text)}`);
+  }
+  return { name, value };
+}
+
+const quoteLiteral = (v) => `'${String(v).replace(/'/g, "''")}'`;
+
+/**
+ * The statements that apply the settings to the migration's psql session, on ONE line so the line numbers
+ * of the file that follows are unchanged. `set_config(name, value, false)` is a session-level `set`; the
+ * values are quoted literals, never spliced as SQL.
+ */
+export function settingsPreamble(settings) {
+  return settings.map((x) => `select set_config(${quoteLiteral(x.name)}, ${quoteLiteral(x.value)}, false); `).join('');
+}
+
+const stripBlockComments = (sql) => sql.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
+const BEGIN_LINE = /^\s*(?:begin(?:\s+(?:work|transaction))?|start\s+transaction(?:\s+[^;]*)?)\s*;\s*(?:--.*)?$/i;
+const COMMIT_LINE = /^\s*commit(?:\s+(?:work|transaction))?\s*;\s*(?:--.*)?$/i;
+
+/**
+ * Whether a SQL file carries its own top-level `begin;` / `commit;` statements (a line of their own, outside
+ * comments). A plpgsql `begin` has no semicolon, and `end;` is deliberately not counted.
+ */
+export function detectTransactionControl(sql) {
+  const lines = stripBlockComments(sql).split('\n');
+  return { hasBegin: lines.some((l) => BEGIN_LINE.test(l)), hasCommit: lines.some((l) => COMMIT_LINE.test(l)) };
+}
+
+/**
+ * How to feed a file to psql. psql --single-transaction sends BEGIN first, so a file with its own `begin;`
+ * would nest (a warning, a no-op) and its `commit;` would end the outer transaction early, leaving anything
+ * after it, and the wrapper's own COMMIT, outside. So a file that manages its own transaction runs as it is,
+ * and a plain file is wrapped. `--no-wrap` forces the file to run as it is. A file with only one of the two
+ * statements is refused: the intent is unclear.
+ */
+export function chooseTransactionMode({ sql, noWrap }) {
+  if (noWrap) return { wrap: false, mode: 'unwrapped', reason: '--no-wrap' };
+  const { hasBegin, hasCommit } = detectTransactionControl(sql);
+  if (hasBegin && hasCommit) return { wrap: false, mode: 'self-managed', reason: 'the file has its own begin; and commit;' };
+  if (hasBegin) throw new Error('the file has a begin; but no commit; so a wrapper transaction would be nested and its end undefined. Add the commit;, remove the begin;, or pass --no-wrap.');
+  if (hasCommit) throw new Error('the file has a commit; but no begin; so it would end the wrapper transaction early. Add the begin;, remove the commit;, or pass --no-wrap.');
+  return { wrap: true, mode: 'single-transaction', reason: 'plain file, wrapped in psql --single-transaction' };
+}
+
+const DATABASE_DDL = /\b(?:create|drop|alter)\s+database\b/i;
+
+/**
+ * Lines of a SQL file that could take psql off the rehearsal database: a psql backslash command (\c, \connect,
+ * \!, ...) on any line, and unless allowed, database DDL outside a `--` comment. Both the prelude and the
+ * migration are checked for the first; only the prelude for the second.
+ */
+export function findUnsafeScript(sql, { allowDatabaseDdl = false } = {}) {
+  const problems = [];
+  stripBlockComments(sql).split('\n').forEach((line, i) => {
+    if (/^\s*\\/.test(line)) problems.push(`line ${i + 1}: psql meta-command (${line.trim().slice(0, 40)})`);
+    else if (!allowDatabaseDdl && DATABASE_DDL.test(line.replace(/--.*$/, ''))) problems.push(`line ${i + 1}: database DDL (${line.trim().slice(0, 40)})`);
+  });
+  return problems;
 }
 
 /**
@@ -232,6 +304,9 @@ export function renderRehearsalReport(r) {
     `- Source database: ${r.source.database} (${formatBytes(r.source.sizeBytes)})`,
     `- Rehearsal database: ${r.target.database} (${r.target.kept ? 'kept' : 'dropped at the end'})`,
     `- Free disk before the copy: ${formatBytes(r.disk.freeBytes)} (required ${formatBytes(r.disk.requiredBytes)})`,
+    ...(r.prelude ? [`- Prelude: ${r.prelude.file} (${r.prelude.bytes} bytes, sha256 ${r.prelude.sha256}), applied to the copy before the migration in ${formatMs(r.prelude.ms)}`] : []),
+    ...(m.settings?.length ? [`- Settings: ${m.settings.map((x) => `${x.name}=${x.value}`).join(', ')} (session level, before the migration)`] : []),
+    ...(m.transaction ? [`- Transaction: ${m.transaction.mode} (${m.transaction.reason})`] : []),
     '',
     '## Timings',
     '',

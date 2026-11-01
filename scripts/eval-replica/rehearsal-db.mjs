@@ -21,8 +21,8 @@ function dockerMissing(error) {
 }
 
 /** One-shot psql, synchronous. Used only before and after the migration, when nothing else is running. */
-function runPsql(database, { sql, input }) {
-  const args = dockerArgs(database, ['-v', 'ON_ERROR_STOP=1']);
+function runPsql(database, { sql, input, singleTransaction = false }) {
+  const args = dockerArgs(database, ['-v', 'ON_ERROR_STOP=1', ...(singleTransaction ? ['--single-transaction', '-f', '-'] : [])]);
   if (sql) args.push('-c', sql);
   const res = spawnSync('docker', args, { input: input ?? '', encoding: 'utf8', maxBuffer: 1 << 28 });
   if (res.error) throw dockerMissing(res.error);
@@ -64,8 +64,16 @@ export function makeRehearsalAdmin({ source, target }) {
     /** psql on the target, synchronous: for statements run while nothing else is. */
     sql: (sql) => runPsql(target, { sql }),
     json: (sql) => JSON.parse(runPsql(target, { sql: `select coalesce(json_agg(t), '[]'::json) from (${sql}) t` })),
-    /** Start the migration in one transaction, reading it from stdin. The caller owns the child. */
-    spawnMigration: () => spawn('docker', dockerArgs(target, ['-v', 'ON_ERROR_STOP=1', '--single-transaction', '-f', '-']), { stdio: ['pipe', 'ignore', 'pipe'] }),
+    /**
+     * The prelude: a SQL script applied to the TARGET only (this method takes no database), in its own
+     * transaction when `wrap` is true, otherwise as the file is (it manages its own).
+     */
+    applyPrelude: (text, { wrap }) => void runPsql(target, { input: text, singleTransaction: wrap }),
+    /**
+     * Start the migration, reading it from stdin: in psql --single-transaction when `wrap` is true, otherwise
+     * as the file is (it has its own begin/commit, or --no-wrap). The caller owns the child.
+     */
+    spawnMigration: ({ wrap }) => spawn('docker', dockerArgs(target, ['-v', 'ON_ERROR_STOP=1', ...(wrap ? ['--single-transaction'] : []), '-f', '-']), { stdio: ['pipe', 'ignore', 'pipe'] }),
     /** A long-lived psql on the target for the probe and the sampler. */
     openSession: () => new PsqlSession(spawn('docker', dockerArgs(target, []), { stdio: ['pipe', 'pipe', 'pipe'] })),
   };

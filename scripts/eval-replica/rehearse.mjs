@@ -4,6 +4,7 @@
  *
  *   node scripts/eval-replica/rehearse.mjs --migration supabase/migrations/<file>.sql \
  *     [--name niyantran_rehearsal_<suffix>] [--source niyantran_retrieval_replica] [--keep] [--fresh] \
+ *     [--prelude <sql file>] [--setting name=value]... [--no-wrap] \
  *     [--out eval/retrieval/results] [--sample-ms 3000] [--probe-ms 250]
  *
  * Steps, in the niyantran-corpus-test-db container (Docker; run outside the Claude Code sandbox):
@@ -13,6 +14,12 @@
  *     size free.
  *  2. Copies the source into the target with `create database <target> template <source> strategy
  *     file_copy`, timed.
+ *  2b. --prelude <file>: SQL applied to the copy after step 2 and before the migration, in its own transaction,
+ *     timed apart (file name, size and sha256 go in the JSON). It makes the copy match production's schema where the
+ *     replica loader is narrower, e.g. `alter table public.document_chunks add column embed_hash text;`. It only ever
+ *     runs on the target (the admin's method takes no database name), and a prelude or migration with a psql
+ *     backslash command (\\c, \\connect, \\!), or a prelude with create/drop/alter database, is refused before
+ *     anything is copied. A failed prelude stops the run (the migration does not start).
  *  3. Records the database and relation sizes (heap plus indexes of documents, document_chunks and
  *     anything named like them, indexes listed one by one) and the row counts of documents and
  *     document_chunks.
@@ -23,6 +30,13 @@
  *       - a second persistent session runs `select id from public.document_chunks limit 1` every
  *         --probe-ms (default 250 ms) and records each wait, so the longest wait is how long the swap
  *         blocked readers (an ACCESS EXCLUSIVE lock makes the select wait until the migration commits).
+ *     --setting name=value (repeatable) is applied first, in the same psql session, as a session-level
+ *     set_config (e.g. --setting max_parallel_maintenance_workers=0 where the container's 64 MB /dev/shm breaks
+ *     parallel HNSW builds); the settings are recorded in the JSON. A bad name or value is refused.
+ *     Transaction: a plain file is wrapped in --single-transaction. A file with its own top-level `begin;` and
+ *     `commit;` (on lines of their own) is run as it is, because under the wrapper the file's begin; would only
+ *     warn, its commit; would end the wrapper early, and anything after it would run outside; --no-wrap forces
+ *     that for any file; a file with only one of the two is refused. The mode chosen, and why, is in the JSON.
  *     Per-phase timings come from RAISE NOTICE markers in the migration, stamped as psql prints them:
  *         raise notice 'phase: copy start';     raise notice 'phase: copy end';   -- a timed phase
  *         raise notice 'phase: swap';                                              -- a point in time
@@ -46,7 +60,8 @@
  * Ctrl-C after the copy ends the sessions on the target (the migration rolls back) and drops it as usual.
  *
  * Exit codes: 0 = the migration applied and the row counts match; 1 = a refusal, an error, a failed
- * migration or a row-count difference (the result files are written whenever the copy succeeded).
+ * migration or a row-count difference (the result files are written once the migration has run; a refusal,
+ * including an unsafe or failed prelude, writes none).
  */
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -54,8 +69,8 @@ import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import {
-  checkDiskSpace, formatBytes, parsePhaseNotice, parseRehearseArgs, renderRehearsalReport, sanitiseErrors,
-  summarisePeak, summarisePhases, summariseProbe,
+  checkDiskSpace, chooseTransactionMode, findUnsafeScript, formatBytes, parsePhaseNotice, parseRehearseArgs, renderRehearsalReport,
+  sanitiseErrors, settingsPreamble, summarisePeak, summarisePhases, summariseProbe,
 } from '../../src/lib/rehearsal.js';
 import { CONTAINER, freeBytes, makeRehearsalAdmin } from './rehearsal-db.mjs';
 
@@ -101,7 +116,7 @@ function measure(admin) {
 }
 
 /** Run the migration while sampling size and probing readers. Resolves with everything observed. */
-async function runMigration({ admin, sql, sampleMs, probeMs, dataDirectory }) {
+async function runMigration({ admin, sql, wrap, sampleMs, probeMs, dataDirectory }) {
   const stop = new AbortController();
   const probeSession = admin.openSession();
   const sampleSession = admin.openSession();
@@ -147,7 +162,7 @@ async function runMigration({ admin, sql, sampleMs, probeMs, dataDirectory }) {
   // One sample is taken before the migration's first statement is sent; the probe has been running since t0.
   await takeSample().catch(() => {});
 
-  const child = admin.spawnMigration();
+  const child = admin.spawnMigration({ wrap });
   child.stderr.setEncoding('utf8');
   child.stderr.on('data', (chunk) => {
     const now = since();
@@ -187,6 +202,23 @@ async function main() {
   const sql = readFileSync(migrationPath, 'utf8');
   if (!sql.trim()) throw new Error(`migration file is empty: ${migrationPath}`);
   const migration = { file: basename(migrationPath), bytes: Buffer.byteLength(sql), sha256: createHash('sha256').update(sql).digest('hex') };
+  const migrationUnsafe = findUnsafeScript(sql);
+  if (migrationUnsafe.length) throw new Error(`the migration could leave the rehearsal database: ${migrationUnsafe.join('; ')}`);
+  const transaction = chooseTransactionMode({ sql, noWrap: args.noWrap });
+
+  let preludeSql = null;
+  let prelude = null;
+  let preludeWrap = true;
+  if (args.prelude) {
+    const preludePath = resolve(process.cwd(), args.prelude);
+    if (!existsSync(preludePath)) throw new Error(`prelude file not found: ${preludePath}`);
+    preludeSql = readFileSync(preludePath, 'utf8');
+    if (!preludeSql.trim()) throw new Error(`prelude file is empty: ${preludePath}`);
+    const unsafe = findUnsafeScript(preludeSql);
+    if (unsafe.length) throw new Error(`the prelude may only change the rehearsal copy: ${unsafe.join('; ')}`);
+    preludeWrap = chooseTransactionMode({ sql: preludeSql, noWrap: false }).wrap;
+    prelude = { file: basename(preludePath), bytes: Buffer.byteLength(preludeSql), sha256: createHash('sha256').update(preludeSql).digest('hex') };
+  }
 
   const admin = makeRehearsalAdmin({ source: args.source, target: args.name });
   if (!admin.sourceExists()) throw new Error(`source database ${args.source} does not exist`);
@@ -230,10 +262,21 @@ async function main() {
 
   let failed = false;
   try {
+    if (preludeSql) {
+      log(`prelude: ${prelude.file}, own transaction ...`);
+      const started = performance.now();
+      try {
+        admin.applyPrelude(preludeSql, { wrap: preludeWrap });
+      } catch (e) {
+        throw new Error(`the prelude failed (nothing of the migration ran): ${sanitiseErrors(e.message.replace(/^psql \([^)]*\) failed: /, '')).join(' | ') || 'no ERROR line'}`);
+      }
+      prelude.ms = performance.now() - started;
+      result.prelude = prelude;
+    }
     const before = measure(admin);
-    log(`migration: ${migration.file} (${migration.bytes} bytes), one transaction ...`);
-    const run = await runMigration({ admin, sql, sampleMs: args.sampleMs, probeMs: args.probeMs, dataDirectory });
-    result.migrationRun = { ok: run.ok, exitCode: run.exitCode, ms: run.ms, error: run.errors };
+    log(`migration: ${migration.file} (${migration.bytes} bytes), ${transaction.mode}${args.settings.length ? `, ${args.settings.length} setting(s)` : ''} ...`);
+    const run = await runMigration({ admin, sql: settingsPreamble(args.settings) + sql, wrap: transaction.wrap, sampleMs: args.sampleMs, probeMs: args.probeMs, dataDirectory });
+    result.migrationRun = { ok: run.ok, exitCode: run.exitCode, ms: run.ms, error: run.errors, settings: args.settings, transaction: { mode: transaction.mode, reason: transaction.reason } };
     result.phases = summarisePhases(run.markers, run.ms);
     result.readerProbe = summariseProbe(run.probes);
     if (run.ok) {
