@@ -344,7 +344,7 @@ def aggregate(tasks, outdir, flagged, aliases):
     import numpy as np
     tmap = {t['task']: t for t in tasks}
     blank = lambda: dict(occ=0, text=0, ocr_needed=0, no_text=0, chars=0, chunks=0, tokens=0, serv_f=0, serv_t=0, rexcl=0,
-                         replaces=0, personal_licence=0, personal_fields=0, nokey=0, unreadable=0, full_members_occ=0,
+                         replaces=0, lenient=0, personal_licence=0, personal_fields=0, nokey=0, unreadable=0, full_members_occ=0,
                          licence=Counter(), split=Counter(), extraction=Counter(), pfields=Counter())
     cols = defaultdict(blank)
     keyarr = defaultdict(lambda: array('Q')); txtarr = defaultdict(lambda: array('Q')); chunkarr = defaultdict(lambda: array('I'))
@@ -367,8 +367,8 @@ def aggregate(tasks, outdir, flagged, aliases):
                     unreadable.append(dict(pack=pack, collection=col, member=cur['member'], line=int(p[2]) if len(p) > 2 and p[2].isdigit() else None,
                                            reason=p[1]))
                     continue
-                p += [''] * (17 - len(p))
-                (_, key, tsha, dsha, chars, chunks, tokens, state, serv, rexcl, repl, lic, split, extr, feat, dtype, pf) = p[:17]
+                p += [''] * (18 - len(p))
+                (_, key, tsha, dsha, chars, chunks, tokens, state, serv, rexcl, repl, lic, split, extr, feat, dtype, pf, len_) = p[:18]
                 if cur['family'] == 'processed' and col in ('documents', 'ocr_raw'):
                     col = f'{col}:{feat or dtype or "unknown"}'
                 c = cols[(pack, col)]
@@ -383,6 +383,7 @@ def aggregate(tasks, outdir, flagged, aliases):
                     for f in fs:
                         c['pfields'][f] += 1
                 c['nokey'] += not key
+                c['lenient'] += len_ == 'L'
                 c['licence'][lic] += 1; c['split'][split] += 1; c['extraction'][extr] += 1
                 if '__full' in cur['member']:
                     c['full_members_occ'] += 1
@@ -423,7 +424,7 @@ def aggregate(tasks, outdir, flagged, aliases):
             personal_by_licence=c['personal_licence'], personal_by_fields=c['personal_fields'], personal_field_names=dict(c['pfields']),
             personal_by_collection=c['occ'] if PERSONAL_COLLECTION.search(str(col)) else 0,
             sensitivity_flagged_keys=_overlap(uk, flagged_a) if legal else 0, dedupe_alias_keys=_overlap(uk, alias_a) if legal else 0,
-            replacement_member_records=c['full_members_occ'], unreadable_lines=c['unreadable'],
+            replacement_member_records=c['full_members_occ'], unreadable_lines=c['unreadable'], parsed_leniently=c['lenient'],
             licence_classes=dict(c['licence'].most_common(8)), page_split=dict(c['split'].most_common(6)),
             extraction=dict(c['extraction'].most_common(8))))
         ukeys[(pack, col)] = uk; utxts[(pack, col)] = ut

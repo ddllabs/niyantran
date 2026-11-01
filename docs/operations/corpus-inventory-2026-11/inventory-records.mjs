@@ -4,12 +4,13 @@
 //   R <tab> key <tab> text_sha256 <tab> declared_sha256 <tab> chars <tab> chunks <tab> tokens <tab> state <tab> servable
 //     <tab> retrieval_excluded <tab> replaces_text <tab> licence <tab> page_split <tab> extraction <tab> feature <tab> doc_type
 //     <tab> personal_fields (comma-separated names of non-empty personal-data fields; names only)
+//     <tab> L when the record parsed only after escaping raw control characters, else empty
 // and "T <tab> task" before each member, "E <tab> reason <tab> line" for an unreadable line (1-based line number within the member;
 // never its content).
 // state: text (non-empty text), ocr_needed (no text, but a source file or URL is declared), no_text (neither).
 // Chunks and tokens come from the shared whole-document chunker (chunkUnit with CHUNK defaults; estimateTokens per span).
 import { createHash } from 'node:crypto';
-import { createInterface } from 'node:readline';
+import { StringDecoder } from 'node:string_decoder';
 import { chunkUnit, estimateTokens } from '../../../supabase/functions/_shared/chunking.ts';
 
 const clean = (v) => (v === undefined || v === null ? '' : String(v).replace(/[\t\r\n]/g, ' ').slice(0, 200));
@@ -24,16 +25,37 @@ const out = [];
 let lineNo = 0;
 const flush = () => { if (out.length) { process.stdout.write(out.join('')); out.length = 0; } };
 
-const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
-for await (const line of rl) {
+// Lines are split on "\n" only (a trailing "\r" is dropped), so line numbers match the member's real lines. node:readline
+// would also split on a bare "\r", which cuts records whose strings hold raw carriage returns into fragments.
+// A line that fails strict JSON.parse is retried with raw control characters escaped (as Python's json.loads(strict=False)
+// accepts them); such records are counted and flagged "L" in the last column. Lines that still fail are reported as E.
+const CTRL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\r]/g;
+const esc = (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0');
+async function* lines(stream) {
+  const dec = new StringDecoder('utf8');
+  let buf = '';
+  for await (const chunk of stream) {
+    buf += dec.write(chunk);
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) { yield buf.slice(0, i).replace(/\r$/, ''); buf = buf.slice(i + 1); }
+  }
+  buf += dec.end();
+  if (buf) yield buf.replace(/\r$/, '');
+}
+for await (const line of lines(process.stdin)) {
   lineNo += 1;
   if (!line.trim()) continue;
-  let r;
+  let r, lenient = '';
   try {
     r = JSON.parse(line);
   } catch (e) {
-    out.push(`E\tunparsable line\t${lineNo}\n`);
-    continue;
+    try {
+      r = JSON.parse(line.replace(CTRL, esc));
+      lenient = 'L';
+    } catch (e2) {
+      out.push(`E\tunparsable line\t${lineNo}\n`);
+      continue;
+    }
   }
   if (r && typeof r === 'object' && r.__task !== undefined) {
     out.push(`T\t${clean(r.__task)}\n`);
@@ -62,6 +84,7 @@ for await (const line of rl) {
     clean(r.page_split), clean(r.extraction ?? r.text_engine ?? r.engine), clean(r.desk_feature ?? r.feature),
     clean(r.doc_type ?? r.kind),
     PERSONAL_FIELDS.map((f) => present(r[f])).map((p, i) => (p !== null ? PERSONAL_FIELDS[i] + p : '')).filter(Boolean).join(','),
+    lenient,
   ].join('\t') + '\n');
   if (out.length >= 2000) flush();
 }
