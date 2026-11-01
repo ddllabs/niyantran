@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   compareRuns,
+  exitCodeFor,
   fingerprintCheck,
   judgeNoWorse,
   outcome,
@@ -15,6 +16,7 @@ const BILLS = 'Bill Passage Probability Index';
 const REG = 'Regulatory Body Watch (RBI SEBI TRAI CCI)';
 const PQ = 'Parliamentary Question Database';
 const IND = 'Industry Updates (Ministry Data)';
+const NCLT = 'NCLT / NCLAT (Insolvency)';
 
 /** A generated question line; only the fields scoring reads are meaningful. */
 function line(id, over = {}) {
@@ -181,9 +183,35 @@ describe('summariseByFeature', () => {
     expect(Object.keys(s.features)).toEqual([REG, PQ]);
   });
 
+  // NCLT is the largest feature, so reports list it first; the others keep their relative order.
+  it('lists NCLT first, ahead of every other feature', () => {
+    const set = [line('a', { desk_feature: BILLS }), line('b', { desk_feature: NCLT }), line('c', { desk_feature: 'Unlisted Feature' }), line('d', { desk_feature: IND })];
+    const s = summariseByFeature(set, Array(4).fill(outcomes[0]));
+    expect(Object.keys(s.features)).toEqual([NCLT, BILLS, IND, 'Unlisted Feature']);
+  });
+
   it('accepts outcomes keyed by question id', () => {
     const byId = new Map(lines.map((l, i) => [l.id, outcomes[i]]));
     expect(summariseByFeature(lines, byId)).toEqual(summariseByFeature(lines, outcomes));
+  });
+});
+
+describe('exitCodeFor', () => {
+  it('exits 0 when there is no verdict (a run without --compare)', () => {
+    expect(exitCodeFor(null)).toBe(0);
+    expect(exitCodeFor(undefined)).toBe(0);
+  });
+
+  it('exits 0 for a passing verdict', () => {
+    expect(exitCodeFor({ pass: true, failures: [], flags: [], lost: [] })).toBe(0);
+  });
+
+  it('exits 3 for a failing verdict, distinct from 1 (error) and 2 (fingerprint)', () => {
+    expect(exitCodeFor({ pass: false, failures: ['broad: net loss'], flags: [], lost: [] })).toBe(3);
+  });
+
+  it('exits 3 for a verdict that is not explicitly passing', () => {
+    expect(exitCodeFor({})).toBe(3);
   });
 });
 
