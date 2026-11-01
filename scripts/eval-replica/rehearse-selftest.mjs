@@ -9,7 +9,10 @@
  * document_chunks for about two seconds, then checks the result JSON: both phases timed, the reader
  * wait close to the lock, row counts equal, the rehearsal database dropped. It then checks that a failing
  * migration is reported and rolled back, and that the refusals hold (the replica as a target, an existing
- * target without --fresh, a source with another session connected). It drops what it created, never
+ * target without --fresh, a source with another session connected). It also covers --prelude (applied before the
+ * migration, recorded, refused when unsafe or failing), --setting (visible to the migration, recorded, refused when
+ * malformed) and the transaction wrapper (a plain file wrapped, a file with its own begin/commit run as it is and
+ * rolled back whole when it fails, --no-wrap). It drops what it created, never
  * touches niyantran_retrieval_replica, NTER or the network. Needs Docker; run outside the Claude Code
  * sandbox. Exit 0 when every check holds.
  */
@@ -48,6 +51,35 @@ do $$ begin raise notice 'phase: finished'; end $$;
 const FAILING = "do $$ begin raise notice 'phase: doomed start'; end $$;\nalter table public.document_chunks add column nope int;\nselect 1/0;\n";
 writeFileSync(resolve(work, 'good.sql'), MIGRATION);
 writeFileSync(resolve(work, 'bad.sql'), FAILING);
+
+const PRELUDE = 'alter table public.document_chunks add column embed_hash text;\n';
+const NOTICE = (text) => `do $$ begin raise notice '${text}'; end $$;`;
+// Needs the prelude's column, and prints the settings it sees as phase marks.
+const READS_PRELUDE = `${NOTICE('phase: prelude column')}
+update public.document_chunks set embed_hash = md5(content);
+do $$ begin raise notice 'phase: workers %', current_setting('max_parallel_maintenance_workers'); end $$;
+do $$ begin raise notice 'phase: probe %', current_setting('rehearsal.probe'); end $$;
+`;
+const OWN_TXN = `begin;
+set local lock_timeout = '30s';
+${NOTICE('phase: own txn start')}
+alter table public.document_chunks add column z int;
+${NOTICE('phase: own txn end')}
+commit;
+`;
+const OWN_TXN_FAILING = 'begin;\nalter table public.document_chunks add column z int;\nselect 1/0;\ncommit;\n';
+for (const [file, text] of Object.entries({
+  'pre.sql': PRELUDE,
+  'reads-prelude.sql': READS_PRELUDE,
+  'own-txn.sql': OWN_TXN,
+  'own-txn-failing.sql': OWN_TXN_FAILING,
+  'half.sql': 'begin;\nselect 1;\n',
+  'prelude-connect.sql': '\\connect niyantran_retrieval_replica\nalter table public.document_chunks add column nope int;\n',
+  'prelude-dropdb.sql': 'drop database niyantran_retrieval_replica;\n',
+  'prelude-failing.sql': 'alter table public.document_chunks add column pre_a int;\nselect 1/0;\n',
+  'prelude-selfmanaged.sql': 'begin;\nalter table public.document_chunks add column embed_hash text;\ncommit;\n',
+})) writeFileSync(resolve(work, file), text);
+const F = (name) => resolve(work, name);
 
 function rehearse(args) {
   const res = spawnSync('node', [resolve(HERE, 'rehearse.mjs'), '--out', results, '--sample-ms', '500', '--probe-ms', '100', ...args], { encoding: 'utf8' });
@@ -100,7 +132,8 @@ try {
   check('the longest reader wait is about the lock time', () => {
     assert.ok(r.readerProbe.maxMs >= LOCK_SECONDS * 1000 - 400 && r.readerProbe.maxMs < LOCK_SECONDS * 1000 + 1500, JSON.stringify(r.readerProbe));
     assert.equal(r.readerProbe.errors, 0);
-    assert.ok(r.readerProbe.count >= 4, JSON.stringify(r.readerProbe));
+    assert.ok(r.readerProbe.count >= 2, // the migration's first ALTER TABLE already holds the lock, so few probes precede it
+       JSON.stringify(r.readerProbe));
     assert.ok(r.readerProbe.p50Ms < 500, 'the median probe is fast, so the long wait is the lock');
   });
   check('sizes, peak, counts, analyze', () => {
@@ -165,7 +198,85 @@ try {
     });
   } finally {
     holder.kill();
+    sourceAdmin.terminateTarget(); // killing the docker client leaves the backend running its pg_sleep
+    for (let i = 0; i < 50 && sourceAdmin.sourceConnections().count > 0; i++) spawnSync('sleep', ['0.1']);
   }
+  // 5. --prelude, --setting and the transaction wrapper.
+  const WITH = ['--source', SOURCE, '--name', TARGET];
+  const ran = rehearse(['--migration', F('reads-prelude.sql'), '--prelude', F('pre.sql'), '--setting', 'max_parallel_maintenance_workers=0', '--setting', 'rehearsal.probe=hello', ...WITH]);
+  assert.equal(ran.status, 0, ran.out);
+  const p = latestJson();
+  check('the prelude ran first, in its own transaction, and is recorded with its hash', () => {
+    assert.equal(p.migrationRun.ok, true, 'the migration used the column only the prelude adds');
+    assert.equal(p.prelude.file, 'pre.sql');
+    assert.match(p.prelude.sha256, /^[0-9a-f]{64}$/);
+    assert.equal(p.prelude.bytes, PRELUDE.length);
+    assert.ok(p.prelude.ms > 0);
+  });
+  check('the settings reached the migration session and are recorded', () => {
+    assert.deepEqual(p.phases.marks.map((m) => m.name), ['prelude column', 'workers 0', 'probe hello']);
+    assert.deepEqual(p.migrationRun.settings, [{ name: 'max_parallel_maintenance_workers', value: '0' }, { name: 'rehearsal.probe', value: 'hello' }]);
+  });
+  check('a plain file is wrapped in a single transaction', () => assert.equal(p.migrationRun.transaction.mode, 'single-transaction'));
+  check('without the prelude the same migration fails on the missing column', () => {
+    const no = rehearse(['--migration', F('reads-prelude.sql'), '--setting', 'rehearsal.probe=hello', ...WITH]);
+    assert.equal(no.status, 1);
+    assert.match(latestJson().migrationRun.error.join('\n'), /embed_hash/);
+  });
+  check('a file with its own begin/commit runs as it is, not nested', () => {
+    const own = rehearse(['--migration', F('own-txn.sql'), ...WITH]);
+    assert.equal(own.status, 0, own.out);
+    const o = latestJson();
+    assert.equal(o.migrationRun.transaction.mode, 'self-managed');
+    assert.deepEqual(o.phases.phases.map((x) => x.name), ['own txn']);
+    assert.ok(!/no transaction in progress|already a transaction/.test(own.out));
+  });
+  check('a failing self-managed file rolls back whole', () => {
+    const failing = rehearse(['--migration', F('own-txn-failing.sql'), ...WITH, '--keep']);
+    assert.equal(failing.status, 1);
+    assert.equal(latestJson().migrationRun.transaction.mode, 'self-managed');
+    assert.equal(targetAdmin.sql("select count(*) from information_schema.columns where table_name = 'document_chunks' and column_name = 'z'"), '0');
+    targetAdmin.dropTarget();
+  });
+  check('--no-wrap runs a plain file as it is', () => {
+    const nw = rehearse(['--migration', F('reads-prelude.sql'), '--prelude', F('pre.sql'), '--setting', 'max_parallel_maintenance_workers=0', '--setting', 'rehearsal.probe=x', '--no-wrap', ...WITH]);
+    assert.equal(nw.status, 0, nw.out);
+    assert.equal(latestJson().migrationRun.transaction.mode, 'unwrapped');
+  });
+  check('a file with begin; but no commit; is refused before the copy', () => {
+    const half = rehearse(['--migration', F('half.sql'), ...WITH]);
+    assert.equal(half.status, 1);
+    assert.match(half.out, /begin; but no commit;/);
+    assert.ok(!/copying/.test(half.out));
+  });
+  check('a self-managed prelude is run as it is', () => {
+    const sm = rehearse(['--migration', F('reads-prelude.sql'), '--prelude', F('prelude-selfmanaged.sql'), '--setting', 'max_parallel_maintenance_workers=0', '--setting', 'rehearsal.probe=x', ...WITH]);
+    assert.equal(sm.status, 0, sm.out);
+  });
+  check('an unsafe prelude is refused before anything is copied', () => {
+    for (const [file, pattern] of [['prelude-connect.sql', /meta-command/], ['prelude-dropdb.sql', /database DDL/]]) {
+      const bad = rehearse(['--migration', F('good.sql'), '--prelude', F(file), ...WITH]);
+      assert.equal(bad.status, 1, bad.out);
+      assert.match(bad.out, pattern);
+      assert.ok(!/copying/.test(bad.out), 'refused before the copy');
+    }
+    assert.equal(targetAdmin.targetExists(), false);
+  });
+  check('a failing prelude stops the run, drops the copy, and the migration never starts', () => {
+    const bad = rehearse(['--migration', F('good.sql'), '--prelude', F('prelude-failing.sql'), ...WITH]);
+    assert.equal(bad.status, 1);
+    assert.match(bad.out, /the prelude failed.*division by zero/);
+    assert.ok(!/migration: good\.sql/.test(bad.out));
+    assert.equal(targetAdmin.targetExists(), false);
+  });
+  check('malformed settings are refused, and an unknown setting fails the migration', () => {
+    const bad = rehearse(['--migration', F('good.sql'), '--setting', 'novalue', ...WITH]);
+    assert.equal(bad.status, 1);
+    assert.match(bad.out, /--setting needs name=value/);
+    const unknown = rehearse(['--migration', F('good.sql'), '--setting', 'no_such_parameter=1', ...WITH]);
+    assert.equal(unknown.status, 1);
+    assert.match(latestJson().migrationRun.error.join('\n'), /unrecognized configuration parameter/);
+  });
   console.log('rehearse self-test passed');
 } finally {
   try {

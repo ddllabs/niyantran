@@ -13,6 +13,11 @@ import {
   isRehearsalDatabase,
   parsePhaseNotice,
   parseRehearseArgs,
+  parseSetting,
+  settingsPreamble,
+  detectTransactionControl,
+  chooseTransactionMode,
+  findUnsafeScript,
   renderRehearsalReport,
   sanitiseErrors,
   summarisePeak,
@@ -259,25 +264,28 @@ describe('formatting', () => {
   });
 });
 
+// A complete rehearsal result, shared by the report tests.
+const reportFixture = {
+  ranAt: '2026-11-01T15:30:12.000Z',
+  migration: { file: '20261101120000_x.sql', sha256: 'abc123', bytes: 4096 },
+  source: { database: REPLICA_DATABASE, sizeBytes: 5 * 1024 ** 3 },
+  target: { database: 'niyantran_rehearsal_x', kept: false },
+  disk: { freeBytes: 900 * 1024 ** 3, requiredBytes: 10 * 1024 ** 3 },
+  copy: { ms: 40_000 },
+  migrationRun: { ok: true, ms: 95_000, error: [] },
+  phases: { phases: [{ name: 'copy', startMs: 0, endMs: 60_000, durationMs: 60_000, complete: true }], marks: [{ name: 'swap', atMs: 90_000, sincePreviousMs: 30_000 }], warnings: [] },
+  sizes: {
+    before: { databaseBytes: 5 * 1024 ** 3, relations: [{ name: 'document_chunks', kind: 'r', totalBytes: 5000, tableBytes: 400, indexBytes: 4600 }] },
+    after: { databaseBytes: 10 * 1024 ** 3, relations: [{ name: 'document_chunks', kind: 'p', totalBytes: 0, tableBytes: 0, indexBytes: 0 }] },
+    peak: { samples: 30, peakDatabaseBytes: 11 * 1024 ** 3, peakDatabaseAtMs: 80_000, startWalBytes: 1024 ** 3, peakWalBytes: 2 * 1024 ** 3, peakCombinedBytes: 12 * 1024 ** 3, minFreeBytes: 800 * 1024 ** 3 },
+  },
+  rowCounts: { before: { documents: 10, document_chunks: 100 }, after: { documents: 10, document_chunks: 100 }, equal: true },
+  readerProbe: { count: 400, errors: 0, maxMs: 2100, maxAtMs: 88_000, p50Ms: 3, p95Ms: 6, over1sCount: 1 },
+  analyze: { ms: 3000 },
+};
+
 describe('renderRehearsalReport', () => {
-  const result = {
-    ranAt: '2026-11-01T15:30:12.000Z',
-    migration: { file: '20261101120000_x.sql', sha256: 'abc123', bytes: 4096 },
-    source: { database: REPLICA_DATABASE, sizeBytes: 5 * 1024 ** 3 },
-    target: { database: 'niyantran_rehearsal_x', kept: false },
-    disk: { freeBytes: 900 * 1024 ** 3, requiredBytes: 10 * 1024 ** 3 },
-    copy: { ms: 40_000 },
-    migrationRun: { ok: true, ms: 95_000, error: [] },
-    phases: { phases: [{ name: 'copy', startMs: 0, endMs: 60_000, durationMs: 60_000, complete: true }], marks: [{ name: 'swap', atMs: 90_000, sincePreviousMs: 30_000 }], warnings: [] },
-    sizes: {
-      before: { databaseBytes: 5 * 1024 ** 3, relations: [{ name: 'document_chunks', kind: 'r', totalBytes: 5000, tableBytes: 400, indexBytes: 4600 }] },
-      after: { databaseBytes: 10 * 1024 ** 3, relations: [{ name: 'document_chunks', kind: 'p', totalBytes: 0, tableBytes: 0, indexBytes: 0 }] },
-      peak: { samples: 30, peakDatabaseBytes: 11 * 1024 ** 3, peakDatabaseAtMs: 80_000, startWalBytes: 1024 ** 3, peakWalBytes: 2 * 1024 ** 3, peakCombinedBytes: 12 * 1024 ** 3, minFreeBytes: 800 * 1024 ** 3 },
-    },
-    rowCounts: { before: { documents: 10, document_chunks: 100 }, after: { documents: 10, document_chunks: 100 }, equal: true },
-    readerProbe: { count: 400, errors: 0, maxMs: 2100, maxAtMs: 88_000, p50Ms: 3, p95Ms: 6, over1sCount: 1 },
-    analyze: { ms: 3000 },
-  };
+  const result = reportFixture;
 
   it('states the databases, the migration, the timings, the peak and the longest reader wait', () => {
     const md = renderRehearsalReport(result);
@@ -308,5 +316,83 @@ describe('renderRehearsalReport', () => {
     expect(md).toContain('ERROR:  boom');
     expect(md).toMatch(/Row counts: DIFFER/);
     expect(md).toMatch(/kept/);
+  });
+});
+
+describe('rehearse options: prelude, settings, transaction wrapper', () => {
+  const now = new Date('2026-11-01T15:30:12Z');
+  const base = ['--migration', 'm.sql'];
+
+  it('reads --prelude, repeated --setting and --no-wrap', () => {
+    const a = parseRehearseArgs([...base, '--prelude', 'p.sql', '--setting', 'max_parallel_maintenance_workers=0', '--setting', 'work_mem=64MB', '--no-wrap'], now);
+    expect(a.prelude).toBe('p.sql');
+    expect(a.settings).toEqual([{ name: 'max_parallel_maintenance_workers', value: '0' }, { name: 'work_mem', value: '64MB' }]);
+    expect(a.noWrap).toBe(true);
+    const d = parseRehearseArgs(base, now);
+    expect(d).toMatchObject({ prelude: null, settings: [], noWrap: false });
+  });
+
+  it('parses a setting at the first equals sign and allows a dotted custom name', () => {
+    expect(parseSetting('rehearsal.probe=a=b')).toEqual({ name: 'rehearsal.probe', value: 'a=b' });
+  });
+
+  it('refuses malformed settings', () => {
+    for (const bad of ['novalue', '=1', 'a=', 'bad name=1', 'a;drop=1', "a'b=1", 'a=1\nselect 1', 'a=1\0', '1abc=2', 'a..b=1', '']) {
+      expect(() => parseSetting(bad), JSON.stringify(bad)).toThrow(/--setting/);
+    }
+    expect(() => parseRehearseArgs([...base, '--setting'], now)).toThrow(/needs a value/);
+    expect(() => parseRehearseArgs([...base, '--prelude'], now)).toThrow(/needs a value/);
+  });
+
+  it('turns settings into set_config calls on one line, quoting values', () => {
+    expect(settingsPreamble([])).toBe('');
+    expect(settingsPreamble([{ name: 'work_mem', value: '64MB' }, { name: 'x.y', value: "it's" }]))
+      .toBe("select set_config('work_mem', '64MB', false); select set_config('x.y', 'it''s', false); ");
+    expect(settingsPreamble([{ name: 'work_mem', value: '1' }])).not.toMatch(/\n/);
+  });
+
+  it('detects the file\'s own begin and commit, not plpgsql blocks, comments or end;', () => {
+    const own = "-- header\nbegin;\nset local x = 1;\ncreate function f() returns int language plpgsql as $$\nbegin\n  return 1;\nend;\n$$;\ncommit;\n";
+    expect(detectTransactionControl(own)).toEqual({ hasBegin: true, hasCommit: true });
+    expect(detectTransactionControl('BEGIN TRANSACTION;\nselect 1;\nCOMMIT;')).toEqual({ hasBegin: true, hasCommit: true });
+    expect(detectTransactionControl('start transaction isolation level serializable;\nselect 1;\ncommit transaction;')).toEqual({ hasBegin: true, hasCommit: true });
+    expect(detectTransactionControl('do $$\nbegin\n  null;\nend;\n$$;')).toEqual({ hasBegin: false, hasCommit: false });
+    expect(detectTransactionControl('-- begin;\n-- commit;\nselect 1;')).toEqual({ hasBegin: false, hasCommit: false });
+    expect(detectTransactionControl('/*\nbegin;\ncommit;\n*/\nselect 1;')).toEqual({ hasBegin: false, hasCommit: false });
+    expect(detectTransactionControl('select 1;\nend;')).toEqual({ hasBegin: false, hasCommit: false });
+  });
+
+  it('wraps a plain file, leaves a self-managed one alone, honours --no-wrap and refuses a half-managed one', () => {
+    expect(chooseTransactionMode({ sql: 'select 1;', noWrap: false })).toMatchObject({ wrap: true, mode: 'single-transaction' });
+    expect(chooseTransactionMode({ sql: 'begin;\nselect 1;\ncommit;', noWrap: false })).toMatchObject({ wrap: false, mode: 'self-managed' });
+    expect(chooseTransactionMode({ sql: 'select 1;', noWrap: true })).toMatchObject({ wrap: false, mode: 'unwrapped' });
+  });
+
+  it('a file with begin; but no commit; (or the reverse) is refused rather than guessed', () => {
+    expect(() => chooseTransactionMode({ sql: 'begin;\nselect 1;', noWrap: false })).toThrow(/begin;.*commit;/);
+    expect(() => chooseTransactionMode({ sql: 'select 1;\ncommit;', noWrap: false })).toThrow(/commit;.*begin;/);
+    expect(chooseTransactionMode({ sql: 'begin;\nselect 1;', noWrap: true })).toMatchObject({ wrap: false, mode: 'unwrapped' });
+  });
+
+  it('flags psql meta-commands anywhere, and database DDL unless allowed', () => {
+    expect(findUnsafeScript('select 1;\n\\connect niyantran_retrieval_replica\nselect 2;')).toEqual([expect.stringMatching(/line 2.*meta-command/)]);
+    expect(findUnsafeScript('  \\c postgres')).toEqual([expect.stringMatching(/line 1/)]);
+    expect(findUnsafeScript('select 1;\nalter table t add column c int;\n')).toEqual([]);
+    expect(findUnsafeScript('drop database niyantran_retrieval_replica;')).toEqual([expect.stringMatching(/line 1.*database/)]);
+    expect(findUnsafeScript('CREATE  DATABASE x;')).toHaveLength(1);
+    expect(findUnsafeScript('-- drop database x\nselect 1;')).toEqual([]);
+    expect(findUnsafeScript('drop database x;', { allowDatabaseDdl: true })).toEqual([]);
+    expect(findUnsafeScript('\\c postgres', { allowDatabaseDdl: true })).toHaveLength(1);
+  });
+
+  it('shows the prelude, settings and transaction mode in the report', () => {
+    const md = renderRehearsalReport({
+      ...reportFixture,
+      prelude: { file: 'prelude.sql', sha256: 'feed', bytes: 60, ms: 120, transaction: 'single-transaction' },
+      migrationRun: { ...reportFixture.migrationRun, settings: [{ name: 'max_parallel_maintenance_workers', value: '0' }], transaction: { mode: 'self-managed', reason: 'the file has its own begin; and commit;' } },
+    });
+    expect(md).toMatch(/Prelude: prelude\.sql.*sha256 feed.*120 ms/);
+    expect(md).toMatch(/Settings: max_parallel_maintenance_workers=0/);
+    expect(md).toMatch(/Transaction: self-managed/);
   });
 });
