@@ -56,6 +56,11 @@
 | A4. Baseline report, open-work update, model roles in `docs/agents/coordination.md` | Haiku | `docs/research/`, `docs/plans/open-work.md`, `docs/agents/coordination.md` | A3 | supervisor reads every figure against the JSON |
 
 - A1 and A2 run concurrently in separate worktrees: their write scopes are disjoint and they share no interface.
+- Scope extensions granted by the supervisor during review: A1 also owns `src/lib/replicaCopy.js` and its test
+  (the row encoder, so Vitest collects it); A2 also owns `src/lib/retrievalEval.js`, its test and
+  `scripts/eval-retrieval.mjs`, so the no-worse bar counts generated questions only and developer questions are
+  judged separately.
+- Landed after an independent Opus review: A1 `6d8872f8`, A2 `79eb9751`.
 - Task agents never read `.env.local`, call NTER or OpenRouter, or commit. The supervisor runs every command that
   reads NTER or spends money, and commits after verification.
 - Fable reviews at phase gates (the partition migration and before the first bulk batch), not this step.
