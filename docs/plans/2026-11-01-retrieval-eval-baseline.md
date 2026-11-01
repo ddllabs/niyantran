@@ -72,6 +72,10 @@
   Questions 13, Regulatory 14) with 97 gold documents. Review fixes: seven rewordings and two missed bills added to one gold set.
   Known bias: most NCLT and CCI questions name the party, which favours keyword search; the next set should add
   questions that name no party.
+- A3 (supervisor): set v2 built `f7c1044b` (US$0.63; four generated NCLT questions naming private individuals removed
+  before commit) and the baseline run with the NCLT exact-search comparison `51fd6644`.
+- A4 (Haiku): [report](../research/2026-11-01-retrieval-baseline-v2.md), F278 and F281 in open work, and the model
+  assignment in `docs/agents/coordination.md`; every figure checked by the supervisor against the result files.
 - The v2 build runs without a separate `--dry-run`: the build validates the plan, carry-over and developer lines
   before it spends anything, and a dry run would read every chunk from NTER a second time.
 - Task agents never read `.env.local`, call NTER or OpenRouter, or commit. The supervisor runs every command that
