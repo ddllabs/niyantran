@@ -1,0 +1,825 @@
+{
+  "ticket": "F281",
+  "note": "The second F281 batch: the eleven suspected stray covers (docs/research/2026-11-01-f281-triage.md section 8 item 1), each read on the replica before it was added, and the key-less Bills whose title is a file name (section 4.3). \"id\" is the full document id from the 2026-11-01 replica; prepare confirms it against NTER. strip_cover: cover_marker is the first characters of the bill's own text, occurring once; everything before it is removed. retitle: new title only (text, metadata and links unchanged, no key added; re-keying these is the Bills adapter's job, F275). new_title is the title printed in the opening of the document's own text, in the listing's case (checked by build: title_in_text); a heading OCR damaged is excluded, not repaired by hand.",
+  "documents": [
+    {
+      "id": "3cbeef80-461a-469c-bb38-4940da1f153f",
+      "prefix": "3cbeef80",
+      "label": "The Coal Mines (Nationalisation) Amendment Bill, 2000: foreign cover page (the Delhi University Act, 1922 (amendment))",
+      "action": "strip_cover",
+      "cover_marker": "AS INTRODUCED IN THE Kasya SABHA",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/XXVI_2000.pdf?source=legislation",
+      "reason": "The stored text opens with the cover page of another bill, which names the Delhi University Act, 1922 (amendment); the bill's own text starts at the marker. Read on the replica 2026-11-02."
+    },
+    {
+      "id": "548fd359-67b0-4bbb-ba70-920a3244b99c",
+      "prefix": "548fd359",
+      "label": "The Forfeiture (Repeal) Bill, 2000: foreign cover page (the Passport (Entry into India) Act, 1920 (amendment))",
+      "action": "strip_cover",
+      "cover_marker": "AS INTRODUCED IN THE RAJYA SABHA",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/LII_2000.pdf?source=legislation",
+      "reason": "The stored text opens with the cover page of another bill, which names the Passport (Entry into India) Act, 1920 (amendment); the bill's own text starts at the marker. Read on the replica 2026-11-02."
+    },
+    {
+      "id": "6fffba70-c7de-42f2-be74-0a756716f01c",
+      "prefix": "6fffba70",
+      "label": "The All India Institute of Medical Sciences (Amendment) Bill, 2000: foreign cover page (the Workmen's Compensation Act, 1923 (amendment))",
+      "action": "strip_cover",
+      "cover_marker": "As INTRODUCED IN THE Rajya SABHA",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/XLVIII_2000.pdf?source=legislation",
+      "reason": "The stored text opens with the cover page of another bill, which names the Workmen's Compensation Act, 1923 (amendment); the bill's own text starts at the marker. Read on the replica 2026-11-02."
+    },
+    {
+      "id": "70b72057-e32a-4ec3-99c3-1636139dbb82",
+      "prefix": "70b72057",
+      "label": "The Judicial Administration Laws (Repeal) Bill, 2000: foreign cover page (the Chit Funds Act, 1982 (amendment))",
+      "action": "strip_cover",
+      "cover_marker": "AS INTRODUCED IN THE RAJYA SABHA",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/LXXII_2000.pdf?source=legislation",
+      "reason": "The stored text opens with the cover page of another bill, which names the Chit Funds Act, 1982 (amendment); the bill's own text starts at the marker. Read on the replica 2026-11-02."
+    },
+    {
+      "id": "9c83ba9d-24cc-4ced-8b01-8e2ad1246bcc",
+      "prefix": "9c83ba9d",
+      "label": "The Delhi University (Amendment) Bill, 2000: foreign cover page (the National Housing Bank Act, 1987 (amendment))",
+      "action": "strip_cover",
+      "cover_marker": "AS INTRODUCED IN THE Rarya SABHA",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/XXV_2000.pdf?source=legislation",
+      "reason": "The stored text opens with the cover page of another bill, which names the National Housing Bank Act, 1987 (amendment); the bill's own text starts at the marker. Read on the replica 2026-11-02."
+    },
+    {
+      "id": "ea463d40-525b-479d-80c3-fe6ed6e91cad",
+      "prefix": "ea463d40",
+      "label": "The Vaccination (Repeal) Bill, 2001: foreign cover page (the Indian Divorce Act, 1869 (amendment))",
+      "action": "strip_cover",
+      "cover_marker": "AS INTRODUCED IN THE RAJYA SABHA",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/LXXVII_2000.pdf?source=legislation",
+      "reason": "The stored text opens with the cover page of another bill, which names the Indian Divorce Act, 1869 (amendment); the bill's own text starts at the marker. Read on the replica 2026-11-02."
+    },
+    {
+      "id": "04cd2c4b-27d8-4cb2-bd72-44350f64b3d0",
+      "prefix": "04cd2c4b",
+      "label": "The Indian Universities (Repeal) Bill, 2000: foreign cover page (the Forfeiture Act, 1859 (repeal))",
+      "action": "strip_cover",
+      "cover_marker": "As INTRODUCED IN RAJYA SABHA",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/LIII_2000.pdf?source=legislation",
+      "reason": "The stored text opens with the cover page of another bill, which names the Forfeiture Act, 1859 (repeal); the bill's own text starts at the marker. Read on the replica 2026-11-02."
+    },
+    {
+      "id": "19e8dd76-7acf-4a6a-8a3c-db0f55af255c",
+      "prefix": "19e8dd76",
+      "label": "The Indian Power Alcohol (Repeal) Bill, 2000: foreign cover page (the Sugarcane Control (Additional Powers) Act, 1962 (repeal))",
+      "action": "strip_cover",
+      "cover_marker": "As INT! RODUCED IN THE RASYA SABHA",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/XIX_2000.pdf?source=legislation",
+      "reason": "The stored text opens with the cover page of another bill, which names the Sugarcane Control (Additional Powers) Act, 1962 (repeal); the bill's own text starts at the marker. Read on the replica 2026-11-02."
+    },
+    {
+      "id": "af83bcf2-6f9b-4d62-abdb-1b120fbffb20",
+      "prefix": "af83bcf2",
+      "label": "The Indian Divorce (Amendment) Bill, 2001: foreign cover page (the Civil Courts Amins Act, 1856 and other enactments (repeal))",
+      "action": "strip_cover",
+      "cover_marker": "# THE INDIAN DIVORCE (AMENDMENT) BILL, 2000",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/LXXVI_2000.pdf?source=legislation",
+      "reason": "The stored text opens with the cover page of another bill, which names the Civil Courts Amins Act, 1856 and other enactments (repeal); the bill's own text starts at the marker. Read on the replica 2026-11-02."
+    },
+    {
+      "id": "c2a56a17-bf79-4cd6-bf14-8237ba362c6e",
+      "prefix": "c2a56a17",
+      "label": "The Trade Union (Amendment) Bill, 2001: foreign cover page (the Coal Mines (Nationalisation) Act, 1973 (amendment))",
+      "action": "strip_cover",
+      "cover_marker": "# THE TRADE UNIONS (AMENDMENT) BILL, 2000",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/XXX_2000.pdf?source=legislation",
+      "reason": "The stored text opens with the cover page of another bill, which names the Coal Mines (Nationalisation) Act, 1973 (amendment); the bill's own text starts at the marker. Read on the replica 2026-11-02."
+    },
+    {
+      "id": "ecf06955-bbca-47f3-af14-43eae1391c8f",
+      "prefix": "ecf06955",
+      "label": "The National Housing Bank (Amendment) Bill, 2000: foreign cover page (the Indian Power Alcohol Act, 1948 (repeal))",
+      "action": "strip_cover",
+      "cover_marker": "As introduced in the Rajya Sabha",
+      "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/XX_2000.pdf?source=legislation",
+      "reason": "The stored text opens with the cover page of another bill, which names the Indian Power Alcohol Act, 1948 (repeal); the bill's own text starts at the marker. Read on the replica 2026-11-02."
+    },
+    {
+      "id": "05a53e87-7221-4438-a1c4-57b487a49641",
+      "prefix": "05a53e87",
+      "label": "Key-less; file-name title 'As pass RS-Can-F_com12202664112PM'; the text prints The Cantonments Bill, 2006",
+      "action": "retitle",
+      "new_title": "The Cantonments Bill, 2006"
+    },
+    {
+      "id": "05ad94f2-9f4c-452d-bab4-678676197d1f",
+      "prefix": "05ad94f2",
+      "label": "Key-less; file-name title '3310 LS'; the text prints The Indian Medical Council (Amendment) Bill, 2006",
+      "action": "retitle",
+      "new_title": "The Indian Medical Council (Amendment) Bill, 2006"
+    },
+    {
+      "id": "06625065-0ed3-4bd9-89f6-289007a6b424",
+      "prefix": "06625065",
+      "label": "Key-less; file-name title '3 Handicapped 19891122202324824PM'; the text prints The Welfare of Handicapped and Mentally Retarded Children Bill, 1989",
+      "action": "retitle",
+      "new_title": "The Welfare of Handicapped and Mentally Retarded Children Bill, 1989"
+    },
+    {
+      "id": "08381640-19a2-4c5b-9877-eea9aab0869d",
+      "prefix": "08381640",
+      "label": "Key-less; file-name title '153 of 2021 As int'; the text prints The Persons Living on Riverine Islands in the State of Assam (Welfare and Census) Bill, 2021",
+      "action": "retitle",
+      "new_title": "The Persons Living on Riverine Islands in the State of Assam (Welfare and Census) Bill, 2021"
+    },
+    {
+      "id": "0d93d304-e6ee-4141-ab88-88e1f55b7c46",
+      "prefix": "0d93d304",
+      "label": "Key-less; file-name title '62 _1992_LS_Eng'; the text prints The Appropriation Bill, 1992",
+      "action": "retitle",
+      "new_title": "The Appropriation Bill, 1992"
+    },
+    {
+      "id": "0f0266a3-88d2-4026-8f98-610925b0a1b1",
+      "prefix": "0f0266a3",
+      "label": "Key-less; file-name title '6795 LS'; the text prints The National Commission for Exploitation of Natural Resources Bill, 2006",
+      "action": "retitle",
+      "new_title": "The National Commission for Exploitation of Natural Resources Bill, 2006"
+    },
+    {
+      "id": "0f52bacc-0c6e-486c-9b93-9b47eb16f5fd",
+      "prefix": "0f52bacc",
+      "label": "Key-less; file-name title '1 the Blind Persons 198011222023115734AM'; the text prints The Blind Persons (Employment) Bill, 1980",
+      "action": "retitle",
+      "new_title": "The Blind Persons (Employment) Bill, 1980"
+    },
+    {
+      "id": "103d8107-e57a-439c-ba62-0f780737032e",
+      "prefix": "103d8107",
+      "label": "Key-less; file-name title '11The Children born Bill 19961122202333945PM'; the text prints The Children Born of Prostitutes, Women Jail Inmates and Mentally Ill or Retarded Women (Upbringing and Welfare) Bill, 1996",
+      "action": "retitle",
+      "new_title": "The Children Born of Prostitutes, Women Jail Inmates and Mentally Ill or Retarded Women (Upbringing and Welfare) Bill, 1996",
+      "reason": "One hallucinated line stands in front of the heading; the bill follows. The title is right."
+    },
+    {
+      "id": "107b56a7-5231-46e5-88da-540d781a3f91",
+      "prefix": "107b56a7",
+      "label": "Key-less; file-name title 'XLIII Delhi Rent(A)1997-E618202444353PM'; the text prints The Delhi Rent (Amendment) Bill, 1997",
+      "action": "retitle",
+      "new_title": "The Delhi Rent (Amendment) Bill, 1997"
+    },
+    {
+      "id": "16cf9644-647d-4d5e-bd8e-66f2b3e252aa",
+      "prefix": "16cf9644",
+      "label": "Key-less; file-name title 'Negotiable Act417202611853PM'; the text prints The Negotiable Instruments (Amendment and Miscellaneous Provisions) Bill, 2002",
+      "action": "retitle",
+      "new_title": "The Negotiable Instruments (Amendment and Miscellaneous Provisions) Bill, 2002"
+    },
+    {
+      "id": "1b09055c-3f82-40c4-a288-83a21db99ba6",
+      "prefix": "1b09055c",
+      "label": "Key-less; file-name title 'RSS Recruitment Bill842025120751PM'; the text prints The Rajya Sabha Secretariat (Recruitment and Conditions of Service) Bill, 1968",
+      "action": "retitle",
+      "new_title": "The Rajya Sabha Secretariat (Recruitment and Conditions of Service) Bill, 1968",
+      "reason": "The heading is clean but the body after it holds hallucinated OCR lines. The title is right; a re-OCR is a separate repair."
+    },
+    {
+      "id": "1f654ea0-dac0-4002-bf67-a2cdca7ca0a9",
+      "prefix": "1f654ea0",
+      "label": "Key-less; file-name title '57 OF 2022 AS12122022111803AM'; the text prints The Citizenship (Amendment) Bill, 2022",
+      "action": "retitle",
+      "new_title": "The Citizenship (Amendment) Bill, 2022"
+    },
+    {
+      "id": "21169e05-0c8a-4b3f-b00f-d73e5dad6b65",
+      "prefix": "21169e05",
+      "label": "Key-less; file-name title '103 Act'; the text prints The Constitution (One Hundred and Third Amendment) Bill, 2019",
+      "action": "retitle",
+      "new_title": "The Constitution (One Hundred and Third Amendment) Bill, 2019"
+    },
+    {
+      "id": "21acca33-f740-425e-9850-ee25412557cc",
+      "prefix": "21acca33",
+      "label": "Key-less; file-name title 'LXI of 19921029202560608PM'; the text prints The Public Records Bill, 1992",
+      "action": "retitle",
+      "new_title": "The Public Records Bill, 1992"
+    },
+    {
+      "id": "2c8ac66f-97a4-4881-823b-65a8322ea55c",
+      "prefix": "2c8ac66f",
+      "label": "Key-less; file-name title 'Adobe Scan 11 May 2026-1511202643636PM'; the text prints The Constitution (Twenty-seventh Amendment) Bill, 1971",
+      "action": "retitle",
+      "new_title": "The Constitution (Twenty-seventh Amendment) Bill, 1971"
+    },
+    {
+      "id": "30b84885-df23-471c-a1d7-2a72e18b3032",
+      "prefix": "30b84885",
+      "label": "Key-less; file-name title 'New Document(166)7182025114202AM'; the text prints The Electricity (Amendment) Bill, 2007",
+      "action": "retitle",
+      "new_title": "The Electricity (Amendment) Bill, 2007"
+    },
+    {
+      "id": "320f2930-0c6e-4a51-b0b3-5208fe5dc4bd",
+      "prefix": "320f2930",
+      "label": "Key-less; file-name title 'As introduced912202453729PM'; the text prints The Constitution (Ninety-third Amendment) Bill, 2001",
+      "action": "retitle",
+      "new_title": "The Constitution (Ninety-third Amendment) Bill, 2001"
+    },
+    {
+      "id": "3444c2ea-30d6-4356-87cf-ab16c64c73f6",
+      "prefix": "3444c2ea",
+      "label": "Key-less; file-name title 'as introduced (1)417202612736PM'; the text prints The Negotiable Instruments (Amendment and Miscellaneous Provisions) Bill, 2002",
+      "action": "retitle",
+      "new_title": "The Negotiable Instruments (Amendment and Miscellaneous Provisions) Bill, 2002"
+    },
+    {
+      "id": "35a01c2f-065d-4831-a193-92294332033a",
+      "prefix": "35a01c2f",
+      "label": "Key-less; file-name title 'AS passed by LS912202453743PM'; the text prints The Constitution (Ninety-third Amendment) Bill, 2001",
+      "action": "retitle",
+      "new_title": "The Constitution (Ninety-third Amendment) Bill, 2001"
+    },
+    {
+      "id": "3761dce4-7b23-47ec-a9c4-fa2404daebaf",
+      "prefix": "3761dce4",
+      "label": "Key-less; file-name title '2001 LS'; the text prints The National Commission for Small and Marginal Traders Bill, 2006",
+      "action": "retitle",
+      "new_title": "The National Commission for Small and Marginal Traders Bill, 2006"
+    },
+    {
+      "id": "3878acb8-d104-478b-a3ee-5ca47a247217",
+      "prefix": "3878acb8",
+      "label": "Key-less; file-name title 'Bill LVI-ENG56202644530PM'; the text prints The Prohibition of Begging and Rehabilitation of Beggars Bill, 2005",
+      "action": "retitle",
+      "new_title": "The Prohibition of Begging and Rehabilitation of Beggars Bill, 2005"
+    },
+    {
+      "id": "38e80f53-1358-44cc-a2de-0ae01532bcc9",
+      "prefix": "38e80f53",
+      "label": "Key-less; file-name title '150 of 2021 As in'; the text prints The Provisions of the Municipalities (Extension to the Scheduled Areas) Bill, 2021",
+      "action": "retitle",
+      "new_title": "The Provisions of the Municipalities (Extension to the Scheduled Areas) Bill, 2021"
+    },
+    {
+      "id": "3e90d32f-a2ee-4892-a059-0621e37ec8a2",
+      "prefix": "3e90d32f",
+      "label": "Key-less; file-name title 'New Document(66) (1)1242025114131AM'; the text prints The Hindu Succession Bill, 1956",
+      "action": "retitle",
+      "new_title": "The Hindu Succession Bill, 1956"
+    },
+    {
+      "id": "403a57a0-651b-4fdf-8123-b9e69d93d80d",
+      "prefix": "403a57a0",
+      "label": "Key-less; file-name title 'bill no 15c ev3272025114556AM'; the text prints The “Tribhuvan” Sahkari University Bill, 2025",
+      "action": "retitle",
+      "new_title": "The “Tribhuvan” Sahkari University Bill, 2025"
+    },
+    {
+      "id": "43dee1aa-3f97-4f05-8f79-274b44968a84",
+      "prefix": "43dee1aa",
+      "label": "Key-less; file-name title '157 of 2021 As i'; the text prints The National Urban Employment Guarantee Bill, 2021",
+      "action": "retitle",
+      "new_title": "The National Urban Employment Guarantee Bill, 2021"
+    },
+    {
+      "id": "43df8c31-467c-4dc2-bb88-692cdda774c6",
+      "prefix": "43df8c31",
+      "label": "Key-less; file-name title 'tribhuvan eng232025123628PM'; the text prints The “Tribhuvan” Sahkari University Bill, 2025",
+      "action": "retitle",
+      "new_title": "The “Tribhuvan” Sahkari University Bill, 2025"
+    },
+    {
+      "id": "448f22dc-cdcc-44dc-938e-8e1900c5aca8",
+      "prefix": "448f22dc",
+      "label": "Key-less; file-name title 'the protection of women1018202330043PM'; the text prints The Protection of Women from Domestic Violence Bill, 2005",
+      "action": "retitle",
+      "new_title": "The Protection of Women from Domestic Violence Bill, 2005"
+    },
+    {
+      "id": "44e2d24b-9385-438a-b046-7728f66bf1ea",
+      "prefix": "44e2d24b",
+      "label": "Key-less; file-name title 'Recovery of debt 51 of 93'; the text prints The Recovery of Debts Due to Banks and Financial Institutions Bill, 1993",
+      "action": "retitle",
+      "new_title": "The Recovery of Debts Due to Banks and Financial Institutions Bill, 1993"
+    },
+    {
+      "id": "460f4e00-a6eb-4197-8750-6bf32f2ab645",
+      "prefix": "460f4e00",
+      "label": "Key-less; file-name title 'As passed by LS327202664820PM'; the text prints The Securitisation and Reconstruction of Financial Assets and Enforcement of Security Interest Bill, 2002",
+      "action": "retitle",
+      "new_title": "The Securitisation and Reconstruction of Financial Assets and Enforcement of Security Interest Bill, 2002"
+    },
+    {
+      "id": "469b3235-126f-4c33-93db-dd154cc00809",
+      "prefix": "469b3235",
+      "label": "Key-less; file-name title '220 OF 2019 AS12122022104558AM'; the text prints The Civilian Awards (Recommendation Committee) Bill, 2019",
+      "action": "retitle",
+      "new_title": "The Civilian Awards (Recommendation Committee) Bill, 2019"
+    },
+    {
+      "id": "4b604bc6-6686-4d15-94b0-e3a531daaf3f",
+      "prefix": "4b604bc6",
+      "label": "Key-less; file-name title 'AS Introduced in RS107202545656PM'; the text prints The Constitution (Eighty-fifth Amendment) Bill, 1994",
+      "action": "retitle",
+      "new_title": "The Constitution (Eighty-fifth Amendment) Bill, 1994"
+    },
+    {
+      "id": "4bea006b-0daf-480c-a43b-d6f933f8c872",
+      "prefix": "4bea006b",
+      "label": "Key-less; file-name title 'wild life protection compressed118202342738PM'; the text prints The Wild Life (Protection) Amendment Bill, 2022",
+      "action": "retitle",
+      "new_title": "The Wild Life (Protection) Amendment Bill, 2022"
+    },
+    {
+      "id": "4d5b7674-50a1-4513-a286-58096cf1450f",
+      "prefix": "4d5b7674",
+      "label": "Key-less; file-name title '5081LS'; the text prints The Constitution (Amendment) Bill, 2006",
+      "action": "retitle",
+      "new_title": "The Constitution (Amendment) Bill, 2006"
+    },
+    {
+      "id": "4fc3ac9d-5999-4a96-84e1-db77b18544c4",
+      "prefix": "4fc3ac9d",
+      "label": "Key-less; file-name title 'the Wild Life AS24202534022PM'; the text prints The Wild Life (Protection) Bill, 1972",
+      "action": "retitle",
+      "new_title": "The Wild Life (Protection) Bill, 1972"
+    },
+    {
+      "id": "4fc9680e-320d-4fad-a071-60876d2fbebb",
+      "prefix": "4fc9680e",
+      "label": "Key-less; file-name title '2760 LS'; the text prints The Constitution (Amendment) Bill, 2006",
+      "action": "retitle",
+      "new_title": "The Constitution (Amendment) Bill, 2006"
+    },
+    {
+      "id": "5514dec6-b8b0-40bb-bda0-bd12bdd0f587",
+      "prefix": "5514dec6",
+      "label": "Key-less; file-name title 'SC ST OBC reservation-E'; the text prints The Scheduled Castes, Scheduled Tribes and Other Backward Classes (Reservation in Posts and Services) Bill, 2004",
+      "action": "retitle",
+      "new_title": "The Scheduled Castes, Scheduled Tribes and Other Backward Classes (Reservation in Posts and Services) Bill, 2004"
+    },
+    {
+      "id": "55d75510-1543-4860-9780-3db964098e2d",
+      "prefix": "55d75510",
+      "label": "Key-less; file-name title 'Document 28624202633428PM'; the text prints The All-India Services Regulations (Indemnity) Bill, 1972",
+      "action": "retitle",
+      "new_title": "The All-India Services Regulations (Indemnity) Bill, 1972",
+      "reason": "The bill is complete; one hallucinated line follows the clauses. The title is right."
+    },
+    {
+      "id": "56a90d10-e442-44ae-885d-9ff116723602",
+      "prefix": "56a90d10",
+      "label": "Key-less; file-name title 'As Introuduce 201012025123844PM'; the text prints The Representation of the People (Amendment) Bill, 1996",
+      "action": "retitle",
+      "new_title": "The Representation of the People (Amendment) Bill, 1996",
+      "reason": "OCR debris stands in front of the heading and after the clauses; the bill follows. The title is right; a re-OCR is a separate repair."
+    },
+    {
+      "id": "593503c9-2a6f-40b3-b0c5-86551c5633ec",
+      "prefix": "593503c9",
+      "label": "Key-less; file-name title 'cons 79-E'; the text prints The Constitution (Seventy-ninth Amendment) Bill, 1992",
+      "action": "retitle",
+      "new_title": "The Constitution (Seventy-ninth Amendment) Bill, 1992"
+    },
+    {
+      "id": "5d323d17-3ee0-40fb-92a2-5b8de2bdcb1c",
+      "prefix": "5d323d17",
+      "label": "Key-less; file-name title 'As passed (1)1120202535618PM'; the text prints The Bihar and Uttar Pradesh (Alteration of Boundaries) Bill, 1968",
+      "action": "retitle",
+      "new_title": "The Bihar and Uttar Pradesh (Alteration of Boundaries) Bill, 1968"
+    },
+    {
+      "id": "5f95379f-bd92-4097-b8c8-8b352da25d7a",
+      "prefix": "5f95379f",
+      "label": "Key-less; file-name title 'As intro English2182026121627PM'; the text prints The Maintenance and Welfare of Parents and Senior Citizens Bill, 2007",
+      "action": "retitle",
+      "new_title": "The Maintenance and Welfare of Parents and Senior Citizens Bill, 2007"
+    },
+    {
+      "id": "607ac47c-2767-4c17-a4dd-0784b60b4507",
+      "prefix": "607ac47c",
+      "label": "Key-less; file-name title 'as introduced1120202535553PM'; the text prints The Bihar and Uttar Pradesh (Alteration of Boundaries) Bill, 1967",
+      "action": "retitle",
+      "new_title": "The Bihar and Uttar Pradesh (Alteration of Boundaries) Bill, 1967"
+    },
+    {
+      "id": "6085515e-c8bc-41fc-8cde-873bf463a583",
+      "prefix": "6085515e",
+      "label": "Key-less; file-name title 'As Intro48202653402PM'; the text prints The Delimitation Bill, 2002",
+      "action": "retitle",
+      "new_title": "The Delimitation Bill, 2002"
+    },
+    {
+      "id": "6158a885-017c-4847-adb1-00a9491008c0",
+      "prefix": "6158a885",
+      "label": "Key-less; file-name title 'AS passed by Houses107202552852PM'; the text prints The Constitution (Seventy-sixth Amendment) Bill, 1994",
+      "action": "retitle",
+      "new_title": "The Constitution (Seventy-sixth Amendment) Bill, 1994"
+    },
+    {
+      "id": "66570353-164c-4f76-ac1e-47f332a38a3c",
+      "prefix": "66570353",
+      "label": "Key-less; file-name title 'the Petroleum Pipeline-amd-19771102024112931AM'; the text prints The Petroleum Pipelines (Acquisition of Right of User in Land) Amendment Bill, 1977",
+      "action": "retitle",
+      "new_title": "The Petroleum Pipelines (Acquisition of Right of User in Land) Amendment Bill, 1977",
+      "reason": "The first heading is hyphen-broken by the OCR (AMEND-MENT); the title is the one printed whole further down the opening."
+    },
+    {
+      "id": "6838a10f-ae53-4eb1-b4ad-cfcc5c08515d",
+      "prefix": "6838a10f",
+      "label": "Key-less; file-name title 'both Houses48202653415PM'; the text prints The Delimitation Bill, 2002",
+      "action": "retitle",
+      "new_title": "The Delimitation Bill, 2002"
+    },
+    {
+      "id": "6a335a5e-deec-487e-a4f8-7d0575b25912",
+      "prefix": "6a335a5e",
+      "label": "Key-less; file-name title 'New Document(37)61202655028PM'; the text prints The Reserve Bank of India (Second Amendment) Bill, 1991",
+      "action": "retitle",
+      "new_title": "The Reserve Bank of India (Second Amendment) Bill, 1991"
+    },
+    {
+      "id": "6ed0647e-0c35-4449-b335-bc74e895775e",
+      "prefix": "6ed0647e",
+      "label": "Key-less; file-name title '6 The Blind Persons 19931122202333253PM'; the text prints The Blind and Other Physically Handicapped Persons (Rehabilitation, Employment and Welfare) Bill, 1993",
+      "action": "retitle",
+      "new_title": "The Blind and Other Physically Handicapped Persons (Rehabilitation, Employment and Welfare) Bill, 1993"
+    },
+    {
+      "id": "7142b662-046e-4ee8-8444-69998f2d8d20",
+      "prefix": "7142b662",
+      "label": "Key-less; file-name title '88F of 1986417202355055PM'; the text prints The Constitution (Fifty-third Amendment) Bill, 1986",
+      "action": "retitle",
+      "new_title": "The Constitution (Fifty-third Amendment) Bill, 1986"
+    },
+    {
+      "id": "78531f3b-a7be-43fd-b4e4-19a357cb2759",
+      "prefix": "78531f3b",
+      "label": "Key-less; file-name title 'water prevention_compressed4102023115016AM'; the text prints The Water (Prevention and Control of Pollution) Bill, 1974",
+      "action": "retitle",
+      "new_title": "The Water (Prevention and Control of Pollution) Bill, 1974"
+    },
+    {
+      "id": "7aab65e4-7a07-468a-ab3f-aa732e40fb13",
+      "prefix": "7aab65e4",
+      "label": "Key-less; file-name title 'New Document(36)61202655253PM'; the text prints The Reserve Bank of India (Amendment) Bill, 1991",
+      "action": "retitle",
+      "new_title": "The Reserve Bank of India (Amendment) Bill, 1991",
+      "reason": "The bill is complete; debris follows its last clause. The title is right."
+    },
+    {
+      "id": "7cec5ecb-edf9-4654-a1a5-b0c4eedf6af7",
+      "prefix": "7cec5ecb",
+      "label": "Key-less; file-name title '2064 LS'; the text prints The Constitution (Amendment) Bill, 2006",
+      "action": "retitle",
+      "new_title": "The Constitution (Amendment) Bill, 2006"
+    },
+    {
+      "id": "889be98b-a9d1-4a40-b307-f48d9ac2e20d",
+      "prefix": "889be98b",
+      "label": "Key-less; file-name title '149 of 2021 As in'; the text prints The Special Financial Assistance for Ancient Monuments and Archaeological Sites and Remains in the State of Tamil Nadu Bill, 2021",
+      "action": "retitle",
+      "new_title": "The Special Financial Assistance for Ancient Monuments and Archaeological Sites and Remains in the State of Tamil Nadu Bill, 2021"
+    },
+    {
+      "id": "8ff0f7e2-f389-4f8a-b500-d28c42599814",
+      "prefix": "8ff0f7e2",
+      "label": "Key-less; file-name title '145 of 2021 as introduced'; the text prints The Constitution (Amendment) Bill, 2021",
+      "action": "retitle",
+      "new_title": "The Constitution (Amendment) Bill, 2021"
+    },
+    {
+      "id": "91a780b4-99ad-4e94-ade2-1bbfba268f8b",
+      "prefix": "91a780b4",
+      "label": "Key-less; file-name title 'As passed XV-C of 19724252023125108PM'; the text prints The Indian Telegraph (Amendment) Bill, 1972",
+      "action": "retitle",
+      "new_title": "The Indian Telegraph (Amendment) Bill, 1972"
+    },
+    {
+      "id": "9477c332-1c28-4f83-90c7-a57cd7e33fc9",
+      "prefix": "9477c332",
+      "label": "Key-less; file-name title 'LXXIX IMH 2005-E618202444301PM'; the text prints The Indian Medicine and Homoeopathy Pharmacy Bill, 2005",
+      "action": "retitle",
+      "new_title": "The Indian Medicine and Homoeopathy Pharmacy Bill, 2005"
+    },
+    {
+      "id": "94f281f3-f761-4354-907d-2707fe224c33",
+      "prefix": "94f281f3",
+      "label": "Key-less; file-name title '156 of 2021 As i'; the text prints The Code on Social Security (Amendment) Bill, 2021",
+      "action": "retitle",
+      "new_title": "The Code on Social Security (Amendment) Bill, 2021"
+    },
+    {
+      "id": "9e5145ff-6d0f-4a02-85d8-06bdc62d7764",
+      "prefix": "9e5145ff",
+      "label": "Key-less; file-name title 'AS passed by Rajya Sabha107202545721PM'; the text prints The Constitution (Eighty-fifth Amendment) Bill, 1994",
+      "action": "retitle",
+      "new_title": "The Constitution (Eighty-fifth Amendment) Bill, 1994"
+    },
+    {
+      "id": "a12f83d7-9166-48b1-b488-0f22fd26a468",
+      "prefix": "a12f83d7",
+      "label": "Key-less; file-name title 'New Document(77)23202561008PM'; the text prints The Wild Life (Protection) Amendment Bill, 1993",
+      "action": "retitle",
+      "new_title": "The Wild Life (Protection) Amendment Bill, 1993"
+    },
+    {
+      "id": "a1661f06-dd0f-4a62-81e8-7d81e1ac3e53",
+      "prefix": "a1661f06",
+      "label": "Key-less; file-name title 'New Document(29)115202411902PM'; the text prints The Durgah Khawaja Saheb (Amendment) Bill, 1963",
+      "action": "retitle",
+      "new_title": "The Durgah Khawaja Saheb (Amendment) Bill, 1963"
+    },
+    {
+      "id": "a5cdf865-cc1a-4c92-be3b-e7b52c851194",
+      "prefix": "a5cdf865",
+      "label": "Key-less; file-name title 'Ind regd bill 68 E'; the text prints The Indian Registration (Amendment) Bill, 1968",
+      "action": "retitle",
+      "new_title": "The Indian Registration (Amendment) Bill, 1968"
+    },
+    {
+      "id": "ab2ca385-c9cd-4a78-a883-a7123a2ebec5",
+      "prefix": "ab2ca385",
+      "label": "Key-less; file-name title 'New Document(194)813202521327PM'; the text prints The Citizenship Bill, 1955",
+      "action": "retitle",
+      "new_title": "The Citizenship Bill, 1955"
+    },
+    {
+      "id": "ab91eb1c-cf1a-48a9-bf46-66eb630c3acd",
+      "prefix": "ab91eb1c",
+      "label": "Key-less; file-name title '1to 23 wakf51202513643PM'; the text prints The Wakf Bill, 1995",
+      "action": "retitle",
+      "new_title": "The Wakf Bill, 1995"
+    },
+    {
+      "id": "abc7a2bc-58c6-4644-b590-63f157d4b981",
+      "prefix": "abc7a2bc",
+      "label": "Key-less; file-name title 'coastal aquaculture authority-E_compressed (1)'; the text prints The Coastal Aquaculture Authority Bill, 2004",
+      "action": "retitle",
+      "new_title": "The Coastal Aquaculture Authority Bill, 2004"
+    },
+    {
+      "id": "ae2cd952-a7f8-4ed2-9b39-a0eb0fcc517d",
+      "prefix": "ae2cd952",
+      "label": "Key-less; file-name title 'RTI Act, 2005'; the text prints The Right to Information Bill, 2005",
+      "action": "retitle",
+      "new_title": "The Right to Information Bill, 2005"
+    },
+    {
+      "id": "b645c2c4-efa4-474f-8917-c7090eb4e32d",
+      "prefix": "b645c2c4",
+      "label": "Key-less; file-name title 'As-intor- Cant-F_com12202664055PM'; the text prints The Cantonments Bill, 2003",
+      "action": "retitle",
+      "new_title": "The Cantonments Bill, 2003"
+    },
+    {
+      "id": "b7f577fe-f30e-48ef-8f56-430b1f230e8a",
+      "prefix": "b7f577fe",
+      "label": "Key-less; file-name title 'New Document(65) (4)1242025114026AM'; the text prints The Hindu Succession Bill, 1954",
+      "action": "retitle",
+      "new_title": "The Hindu Succession Bill, 1954"
+    },
+    {
+      "id": "b91228c8-fc78-45ff-8ea9-b18d60709db4",
+      "prefix": "b91228c8",
+      "label": "Key-less; file-name title '135 of 2021 as introduced'; the text prints The Hepatitis (Prevention of Discrimination and Control) Bill, 2021",
+      "action": "retitle",
+      "new_title": "The Hepatitis (Prevention of Discrimination and Control) Bill, 2021"
+    },
+    {
+      "id": "bca22b4e-9ae7-4257-94d9-8798863e22d3",
+      "prefix": "bca22b4e",
+      "label": "Key-less; file-name title '2768 LS'; the text prints The Code of Criminal Procedure (Amendment) Bill, 2006",
+      "action": "retitle",
+      "new_title": "The Code of Criminal Procedure (Amendment) Bill, 2006"
+    },
+    {
+      "id": "bfcd7b3d-cb7e-4e28-b0ad-30beb5574956",
+      "prefix": "bfcd7b3d",
+      "label": "Key-less; file-name title '4 OF 2021 AS12122022105922AM'; the text prints The Promotion of Cycling Bill, 2021",
+      "action": "retitle",
+      "new_title": "The Promotion of Cycling Bill, 2021"
+    },
+    {
+      "id": "c1da125a-de30-407a-8723-faf0ff62cee5",
+      "prefix": "c1da125a",
+      "label": "Key-less; file-name title '7 The National 19941122202333342PM'; the text prints The National Commission for the Handicapped Bill, 1994",
+      "action": "retitle",
+      "new_title": "The National Commission for the Handicapped Bill, 1994"
+    },
+    {
+      "id": "c6477ea4-7cef-4416-acd4-b383f16ee36b",
+      "prefix": "c6477ea4",
+      "label": "Key-less; file-name title '5114 LS'; the text prints The Farmers (Welfare) Bill, 2006",
+      "action": "retitle",
+      "new_title": "The Farmers (Welfare) Bill, 2006"
+    },
+    {
+      "id": "c8c1a1da-72a6-49a8-973d-4fce2c6f3519",
+      "prefix": "c8c1a1da",
+      "label": "Key-less; file-name title 'as passed417202611750PM'; the text prints The Negotiable Instruments (Amendment and Miscellaneous Provisions) Bill, 2002",
+      "action": "retitle",
+      "new_title": "The Negotiable Instruments (Amendment and Miscellaneous Provisions) Bill, 2002"
+    },
+    {
+      "id": "ca4ba1eb-e951-4333-acef-e6d0d54349e1",
+      "prefix": "ca4ba1eb",
+      "label": "Key-less; file-name title 'As Introduce 491012025123336PM'; the text prints The Representation of the People (Second Amendment) Bill, 1996",
+      "action": "retitle",
+      "new_title": "The Representation of the People (Second Amendment) Bill, 1996",
+      "reason": "OCR debris stands in front of the heading (about 390 characters) and the text holds hallucinated lines; the bill itself follows. The title is right; a re-OCR is a separate repair."
+    },
+    {
+      "id": "cb516acd-5b15-4aab-ac90-44acf97c3c0b",
+      "prefix": "cb516acd",
+      "label": "Key-less; file-name title 'Credit info compay bill92202652325PM'; the text prints The Credit Information Companies (Regulation) Bill, 2005",
+      "action": "retitle",
+      "new_title": "The Credit Information Companies (Regulation) Bill, 2005"
+    },
+    {
+      "id": "d049bf1d-cdd9-4f80-bd75-d6f90b39fd2e",
+      "prefix": "d049bf1d",
+      "label": "Key-less; file-name title 'New Document(6) (1)9102024115001AM'; the text prints The Constitution (Ninety-second Amendment) Bill, 2003",
+      "action": "retitle",
+      "new_title": "The Constitution (Ninety-second Amendment) Bill, 2003"
+    },
+    {
+      "id": "d081662a-6738-4e34-ab0d-614982fd0a80",
+      "prefix": "d081662a",
+      "label": "Key-less; file-name title 'bill no-75 EV85202462524PM'; the text prints The Appropriation (No. 2) Bill, 2024",
+      "action": "retitle",
+      "new_title": "The Appropriation (No. 2) Bill, 2024"
+    },
+    {
+      "id": "d0b707f1-1520-4a7c-bc40-cb0a0f171d03",
+      "prefix": "d0b707f1",
+      "label": "Key-less; file-name title '8 The Blind a Girls 19961122202333426PM'; the text prints The Blind and Handicapped Women and Girls (Education, Employment and Other Welfare Measures) Bill, 1996",
+      "action": "retitle",
+      "new_title": "The Blind and Handicapped Women and Girls (Education, Employment and Other Welfare Measures) Bill, 1996"
+    },
+    {
+      "id": "d0e0ed30-380a-4788-b29c-31f9ac09a1b1",
+      "prefix": "d0e0ed30",
+      "label": "Key-less; file-name title '4 The Blind Persons 19911122202333151PM'; the text prints The Blind and Other Physically Handicapped Persons (Rehabilitation, Employment and Welfare) Bill, 1991",
+      "action": "retitle",
+      "new_title": "The Blind and Other Physically Handicapped Persons (Rehabilitation, Employment and Welfare) Bill, 1991"
+    },
+    {
+      "id": "d1d79bcf-014d-4054-ac05-1994dbc0dcbd",
+      "prefix": "d1d79bcf",
+      "label": "Key-less; file-name title 'security 54 of 2002'; the text prints The Securitisation and Reconstruction of Financial Assets and Enforcement of Security Interest Bill, 2002",
+      "action": "retitle",
+      "new_title": "The Securitisation and Reconstruction of Financial Assets and Enforcement of Security Interest Bill, 2002"
+    },
+    {
+      "id": "d2c97f64-a51b-4c79-97cb-5bfba7225ea6",
+      "prefix": "d2c97f64",
+      "label": "Key-less; file-name title 'AS intro-RS210202642540PM'; the text prints The Food Corporations (Amendment) Bill, 1977",
+      "action": "retitle",
+      "new_title": "The Food Corporations (Amendment) Bill, 1977"
+    },
+    {
+      "id": "d80f53b6-86e5-45b7-b8e4-af4ffd08052c",
+      "prefix": "d80f53b6",
+      "label": "Key-less; file-name title 'XV-F of 19724262023112852AM'; the text prints The Indian Telegraph (Amendment) Bill, 1972",
+      "action": "retitle",
+      "new_title": "The Indian Telegraph (Amendment) Bill, 1972"
+    },
+    {
+      "id": "d8ec310e-774f-457d-9879-aba40c31cd01",
+      "prefix": "d8ec310e",
+      "label": "Key-less; file-name title '154 of 2021 as'; the text prints The Waqf (Amendment) Bill, 2021",
+      "action": "retitle",
+      "new_title": "The Waqf (Amendment) Bill, 2021"
+    },
+    {
+      "id": "d8f422c2-9ed4-4273-8958-52ed8ea47959",
+      "prefix": "d8f422c2",
+      "label": "Key-less; file-name title '3309 LS'; the text prints The Farmers (Old Age Pension) Bill, 2006",
+      "action": "retitle",
+      "new_title": "The Farmers (Old Age Pension) Bill, 2006"
+    },
+    {
+      "id": "e3c4b392-930c-41d9-8dae-ab59aa6182e3",
+      "prefix": "e3c4b392",
+      "label": "Key-less; file-name title 'New Document(35)117202431016PM'; the text prints The Durgah Khawaja Saheb (Amendment) Bill, 1964",
+      "action": "retitle",
+      "new_title": "The Durgah Khawaja Saheb (Amendment) Bill, 1964"
+    },
+    {
+      "id": "e51caa8d-85f2-4e91-907e-4924fe30c599",
+      "prefix": "e51caa8d",
+      "label": "Key-less; file-name title 'right to information eng'; the text prints The Right to Information Bill, 2005",
+      "action": "retitle",
+      "new_title": "The Right to Information Bill, 2005"
+    },
+    {
+      "id": "e7010e87-4432-4b91-b558-2b4bd18c0a8f",
+      "prefix": "e7010e87",
+      "label": "Key-less; file-name title '2 the Finaicial Releif 198811222023121604PM'; the text prints The Financial Relief to Blind Persons Bill, 1988",
+      "action": "retitle",
+      "new_title": "The Financial Relief to Blind Persons Bill, 1988"
+    },
+    {
+      "id": "e7c02a8c-dc1d-4ba0-b4c7-df904d4b257f",
+      "prefix": "e7c02a8c",
+      "label": "Key-less; file-name title 'both houses-912202455626PM'; the text prints The Constitution (Eighty-sixth Amendment) Bill, 2002",
+      "action": "retitle",
+      "new_title": "The Constitution (Eighty-sixth Amendment) Bill, 2002"
+    },
+    {
+      "id": "e9df38c3-1dcf-4ff6-a710-cd8ebee88f8c",
+      "prefix": "e9df38c3",
+      "label": "Key-less; file-name title '3308 LS'; the text prints The Women Welfare Bill, 2006",
+      "action": "retitle",
+      "new_title": "The Women Welfare Bill, 2006"
+    },
+    {
+      "id": "ee6a86ff-5694-4541-b047-f9859c217593",
+      "prefix": "ee6a86ff",
+      "label": "Key-less; file-name title 'worshp 42 1991'; the text prints The Places of Worship (Special Provisions) Bill, 1991",
+      "action": "retitle",
+      "new_title": "The Places of Worship (Special Provisions) Bill, 1991"
+    },
+    {
+      "id": "f11ff908-adc2-45b6-bd22-feb8d2cf4ae6",
+      "prefix": "f11ff908",
+      "label": "Key-less; file-name title 'New Document 3868202624258PM'; the text prints The Constitution (Twenty-seventh Amendment) Bill, 1971",
+      "action": "retitle",
+      "new_title": "The Constitution (Twenty-seventh Amendment) Bill, 1971"
+    },
+    {
+      "id": "f1d93e39-072f-492e-939b-96d5e0db7f2e",
+      "prefix": "f1d93e39",
+      "label": "Key-less; file-name title '2769 LS'; the text prints The Constitution (Amendment) Bill, 2006",
+      "action": "retitle",
+      "new_title": "The Constitution (Amendment) Bill, 2006"
+    },
+    {
+      "id": "f4a2836e-7cb9-4163-91e4-7b9697f21db5",
+      "prefix": "f4a2836e",
+      "label": "Key-less; file-name title 'As Passed1012025121605PM'; the text prints The Representation of the People (Second Amendment) Bill, 1996",
+      "action": "retitle",
+      "new_title": "The Representation of the People (Second Amendment) Bill, 1996",
+      "reason": "OCR debris stands in front of the heading (about 220 characters); the bill follows. The title is right."
+    },
+    {
+      "id": "f5387967-a6d0-4dcb-8764-1e404cb1459a",
+      "prefix": "f5387967",
+      "label": "Key-less; file-name title 'AS intorduced in LS327202664721PM'; the text prints The Securitisation and Reconstruction of Financial Assets and Enforcement of Security Interest Bill, 2002",
+      "action": "retitle",
+      "new_title": "The Securitisation and Reconstruction of Financial Assets and Enforcement of Security Interest Bill, 2002",
+      "reason": "The first heading is damaged by the OCR (SECURITY SATION); the title is the one printed whole further down the opening, as in the other two copies of this bill."
+    },
+    {
+      "id": "fc44f56f-bad9-4fe5-a0f5-6fd7ec28843d",
+      "prefix": "fc44f56f",
+      "label": "Key-less; file-name title 'New Document(30) (1)115202412312PM'; the text prints The Durgah Khawaja Saheb (Amendment) Bill, 1991",
+      "action": "retitle",
+      "new_title": "The Durgah Khawaja Saheb (Amendment) Bill, 1991",
+      "reason": "One hallucinated line stands in front of the heading; the bill follows. The title is right."
+    }
+  ],
+  "excluded": [
+    {
+      "ids": [
+        "31b833f3",
+        "4841b037",
+        "4e12da6c",
+        "6d5159b0"
+      ],
+      "reason": "Hindi errata or corrigendum (Devanagari, or garbled Latin-script OCR of it, 67 to 146 characters): no English bill name is printed, so a title cannot be read. Still the right sort of document; left as it is."
+    },
+    {
+      "ids": [
+        "0060da7b",
+        "3876f489",
+        "425240ee",
+        "81ec9537",
+        "c04d1835"
+      ],
+      "reason": "The stored text prints no bill name: it opens at a clause, a chapter heading or the long title (0060da7b prints only Bill No. IX of 1994 and the long title). A title would have to be composed, not read."
+    },
+    {
+      "ids": [
+        "6a1f17c8"
+      ],
+      "reason": "A corrigenda sheet for the Finance Bill, 2012 (a table of page and line corrections), not the bill: naming it for the bill would misdescribe it."
+    },
+    {
+      "ids": [
+        "4959ecea"
+      ],
+      "reason": "The heading is scrambled by the OCR: the words of the title are split across the opening and 'BILL, 2006' sits above them. A title would have to be reassembled."
+    },
+    {
+      "ids": [
+        "48ba0e76"
+      ],
+      "reason": "The heading prints no year (THE DELEGATED LEGISLATION PROVISIONS (AMENDMENT) BILL); the year appears only in the Bill No. line and the short title. Composing it was not allowed. Candidate for a later pass: The Delegated Legislation Provisions (Amendment) Bill, 2004."
+    },
+    {
+      "ids": [
+        "f47b200a"
+      ],
+      "reason": "The heading is damaged by the OCR (WAKE for WAKF) and the corrected title is not printed in the opening. Candidate for a later pass: The Wakf (Amendment) Bill, 1984 (clause 1 short title, Wakf Act, 1954)."
+    }
+  ]
+}

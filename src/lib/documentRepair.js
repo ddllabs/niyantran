@@ -11,7 +11,8 @@
  *  - stripLeadingForeignCover: a Bill whose stored text opens with another bill's cover page.
  *  - ocrPagesToText / ocrChecks: scanned documents re-read with Mistral OCR, and the aids for the eye check.
  *  - buildRepairPayload: the ingest-documents payload for one repaired document (text repairs, re-key,
- *    and retitle_unlink: a new title and the document leaves the desk).
+ *    retitle_unlink: a new title and the document leaves the desk, and retitle: a new title for a document
+ *    that has no key).
  *  - extractPrintedTitle, chooseTitle: the title a re-keyed or unlinked document gets.
  */
 
@@ -365,6 +366,8 @@ export const LINK_FIELDS = Object.freeze(['document_key', 'bill_number', 'bill_y
  *  - action 'retitle_unlink' (text unchanged) needs retitle = { title }: the document keeps its text, takes
  *    the new title and leaves the desk. The key fields are dropped from the payload and file_url_ambiguous
  *    is set, which makes the server delete them from the stored metadata.
+ *  - action 'retitle' (text unchanged) needs retitle = { title }: a document with a file name for a title and no
+ *    document_key gets the title and nothing else. No key is added and no link field is touched.
  *  - text_repair records what was done; `provenance` (source URL and hash, OCR model) is merged into it. A repair
  *    that changes the text may also set `metadataUpdates` (for example ocr_lang): the new values replace the old,
  *    and the old ones, with the old n_chars and text_sha256, are kept under text_repair.previous.
@@ -376,8 +379,8 @@ export async function buildRepairPayload(existing, repair) {
   if (typeof action !== 'string' || !action) throw new Error('repair needs an action');
   if (action === 'rekey' && !rekey) throw new Error('a rekey repair needs a rekey object');
   if (action !== 'rekey' && rekey) throw new Error(`a rekey object is only for the rekey action, not ${action}`);
-  if (action === 'retitle_unlink' && !retitle) throw new Error('a retitle_unlink repair needs a retitle object');
-  if (action !== 'retitle_unlink' && retitle) throw new Error(`a retitle object is only for retitle_unlink, not ${action}`);
+  if ((action === 'retitle_unlink' || action === 'retitle') && !retitle) throw new Error(`a ${action} repair needs a retitle object`);
+  if (action !== 'retitle_unlink' && action !== 'retitle' && retitle) throw new Error(`a retitle object is only for retitle and retitle_unlink, not ${action}`);
 
   const metadata = structuredClone(existing.metadata ?? {});
   let title = existing.title;
@@ -402,7 +405,15 @@ export async function buildRepairPayload(existing, repair) {
     if (rekey.status) metadata.status = rekey.status;
   }
 
-  if (retitle) {
+  if (retitle && action === 'retitle') {
+    if (typeof retitle.title !== 'string' || !retitle.title.trim()) throw new Error('retitle needs a title');
+    // Re-keying a key-less document is the Bills adapter's job, and a keyed one takes its title from the desk.
+    if (metadata.document_key) throw new Error(`document has the document_key ${metadata.document_key}; a retitle is for a document with none`);
+    if (collapse(retitle.title) === collapse(existing.title)) throw new Error(`document already has the title ${JSON.stringify(existing.title)}`);
+    assertNoLinks();
+    record.previous_title = existing.title;
+    title = collapse(retitle.title);
+  } else if (retitle) {
     if (typeof retitle.title !== 'string' || !retitle.title.trim()) throw new Error('retitle needs a title');
     if (!metadata.document_key) throw new Error('document has no document_key to remove');
     assertNoLinks();
@@ -413,7 +424,7 @@ export async function buildRepairPayload(existing, repair) {
     metadata.file_url_ambiguous = true;
   }
 
-  if (action !== 'rekey' && action !== 'retitle_unlink') {
+  if (action !== 'rekey' && action !== 'retitle_unlink' && action !== 'retitle') {
     // The text changes: what described the old text and its source is kept under text_repair.previous.
     const previous = {};
     for (const field of ['n_chars', 'text_sha256']) if (field in metadata) previous[field] = metadata[field];
@@ -443,6 +454,7 @@ export async function buildRepairPayload(existing, repair) {
 // Titles
 // ---------------------------------------------------------------------------------------------
 
+const COMPOUND_NUMBER = /^(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)-(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|one|two|three|four|five|six|seven|eight|nine)$/i;
 const SMALL_WORDS = new Set(['of', 'and', 'the', 'in', 'for', 'to', 'on', 'a', 'an', 'by', 'with', 'at', 'or', 'from', 'under', 'into']);
 const collapse = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
@@ -455,7 +467,10 @@ export function titleCase(title) {
   const t = collapse(title);
   const letters = t.match(/\p{L}/gu) ?? [];
   if (!letters.length || letters.filter((c) => c !== c.toLowerCase()).length / letters.length < 0.6) return t;
-  const cap = (w) => w.split('-').map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join('-');
+  // A compound number keeps its second word in lower case, as the listing writes it: Seventy-third, Ninety-ninth.
+  const cap = (w) => (COMPOUND_NUMBER.test(w)
+    ? w.split('-').map((p, i) => (i ? p : p.charAt(0).toUpperCase() + p.slice(1))).join('-')
+    : w.split('-').map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join('-'));
   return t.split(' ').map((word, i) => {
     const m = /^([^\p{L}\p{N}]*)(.*?)([^\p{L}\p{N}]*)$/u.exec(word);
     if (!m[2] || /\p{N}/u.test(m[2])) return word;
@@ -502,6 +517,19 @@ export function titlesAgree(a, b) {
   const x = norm(a);
   const y = norm(b);
   return Boolean(x && y && (x === y || x.startsWith(y) || y.startsWith(x)));
+}
+
+const squash = (t) => ` ${String(t ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()} `;
+
+/**
+ * Whether `title` is printed in the first `headChars` characters of `text`: the same words in the same order,
+ * whatever the case, spacing, line breaks and punctuation, and as whole words. A title that is not there was
+ * composed, not read: a retitle refuses it.
+ */
+export function titleInOpening(title, text, { headChars = 3000 } = {}) {
+  const wanted = squash(title);
+  if (wanted.trim() === '') return false;
+  return squash(String(text ?? '').slice(0, headChars)).includes(wanted);
 }
 
 /**

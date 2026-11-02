@@ -13,6 +13,10 @@
 //   retitle_unlink  the text is a different act with no usable key: new title, the desk link removed
 //                   (file_url_ambiguous = true makes ingest-documents delete document_key, bill_number,
 //                   bill_year, house, status and file_url_source; see src/lib/documentRepair.js)
+//   retitle         a key-less Bill whose title is a file name: the title printed in its own text, nothing else
+//                   (text, metadata and links unchanged; no key is added, re-keying is the Bills adapter's job).
+//                   The new title must be printed in the first 3,000 characters of the text (check title_in_text)
+//                   and the document must have no document_key (check keyless).
 //
 // Nothing runs by default and every step that touches a network says so below. The steps are separate
 // and are run in this order, by the supervisor, each one read before the next:
@@ -100,7 +104,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   assertNoControlCodes, assertRepairable, buildRepairPayload, buildRollbackPayload, chooseTitle, codePointLength, countControlCodes, decodeShiftedText,
-  extractPrintedTitle, identityProblems, identityVerdict, oldTextContainment, ocrChecks, ocrPagesToDocument, stripLeadingForeignCover,
+  extractPrintedTitle, identityProblems, identityVerdict, oldTextContainment, ocrChecks, ocrPagesToDocument, stripLeadingForeignCover, titleInOpening,
 } from '../../src/lib/documentRepair.js';
 import { titleMatches } from '../../src/lib/titleGuard.js';
 import { chunkDocument } from '../../supabase/functions/_shared/chunking.ts';
@@ -441,7 +445,7 @@ async function buildText(d, existing, work) {
     notes.removed = { chars: codePointLength(r.removed), head: clip(r.removed, 60) };
     return { text: r.text, notes, extra: {} };
   }
-  if (d.action === 'rekey' || d.action === 'retitle_unlink') return { text: oldText, notes, extra: { text_unchanged: oldText.trim() ? pass() : fail('the stored text is empty') } };
+  if (['rekey', 'retitle_unlink', 'retitle'].includes(d.action)) return { text: oldText, notes, extra: { text_unchanged: oldText.trim() ? pass() : fail('the stored text is empty') } };
   // ocr: only parts made from the pinned PDF, with this tool's model and flags, all validated
   const parts = await cachedOcr(work, d.prefix);
   const cacheProblems = ocrCacheProblems(parts, { sha: d.source_sha256, pages: d.pages });
@@ -497,7 +501,7 @@ async function buildOne(d, ctx) {
 
   // A repair that changes the text must leave none of either. One that keeps the stored text (a re-key, an
   // unlink, a cover strip) must not add any: what was already there is not what it repairs.
-  const keepsText = ['rekey', 'retitle_unlink', 'strip_cover'].includes(d.action);
+  const keepsText = ['rekey', 'retitle_unlink', 'retitle', 'strip_cover'].includes(d.action);
   const REPLACEMENT = String.fromCharCode(0xfffd);
   const count = (t, ch) => t.split(ch).length - 1;
   const introduced = (n, o) => (keepsText ? n > o : n > 0);
@@ -508,7 +512,7 @@ async function buildOne(d, ctx) {
   let titleChoice = null;
   let rekey = null;
   let retitle = null;
-  if (d.action === 'rekey' || d.action === 'retitle_unlink') {
+  if (d.action === 'rekey' || d.action === 'retitle_unlink' || d.action === 'retitle') {
     const printed = extractPrintedTitle(text);
     const desk = cur.desk ?? null;
     titleChoice = chooseTitle({ desk: desk?.names ?? [], manifest: d.new_title, printed });
@@ -545,6 +549,12 @@ async function buildOne(d, ctx) {
       rekey = { document_key: d.new_document_key, title: titleChoice.title, house: d.new_house, status: d.new_status };
     } else {
       retitle = { title: titleChoice.title };
+    }
+    if (d.action === 'retitle') {
+      // The title is read, not composed: it must be printed in the opening of this document's own text. And a
+      // document that has a key takes its title from the desk record, not from here.
+      checks.title_in_text = titleInOpening(titleChoice.title, text) ? pass() : fail(`the title ${JSON.stringify(titleChoice.title)} is not printed in the first 3,000 characters of the text`);
+      checks.keyless = existing.metadata?.document_key ? fail(`the document has the key ${existing.metadata.document_key}: a retitle is for a document with none`) : pass();
     }
     checks.same_text = text === oldText ? pass() : fail('a title or key repair must not change the text');
   } else if (d.action === 'decode' || d.action === 'strip_cover') {
