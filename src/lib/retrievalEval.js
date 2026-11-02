@@ -356,6 +356,58 @@ export function percentile(values, p) {
   return sorted[Math.ceil((p / 100) * sorted.length) - 1];
 }
 
+/** The search RPCs that also take the question's text (keyword side) with its vector: the hybrid RPC and its variants. */
+const isTextRpc = (rpc) => /^match_documents_hybrid(_[a-z0-9_]+)?$/.test(rpc);
+
+/**
+ * The parameters one question sends in one mode, or null when the mode does not apply to it
+ * (focused-multi needs distractors). Every mode sends the question's frozen vector; a hybrid RPC
+ * (isTextRpc) also gets the question's text as `query_text`, with the same scope as the vector-only call.
+ */
+export function rpcParams({ rpc, mode, line, vector, matchCount }) {
+  const base = { query_embedding: vector, match_count: matchCount };
+  let params;
+  if (mode === 'broad') params = base;
+  else if (mode === 'focused') params = { ...base, p_document_ids: line.gold_document_ids };
+  else if (mode === 'focused-multi') {
+    if (!line.distractor_ids.length) return null;
+    params = { ...base, p_document_ids: [...line.gold_document_ids, ...line.distractor_ids] };
+  } else if (mode === 'feature') params = { ...base, p_document_ids: null, p_desk_tier: null, p_desk_feature: line.desk_feature };
+  else throw new Error(`unknown mode ${mode}`);
+  if (!isTextRpc(rpc)) return params;
+  if (typeof line.question !== 'string' || !line.question.trim()) throw new Error(`${line.id}: no question text to send to ${rpc}`);
+  return { ...params, query_text: line.question };
+}
+
+/** Positional parameters of each RPC: the leading ones always sent, the rest only when the call sets them. */
+const RPC_ARGS = {
+  match_documents: { names: ['query_embedding', 'match_count', 'p_document_ids', 'p_desk_tier', 'p_desk_feature'], required: 4 },
+  match_documents_hybrid: { names: ['query_embedding', 'query_text', 'match_count', 'p_document_ids', 'p_desk_tier', 'p_desk_feature'], required: 5 },
+};
+
+/**
+ * The SQL the replica backend runs for one call (scripts/eval-retrieval.mjs, as `authenticated`):
+ * positional arguments in the RPC's declared order. A candidate with another name is called like
+ * match_documents. p_desk_feature is sent only when the params carry the key, so a replica whose
+ * function predates it still runs the broad and focused modes.
+ */
+export function replicaCallSql(fn, params) {
+  if (!/^[a-z_][a-z0-9_]*$/.test(fn)) throw new Error(`bad function name ${fn}`);
+  const spec = isTextRpc(fn) ? RPC_ARGS.match_documents_hybrid : (RPC_ARGS[fn] ?? RPC_ARGS.match_documents);
+  if (isTextRpc(fn) && typeof params.query_text !== 'string') throw new Error(`${fn} needs query_text`);
+  const lit = (v) => `'${String(v).replace(/'/g, "''")}'`;
+  const render = {
+    query_embedding: (v) => `${lit(JSON.stringify(v))}::extensions.vector`,
+    query_text: lit,
+    match_count: (v) => String(Number(v)),
+    p_document_ids: (v) => (v ? `array[${v.map(lit).join(',')}]::uuid[]` : 'null::uuid[]'),
+    p_desk_tier: (v) => (v ? lit(v) : 'null'),
+    p_desk_feature: (v) => (v ? lit(v) : 'null'),
+  };
+  const args = spec.names.filter((name, i) => i < spec.required || name in params).map((name) => render[name](params[name] ?? null));
+  return `select * from public.${fn}(${args.join(', ')})`;
+}
+
 /** Report order for modes; any other mode follows, alphabetically. */
 export const MODE_ORDER = ['broad', 'focused', 'focused-multi', 'feature'];
 const MATCH_COUNT = 40;

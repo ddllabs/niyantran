@@ -103,6 +103,11 @@ chain() {
       FILES+=("$(as_non_superuser 20261027231901_admin_corpus_readiness.sql)" "$(as_non_superuser 20261015130000_unscoped_ef_search.sql)"
               "$(as_non_superuser 20261027185840_feature_search_recovery.sql)" "$(as_non_superuser 20261101110000_law_documents_serving_set.sql)"
               "$(as_non_superuser 20261101120000_document_chunks_partitioned.sql)") ;;
+    # F278 step 4 (C1): hybrid (keyword + vector) search. The partitioned chunk table's chain, then the
+    # migration, as a non-superuser. The vacuity check drops the last.
+    chunk_hybrid_search)
+      chain document_chunks_partitions
+      FILES+=("$(as_non_superuser 20261102120000_chunk_hybrid_search.sql)") ;;
     # The law publication policy on documents evaluated once per query (same rows): the law listing
     # chain, then the migration, as a non-superuser. The vacuity check drops the last.
     law_documents_serving_set)

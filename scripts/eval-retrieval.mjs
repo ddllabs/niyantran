@@ -10,6 +10,8 @@
  * --target replica runs against the local replica (scripts/eval-replica/load.mjs) through psql in
  * its container, as `authenticated` under RLS and the 8 s timeout; --rpc names a candidate
  * function there. The feature mode passes the question's own desk_feature as p_desk_feature.
+ * --rpc match_documents_hybrid also passes each question's text (query_text) next to its frozen
+ * vector, in every mode (src/lib/retrievalEval.js rpcParams); the scope is the vector-only call's.
  * --database (replica target only) names the local database to query: niyantran_retrieval_replica
  * (the default) or a niyantran_rehearsal_ copy made by scripts/eval-replica/rehearse.mjs, so the
  * eval can be rerun against a migrated copy and judged with --compare against the replica baseline.
@@ -39,7 +41,7 @@ import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { createClient } from '@supabase/supabase-js';
 import { REPLICA_DATABASE, assertEvalDatabase } from '../src/lib/rehearsal.js';
-import { exitCodeFor, fingerprintCheck, judgeNoWorse, outcome, renderReport } from '../src/lib/retrievalEval.js';
+import { exitCodeFor, fingerprintCheck, judgeNoWorse, outcome, renderReport, replicaCallSql, rpcParams } from '../src/lib/retrievalEval.js';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 const MATCH_COUNT = 40;
@@ -130,7 +132,7 @@ function loadSet(path) {
 function repoMatchDocumentsMigration() {
   const dir = resolve(ROOT, 'supabase/migrations');
   const files = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
-  const defining = files.filter((f) => /create\s+(or\s+replace\s+)?function\s+(public\.)?match_documents/i.test(readFileSync(resolve(dir, f), 'utf8')));
+  const defining = files.filter((f) => /create\s+(or\s+replace\s+)?function\s+(public\.)?match_documents\s*\(/i.test(readFileSync(resolve(dir, f), 'utf8')));
   return defining.at(-1) ?? null;
 }
 
@@ -193,7 +195,7 @@ function replicaBackend(database = REPLICA_DATABASE) {
   const asUser = (sql) => `set role authenticated;\n${sql}`;
   const json = (sql) => JSON.parse(psql(asUser(`select coalesce(json_agg(t), '[]'::json) from (${sql}) t;`)) || '[]');
   const lit = (s) => `'${String(s).replace(/'/g, "''")}'`;
-  const uuidArray = (ids) => (ids ? `array[${ids.map(lit).join(',')}]::uuid[]` : 'null::uuid[]');
+  const uuidArray = (ids) => `array[${ids.map(lit).join(',')}]::uuid[]`;
   return {
     name: 'replica',
     database: DATABASE,
@@ -217,15 +219,7 @@ function replicaBackend(database = REPLICA_DATABASE) {
       return new Map(rows.map((r) => [r.desk_feature, Number(r.n)]));
     },
     async rpc(fn, params) {
-      if (!/^[a-z_][a-z0-9_]*$/.test(fn)) throw new Error(`bad function name ${fn}`);
-      const args = [
-        `${lit(JSON.stringify(params.query_embedding))}::extensions.vector`,
-        String(params.match_count),
-        uuidArray(params.p_document_ids ?? null),
-        params.p_desk_tier ? lit(params.p_desk_tier) : 'null',
-      ];
-      if ('p_desk_feature' in params) args.push(params.p_desk_feature ? lit(params.p_desk_feature) : 'null');
-      return json(`select * from public.${fn}(${args.join(', ')})`);
+      return json(replicaCallSql(fn, params));
     },
     async ping() {
       psql(asUser('select 1;'));
@@ -266,14 +260,7 @@ async function main(argv) {
   const keyOf = new Map(docs.map((d) => [d.id, d.document_key ?? null]));
   const featureChunks = args.modes.includes('feature') ? await backend.featureChunkCounts() : null;
 
-  const paramsFor = (mode, line) => {
-    const base = { query_embedding: vectorOf.get(line.id), match_count: MATCH_COUNT };
-    if (mode === 'broad') return base;
-    if (mode === 'focused') return { ...base, p_document_ids: line.gold_document_ids };
-    if (mode === 'focused-multi') return line.distractor_ids.length ? { ...base, p_document_ids: [...line.gold_document_ids, ...line.distractor_ids] } : null;
-    if (mode === 'feature') return { ...base, p_document_ids: null, p_desk_tier: null, p_desk_feature: line.desk_feature };
-    throw new Error(`unknown mode ${mode}`);
-  };
+  const paramsFor = (mode, line) => rpcParams({ rpc: args.rpc, mode, line, vector: vectorOf.get(line.id), matchCount: MATCH_COUNT });
   const timed = async (fn) => {
     const t0 = performance.now();
     const res = await fn();
