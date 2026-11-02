@@ -37,16 +37,22 @@ create function cx.doc(g int, t text) returns jsonb language sql as $$
   'expected',jsonb_build_array(jsonb_build_object('chunk_hash',encode(sha256(convert_to('c'||g||t,'UTF8')),'hex'),'embed_hash',repeat('e',64),
    'chunk_index',0,'source_kind','document','char_from',0,'char_to',length(t),'content',t,'token_count',4,'chunker_version',4)),
   'pages','[]'::jsonb,'sections','[]'::jsonb) from r $$;
-create function cx.batch(docs jsonb, salt int) returns uuid language plpgsql as $$
+-- Opens a batch of these documents in a collection and plans its items; cx.batch also seals it.
+create function cx.opened(docs jsonb, salt int, coll text default 'cx') returns uuid language plpgsql as $$
 declare items jsonb; b uuid;
 begin
  select jsonb_agg(jsonb_build_object('source_key',(d->>'payload')::jsonb->>'source_key','payload_sha256',d->>'payload_sha256',
    'content_sha256',(d->>'payload')::jsonb->>'text_sha256','chunks',1,'est_tokens',salt)) into items from jsonb_array_elements(docs) d;
- b := (public.ingest_batch_open(jsonb_build_object('collection','cx','manifest_sha256',(select encode(sha256(convert_to(string_agg(concat_ws(E'\t',
+ b := (public.ingest_batch_open(jsonb_build_object('collection',coll,'manifest_sha256',(select encode(sha256(convert_to(string_agg(concat_ws(E'\t',
    e->>'source_key',e->>'payload_sha256',e->>'content_sha256',e->>'chunks',e->>'est_tokens')||E'\n','' order by e->>'source_key' collate "C"),'UTF8')),'hex')
    from jsonb_array_elements(items) e),'items_planned',jsonb_array_length(items),'chunks_planned',jsonb_array_length(items),
    'est_tokens',salt*jsonb_array_length(items),'est_cost_usd',1,'runner_commit','abcdef1'))->>'batch_id')::uuid;
  perform public.ingest_batch_add_items(b, items);
+ return b;
+end $$;
+create function cx.batch(docs jsonb, salt int) returns uuid language plpgsql as $$
+declare b uuid := cx.opened(docs, salt);
+begin
  if public.ingest_batch_seal(b)->>'state' <> 'sealed' then raise exception 'cx: seal failed'; end if;
  return b;
 end $$;
@@ -101,13 +107,13 @@ got="$(q -c "select string_agg((select string_agg(d->>'outcome', '+' order by d-
 [ "$got" = "admitted+admitted,existing+existing" ] || fail "opposite orders: $got"
 echo '  concurrency ok - overlapping keys in opposite orders: no deadlock, admitted then existing'
 
-# ── 3. A registration rerun against the worker (Phase B's chunk trigger takes documents FOR SHARE). ─
-# The rerun's existing-source branch holds the document FOR SHARE; the worker's chunk insert must
-# not wait behind it. Then activation (job, then document FOR UPDATE) must finish after the rerun.
+# ── 3. A registration rerun against the worker. Phase B's facet trigger (document_chunks_fill_facets)
+# reads the chunk's document FOR SHARE on every chunk insert; the rerun's existing-source branch holds
+# that document FOR SHARE too, so the worker's chunk write must not wait behind it. Then activation
+# (job, then document FOR UPDATE) must finish after the rerun.
+[ "$(q -c "select count(*) from pg_trigger where tgname = 'document_chunks_fill_facets' and tgrelid = 'public.document_chunks'::regclass")" = 1 ] \
+  || fail "Phase B's chunk facet trigger is not on public.document_chunks: race 3 would prove nothing"
 q > /dev/null <<'SQL'
-create function cx.chunk_share() returns trigger language plpgsql as $$
-begin perform 1 from public.documents d where d.id = new.document_id for share; return new; end $$;
-create trigger cx_chunk_share before insert on public.document_chunks for each row execute function cx.chunk_share();
 update public.ingest_jobs set status='running', claim_token='00000000-0000-4000-8000-0000000000c3', lease_until=now()+interval '10 minutes', attempts=1
  where document_id=(select id from public.documents where file_url=cx.url(3));
 create function cx.worker(n text, what text) returns void language plpgsql as $$
@@ -151,3 +157,21 @@ wait "$h" || { cat "$WORK/discard.out"; fail "session discard"; }
 q -c "select (seconds < 1.0 and r#>>'{results,0,outcome}' = 'admitted')::text from cx.res where name='new5'" | grep -qx true || fail "registration waited behind a discard"
 [ "$(q -c "select count(*) from public.documents where id='d0000000-0000-4000-8000-0000000000c4'")" = 0 ] || fail "discard did not happen"
 echo '  concurrency ok - registration and ingest_discard run side by side'
+
+# ── 5. Two seals of one collection whose reservations together pass its chunk ceiling: one seals. ─
+q > /dev/null <<'SQL'
+select public.ingest_policy_approve(jsonb_build_object('collection','cxs','admitted',jsonb_build_array(jsonb_build_object('desk_tier','national',
+ 'desk_feature','Parliamentary Question Database','adapter','lok_sabha_answers')),'licence_classes',jsonb_build_array('gov_open'),
+ 'min_chars_per_page',0,'min_pages_for_density',5,'require_page_count',false,'budget_usd',100,'chunk_ceiling',3,
+ 'stop_thresholds',jsonb_build_object('refusal_share',1,'failure_rate',1,'uncertain_max',1,'min_decided',1),
+ 'decision_id','cxs','approver','Fixture','evidence_sha256',repeat('e',64)));
+insert into cx.b values ('seal_a', cx.opened(jsonb_build_array(cx.doc(10,'SEAL A1'), cx.doc(11,'SEAL A2')), 5, 'cxs'), null);
+insert into cx.b values ('seal_b', cx.opened(jsonb_build_array(cx.doc(12,'SEAL B1'), cx.doc(13,'SEAL B2')), 6, 'cxs'), null);
+SQL
+holding seal_a 1.5 "select public.ingest_batch_seal((select id from cx.b where name='seal_a'));" & h=$!
+held seal_a
+got_b="$(q -c "select public.ingest_batch_seal((select id from cx.b where name='seal_b'))->>'refused'")"
+wait "$h" || { cat "$WORK/seal_a.out"; fail "session seal_a"; }
+[ "$got_b" = over_policy_ceiling ] || fail "two concurrent seals both passed the collection's chunk ceiling (second: ${got_b:-sealed})"
+[ "$(q -c "select string_agg(state, ',' order by name) from public.ingest_batches b join cx.b x on x.id = b.id where x.name like 'seal_%'")" = "sealed,open" ] || fail "seal states"
+echo '  concurrency ok - two concurrent seals over one ceiling: the second waits for the first and is refused over_policy_ceiling'

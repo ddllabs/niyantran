@@ -83,13 +83,21 @@ Deno.test('Law keeps its own module rule: a Law source cannot claim the question
   await assertRejects(() => prepareSuppliedText({ ...q, desk_tier: 'law', desk_feature: 'Order Archive by Topic (Cross-Court)' }), Error, 'feature');
 });
 
-Deno.test('servable false reaches the payload for the database to refuse; every other payload is unchanged', async () => {
+Deno.test('servable: the single-document path drops it as it always did, whatever its value', async () => {
   const r = await input();
   const plain = await prepareSuppliedText(r);
-  assertEquals((await prepareSuppliedText({ ...r, servable: true })).payload, plain.payload, 'servable true: the same payload and hash');
-  assertEquals((await prepareSuppliedText({ ...r, servable: null })).payload_sha256, plain.payload_sha256);
-  const held = await prepareSuppliedText({ ...r, servable: false });
-  assertEquals(held.input.servable, false);
+  for (const servable of [false, true, null, 'false', 0]) {
+    assertEquals((await prepareSuppliedText({ ...r, servable })).payload, plain.payload, `servable ${JSON.stringify(servable)}`);
+  }
+});
+
+Deno.test('servable: the batch path carries false for the database to refuse, refuses a non-boolean, and leaves others unchanged', async () => {
+  const r = await input();
+  const plain = await prepareSuppliedText(r, { batch: true });
+  assertEquals(plain.payload, (await prepareSuppliedText(r)).payload, 'without servable both paths agree');
+  assertEquals((await prepareSuppliedText({ ...r, servable: true }, { batch: true })).payload, plain.payload);
+  assertEquals((await prepareSuppliedText({ ...r, servable: null }, { batch: true })).payload, plain.payload);
+  const held = await prepareSuppliedText({ ...r, servable: false }, { batch: true });
   assertEquals(JSON.parse(held.payload).servable, false);
-  await assertRejects(() => prepareSuppliedText({ ...r, servable: 'false' }), Error, 'servable');
+  await assertRejects(() => prepareSuppliedText({ ...r, servable: 'false' }, { batch: true }), Error, 'servable');
 });

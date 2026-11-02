@@ -7,10 +7,12 @@
 //   * each job commits only its own rows, under its own claim token, so a stale token fences that job
 //     alone (ingest_text_commit refuses it) and no other job's rows are ever sent under it;
 //   * a failed embedding call fails the jobs whose inputs it carried; slices other jobs committed stay;
-//   * no call starts within INDEX_STEP.deadlineReserveMs of the deadline; unfinished jobs are released;
+//   * no call and no activation starts within INDEX_STEP.deadlineReserveMs of the deadline; such jobs
+//     are released for the next claim;
 //   * a supplied-text failure after paid work is permanent (reconciled before retry), as before.
 // Spend is split across the jobs of a call by their share of its estimated tokens; the exact totals
-// stay in model_call_logs, one row per call.
+// stay in model_call_logs, one row per call, carrying the batch_id so the stop rules count a call
+// whose claim was killed before it reported.
 
 import { EMBED_BATCH, type EmbedBatchBounds, EMBED_MODEL, EmbeddingError, planBatches } from '../_shared/embed.ts';
 import { type EmbeddingChunk, INDEX_STEP } from './index-step.ts';
@@ -122,6 +124,7 @@ export async function runSuppliedBatch(
     const involved = [...new Set(window.map((s) => s.i))];
     const shares = involved.map((i) => window.filter((s) => s.i === i).reduce((n, s) => n + estimate(s.chunk.embedding_input), 0));
     const usage = {
+      ...(jobs[0].batch_id ? { batch_id: jobs[0].batch_id } : {}),
       job_id: members[involved[0]]!.job.id,
       document_id: members[involved[0]]!.job.document_id,
       job_ids: involved.map((i) => members[i]!.job.id),
@@ -188,7 +191,9 @@ export async function runSuppliedBatch(
     if (!m) continue;
     if (m.error) {
       outcomes[i] = failure(m.error, m.spend, m.committed, true);
-    } else if (m.done < m.stale.length) {
+    } else if (m.done < m.stale.length || deps.now() >= deadline - INDEX_STEP.deadlineReserveMs) {
+      // Unfinished, or no time left to activate inside the reserve: released for the next claim, which
+      // finds the committed slices and embeds nothing again.
       outcomes[i] = { patch: { progressed: m.committed, embed_tokens: m.spend.tokens, embed_cost_usd: m.spend.cost } };
     } else {
       try {

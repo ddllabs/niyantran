@@ -94,11 +94,11 @@ chain() {
       FILES+=("$(as_non_superuser 20261028130000_pq_admission_links.sql)") ;;
     pq_row_refresh)
       chain pq_admission_links ;;
-    # F278 step 8 (C3b): set-based registration. pq_admission_links' chain, the corpus_ingest role
-    # (bootstrap: NTER's migration role has CREATEROLE, nter_migrator does not), then the migration,
-    # as a non-superuser. The vacuity check drops the last.
-    ingest_register_batch|ingest_register_text_parity)
-      chain pq_admission_links
+    # F278 step 8 (C3b): set-based registration. Phase B's chain (document_chunks_partitions: the
+    # documents access-policy set, then the partitioned chunks with their facet trigger), the
+    # corpus_ingest bootstrap, then the migration, as a non-superuser. The vacuity check drops the last.
+    ingest_register_batch|ingest_register_text_parity|ingest_register_batch_attack)
+      chain document_chunks_partitions
       FILES+=("$TESTS/bootstrap_corpus_ingest.sql" "$(as_non_superuser 20261102130000_batch_registration.sql)") ;;
     # F278 step 3 (B1): document_chunks partitioned by feature. pq_admission_links' chain plus the
     # other migrations whose functions read chunks (the readiness helper, the unscoped ef_search, the
@@ -802,7 +802,8 @@ record_brief_format_checks() {
 
 # ingest_register_batch only (C3b), two checks a fixture cannot make from inside its own database.
 #  * Parity: pq_admission_links and law_listing (and law_listing_concurrency.sh), as written, on
-#    pq_admission_links' chain with and without the corpus_ingest bootstrap and 20261102130000.
+#    Phase B's chain (document_chunks_partitions) with and without the corpus_ingest bootstrap and
+#    20261102130000.
 #    Their assertions must come out the same.
 #  * The Down section, executed: base is the chain without the migration; up gets the migration and
 #    then its Down block as written, as the migrating role, with its three "run ..." steps performed
@@ -821,7 +822,7 @@ ingest_register_batch_checks() {
   for x in pq_admission_links law_listing; do
     for side in old new; do
       db="niyantran_${x}_${side}_batch_test"
-      chain pq_admission_links
+      chain document_chunks_partitions
       [ $side = new ] && FILES+=("$TESTS/bootstrap_corpus_ingest.sql" "$guard")
       q "drop database if exists $db" >/dev/null; q "create database $db" >/dev/null
       for f in "${FILES[@]}"; do psql_in "$db" < "$f" >/dev/null 2>&1 || { echo "  PARITY FAIL - $x: bootstrap broke at $(basename "$f")"; rc=1; }; done

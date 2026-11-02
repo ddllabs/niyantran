@@ -8,7 +8,7 @@ import { sha256Hex } from '../_shared/textNormalise.ts';
 import { type RunDeps, runOnce } from './handler.ts';
 import { INDEX_STEP } from './index-step.ts';
 import { runSuppliedBatch, splitSpend } from './supplied-batch-step.ts';
-import { suppliedCommitRows } from './supplied-step.ts';
+import { suppliedCommitRows, suppliedTextStep } from './supplied-step.ts';
 import type { AdvancePatch, IngestCallLog, IngestDb, IngestJob, PageCommitRow, StepOutcome } from './types.ts';
 
 const FAR = 1e15;
@@ -113,6 +113,7 @@ Deno.test('batch: small documents share one embedding call; each commits under i
   assertEquals(rec.embedCalls.length, 1, 'one call for three documents');
   assertEquals(rec.logs.length, 1);
   assertEquals(rec.logs[0].raw_usage.job_ids, ['job-1', 'job-2', 'job-3']);
+  assertEquals(rec.logs[0].raw_usage.batch_id, 'batch-1', 'the call is attributed to its batch, so a killed claim\'s spend still counts');
   assertEquals(rec.commits.map((c) => [c.jobId, c.token]), [['job-1', 'token-1'], ['job-2', 'token-2'], ['job-3', 'token-3']]);
   for (const k of [1, 2, 3]) assertEquals(rec.commits[k - 1].hashes, chunksOf(`doc-${k}`));
   assert(out.every((o) => o.activated));
@@ -164,10 +165,33 @@ Deno.test('batch: the deadline reserve holds across jobs: no call starts inside 
   const { deps, rec } = await world(2, { now: () => (calls++ === 0 ? 0 : deadline - INDEX_STEP.deadlineReserveMs) });
   const out = await runSuppliedBatch(deps, [job(1), job(2)], deadline, { ...BOUNDS, maxCount: 1 });
   assertEquals(rec.embedCalls.length, 1);
-  assert(out[0].activated, 'the job whose chunks are all committed still activates');
+  assertFalse(out[0].activated, 'inside the reserve, even a fully committed job is not activated');
+  assertEquals(out[0].patch.progressed, true, 'it is released with its committed slices');
   assertFalse(out[1].activated);
   assertEquals(out[1].patch, { progressed: false, embed_tokens: 0, embed_cost_usd: 0 }, 'released with no stage change and no error');
-  assertEquals(rec.activations.map((a) => a.jobId), ['job-1']);
+  assertEquals(rec.activations, []);
+});
+
+Deno.test('batch: the deadline reserve also holds before each activation; committed jobs are released for the next claim', async () => {
+  const deadline = 1_000_000;
+  // Embedding happens in time; from then on every check sees the reserve reached.
+  let embedded = false;
+  const w = await world(2, { now: () => (embedded ? deadline - INDEX_STEP.deadlineReserveMs : 0) });
+  const embed = w.deps.embed;
+  w.deps.embed = async (inputs: string[]) => {
+    const r = await embed(inputs);
+    embedded = true;
+    return r;
+  };
+  const out = await runSuppliedBatch(w.deps, [job(1), job(2)], deadline, BOUNDS);
+  assertEquals(w.rec.activations, [], 'no activation starts inside the reserve');
+  for (const o of out) {
+    assertFalse(o.activated);
+    assertEquals(o.patch.progressed, true, 'its slices are committed');
+    assertEquals(o.patch.error, undefined);
+    assert(o.patch.embed_tokens! > 0, 'and its spend is reported');
+  }
+  assertEquals(w.rec.commits.length, 2);
 });
 
 Deno.test('batch: committed chunks are never embedded again; a job with nothing stale commits nothing new and activates', async () => {
@@ -257,4 +281,14 @@ Deno.test('worker: a batch step that throws reports every job of the claim, none
   deps.steps.suppliedBatch = () => Promise.reject(new Error('boom'));
   await runOnce(deps);
   assertEquals(rec.advances.map(([id, , p]) => [id, p.error?.code]), [['job-1', 'internal'], ['job-2', 'internal']]);
+});
+
+Deno.test('single job: a batch job\'s embedding call is attributed to its batch in model_call_logs', async () => {
+  const { deps, rec } = await world(1);
+  const out = await suppliedTextStep(deps, job(1), FAR);
+  assert(out.activated);
+  assertEquals(rec.logs[0].raw_usage.batch_id, 'batch-1');
+  const solo = await world(1);
+  await suppliedTextStep(solo.deps, job(1, { batch_id: null }), FAR);
+  assertFalse('batch_id' in solo.rec.logs[0].raw_usage, 'a job without a batch logs as before');
 });

@@ -528,4 +528,95 @@ select pg_temp.ok((select s->>'state'='indexed' and (s->>'indexed')::int=1 and s
   and (s#>>'{jobs,tokens}')::int=10 and (s#>>'{counts,admitted}')::int=1 from idx_s), 'status: indexed, with the item, its job and the spend');
 select pg_temp.ok((select pg_temp.i_status(b)->>'items' from idx) is null, 'status without keys lists no items');
 select pg_temp.refused($q$select pg_temp.i_status((select b from idx), array_fill('x'::text, array[1001]))$q$, 'at most 1000');
+-- ═══ Review of f6aec8fe: each section was written, and seen failing, before its fix ═════════
+
+-- B1. Every function a registration call reaches searches pg_temp last, so a temporary type or
+-- cast of the caller's never resolves inside the owner's code.
+create temp table reached(f text);
+insert into reached select f from runner_fns union all select f from internal_fns;
+insert into reached values ('public.ingest_claim(integer,interval)'),('public.ingest_register_text(jsonb)'),('public.ingest_register_text_unmapped(jsonb)'),
+ ('public.law_reconcile(jsonb)'),('public.record_mapping_fingerprint(text,text,text,uuid)'),('public.ingest_retry(uuid)'),
+ ('public.law_prepare_intent()'),('public.protect_supplied_text()'),('public.pq_answer_key(text)'),('public.pq_norm(text)'),('public.pq_date(text)');
+select pg_temp.ok((select coalesce(string_agg(r.f, ', '), '') from reached r join pg_proc p on p.oid = r.f::regprocedure
+   where not exists(select 1 from unnest(p.proconfig) c where c ~ '^search_path=.*, pg_temp$')) = '',
+  'every function a registration call reaches searches pg_temp last');
+select pg_temp.ok(not exists(select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid
+   where not t.tgisinternal and (t.tgtype & 4) <> 0
+     and t.tgrelid in ('public.documents'::regclass,'public.ingest_text_inputs'::regclass,'public.ingest_jobs'::regclass,'public.record_document_links'::regclass,
+                       'public.ingest_batches'::regclass,'public.ingest_batch_items'::regclass,'public.ingest_batch_events'::regclass)
+     and exists(select 1 from unnest(p.proconfig) c where c like 'search_path=%' and c !~ ', pg_temp$')), 'every insert trigger registration fires searches pg_temp last');
+
+-- B1, replayed as an attack in a fresh session: ingest_register_batch_attack.sql.
+
+-- B1, defence in depth: role limits for the runner's login (set once the developer enables it).
+select pg_temp.ok((select rolconnlimit from pg_roles where rolname='corpus_ingest') = 4, 'corpus_ingest: at most 4 connections');
+select pg_temp.ok((select setconfig from pg_db_role_setting where setrole = (select oid from pg_roles where rolname='corpus_ingest') and setdatabase = 0)
+  @> array['statement_timeout=60s','lock_timeout=5s','idle_in_transaction_session_timeout=30s'], 'corpus_ingest: statement, lock and idle-in-transaction timeouts');
+
+-- M2. Jobs without a batch are claimed before batch jobs, however long the batch has waited.
+update public.ingest_jobs set status='cancelled', claim_token=null, lease_until=null where status in ('queued','running');
+update public.ingest_settings set max_running = 5, claim_batch = 3;
+create temp table big as select pg_temp.batch('national-pq', jsonb_build_array(pg_temp.pq(44), pg_temp.pq(45), pg_temp.pq(46), pg_temp.pq(47))) b;
+select pg_temp.i_reg(b, jsonb_build_array(pg_temp.pq(44), pg_temp.pq(45), pg_temp.pq(46), pg_temp.pq(47))) from big;
+update public.ingest_jobs set next_attempt_at = now() - interval '1 hour' where batch_id = (select b from big);
+create temp table cohort as select public.ingest_register_text(pg_temp.pq(48)) r;
+create temp table m2 as select * from public.ingest_claim(3, interval '5 minutes');
+select pg_temp.ok((select array_agg(id) from m2) = (select array[(r->>'job_id')::uuid] from cohort),
+  'a cohort job registered after a large batch is claimed next, before the batch''s older jobs');
+create temp table m2b as select * from public.ingest_claim(3, interval '5 minutes');
+select pg_temp.ok((select count(*)=3 and bool_and(batch_id=(select b from big)) from m2b), 'with no job outside a batch due, the batch is claimed');
+-- M3. claim_batch above 1 never claims more than one job without a batch.
+update public.ingest_jobs set status='cancelled', claim_token=null, lease_until=null where status in ('queued','running');
+create temp table loose as select public.ingest_register_text(pg_temp.pq(g)) r from generate_series(51, 53) g;
+select pg_temp.ok((select count(*) from public.ingest_claim(3, interval '5 minutes')) = 1, 'claim_batch 3: one job without a batch per claim');
+
+-- Ledger edge cases.
+-- An existing item whose job is outside the batch and failed: the batch still reaches indexed, and
+-- ingest_batch_requeue may requeue that job (once, under this batch's rules).
+update public.ingest_jobs set status='cancelled', claim_token=null, lease_until=null where status in ('queued','running');
+create temp table alone as select public.ingest_register_text(pg_temp.pq(54)) r;
+update public.ingest_jobs set status='failed', error_code='embed_failed', finished_at=now() where id=(select (r->>'job_id')::uuid from alone);
+create temp table adopt as select pg_temp.batch('national-pq', jsonb_build_array(pg_temp.pq(54), pg_temp.pq(55))) b;
+create temp table adopt_r as select pg_temp.i_reg(b, jsonb_build_array(pg_temp.pq(54), pg_temp.pq(55))) r from adopt;
+select pg_temp.ok((select r#>>'{results,0,outcome}'='existing' and r#>>'{results,1,outcome}'='admitted' from adopt_r), 'one existing item, one admitted');
+create temp table adopt_c as select * from public.ingest_claim(1, interval '5 minutes');
+select public.ingest_text_commit(id, claim_token, jsonb_build_array((pg_temp.pq(55)->'expected'->0) || jsonb_build_object('embedding',to_jsonb(array_fill(0.01::real,array[1536])))))
+  from adopt_c;
+select public.ingest_text_activate(id, claim_token, 1, 0) from adopt_c;
+select pg_temp.i_status(b) from adopt;
+create temp table adopt_s as select pg_temp.i_status(b, array[pg_temp.pq_key(54)]) s from adopt;
+select pg_temp.ok((select s->>'state'='indexed' and s#>>'{items,0,job_status}'='failed' and not (s#>>'{items,0,indexed}')::boolean from adopt_s),
+  'an existing item whose job failed outside the batch does not hold it back from indexed');
+create temp table adopt_q as select pg_temp.i_requeue(b, array[(select (r->>'job_id')::uuid from alone)]) r from adopt;
+select pg_temp.ok((select r#>>'{results,0,outcome}' from adopt_q) = 'requeued'
+  and (select status from public.ingest_jobs where id=(select (r->>'job_id')::uuid from alone)) = 'queued', 'requeue takes an existing item''s failed job without a batch');
+select pg_temp.ok((select pg_temp.i_requeue(b, array[(select (r#>>'{results,1,job_id}')::uuid from adopt_r)])#>>'{results,0,reason}' from big) = 'other_batch',
+  'a job of another batch is that batch''s to requeue');
+-- Spend logged by a claim that was killed before it reported counts toward the reservation.
+update public.ingest_jobs set status='cancelled', claim_token=null, lease_until=null where status in ('queued','running');
+create temp table killed as select pg_temp.batch('national-pq', jsonb_build_array(pg_temp.pq(56), pg_temp.pq(57)), 1) b;
+select pg_temp.i_reg(b, jsonb_build_array(pg_temp.pq(56), pg_temp.pq(57))) from killed;
+create temp table killed_c as select * from public.ingest_claim(1, interval '5 minutes');
+insert into public.model_call_logs(caller,purpose,status,cost_usd,raw_usage)
+ select 'ingest-worker','embedding','success',1,jsonb_build_object('job_id',id,'document_id',document_id,'batch_id',batch_id) from killed_c;
+update public.ingest_jobs set lease_until = now() - interval '1 second' where id = (select id from killed_c);
+create temp table killed_n as select count(*) n from public.ingest_claim(1, interval '5 minutes');
+select pg_temp.ok((select n from killed_n) = 0 and (select stop_reason from public.ingest_batches where id=(select b from killed)) = 'spend_ceiling',
+  'spend logged by a killed claim stops the batch at its reservation');
+select pg_temp.ok((select (pg_temp.i_status(b)#>>'{jobs,logged_spend_usd}')::numeric from killed) = 1, 'status reports the logged spend');
+-- uncertain_max is enforced at the claim too, not only at requeue.
+update public.ingest_jobs set status='cancelled', claim_token=null, lease_until=null where status in ('queued','running');
+select pg_temp.policy('national-pq-certain', jsonb_build_object('stop_thresholds',jsonb_build_object('refusal_share',1,'failure_rate',1,'uncertain_max',0,'min_decided',1)));
+create temp table unsure as select pg_temp.batch('national-pq-certain', jsonb_build_array(pg_temp.pq(58), pg_temp.pq(59))) b;
+select pg_temp.i_reg(b, jsonb_build_array(pg_temp.pq(58), pg_temp.pq(59))) from unsure;
+create temp table unsure_c as select * from public.ingest_claim(1, interval '5 minutes');
+update public.ingest_jobs set lease_until = now() - interval '1 second' where id = (select id from unsure_c);
+create temp table unsure_n as select count(*) n from public.ingest_claim(1, interval '5 minutes');
+select pg_temp.ok((select n from unsure_n) = 0 and (select stop_reason from public.ingest_batches where id=(select b from unsure)) = 'uncertain_count',
+  'an uncertain outcome over uncertain_max stops the batch at the claim');
+
+-- The single path's held message, byte for byte, when law_reconcile's reasons are null.
+create function pg_temp.err(q text) returns text language plpgsql as $$begin begin execute q; exception when others then return sqlerrm; end; return 'ok'; end$$;
+select pg_temp.ok(public.ingest_admit_message('law_admission_held', null)
+  = pg_temp.err($q$do $x$ begin raise exception 'law listing: admission held %', null::jsonb; end $x$$q$), 'held message with null reasons as before');
 rollback;

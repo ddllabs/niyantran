@@ -8,8 +8,10 @@
 --     the same core for one document, re-raising the messages they raised before. The one rule
 --     they gain is the duplicate-text refusal (design 11, Q3 accepted):
 --       supplied text: conflict: another document holds this text
--- Registration writes documents, text inputs, jobs, links and the ledger only. It never reads or
--- writes document_chunks or desk_rows (it locks desk_rows rows, as before).
+-- Registration writes documents, text inputs, jobs, links and the ledger only. It never writes
+-- document_chunks or desk_rows (it locks desk_rows rows, as before). It reads document_chunks in one
+-- place: record_mapping_fingerprint, which binds each new question link to the document's chunks
+-- (none yet, at admission), exactly as the single-document path always did.
 --
 -- The core, shared by both callers (helpers; no grants):
 --   ingest_admit_parse(p)            payload size, payload hash, JSON           (no locks)
@@ -53,11 +55,17 @@
 -- reachable from any state before accepted; ingest_batch_resume (service_role) returns it to the
 -- state it was stopped from.
 --
--- ingest_claim keeps its rules and gains two: max_running and claim_batch come from ingest_settings,
--- and a job whose batch is stopped, or over its spend reservation, its collection's budget or its
--- policy's failure rate, is not claimed (the batch is stopped with that reason). One claim returns
--- jobs of one group: the first due job's batch, or jobs without a batch as before. A batch group is
--- capped at claim_batch; jobs without a batch keep the previous cap, least(p_limit, free slots).
+-- ingest_claim keeps its rules and gains these: max_running and claim_batch come from
+-- ingest_settings, and a job whose batch is stopped, or over its spend reservation, its collection's
+-- budget, its policy's failure rate or its uncertain_max, is not claimed (the batch is stopped with
+-- that reason). A due job without a batch is claimed first, alone, whatever claim_batch says; only
+-- when none is due is the first due job's batch claimed, up to claim_batch jobs of it. Spend is what
+-- the jobs reported or, when more, what model_call_logs holds for the batch (a killed claim reports
+-- nothing; model_call_logs_ingest_batch indexes those rows).
+--
+-- search_path: every function here ends it with pg_temp, as do the earlier functions these reach
+-- (altered below, bodies unchanged). corpus_ingest holds TEMP through PUBLIC; with pg_temp implicit
+-- (searched first for types), a temporary type and cast of the caller's would run as the owner.
 --
 -- Functions and who may execute them (all security definer, search_path public, extensions):
 --   corpus_ingest and service_role:
@@ -109,6 +117,17 @@
 --   alter table public.ingest_jobs drop column batch_id;
 --   drop table public.ingest_batches, public.ingest_collection_policies, public.ingest_settings;
 --   drop index public.documents_content_sha256;
+--   drop index public.model_call_logs_ingest_batch;
+--   alter function public.law_reconcile(jsonb) set search_path = public, extensions;
+--   alter function public.record_mapping_fingerprint(text, text, text, uuid) set search_path = public, extensions;
+--   alter function public.ingest_retry(uuid) set search_path = public, extensions;
+--   alter function public.law_prepare_intent() set search_path = public;
+--   alter function public.protect_supplied_text() set search_path = public;
+--   alter function public.pq_answer_key(text) set search_path = pg_catalog;
+--   alter function public.pq_norm(text) set search_path = pg_catalog;
+--   alter function public.pq_date(text) set search_path = pg_catalog;
+--   alter role corpus_ingest reset all;
+--   alter role corpus_ingest connection limit -1;
 --   revoke usage on schema public from corpus_ingest;
 --   -- run 20261022230537_supplied_text_connection.sql's "create or replace function public.ingest_claim";
 --   -- run 20261028130000_pq_admission_links.sql's "create or replace function public.ingest_register_text_unmapped";
@@ -134,6 +153,33 @@ begin
 end;
 $$;
 grant usage on schema public to corpus_ingest;
+-- Limits for the runner's login, once the developer enables it (they apply at login):
+--   statement_timeout 60s and lock_timeout 5s, the per-session bounds of design 5.3, set here so a
+--     runner that forgets them cannot hold a law or answer lock for long;
+--   idle_in_transaction_session_timeout 30s, so a runner that dies inside a transaction releases
+--     its advisory and row locks;
+--   at most 4 connections: one registration call per collection (5.1), a status reader and a
+--     dry run beside it, and one spare for an operator.
+-- Setting them needs CREATEROLE and ADMIN OPTION on the role, which the migrating role has when it
+-- created the role (NTER: postgres). TEMP cannot be withheld from this role: it holds it through
+-- PUBLIC, and revoking it from PUBLIC would change every other role. pg_temp is therefore placed
+-- last on every function it can reach (below).
+alter role corpus_ingest connection limit 4;
+alter role corpus_ingest set statement_timeout = '60s';
+alter role corpus_ingest set lock_timeout = '5s';
+alter role corpus_ingest set idle_in_transaction_session_timeout = '30s';
+
+-- Functions defined before this migration that its functions reach, with their own search_path:
+-- pg_temp goes last, so a caller's temporary type or cast never resolves inside them. Bodies are
+-- unchanged (alter, not replace); the Down section sets each back to its previous value.
+alter function public.law_reconcile(jsonb) set search_path = public, extensions, pg_temp;
+alter function public.record_mapping_fingerprint(text, text, text, uuid) set search_path = public, extensions, pg_temp;
+alter function public.ingest_retry(uuid) set search_path = public, extensions, pg_temp;
+alter function public.law_prepare_intent() set search_path = public, pg_temp;
+alter function public.protect_supplied_text() set search_path = public, pg_temp;
+alter function public.pq_answer_key(text) set search_path = pg_catalog, pg_temp;
+alter function public.pq_norm(text) set search_path = pg_catalog, pg_temp;
+alter function public.pq_date(text) set search_path = pg_catalog, pg_temp;
 
 -- ---------------------------------------------------------------------------
 -- Tables.
@@ -233,6 +279,10 @@ create table public.ingest_batch_acceptance (
 alter table public.ingest_jobs add column batch_id uuid references public.ingest_batches(id);
 create index ingest_jobs_batch on public.ingest_jobs (batch_id, status) where batch_id is not null;
 
+-- The worker logs every embedding call with its job's batch_id (raw_usage), right after the provider
+-- answers. A claim killed before it reported still has its spend here, so the stop rules read it.
+create index model_call_logs_ingest_batch on public.model_call_logs ((raw_usage->>'batch_id')) where raw_usage ? 'batch_id';
+
 create index documents_content_sha256 on public.documents (content_sha256)
   where content_sha256 <> 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
@@ -253,7 +303,7 @@ grant select on table public.ingest_settings, public.ingest_collection_policies,
 
 -- Size, payload hash and JSON, in the order ingest_register_text_unmapped checked them.
 create function public.ingest_admit_parse(p jsonb) returns jsonb
-language plpgsql stable security definer set search_path = public, extensions as $$
+language plpgsql stable security definer set search_path = public, extensions, pg_temp as $$
 declare h text;
 begin
   if jsonb_typeof(p) is distinct from 'object' or octet_length(p->>'payload') > 4000000 then
@@ -271,7 +321,7 @@ end $$;
 
 -- The two admitted tiers, exactly as ingest_register_text_unmapped decided them (20261028130000).
 create function public.ingest_admit_tier(r jsonb) returns text
-language sql immutable security definer set search_path = public, extensions as $$
+language sql immutable security definer set search_path = public, extensions, pg_temp as $$
  select case
    when coalesce(r->>'source_key','') like 'law:%' and r->>'desk_tier' = 'law' then 'law'
    when coalesce(r->>'source_key','') ~ '^[0-9a-f]{40}$' and r->>'desk_tier' = 'national'
@@ -282,7 +332,7 @@ $$;
 
 -- The batch path's collection adapters (design 1). A collection without one is refused no_adapter.
 create function public.ingest_admit_adapter(r jsonb) returns text
-language sql immutable security definer set search_path = public, extensions as $$
+language sql immutable security definer set search_path = public, extensions, pg_temp as $$
  select case
    when r->>'desk_tier' = 'law' then 'law'
    when r->>'desk_tier' = 'national' and r->>'desk_feature' = 'Parliamentary Question Database' then 'lok_sabha_answers'
@@ -291,7 +341,7 @@ $$;
 
 -- The shape checks of ingest_register_text_unmapped, in its order, as reasons.
 create function public.ingest_admit_shape(r jsonb, expected jsonb) returns text
-language plpgsql immutable security definer set search_path = public, extensions as $$
+language plpgsql immutable security definer set search_path = public, extensions, pg_temp as $$
 begin
   if public.ingest_admit_tier(r) is null or length(coalesce(r->>'title','')) not between 1 and 300
     or length(coalesce(r->>'text','')) not between 1 and 600000
@@ -313,7 +363,7 @@ end $$;
 -- A new Law source: law_reconcile must not hold it, and the caller's fingerprint must be current.
 -- The caller holds the global law lock 724892 and has checked that the source is new.
 create function public.ingest_admit_law(r jsonb, p_fingerprint text) returns jsonb
-language plpgsql stable security definer set search_path = public, extensions as $$
+language plpgsql stable security definer set search_path = public, extensions, pg_temp as $$
 declare proposal jsonb;
 begin
   proposal := public.law_reconcile(jsonb_build_object('record', r));
@@ -328,7 +378,7 @@ end $$;
 
 -- The single-document path's message for each reason: the text it raised before, byte for byte.
 create function public.ingest_admit_message(p_reason text, p_detail jsonb) returns text
-language sql immutable security definer set search_path = public, extensions as $$
+language sql immutable security definer set search_path = public, extensions, pg_temp as $$
  select case p_reason
    when 'bad_payload' then 'supplied text: bad payload'
    when 'payload_hash_mismatch' then 'supplied text: payload hash mismatch'
@@ -347,7 +397,7 @@ language sql immutable security definer set search_path = public, extensions as 
    when 'answer_held' then 'supplied text: conflict: another document holds this answer'
    when 'no_desk_row' then 'supplied text: national question has no desk row for its file_url'
    when 'duplicate_text' then 'supplied text: conflict: another document holds this text'
-   when 'law_admission_held' then 'law listing: admission held ' || coalesce(p_detail::text, '')
+   when 'law_admission_held' then 'law listing: admission held ' || coalesce(p_detail::text, '<NULL>')  -- RAISE's rendering of null
    when 'stale_mapping' then 'law listing: stale mapping'
    else 'supplied text: refused: ' || coalesce(p_reason, 'unknown')
  end
@@ -357,7 +407,7 @@ $$;
 -- documents rows are held FOR SHARE. Question rows are locked only for answers of new sources.
 create function public.ingest_admit_lock(p_law boolean, p_sources text[], p_texts text[], p_answers text[], p_pq jsonb)
 returns text[]
-language plpgsql security definer set search_path = public, extensions as $$
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare k bigint; v_existing text[];
 begin
   if p_law then perform pg_advisory_xact_lock(724892); end if;
@@ -394,7 +444,7 @@ end $$;
 --       mapping_fingerprint?), r (the parsed payload), h (its hash), required_checks}
 --   o: {batch_id?, policy? (the batch's policy snapshot), law_check}
 create function public.ingest_admit_document(d jsonb, o jsonb) returns jsonb
-language plpgsql security definer set search_path = public, extensions as $$
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare
   p jsonb := d->'p'; r jsonb := d->'r'; h text := d->>'h'; expected jsonb := (d->'p')->'expected';
   pol jsonb := o->'policy'; v_batch uuid := (o->>'batch_id')::uuid;
@@ -552,7 +602,7 @@ end $$;
 -- The single-document path: the same core, the same messages.
 
 create or replace function public.ingest_register_text_unmapped(p jsonb) returns jsonb
-language plpgsql security definer set search_path = public, extensions as $$
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare v jsonb; r jsonb; reason text; res jsonb; national boolean;
 begin
   v := public.ingest_admit_parse(p);
@@ -578,7 +628,7 @@ end $$;
 revoke all on function public.ingest_register_text_unmapped(jsonb) from public,anon,authenticated,service_role;
 
 create or replace function public.ingest_register_text(p jsonb) returns jsonb
-language plpgsql security definer set search_path=public as $$
+language plpgsql security definer set search_path=public, pg_temp as $$
 declare r jsonb; v jsonb; result jsonb;
 begin
  r:=(p->>'payload')::jsonb;
@@ -600,7 +650,7 @@ end $$;
 -- Collection policy (service_role: the supervisor records the owner's approval).
 
 create function public.ingest_policy_approve(p jsonb) returns jsonb
-language plpgsql security definer set search_path = public, extensions as $$
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare
   v_admitted jsonb := p->'admitted'; v_classes text[]; v_stop jsonb := p->'stop_thresholds'; e jsonb; k text;
   v_adapters text[]; content jsonb; sha text;
@@ -678,14 +728,14 @@ end $$;
 -- The ledger.
 
 create function public.ingest_batch_manifest_sha256(p_batch uuid) returns text
-language sql stable security definer set search_path = public, extensions as $$
+language sql stable security definer set search_path = public, extensions, pg_temp as $$
  select encode(sha256(convert_to(coalesce(string_agg(i.source_key || E'\t' || i.payload_sha256 || E'\t' || i.content_sha256
    || E'\t' || i.chunks::text || E'\t' || i.est_tokens::text || E'\n', '' order by i.source_key collate "C"), ''), 'UTF8')), 'hex')
    from public.ingest_batch_items i where i.batch_id = p_batch
 $$;
 
 create function public.ingest_batch_open(p jsonb) returns jsonb
-language plpgsql security definer set search_path = public, extensions as $$
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare pol public.ingest_collection_policies%rowtype; b public.ingest_batches%rowtype; k text;
 begin
   if jsonb_typeof(p) is distinct from 'object' or coalesce(p->>'manifest_sha256','') !~ '^[a-f0-9]{64}$'
@@ -724,7 +774,7 @@ begin
 end $$;
 
 create function public.ingest_batch_add_items(p_batch uuid, p_items jsonb) returns jsonb
-language plpgsql security definer set search_path = public, extensions as $$
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare b public.ingest_batches%rowtype; e jsonb; old public.ingest_batch_items%rowtype; added int := 0; total int;
 begin
   select * into b from public.ingest_batches where id = p_batch for update;
@@ -760,7 +810,7 @@ begin
 end $$;
 
 create function public.ingest_batch_seal(p_batch uuid) returns jsonb
-language plpgsql security definer set search_path = public, extensions as $$
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare b public.ingest_batches%rowtype; pol public.ingest_collection_policies%rowtype;
   v_items int; v_chunks bigint; v_tokens bigint; v_sha text; v_dups jsonb; v_other_chunks bigint; v_other_cost numeric;
 begin
@@ -781,7 +831,8 @@ begin
   if v_dups is not null then
     return jsonb_build_object('batch_id',b.id,'state','open','refused','manifest_duplicate_text','detail',jsonb_build_object('content_sha256',v_dups));
   end if;
-  select * into pol from public.ingest_collection_policies where collection = b.collection;
+  -- The policy row is the collection's seal lock: a second seal waits here, then sees the first.
+  select * into pol from public.ingest_collection_policies where collection = b.collection for update;
   select coalesce(sum(chunks_planned),0), coalesce(sum(est_cost_usd),0) into v_other_chunks, v_other_cost
     from public.ingest_batches where collection = b.collection and id <> b.id and state <> 'open';
   if not pol.active or v_other_chunks + b.chunks_planned > pol.chunk_ceiling or v_other_cost + b.est_cost_usd > pol.budget_usd then
@@ -796,7 +847,7 @@ end $$;
 -- Stops a batch with a reason; the first reason is kept. With p_skip_locked the row is skipped when
 -- another transaction holds it (the claim must not wait behind a registration call).
 create function public.ingest_batch_mark_stopped(p_batch uuid, p_reason text, p_skip_locked boolean) returns boolean
-language plpgsql security definer set search_path = public, extensions as $$
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare b public.ingest_batches%rowtype;
 begin
   if p_skip_locked then
@@ -814,21 +865,29 @@ end $$;
 -- Why a batch's jobs may not be claimed, or null. Spend is summed from the jobs (model_call_logs
 -- keeps the exact totals); thresholds come from the batch's policy snapshot.
 create function public.ingest_batch_block_reason(p_batch uuid) returns text
-language plpgsql stable security definer set search_path = public, extensions as $$
-declare b public.ingest_batches%rowtype; v_spend numeric; v_budget numeric; v_failed bigint; v_done bigint; st jsonb;
+language plpgsql stable security definer set search_path = public, extensions, pg_temp as $$
+declare b public.ingest_batches%rowtype; v_spend numeric; v_budget numeric; v_failed bigint; v_done bigint; v_uncertain bigint; st jsonb;
 begin
   select * into b from public.ingest_batches where id = p_batch;
   if not found then return 'stopped'; end if;
   if b.state = 'stopped' then return 'stopped'; end if;
-  select coalesce(sum(embed_cost_usd),0), count(*) filter (where status='failed'), count(*) filter (where status in ('failed','succeeded'))
-    into v_spend, v_failed, v_done from public.ingest_jobs where batch_id = p_batch;
+  select coalesce(sum(embed_cost_usd),0), count(*) filter (where status='failed'), count(*) filter (where status in ('failed','succeeded')),
+         count(*) filter (where status='failed' and error_code='text_outcome_uncertain')
+    into v_spend, v_failed, v_done, v_uncertain from public.ingest_jobs where batch_id = p_batch;
+  -- What the jobs reported, or what model_call_logs holds when more (a killed claim reports nothing).
+  v_spend := greatest(v_spend, (select coalesce(sum(m.cost_usd),0) from public.model_call_logs m
+                                 where m.raw_usage ? 'batch_id' and m.raw_usage->>'batch_id' = p_batch::text));
   if v_spend >= b.est_cost_usd then return 'spend_ceiling'; end if;
   select budget_usd into v_budget from public.ingest_collection_policies where collection = b.collection;
-  if (select coalesce(sum(j.embed_cost_usd),0) from public.ingest_jobs j join public.ingest_batches x on x.id = j.batch_id
-       where x.collection = b.collection) >= v_budget then
+  if greatest((select coalesce(sum(j.embed_cost_usd),0) from public.ingest_jobs j join public.ingest_batches x on x.id = j.batch_id
+                where x.collection = b.collection),
+              (select coalesce(sum(m.cost_usd),0) from public.model_call_logs m
+                where m.raw_usage ? 'batch_id' and m.raw_usage->>'batch_id' in (select x.id::text from public.ingest_batches x where x.collection = b.collection)))
+     >= v_budget then
     return 'collection_spend_ceiling';
   end if;
   st := b.policy->'stop_thresholds';
+  if v_uncertain > (st->>'uncertain_max')::numeric then return 'uncertain_count'; end if;
   if v_done >= (st->>'min_decided')::numeric and v_failed::numeric / v_done > (st->>'failure_rate')::numeric then
     return 'failure_rate';
   end if;
@@ -838,7 +897,7 @@ end $$;
 create function public.ingest_register_batch(p_batch uuid, p_documents jsonb,
                                              p_dry_run boolean default false,
                                              p_all_or_nothing boolean default false) returns jsonb
-language plpgsql security definer set search_path = public, extensions as $$
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare
   b public.ingest_batches%rowtype; pol jsonb; item public.ingest_batch_items%rowtype;
   dry boolean := coalesce(p_dry_run, false); aon boolean := coalesce(p_all_or_nothing, false);
@@ -1009,19 +1068,21 @@ begin
 end $$;
 
 create function public.ingest_batch_status(p_batch uuid, p_source_keys text[] default null) returns jsonb
-language plpgsql security definer set search_path = public, extensions as $$
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare b public.ingest_batches%rowtype; v_next text; v_jobs record; v_items jsonb; counts jsonb; by_reason jsonb; jobs jsonb; acc jsonb;
 begin
   if coalesce(cardinality(p_source_keys),0) > 1000 then raise exception 'ingest_batch_status: at most 1000 source keys'; end if;
   select * into b from public.ingest_batches where id = p_batch;
   if not found then raise exception 'ingest_batch_status: batch % does not exist', p_batch; end if;
-  -- Forward moves only, derived from the jobs of the decided items.
+  -- Forward moves only, derived from the jobs this batch admitted. An existing item's job belongs to
+  -- whoever registered it (another batch, or a document registered alone): it is reported in the
+  -- items and counts, and may be requeued here, but it never holds the batch back.
   if b.state in ('registered','indexing') then
     select count(*) total, count(*) filter (where j.status = 'succeeded') ok,
            count(*) filter (where j.status <> 'queued' or j.attempts > 0) started
       into v_jobs
       from public.ingest_batch_items i join public.ingest_jobs j on j.id = i.job_id
-     where i.batch_id = b.id and i.outcome in ('admitted','existing');
+     where i.batch_id = b.id and i.outcome = 'admitted';
     v_next := case when v_jobs.ok = v_jobs.total then 'indexed'
                    when b.state = 'registered' and v_jobs.started > 0 then 'indexing' end;
     if v_next is not null then
@@ -1040,6 +1101,8 @@ begin
     'uncertain',count(*) filter (where status='failed' and error_code='text_outcome_uncertain'),
     'spend_usd',coalesce(sum(embed_cost_usd),0),'tokens',coalesce(sum(embed_tokens),0)) into jobs
     from public.ingest_jobs where batch_id = b.id;
+  jobs := jobs || jsonb_build_object('logged_spend_usd',(select coalesce(sum(m.cost_usd),0) from public.model_call_logs m
+                                       where m.raw_usage ? 'batch_id' and m.raw_usage->>'batch_id' = b.id::text));
   select coalesce(jsonb_agg(jsonb_build_object('check',check_name,'passed',passed,'sample',sample,'recorded_at',recorded_at) order by check_name),'[]')
     into acc from public.ingest_batch_acceptance where batch_id = b.id;
   if p_source_keys is not null then
@@ -1055,14 +1118,16 @@ begin
   return jsonb_build_object('batch_id',b.id,'collection',b.collection,'state',b.state,'stop_reason',b.stop_reason,
     'manifest_sha256',b.manifest_sha256,'policy_sha256',b.policy_sha256,
     'planned',jsonb_build_object('items',b.items_planned,'chunks',b.chunks_planned,'est_tokens',b.est_tokens,'est_cost_usd',b.est_cost_usd),
-    'counts',counts || jsonb_build_object('by_reason',by_reason),'jobs',jobs,
+    'counts',counts || jsonb_build_object('by_reason',by_reason,
+      'existing_not_indexed',(select count(*) from public.ingest_batch_items i join public.documents d on d.id = i.document_id
+                               where i.batch_id = b.id and i.outcome = 'existing' and d.indexed_at is null)),'jobs',jobs,
     'indexed',(select count(*) from public.ingest_batch_items i join public.documents d on d.id = i.document_id
                 where i.batch_id = b.id and i.outcome in ('admitted','existing') and d.indexed_at is not null),
     'acceptance',acc,'items',v_items);
 end $$;
 
 create function public.ingest_batch_stop(p_batch uuid, p_reason text) returns jsonb
-language plpgsql security definer set search_path = public, extensions as $$
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare b public.ingest_batches%rowtype;
 begin
   if coalesce(p_reason,'') !~ '^[a-z][a-z0-9_:.-]{0,99}$' then
@@ -1079,7 +1144,7 @@ begin
 end $$;
 
 create function public.ingest_batch_requeue(p_batch uuid, p_job_ids uuid[]) returns jsonb
-language plpgsql security definer set search_path = public, extensions as $$
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare b public.ingest_batches%rowtype; j public.ingest_jobs%rowtype; item public.ingest_batch_items%rowtype;
   v_id uuid; results jsonb := '[]'; v_uncertain bigint; v_max numeric; v_stop text;
 begin
@@ -1091,8 +1156,13 @@ begin
     if b.state = 'stopped' or v_stop is not null then
       results := results || jsonb_build_array(jsonb_build_object('job_id',v_id,'outcome','refused','reason','batch_stopped')); continue;
     end if;
-    select * into j from public.ingest_jobs where id = v_id and batch_id = p_batch for update;
-    if not found then
+    -- This batch's job, or the job without a batch of one of its existing items (registered alone,
+    -- say). Another batch's job is that batch's to requeue.
+    select * into j from public.ingest_jobs where id = v_id for update;
+    if found and j.batch_id is not null and j.batch_id <> p_batch then
+      results := results || jsonb_build_array(jsonb_build_object('job_id',v_id,'outcome','refused','reason','other_batch')); continue;
+    end if;
+    if not found or (j.batch_id is null and not exists(select 1 from public.ingest_batch_items i where i.batch_id = p_batch and i.job_id = v_id)) then
       results := results || jsonb_build_array(jsonb_build_object('job_id',v_id,'outcome','refused','reason','not_in_batch')); continue;
     end if;
     if j.status <> 'failed' then
@@ -1120,7 +1190,7 @@ begin
 end $$;
 
 create function public.ingest_batch_resume(p_batch uuid, p jsonb) returns jsonb
-language plpgsql security definer set search_path = public, extensions as $$
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare b public.ingest_batches%rowtype; v_cost numeric;
 begin
   if jsonb_typeof(p) is distinct from 'object' or length(coalesce(p->>'decision_id','')) not between 1 and 200
@@ -1145,7 +1215,7 @@ end $$;
 -- Live holders of the given texts: hashes, keys and ids only, never text.
 create function public.ingest_text_holders(p_hashes text[])
 returns table(content_sha256 text, source_key text, document_id uuid)
-language plpgsql stable security definer set search_path = public, extensions as $$
+language plpgsql stable security definer set search_path = public, extensions, pg_temp as $$
 begin
   if coalesce(cardinality(p_hashes),0) > 10000 then raise exception 'ingest_text_holders: at most 10000 hashes'; end if;
   return query
@@ -1162,7 +1232,7 @@ create or replace function public.ingest_claim(p_limit int, p_lease interval)
 returns setof public.ingest_jobs
 language plpgsql
 security definer
-set search_path = public, extensions
+set search_path = public, extensions, pg_temp
 as $$
 declare
   -- Serialises every claim, so the cap can't be exceeded by two claims racing.
@@ -1229,17 +1299,29 @@ begin
     return;
   end if;
 
-  -- The first due job in the usual order decides the group: its batch, or no batch.
+  -- A due job without a batch goes first (a client cohort or an admin upload: few, and someone is
+  -- waiting for it), whatever a bulk batch has queued before it, and it is claimed alone, as before.
+  -- Only when none is due does the first due job of an unblocked batch decide the batch claimed.
   select j.* into v_first
     from public.ingest_jobs j
    where ((j.status = 'queued' and j.next_attempt_at <= now())
           or (j.status = 'running' and j.lease_until <= now()))
-     and (j.batch_id is null or not (j.batch_id = any(v_blocked)))
+     and j.batch_id is null
    order by case when j.status = 'running' then j.lease_until else j.next_attempt_at end, j.created_at, j.id
    limit 1
    for update skip locked;
   if not found then
-    return;
+    select j.* into v_first
+      from public.ingest_jobs j
+     where ((j.status = 'queued' and j.next_attempt_at <= now())
+            or (j.status = 'running' and j.lease_until <= now()))
+       and j.batch_id is not null and not (j.batch_id = any(v_blocked))
+     order by case when j.status = 'running' then j.lease_until else j.next_attempt_at end, j.created_at, j.id
+     limit 1
+     for update skip locked;
+    if not found then
+      return;
+    end if;
   end if;
 
   return query
@@ -1251,7 +1333,7 @@ begin
          and j.batch_id is not distinct from v_first.batch_id
          and (j.batch_id is null or (j.input_kind = 'supplied_text' and j.stage = 'index'))
        order by case when j.status = 'running' then j.lease_until else j.next_attempt_at end, j.created_at, j.id
-       limit case when v_first.batch_id is null then least(p_limit, v_free) else least(p_limit, v_free, v_k) end
+       limit case when v_first.batch_id is null then 1 else least(p_limit, v_free, v_k) end
        for update skip locked
     ), claimed as (
       update public.ingest_jobs j

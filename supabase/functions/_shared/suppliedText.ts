@@ -36,7 +36,13 @@ export function canonical(v: unknown): string {
   }
   return JSON.stringify(v);
 }
-export async function prepareSuppliedText(value: unknown) {
+/**
+ * `batch`: the record is for ingest_register_batch (the bulk runner). Only then is servable carried
+ * (false only; a non-boolean is refused), so the database can refuse it as not_servable. The
+ * single-document path (admin-ingest, and the worker re-planning a stored payload) drops it, as it
+ * always did, so its payloads stay byte-identical.
+ */
+export async function prepareSuppliedText(value: unknown, options: { batch?: boolean } = {}) {
   const r = object(value, 'record');
   if (r.adapter_version !== undefined && r.adapter_version !== SUPPLIED_TEXT.version) throw new Error('unsupported adapter version');
   const source_key = string(r.source_key, 'source_key');
@@ -148,10 +154,10 @@ export async function prepareSuppliedText(value: unknown) {
     sections: r.sections ?? [],
   };
   for (const k of ['n_chars', 'n_pages', 'page_count', 'page_split', 'text_quality']) if (r[k] != null) input[k] = r[k];
-  // servable (pack records): only `false` is carried, so the database can refuse it (not_servable,
-  // ingest_register_batch) and every other payload stays byte-identical to what it was before.
-  if (r.servable !== undefined && r.servable !== null && typeof r.servable !== 'boolean') throw new Error('invalid servable');
-  if (r.servable === false) input.servable = false;
+  if (options.batch) {
+    if (r.servable !== undefined && r.servable !== null && typeof r.servable !== 'boolean') throw new Error('invalid servable');
+    if (r.servable === false) input.servable = false;
+  }
   if (review.file_sha256 !== undefined) {
     if (!SHA.test(String(review.file_sha256))) throw new Error('review file hash required');
     (input.review as Record<string, unknown>).file_sha256 = review.file_sha256;

@@ -119,6 +119,12 @@ select pg_temp.ok(not has_function_privilege('service_role','public.ingest_regis
   and has_function_privilege('service_role','public.ingest_register_text(jsonb)','execute')
   and not has_function_privilege('authenticated','public.ingest_register_text(jsonb)','execute'), 'grants unchanged');
 
+-- servable is a batch-path gate only: the single-document path admits a payload that carries
+-- servable false, as it always did (admin-ingest's prepareSuppliedText drops the field anyway).
+create temp table unservable as select pg_temp.law('law:trib:IBBI_NCLT:unservable','https://ibbi.gov.in/uploads/order/unservable.pdf','{"servable":false}') q;
+select pg_temp.ok((select (public.ingest_register_text(q || jsonb_build_object('mapping_fingerprint',pg_temp.fp(q)))->>'existing')::boolean = false from unservable),
+  'the single path admits servable false, as before');
+
 -- ═══ New (design 11, Q3): one text, one document ═════════════════════════════
 
 create temp table copy as select pg_temp.law('law:trib:IBBI_NCLT:copy','https://ibbi.gov.in/uploads/order/copy.pdf','{}','A written answer.') q;
