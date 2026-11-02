@@ -47,9 +47,12 @@
 -- lock_timeout and retried (as the partition migration's swap does): a search waits at most about
 -- half a second. Nothing else here takes a lock on a table.
 --
--- Independent of the partitioning, and ordered before it, so it can ship to production on its own
--- and speeds up today's unpartitioned search too. 20261101120000 checks only document_chunks'
--- policies, which this file does not change.
+-- Ordered before the partitioning; 20261101120000 checks only document_chunks' policies, which this
+-- file does not change. Ship the two together, this one first, never this one alone: on the
+-- unpartitioned table the new policy changes the plan of match_documents' feature-size count
+-- (select count(*) ... limit 15001, which joins documents) and makes feature search slower
+-- (rehearsal 2026-11-02: NCLT 1.8 -> 4.4 s, Bills 0.20 -> 2.1 s), while with the partitions that
+-- count reads the chunk's own desk_feature and is fast (NCLT 0.28 s, Bills 0.20 s).
 --
 -- Rollback:
 --   begin;

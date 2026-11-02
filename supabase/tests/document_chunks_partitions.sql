@@ -102,8 +102,10 @@ select pg_temp.ok(pg_get_partkeydef('public.document_chunks'::regclass) = 'LIST 
 select pg_temp.ok((select array_agg(c.relname || ' ' || pg_get_expr(c.relpartbound, c.oid) order by c.relname)
                      from pg_inherits i join pg_class c on c.oid = i.inhrelid
                     where i.inhparent = 'public.document_chunks'::regclass)
-  = array['document_chunks_default DEFAULT', 'document_chunks_nclt FOR VALUES IN (''NCLT / NCLAT (Insolvency)'')'],
-  'two partitions: NCLT and default');
+  = array['document_chunks_bills FOR VALUES IN (''Bill Passage Probability Index'')', 'document_chunks_default DEFAULT',
+          'document_chunks_nclt FOR VALUES IN (''NCLT / NCLAT (Insolvency)'')',
+          'document_chunks_regulatory FOR VALUES IN (''Regulatory Body Watch (RBI SEBI TRAI CCI)'')'],
+  'four partitions: NCLT, Bills, Regulatory and default');
 select pg_temp.ok((select relkind from pg_class where oid = to_regclass('public.document_chunks_unpartitioned')) = 'r',
   'the old table is kept, renamed');
 
@@ -140,19 +142,23 @@ create temp table idx as
   select t.relname::text as tab, c.relname::text as name, regexp_replace(pg_get_indexdef(c.oid), '^.* USING ', 'USING ') as def,
          c.reloptions, i.indisvalid, (select p.relname::text from pg_inherits h join pg_class p on p.oid = h.inhparent where h.inhrelid = c.oid) as parent
     from pg_index i join pg_class c on c.oid = i.indexrelid join pg_class t on t.oid = i.indrelid
-   where t.relname in ('document_chunks', 'document_chunks_nclt', 'document_chunks_default', 'document_chunks_unpartitioned')
+   where t.relname in ('document_chunks', 'document_chunks_nclt', 'document_chunks_bills', 'document_chunks_regulatory', 'document_chunks_default', 'document_chunks_unpartitioned')
      and t.relnamespace = 'public'::regnamespace;
 select pg_temp.ok((select count(*) from idx h, idx o
-                    where o.name = 'document_chunks_unpartitioned_embedding_halfvec_hnsw' and h.tab in ('document_chunks_nclt', 'document_chunks_default')
+                    where o.name = 'document_chunks_unpartitioned_embedding_halfvec_hnsw' and h.tab in ('document_chunks_nclt', 'document_chunks_bills', 'document_chunks_regulatory', 'document_chunks_default')
                       and h.name = h.tab || '_embedding_halfvec_hnsw' and h.def = o.def and h.reloptions is not distinct from o.reloptions
-                      and h.indisvalid and h.parent = 'document_chunks_embedding_halfvec_hnsw') = 2,
+                      and h.indisvalid and h.parent = 'document_chunks_embedding_halfvec_hnsw') = 4,
   'each partition has the old HNSW definition (halfvec cosine, default parameters), attached to the parent index');
 select pg_temp.ok((select def from idx where name = 'document_chunks_embedding_halfvec_hnsw')
   = (select def from idx where name = 'document_chunks_unpartitioned_embedding_halfvec_hnsw'), 'the parent HNSW index keeps the old name and definition');
-select pg_temp.ok((select count(*) from idx where tab in ('document_chunks_nclt', 'document_chunks_default') and def = 'USING btree (document_id, chunk_index)'
-                      and parent = 'document_chunks_document_order') = 2
+select pg_temp.ok((select count(*) from idx where tab in ('document_chunks_nclt', 'document_chunks_bills', 'document_chunks_regulatory', 'document_chunks_default') and def = 'USING btree (document_id, chunk_index)'
+                      and parent = 'document_chunks_document_order') = 4
   and (select def from idx where name = 'document_chunks_document_order') = 'USING btree (document_id, chunk_index)',
   'document_order index on each partition, under the old name');
+select pg_temp.ok((select bool_and(n = 4) and count(*) = 7 from (select parent, count(*) as n from idx where tab in ('document_chunks_nclt', 'document_chunks_bills', 'document_chunks_regulatory', 'document_chunks_default') group by parent) x)
+  and (select count(*) from idx where tab = 'document_chunks') = 7
+  and (select count(*) from idx where tab in ('document_chunks_nclt', 'document_chunks_bills', 'document_chunks_regulatory', 'document_chunks_default') and parent is null) = 0,
+  'every partition has the same local indexes: one child of each of the parent''s seven (two keys, document order, three facet indexes, HNSW)');
 select pg_temp.ok((select array_agg(name || ' ' || def order by name) from idx where tab = 'document_chunks' and name like 'document_chunks_feature_%')
   = array['document_chunks_feature_date USING btree (desk_feature, doc_date)', 'document_chunks_feature_language USING btree (desk_feature, language)',
           'document_chunks_feature_tier USING btree (desk_feature, desk_tier)'],
@@ -164,10 +170,11 @@ select pg_temp.ok((select array_agg(name order by name) from idx where tab = 'do
 
 select pg_temp.ok((select array_agg(c.relname::text || ':' || t.tgname || ':' || t.tgtype order by c.relname)
                      from pg_trigger t join pg_class c on c.oid = t.tgrelid
-                    where not t.tgisinternal and c.relname in ('document_chunks', 'document_chunks_nclt', 'document_chunks_default', 'document_chunks_unpartitioned'))
-  = array['document_chunks:document_chunks_fill_facets:23', 'document_chunks_default:document_chunks_fill_facets:23',
-          'document_chunks_nclt:document_chunks_fill_facets:23'],
-  'the facet trigger (BEFORE INSERT OR UPDATE, row) on the parent and both partitions; none on the old table');
+                    where not t.tgisinternal and c.relname in ('document_chunks', 'document_chunks_nclt', 'document_chunks_bills', 'document_chunks_regulatory', 'document_chunks_default', 'document_chunks_unpartitioned'))
+  = array['document_chunks:document_chunks_fill_facets:23', 'document_chunks_bills:document_chunks_fill_facets:23',
+          'document_chunks_default:document_chunks_fill_facets:23', 'document_chunks_nclt:document_chunks_fill_facets:23',
+          'document_chunks_regulatory:document_chunks_fill_facets:23'],
+  'the facet trigger (BEFORE INSERT OR UPDATE, row) on the parent and every partition; none on the old table');
 select pg_temp.ok((select array_agg(tgname::text order by tgname) from pg_trigger where tgrelid = 'public.documents'::regclass and not tgisinternal)
   = array['documents_chunk_facets', 'documents_updated_at', 'law_indexed_publication', 'protect_supplied_text'],
   'documents keeps its three triggers and gains the facet sync');
@@ -176,27 +183,29 @@ select pg_temp.ok((select pg_get_triggerdef(oid) from pg_trigger where tgname = 
   'the sync fires after updates of desk_feature, desk_tier or metadata');
 
 select pg_temp.ok((select bool_and(relrowsecurity and not relforcerowsecurity) from pg_class
-                    where oid in ('public.document_chunks'::regclass, 'public.document_chunks_nclt'::regclass,
-                                  'public.document_chunks_default'::regclass, 'public.document_chunks_unpartitioned'::regclass)),
-  'RLS on the parent, both partitions and the old table');
+                    where oid in ('public.document_chunks'::regclass, 'public.document_chunks_nclt'::regclass, 'public.document_chunks_bills'::regclass,
+                                  'public.document_chunks_regulatory'::regclass, 'public.document_chunks_default'::regclass,
+                                  'public.document_chunks_unpartitioned'::regclass)),
+  'RLS on the parent, every partition and the old table');
 create temp table pols as
   select polrelid::regclass::text as tab, polname::text, polpermissive, polcmd,
          (select array_agg(rolname::text order by rolname) from pg_roles where oid = any (polroles)) as roles,
          replace(pg_get_expr(polqual, polrelid), 'document_chunks_unpartitioned.', 'document_chunks.') as qual
     from pg_policy where polrelid in ('public.document_chunks'::regclass, 'public.document_chunks_unpartitioned'::regclass,
-                                      'public.document_chunks_nclt'::regclass, 'public.document_chunks_default'::regclass);
+                                  'public.document_chunks_nclt'::regclass, 'public.document_chunks_bills'::regclass,
+                                  'public.document_chunks_regulatory'::regclass, 'public.document_chunks_default'::regclass);
 select pg_temp.ok((select array_agg(row(polname, polpermissive, polcmd, roles, qual)::text order by polname) from pols where tab = 'document_chunks')
   = (select array_agg(row(polname, polpermissive, polcmd, roles, qual)::text order by polname) from pols where tab = 'document_chunks_unpartitioned')
   and (select count(*) from pols where tab = 'document_chunks') = 2,
   'the parent has the old two policies: document_chunks_read (permissive) and law_chunks_serving (restrictive)');
-select pg_temp.ok(not exists (select 1 from pols where tab in ('document_chunks_nclt', 'document_chunks_default')), 'no policy on a partition');
+select pg_temp.ok(not exists (select 1 from pols where tab in ('document_chunks_nclt', 'document_chunks_bills', 'document_chunks_regulatory', 'document_chunks_default')), 'no policy on any partition');
 
 create temp table expected_grants(role text, rel text, privs text);
 insert into expected_grants values
   ('anon', 'document_chunks', ''), ('authenticated', 'document_chunks', 'SELECT'),
   ('service_role', 'document_chunks', 'SELECT,INSERT,UPDATE,DELETE');
 insert into expected_grants select r, t, '' from unnest(array['anon', 'authenticated', 'service_role']) r,
-  unnest(array['document_chunks_nclt', 'document_chunks_default', 'document_chunks_unpartitioned']) t;
+  unnest(array['document_chunks_nclt', 'document_chunks_bills', 'document_chunks_regulatory', 'document_chunks_default', 'document_chunks_unpartitioned']) t;
 create function pg_temp.privs(r text, t text) returns text language sql as $$
   select coalesce(string_agg(p, ',' order by o), '')
     from unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN']) with ordinality x(p, o)
@@ -207,8 +216,9 @@ select pg_temp.ok((select bool_and(pg_temp.privs(role, rel) = privs) from expect
 select pg_temp.ok(not exists (select 1 from expected_grants where privs = '' and has_any_column_privilege(role, 'public.' || rel, 'SELECT,INSERT,UPDATE,REFERENCES')),
   'no column privilege on a partition or the old table either');
 select pg_temp.ok(not exists (select 1 from pg_class c, aclexplode(c.relacl) a where a.grantee = 0
-                                and c.oid in ('public.document_chunks'::regclass, 'public.document_chunks_nclt'::regclass,
-                                              'public.document_chunks_default'::regclass, 'public.document_chunks_unpartitioned'::regclass)),
+                                and c.oid in ('public.document_chunks'::regclass, 'public.document_chunks_nclt'::regclass, 'public.document_chunks_bills'::regclass,
+                                  'public.document_chunks_regulatory'::regclass, 'public.document_chunks_default'::regclass,
+                                              'public.document_chunks_unpartitioned'::regclass)),
   'nothing granted to PUBLIC');
 
 create temp table fns(sig text, secdef boolean, vol "char", config text, anon boolean, authn boolean, service boolean);
@@ -250,7 +260,7 @@ select chunk_commit('c0000000-0000-4000-8000-00000000000b', jsonb_agg(jsonb_buil
        array['rb-b1', 'rb-b2']) from generate_series(1, 2) i;
 reset role;
 select pg_temp.ok((select array_agg(tableoid::regclass::text order by chunk_hash) from document_chunks where chunk_hash like 'rb-%')
-  = array['document_chunks_default', 'document_chunks_default', 'document_chunks_default', 'document_chunks_nclt', 'document_chunks_nclt'],
+  = array['document_chunks_bills', 'document_chunks_bills', 'document_chunks_bills', 'document_chunks_nclt', 'document_chunks_nclt'],
   'chunk_commit after the swap routes by the document''s feature');
 -- What the old table may hold by then: a row deleted since the swap and a row changed since.
 insert into document_chunks_unpartitioned (document_id, chunk_hash, chunk_index, char_from, char_to, content, chunker_version)
@@ -386,8 +396,10 @@ select pg_temp.ok(not exists (
         or extensions.vector_send(o.embedding) is distinct from extensions.vector_send(n.embedding)),
   'copy: every row equal to its original, column by column, ids kept');
 select pg_temp.ok((select count(*) from document_chunks_nclt) = 15050 + 20 + 2
-  and (select count(*) from document_chunks_default) = (select n from before_copy) - 15072,
-  'copy: NCLT chunks in the NCLT partition, everything else in the default partition');
+  and (select count(*) from document_chunks_bills) = 30 + 30 + 10 + 5 + 3
+  and (select count(*) from document_chunks_regulatory) = 40
+  and (select count(*) from document_chunks_default) = (select n from before_copy) - 15072 - 78 - 40,
+  'copy: NCLT, Bills and Regulatory chunks in their partitions, everything else in the default partition');
 
 -- ===========================================================================================
 -- Part 3. Behaviour.
@@ -395,10 +407,13 @@ select pg_temp.ok((select count(*) from document_chunks_nclt) = 15050 + 20 + 2
 -- Routing and facets.
 select pg_temp.ok(not exists (
     select 1 from document_chunks c join documents d on d.id = c.document_id
-     where c.tableoid <> case when d.desk_feature = 'NCLT / NCLAT (Insolvency)' then 'document_chunks_nclt'::regclass else 'document_chunks_default'::regclass end
+     where c.tableoid <> case d.desk_feature when 'NCLT / NCLAT (Insolvency)' then 'document_chunks_nclt'::regclass
+                                             when 'Bill Passage Probability Index' then 'document_chunks_bills'::regclass
+                                             when 'Regulatory Body Watch (RBI SEBI TRAI CCI)' then 'document_chunks_regulatory'::regclass
+                                             else 'document_chunks_default'::regclass end
         or (c.desk_feature, c.desk_tier, c.doc_date, c.language)
            is distinct from (d.desk_feature, d.desk_tier, document_date_facet(d.desk_feature, d.metadata), d.metadata->>'language')),
-  'every chunk is in its feature''s partition (null feature: default) and its facets equal its document''s');
+  'every chunk is in its feature''s partition (any other or a null feature: default) and its facets equal its document''s');
 select pg_temp.ok((select array_agg(f order by f) from (select distinct d.source_key || '=' || coalesce(c.doc_date::text, 'null') || '/' || coalesce(c.language, 'null') as f
                      from document_chunks c join documents d on d.id = c.document_id
                     where d.source_key in ('pt-nclt-1', 'pt-nclt-2', 'pt-bill-1', 'pt-bill-2', 'pt-pq-1', 'pt-pq-2', 'pt-pq-3', 'pt-reg-1', 'pt-nofeature')) x)
@@ -534,25 +549,29 @@ create function pg_temp.sync_state() returns text language sql as $$
     from document_chunks where document_id = 'c8000000-0000-4000-8000-000000000001'
 $$;
 create temp table sync_rows as select ctid::text as t, xmin::text as x from document_chunks where document_id = 'c8000000-0000-4000-8000-000000000001';
-select pg_temp.ok(pg_temp.sync_state() = 'document_chunks_default|Bill Passage Probability Index|national|2021-03-04|en x3', 'sync: start');
+select pg_temp.ok(pg_temp.sync_state() = 'document_chunks_bills|Bill Passage Probability Index|national|2021-03-04|en x3', 'sync: start in the Bills partition');
 update documents set title = 'Sync, renamed', metadata = metadata where id = 'c8000000-0000-4000-8000-000000000001';
 select pg_temp.ok((select array_agg(row(ctid::text, xmin::text)::text order by ctid::text) from document_chunks where document_id = 'c8000000-0000-4000-8000-000000000001')
   = (select array_agg(row(t, x)::text order by t) from sync_rows), 'sync: an update that changes no facet leaves the chunks untouched');
 update documents set metadata = '{"citation": {"introduced_on": "2020-12-31"}, "language": "fr"}' where id = 'c8000000-0000-4000-8000-000000000001';
-select pg_temp.ok(pg_temp.sync_state() = 'document_chunks_default|Bill Passage Probability Index|national|2020-12-31|fr x3', 'sync: metadata change updates doc_date and language');
+select pg_temp.ok(pg_temp.sync_state() = 'document_chunks_bills|Bill Passage Probability Index|national|2020-12-31|fr x3', 'sync: metadata change updates doc_date and language');
 update documents set desk_tier = 'law', desk_feature = 'NCLT / NCLAT (Insolvency)', metadata = '{"citation": {"order_date": "2019-09-09"}}'
  where id = 'c8000000-0000-4000-8000-000000000001';
-select pg_temp.ok(pg_temp.sync_state() = 'document_chunks_nclt|NCLT / NCLAT (Insolvency)|law|2019-09-09|null x3', 'sync: a feature change moves the chunks to the NCLT partition');
+select pg_temp.ok(pg_temp.sync_state() = 'document_chunks_nclt|NCLT / NCLAT (Insolvency)|law|2019-09-09|null x3', 'sync: a feature change moves the chunks from the Bills partition to the NCLT partition');
 set local role service_role;
 select chunk_commit('c8000000-0000-4000-8000-000000000001',
   jsonb_build_array(pg_temp.row('s1', 'a', 70), pg_temp.row('s2', 'b', 71), pg_temp.row('s3', 'c', 72), pg_temp.row('s4', 'd', 73)), array['s1', 's2', 's3', 's4']);
 reset role;
 select pg_temp.ok(pg_temp.sync_state() = 'document_chunks_nclt|NCLT / NCLAT (Insolvency)|law|2019-09-09|null x4', 'sync: chunk_commit after the move writes the new feature');
 update documents set desk_tier = null, desk_feature = null where id = 'c8000000-0000-4000-8000-000000000001';
-select pg_temp.ok(pg_temp.sync_state() = 'document_chunks_default|null|null|null|null x4', 'sync: a null feature moves the chunks to the default partition');
+select pg_temp.ok(pg_temp.sync_state() = 'document_chunks_default|null|null|null|null x4', 'sync: a null feature moves the chunks from a named partition into the default partition');
 update documents set desk_tier = 'national', desk_feature = 'Parliamentary Question Database', metadata = '{"citation": {"answered_on": "05.08.2024"}}'
  where id = 'c8000000-0000-4000-8000-000000000001';
-select pg_temp.ok(pg_temp.sync_state() = 'document_chunks_default|Parliamentary Question Database|national|2024-08-05|null x4', 'sync: back to a default-partition feature, date parsed');
+select pg_temp.ok(pg_temp.sync_state() = 'document_chunks_default|Parliamentary Question Database|national|2024-08-05|null x4', 'sync: a default-partition feature keeps them in the default partition, date parsed');
+update documents set desk_feature = 'Regulatory Body Watch (RBI SEBI TRAI CCI)', metadata = '{"language": "en"}'
+ where id = 'c8000000-0000-4000-8000-000000000001';
+select pg_temp.ok(pg_temp.sync_state() = 'document_chunks_regulatory|Regulatory Body Watch (RBI SEBI TRAI CCI)|national|null|en x4',
+  'sync: a named feature moves them out of the default partition into the Regulatory partition');
 delete from documents where id = 'c8000000-0000-4000-8000-000000000001';
 select pg_temp.ok(not exists (select 1 from document_chunks where document_id = 'c8000000-0000-4000-8000-000000000001'), 'deleting a document still cascades to its chunks');
 
@@ -567,6 +586,8 @@ select pg_temp.ok((select count(*) from document_chunks where document_id = 'c20
   'authenticated: the restrictive law policy hides the unpublished order''s chunks through the parent');
 select pg_temp.ok((select count(*) from document_chunks) = (select n - 20 from totals), 'authenticated: every other chunk is read through the parent');
 select pg_temp.fails('select count(*) from document_chunks_nclt', '42501', 'authenticated cannot read the NCLT partition directly');
+select pg_temp.fails('select count(*) from document_chunks_bills', '42501', 'authenticated cannot read the Bills partition directly');
+select pg_temp.fails('select count(*) from document_chunks_regulatory', '42501', 'authenticated cannot read the Regulatory partition directly');
 select pg_temp.fails('select count(*) from document_chunks_default', '42501', 'authenticated cannot read the default partition directly');
 select pg_temp.fails('select count(*) from document_chunks_unpartitioned', '42501', 'authenticated cannot read the old table');
 select pg_temp.fails('insert into document_chunks_default (document_id, chunk_hash, chunk_index, char_from, char_to, content, chunker_version) values (gen_random_uuid(), $$x$$, 0, 0, 1, $$x$$, 1)',
@@ -574,16 +595,21 @@ select pg_temp.fails('insert into document_chunks_default (document_id, chunk_ha
 reset role;
 set local role anon;
 select pg_temp.fails('select count(*) from document_chunks', '42501', 'anon cannot read the parent');
-select pg_temp.fails('select count(*) from document_chunks_nclt', '42501', 'anon cannot read a partition');
+select pg_temp.fails('select count(*) from document_chunks_nclt', '42501', 'anon cannot read the NCLT partition');
+select pg_temp.fails('select count(*) from document_chunks_bills', '42501', 'anon cannot read the Bills partition');
+select pg_temp.fails('select count(*) from document_chunks_regulatory', '42501', 'anon cannot read the Regulatory partition');
+select pg_temp.fails('select count(*) from document_chunks_default', '42501', 'anon cannot read the default partition');
 select pg_temp.fails('select count(*) from document_chunks_unpartitioned', '42501', 'anon cannot read the old table');
 select pg_temp.fails($q$select * from match_documents(pg_temp.e(1))$q$, '42501', 'anon cannot search');
 reset role;
 -- Even a stray grant on a partition reads nothing: RLS is on there with no policy.
-grant select on document_chunks_nclt to authenticated;
+grant select on document_chunks_nclt, document_chunks_bills, document_chunks_regulatory, document_chunks_default to authenticated;
 set local role authenticated;
-select pg_temp.ok((select count(*) from document_chunks_nclt) = 0, 'a partition read directly returns no row even if granted');
+select pg_temp.ok((select count(*) from document_chunks_nclt) = 0 and (select count(*) from document_chunks_bills) = 0
+  and (select count(*) from document_chunks_regulatory) = 0 and (select count(*) from document_chunks_default) = 0,
+  'every partition read directly returns no row even if granted');
 reset role;
-revoke select on document_chunks_nclt from authenticated;
+revoke select on document_chunks_nclt, document_chunks_bills, document_chunks_regulatory, document_chunks_default from authenticated;
 
 -- match_documents in every mode against the same query on the unpartitioned copy of the same rows.
 -- The oracles run as authenticated on document_chunks_unpartitioned, under its own (old) policies.
@@ -594,7 +620,7 @@ insert into q values ('nclt', pg_temp.e(1)), ('default', pg_temp.e(10)),
   ('mixed', (array_fill(0::real, array[0]) || array[1::real] || array_fill(0::real, array[8]) || array[1::real] || array_fill(0::real, array[1526]))::vector);
 grant select on q to authenticated;
 create temp table oracle(mode text primary key, ids uuid[], sims float8[]);
-create temp table got(mode text primary key, ids uuid[], sims float8[], nclt bigint, dflt bigint);
+create temp table got(mode text primary key, ids uuid[], sims float8[], nclt bigint, bills bigint, reg bigint, dflt bigint);
 grant all on oracle, got to authenticated;
 set local role authenticated;
 -- Document ids: the old branch's statement verbatim on the old table (quota 8 per document).
@@ -641,6 +667,12 @@ insert into oracle select 'feature-bills-state', array_agg(id order by ord), nul
     from document_chunks_unpartitioned c join documents d on d.id = c.document_id
    where c.embedding is not null and d.indexed_at is not null and d.desk_feature = 'Bill Passage Probability Index' and d.desk_tier = 'state'
    order by ord limit 40) x;
+insert into oracle select 'feature-regulatory', array_agg(id order by ord), array_agg(sim order by ord) from (
+  select c.id, (1 - (c.embedding <=> (select v from q where name = 'default')))::float8 as sim,
+         row_number() over (order by c.embedding <=> (select v from q where name = 'default')) ord
+    from document_chunks_unpartitioned c join documents d on d.id = c.document_id
+   where c.embedding is not null and d.indexed_at is not null and d.desk_feature = 'Regulatory Body Watch (RBI SEBI TRAI CCI)'
+   order by ord limit 40) x;
 insert into oracle select 'helper-bills', array_agg(id order by ord), null from (
   select c.id, row_number() over (order by (c.embedding::halfvec(1536)) <=> ((select v from q where name = 'default')::halfvec(1536)), c.id) ord
     from document_chunks_unpartitioned c join documents d on d.id = c.document_id
@@ -648,7 +680,7 @@ insert into oracle select 'helper-bills', array_agg(id order by ord), null from 
    order by ord limit 40) x;
 reset role;
 revoke select on document_chunks_unpartitioned from authenticated;
-select pg_temp.ok((select count(*) from oracle where cardinality(ids) > 0) = 8
+select pg_temp.ok((select count(*) from oracle where cardinality(ids) > 0) = 9
   and (select cardinality(ids) from oracle where mode = 'ids') = 24 and (select cardinality(ids) from oracle where mode = 'feature-bills-state') = 10
   and (select cardinality(ids) from oracle where mode = 'feature-nclt') = 40,
   'oracles: every mode has rows (document ids: 3 visible documents x 8; state bills: 10)');
@@ -661,19 +693,19 @@ select pg_temp.settle('unscoped (NCLT query)', $q$select array_agg(id) from (
      where c.embedding is not null and d.indexed_at is not null
      order by (c.embedding::halfvec(1536)) <=> ((select v from q where name = 'nclt')::halfvec(1536)) limit 40) x$q$,
   (select ids from oracle where mode = 'unscoped-nclt'),
-  array['document_chunks_nclt_embedding_halfvec_hnsw', 'document_chunks_default_embedding_halfvec_hnsw']::regclass[], '200', 'off');
+  array['document_chunks_nclt_embedding_halfvec_hnsw', 'document_chunks_bills_embedding_halfvec_hnsw', 'document_chunks_regulatory_embedding_halfvec_hnsw', 'document_chunks_default_embedding_halfvec_hnsw']::regclass[], '200', 'off');
 select pg_temp.settle('unscoped (default query)', $q$select array_agg(id) from (
     select c.id from document_chunks c join documents d on d.id = c.document_id
      where c.embedding is not null and d.indexed_at is not null
      order by (c.embedding::halfvec(1536)) <=> ((select v from q where name = 'default')::halfvec(1536)) limit 40) x$q$,
   (select ids from oracle where mode = 'unscoped-default'),
-  array['document_chunks_nclt_embedding_halfvec_hnsw', 'document_chunks_default_embedding_halfvec_hnsw']::regclass[], '200', 'off');
+  array['document_chunks_nclt_embedding_halfvec_hnsw', 'document_chunks_bills_embedding_halfvec_hnsw', 'document_chunks_regulatory_embedding_halfvec_hnsw', 'document_chunks_default_embedding_halfvec_hnsw']::regclass[], '200', 'off');
 select pg_temp.settle('tier', $q$select array_agg(id) from (
     select c.id from document_chunks c join documents d on d.id = c.document_id
      where c.embedding is not null and d.indexed_at is not null and d.desk_tier = 'national'
      order by (c.embedding::halfvec(1536)) <=> ((select v from q where name = 'default')::halfvec(1536)) limit 40) x$q$,
   (select ids from oracle where mode = 'tier'),
-  array['document_chunks_nclt_embedding_halfvec_hnsw', 'document_chunks_default_embedding_halfvec_hnsw']::regclass[], '200', 'off');
+  array['document_chunks_nclt_embedding_halfvec_hnsw', 'document_chunks_bills_embedding_halfvec_hnsw', 'document_chunks_regulatory_embedding_halfvec_hnsw', 'document_chunks_default_embedding_halfvec_hnsw']::regclass[], '200', 'off');
 select pg_temp.settle('feature NCLT (helper)', $q$select array_agg(id order by dist, id) from (
     select c.id, (c.embedding::halfvec(1536)) <=> ((select v from q where name = 'nclt')::halfvec(1536)) as dist
       from document_chunks c join documents d on d.id = c.document_id
@@ -687,14 +719,16 @@ select pg_temp.settle('feature Bills (helper)', $q$select array_agg(id order by 
      where c.embedding is not null and d.indexed_at is not null and c.desk_feature = 'Bill Passage Probability Index'
      order by (c.embedding::halfvec(1536)) <=> ((select v from q where name = 'default')::halfvec(1536)) limit 40) x$q$,
   (select ids from oracle where mode = 'helper-bills'),
-  array['document_chunks_default_embedding_halfvec_hnsw']::regclass[], '400', 'relaxed_order');
+  array['document_chunks_bills_embedding_halfvec_hnsw']::regclass[], '400', 'relaxed_order');
 
 -- The functions, as authenticated, counting the scans of each partition per call.
 create function pg_temp.call(mode text, q text) returns void language plpgsql as $$
-declare n0 bigint := pg_temp.scans('document_chunks_nclt'); d0 bigint := pg_temp.scans('document_chunks_default'); r record;
+declare n0 bigint := pg_temp.scans('document_chunks_nclt'); b0 bigint := pg_temp.scans('document_chunks_bills');
+        g0 bigint := pg_temp.scans('document_chunks_regulatory'); d0 bigint := pg_temp.scans('document_chunks_default'); r record;
 begin
   execute format('select array_agg(id order by ord) ids, array_agg(similarity order by ord) sims from (select id, similarity, row_number() over () ord from (%s) f) x', q) into r;
-  insert into got values (mode, r.ids, r.sims, pg_temp.scans('document_chunks_nclt') - n0, pg_temp.scans('document_chunks_default') - d0);
+  insert into got values (mode, r.ids, r.sims, pg_temp.scans('document_chunks_nclt') - n0, pg_temp.scans('document_chunks_bills') - b0,
+                          pg_temp.scans('document_chunks_regulatory') - g0, pg_temp.scans('document_chunks_default') - d0);
 end $$;
 set local hnsw.ef_search = 40;
 set local hnsw.iterative_scan = 'strict_order';
@@ -707,6 +741,7 @@ select pg_temp.call('tier', $q$select * from match_documents((select v from q wh
 select pg_temp.call('feature-nclt', $q$select * from match_documents((select v from q where name = 'nclt'), 40, null, null, 'NCLT / NCLAT (Insolvency)')$q$);
 select pg_temp.call('feature-bills', $q$select * from match_documents((select v from q where name = 'default'), 40, null, null, 'Bill Passage Probability Index')$q$);
 select pg_temp.call('feature-bills-state', $q$select * from match_documents((select v from q where name = 'default'), 40, null, 'state', 'Bill Passage Probability Index')$q$);
+select pg_temp.call('feature-regulatory', $q$select * from match_documents((select v from q where name = 'default'), 40, null, null, 'Regulatory Body Watch (RBI SEBI TRAI CCI)')$q$);
 select pg_temp.call('helper-bills', $q$select * from match_documents_feature_hnsw((select v from q where name = 'default'), 40, null, 'Bill Passage Probability Index')$q$);
 select pg_temp.call('feature-pq-state', $q$select * from match_documents((select v from q where name = 'default'), 40, null, 'state', 'Parliamentary Question Database')$q$);
 select pg_temp.ok(current_setting('hnsw.ef_search') = '40' and current_setting('hnsw.iterative_scan') = 'strict_order',
@@ -728,14 +763,21 @@ select pg_temp.ok((select ids from got where mode = 'feature-bills') = (select i
   'feature Bills (exact path): the same rows, order and similarities');
 select pg_temp.ok((select ids from got where mode = 'feature-bills-state') = (select ids from oracle where mode = 'feature-bills-state'),
   'feature and tier: the same rows');
+select pg_temp.ok((select ids from got where mode = 'feature-regulatory') = (select ids from oracle where mode = 'feature-regulatory')
+  and (select sims from got where mode = 'feature-regulatory') = (select sims from oracle where mode = 'feature-regulatory'),
+  'feature Regulatory (exact path): the same rows, order and similarities');
 select pg_temp.ok((select ids from got where mode = 'helper-bills') = (select ids from oracle where mode = 'helper-bills'),
-  'the helper on a default-partition feature: the same rows and order as exact search');
+  'the helper on the Bills partition: the same rows and order as exact search');
 select pg_temp.ok((select ids is null from got where mode = 'feature-pq-state'), 'a feature and tier with no chunk: no rows');
-select pg_temp.ok((select nclt > 0 and dflt = 0 from got where mode = 'feature-nclt'), 'feature NCLT reads only the NCLT partition');
-select pg_temp.ok((select bool_and(nclt = 0 and dflt > 0) from got where mode in ('feature-bills', 'feature-bills-state', 'helper-bills', 'feature-pq-state')),
+select pg_temp.ok((select nclt > 0 and bills = 0 and reg = 0 and dflt = 0 from got where mode = 'feature-nclt'), 'feature NCLT reads only the NCLT partition');
+select pg_temp.ok((select bool_and(nclt = 0 and bills > 0 and reg = 0 and dflt = 0) from got where mode in ('feature-bills', 'feature-bills-state', 'helper-bills')),
+  'feature Bills (exact path, with a tier, and the HNSW helper) reads only the Bills partition');
+select pg_temp.ok((select nclt = 0 and bills = 0 and reg > 0 and dflt = 0 from got where mode = 'feature-regulatory'),
+  'feature Regulatory reads only the Regulatory partition');
+select pg_temp.ok((select nclt = 0 and bills = 0 and reg = 0 and dflt > 0 from got where mode = 'feature-pq-state'),
   'a default-partition feature reads only the default partition');
-select pg_temp.ok((select bool_and(nclt > 0 and dflt > 0) from got where mode in ('unscoped-nclt', 'unscoped-default', 'tier')),
-  'unscoped and tier searches read both partitions');
+select pg_temp.ok((select bool_and(nclt > 0 and bills > 0 and reg > 0 and dflt > 0) from got where mode in ('unscoped-nclt', 'unscoped-default', 'tier')),
+  'unscoped and tier searches read all four partitions');
 
 -- The four functions that were not recreated give the same answers as on the unpartitioned table.
 select pg_temp.ok((select fingerprint from fn_before)

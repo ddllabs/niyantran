@@ -1,0 +1,230 @@
+{
+ "kind": "rehearsal",
+ "ranAt": "2026-11-02T14:42:10.791Z",
+ "migration": {
+  "file": "20261101110000_law_documents_serving_set.sql",
+  "bytes": 6271,
+  "sha256": "070c99cabb0a946d15333b8a715635660ccfa3cede5e21807c1351a8020bcc6c"
+ },
+ "source": {
+  "database": "niyantran_retrieval_replica",
+  "sizeBytes": 5449324211
+ },
+ "target": {
+  "database": "niyantran_rehearsal_pol",
+  "kept": true
+ },
+ "disk": {
+  "freeBytes": 988309573632,
+  "requiredBytes": 10898648422
+ },
+ "copy": {
+  "ms": 8175.132457999999
+ },
+ "prelude": {
+  "file": "b3-prelude.sql",
+  "bytes": 63,
+  "sha256": "522dd42652cf6c01371392dd8c925c8ab2c523f78a2121267a1ffa33fc5cafb6",
+  "ms": 243.795709
+ },
+ "migrationRun": {
+  "ok": true,
+  "exitCode": 0,
+  "ms": 79.16795900000034,
+  "error": [],
+  "settings": [],
+  "transaction": {
+   "mode": "self-managed",
+   "reason": "the file has its own begin; and commit;"
+  }
+ },
+ "phases": {
+  "phases": [],
+  "marks": [],
+  "warnings": []
+ },
+ "readerProbe": {
+  "count": 1,
+  "errors": 0,
+  "maxMs": 2.141874999999345,
+  "maxAtMs": 1.3314170000012382,
+  "p50Ms": 2.141874999999345,
+  "p95Ms": 2.141874999999345,
+  "over1sCount": 0
+ },
+ "analyze": {
+  "ms": 8027.481040999999
+ },
+ "sizes": {
+  "before": {
+   "databaseBytes": 5449324211,
+   "relations": [
+    {
+     "name": "document_chunks",
+     "kind": "r",
+     "totalBytes": 5396471808,
+     "tableBytes": 456753152,
+     "indexBytes": 1682857984
+    },
+    {
+     "name": "document_chunks_document_id_chunk_hash_key",
+     "kind": "i",
+     "totalBytes": 58408960,
+     "tableBytes": 58408960,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_document_order",
+     "kind": "i",
+     "totalBytes": 20127744,
+     "tableBytes": 20127744,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_embedding_halfvec_hnsw",
+     "kind": "i",
+     "totalBytes": 1591910400,
+     "tableBytes": 1591910400,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_pkey",
+     "kind": "i",
+     "totalBytes": 12410880,
+     "tableBytes": 12410880,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents",
+     "kind": "r",
+     "totalBytes": 42541056,
+     "tableBytes": 9764864,
+     "indexBytes": 2547712
+    },
+    {
+     "name": "documents_desk",
+     "kind": "i",
+     "totalBytes": 180224,
+     "tableBytes": 180224,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_document_key",
+     "kind": "i",
+     "totalBytes": 253952,
+     "tableBytes": 253952,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_pkey",
+     "kind": "i",
+     "totalBytes": 573440,
+     "tableBytes": 573440,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_source_key_key",
+     "kind": "i",
+     "totalBytes": 1540096,
+     "tableBytes": 1540096,
+     "indexBytes": 0
+    }
+   ]
+  },
+  "after": {
+   "databaseBytes": 5449332403,
+   "relations": [
+    {
+     "name": "document_chunks",
+     "kind": "r",
+     "totalBytes": 5396471808,
+     "tableBytes": 456753152,
+     "indexBytes": 1682857984
+    },
+    {
+     "name": "document_chunks_document_id_chunk_hash_key",
+     "kind": "i",
+     "totalBytes": 58408960,
+     "tableBytes": 58408960,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_document_order",
+     "kind": "i",
+     "totalBytes": 20127744,
+     "tableBytes": 20127744,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_embedding_halfvec_hnsw",
+     "kind": "i",
+     "totalBytes": 1591910400,
+     "tableBytes": 1591910400,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_pkey",
+     "kind": "i",
+     "totalBytes": 12410880,
+     "tableBytes": 12410880,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents",
+     "kind": "r",
+     "totalBytes": 42541056,
+     "tableBytes": 9764864,
+     "indexBytes": 2547712
+    },
+    {
+     "name": "documents_desk",
+     "kind": "i",
+     "totalBytes": 180224,
+     "tableBytes": 180224,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_document_key",
+     "kind": "i",
+     "totalBytes": 253952,
+     "tableBytes": 253952,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_pkey",
+     "kind": "i",
+     "totalBytes": 573440,
+     "tableBytes": 573440,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_source_key_key",
+     "kind": "i",
+     "totalBytes": 1540096,
+     "tableBytes": 1540096,
+     "indexBytes": 0
+    }
+   ]
+  },
+  "peak": {
+   "samples": 2,
+   "peakDatabaseBytes": 5449324211,
+   "peakDatabaseAtMs": 0.5435000000015862,
+   "startWalBytes": 989855744,
+   "peakWalBytes": 989855744,
+   "peakCombinedBytes": 6439179955,
+   "minFreeBytes": 982927302656
+  }
+ },
+ "rowCounts": {
+  "before": {
+   "documents": 17609,
+   "document_chunks": 392945
+  },
+  "after": {
+   "documents": 17609,
+   "document_chunks": 392945
+  },
+  "equal": true
+ }
+}
