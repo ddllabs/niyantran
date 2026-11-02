@@ -3,6 +3,9 @@
 -- only what match_documents reads, the roles it runs as, and the RLS it runs under.
 -- Applied by scripts/eval-replica/load.mjs to database niyantran_retrieval_replica in
 -- the niyantran-corpus-test-db container, never to a hosted project.
+-- What the live search path needs beyond these base tables (block_ids, image_ids, source_key, the law_*
+-- tables and the restrictive RLS policies) is added by search-path.sql, which load.mjs applies after
+-- this file and --functions-only applies again.
 \set ON_ERROR_STOP on
 
 create schema if not exists extensions;

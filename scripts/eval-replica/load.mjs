@@ -2,29 +2,44 @@
  * Build the local retrieval replica (docs/specs/2026-09-30-rag-v2-retrieval-scope.md,
  * "The local replica"; plan task T6).
  *
- *   node scripts/eval-replica/load.mjs [--rate 2] [--page 250]
+ *   node scripts/eval-replica/load.mjs [--fresh] [--rate 2] [--page 250]
+ *                                                                  full load: drops and rebuilds
+ *                                                                  (--fresh is required if the replica exists)
+ *   node scripts/eval-replica/load.mjs --resume [--rate 2] ...     continue a load that stopped
+ *   node scripts/eval-replica/load.mjs --functions-only            reinstall the search functions
  *
- * Reads NTER read-only through PostgREST (documents without ocr_text, and every chunk with
- * its embedding), keyset-paged and rate-limited, and streams it into database
- * niyantran_retrieval_replica in the local niyantran-corpus-test-db container. The database
- * is dropped and rebuilt on every run. Then it builds the halfvec HNSW index, loads the live
- * match_documents from its migration file, and records replica_meta for the eval fingerprint.
+ * Reads NTER read-only through PostgREST (documents without ocr_text, every chunk with its
+ * embedding, and the three small law-listing tables the RLS policies read), keyset-paged and
+ * rate-limited, and streams it into database niyantran_retrieval_replica in the local
+ * niyantran-corpus-test-db container as COPY text (src/lib/replicaCopy.js). Then it builds the halfvec
+ * HNSW index, installs the live search functions from their migration files (functions.mjs), and
+ * records replica_meta for the eval fingerprint.
  *
- * Environment: SUPABASE_URL (or VITE_SUPABASE_URL), SUPABASE_SECRET_KEY (sb_secret_…), read
- * from .env.local. Needs Docker; run outside the Claude Code sandbox. Nothing is written to NTER.
+ * A full load drops and rebuilds the database, so it needs --fresh when the replica already exists.
+ * At the end, it counts each copied table on NTER (one read-only request per table) and records the
+ * load mode and both sets of counts in replica_meta, warning if they differ. If a load fails, the error names the failing row's id
+ * (never its content); fix the cause and run with --resume, which keeps what was copied, upserts
+ * documents (so newly added columns are filled in), and continues chunks after the largest id
+ * copied. A resume assumes the source's already-copied range did not change; chunks added to NTER
+ * meanwhile with a smaller id than the largest copied are missed, so run a full load when the
+ * snapshot must be exact.
+ *
+ * --functions-only needs no credentials and no network: it re-applies search-path.sql and the
+ * latest match_documents and match_documents_feature_hnsw to the existing replica, leaving data alone.
+ * Compare the result with live by running function-fingerprint.sql on both.
+ *
+ * Environment (load and resume only): SUPABASE_URL (or VITE_SUPABASE_URL), SUPABASE_SECRET_KEY
+ * (sb_secret_…), read from .env.local. Needs Docker; run outside the Claude Code sandbox.
+ * Nothing is written to NTER.
  */
-import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
+import { REPLICA_DATABASE, makeCopier } from './copy.mjs';
+import { assertMayCreate, assertReplicaExists, createSchema, finish, installFunctions, loadChunks, loadDocuments, loadLawTables } from './loader.mjs';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../../..');
-const CONTAINER = 'niyantran-corpus-test-db';
-const DATABASE = 'niyantran_retrieval_replica';
-const MATCH_DOCUMENTS_MIGRATION = '20260929120100_match_documents_halfvec.sql';
-const DOC_COLUMNS = ['id', 'title', 'file_name', 'file_url', 'desk_tier', 'desk_feature', 'content_sha256', 'indexed_at', 'metadata'];
-const CHUNK_COLUMNS = ['id', 'document_id', 'chunk_hash', 'chunk_index', 'source_kind', 'page_number', 'char_from', 'char_to', 'content', 'token_count', 'embedding', 'chunker_version', 'metadata', 'created_at'];
 
 function loadDotEnv(file) {
   if (!existsSync(file)) return;
@@ -37,55 +52,20 @@ function loadDotEnv(file) {
 }
 
 function parseArgs(argv) {
-  const out = { rate: 2, page: 250 };
+  const out = { rate: 2, page: 250, resume: false, functionsOnly: false, fresh: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--rate') out.rate = Number(argv[++i]);
     else if (argv[i] === '--page') out.page = Number(argv[++i]);
+    else if (argv[i] === '--resume') out.resume = true;
+    else if (argv[i] === '--functions-only') out.functionsOnly = true;
+    else if (argv[i] === '--fresh') out.fresh = true;
+    else throw new Error(`unknown argument ${argv[i]}`);
   }
+  if (out.resume && out.functionsOnly) throw new Error('--resume and --functions-only cannot be combined');
+  if (out.fresh && (out.resume || out.functionsOnly)) throw new Error('--fresh drops the replica; it cannot be combined with --resume or --functions-only');
   if (!(out.rate > 0 && out.rate <= 5)) throw new Error('--rate must be between 0 and 5 requests per second');
   if (!(out.page >= 50 && out.page <= 1000)) throw new Error('--page must be between 50 and 1000');
   return out;
-}
-
-/** psql inside the container. Only ever the replica database, or postgres to (re)create it. */
-function psql(database, sql, { input } = {}) {
-  if (database !== DATABASE && database !== 'postgres') throw new Error(`refusing to touch database ${database}`);
-  const args = ['exec', '-i', CONTAINER, 'psql', '-U', 'postgres', '-d', database, '-v', 'ON_ERROR_STOP=1', '-q', '-At'];
-  if (sql) args.push('-c', sql);
-  const res = spawnSync('docker', args, { input: input ?? '', encoding: 'utf8', maxBuffer: 1 << 30 });
-  if (res.status !== 0) throw new Error(`psql (${database}) failed: ${res.stderr || res.stdout}`);
-  return res.stdout.trim();
-}
-
-function csvField(v) {
-  if (v === null || v === undefined) return '';
-  const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
-  return `"${s.replace(/"/g, '""')}"`;
-}
-const csvRows = (rows, columns) => rows.map((r) => columns.map((c) => csvField(r[c])).join(',')).join('\n') + '\n';
-
-function copyInto(table, columns, rows) {
-  if (!rows.length) return;
-  psql(DATABASE, `\\copy public.${table} (${columns.join(', ')}) from stdin with (format csv)`, { input: csvRows(rows, columns) });
-}
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-/** Every row of a table, keyset-paged on id, at most `rate` requests a second. */
-async function* pages(db, table, columns, pageSize, rate) {
-  let last = null;
-  for (;;) {
-    const started = Date.now();
-    let q = db.from(table).select(columns.join(',')).order('id').limit(pageSize);
-    if (last) q = q.gt('id', last);
-    const { data, error } = await q;
-    if (error) throw new Error(`${table} read after ${last}: ${error.message}`);
-    if (!data.length) return;
-    yield data;
-    last = data[data.length - 1].id;
-    if (data.length < pageSize) return;
-    await sleep(Math.max(0, 1000 / rate - (Date.now() - started)));
-  }
 }
 
 function scriptArgs() {
@@ -94,9 +74,23 @@ function scriptArgs() {
   return dash === -1 ? argv : argv.slice(dash + 1);
 }
 
+const log = (line) => console.log(line);
+
 async function main() {
-  loadDotEnv(resolve(ROOT, '.env.local'));
   const args = parseArgs(scriptArgs());
+  const copier = makeCopier({ database: REPLICA_DATABASE });
+
+  if (args.functionsOnly) {
+    // Deliberately before any .env read: this mode touches only the local container.
+    assertReplicaExists(copier);
+    installFunctions(copier);
+    log(`search functions installed in ${REPLICA_DATABASE}; compare with live using scripts/eval-replica/function-fingerprint.sql`);
+    return;
+  }
+
+  assertMayCreate(args, copier.databaseExists());
+
+  loadDotEnv(resolve(ROOT, '.env.local'));
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
   const secret = process.env.SUPABASE_SECRET_KEY;
   if (!url || !secret) throw new Error('SUPABASE_URL (or VITE_SUPABASE_URL) and SUPABASE_SECRET_KEY must be set');
@@ -104,32 +98,29 @@ async function main() {
   const db = createClient(url, secret, { auth: { persistSession: false } });
   const project = new URL(url).hostname.split('.')[0];
 
-  console.log(`(re)creating ${DATABASE} in ${CONTAINER}`);
-  psql('postgres', `drop database if exists ${DATABASE}`);
-  psql('postgres', `create database ${DATABASE}`);
-  psql(DATABASE, null, { input: readFileSync(resolve(ROOT, 'scripts/eval-replica/schema.sql'), 'utf8') });
+  if (args.resume) {
+    log(`resuming the load into ${REPLICA_DATABASE}`);
+    assertReplicaExists(copier);
+  } else {
+    log(`(re)creating ${REPLICA_DATABASE}`);
+    copier.dropDatabase();
+    copier.createDatabase();
+    createSchema(copier);
+  }
+  installFunctions(copier);
 
   const t0 = Date.now();
-  let docs = 0;
-  for await (const batch of pages(db, 'documents', DOC_COLUMNS, 1000, args.rate)) {
-    copyInto('documents', DOC_COLUMNS, batch);
-    docs += batch.length;
+  const ctx = { db, copier, args, log, resume: args.resume, t0 };
+  try {
+    await loadDocuments(ctx);
+    await loadLawTables(ctx);
+    await loadChunks(ctx);
+  } catch (e) {
+    console.error(`${e.message ?? e}\nWhat was copied is kept: fix the cause, then run again with --resume.`);
+    process.exit(1);
   }
-  console.log(`documents: ${docs}`);
-  let chunks = 0;
-  for await (const batch of pages(db, 'document_chunks', CHUNK_COLUMNS, args.page, args.rate)) {
-    copyInto('document_chunks', CHUNK_COLUMNS, batch);
-    chunks += batch.length;
-    if (chunks % 5000 < args.page) console.log(`chunks: ${chunks} (${Math.round((Date.now() - t0) / 1000)} s)`);
-  }
-  console.log(`chunks: ${chunks}; copied in ${Math.round((Date.now() - t0) / 1000)} s`);
-
-  console.log('building the halfvec HNSW index and analysing');
-  psql(DATABASE, null, { input: readFileSync(resolve(ROOT, 'scripts/eval-replica/index.sql'), 'utf8') });
-  psql(DATABASE, null, { input: readFileSync(resolve(ROOT, 'supabase/migrations', MATCH_DOCUMENTS_MIGRATION), 'utf8') });
-  psql(DATABASE, `insert into public.replica_meta values ('${project}', '${MATCH_DOCUMENTS_MIGRATION}', now(), ${docs}, ${chunks})`);
-  const check = psql(DATABASE, null, { input: 'select count(*) from public.documents where indexed_at is not null;\nselect count(*) from public.document_chunks;\n' });
-  console.log(`replica ready: ${check.split('\n').join(' indexed documents, ')} chunks; total ${Math.round((Date.now() - t0) / 1000)} s`);
+  await finish({ db, copier, project, log, mode: args.resume ? 'resumed' : 'full' });
+  log(`total ${Math.round((Date.now() - t0) / 1000)} s`);
 }
 
 main().catch((e) => {

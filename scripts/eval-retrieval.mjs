@@ -15,7 +15,13 @@
  * match_documents in each mode, as service_role. Calls run after 5 unscored warm-ups in a
  * seeded shuffle; a trivial PostgREST read is timed alongside as the network baseline.
  * Results hold ids and ranks only, never chunk content. `--compare` judges this run against
- * an earlier one with the spec's "no worse" bar.
+ * an earlier one with the spec's "no worse" bar: on the generated questions, and separately,
+ * with the same rules, on developer-written ones (`source: 'developer'`); the verdict fails when
+ * either fails. Owner questions are reported but never judged.
+ *
+ * Exit codes: 0 = the run finished (and, with --compare, the verdict is "no worse"); 1 = error;
+ * 2 = the corpus fingerprint check failed (no scores reported); 3 = --compare's verdict is "worse".
+ * Code 3 is returned only after the .json and .md results are written.
  *
  * Environment: SUPABASE_URL (or VITE_SUPABASE_URL), SUPABASE_SECRET_KEY (sb_secret_…).
  * Node fetch needs to run outside the Claude Code sandbox.
@@ -27,7 +33,7 @@ import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { createClient } from '@supabase/supabase-js';
-import { fingerprintCheck, judgeNoWorse, outcome, renderReport } from '../src/lib/retrievalEval.js';
+import { exitCodeFor, fingerprintCheck, judgeNoWorse, outcome, renderReport } from '../src/lib/retrievalEval.js';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 const MATCH_COUNT = 40;
@@ -309,9 +315,12 @@ async function main(argv) {
   writeFileSync(jsonPath.replace(/\.json$/, '.md'), md);
   console.log(`wrote ${jsonPath} and its .md`);
   if (run.verdict) console.log(run.verdict.pass ? 'VERDICT: no worse' : `VERDICT: worse\n${run.verdict.failures.join('\n')}`);
+  return exitCodeFor(run.verdict);
 }
 
-main(scriptArgs()).catch((e) => {
+main(scriptArgs()).then((code) => {
+  process.exitCode = code;
+}).catch((e) => {
   console.error(e.message ?? e);
   process.exit(1);
 });
