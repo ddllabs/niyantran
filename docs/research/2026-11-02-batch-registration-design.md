@@ -609,3 +609,21 @@ The runner tests use `node --test` with a fake database. They cover:
     table.
     - **Recommendation:** the supervisor fetches the branch, or names the file, and checks its table against §2 and §6
       before C3b is dispatched. I could not fetch (no network in this task).
+
+## 11. Decisions (supervisor and developer, 2026-11-02)
+
+- **Credential (developer):** a reviewed migration creates `corpus_ingest` with execute-only grants and no login.
+  The developer enables its login and sets its password in the Supabase dashboard; no agent sees or handles it. The
+  runner reads it from its own server-side secret.
+- **Regulatory admission:** proposed search-only, as the 474 live Regulatory documents are today (no listing rows,
+  regulator derived from the source host); the developer's answer is pending. C3b does not depend on it: adapters
+  decide per collection.
+- **Accepted as recommended (supervisor):** one admission core for the bulk call and the single-document path,
+  including the duplicate rule (Q3); restricting `ingest-documents` to reviewed repairs is a follow-up after C3b (Q4);
+  the chunk plan stays in the payload, sized in rehearsal (Q5); duplicate groups re-counted over all documents
+  before the migration (Q6; `8bffca18` and `ee462209` hold the same PDF but different texts, `0dc54a89…` and
+  `9c816e8c…`, so exact-hash counting did not see them; `8bffca18` was taken out of search on 2026-11-02); provider
+  batch embedding deferred (Q7); the OCR route for thin scans is its own task (Q8); `servable=false` refused at
+  registration (Q9).
+- **Partitions:** Phase B now has four partitions (NCLT, Bills, Regulatory, default), committed on
+  `task/chunk-partitions` after this note was drafted; §1 and §5's references to two partitions are superseded.
