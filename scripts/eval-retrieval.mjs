@@ -4,11 +4,16 @@
  *   npx vite-node --config vitest.config.js scripts/eval-retrieval.mjs -- \
  *     --set eval/retrieval/questions.v1.jsonl [--modes broad,focused,focused-multi] \
  *     [--out eval/retrieval/results] [--compare <baseline.json>] [--required broad] [--limit 5] [--label baseline] \
- *     [--target live|replica] [--rpc match_documents] [--modes …,feature]
+ *     [--target live|replica] [--rpc match_documents] [--modes …,feature] \
+ *     [--database niyantran_rehearsal_<suffix>]
  *
  * --target replica runs against the local replica (scripts/eval-replica/load.mjs) through psql in
  * its container, as `authenticated` under RLS and the 8 s timeout; --rpc names a candidate
  * function there. The feature mode passes the question's own desk_feature as p_desk_feature.
+ * --database (replica target only) names the local database to query: niyantran_retrieval_replica
+ * (the default) or a niyantran_rehearsal_ copy made by scripts/eval-replica/rehearse.mjs, so the
+ * eval can be rerun against a migrated copy and judged with --compare against the replica baseline.
+ * Any other name is refused. The fingerprint and the report record which database was used.
  *
  * Read-only against live NTER: it checks the corpus fingerprint (and aborts when any gold
  * chunk is missing or changed), then sends every question's frozen vector to
@@ -33,6 +38,7 @@ import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { createClient } from '@supabase/supabase-js';
+import { REPLICA_DATABASE, assertEvalDatabase } from '../src/lib/rehearsal.js';
 import { exitCodeFor, fingerprintCheck, judgeNoWorse, outcome, renderReport } from '../src/lib/retrievalEval.js';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
@@ -51,7 +57,7 @@ function loadDotEnv(file) {
 }
 
 function parseArgs(argv) {
-  const out = { set: null, modes: ['broad', 'focused', 'focused-multi'], out: 'eval/retrieval/results', compare: null, required: null, limit: 0, label: 'run', target: 'live', rpc: 'match_documents' };
+  const out = { set: null, modes: ['broad', 'focused', 'focused-multi'], out: 'eval/retrieval/results', compare: null, required: null, limit: 0, label: 'run', target: 'live', rpc: 'match_documents', database: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--set') out.set = argv[++i];
@@ -63,10 +69,15 @@ function parseArgs(argv) {
     else if (a === '--label') out.label = argv[++i].replace(/[^a-z0-9-]/gi, '-');
     else if (a === '--target') out.target = argv[++i];
     else if (a === '--rpc') out.rpc = argv[++i];
+    else if (a === '--database') out.database = argv[++i] ?? '';
   }
   if (!out.set) throw new Error('--set is required');
   for (const m of out.modes) if (!['broad', 'focused', 'focused-multi', 'feature'].includes(m)) throw new Error(`unknown mode ${m}`);
   if (!['live', 'replica'].includes(out.target)) throw new Error('--target must be live or replica');
+  if (out.database !== null) {
+    if (out.target !== 'replica') throw new Error('--database applies only to --target replica');
+    assertEvalDatabase(out.database);
+  }
   return out;
 }
 
@@ -171,9 +182,9 @@ function liveBackend(url, secret) {
 }
 
 /** The local replica (scripts/eval-replica), through psql in the container, as `authenticated`. */
-function replicaBackend() {
+function replicaBackend(database = REPLICA_DATABASE) {
   const CONTAINER = 'niyantran-corpus-test-db';
-  const DATABASE = 'niyantran_retrieval_replica';
+  const DATABASE = assertEvalDatabase(database);
   const psql = (sql) => {
     const res = spawnSync('docker', ['exec', '-i', CONTAINER, 'psql', '-U', 'postgres', '-d', DATABASE, '-v', 'ON_ERROR_STOP=1', '-q', '-At'], { input: sql, encoding: 'utf8', maxBuffer: 1 << 28 });
     if (res.status !== 0) throw new Error(`replica psql failed: ${res.stderr || res.stdout}`);
@@ -185,6 +196,7 @@ function replicaBackend() {
   const uuidArray = (ids) => (ids ? `array[${ids.map(lit).join(',')}]::uuid[]` : 'null::uuid[]');
   return {
     name: 'replica',
+    database: DATABASE,
     async counts() {
       const [meta] = json('select source_migration, copied_at from public.replica_meta');
       const [c] = json(`select (select count(*) from public.documents where indexed_at is not null) as documents,
@@ -225,7 +237,7 @@ async function main(argv) {
   loadDotEnv(resolve(ROOT, '.env.local'));
   const args = parseArgs(argv);
   let backend;
-  if (args.target === 'replica') backend = replicaBackend();
+  if (args.target === 'replica') backend = replicaBackend(args.database ?? REPLICA_DATABASE);
   else {
     const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
     const secret = process.env.SUPABASE_SECRET_KEY;
@@ -239,7 +251,7 @@ async function main(argv) {
   const lines = args.limit ? allLines.slice(0, args.limit) : allLines;
 
   // Fingerprint: counts, freshness, and every gold chunk unchanged.
-  const fingerprint = { target: backend.name, rpc: args.rpc, ...(await backend.counts()) };
+  const fingerprint = { target: backend.name, ...(backend.database ? { database: backend.database } : {}), rpc: args.rpc, ...(await backend.counts()) };
   const goldIds = [...new Set(lines.map((l) => l.gold_chunk_id).filter(Boolean))];
   const check = fingerprintCheck(lines, await backend.goldChunks(goldIds));
   if (!check.ok) {

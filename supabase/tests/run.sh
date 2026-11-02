@@ -100,6 +100,20 @@ chain() {
     ingest_register_batch|ingest_register_text_parity)
       chain pq_admission_links
       FILES+=("$TESTS/bootstrap_corpus_ingest.sql" "$(as_non_superuser 20261102130000_batch_registration.sql)") ;;
+    # F278 step 3 (B1): document_chunks partitioned by feature. pq_admission_links' chain plus the
+    # other migrations whose functions read chunks (the readiness helper, the unscoped ef_search, the
+    # feature search recovery), then the migration, all as a non-superuser. The vacuity check drops
+    # the last. The fixture also applies the migration again itself, after rehearsing its rollback.
+    document_chunks_partitions)
+      chain pq_admission_links
+      FILES+=("$(as_non_superuser 20261027231901_admin_corpus_readiness.sql)" "$(as_non_superuser 20261015130000_unscoped_ef_search.sql)"
+              "$(as_non_superuser 20261027185840_feature_search_recovery.sql)" "$(as_non_superuser 20261101110000_law_documents_serving_set.sql)"
+              "$(as_non_superuser 20261101120000_document_chunks_partitioned.sql)") ;;
+    # The law publication policy on documents evaluated once per query (same rows): the law listing
+    # chain, then the migration, as a non-superuser. The vacuity check drops the last.
+    law_documents_serving_set)
+      chain pq_admission_links
+      FILES+=("$(as_non_superuser 20261101110000_law_documents_serving_set.sql)") ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;
@@ -889,6 +903,8 @@ fixture_sql() {
       cat backend/sql/operations/reset_test_billing.sql
     elif [ "$line" = '\i scripts/pq-row-refresh.sql' ]; then
       cat scripts/pq-row-refresh.sql
+    elif [ "$line" = '\i supabase/migrations/20261101120000_document_chunks_partitioned.sql' ]; then
+      cat supabase/migrations/20261101120000_document_chunks_partitioned.sql
     else
       printf '%s\n' "$line"
     fi
