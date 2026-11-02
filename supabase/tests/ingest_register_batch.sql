@@ -540,11 +540,20 @@ insert into reached values ('public.ingest_claim(integer,interval)'),('public.in
 select pg_temp.ok((select coalesce(string_agg(r.f, ', '), '') from reached r join pg_proc p on p.oid = r.f::regprocedure
    where not exists(select 1 from unnest(p.proconfig) c where c ~ '^search_path=.*, pg_temp$')) = '',
   'every function a registration call reaches searches pg_temp last');
-select pg_temp.ok(not exists(select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid
-   where not t.tgisinternal and (t.tgtype & 4) <> 0
+-- Every trigger on the tables registration writes, for any event: its function searches pg_temp
+-- last, or it is one of these, named, which fire only on UPDATE (registration only inserts). A new
+-- trigger, or one of these changed to fire on another event, fails the check.
+create temp table update_only_triggers(tbl regclass, tgname text);
+insert into update_only_triggers values ('public.documents','documents_chunk_facets'),('public.documents','documents_updated_at'),
+  ('public.documents','law_indexed_publication');
+select pg_temp.ok((select coalesce(string_agg(t.tgrelid::regclass || '.' || t.tgname, ', '), '') from pg_trigger t join pg_proc p on p.oid = t.tgfoid
+   where not t.tgisinternal
      and t.tgrelid in ('public.documents'::regclass,'public.ingest_text_inputs'::regclass,'public.ingest_jobs'::regclass,'public.record_document_links'::regclass,
                        'public.ingest_batches'::regclass,'public.ingest_batch_items'::regclass,'public.ingest_batch_events'::regclass)
-     and exists(select 1 from unnest(p.proconfig) c where c like 'search_path=%' and c !~ ', pg_temp$')), 'every insert trigger registration fires searches pg_temp last');
+     and not exists(select 1 from unnest(p.proconfig) c where c ~ '^search_path=.*, pg_temp$')
+     and not (exists(select 1 from update_only_triggers u where u.tbl = t.tgrelid and u.tgname = t.tgname)
+              and (t.tgtype & (4 | 8 | 32)) = 0 and (t.tgtype & 16) <> 0)) = '',
+  'every trigger on the tables registration writes searches pg_temp last, or fires only on UPDATE and is named as such');
 
 -- B1, replayed as an attack in a fresh session: ingest_register_batch_attack.sql.
 
@@ -587,9 +596,23 @@ select pg_temp.i_status(b) from adopt;
 create temp table adopt_s as select pg_temp.i_status(b, array[pg_temp.pq_key(54)]) s from adopt;
 select pg_temp.ok((select s->>'state'='indexed' and s#>>'{items,0,job_status}'='failed' and not (s#>>'{items,0,indexed}')::boolean from adopt_s),
   'an existing item whose job failed outside the batch does not hold it back from indexed');
+-- That job is not the batch's: requeueing it would re-buy a client cohort's or an admin's embeddings
+-- outside every batch ceiling, claimed ahead of the batch. It is refused, failed or uncertain, and
+-- nothing changes (job, item, events, batch).
+create temp table adopt_before as select (select to_jsonb(j) from public.ingest_jobs j where id=(select (r->>'job_id')::uuid from alone)) j,
+  (select to_jsonb(i) from public.ingest_batch_items i where batch_id=(select b from adopt) and source_key=pg_temp.pq_key(54)) i,
+  (select count(*) from public.ingest_batch_events where batch_id=(select b from adopt)) e, (select to_jsonb(x) from public.ingest_batches x where id=(select b from adopt)) bt;
 create temp table adopt_q as select pg_temp.i_requeue(b, array[(select (r->>'job_id')::uuid from alone)]) r from adopt;
-select pg_temp.ok((select r#>>'{results,0,outcome}' from adopt_q) = 'requeued'
-  and (select status from public.ingest_jobs where id=(select (r->>'job_id')::uuid from alone)) = 'queued', 'requeue takes an existing item''s failed job without a batch');
+select pg_temp.ok((select r#>>'{results,0,outcome}'='refused' and r#>>'{results,0,reason}'='not_in_batch' from adopt_q),
+  'an existing item''s failed job without a batch is refused not_in_batch');
+update public.ingest_jobs set error_code='text_outcome_uncertain' where id=(select (r->>'job_id')::uuid from alone);
+update adopt_before set j = (select to_jsonb(jj) from public.ingest_jobs jj where jj.id=(select (r->>'job_id')::uuid from alone));
+create temp table adopt_q2 as select pg_temp.i_requeue(b, array[(select (r->>'job_id')::uuid from alone)]) r from adopt;
+select pg_temp.ok((select r#>>'{results,0,reason}' from adopt_q2) = 'not_in_batch', 'and so is one held as text_outcome_uncertain');
+select pg_temp.ok((select j from adopt_before) = (select to_jsonb(j) from public.ingest_jobs j where id=(select (r->>'job_id')::uuid from alone))
+  and (select i from adopt_before) = (select to_jsonb(i) from public.ingest_batch_items i where batch_id=(select b from adopt) and source_key=pg_temp.pq_key(54))
+  and (select e from adopt_before) = (select count(*) from public.ingest_batch_events where batch_id=(select b from adopt))
+  and (select bt from adopt_before) = (select to_jsonb(x) from public.ingest_batches x where id=(select b from adopt)), 'a refused requeue changes nothing');
 select pg_temp.ok((select pg_temp.i_requeue(b, array[(select (r#>>'{results,1,job_id}')::uuid from adopt_r)])#>>'{results,0,reason}' from big) = 'other_batch',
   'a job of another batch is that batch''s to requeue');
 -- Spend logged by a claim that was killed before it reported counts toward the reservation.

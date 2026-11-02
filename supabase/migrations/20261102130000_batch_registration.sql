@@ -1076,7 +1076,7 @@ begin
   if not found then raise exception 'ingest_batch_status: batch % does not exist', p_batch; end if;
   -- Forward moves only, derived from the jobs this batch admitted. An existing item's job belongs to
   -- whoever registered it (another batch, or a document registered alone): it is reported in the
-  -- items and counts, and may be requeued here, but it never holds the batch back.
+  -- items and counts, never requeued here, and never holds the batch back.
   if b.state in ('registered','indexing') then
     select count(*) total, count(*) filter (where j.status = 'succeeded') ok,
            count(*) filter (where j.status <> 'queued' or j.attempts > 0) started
@@ -1156,13 +1156,15 @@ begin
     if b.state = 'stopped' or v_stop is not null then
       results := results || jsonb_build_array(jsonb_build_object('job_id',v_id,'outcome','refused','reason','batch_stopped')); continue;
     end if;
-    -- This batch's job, or the job without a batch of one of its existing items (registered alone,
-    -- say). Another batch's job is that batch's to requeue.
+    -- Only this batch's own jobs. A job without a batch (a client cohort, an admin upload, a
+    -- document an existing item points at) is refused not_in_batch: requeueing it would buy its
+    -- embeddings again outside every batch ceiling, and a job held as text_outcome_uncertain is the
+    -- operator's to reconcile. Another batch's job is refused other_batch: that batch requeues it.
     select * into j from public.ingest_jobs where id = v_id for update;
     if found and j.batch_id is not null and j.batch_id <> p_batch then
       results := results || jsonb_build_array(jsonb_build_object('job_id',v_id,'outcome','refused','reason','other_batch')); continue;
     end if;
-    if not found or (j.batch_id is null and not exists(select 1 from public.ingest_batch_items i where i.batch_id = p_batch and i.job_id = v_id)) then
+    if not found or j.batch_id is null then
       results := results || jsonb_build_array(jsonb_build_object('job_id',v_id,'outcome','refused','reason','not_in_batch')); continue;
     end if;
     if j.status <> 'failed' then
