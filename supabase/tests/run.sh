@@ -789,7 +789,7 @@ record_brief_format_checks() {
 # ingest_register_batch only (C3b), two checks a fixture cannot make from inside its own database.
 #  * Parity: pq_admission_links and law_listing (and law_listing_concurrency.sh), as written, on
 #    pq_admission_links' chain with and without the corpus_ingest bootstrap and 20261102130000.
-#    Their assertions must come out the same (one stated exception below).
+#    Their assertions must come out the same.
 #  * The Down section, executed: base is the chain without the migration; up gets the migration and
 #    then its Down block as written, as the migrating role, with its three "run ..." steps performed
 #    by extracting exactly those create statements (ingest_register_text's as create or replace).
@@ -801,10 +801,9 @@ ingest_register_batch_checks() {
   # supplied_text.sql is left out: its chain predates the Law wrapper, and on any chain with
   # 20261023184450 it fails (its law:hc source is held) with or without this migration.
   # ingest_register_text_parity.sql carries its messages.
-  # law_listing.sql registers two different orders with one synthetic text ('A court order.'), and
-  # the duplicate-text rule (design 11, Q3) refuses the second. Parity for it is therefore: every
-  # assertion before that registration passes exactly as without the migration, and the run stops
-  # there with the duplicate-text message and nothing else.
+  # law_listing.sql and pq_admission_links.sql keep their own chains, whose vacuity checks guard
+  # their own migrations; here each runs again with this migration appended and must say exactly
+  # what it says without it.
   for x in pq_admission_links law_listing; do
     for side in old new; do
       db="niyantran_${x}_${side}_batch_test"
@@ -818,20 +817,11 @@ ingest_register_batch_checks() {
       fi
       q "drop database if exists $db" >/dev/null
     done
-    if [ "$x" = pq_admission_links ]; then
-      cmp -s "$WORK/parity_old.txt" "$WORK/parity_new.txt" && ! grep -q '^ERROR' "$WORK/parity_new.txt" \
-        || { echo "  PARITY FAIL - pq_admission_links.sql differs on the batch-registration migration"; diff "$WORK/parity_old.txt" "$WORK/parity_new.txt" | head -4 | sed 's/^/    /'; rc=1; }
-    else
-      k=$(( $(wc -l < "$WORK/parity_new.txt") - 1 ))
-      if [ "$(tail -1 "$WORK/parity_new.txt")" != 'ERROR:  supplied text: conflict: another document holds this text' ] \
-         || ! cmp -s <(head -n "$k" "$WORK/parity_old.txt") <(head -n "$k" "$WORK/parity_new.txt") \
-         || [ "$(sed -n "${k}p" "$WORK/parity_old.txt")" != 'PASS announcement not matched by company' ]; then
-        echo "  PARITY FAIL - law_listing.sql differs on the migration other than by the duplicate-text refusal of its second order:"
-        diff "$WORK/parity_old.txt" "$WORK/parity_new.txt" | head -4 | sed 's/^/    /'; rc=1
-      fi
+    if ! cmp -s "$WORK/parity_old.txt" "$WORK/parity_new.txt" || grep -q '^ERROR' "$WORK/parity_new.txt" || ! [ -s "$WORK/parity_new.txt" ]; then
+      echo "  PARITY FAIL - $x.sql differs on the batch-registration migration:"; diff "$WORK/parity_old.txt" "$WORK/parity_new.txt" | head -4 | sed 's/^/    /'; rc=1
     fi
   done
-  [ $rc -eq 0 ] && echo "  parity ok - pq_admission_links.sql identical; law_listing.sql identical up to its second order's shared text, refused duplicate_text (Q3); law_listing_concurrency.sh passes"
+  [ $rc -eq 0 ] && echo "  parity ok - pq_admission_links.sql and law_listing.sql identical with and without the migration; law_listing_concurrency.sh passes on it"
   chain ingest_register_batch
   for db in $base $up; do q "drop database if exists $db" >/dev/null; done
   q "create database $base" >/dev/null
