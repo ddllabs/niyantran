@@ -1,6 +1,6 @@
 # National v1.1 completion plan
 
-> **Status: Living (2026-11-02).** Plan only: nothing here starts a load. Shared copy: the owner's doc "National v1.1
+> **Status: Living (2026-11-03).** Plan only: nothing here starts a load. Shared copy: the owner's doc "National v1.1
 > completion plan" on claude.ai. Owner decisions of 2 November 2026 are recorded below. The National segment finishes
 > first; all legal work is on hold.
 
@@ -72,7 +72,10 @@ batch that must pass acceptance before the rest of that collection loads.
 
 - the 122,776 "MP Profiles & Performance" records as their own collection;
 - then the v1.2–v1.5 updates (their affidavits stay out, and v1.2's 1,819 text replacements stay a separately reviewed
-  step).
+  step);
+- then v1.6 (delivered 2 November: 204,975 documents, 175,669 `servable=false`, 7,068 replacing v1.4/v1.5 documents,
+  3,198 affidavits out); then v1.7, whose OCR started 3 November. v1.5 is not the last National pack. v1.6 and v1.7
+  are not in the November inventory and need the same read-only inventory first.
 
 Legal starts only when the owner lifts the hold.
 
@@ -148,7 +151,8 @@ Tamanesh decided these on 2 November 2026; they replace the suggestions in the f
   transfer orders (counsel), budget (permission), cabinet (PIB conditions) and industry (cite-only). The owner made this
   call over the developers' suggestion to hold the counsel and permission classes.
 - [x] **Transfer orders:** officer names load as public records.
-- [x] **Budget ceiling:** US$100 for v1.1, embedding plus OCR. A ceiling for the legal pack is set when legal resumes.
+- [x] **Budget ceiling:** US$100 for v1.1, embedding plus OCR. Each later National pack's ceiling is set when its
+  summary arrives (owner, 3 Nov). A ceiling for the legal pack is set when legal resumes.
 - [x] **Data access:** a read-only service account on Data Handover. Start setting it up now, since it takes the longest.
 - [ ] **The 18 million and `NTER_LAW_Corpus`:** not decided; legal is on hold, so these wait.
 
