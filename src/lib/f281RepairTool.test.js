@@ -712,6 +712,66 @@ test('manifestProblems: the new fields are checked', () => {
   assert.match(unlink({ new_bill_number: 'XXIV', new_bill_year: 'x' }), /new_bill_year/);
 });
 
+test('manifestProblems: retitle asks for a title and nothing that would add a key', () => {
+  const retitle = (extra = {}) => manifestProblems({ documents: [{ prefix: 'abcdef01', id: null, action: 'retitle', new_title: 'The Right to Information Bill, 2005', ...extra }] }).join('|');
+  assert.equal(retitle(), '');
+  assert.equal(retitle({ source_url: 'https://example.org/a.pdf', reason: 'the heading is printed in the text' }), '');
+  assert.match(retitle({ new_title: ' ' }), /new_title/);
+  assert.match(retitle({ new_title: undefined }), /new_title/);
+  // re-keying a key-less document is the Bills adapter's job
+  assert.match(retitle({ new_document_key: 'bill:2005:96' }), /new_document_key/);
+  assert.match(retitle({ new_bill_number: '96', new_bill_year: 2005 }), /new_bill_number/);
+  assert.match(retitle({ new_house: 'Lok Sabha' }), /new_house/);
+  assert.match(retitle({ new_status: 'Lapsed' }), /new_status/);
+  assert.match(retitle({ source_url: 'http://x' }), /https/);
+  // unknown action names are still refused
+  assert.match(manifestProblems({ documents: [{ prefix: 'abcdef01', id: null, action: 'retitel', new_title: 'T' }] }).join('|'), /action must be one of/);
+});
+
+test('riskOf ranks a plain retitle among the lowest and a LOOK above it', () => {
+  assert.ok(riskOf({ action: 'retitle', ok: true }) > 0);
+  assert.ok(riskOf({ action: 'retitle', ok: true }) < riskOf({ action: 'ocr', ok: true }));
+  assert.ok(riskOf({ action: 'retitle', ok: true, notes: { attention: ['x'] } }) > riskOf({ action: 'retitle', ok: true }));
+});
+
+const MANIFEST_2 = fileURLToPath(new URL('../../scripts/f281-repair/manifest-2.json', import.meta.url));
+
+describe('the second manifest (suspected stray covers and file-name titles)', () => {
+  it('is valid, adds no key, and keeps clear of the first batch', async () => {
+    const { manifest } = await loadManifest(MANIFEST_2);
+    const first = (await loadManifest(MANIFEST)).manifest;
+    const byAction = Object.groupBy(manifest.documents, (d) => d.action);
+    assert.deepEqual(Object.keys(byAction).sort(), ['retitle', 'strip_cover']);
+    for (const d of manifest.documents) assert.ok(!first.documents.some((x) => x.prefix === d.prefix), `${d.prefix} is in the first manifest`);
+    for (const d of manifest.documents) assert.ok(/^[0-9a-f-]{36}$/.test(d.id) && d.id.startsWith(d.prefix), `${d.prefix}: id`);
+    for (const d of byAction.retitle) {
+      for (const f of ['new_document_key', 'new_bill_number', 'new_bill_year', 'new_house', 'new_status']) assert.equal(d[f], undefined, `${d.prefix} ${f}`);
+      assert.match(d.new_title, /^The .+ (Bill|Act), \d{4}$/, d.prefix);
+    }
+  });
+
+  it('strips exactly the eleven suspected covers that were read, each with a marker of its own', async () => {
+    const { manifest } = await loadManifest(MANIFEST_2);
+    const strips = manifest.documents.filter((d) => d.action === 'strip_cover');
+    assert.deepEqual(strips.map((d) => d.prefix).sort(), ['04cd2c4b', '19e8dd76', '3cbeef80', '548fd359', '6fffba70', '70b72057', '9c83ba9d', 'af83bcf2', 'c2a56a17', 'ea463d40', 'ecf06955']);
+    for (const d of strips) assert.ok(d.cover_marker.length >= 8 && d.reason && d.reason.length >= 10, d.prefix);
+  });
+
+  it('accounts for the 108 key-less documents: each retitled or excluded with a reason, none twice', async () => {
+    const { manifest } = await loadManifest(MANIFEST_2);
+    const first = (await loadManifest(MANIFEST)).manifest;
+    const keyless = first.excluded.find((e) => e.reason.startsWith('False alarms: no key')).ids;
+    assert.equal(keyless.length, 108);
+    const retitled = manifest.documents.filter((d) => d.action === 'retitle').map((d) => d.prefix);
+    const excluded = manifest.excluded.flatMap((e) => e.ids);
+    assert.equal(new Set([...retitled, ...excluded]).size, retitled.length + excluded.length, 'a document is listed twice');
+    const stripped = manifest.documents.filter((d) => d.action === 'strip_cover').map((d) => d.prefix);
+    const covers = first.excluded.find((e) => e.reason.startsWith('Suspected stray cover')).ids;
+    assert.deepEqual([...retitled, ...excluded.filter((id) => keyless.includes(id))].sort(), [...keyless].sort());
+    assert.deepEqual([...stripped, ...excluded.filter((id) => covers.includes(id))].sort(), [...covers].sort());
+  });
+});
+
 test('a filled manifest (ids set, PDFs pinned) is still valid', () => {
   const doc = { prefix: 'abcdef01', id: 'abcdef01-0000-4000-8000-000000000000', action: 'ocr', pages: 3, ocr_kind: 'any', source_url: 'https://example.org/a.pdf', source_sha256: HEX('a') };
   assert.deepEqual(manifestProblems({ documents: [doc] }), []);

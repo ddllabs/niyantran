@@ -17,7 +17,7 @@ export { OCR_MODEL };
  */
 export const OCR_REQUEST_FLAGS = Object.freeze({ ...OCR_FLAGS, include_blocks: false, include_image_base64: false });
 
-export const ACTIONS = Object.freeze(['decode', 'reextract', 'strip_cover', 'ocr', 'rekey', 'retitle_unlink']);
+export const ACTIONS = Object.freeze(['decode', 'reextract', 'strip_cover', 'ocr', 'rekey', 'retitle_unlink', 'retitle']);
 /** Actions whose new text comes from the official PDF (so the manifest names it, and may pin its SHA-256). */
 export const PDF_ACTIONS = Object.freeze(['decode', 'reextract', 'ocr']);
 export const OCR_KINDS = Object.freeze(['any', 'cci-order', 'bilingual-gazette']);
@@ -127,6 +127,12 @@ export function manifestProblems(manifest) {
       else keys.set(d.new_document_key, d.prefix);
       if (typeof d.new_title !== 'string' || !d.new_title.trim()) problems.push(`${at}: rekey needs a new_title`);
       for (const f of ['new_house', 'new_status']) if (d[f] !== undefined && (typeof d[f] !== 'string' || !d[f].trim())) problems.push(`${at}: ${f} must be a non-empty string`);
+    }
+    if (d?.action === 'retitle') {
+      // New title only. A key, a bill number, a house or a status would be a re-key, and re-keying a key-less
+      // document is the Bills adapter's job (F275), not this tool's.
+      if (typeof d.new_title !== 'string' || !d.new_title.trim()) problems.push(`${at}: retitle needs a new_title`);
+      for (const f of ['new_document_key', 'new_bill_number', 'new_bill_year', 'new_house', 'new_status']) if (d[f] !== undefined) problems.push(`${at}: retitle changes the title only; ${f} is for a re-key`);
     }
     if (d?.action === 'retitle_unlink') {
       if (typeof d.new_title !== 'string' || !d.new_title.trim()) problems.push(`${at}: retitle_unlink needs a new_title`);
@@ -607,7 +613,7 @@ export function readbackProblems(expected, actual, { writtenAfter = null } = {})
 // review.md
 // ---------------------------------------------------------------------------------------------
 
-const ACTION_RISK = { ocr: 20, reextract: 15, decode: 10, strip_cover: 8, rekey: 5, retitle_unlink: 5 };
+const ACTION_RISK = { ocr: 20, reextract: 15, decode: 10, strip_cover: 8, rekey: 5, retitle_unlink: 5, retitle: 3 };
 
 /**
  * How much a person should look at this document, for sorting (higher first): a failed check, then each

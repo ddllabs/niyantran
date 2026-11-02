@@ -355,3 +355,154 @@ describe('the staged flow, end to end against a stand-in for NTER', () => {
     }
   });
 });
+
+
+// ---------------------------------------------------------------------------------------------
+// retitle: key-less documents with a file name for a title (the second F281 batch)
+// ---------------------------------------------------------------------------------------------
+const KEYLESS = [
+  { p: 'aaaa0001', old: '2760 LS', name: 'The Delta Gizmo Bill, 2006', words: 'DELTA GIZMO', year: 2006 },
+  { p: 'aaaa0002', old: 'As passed by LS327202664820PM', name: 'The Epsilon Doohickey Bill, 2002', words: 'EPSILON DOOHICKEY', year: 2002 },
+];
+const keylessText = (b) => `As introduced in Lok Sabha\n\n# THE ${b.words} BILL, ${b.year}\n\nA BILL to regulate ${b.words.toLowerCase()} matters.\n\nBE it enacted by Parliament.\n`;
+
+describe('the staged flow for a retitle, end to end against a stand-in for NTER', () => {
+  let dir;
+  let work;
+  let manifest;
+  let nter;
+  let out;
+  let log;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'f281-retitle-'));
+    work = join(dir, 'work');
+    process.env.SUPABASE_URL = 'https://stand-in.example.test';
+    process.env.SUPABASE_SECRET_KEY = 'sb_secret_stand_in';
+    nter = makeNter();
+    nter.docs.clear();
+    for (const b of KEYLESS) {
+      const text = keylessText(b);
+      nter.docs.set(ID(b.p), {
+        id: ID(b.p), title: b.old, file_name: `${b.p}.pdf`, file_url: null, desk_tier: 'national', desk_feature: 'Bill Passage Probability Index', content_sha256: sha(text),
+        indexed_at: '2026-09-21T06:00:00.000+00:00', chunker_version: 2, source_key: `${b.p}`.padEnd(40, 'b'), storage_path: null, extract_hash: null, ocr_text: text,
+        metadata: { n_chars: text.length, text_sha256: sha(text), as_of: '2026-09-09', doc_type: 'bill' },
+      });
+      nter.hashes.set(ID(b.p), new Set(['stale-hash']));
+    }
+    vi.stubGlobal('fetch', nter.fetch);
+    out = [];
+    log = vi.spyOn(console, 'log').mockImplementation((...a) => out.push(a.join(' ')));
+    manifest = writeRetitleManifest();
+    process.exitCode = undefined;
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    log.mockRestore();
+    rmSync(dir, { recursive: true, force: true });
+    process.exitCode = undefined;
+  });
+
+  function writeRetitleManifest(extra = {}) {
+    const documents = KEYLESS.map((b) => ({ id: ID(b.p), prefix: b.p, label: `test ${b.p}`, action: 'retitle', new_title: b.name, ...(extra[b.p] ?? {}) }));
+    const file = join(dir, 'manifest-2.json');
+    writeFileSync(file, `${JSON.stringify({ ticket: 'F281', documents }, null, 2)}\n`);
+    return file;
+  }
+  const run = async (argv) => {
+    out.length = 0;
+    process.exitCode = undefined;
+    let error = null;
+    try {
+      await main([...argv, '--manifest', manifest, '--work-dir', work, '--env', join(dir, 'no.env')], { sleep: async () => {} });
+    } catch (e) {
+      error = e;
+    }
+    const code = process.exitCode ?? 0;
+    process.exitCode = undefined;
+    return { out: out.join('\n'), code, error };
+  };
+  const reviewSha = () => sha(readFileSync(join(work, 'build', 'review.json')));
+  const review = (p) => JSON.parse(readFileSync(join(work, 'build', `${p}.review.json`), 'utf8'));
+  const stage = async () => {
+    expect((await run(['prepare', '--rows-only'])).error).toBeNull();
+    expect((await run(['build'])).error).toBeNull();
+    expect((await run(['dry-run'])).error).toBeNull();
+  };
+  const write = () => run(['write', '--confirm', reviewSha(), '--authorized-by', AUTH, '--max-embed-usd', '1']);
+
+  it('builds a payload that changes the title only, and passes every check', async () => {
+    await run(['prepare', '--rows-only']);
+    const r = await run(['build']);
+    expect(r.error).toBeNull();
+    const e = review('aaaa0001');
+    expect(e).toMatchObject({ action: 'retitle', ok: true, failed: [] });
+    expect(e.checks.title_in_text.ok).toBe(true);
+    expect(e.checks.keyless.ok).toBe(true);
+    expect(e.new).toMatchObject({ title: 'The Delta Gizmo Bill, 2006', document_key: null });
+    const payload = JSON.parse(readFileSync(join(work, 'build', 'aaaa0001.payload.json'), 'utf8'));
+    expect(payload.ocr_text).toBe(keylessText(KEYLESS[0]));
+    expect(payload.metadata).not.toHaveProperty('document_key');
+    expect(payload.metadata).not.toHaveProperty('file_url_ambiguous');
+    expect(payload.metadata.text_repair).toMatchObject({ ticket: 'F281', action: 'retitle', previous_title: '2760 LS' });
+    expect(readFileSync(join(work, 'build', 'review.md'), 'utf8')).toMatch(/retitle/);
+  });
+
+  it('fails a title that the opening text does not print, and says so', async () => {
+    manifest = writeRetitleManifest({ aaaa0002: { new_title: 'The Zeta Whatsit Bill, 2002' } });
+    await run(['prepare', '--rows-only']);
+    const r = await run(['build']);
+    expect(r.error?.message).toMatch(/1 document\(s\) failed/);
+    expect(review('aaaa0002').failed).toContain('title_in_text');
+    expect(review('aaaa0001').ok).toBe(true);
+  });
+
+  it('fails a document that already has a key: its title is not ours to change', async () => {
+    nter.docs.get(ID('aaaa0001')).metadata.document_key = 'bill:2006:12';
+    await run(['prepare', '--rows-only']);
+    const r = await run(['build']);
+    expect(r.error?.message).toMatch(/1 document\(s\) failed/);
+    expect(review('aaaa0001').failed).toEqual(expect.arrayContaining(['keyless']));
+  });
+
+  it('dry-runs, writes, reads back: the title changes, the text and metadata stay, and no key appears', async () => {
+    await stage();
+    const r = await write();
+    expect(r.error).toBeNull();
+    expect(r.out).toMatch(/Batch 1 is clean/);
+    for (const b of KEYLESS) {
+      const d = nter.docs.get(ID(b.p));
+      expect(d.title).toBe(b.name);
+      expect(d.ocr_text).toBe(keylessText(b));
+      expect(d.metadata).not.toHaveProperty('document_key');
+      expect(d.metadata).toMatchObject({ doc_type: 'bill', as_of: '2026-09-09' });
+      expect(d.metadata.text_repair).toMatchObject({ action: 'retitle', previous_title: b.old });
+    }
+    expect(nter.posts.filter((p) => !p.dry_run)).toHaveLength(2);
+  });
+
+  it('readback finds a title that is not the build\'s', async () => {
+    await stage();
+    expect((await write()).error).toBeNull();
+    nter.docs.get(ID('aaaa0001')).title = 'Changed since';
+    const r = await run(['readback']);
+    expect(r.error?.message).toMatch(/1 document\(s\) differ/);
+    expect(r.out).toMatch(/title: expected "The Delta Gizmo Bill, 2006"/);
+  });
+
+  it('rollback-build restores the file-name titles, and write --rollback posts them', async () => {
+    await stage();
+    expect((await write()).error).toBeNull();
+    const b = await run(['rollback-build']);
+    expect(b.error).toBeNull();
+    expect(b.out).toMatch(/restores 2760 LS/);
+    expect(b.out).not.toMatch(/re-linked/);
+    expect((await run(['dry-run', '--rollback'])).error).toBeNull();
+    const rollbackSha = sha(readFileSync(join(work, 'rollback', 'review.json')));
+    const r = await run(['write', '--rollback', '--confirm', rollbackSha, '--authorized-by', AUTH, '--batch', '3']);
+    expect(r.error).toBeNull();
+    for (const k of KEYLESS) {
+      expect(nter.docs.get(ID(k.p)).title).toBe(k.old);
+      expect(nter.docs.get(ID(k.p)).metadata).not.toHaveProperty('document_key');
+    }
+  });
+});
