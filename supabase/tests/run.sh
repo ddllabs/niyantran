@@ -101,7 +101,13 @@ chain() {
     document_chunks_partitions)
       chain pq_admission_links
       FILES+=("$(as_non_superuser 20261027231901_admin_corpus_readiness.sql)" "$(as_non_superuser 20261015130000_unscoped_ef_search.sql)"
-              "$(as_non_superuser 20261027185840_feature_search_recovery.sql)" "$(as_non_superuser 20261101120000_document_chunks_partitioned.sql)") ;;
+              "$(as_non_superuser 20261027185840_feature_search_recovery.sql)" "$(as_non_superuser 20261101110000_law_documents_serving_set.sql)"
+              "$(as_non_superuser 20261101120000_document_chunks_partitioned.sql)") ;;
+    # The law publication policy on documents evaluated once per query (same rows): the law listing
+    # chain, then the migration, as a non-superuser. The vacuity check drops the last.
+    law_documents_serving_set)
+      chain pq_admission_links
+      FILES+=("$(as_non_superuser 20261101110000_law_documents_serving_set.sql)") ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;
