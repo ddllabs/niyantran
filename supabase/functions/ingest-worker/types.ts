@@ -54,6 +54,8 @@ export type JobStage = 'ocr' | 'index' | 'done';
 export interface IngestJob {
   id: string;
   input_kind?: 'pdf' | 'supplied_text';
+  /** The registration batch (ingest_register_batch); null or absent for a job registered alone. */
+  batch_id?: string | null;
   document_id: string;
   status: JobStatus;
   stage: JobStage;
@@ -308,6 +310,8 @@ export interface IngestCallLog {
  * INGEST.readPage rows, ordered by the key named; callers page with readAll (paging.ts).
  */
 export interface IngestDb {
+  /** ingest_settings: max_running and claim_batch (2 and 1 when the row was never changed). */
+  settings?(): Promise<{ max_running: number; claim_batch: number }>;
   textInput?(documentId: string): Promise<{ payload: string; payload_sha256: string; expected: PageCommitRow[] }>;
   textCommit?(jobId: string, token: string, rows: PageCommitRow[]): Promise<{ inserted: number; kept: number; deleted: number }>;
   textActivate?(jobId: string, token: string, tokens: number, cost: number): Promise<void>;
@@ -364,3 +368,9 @@ export interface WorkerDeps {
 
 /** A step runs until done or until now() passes the deadline (epoch ms). */
 export type Step = (deps: WorkerDeps, job: IngestJob, deadline: number) => Promise<StepOutcome>;
+
+/**
+ * Several index jobs of one batch, claimed together (design 4.2): one outcome per job, in the order
+ * given. Each job keeps its own claim token, so each outcome is reported under its own fence.
+ */
+export type BatchStep = (deps: WorkerDeps, jobs: IngestJob[], deadline: number) => Promise<StepOutcome[]>;

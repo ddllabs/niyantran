@@ -1,7 +1,7 @@
 import { canonical, prepareSuppliedText } from '../_shared/suppliedText.ts';
 import { type ContextChunk, TEXT_CONTEXT_VERSION } from '../_shared/textContext.ts';
-import { runIndexPlan } from './index-step.ts';
-import { IngestError, type PageCommitRow, type Step } from './types.ts';
+import { type EmbeddingChunk, runIndexPlan } from './index-step.ts';
+import { IngestError, type IngestJob, type PageCommitRow, type Step, type WorkerDeps } from './types.ts';
 
 export function suppliedCommitRows(chunks: ContextChunk[]): PageCommitRow[] {
   return chunks.map((c) => ({
@@ -20,7 +20,15 @@ export function suppliedCommitRows(chunks: ContextChunk[]): PageCommitRow[] {
     embed_hash: c.embed_hash,
   }));
 }
-export const suppliedTextStep: Step = async (deps, job, deadline) => {
+
+/**
+ * The stored supplied text of a job, re-planned and compared with the registered plan before any
+ * paid work: a plan that no longer matches is refused (permanent), so a wrong plan costs nothing.
+ */
+export async function loadSuppliedPlan(
+  deps: WorkerDeps,
+  job: IngestJob,
+): Promise<{ chunks: EmbeddingChunk[]; rows: PageCommitRow[] }> {
   if (!deps.db.textInput || !deps.db.textCommit || !deps.db.textActivate) {
     throw new IngestError('text_unavailable', 'supplied-text dependencies unavailable', true);
   }
@@ -38,16 +46,24 @@ export const suppliedTextStep: Step = async (deps, job, deadline) => {
   ) {
     throw new IngestError('text_changed', 'supplied-text plan no longer matches registration', true);
   }
-  return runIndexPlan(
-    deps,
-    job,
-    deadline,
-    plan.chunks.map((c) => ({
+  return {
+    chunks: plan.chunks.map((c) => ({
       chunk_hash: c.chunkHash,
       chunk_index: c.chunkIndex,
       embed_hash: c.embed_hash,
       embedding_input: c.embedding_input,
     })),
+    rows,
+  };
+}
+
+export const suppliedTextStep: Step = async (deps, job, deadline) => {
+  const { chunks, rows } = await loadSuppliedPlan(deps, job);
+  return runIndexPlan(
+    deps,
+    job,
+    deadline,
+    chunks,
     rows,
     (spend) => deps.db.textActivate!(job.id, job.claim_token, spend.tokens, spend.cost),
   );

@@ -148,6 +148,10 @@ export async function prepareSuppliedText(value: unknown) {
     sections: r.sections ?? [],
   };
   for (const k of ['n_chars', 'n_pages', 'page_count', 'page_split', 'text_quality']) if (r[k] != null) input[k] = r[k];
+  // servable (pack records): only `false` is carried, so the database can refuse it (not_servable,
+  // ingest_register_batch) and every other payload stays byte-identical to what it was before.
+  if (r.servable !== undefined && r.servable !== null && typeof r.servable !== 'boolean') throw new Error('invalid servable');
+  if (r.servable === false) input.servable = false;
   if (review.file_sha256 !== undefined) {
     if (!SHA.test(String(review.file_sha256))) throw new Error('review file hash required');
     (input.review as Record<string, unknown>).file_sha256 = review.file_sha256;

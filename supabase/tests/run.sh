@@ -94,6 +94,12 @@ chain() {
       FILES+=("$(as_non_superuser 20261028130000_pq_admission_links.sql)") ;;
     pq_row_refresh)
       chain pq_admission_links ;;
+    # F278 step 8 (C3b): set-based registration. pq_admission_links' chain, the corpus_ingest role
+    # (bootstrap: NTER's migration role has CREATEROLE, nter_migrator does not), then the migration,
+    # as a non-superuser. The vacuity check drops the last.
+    ingest_register_batch|ingest_register_text_parity)
+      chain pq_admission_links
+      FILES+=("$TESTS/bootstrap_corpus_ingest.sql" "$(as_non_superuser 20261102130000_batch_registration.sql)") ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;
@@ -780,6 +786,92 @@ record_brief_format_checks() {
   return $rc
 }
 
+# ingest_register_batch only (C3b), two checks a fixture cannot make from inside its own database.
+#  * Parity: pq_admission_links and law_listing (and law_listing_concurrency.sh), as written, on
+#    pq_admission_links' chain with and without the corpus_ingest bootstrap and 20261102130000.
+#    Their assertions must come out the same (one stated exception below).
+#  * The Down section, executed: base is the chain without the migration; up gets the migration and
+#    then its Down block as written, as the migrating role, with its three "run ..." steps performed
+#    by extracting exactly those create statements (ingest_register_text's as create or replace).
+#    The schemas must dump identically; then the migration must re-apply and the fixture pass again.
+ingest_register_batch_checks() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f rc=0 x db
+  local base=niyantran_ingest_register_batch_base_test up=niyantran_ingest_register_batch_up_test
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  # supplied_text.sql is left out: its chain predates the Law wrapper, and on any chain with
+  # 20261023184450 it fails (its law:hc source is held) with or without this migration.
+  # ingest_register_text_parity.sql carries its messages.
+  # law_listing.sql registers two different orders with one synthetic text ('A court order.'), and
+  # the duplicate-text rule (design 11, Q3) refuses the second. Parity for it is therefore: every
+  # assertion before that registration passes exactly as without the migration, and the run stops
+  # there with the duplicate-text message and nothing else.
+  for x in pq_admission_links law_listing; do
+    for side in old new; do
+      db="niyantran_${x}_${side}_batch_test"
+      chain pq_admission_links
+      [ $side = new ] && FILES+=("$TESTS/bootstrap_corpus_ingest.sql" "$guard")
+      q "drop database if exists $db" >/dev/null; q "create database $db" >/dev/null
+      for f in "${FILES[@]}"; do psql_in "$db" < "$f" >/dev/null 2>&1 || { echo "  PARITY FAIL - $x: bootstrap broke at $(basename "$f")"; rc=1; }; done
+      fixture_sql "$x" | psql_in "$db" 2>&1 | grep -oE 'PASS .*|ERROR: .*' > "$WORK/parity_$side.txt" || true
+      if [ $side = new ] && [ "$x" = law_listing ] && ! sed "s/^DB=niyantran_law_listing_test$/DB=$db/" "$TESTS/law_listing_concurrency.sh" | bash > "$WORK/parity.txt" 2>&1; then
+        echo "  PARITY FAIL - law_listing_concurrency.sh fails on the batch-registration migration:"; tail -3 "$WORK/parity.txt" | sed 's/^/    /'; rc=1
+      fi
+      q "drop database if exists $db" >/dev/null
+    done
+    if [ "$x" = pq_admission_links ]; then
+      cmp -s "$WORK/parity_old.txt" "$WORK/parity_new.txt" && ! grep -q '^ERROR' "$WORK/parity_new.txt" \
+        || { echo "  PARITY FAIL - pq_admission_links.sql differs on the batch-registration migration"; diff "$WORK/parity_old.txt" "$WORK/parity_new.txt" | head -4 | sed 's/^/    /'; rc=1; }
+    else
+      k=$(( $(wc -l < "$WORK/parity_new.txt") - 1 ))
+      if [ "$(tail -1 "$WORK/parity_new.txt")" != 'ERROR:  supplied text: conflict: another document holds this text' ] \
+         || ! cmp -s <(head -n "$k" "$WORK/parity_old.txt") <(head -n "$k" "$WORK/parity_new.txt") \
+         || [ "$(sed -n "${k}p" "$WORK/parity_old.txt")" != 'PASS announcement not matched by company' ]; then
+        echo "  PARITY FAIL - law_listing.sql differs on the migration other than by the duplicate-text refusal of its second order:"
+        diff "$WORK/parity_old.txt" "$WORK/parity_new.txt" | head -4 | sed 's/^/    /'; rc=1
+      fi
+    fi
+  done
+  [ $rc -eq 0 ] && echo "  parity ok - pq_admission_links.sql identical; law_listing.sql identical up to its second order's shared text, refused duplicate_text (Q3); law_listing_concurrency.sh passes"
+  chain ingest_register_batch
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  q "create database $base" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $base < "$f" >/dev/null 2>&1 || { echo "  CHECKS: bootstrap broke at $(basename "$f")"; return 1; }
+  done
+  q "create database $up template $base" >/dev/null
+  local mig="$MIG/20261102130000_batch_registration.sql"
+  {
+    echo 'SET ROLE nter_migrator;'
+    sed -n '/^-- Down/,/^--   commit;/p' "$mig" | sed -n '/^--   begin;/,/^--   commit;/p' \
+      | grep -v -e '^--   --' -e '^--   commit;' | sed 's/^--   //'
+    awk '/^create or replace function public\.ingest_claim\(/,/^\$\$;/' "$MIG/20261022230537_supplied_text_connection.sql"
+    awk '/^create or replace function public\.ingest_register_text_unmapped\(/,/\$\$;[[:space:]]*$/' "$MIG/20261028130000_pq_admission_links.sql"
+    awk '/^create function public\.ingest_register_text\(/,/\$\$;[[:space:]]*$/' "$MIG/20261023184450_law_listing_publication.sql" \
+      | sed '1s/^create function/create or replace function/'
+    echo 'commit;'
+  } > "$WORK/irb_down.sql"
+  if ! psql_in $up < "$guard" >/dev/null 2>&1; then
+    echo "  DOWN FAIL - the migration did not apply"; rc=1
+  elif ! psql_in $up < "$WORK/irb_down.sql" > "$WORK/irb_down.txt" 2>&1; then
+    echo "  DOWN FAIL - the Down section did not run:"; grep ERROR "$WORK/irb_down.txt" | head -2 | sed 's/^/    /'; rc=1
+  else
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $base | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/irb_base.dump"
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $up | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/irb_up.dump"
+    if ! diff -q "$WORK/irb_base.dump" "$WORK/irb_up.dump" >/dev/null; then
+      echo "  DOWN FAIL - the schema differs after the Down section:"; diff "$WORK/irb_base.dump" "$WORK/irb_up.dump" | head -8 | sed 's/^/    /'; rc=1
+    elif ! psql_in $up < "$guard" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the migration did not apply again after the Down section"; rc=1
+    elif ! psql_in $up < "$TESTS/ingest_register_batch.sql" > "$WORK/irb_again.txt" 2>&1; then
+      echo "  DOWN FAIL - the fixture fails after Down and re-apply:"; grep -E 'ERROR|FAIL' "$WORK/irb_again.txt" | head -2 | sed 's/^/    /'; rc=1
+    else
+      echo "  down ok - the Down section restores the schema exactly; the migration re-applies and the fixture passes again"
+    fi
+  fi
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  return $rc
+}
+
 credit_paise_atomic_check() {
   local db="$1" line
   : > "$WORK/credit_paise_atomic.expanded.sql"
@@ -832,6 +924,7 @@ run_fixture() {
   if fixture_sql "$name" | psql_in "$db" > "$WORK/out.txt" 2>&1; then
     echo "  PASS  ($(grep -c . "$WORK/out.txt") lines of output)"
     [ "$name" = law_listing ] && { bash "$TESTS/law_listing_concurrency.sh" || rc=1; }
+    [ "$name" = ingest_register_batch ] && { bash "$TESTS/ingest_register_batch_concurrency.sh" || rc=1; }
     [ "$name" = billing_creation_retry ] && { bash "$TESTS/billing_retry_concurrency.sh" || rc=1; }
     [ "$name" = billing_cycle_changes ] && { bash "$TESTS/billing_cycle_concurrency.sh" || rc=1; }
     [ "$name" = billing_live_cycle ] && { bash "$TESTS/billing_live_cycle_concurrency.sh" || rc=1; }
@@ -849,6 +942,7 @@ run_fixture() {
     [ "$name" = handbook_period_ranges ] && { handbook_period_ranges_checks || rc=1; }
     [ "$name" = record_briefs ] && { record_briefs_checks || rc=1; }
     [ "$name" = record_brief_format ] && { record_brief_format_checks || rc=1; }
+    [ "$name" = ingest_register_batch ] && { ingest_register_batch_checks || rc=1; }
   else
     rc=1
     echo "  FAIL"
