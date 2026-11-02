@@ -54,8 +54,14 @@
 --   claim (stop ingestion first; the lock is the guarantee, the check makes the freeze explicit).
 --   Before the swap it asserts that the old and new tables hold the same number of rows and the
 --   same digest of every column, with vectors compared byte for byte (vector_send), and aborts
---   otherwise. The swap takes ACCESS EXCLUSIVE on the old table only for the renames and grants
---   at the end. A writer still blocked when the swap commits re-resolves public.document_chunks
+--   otherwise. Everything slow (copy, keys, HNSW builds, the digest, ANALYZE of the new table) and
+--   everything that need not hold readers (functions, policies, grants and the old table's revokes,
+--   which take no table lock) runs before the swap. The swap itself takes ACCESS EXCLUSIVE on the
+--   old table only for the renames, catalogue updates held until commit. Because readers queue
+--   behind an ACCESS EXCLUSIVE request even while it waits, the request uses a 500 ms lock_timeout
+--   and is retried, so a search waits at most about half a second for it. (The B3 rehearsal of the
+--   first version, which ran ANALYZE after the renames, blocked readers for 32.4 s.)
+--   A writer still blocked when the swap commits re-resolves public.document_chunks
 --   to the new table; an older chunk_commit body already running in that session would insert
 --   without desk_feature and is refused by the trigger (loud, retryable), never misplaced.
 --   A transaction that has already read document_chunks and then waits to write chunks or
@@ -65,8 +71,8 @@
 --   which is one more reason the freeze means stopping the worker, not only waiting for claims.
 --   (Both behaviours were executed on a disposable copy, 2026-11-01.)
 --
--- Phases print NOTICEs prefixed "document_chunks_partitioned phase:" with clock_timestamp(),
--- for the rehearsal's timings (plan task B2/B3).
+-- Every phase prints NOTICE 'phase: <name> start' and 'phase: <name> end', which the rehearsal tool
+-- (scripts/eval-replica/rehearse.mjs, plan task B2) times.
 --
 -- Adding a partition later (a feature that passes the 100,000-chunk threshold, spec §4.1).
 -- Its rows are in the default partition, which must not keep any row the new bound accepts.
@@ -143,6 +149,7 @@ set local maintenance_work_mem = '256MB';
 -- ---------------------------------------------------------------------------
 -- Preconditions. Each failure aborts before anything is changed.
 
+do $$ begin raise notice 'phase: preconditions start'; end $$;
 do $$
 declare
   v_old regclass := to_regclass('public.document_chunks');
@@ -220,13 +227,15 @@ begin
 end
 $$;
 
+do $$ begin raise notice 'phase: preconditions end'; end $$;
+do $$ begin raise notice 'phase: lock start'; end $$;
 lock table public.documents, public.document_chunks in share row exclusive mode;
-
-do $$ begin raise notice 'document_chunks_partitioned phase: locked %', clock_timestamp(); end $$;
+do $$ begin raise notice 'phase: lock end'; end $$;
 
 -- ---------------------------------------------------------------------------
 -- The date facet: one parser for the backfill and both triggers.
 
+do $$ begin raise notice 'phase: date facet function start'; end $$;
 create function public.document_date_facet(p_desk_feature text, p_metadata jsonb) returns date
 language sql immutable parallel safe set search_path = pg_catalog as $$
   select case
@@ -250,10 +259,12 @@ language sql immutable parallel safe set search_path = pg_catalog as $$
 $$;
 revoke all on function public.document_date_facet(text, jsonb) from public, anon, authenticated;
 grant execute on function public.document_date_facet(text, jsonb) to service_role;
+do $$ begin raise notice 'phase: date facet function end'; end $$;
 
 -- ---------------------------------------------------------------------------
 -- The new table, side by side with the old one. Indexes are built after the copy.
 
+do $$ begin raise notice 'phase: new table start'; end $$;
 create table public.document_chunks_partitioned (
   id               uuid not null default gen_random_uuid(),
   document_id      uuid not null,
@@ -282,12 +293,12 @@ create table public.document_chunks_partitioned (
 create table public.document_chunks_nclt partition of public.document_chunks_partitioned
   for values in ('NCLT / NCLAT (Insolvency)');
 create table public.document_chunks_default partition of public.document_chunks_partitioned default;
+do $$ begin raise notice 'phase: new table end'; end $$;
 
 -- ---------------------------------------------------------------------------
 -- Copy every row, vectors unchanged, with the facets derived once per document.
 
-do $$ begin raise notice 'document_chunks_partitioned phase: copy start %', clock_timestamp(); end $$;
-
+do $$ begin raise notice 'phase: copy start'; end $$;
 insert into public.document_chunks_partitioned
   (id, document_id, chunk_hash, chunk_index, source_kind, page_number, char_from, char_to, content, token_count,
    embedding, chunker_version, metadata, created_at, block_ids, image_ids, embed_hash,
@@ -300,8 +311,9 @@ select c.id, c.document_id, c.chunk_hash, c.chunk_index, c.source_kind, c.page_n
                public.document_date_facet(d.desk_feature, d.metadata) as doc_date,
                d.metadata->>'language' as language
           from public.documents d) f on f.id = c.document_id;
+do $$ begin raise notice 'phase: copy end'; end $$;
 
-do $$ begin raise notice 'document_chunks_partitioned phase: copy done, keys start %', clock_timestamp(); end $$;
+do $$ begin raise notice 'phase: keys and indexes start'; end $$;
 
 alter table public.document_chunks_partitioned
   add constraint document_chunks_id_desk_feature_key unique nulls not distinct (id, desk_feature),
@@ -316,29 +328,30 @@ create index document_chunks_partitioned_document_order on public.document_chunk
 create index document_chunks_feature_tier on public.document_chunks_partitioned (desk_feature, desk_tier);
 create index document_chunks_feature_date on public.document_chunks_partitioned (desk_feature, doc_date);
 create index document_chunks_feature_language on public.document_chunks_partitioned (desk_feature, language);
-
-do $$ begin raise notice 'document_chunks_partitioned phase: keys done, hnsw start %', clock_timestamp(); end $$;
+do $$ begin raise notice 'phase: keys and indexes end'; end $$;
 
 -- One HNSW index per partition, the definition of 20260929120000, attached to a parent index
 -- so a partition attached later carries it too.
 create index document_chunks_partitioned_embedding_halfvec_hnsw on only public.document_chunks_partitioned
   using hnsw ((embedding::extensions.halfvec(1536)) extensions.halfvec_cosine_ops);
+do $$ begin raise notice 'phase: hnsw nclt start'; end $$;
 create index document_chunks_nclt_embedding_halfvec_hnsw on public.document_chunks_nclt
   using hnsw ((embedding::extensions.halfvec(1536)) extensions.halfvec_cosine_ops);
-do $$ begin raise notice 'document_chunks_partitioned phase: hnsw nclt done %', clock_timestamp(); end $$;
+do $$ begin raise notice 'phase: hnsw nclt end'; end $$;
+do $$ begin raise notice 'phase: hnsw default start'; end $$;
 create index document_chunks_default_embedding_halfvec_hnsw on public.document_chunks_default
   using hnsw ((embedding::extensions.halfvec(1536)) extensions.halfvec_cosine_ops);
+do $$ begin raise notice 'phase: hnsw default end'; end $$;
 alter index public.document_chunks_partitioned_embedding_halfvec_hnsw
   attach partition public.document_chunks_nclt_embedding_halfvec_hnsw;
 alter index public.document_chunks_partitioned_embedding_halfvec_hnsw
   attach partition public.document_chunks_default_embedding_halfvec_hnsw;
 
-do $$ begin raise notice 'document_chunks_partitioned phase: hnsw done, verify start %', clock_timestamp(); end $$;
-
 -- ---------------------------------------------------------------------------
 -- Verify the copy before the swap: same row count and the same digest of every old column,
 -- vectors byte for byte. Two 64-bit sums of each row's md5, so order does not matter.
 
+do $$ begin raise notice 'phase: verify start'; end $$;
 do $$
 declare
   c_digest constant text := $q$
@@ -360,9 +373,10 @@ begin
     raise exception 'document_chunks_partitioned: copy differs from the original (rows % vs %); nothing was swapped',
       v_old.n, v_new.n;
   end if;
-  raise notice 'document_chunks_partitioned phase: verified % rows %', v_new.n, clock_timestamp();
+  raise notice 'phase: verified % rows', v_new.n;
 end
 $$;
+do $$ begin raise notice 'phase: verify end'; end $$;
 
 -- ---------------------------------------------------------------------------
 -- Facet sync. Both trigger functions run as their owner: the chunk trigger must read (and
@@ -373,6 +387,7 @@ $$;
 -- is not the document's. The document row is share-locked, so its feature cannot change until
 -- this transaction ends (its own trigger would then rewrite this chunk too). A missing document
 -- is left to the foreign key, which refuses the row as before.
+do $$ begin raise notice 'phase: sync triggers start'; end $$;
 create function public.document_chunks_fill_facets() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
@@ -425,12 +440,14 @@ revoke all on function public.documents_sync_chunk_facets() from public, anon, a
 create trigger documents_chunk_facets
   after update of desk_feature, desk_tier, metadata on public.documents
   for each row execute function public.documents_sync_chunk_facets();
+do $$ begin raise notice 'phase: sync triggers end'; end $$;
 
 -- ---------------------------------------------------------------------------
 -- Access: the policies as on the old table, on the parent only. A partition read directly
 -- bypasses the parent's policies, so no role but the owner holds any privilege on a partition,
 -- and RLS is on there too (no policy, so a role that somehow got a grant still reads nothing).
 
+do $$ begin raise notice 'phase: policies and grants start'; end $$;
 alter table public.document_chunks_partitioned enable row level security;
 alter table public.document_chunks_nclt enable row level security;
 alter table public.document_chunks_default enable row level security;
@@ -442,9 +459,12 @@ revoke all on table public.document_chunks_partitioned, public.document_chunks_n
   from public, anon, authenticated, service_role;
 grant select on table public.document_chunks_partitioned to authenticated;
 grant select, insert, update, delete on table public.document_chunks_partitioned to service_role;
+do $$ begin raise notice 'phase: policies and grants end'; end $$;
 
 -- ---------------------------------------------------------------------------
 -- Functions. Bodies are resolved by name at run time, so they read the new table after the swap.
+
+do $$ begin raise notice 'phase: functions start'; end $$;
 
 -- chunk_commit: 20261001120000's function; an insert also writes desk_feature from the document
 -- (the trigger fills the other facets). Same signature, security definer, search_path and grants.
@@ -832,13 +852,60 @@ $fn$;
 
 revoke all on function public.match_documents(extensions.vector, int, uuid[], text, text) from public, anon;
 grant execute on function public.match_documents(extensions.vector, int, uuid[], text, text) to authenticated, service_role;
+do $$ begin raise notice 'phase: functions end'; end $$;
 
 -- ---------------------------------------------------------------------------
--- The swap. ACCESS EXCLUSIVE on the old table from here to commit: renames and grants only.
+-- Before the swap, under the weaker lock (searches still read the old table): statistics for the
+-- new table and each partition (AGENTS.md: after a bulk load; they belong to the table, so they
+-- survive the rename), and the old table's revokes (GRANT and REVOKE take no lock on the table;
+-- like everything here they become visible only at commit, together with the renames).
 
-do $$ begin raise notice 'document_chunks_partitioned phase: swap start %', clock_timestamp(); end $$;
+do $$ begin raise notice 'phase: analyze start'; end $$;
+analyze public.document_chunks_partitioned;
+do $$ begin raise notice 'phase: analyze end'; end $$;
 
-lock table public.document_chunks in access exclusive mode;
+-- The old table is for the rollback only: after commit no role but its owner reaches it.
+do $$ begin raise notice 'phase: old table grants start'; end $$;
+revoke all on table public.document_chunks from public, anon, authenticated, service_role;
+do $$
+declare
+  v_columns text;
+begin
+  select string_agg(quote_ident(attname), ', ' order by attnum) into v_columns
+    from pg_attribute
+   where attrelid = 'public.document_chunks'::regclass and attnum > 0 and not attisdropped;
+  execute format('revoke all (%s) on table public.document_chunks from public, anon, authenticated, service_role', v_columns);
+end
+$$;
+do $$ begin raise notice 'phase: old table grants end'; end $$;
+
+-- ---------------------------------------------------------------------------
+-- The swap: the only statements under ACCESS EXCLUSIVE, held from the lock to commit, are the
+-- renames, which are catalogue updates. Readers queue behind an ACCESS EXCLUSIVE request even
+-- while it waits, so the lock is requested with a short timeout and retried: while a search
+-- still holds the old table, new searches wait at most c_wait before the request steps aside
+-- for a moment. It gives up (and the whole migration rolls back) after about ten minutes.
+
+do $$ begin raise notice 'phase: swap start'; end $$;
+do $$
+declare
+  c_wait constant text := '500ms';
+  c_attempts constant int := 600;
+begin
+  for attempt in 1..c_attempts loop
+    begin
+      perform set_config('lock_timeout', c_wait, true);
+      lock table public.document_chunks in access exclusive mode;
+      perform set_config('lock_timeout', '30s', true);
+      raise notice 'phase: swap lock taken on attempt %', attempt;
+      return;
+    exception when lock_not_available then
+      perform pg_sleep(0.5);
+    end;
+  end loop;
+  raise exception 'document_chunks_partitioned: readers held document_chunks through % attempts; nothing was swapped', c_attempts;
+end
+$$;
 
 alter table public.document_chunks rename to document_chunks_unpartitioned;
 alter index public.document_chunks_pkey rename to document_chunks_unpartitioned_pkey;
@@ -849,24 +916,7 @@ alter index public.document_chunks_embedding_halfvec_hnsw rename to document_chu
 alter table public.document_chunks_partitioned rename to document_chunks;
 alter index public.document_chunks_partitioned_document_order rename to document_chunks_document_order;
 alter index public.document_chunks_partitioned_embedding_halfvec_hnsw rename to document_chunks_embedding_halfvec_hnsw;
-
--- The old table is for the rollback only: no role but its owner reaches it.
-revoke all on table public.document_chunks_unpartitioned from public, anon, authenticated, service_role;
-do $$
-declare
-  v_columns text;
-begin
-  select string_agg(quote_ident(attname), ', ' order by attnum) into v_columns
-    from pg_attribute
-   where attrelid = 'public.document_chunks_unpartitioned'::regclass and attnum > 0 and not attisdropped;
-  execute format('revoke all (%s) on table public.document_chunks_unpartitioned from public, anon, authenticated, service_role', v_columns);
-end
-$$;
-
-do $$ begin raise notice 'document_chunks_partitioned phase: swap done %', clock_timestamp(); end $$;
-
--- Statistics for the new table and each partition now (AGENTS.md: after a bulk load).
-analyze public.document_chunks;
+do $$ begin raise notice 'phase: swap end'; end $$;
 
 notify pgrst, 'reload schema';
 
