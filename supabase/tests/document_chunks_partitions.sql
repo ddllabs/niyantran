@@ -732,6 +732,7 @@ begin
 end $$;
 set local hnsw.ef_search = 40;
 set local hnsw.iterative_scan = 'strict_order';
+set local work_mem = '3MB';
 set local role authenticated;
 select pg_temp.call('ids', $q$select * from match_documents((select v from q where name = 'mixed'), 40, array['c3000000-0000-4000-8000-000000000001', 'c4000000-0000-4000-8000-000000000001',
   'c2000000-0000-4000-8000-000000000001', 'c3000000-0000-4000-8000-000000000004', 'c1000000-0000-4000-8000-000000000001']::uuid[])$q$);
@@ -744,8 +745,9 @@ select pg_temp.call('feature-bills-state', $q$select * from match_documents((sel
 select pg_temp.call('feature-regulatory', $q$select * from match_documents((select v from q where name = 'default'), 40, null, null, 'Regulatory Body Watch (RBI SEBI TRAI CCI)')$q$);
 select pg_temp.call('helper-bills', $q$select * from match_documents_feature_hnsw((select v from q where name = 'default'), 40, null, 'Bill Passage Probability Index')$q$);
 select pg_temp.call('feature-pq-state', $q$select * from match_documents((select v from q where name = 'default'), 40, null, 'state', 'Parliamentary Question Database')$q$);
-select pg_temp.ok(current_setting('hnsw.ef_search') = '40' and current_setting('hnsw.iterative_scan') = 'strict_order',
-  'the caller''s ef_search and iterative_scan are restored after every search');
+select pg_temp.ok(current_setting('hnsw.ef_search') = '40' and current_setting('hnsw.iterative_scan') = 'strict_order'
+  and current_setting('work_mem') = '3MB',
+  'the caller''s ef_search, iterative_scan and work_mem are restored after every search');
 reset role;
 select pg_temp.ok((select ids from got where mode = 'ids') = (select ids from oracle where mode = 'ids')
   and (select sims from got where mode = 'ids') = (select sims from oracle where mode = 'ids'),
@@ -778,6 +780,25 @@ select pg_temp.ok((select nclt = 0 and bills = 0 and reg = 0 and dflt > 0 from g
   'a default-partition feature reads only the default partition');
 select pg_temp.ok((select bool_and(nclt > 0 and bills > 0 and reg > 0 and dflt > 0) from got where mode in ('unscoped-nclt', 'unscoped-default', 'tier')),
   'unscoped and tier searches read all four partitions');
+
+-- At a realistic number of documents, the unscoped search checks access with a primary-key
+-- probe of documents for each row it returns, not by hashing every document once per partition
+-- (its small work_mem; see match_documents). 20,000 documents without chunks change no result.
+insert into documents (id, source_key, title, desk_tier, desk_feature, content_sha256, ocr_text, chunker_version, indexed_at)
+select gen_random_uuid(), 'pt-filler-' || i, 'Filler', 'national', 'Filler', 'x', 'f', 4, now() from generate_series(1, 20000) i;
+analyze documents;
+create temp table doc_scans as select pg_stat_get_xact_numscans('public.documents'::regclass) as n;
+set local role authenticated;
+create temp table broad_again as select id from match_documents((select v from q where name = 'nclt'), 40);
+create temp table tier_again as select id from match_documents((select v from q where name = 'default'), 40, null, 'national');
+reset role;
+select pg_temp.ok(pg_stat_get_xact_numscans('public.documents'::regclass) = (select n from doc_scans),
+  'unscoped and tier searches read documents by primary key only: no scan of all documents per partition');
+select pg_temp.ok((select array_agg(id) from broad_again) = (select ids from got where mode = 'unscoped-nclt')
+  and (select array_agg(id) from tier_again) = (select ids from got where mode = 'tier'),
+  'and return the same rows as before');
+delete from documents where source_key like 'pt-filler-%';
+analyze documents;
 
 -- The four functions that were not recreated give the same answers as on the unpartitioned table.
 select pg_temp.ok((select fingerprint from fn_before)

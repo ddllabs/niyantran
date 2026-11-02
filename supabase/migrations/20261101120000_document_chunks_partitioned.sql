@@ -787,7 +787,13 @@ declare
   -- Above about 500 the planner turns to an exact scan. Measured:
   -- docs/research/2026-10-15-unscoped-search-recall.md.
   c_unscoped_ef_search constant text := '200';
+  -- The unscoped search's work_mem: small enough that the access check on chunks
+  -- (law_chunks_serving, exists a visible document) is planned as a primary-key probe of
+  -- documents for each row the search returns, not as a hash of every visible document
+  -- built once per partition. See the branch's comment.
+  c_unscoped_work_mem constant text := '256kB';
   v_previous text;
+  v_previous_work_mem text;
 begin
   if v_docs > 0 then
     -- Scoped. The predicate on document_id is unconditional here, so the planner
@@ -826,8 +832,21 @@ begin
     -- still computed at full precision for the rows kept. ef_search is set with
     -- set_config and restored afterwards, as in match_documents_feature_hnsw
     -- (NTER refuses a SET clause for it; see that function's comment).
+    --
+    -- On the partitioned table the access check of each partition's scan is its own
+    -- SubPlan, and the planner hashes it (it cannot know that LIMIT stops each scan after a
+    -- few rows): every unscoped search then read and filtered all of documents once per
+    -- partition, four times, about 25-50 ms warm. A hash table must fit in work_mem
+    -- (times hash_mem_multiplier) to be chosen, so the search runs with a small work_mem:
+    -- the check becomes a primary-key probe for each row pulled (about 44), while the
+    -- documents policy's published set (declared rows 10000) still hashes. Same rows: only
+    -- the evaluation of the same predicates changes, and the access check still applies to
+    -- every row. Measured on a full copy of the replica (2026-11-03): warm, 74 -> 15 ms and
+    -- 15,711 -> 11,036 buffers for one broad question. Restored afterwards, like ef_search.
     v_previous := current_setting('hnsw.ef_search', true);
+    v_previous_work_mem := current_setting('work_mem');
     perform set_config('hnsw.ef_search', c_unscoped_ef_search, true);
+    perform set_config('work_mem', c_unscoped_work_mem, true);
     return query
       select c.id, c.document_id, c.content,
              (1 - (c.embedding <=> query_embedding))::float8,
@@ -841,6 +860,7 @@ begin
          and (p_desk_tier is null or d.desk_tier = p_desk_tier)
        order by (c.embedding::extensions.halfvec(1536)) <=> (query_embedding::extensions.halfvec(1536))
        limit v_limit;
+    perform set_config('work_mem', v_previous_work_mem, true);
     perform set_config('hnsw.ef_search', coalesce(nullif(v_previous, ''), '40'), true);
   else
     -- Feature, no ids: hybrid X, on the chunk's own feature (one partition). Count the
