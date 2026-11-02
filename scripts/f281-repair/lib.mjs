@@ -5,6 +5,17 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { OCR_FLAGS, OCR_MODEL } from '../../supabase/functions/ingest-worker/types.ts';
+
+export { OCR_MODEL };
+/**
+ * The OCR request flags this tool sends: the worker's own (ingest-worker/types.ts OCR_FLAGS), less the page
+ * images and blocks, which composeDocument does not read and which would bloat the response. Stored in every
+ * cached part, and build refuses a part made with other flags.
+ */
+export const OCR_REQUEST_FLAGS = Object.freeze({ ...OCR_FLAGS, include_blocks: false, include_image_base64: false });
 
 export const ACTIONS = Object.freeze(['decode', 'reextract', 'strip_cover', 'ocr', 'rekey', 'retitle_unlink']);
 /** Actions whose new text comes from the official PDF (so the manifest names it, and may pin its SHA-256). */
@@ -25,12 +36,15 @@ export function clip(text, n = 80) {
 // Arguments
 // ---------------------------------------------------------------------------------------------
 
-export const COMMANDS = Object.freeze(['prepare', 'pin', 'ocr', 'build', 'dry-run', 'write', 'readback']);
+export const COMMANDS = Object.freeze(['prepare', 'pin', 'ocr', 'build', 'rollback-build', 'dry-run', 'write', 'readback']);
+
+/** Where the work directory goes unless --work-dir says otherwise: outside the worktree, so a cleanup of the worktree cannot take the snapshots. */
+export const defaultWorkDir = () => join(homedir(), '.niyantran', 'f281-repair');
 
 export function parseArgs(argv) {
   const out = {
-    command: null, manifest: 'scripts/f281-repair/manifest.json', work: 'scripts/f281-repair/.work', env: '.env.local', only: [],
-    go: false, maxUsd: 5, pagesPerCall: 40, via: 'data', confirm: null, rowsOnly: false, pdfsOnly: false, apply: false, redo: false, help: false,
+    command: null, manifest: 'scripts/f281-repair/manifest.json', workDir: defaultWorkDir(), env: '.env.local', only: [],
+    go: false, maxUsd: 5, pagesPerCall: 40, batch: 20, maxEmbedUsd: 1, authorizedBy: null, rewrite: [], rollback: false, confirm: null, rowsOnly: false, pdfsOnly: false, apply: false, redo: false, help: false,
   };
   const rest = [...argv];
   if (rest.length && !rest[0].startsWith('-')) out.command = rest.shift();
@@ -41,12 +55,16 @@ export function parseArgs(argv) {
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
     if (a === '--manifest') out.manifest = value(a, i++);
-    else if (a === '--work') out.work = value(a, i++);
+    else if (a === '--work-dir' || a === '--work') out.workDir = value(a, i++);
     else if (a === '--env') out.env = value(a, i++);
     else if (a === '--only') out.only.push(value(a, i++));
     else if (a === '--max-usd') out.maxUsd = Number(value(a, i++));
     else if (a === '--pages-per-call') out.pagesPerCall = Number(value(a, i++));
-    else if (a === '--via') out.via = value(a, i++);
+    else if (a === '--batch') out.batch = Number(value(a, i++));
+    else if (a === '--max-embed-usd') out.maxEmbedUsd = Number(value(a, i++));
+    else if (a === '--authorized-by') out.authorizedBy = value(a, i++);
+    else if (a === '--rewrite') out.rewrite.push(value(a, i++));
+    else if (a === '--rollback') out.rollback = true;
     else if (a === '--confirm') out.confirm = value(a, i++);
     else if (a === '--go') out.go = true;
     else if (a === '--rows-only') out.rowsOnly = true;
@@ -59,7 +77,8 @@ export function parseArgs(argv) {
   if (out.command !== null && !COMMANDS.includes(out.command)) throw new Error(`unknown command ${out.command}; one of ${COMMANDS.join(', ')}`);
   if (!Number.isFinite(out.maxUsd) || out.maxUsd <= 0) throw new Error('--max-usd must be a positive number');
   if (!Number.isInteger(out.pagesPerCall) || out.pagesPerCall < 1 || out.pagesPerCall > 1000) throw new Error('--pages-per-call must be an integer from 1 to 1000');
-  if (!['data', 'url'].includes(out.via)) throw new Error('--via must be data or url');
+  if (!Number.isInteger(out.batch) || out.batch < 1 || out.batch > 100) throw new Error('--batch must be an integer from 1 to 100');
+  if (!Number.isFinite(out.maxEmbedUsd) || out.maxEmbedUsd <= 0) throw new Error('--max-embed-usd must be a positive number');
   if (out.rowsOnly && out.pdfsOnly) throw new Error('--rows-only and --pdfs-only exclude each other');
   return out;
 }
@@ -100,7 +119,8 @@ export function manifestProblems(manifest) {
       if (!Number.isInteger(d.pages) || d.pages < 1) problems.push(`${at}: ocr needs the page count in pages`);
       if (!OCR_KINDS.includes(d.ocr_kind)) problems.push(`${at}: ocr_kind must be one of ${OCR_KINDS.join(', ')}`);
     }
-    if (d?.guard_title !== undefined && typeof d.guard_title !== 'boolean') problems.push(`${at}: guard_title must be true or false`);
+    for (const f of ['guard_title', 'allow_missing_desk', 'old_text_garbage']) if (d?.[f] !== undefined && typeof d[f] !== 'boolean') problems.push(`${at}: ${f} must be true or false`);
+    if (d?.reason !== undefined && (typeof d.reason !== 'string' || d.reason.trim().length < 10)) problems.push(`${at}: reason must say why (at least 10 characters)`);
     if (d?.action === 'rekey') {
       if (!KEY.test(d.new_document_key ?? '')) problems.push(`${at}: new_document_key must look like bill:2005:96`);
       else if (keys.has(d.new_document_key)) problems.push(`${at}: the same new_document_key as ${keys.get(d.new_document_key)}`);
@@ -108,7 +128,14 @@ export function manifestProblems(manifest) {
       if (typeof d.new_title !== 'string' || !d.new_title.trim()) problems.push(`${at}: rekey needs a new_title`);
       for (const f of ['new_house', 'new_status']) if (d[f] !== undefined && (typeof d[f] !== 'string' || !d[f].trim())) problems.push(`${at}: ${f} must be a non-empty string`);
     }
-    if (d?.action === 'retitle_unlink' && (typeof d.new_title !== 'string' || !d.new_title.trim())) problems.push(`${at}: retitle_unlink needs a new_title`);
+    if (d?.action === 'retitle_unlink') {
+      if (typeof d.new_title !== 'string' || !d.new_title.trim()) problems.push(`${at}: retitle_unlink needs a new_title`);
+      // The bill number the text prints, for the identity check (a retitle_unlink has no key to take it from).
+      if (d.new_bill_number !== undefined || d.new_bill_year !== undefined) {
+        if (!/^(\d{1,4}|[IVXLC]{1,8})$/i.test(String(d.new_bill_number ?? ''))) problems.push(`${at}: new_bill_number must be a number or a Roman numeral`);
+        if (!Number.isInteger(d.new_bill_year) || d.new_bill_year < 1900) problems.push(`${at}: new_bill_year must be a four-digit year`);
+      }
+    }
   }
   // after: a document that must be written after another (a key the other one holds until it moves).
   const known = new Set(manifest.documents.map((d) => d?.prefix));
@@ -177,8 +204,8 @@ export async function loadManifest(file) {
   return { manifest, sha256: sha256(bytes) };
 }
 
-/** Whether the document reads an official PDF: the PDF actions, or any document that names a hash. */
-export const usesPdf = (d) => PDF_ACTIONS.includes(d.action) || Boolean(d.source_sha256);
+/** Whether the document reads an official PDF: the PDF actions only. A hash on any other action is provenance, and is not downloaded. */
+export const usesPdf = (d) => PDF_ACTIONS.includes(d.action);
 
 /** The documents that read a PDF whose hash the manifest does not have yet. */
 export const unpinned = (docs) => docs.filter((d) => usesPdf(d) && !d.source_sha256);
@@ -330,15 +357,23 @@ export function pageRuns(indexes, size) {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Everything that must hold before `write` posts anything. Returns the problems; the command refuses
- * if there is one. The same manifest bytes must be named by --confirm, recorded by the reviewed build,
- * and carry the document ids; every payload must be the reviewed one and must have passed a dry run.
+ * Everything that must hold before `write` posts anything. Returns the problems; the command refuses if there
+ * is one.
+ *  - --confirm is the SHA-256 of build/review.json (`reviewSha`): the review holds every payload hash and every
+ *    new text's hash, so confirming it confirms the content, not the manifest file.
+ *  - every payload and every text must be the reviewed one, every document must have been dry-run clean with
+ *    that payload, and carry its full id from the manifest;
+ *  - a document already written with a different payload is refused unless --rewrite names it;
+ *  - an authorization line (--authorized-by) is required;
+ *  - a document goes after the ones it names in "after".
  */
-export function writeGateProblems({ confirm, manifestSha, docs, review, currentIds, payloadShas, dryRuns, written = new Set() }) {
+export function writeGateProblems({ confirm, reviewSha, manifestSha, authorizedBy, docs, review, currentIds, payloadShas, textShas = {}, dryRuns, written = new Set(), writtenPayloadShas = {}, rewrite = new Set() }) {
   const problems = [];
-  if (!confirm) return ['--confirm <manifest sha256> is required'];
-  if (!HEX64.test(confirm)) problems.push('--confirm must be the 64-hex SHA-256 of the manifest file');
-  else if (confirm !== manifestSha) problems.push(`--confirm does not match the manifest (its SHA-256 is ${manifestSha})`);
+  if (typeof authorizedBy !== 'string' || !authorizedBy.trim()) problems.push('--authorized-by "<who authorized this write, when, and what>" is required');
+  else if (authorizedBy.trim().length < 8) problems.push('--authorized-by must say who authorized the write: a line of text, not a word');
+  if (!confirm) return [...problems, '--confirm <SHA-256 of build/review.json> is required'];
+  if (!HEX64.test(confirm)) problems.push('--confirm must be the 64-hex SHA-256 of build/review.json');
+  else if (confirm !== reviewSha) problems.push(`--confirm does not match the reviewed build (the SHA-256 of build/review.json is ${reviewSha})`);
   if (!review) return [...problems, 'no reviewed build: run build first'];
   if (review.manifest_sha256 !== manifestSha) problems.push('the reviewed build was made from a different manifest: run build again');
   for (const d of docs) {
@@ -350,12 +385,17 @@ export function writeGateProblems({ confirm, manifestSha, docs, review, currentI
     else {
       if (r.ok !== true) problems.push(`${at}: the reviewed build did not pass its checks`);
       if (payloadShas[at] !== r.payload_sha256) problems.push(`${at}: the payload file is not the reviewed one`);
+      if (!r.text_sha256) problems.push(`${at}: the reviewed build holds no text_sha256 for it`);
+      else if (textShas[at] !== r.text_sha256) problems.push(`${at}: the text in the payload is not the reviewed one`);
     }
     const dry = dryRuns[at];
     if (!dry) problems.push(`${at}: no dry run recorded`);
     else {
       if (dry.payload_sha256 !== payloadShas[at]) problems.push(`${at}: the dry run was for a different payload`);
       if (!WRITABLE_DRY_STATUSES.includes(dry.status)) problems.push(`${at}: the dry run said ${dry.status}${dry.reason ? ` (${dry.reason})` : ''}${dry.error ? `: ${dry.error}` : ''}`);
+    }
+    if (writtenPayloadShas[at] && writtenPayloadShas[at] !== payloadShas[at] && !rewrite.has(at)) {
+      problems.push(`${at}: already written with a different payload; name it with --rewrite ${at} to write the new one over it`);
     }
   }
   // Order: a document goes after the ones it names; those must be written already or come first in this run.
@@ -365,6 +405,179 @@ export function writeGateProblems({ confirm, manifestSha, docs, review, currentI
     done.add(d.prefix);
   }
   return problems;
+}
+
+/** The documents to write now: up to `size` of the ones not written yet, dependencies first. */
+export function nextBatch(docs, written, size) {
+  const pending = orderForWrite(docs).filter((d) => !written.has(d.prefix));
+  const batch = pending.slice(0, size);
+  return { batch, remaining: pending.length - batch.length };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Drift, writer exclusivity, locks
+// ---------------------------------------------------------------------------------------------
+
+/** JSON with object keys sorted at every level: the same value always gives the same text. */
+export function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${stableJson(value[k])}`).join(',')}}`;
+  return JSON.stringify(value ?? null);
+}
+
+export const metadataHash = (metadata) => sha256(stableJson(metadata ?? {}));
+
+/** The columns a re-read compares with the prepare snapshot. */
+export const DRIFT_COLUMNS = 'id,title,content_sha256,chunker_version,indexed_at,metadata';
+
+/** Why a document must not be written: it is not the row prepare read. */
+export function driftProblems(snapshot, live) {
+  if (!live) return ['row not found on re-read'];
+  const problems = [];
+  if (live.id !== snapshot.id) problems.push(`id is ${live.id}, prepare read ${snapshot.id}`);
+  for (const f of ['content_sha256', 'title', 'chunker_version']) if (live[f] !== snapshot[f]) problems.push(`${f} changed since prepare (${JSON.stringify(snapshot[f])} -> ${JSON.stringify(live[f])})`);
+  const t = (v) => (v ? Date.parse(v) : null);
+  if (t(live.indexed_at) !== t(snapshot.indexed_at)) problems.push(`indexed_at changed since prepare (${snapshot.indexed_at ?? 'null'} -> ${live.indexed_at ?? 'null'})`);
+  if (metadataHash(live.metadata) !== metadataHash(snapshot.metadata)) problems.push('metadata changed since prepare (hash differs)');
+  return problems;
+}
+
+/** The active ingestion jobs (queued or running): the only other writers of documents and chunks. PostgREST GET. */
+export function ingestJobsQuery() {
+  return `ingest_jobs?${new URLSearchParams({ select: 'id,document_id,status,stage,lease_until', status: 'in.(queued,running)' })}`;
+}
+
+/**
+ * Writer exclusivity (docs/operations/corpus-jobs.md: "project-wide writer exclusivity"): a running job whose lease
+ * has not expired is a live claim (ingest_claim in 20261001140000_ingestion_v2.sql); a queued job will be claimed by
+ * the worker the moment it is due. Either is a reason not to start.
+ */
+export function liveClaimProblems(jobs, nowMs = Date.now()) {
+  const problems = [];
+  const live = jobs.filter((j) => j.status === 'running' && Date.parse(j.lease_until) > nowMs);
+  if (live.length) problems.push(`${live.length} ingestion job(s) hold a live claim (status running, lease not expired): another writer is active`);
+  const queued = jobs.filter((j) => j.status === 'queued');
+  if (queued.length) problems.push(`${queued.length} queued ingestion job(s) would be claimed by the worker: wait for them or settle them first`);
+  return problems;
+}
+
+/**
+ * What to do with a write lock found on disk (corpus-jobs.md: never remove an active, unknown or foreign-host
+ * lock; a verified dead same-host lock may be reclaimed). 'free' | 'reclaim' | 'blocked'.
+ */
+export function lockDecision(lock, me, isAlive) {
+  if (lock === null || lock === undefined) return 'free';
+  if (typeof lock !== 'object' || !lock.host || !Number.isInteger(lock.pid) || !lock.token) return 'blocked';
+  if (lock.host !== me.host) return 'blocked';
+  return isAlive(lock.pid) ? 'blocked' : 'reclaim';
+}
+
+// ---------------------------------------------------------------------------------------------
+// Embedding cost
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * What the embedding of a batch would cost. For each document: the chunker's own token estimate over all the
+ * chunks of the new text, scaled by the share the dry run says is new (inserted / chunks): chunks that keep their
+ * hash are not embedded again. `items`: [{ prefix, rows: [{ tokenEstimate }], chunks, inserted }].
+ */
+export function embedEstimate(items, usdPerToken) {
+  const documents = items.map((it) => {
+    const all = it.rows.reduce((n, r) => n + r.tokenEstimate, 0);
+    const tokens = it.chunks ? Math.round((all * Math.min(it.inserted, it.chunks)) / it.chunks) : 0;
+    return { prefix: it.prefix, tokens, usd: tokens * usdPerToken };
+  });
+  const tokens = documents.reduce((n, d) => n + d.tokens, 0);
+  return { documents, tokens, usd: tokens * usdPerToken };
+}
+
+export function embedCapProblems(est, maxUsd) {
+  return est.usd > maxUsd + 1e-12 ? [`the expected embedding cost USD ${est.usd.toFixed(4)} is above --max-embed-usd ${maxUsd}`] : [];
+}
+
+// ---------------------------------------------------------------------------------------------
+// OCR cache
+// ---------------------------------------------------------------------------------------------
+
+/** Every response that was paid for counts against the cap, whether or not it validated. */
+export function spentOnParts(parts) {
+  return Math.round(parts.reduce((n, p) => n + (p.cost_usd ?? 0), 0) * 1e6) / 1e6;
+}
+
+/**
+ * Whether the cached OCR parts of a document may be built from: each validated, was made from the pinned PDF
+ * (`source_sha256`), with the model and request flags this tool uses, and together they cover pages 0 to pages - 1.
+ */
+export function ocrCacheProblems(parts, { sha, pages }) {
+  if (!sha) return ['the PDF is not pinned, so the cached OCR cannot be tied to it'];
+  if (!parts.length) return ['no cached OCR'];
+  const problems = [];
+  const covered = new Set();
+  for (const [i, p] of parts.entries()) {
+    const at = `cached part ${i + 1}`;
+    if (p.valid !== true) problems.push(`${at} did not validate`);
+    if (p.source_sha256 !== sha) problems.push(`${at}: source_sha256 is ${p.source_sha256 ? String(p.source_sha256).slice(0, 12) : 'missing'}, the pinned PDF is ${sha.slice(0, 12)}`);
+    if (p.model_requested !== OCR_MODEL) problems.push(`${at}: model ${p.model_requested ?? 'missing'}, expected ${OCR_MODEL}`);
+    if (!p.flags || stableJson(p.flags) !== stableJson(OCR_REQUEST_FLAGS)) problems.push(`${at}: request flags are not this tool's`);
+    for (const pg of p.valid === true ? p.pages ?? [] : []) covered.add(pg.index);
+  }
+  if (covered.size !== pages || [...covered].some((i) => !(i >= 0 && i < pages))) problems.push(`the cached pages cover ${covered.size} of ${pages} pages`);
+  return problems;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Snapshot sums, batch log, retry, authorization
+// ---------------------------------------------------------------------------------------------
+
+/** sha256sum-style text for the pre-write snapshots: "<hash>  <file>" per line, sorted. */
+export function formatSums(map) {
+  return Object.keys(map).sort().map((name) => `${map[name]}  ${name}\n`).join('');
+}
+
+export function parseSums(text) {
+  const out = {};
+  for (const line of text.split('\n').filter(Boolean)) {
+    const m = /^([a-f0-9]{64}) {2}(\S+)$/.exec(line);
+    if (!m) throw new Error(`not a sums line: ${line.slice(0, 40)}`);
+    out[m[2]] = m[1];
+  }
+  return out;
+}
+
+/** The snapshots (`<prefix>.json`) that are not what prepare recorded: changed, missing, or never recorded. */
+export function snapshotProblems(sums, actual, prefixes) {
+  const problems = [];
+  for (const prefix of prefixes) {
+    const name = `${prefix}.json`;
+    if (!sums[name]) problems.push(`${prefix}: no recorded hash for the snapshot (not in SHA256SUMS)`);
+    else if (actual[name] === undefined) problems.push(`${prefix}: the snapshot file is missing`);
+    else if (actual[name] !== sums[name]) problems.push(`${prefix}: the snapshot changed since prepare`);
+  }
+  return problems;
+}
+
+/** Reads a row, and again after `delayMs` while its indexed_at is still null (the write sets it last). */
+export async function retryRead(fetchRow, { attempts = 3, delayMs = 5000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+  let row = null;
+  for (let i = 0; i < attempts; i++) {
+    row = await fetchRow();
+    if (!row || row.indexed_at) return row;
+    if (i < attempts - 1) await sleep(delayMs);
+  }
+  return row;
+}
+
+/** An `unchanged` write only refreshes metadata: indexed_at does not move, so there is no write time to expect after. */
+export const readbackWrittenAfter = (record) => (record?.status === 'indexed' ? record.started_at ?? null : null);
+
+/** One entry per batch written, with whether its readback was clean. */
+export const addBatch = (log, record) => ({ ...(log ?? {}), batches: [...(log?.batches ?? []), record] });
+export const nextBatchNumber = (log) => (log?.batches?.length ?? 0) + 1;
+
+/** review.md with an Authorization section: created on the first write, one more line for each later batch. */
+export function withAuthorization(md, { authorizedBy, at, reviewSha, batch }) {
+  const line = `- ${at}: ${authorizedBy} (build/review.json ${reviewSha.slice(0, 12)}${batch ? `, batch ${batch}` : ''})\n`;
+  return md.includes('## Authorization') ? `${md.trimEnd()}\n${line}` : `${md.trimEnd()}\n\n## Authorization\n\n${line}`;
 }
 
 /**
@@ -409,6 +622,8 @@ export function riskOf(entry) {
   if (entry.title_choice && entry.title_choice.agreesWithPrinted === false) r += 60;
   const desk = entry.notes?.desk;
   if (desk?.read && (!desk.names?.length || desk.names.length > 1)) r += 80;
+  if (entry.checks?.identity?.level === 'look') r += 60;
+  if (entry.title_choice?.replacesManifest) r += 30;
   return r + (ACTION_RISK[entry.action] ?? 0);
 }
 
@@ -440,7 +655,7 @@ function ocrLines(c) {
  * old and new title and key, old and new character counts, the title guard result on the new text, and the OCR
  * checks. `entries` are the per-document review entries of repair.mjs build.
  */
-export function renderReview({ manifestSha, entries, excluded = [] }) {
+export function renderReview({ manifestSha, entries, excluded = [], authorization = null }) {
   const ranked = [...entries].sort((a, b) => riskOf(b) - riskOf(a) || String(a.prefix).localeCompare(String(b.prefix)));
   const failed = ranked.filter((e) => e.ok === false).length;
   const look = ranked.filter((e) => e.ok !== false && (e.notes?.attention?.length || riskOf(e) >= 60)).length;
@@ -456,11 +671,21 @@ export function renderReview({ manifestSha, entries, excluded = [] }) {
     const tag = e.ok === false ? 'FAILED' : e.notes?.attention?.length ? 'LOOK' : riskOf(e) >= 60 ? 'LOOK' : 'ok';
     out.push(`## ${i + 1}. \`${e.prefix}\` ${e.action} — ${tag}`, '');
     const choice = e.title_choice;
-    out.push(`- Title: ${tick(e.old?.title)} → ${tick(e.new?.title)}${choice ? ` (title source: ${choice.source}${choice.agreesWithPrinted === false ? '; differs from the title printed in the text' : ''})` : ''}`);
+    const replaced = choice?.replacesManifest ? `; the desk title replaces the manifest title ${tick(choice.candidates?.manifest)}` : '';
+    out.push(`- Title: ${tick(e.old?.title)} → ${tick(e.new?.title)}${choice ? ` (title source: ${choice.source}${replaced}${choice.agreesWithPrinted === false ? '; differs from the title printed in the text' : ''})` : ''}`);
     out.push(`- Key: ${tick(e.old?.document_key)} → ${tick(e.new?.document_key)}`);
     out.push(`- Characters: ${num(e.old?.chars)} chars → ${num(e.new?.chars)} chars`);
     out.push(`- Title guard on the new text: ${titleGuardLine(e.checks?.title_guard)}`);
+    const bi = e.checks?.bill_identity;
+    if (bi) out.push(`- Bill No. and article check: ${bi.ok ? 'ok' : 'FAILED'}${bi.problems?.length ? ` — ${bi.problems.join('; ')}` : ''}${bi.notes?.length ? ` (${bi.notes.join('; ')})` : ''}`);
+    const id = e.checks?.identity;
+    if (id) out.push(`- Identity against the stored text: ${String(id.level ?? '').toUpperCase()} — ${id.reason ?? ''}${id.firstPageTitle ? `; first page reads: ${id.firstPageTitle}` : ''}`);
     if (e.checks?.ocr) out.push(...ocrLines(e.checks.ocr));
+    if (e.notes?.empty_pages?.length) out.push(`- Empty OCR pages: ${e.notes.empty_pages.join(', ')}`);
+    if (e.notes?.fonts?.length) {
+      const shifted = e.notes.fonts.filter((f) => f.verdict === 'shifted');
+      out.push(`- Fonts: ${e.notes.fonts.length - shifted.length} plain, ${shifted.length} shifted${shifted.length ? ` (${shifted.map((f) => `${f.font} ${f.reason}`).join(', ')})` : ''}`);
+    }
     const desk = e.notes?.desk;
     if (desk?.read) out.push(`- Desk record for the new key: ${desk.names?.length ? desk.names.map(tick).join(', ') : 'NONE FOUND'}${desk.names?.length > 1 ? ' (two names: not chosen between)' : ''}`);
     for (const a of e.notes?.attention ?? []) out.push(`- LOOK: ${a}`);
@@ -473,5 +698,6 @@ export function renderReview({ manifestSha, entries, excluded = [] }) {
     for (const x of excluded) out.push(`- ${x.ids.length > 12 ? `${x.ids.length} documents (${x.ids.slice(0, 4).join(', ')}, ...)` : x.ids.join(', ')}: ${x.reason}`);
     out.push('');
   }
-  return `${out.join('\n')}\n`;
+  const md = `${out.join('\n')}\n`;
+  return authorization ? withAuthorization(md, authorization) : md;
 }

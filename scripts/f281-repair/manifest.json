@@ -1,6 +1,6 @@
 {
   "ticket": "F281",
-  "note": "The F281 batch: docs/research/2026-11-01-f281-broken-documents.md and docs/research/2026-11-01-f281-triage.md. \"id\" is filled by the supervisor with the full document id; \"prefix\" is its first 8 characters. Every Regulatory repair reads the official PDF, never the client pack text (the truncation is in the pack). source_sha256 is the SHA-256 of the official file as fetched on 2026-11-01; null means not fetched yet: prepare records it and pin writes it here after a look. Rekey titles, houses and statuses are the sansad listing record of the bill the text really is (a sibling record for the three synopses); the desk record name, when prepare reads exactly one, takes precedence.",
+  "note": "The F281 batch: docs/research/2026-11-01-f281-broken-documents.md and docs/research/2026-11-01-f281-triage.md. \"id\" is filled by the supervisor with the full document id; \"prefix\" is its first 8 characters. Every Regulatory repair reads the official PDF, never the client pack text (the truncation is in the pack). source_sha256 is the SHA-256 of the official file as fetched on 2026-11-01; null means not fetched yet: prepare records it and pin writes it here after a look. Rekey titles, houses and statuses are the sansad listing record of the bill the text really is (a sibling record for the three synopses); the desk record name, when prepare reads exactly one, takes precedence. Filling ids or pinning PDFs changes the manifest, so build and dry-run must be run again before write (the write confirmation names the SHA-256 of build/review.json). old_text_garbage marks a stored text too damaged for its overlap with the new text to be measured; allow_missing_desk marks a re-key whose key may have no desk record; new_bill_number/new_bill_year give the bill number the text prints, for the identity check of a retitle_unlink.",
   "documents": [
     {
       "id": null,
@@ -40,6 +40,7 @@
       "prefix": "c8289e6b",
       "label": "TRAI consultation Notice_13052025: garbage OCR of a text-bearing PDF",
       "action": "reextract",
+      "old_text_garbage": true,
       "source_url": "https://www.trai.gov.in/sites/default/files/2025-05/Notice_13052025.pdf",
       "source_sha256": "b03301867578b70a3e938fb8ee97306f184de0a83542869f9fd035a7419b6da9"
     },
@@ -346,26 +347,57 @@
     {
       "id": null,
       "prefix": "f5ddf657",
-      "label": "Stored as The Forest (Conservation) Amendment Bill, 1998 (Insertion o… (bill:1998:26); no usable key for the text",
-      "action": "retitle_unlink",
+      "label": "Stored as The Forest (Conservation) Amendment Bill, 1998 (Insertion o… (bill:1998:26); the text is The Constitution (Amendment) Bill, 2000 (Insertion of new ar",
+      "action": "rekey",
+      "reason": "Triage proposed a re-key; a key with no desk record is harmless and keeps the identity right (independent review, finding 8).",
+      "new_document_key": "bill:2000:75",
       "new_title": "The Constitution (Amendment) Bill, 2000 (Insertion of new article 16A)",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "allow_missing_desk": true,
       "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/78LS.pdf?source=legislation"
     },
     {
       "id": null,
       "prefix": "0cfda1b0",
-      "label": "Stored as The Rural Electrification Bill, 2012. (bill:2012:31); no usable key for the text",
-      "action": "retitle_unlink",
-      "new_title": "The Code of Criminal Procedure (Amendment) Bill, 2000 (Amendment of section 167, etc.)",
+      "label": "Stored as The Rural Electrification Bill, 2012. (bill:2012:31); the text is The Code of Criminal Procedure(Amendment) Bill, 2000 (Amendm",
+      "action": "rekey",
+      "after": [
+        "648594ab"
+      ],
+      "reason": "Triage proposed a re-key; a key with no desk record is harmless and keeps the identity right (independent review, finding 8). Ordered after 648594ab, which holds bill:2000:72 until it moves to bill:2000:LXXII.",
+      "new_document_key": "bill:2000:72",
+      "new_title": "The Code of Criminal Procedure(Amendment) Bill, 2000 (Amendment of section 167, etc.)",
+      "new_house": "Lok Sabha",
+      "new_status": "Lapsed",
+      "allow_missing_desk": true,
       "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/4639LS.pdf?source=legislation"
     },
     {
       "id": null,
       "prefix": "a17e769c",
-      "label": "Stored as The Constitution (Amendment) Bill, 2000 (Substitution of ne… (bill:2000:71); no usable key for the text",
-      "action": "retitle_unlink",
-      "new_title": "The Chit Funds (Amendment) Act, 2001",
+      "label": "Stored as The Constitution (Amendment) Bill, 2000 (Substitution of ne… (bill:2000:71); the text is The Chit-Funds (Amendment) Bill, 2001",
+      "action": "rekey",
+      "reason": "Triage proposed a re-key; a key with no desk record is harmless and keeps the identity right (independent review, finding 8).",
+      "new_document_key": "bill:2000:LXXI",
+      "new_title": "The Chit-Funds (Amendment) Bill, 2001",
+      "new_house": "Rajya Sabha",
+      "new_status": "Assented",
+      "allow_missing_desk": true,
       "source_url": "https://sansad.in/getFile/BillsPDFFiles/synopsis/2000-71-Synop.pdf?source=loksabhadocs"
+    },
+    {
+      "id": null,
+      "prefix": "b2d4bfff",
+      "label": "Stored as The Appropriation Bill,2001 (bill:2001:30); the text is The Influx from Pakistan (Control) Repealing (Repeal) Bill, ",
+      "action": "rekey",
+      "reason": "Triage proposed a re-key; a key with no desk record is harmless and keeps the identity right (independent review, finding 8).",
+      "new_document_key": "bill:2001:XXX",
+      "new_title": "The Influx from Pakistan (Control) Repealing (Repeal) Bill, 2001",
+      "new_house": "Rajya Sabha",
+      "new_status": "Assented",
+      "allow_missing_desk": true,
+      "source_url": "https://sansad.in/getFile/BillsPDFFiles/synopsis/2001-30-Synop.pdf?source=loksabhadocs"
     },
     {
       "id": null,
@@ -413,6 +445,8 @@
       "label": "Stored as The Post Graduate Institute of Medical Education and Resear… (bill:2000:LXXXI); no usable key for the text",
       "action": "retitle_unlink",
       "new_title": "The Chit Funds (Amendment) Bill, 2000",
+      "new_bill_number": "LXXI",
+      "new_bill_year": 2000,
       "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/LXXXI_2000.pdf?source=legislation"
     },
     {
@@ -421,6 +455,8 @@
       "label": "Stored as The Girl Child ( Compulsory Education and Welfare) Bill, 20… (bill:2000:XXIV); no usable key for the text",
       "action": "retitle_unlink",
       "new_title": "The Constitution (Amendment) Bill, 2000 (art. 198)",
+      "new_bill_number": "XXIV",
+      "new_bill_year": 2000,
       "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/XXIV_2000.pdf?source=legislation"
     },
     {
@@ -429,6 +465,8 @@
       "label": "Stored as The Children of Parents Living Below Poverty Line (Special … (bill:2001:LXVII); no usable key for the text",
       "action": "retitle_unlink",
       "new_title": "The Reservation of Agro-based Industries for the Co-operatives of Unemployed Youth Bill, 2001",
+      "new_bill_number": "LXVII",
+      "new_bill_year": 2001,
       "source_url": "https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/LXVII_2001.pdf?source=legislation"
     },
     {
@@ -446,14 +484,6 @@
       "action": "retitle_unlink",
       "new_title": "The Carriage by Road Act, 2007",
       "source_url": "https://sansad.in/getFile/BillsPDFFiles/Notification/2007-50-gaz.pdf?source=loksabhadocs"
-    },
-    {
-      "id": null,
-      "prefix": "b2d4bfff",
-      "label": "Stored as The Appropriation Bill,2001 (bill:2001:30); no usable key for the text",
-      "action": "retitle_unlink",
-      "new_title": "The Influx from Pakistan (Control) Repealing Act, 2001",
-      "source_url": "https://sansad.in/getFile/BillsPDFFiles/synopsis/2001-30-Synop.pdf?source=loksabhadocs"
     },
     {
       "id": null,
@@ -631,6 +661,7 @@
       "label": "TRAI_press-release__PR_No104of2026 (RP-2/9/ (4) /2025-NSL-11 1/43286/2026 For immediate release): stored text is partial or garbage",
       "action": "ocr",
       "ocr_kind": "any",
+      "old_text_garbage": true,
       "pages": 25,
       "source_url": "https://www.trai.gov.in/sites/default/files/2026-07/PR_No104of2026.pdf",
       "source_sha256": "50379be2ea42e7f22f600ff0d185bbdc2a7eaf4e7ed2015eeba7f216f7a4d21a"
@@ -661,6 +692,7 @@
       "label": "TRAI_press-release__PR_No.19of2026 (For immediate release (Press Release No. 19/2026) Informati): stored text is partial or garbage",
       "action": "ocr",
       "ocr_kind": "any",
+      "old_text_garbage": true,
       "pages": 24,
       "source_url": "https://www.trai.gov.in/sites/default/files/2026-02/PR_No.19of2026.pdf",
       "source_sha256": "2ffc0cbc5113babba9b23a369520edb4d3def75a0d8c55614fad6128d5eba43c"
@@ -771,6 +803,7 @@
       "label": "CCI 512017-542017-and-5620171652266041 (Case Nos. 51, 54 and 56 of 2017): stored text is partial or garbage",
       "action": "ocr",
       "ocr_kind": "any",
+      "old_text_garbage": true,
       "pages": 8,
       "source_url": "https://www.cci.gov.in/images/antitrustorder/en/512017-542017-and-5620171652266041.pdf",
       "source_sha256": "251cc74fab46fe9790f6563b7211aa581f7928a1cdffd9fe237124a45dbe2d30"
@@ -912,6 +945,7 @@
       "action": "ocr",
       "ocr_kind": "any",
       "guard_title": true,
+      "old_text_garbage": true,
       "pages": 6,
       "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/2463.pdf?source=legislation",
       "source_sha256": null
@@ -923,6 +957,7 @@
       "action": "ocr",
       "ocr_kind": "any",
       "guard_title": true,
+      "old_text_garbage": true,
       "pages": 4,
       "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/106_1992_Eng_LS.pdf?source=legislation",
       "source_sha256": null
@@ -934,6 +969,7 @@
       "action": "ocr",
       "ocr_kind": "any",
       "guard_title": true,
+      "old_text_garbage": true,
       "pages": 4,
       "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/103_1992_Eng_LS.pdf?source=legislation",
       "source_sha256": null
@@ -945,6 +981,7 @@
       "action": "ocr",
       "ocr_kind": "any",
       "guard_title": true,
+      "old_text_garbage": true,
       "pages": 4,
       "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/7276LS.pdf?source=legislation",
       "source_sha256": null
@@ -956,6 +993,7 @@
       "action": "ocr",
       "ocr_kind": "any",
       "guard_title": true,
+      "old_text_garbage": true,
       "pages": 3,
       "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/183_1991_LS_Eng.pdf?source=legislation",
       "source_sha256": null
@@ -967,6 +1005,7 @@
       "action": "ocr",
       "ocr_kind": "any",
       "guard_title": true,
+      "old_text_garbage": true,
       "pages": 4,
       "source_url": "https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/99_1990_LS_Eng.pdf?source=legislation",
       "source_sha256": null

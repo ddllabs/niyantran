@@ -20,33 +20,58 @@
 //   1. prepare    NETWORK, READ-ONLY. GETs the documents from NTER (PostgREST, service key, no write method
 //                 exists in the reader), for each re-key the desk records (desk_rows by document_key) that hold
 //                 the new key, and the official PDF of each decode, reextract and ocr document with its SHA-256
-//                 checked against the manifest. Writes the work directory. --rows-only / --pdfs-only run one half.
+//                 checked against the manifest (no PDF is fetched for strip_cover, rekey or retitle_unlink).
+//                 Saves each row as a snapshot and records the snapshots' SHA-256 in current/SHA256SUMS.
+//                 --rows-only / --pdfs-only run one half.
 //      pin        OFFLINE. Lists the PDFs whose manifest source_sha256 is null (never fetched before prepare)
 //                 with their hash and page count; --apply writes those hashes into the manifest. Trust on first
-//                 use: look at the file (and at build's title guard) before relying on it. The manifest changes,
-//                 so its SHA-256 (what write --confirm names) changes too.
+//                 use: look at the file (and at build's identity checks) before relying on it.
 //   2. ocr        NETWORK, PAID (Mistral OCR, mistral-ocr-4-1, USD 4 per 1,000 pages). Without --go it prints the
 //                 plan (pages, cached pages, cost for the whole batch) and spends nothing. With --go it calls
-//                 Mistral, refuses to pass --max-usd (default 5) and caches every response, so a rerun does not
-//                 pay twice. Refuses a PDF that is not pinned.
-//   3. build      OFFLINE. Produces each new text and ingest-documents payload, runs the guards and checks, and
-//                 writes build/<prefix>.review.json, build/review.json and build/review.md (every document, the
-//                 riskiest first: read it, and the text of every OCR document by eye, before going on). The
-//                 console shows one line per document, never a text.
-//   4. dry-run    NETWORK, NO WRITE. Posts each payload, one per request, to ingest-documents with dry_run:true and
-//                 records status and the inserted/kept/deleted chunk counts. Resumable: a document already
-//                 dry-run with the same payload is skipped (--redo repeats it).
-//   5. write      NETWORK, WRITES NTER. Refuses unless --confirm <SHA-256 of the manifest> matches the manifest
-//                 and the reviewed build, every manifest id is filled in, every payload was dry-run clean, and
-//                 every "after" is satisfied (4530253a only after 3d51552f has moved off its key). One document
-//                 per request, in dependency order, the response saved after each; rerunning resumes.
+//                 Mistral with the verified bytes of the pinned PDF (inline, never a URL), refuses to pass
+//                 --max-usd (default 5), saves every paid response BEFORE it validates it and counts it against
+//                 the cap even if validation then fails. Each cached part records the PDF's SHA-256, the model
+//                 and the request flags; build refuses a part that does not match. Refuses an unpinned PDF.
+//   3. build      OFFLINE. Verifies the snapshots against SHA256SUMS, produces each new text and ingest-documents
+//                 payload, runs the guards and checks (title guard; for re-keys and unlinks the printed Bill No.
+//                 and the article or section the title names; for OCR and re-extraction the overlap of the old
+//                 text in the new), and writes build/<prefix>.review.json, build/review.json (every payload
+//                 hash and every new text's SHA-256) and build/review.md (every document, the riskiest first:
+//                 read it, and the text of every OCR document by eye, before going on). The console shows one
+//                 line per document, never a text.
+//      rollback-build  OFFLINE. Turns the pre-write snapshots into payloads that put each document back as it
+//                 was (an unlinked document is re-linked: file_url_ambiguous false plus its key fields), with a
+//                 review.json of its own in rollback/. dry-run, write and readback take --rollback to use them.
+//   4. dry-run    NETWORK, NO WRITE. Re-reads each row and refuses a document that differs from its snapshot
+//                 (content_sha256, title, a hash of metadata, chunker_version, indexed_at), then posts the payload,
+//                 one per request, to ingest-documents with dry_run:true and records status and the
+//                 inserted/kept/deleted chunk counts. Resumable (--redo repeats).
+//   5. write      NETWORK, WRITES NTER. In batches of --batch (20): each invocation writes ONE batch, then runs
+//                 readback for it, records both, and stops: the next batch is the next invocation (the audit
+//                 pause of docs/operations/corpus-jobs.md). It refuses unless
+//                   - --confirm is the SHA-256 of build/review.json (the reviewed content, not the manifest file),
+//                     and every payload and every text is the reviewed one;
+//                   - --authorized-by "<who, when, what>" is given (recorded in write/authorization.json and in
+//                     review.md);
+//                   - every manifest id is filled in, and every payload was dry-run clean;
+//                   - no document is overwritten that was written with another payload (name it with --rewrite);
+//                   - no ingestion job holds a live claim (ingest_jobs, read-only) and no other write.lock holds
+//                     this work directory;
+//                   - each row still equals its snapshot (re-read just before it is posted);
+//                   - the expected embedding cost (the dry run's new chunks, at the embedding model's price) is
+//                     within --max-embed-usd (default 1);
+//                   - every "after" is satisfied (4530253a only after 3d51552f, 0cfda1b0 after 648594ab).
 //   6. readback   NETWORK, READ-ONLY. Compares each document in NTER with the build: title, document_key (none
-//                 for an unlinked document), content_sha256, n_chars, chunk count, chunker_version, indexed_at.
+//                 for an unlinked document), content_sha256, n_chars, chunk count, chunker_version, indexed_at
+//                 (re-read a few times while it is still null; an unchanged write does not move it).
 //
-// Options: --manifest <file> (scripts/f281-repair/manifest.json), --work <dir> (scripts/f281-repair/.work,
-// git-ignored), --env <file> (.env.local, read by this script and nothing else), --only <prefix> (repeat).
-// ocr: --go, --max-usd N, --pages-per-call N (40), --via data|url (data: the verified bytes are sent
-// inline; url: Mistral fetches the official URL). write: --confirm <sha256>. pin: --apply. dry-run: --redo.
+// Filling ids in the manifest or pinning a PDF changes the manifest: run build and dry-run again afterwards.
+//
+// Options: --manifest <file> (scripts/f281-repair/manifest.json), --work-dir <dir> (default
+// ~/.niyantran/f281-repair, outside the worktree: it holds NTER text and the rollback snapshots; --work is the
+// old name), --env <file> (.env.local, read by this script and nothing else), --only <prefix> (repeat),
+// --rollback. ocr: --go, --max-usd N, --pages-per-call N (40). write: --confirm, --authorized-by, --batch,
+// --max-embed-usd, --rewrite <prefix>. pin: --apply. dry-run: --redo.
 // Environment: SUPABASE_URL or VITE_SUPABASE_URL, SUPABASE_SECRET_KEY (prepare, dry-run, write, readback);
 // MISTRAL_API_KEY (ocr --go). Neither is ever printed.
 //
@@ -55,36 +80,43 @@
 //             extract_hash, supplied-text, section-context, file_url_ambiguous); a pinned PDF that is not HTTP
 //             200 or whose SHA-256 is not the manifest's (kept as <prefix>.mismatch.pdf, never used).
 //   ocr       a plan above --max-usd; a PDF that is not pinned; a page count that is not the manifest's; any
-//             Mistral error (cached parts stay; the rerun buys only what is missing).
-//   build     any failed check: control codes left, an unmapped glyph, a title guard failure, a shifted font in a
-//             re-extract, a re-key whose new title is not in the text or whose desk record is missing, an
-//             incomplete OCR page set.
-//   dry-run   any status other than dry_run or unchanged (refused, error), or an HTTP error.
-//   write     any gate problem (also an "after" not yet written); the first document that does not come back
-//             indexed or unchanged.
+//             Mistral error or a response that fails validation (the paid response is kept and counted).
+//   build     any failed check: a snapshot that changed, control codes left, an unmapped glyph, a title guard,
+//             Bill No. or article failure, an old text that is not in the new one, a shifted font in a
+//             re-extract, a re-key whose desk record is missing (unless allow_missing_desk), a cached OCR part
+//             that is not from the pinned PDF with this tool's model and flags, an incomplete page set.
+//   dry-run   any status other than dry_run or unchanged (refused, error), a drifted row, an HTTP error.
+//   write     any gate problem; a live ingestion claim; a drifted row (that document is not written); the first
+//             document that does not come back indexed or unchanged; any difference in the batch's readback.
 //   readback  any difference from the build.
 //
 // Every request body and console line is free of the keys; texts are written only to the work directory.
 
-import { existsSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { closeSync, existsSync, openSync, readFileSync, rmSync, writeSync } from 'node:fs';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { hostname } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  assertNoControlCodes, assertRepairable, buildRepairPayload, chooseTitle, codePointLength, countControlCodes, decodeShiftedText,
-  extractPrintedTitle, ocrChecks, ocrPagesToDocument, stripLeadingForeignCover,
+  assertNoControlCodes, assertRepairable, buildRepairPayload, buildRollbackPayload, chooseTitle, codePointLength, countControlCodes, decodeShiftedText,
+  extractPrintedTitle, identityProblems, identityVerdict, oldTextContainment, ocrChecks, ocrPagesToDocument, stripLeadingForeignCover,
 } from '../../src/lib/documentRepair.js';
 import { titleMatches } from '../../src/lib/titleGuard.js';
+import { chunkDocument } from '../../supabase/functions/_shared/chunking.ts';
+import { EMBED_PRICE_USD_PER_TOKEN } from '../../supabase/functions/_shared/embed.ts';
 import { buildOcrRequest, callMistralOcr, checkIndexes, OCR_USD_PER_1000_PAGES, ocrCostUsd } from '../../supabase/functions/ingest-worker/mistral.ts';
-import { OCR_MODEL } from '../../supabase/functions/ingest-worker/types.ts';
 import { countPdfPages, extractTextRuns } from './pdfRuns.mjs';
 import {
-  checkSpend, clip, credentials, deskNames, deskQuery, documentQuery, loadDotEnv, loadManifest, makeReader, ocrPlan, orderForWrite, pageRuns, parseArgs,
-  readbackProblems, renderReview, selectDocuments, sha256, unpinned, usesPdf, WRITABLE_DRY_STATUSES, withPins, writeGateProblems,
+  addBatch, checkSpend, clip, credentials, DRIFT_COLUMNS, deskNames, deskQuery, documentQuery, driftProblems, embedCapProblems, embedEstimate, formatSums,
+  ingestJobsQuery, liveClaimProblems, loadDotEnv, loadManifest, lockDecision, makeReader, nextBatch, nextBatchNumber, OCR_MODEL, OCR_REQUEST_FLAGS,
+  ocrCacheProblems, ocrPlan, pageRuns, parseArgs, parseSums, readbackProblems, readbackWrittenAfter, renderReview, retryRead, selectDocuments,
+  sha256, snapshotProblems, spentOnParts, unpinned, usesPdf, WRITABLE_DRY_STATUSES, withAuthorization, withPins, writeGateProblems,
 } from './lib.mjs';
 
 const say = (...a) => console.log(...a);
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let pause = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => pause(ms);
 const fmt = (n) => Number(n).toLocaleString('en-US');
 const nowIso = () => new Date().toISOString();
 
@@ -101,19 +133,24 @@ function makeWork(root) {
   const at = (...p) => path.join(root, ...p);
   return {
     at,
-    async ensure(...p) {
-      await mkdir(at(...p), { recursive: true });
+    async ensure() {
+      await mkdir(root, { recursive: true, mode: 0o700 });
     },
     async json(...p) {
       const file = at(...p);
       return existsSync(file) ? JSON.parse(await readFile(file, 'utf8')) : null;
     },
     async save(p, data) {
-      await mkdir(path.dirname(at(...p)), { recursive: true });
+      await mkdir(path.dirname(at(...p)), { recursive: true, mode: 0o700 });
       await writeFile(at(...p), typeof data === 'string' || Buffer.isBuffer(data) ? data : `${JSON.stringify(data, null, 2)}\n`);
     },
   };
 }
+
+/** The directories of a stage: the repair itself, or the rollback built from the snapshots. */
+const stageDirs = (rollback) => (rollback
+  ? { build: 'rollback', dryrun: 'rollback-dryrun', write: 'rollback-write', readback: 'rollback-readback' }
+  : { build: 'build', dryrun: 'dryrun', write: 'write', readback: 'readback' });
 
 async function postIngest({ url, key }, payload, dryRun) {
   const res = await fetch(`${url}/functions/v1/ingest-documents`, {
@@ -135,6 +172,47 @@ async function postIngest({ url, key }, payload, dryRun) {
   return result;
 }
 
+/** A write lock in the work directory (corpus-jobs.md: never remove an active, unknown or foreign-host lock). */
+function acquireLock(work) {
+  const file = work.at('write.lock');
+  const me = { host: hostname(), pid: process.pid };
+  const isAlive = (pid) => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (e) {
+      return e.code === 'EPERM';
+    }
+  };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const fd = openSync(file, 'wx');
+      const lock = { ...me, token: randomUUID(), at: nowIso() };
+      writeSync(fd, JSON.stringify(lock));
+      closeSync(fd);
+      return () => {
+        try {
+          if (JSON.parse(readFileSync(file, 'utf8')).token === lock.token) rmSync(file);
+        } catch {
+          // already gone
+        }
+      };
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+      let found = 'unreadable';
+      try {
+        found = JSON.parse(readFileSync(file, 'utf8'));
+      } catch {
+        // an unreadable lock is an unknown lock
+      }
+      const verdict = lockDecision(found, me, isAlive);
+      if (verdict === 'blocked') stop(`another write holds ${file} (${typeof found === 'object' ? `pid ${found.pid} on ${found.host}` : 'unknown lock'}); never remove it by hand unless you know it is dead`);
+      rmSync(file); // a verified dead same-host lock
+    }
+  }
+  return stop(`could not take ${file}`);
+}
+
 // ---------------------------------------------------------------------------------------------
 // 1. prepare, pin
 // ---------------------------------------------------------------------------------------------
@@ -145,6 +223,7 @@ async function cmdPrepare(ctx) {
   if (!args.pdfsOnly) {
     const get = makeReader(credentials(process.env));
     say('Reading the documents from NTER (GET only):');
+    const sums = parseSums(existsSync(work.at('current', 'SHA256SUMS')) ? await readFile(work.at('current', 'SHA256SUMS'), 'utf8') : '');
     for (const [i, d] of docs.entries()) {
       const { rows } = await get(documentQuery(d));
       if (rows.length !== 1) stop(`${d.prefix}: expected exactly one document, found ${rows.length}`);
@@ -158,9 +237,13 @@ async function cmdPrepare(ctx) {
         const deskRows = (await get(deskQuery(d.new_document_key))).rows;
         desk = { key: d.new_document_key, rows: deskRows.map((r) => ({ tier: r.tier, feature: r.feature, row_key: r.row_key, bill_name: r.row?.bill_name ?? null })), names: deskNames(deskRows) };
       }
-      await work.save(['current', `${d.prefix}.json`], { read_at: nowIso(), chunk_count: total, document: row, ...(desk ? { desk } : {}) });
+      const text = `${JSON.stringify({ read_at: nowIso(), chunk_count: total, document: row, ...(desk ? { desk } : {}) }, null, 2)}\n`;
+      await work.save(['current', `${d.prefix}.json`], text);
+      sums[`${d.prefix}.json`] = sha256(text);
       say(`  [${i + 1}/${docs.length}] ${d.prefix}  ${row.id}  ${d.action.padEnd(14)} chunks=${String(total).padStart(3)} chars=${fmt(codePointLength(row.ocr_text ?? ''))} v${row.chunker_version}${desk ? `  desk records for ${d.new_document_key}: ${desk.rows.length}` : ''}`);
     }
+    await work.save(['current', 'SHA256SUMS'], formatSums(sums));
+    say(`Snapshots recorded in ${work.at('current', 'SHA256SUMS')}: they are what rollback-build restores from. Back them up.`);
   }
   if (!args.rowsOnly) {
     const pdfDocs = docs.filter(usesPdf);
@@ -216,7 +299,7 @@ async function cmdPin(ctx) {
   }
   const raw = JSON.parse(await readFile(path.resolve(args.manifest), 'utf8'));
   await writeFile(path.resolve(args.manifest), `${JSON.stringify(withPins(raw, found), null, 2)}\n`);
-  say(`Pinned ${found.length}. The manifest SHA-256 is now ${sha256(await readFile(path.resolve(args.manifest)))} (the old ${ctx.manifestSha.slice(0, 12)} no longer applies).`);
+  say(`Pinned ${found.length}. The manifest SHA-256 is now ${sha256(await readFile(path.resolve(args.manifest)))} (the old ${ctx.manifestSha.slice(0, 12)} no longer applies): build and dry-run again.`);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -232,6 +315,7 @@ async function pdfBytes(work, d) {
   return bytes;
 }
 
+/** Every cached response of a document, validated or not: what was paid for. */
 async function cachedOcr(work, prefix) {
   const dir = work.at('ocr', prefix);
   const parts = existsSync(dir) ? (await readdir(dir)).filter((f) => /^part-\d+-\d+\.json$/.test(f)).sort() : [];
@@ -253,13 +337,15 @@ async function cmdOcr(ctx) {
     const pages = await countPdfPages(bytes);
     if (pages !== d.pages) stop(`${d.prefix}: the PDF has ${pages} pages, the manifest says ${d.pages}`);
     const parts = await cachedOcr(work, d.prefix);
-    cached[d.prefix] = new Set(parts.flatMap((p) => p.pages.map((x) => x.index)));
-    spentUsd += parts.reduce((n, p) => n + p.cost_usd, 0);
+    // Only a validated part made from this PDF with this tool's request counts as cached; every part was paid for.
+    const usable = parts.filter((p) => p.valid === true && p.source_sha256 === d.source_sha256);
+    cached[d.prefix] = new Set(usable.flatMap((p) => p.pages.map((x) => x.index)));
+    spentUsd += spentOnParts(parts);
   }
   const plan = ocrPlan(todoDocs, cached, usdPerPage);
   say(`Mistral OCR ${OCR_MODEL}, USD ${OCR_USD_PER_1000_PAGES} per 1,000 pages (${usdPerPage.toFixed(4)} a page):`);
   for (const r of plan.rows) say(`  ${r.prefix}  ${String(r.pages).padStart(3)} pages  cached ${String(r.cached).padStart(3)}  to buy ${String(r.todo.length).padStart(3)}  USD ${r.usd.toFixed(3)}`);
-  say(`  ${todoDocs.length} document(s), ${plan.rows.reduce((n, r) => n + r.pages, 0)} pages; to buy: ${plan.todoPages} pages, USD ${plan.usd.toFixed(3)} (cap ${args.maxUsd}; already spent on cached parts ${spentUsd.toFixed(3)})`);
+  say(`  ${todoDocs.length} document(s), ${plan.rows.reduce((n, r) => n + r.pages, 0)} pages; to buy: ${plan.todoPages} pages, USD ${plan.usd.toFixed(3)} (cap ${args.maxUsd}; already spent on cached responses ${spentUsd.toFixed(3)})`);
   checkSpend({ spentUsd, pages: plan.todoPages, usdPerPage, maxUsd: args.maxUsd });
   if (!plan.todoPages) {
     say('Nothing to buy: every page is cached.');
@@ -275,39 +361,48 @@ async function cmdOcr(ctx) {
   for (const [n, row] of plan.rows.entries()) {
     if (!row.todo.length) continue;
     const d = todoDocs.find((x) => x.prefix === row.prefix);
-    const bytes = args.via === 'data' ? await pdfBytes(work, d) : null;
-    const documentUrl = args.via === 'data' ? `data:application/pdf;base64,${bytes.toString('base64')}` : d.source_url;
+    // The verified bytes, inline: what Mistral reads is exactly the file whose SHA-256 is pinned.
+    const documentUrl = `data:application/pdf;base64,${(await pdfBytes(work, d)).toString('base64')}`;
     for (const run of pageRuns(row.todo, args.pagesPerCall)) {
       checkSpend({ spentUsd, pages: run.length, usdPerPage, maxUsd: args.maxUsd });
-      // The worker's own request (ingest-worker/mistral.ts), except that the page images and blocks are
-      // not asked for: composeDocument uses neither, and 388 image fragments would bloat the response.
-      const request = { ...buildOcrRequest(OCR_MODEL, documentUrl, run), include_image_base64: false, include_blocks: false };
+      // The worker's own request (ingest-worker/mistral.ts), except for OCR_REQUEST_FLAGS (no images or blocks).
+      const request = { ...buildOcrRequest(OCR_MODEL, documentUrl, run), ...OCR_REQUEST_FLAGS };
       let result;
       try {
         result = await callMistralOcr({ fetch, apiKey }, request);
       } catch (e) {
         stop(`${d.prefix}: Mistral OCR failed for pages ${run[0] + 1}-${run[run.length - 1] + 1}: ${e.message}`);
       }
-      checkIndexes(run, result.pages.map((p) => p.index));
+      // Paid for: save it and count it first, then validate it.
       const cost = ocrCostUsd(result.pagesProcessed);
       spentUsd += cost;
       const pages = result.pages.map((p) => ({ ...p, images: (p.images ?? []).map(({ image_base64: _b64, ...rest }) => rest) }));
-      await work.save(['ocr', d.prefix, `part-${run[0]}-${run[run.length - 1]}.json`], { fetched_at: nowIso(), model: result.model, requested: run, pages_processed: result.pagesProcessed, cost_usd: cost, latency_ms: result.latencyMs, pages });
+      const file = ['ocr', d.prefix, `part-${run[0]}-${run[run.length - 1]}.json`];
+      const part = { fetched_at: nowIso(), valid: false, source_sha256: d.source_sha256, model_requested: OCR_MODEL, model: result.model, flags: OCR_REQUEST_FLAGS, requested: run, pages_processed: result.pagesProcessed, cost_usd: cost, latency_ms: result.latencyMs, pages };
+      await work.save(file, part);
+      try {
+        checkIndexes(run, result.pages.map((p) => p.index));
+      } catch (e) {
+        stop(`${d.prefix}: the response for pages ${run[0] + 1}-${run[run.length - 1] + 1} was paid for (USD ${cost.toFixed(4)}, kept and counted) but did not validate: ${e.message}`);
+      }
+      await work.save(file, { ...part, valid: true });
       say(`  [${n + 1}/${plan.rows.length}] ${d.prefix}  pages ${run[0] + 1}-${run[run.length - 1] + 1}  processed ${result.pagesProcessed}  USD ${cost.toFixed(4)}  ${result.latencyMs} ms  (model ${result.model || 'not reported'})  spent so far ${spentUsd.toFixed(3)}`);
       await sleep(1500);
     }
   }
-  say(`Done. Spent USD ${spentUsd.toFixed(4)} in total on cached parts.`);
+  say(`Done. Spent USD ${spentUsd.toFixed(4)} in total on cached responses.`);
 }
 
 // ---------------------------------------------------------------------------------------------
-// 3. build
+// 3. build, rollback-build
 // ---------------------------------------------------------------------------------------------
 
 function firstLastLines(text) {
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
   return { first: clip(lines[0] ?? '', 80), last: clip(lines[lines.length - 1] ?? '', 80), lines: lines.length };
 }
+
+const firstPageTitle = (text) => text.split('\n').map((l) => l.replace(/^[\s#>*_|]+/, '').trim()).filter(Boolean).slice(0, 2).map((l) => clip(l, 70)).join(' / ');
 
 const pass = (extra = {}) => ({ ok: true, ...extra });
 const fail = (message, extra = {}) => ({ ok: false, message, ...extra });
@@ -318,6 +413,9 @@ function attempt(fn) {
     return fail(e.message);
   }
 }
+
+/** The metadata that described the old text's source, set to what describes the new one (the old is kept in text_repair.previous). */
+const SOURCE_LABEL = { decode: 'pdf-text-layer-decoded', reextract: 'pdf-text-layer', ocr: OCR_MODEL };
 
 /** The new text of one document, by action, with what was seen on the way. */
 async function buildText(d, existing, work) {
@@ -344,20 +442,22 @@ async function buildText(d, existing, work) {
     return { text: r.text, notes, extra: {} };
   }
   if (d.action === 'rekey' || d.action === 'retitle_unlink') return { text: oldText, notes, extra: { text_unchanged: oldText.trim() ? pass() : fail('the stored text is empty') } };
-  // ocr
+  // ocr: only parts made from the pinned PDF, with this tool's model and flags, all validated
   const parts = await cachedOcr(work, d.prefix);
-  if (!parts.length) stop(`${d.prefix}: no cached OCR (run ocr --go)`);
+  const cacheProblems = ocrCacheProblems(parts, { sha: d.source_sha256, pages: d.pages });
+  if (cacheProblems.length) throw new Error(`the cached OCR cannot be used: ${cacheProblems.join('; ')}`);
   const doc = ocrPagesToDocument(parts.flatMap((p) => p.pages), { expectedPages: d.pages });
   notes.empty_pages = doc.emptyPages;
   notes.unresolved_tables = doc.unresolvedTables;
   notes.images_removed = doc.imagesRemoved;
   notes.page_chars = doc.pages.map((p) => p.text.length);
-  notes.ocr_cost_usd = parts.reduce((n, p) => n + p.cost_usd, 0);
+  notes.ocr_cost_usd = spentOnParts(parts);
   notes.ocr_model = [...new Set(parts.map((p) => p.model))];
   return {
     text: doc.text,
     notes,
     extra: {
+      ocr_cache: pass({ parts: parts.length }),
       ocr_pages_complete: pass({ pages: d.pages }),
       unresolved_tables: doc.unresolvedTables.length ? fail(`${doc.unresolvedTables.length} table placeholder(s) with no table`) : pass(),
     },
@@ -367,6 +467,22 @@ async function buildText(d, existing, work) {
 const attention = (notes, message) => {
   notes.attention = [...(notes.attention ?? []), message];
 };
+
+async function snapshotSums(work) {
+  const file = work.at('current', 'SHA256SUMS');
+  if (!existsSync(file)) stop('no current/SHA256SUMS: run prepare');
+  return parseSums(await readFile(file, 'utf8'));
+}
+
+/** The snapshot files of `docs` as they are now, hashed, against what prepare recorded. */
+async function checkSnapshots(work, docs) {
+  const actual = {};
+  for (const d of docs) {
+    const f = work.at('current', `${d.prefix}.json`);
+    if (existsSync(f)) actual[`${d.prefix}.json`] = sha256(await readFile(f));
+  }
+  return snapshotProblems(await snapshotSums(work), actual, docs.map((d) => d.prefix));
+}
 
 async function buildOne(d, ctx) {
   const { work } = ctx;
@@ -404,6 +520,11 @@ async function buildOne(d, ctx) {
       checks.title_guard = { ...checks.title_guard, ok: true, softened: 'late_start' };
       attention(notes, `the title appears ${fmt(checks.title_guard.firstMatchAt)} characters into the text: a cover page or noise stands in front of it`);
     }
+    // The title's words do not tell the Constitution (Amendment) Bills apart: the printed Bill No. and the
+    // article or section the title names do.
+    const bill = d.action === 'rekey' ? { key: d.new_document_key } : d.new_bill_number ? { billNo: { number: d.new_bill_number, year: d.new_bill_year } } : {};
+    const identity = identityProblems({ title: titleChoice.title, text, ...bill });
+    checks.bill_identity = identity.problems.length ? fail(identity.problems.join('; '), { problems: identity.problems, notes: identity.notes }) : pass({ problems: [], notes: identity.notes });
     notes.old_title_guard = { ...titleMatches(existing.title, text), title: existing.title };
     if (!notes.old_title_guard.ok) notes.old_title_guard.confirms_defect = true;
     if (titleChoice.agreesWithPrinted === false) attention(notes, `the title (${titleChoice.source}) differs from the title printed in the text: ${clip(titleChoice.candidates.printed, 70)}`);
@@ -411,7 +532,11 @@ async function buildOne(d, ctx) {
     if (d.action === 'rekey') {
       if (desk) {
         notes.desk = { read: true, key: desk.key, names: desk.names, rows: desk.rows.length };
-        checks.desk_record = desk.rows.length ? pass({ rows: desk.rows.length }) : fail(`no desk record holds ${d.new_document_key}: the document would have no row`);
+        if (desk.rows.length) checks.desk_record = pass({ rows: desk.rows.length });
+        else if (d.allow_missing_desk) {
+          checks.desk_record = pass({ rows: 0, allowed: d.reason });
+          attention(notes, `no desk record holds ${d.new_document_key} (allowed by the manifest: it is harmless and keeps the identity right)`);
+        } else checks.desk_record = fail(`no desk record holds ${d.new_document_key}: the document would have no row`);
       } else {
         notes.desk = { read: false };
         attention(notes, 'the desk record of the new key was not read (prepare reads it): title not checked against it');
@@ -430,12 +555,21 @@ async function buildOne(d, ctx) {
     checks.title_guard = { ok: true, skipped: 'regulatory document: the title is a file name' };
   }
 
+  if (d.action === 'ocr' || d.action === 'reextract') {
+    // Identity: the stored text is the tail or the debris of the same document, so its four-word sequences
+    // should be in the new text. A garbage stored text cannot vouch for it: a person looks at the first page.
+    const c = oldTextContainment(oldText, text);
+    const verdict = identityVerdict({ share: c.share, shingles: c.shingles, garbage: Boolean(d.old_text_garbage) });
+    checks.identity = { ok: verdict.level !== 'fail', level: verdict.level, reason: verdict.reason, share: c.share, shingles: c.shingles, contained: c.contained, firstPageTitle: firstPageTitle(text), ...(verdict.level === 'fail' ? { message: verdict.reason } : {}) };
+    if (verdict.level === 'look') attention(notes, `${verdict.reason}; first page reads: ${checks.identity.firstPageTitle}`);
+  }
   if (d.action === 'ocr') {
     checks.ocr = { ok: true, ...ocrChecks(text, d.ocr_kind, { pages: d.pages }) };
     if (d.ocr_kind === 'cci-order' && !checks.ocr.paragraphs.startsAtOne) attention(notes, 'numbering does not start at 1');
     if (d.ocr_kind === 'cci-order' && !checks.ocr.paragraphs.contiguous) attention(notes, 'numbering has a large gap');
     if (checks.ocr.lowDensity) attention(notes, 'under 600 characters per page');
     if (d.ocr_kind === 'bilingual-gazette' && checks.ocr.scripts.latinNoiseShare > 0.15) attention(notes, 'many Latin words do not look like English');
+    if (notes.empty_pages?.length) attention(notes, `${notes.empty_pages.length} empty OCR page(s): ${notes.empty_pages.join(', ')}`);
   }
   if (d.action === 'reextract' && checks.ocr?.lowDensity) attention(notes, 'under 600 characters per page');
 
@@ -455,11 +589,13 @@ async function buildOne(d, ctx) {
       action: d.action,
       rekey,
       retitle,
+      // The source is described only for actions that read it: a re-key or a cover strip read the stored text.
       provenance: {
         ...(d.source_url ? { source_url: d.source_url } : {}),
-        ...(d.source_sha256 ? { source_sha256: d.source_sha256 } : {}),
+        ...(usesPdf(d) && d.source_sha256 ? { source_sha256: d.source_sha256 } : {}),
         ...(d.action === 'ocr' ? { ocr_model: OCR_MODEL } : {}),
       },
+      metadataUpdates: SOURCE_LABEL[d.action] ? { ocr_lang: SOURCE_LABEL[d.action] } : null,
     });
     const payloadText = `${JSON.stringify(payload, null, 2)}\n`;
     payloadSha = sha256(payloadText);
@@ -494,13 +630,16 @@ async function cmdBuild(ctx) {
   const { docs, work, manifestSha, manifest } = ctx;
   const prior = await work.json('build', 'review.json');
   const review = { manifest_sha256: manifestSha, built_at: nowIso(), documents: prior?.manifest_sha256 === manifestSha ? { ...prior.documents } : {} };
+  const snapshotIssues = await checkSnapshots(work, docs);
   let bad = 0;
   for (const [i, d] of docs.entries()) {
     let entry;
     try {
+      const mine = snapshotIssues.filter((p) => p.startsWith(`${d.prefix}:`));
+      if (mine.length) throw new Error(mine.join('; '));
       entry = await buildOne(d, ctx);
     } catch (e) {
-      // One document that cannot be built (no OCR cached yet, no row read) is a failed entry, not the end of the batch.
+      // One document that cannot be built (no OCR cached yet, a changed snapshot) is a failed entry, not the end of the batch.
       entry = { prefix: d.prefix, action: d.action, ok: false, failed: ['build'], error: e.message, checks: {}, notes: {}, old: {}, new: {}, payload_sha256: null };
       await work.save(['build', `${d.prefix}.review.json`], entry);
     }
@@ -520,16 +659,34 @@ async function cmdBuild(ctx) {
     if (e && review.documents[d.prefix]) entries.push(e);
   }
   await work.save(['build', 'review.md'], renderReview({ manifestSha, entries, excluded: manifest.excluded ?? [] }));
-  say(`Review written to ${work.at('build', 'review.md')} (${entries.length} document(s), riskiest first) and ${work.at('build', 'review.json')}; manifest SHA-256 ${manifestSha}.`);
+  say(`Review written to ${work.at('build', 'review.md')} (${entries.length} document(s), riskiest first) and ${work.at('build', 'review.json')}.`);
+  say(`SHA-256 of build/review.json, which write --confirm must name: ${sha256(await readFile(work.at('build', 'review.json')))}`);
   if (bad) stop(`${bad} document(s) failed their checks`);
+}
+
+async function cmdRollbackBuild(ctx) {
+  const { docs, work, manifestSha } = ctx;
+  const issues = await checkSnapshots(work, docs);
+  if (issues.length) stop(`the snapshots are not what prepare recorded:\n  ${issues.join('\n  ')}`);
+  const review = { kind: 'rollback', manifest_sha256: manifestSha, built_at: nowIso(), documents: {} };
+  for (const [i, d] of docs.entries()) {
+    const snap = (await work.json('current', `${d.prefix}.json`)).document;
+    const payload = await buildRollbackPayload(snap, { action: d.action });
+    const text = `${JSON.stringify(payload, null, 2)}\n`;
+    await work.save(['rollback', `${d.prefix}.payload.json`], text);
+    review.documents[d.prefix] = { ok: true, action: d.action, payload_sha256: sha256(text), text_sha256: payload.metadata.text_sha256, title: payload.title, document_key: payload.metadata.document_key ?? null };
+    say(`[${i + 1}/${docs.length}] ${d.prefix} ${d.action.padEnd(14)} restores ${clip(payload.title, 50)}  key=${payload.metadata.document_key ?? '-'}${d.action === 'retitle_unlink' ? '  (re-linked)' : ''}`);
+  }
+  await work.save(['rollback', 'review.json'], review);
+  say(`Rollback payloads written to ${work.at('rollback')}. SHA-256 of rollback/review.json (write --rollback --confirm): ${sha256(await readFile(work.at('rollback', 'review.json')))}`);
 }
 
 // ---------------------------------------------------------------------------------------------
 // 4. dry-run and 5. write
 // ---------------------------------------------------------------------------------------------
 
-async function loadPayload(work, prefix) {
-  const file = work.at('build', `${prefix}.payload.json`);
+async function loadPayload(work, dirs, prefix) {
+  const file = work.at(dirs.build, `${prefix}.payload.json`);
   if (!existsSync(file)) return null;
   const text = await readFile(file, 'utf8');
   return { payload: JSON.parse(text), sha256: sha256(text) };
@@ -537,24 +694,51 @@ async function loadPayload(work, prefix) {
 
 const resultLine = (prefix, r) => `${r.status.padEnd(9)} ${prefix}  chunks=${r.chunks} +${r.inserted} =${r.kept} -${r.deleted}  tokens=${r.embedded_tokens} usd=${r.cost_usd.toFixed(6)}${r.reason ? `  ${r.reason}` : ''}${r.error ? `  ERROR ${r.error}` : ''}`;
 
+/** The row as it is now, for the drift check: a read-only GET of the columns the snapshot recorded. */
+async function liveRow(get, d, snapshotId) {
+  const { rows } = await get(documentQuery({ ...d, id: snapshotId }, DRIFT_COLUMNS));
+  return rows.length === 1 ? rows[0] : null;
+}
+
+/** The embedding the chunks a dry run says are new would cost: the chunker's own token estimate, scaled by inserted / chunks. */
+async function embeddingEstimate(items) {
+  const rows = [];
+  for (const it of items) rows.push({ prefix: it.prefix, rows: await chunkDocument(it.payload.ocr_text), chunks: it.dry.chunks, inserted: it.dry.inserted });
+  return embedEstimate(rows, EMBED_PRICE_USD_PER_TOKEN);
+}
+
 async function cmdDryRun(ctx) {
   const { args, docs, work, manifestSha } = ctx;
-  const review = await work.json('build', 'review.json');
-  if (!review || review.manifest_sha256 !== manifestSha) stop('no reviewed build for this manifest: run build first');
+  const dirs = stageDirs(args.rollback);
+  const review = await work.json(dirs.build, 'review.json');
+  if (!review || review.manifest_sha256 !== manifestSha) stop(`no reviewed ${dirs.build} for this manifest: run ${args.rollback ? 'rollback-build' : 'build'} first`);
   const cred = credentials(process.env);
+  const get = makeReader(cred);
   let bad = 0;
   let skipped = 0;
   for (const [i, d] of docs.entries()) {
     if (review.documents[d.prefix]?.ok !== true) stop(`${d.prefix}: the reviewed build did not pass its checks`);
-    const loaded = await loadPayload(work, d.prefix);
+    const loaded = await loadPayload(work, dirs, d.prefix);
     if (!loaded || loaded.sha256 !== review.documents[d.prefix].payload_sha256) stop(`${d.prefix}: the payload file is not the reviewed one`);
-    const done = await work.json('dryrun', `${d.prefix}.json`);
+    const done = await work.json(dirs.dryrun, `${d.prefix}.json`);
     if (!args.redo && done && done.payload_sha256 === loaded.sha256 && WRITABLE_DRY_STATUSES.includes(done.status)) {
       skipped++;
       continue;
     }
+    // The row must still be the one prepare read. A document already written by this tool has moved on by design
+    // (a rewrite): there is nothing of prepare's to compare it with.
+    if (!args.rollback && !(await work.json(dirs.write, `${d.prefix}.json`))) {
+      const snap = (await work.json('current', `${d.prefix}.json`)).document;
+      const drift = driftProblems(snap, await liveRow(get, d, snap.id));
+      if (drift.length) {
+        await work.save([dirs.dryrun, `${d.prefix}.json`], { at: nowIso(), payload_sha256: loaded.sha256, status: 'drift', error: drift.join('; ') });
+        say(`[${i + 1}/${docs.length}] DRIFT     ${d.prefix}  ${drift.join('; ')}`);
+        bad++;
+        continue;
+      }
+    }
     const r = await postIngest(cred, loaded.payload, true);
-    await work.save(['dryrun', `${d.prefix}.json`], { at: nowIso(), payload_sha256: loaded.sha256, ...r });
+    await work.save([dirs.dryrun, `${d.prefix}.json`], { at: nowIso(), payload_sha256: loaded.sha256, ...r });
     say(`[${i + 1}/${docs.length}] ${resultLine(d.prefix, r)}`);
     if (!WRITABLE_DRY_STATUSES.includes(r.status)) bad++;
     await sleep(500);
@@ -564,73 +748,144 @@ async function cmdDryRun(ctx) {
   say('All dry runs were clean. Nothing was written.');
 }
 
-/** Prefixes of the whole manifest already written with their current reviewed payload. */
-async function writtenPrefixes(manifest, work, review) {
-  const done = new Set();
-  for (const d of manifest.documents) {
-    const w = await work.json('write', `${d.prefix}.json`);
-    if (w && ['indexed', 'unchanged'].includes(w.status) && w.payload_sha256 === review?.documents?.[d.prefix]?.payload_sha256) done.add(d.prefix);
+/** Prefixes of the selection already written (indexed or unchanged) with their current reviewed payload. */
+async function writtenState(docs, work, dirs, review) {
+  const written = new Set();
+  const payloadShas = {};
+  for (const d of docs) {
+    const w = await work.json(dirs.write, `${d.prefix}.json`);
+    if (w && ['indexed', 'unchanged'].includes(w.status)) {
+      payloadShas[d.prefix] = w.payload_sha256;
+      if (w.payload_sha256 === review?.documents?.[d.prefix]?.payload_sha256) written.add(d.prefix);
+    }
   }
-  return done;
+  return { written, payloadShas };
 }
 
 async function cmdWrite(ctx) {
-  const { args, docs, work, manifestSha, manifest } = ctx;
+  const { args, docs, work, manifestSha } = ctx;
+  const dirs = stageDirs(args.rollback);
+  const review = await work.json(dirs.build, 'review.json');
+  const reviewSha = review ? sha256(await readFile(work.at(dirs.build, 'review.json'))) : null;
+  const { written, payloadShas: writtenPayloadShas } = await writtenState(docs, work, dirs, review);
+  const { batch, remaining } = nextBatch(docs, written, args.batch);
+  if (!batch.length) {
+    say('Nothing left to write: every selected document is written with its reviewed payload.');
+    return;
+  }
+
   const currentIds = {};
   const payloadShas = {};
+  const textShas = {};
   const dryRuns = {};
-  for (const d of docs) {
+  const payloads = {};
+  for (const d of batch) {
     currentIds[d.prefix] = (await work.json('current', `${d.prefix}.json`))?.document?.id;
-    payloadShas[d.prefix] = (await loadPayload(work, d.prefix))?.sha256;
-    dryRuns[d.prefix] = await work.json('dryrun', `${d.prefix}.json`);
+    const loaded = await loadPayload(work, dirs, d.prefix);
+    payloadShas[d.prefix] = loaded?.sha256;
+    textShas[d.prefix] = loaded ? sha256(loaded.payload.ocr_text) : undefined;
+    payloads[d.prefix] = loaded?.payload;
+    dryRuns[d.prefix] = await work.json(dirs.dryrun, `${d.prefix}.json`);
   }
-  const review = await work.json('build', 'review.json');
-  const written = await writtenPrefixes(manifest, work, review);
-  const problems = writeGateProblems({ confirm: args.confirm, manifestSha, docs, review, currentIds, payloadShas, dryRuns, written });
+  const problems = writeGateProblems({
+    confirm: args.confirm, reviewSha, manifestSha, authorizedBy: args.authorizedBy, docs: batch, review, currentIds, payloadShas, textShas, dryRuns, written,
+    writtenPayloadShas, rewrite: new Set(args.rewrite),
+  });
   if (problems.length) {
     say('Refusing to write:');
     for (const p of problems) say(`  - ${p}`);
     process.exitCode = 2;
     return;
   }
+
   const cred = credentials(process.env);
-  const ordered = orderForWrite(docs);
-  say(`Writing ${ordered.length} document(s) to ${new URL(cred.url).host} (manifest ${manifestSha.slice(0, 12)}), dependencies first:`);
-  for (const [i, d] of ordered.entries()) {
-    const loaded = await loadPayload(work, d.prefix);
-    if (written.has(d.prefix)) {
-      say(`[${i + 1}/${ordered.length}] skipped   ${d.prefix}  already written with this payload`);
-      continue;
+  const get = makeReader(cred);
+  const release = acquireLock(work);
+  try {
+    // Writer exclusivity: no ingestion job may hold a claim (corpus-jobs.md, project-wide writer exclusivity).
+    const claims = liveClaimProblems((await get(ingestJobsQuery())).rows);
+    if (claims.length) {
+      say('Refusing to write:');
+      for (const c of claims) say(`  - ${c}`);
+      process.exitCode = 2;
+      return;
     }
-    const startedAt = nowIso();
-    const r = await postIngest(cred, loaded.payload, false);
-    await work.save(['write', `${d.prefix}.json`], { started_at: startedAt, at: nowIso(), payload_sha256: loaded.sha256, ...r });
-    say(`[${i + 1}/${ordered.length}] ${resultLine(d.prefix, r)}`);
-    if (!['indexed', 'unchanged'].includes(r.status)) stop(`${d.prefix}: ${r.status}; stopping. Documents after it were not written. Re-running write resumes here.`);
-    written.add(d.prefix);
-    await sleep(2000);
+    // The embedding bill, before anything is posted.
+    const est = await embeddingEstimate(batch.map((d) => ({ prefix: d.prefix, payload: payloads[d.prefix], dry: dryRuns[d.prefix] })));
+    say(`Expected embedding cost of this batch: ${fmt(est.tokens)} tokens, USD ${est.usd.toFixed(4)} (the chunker's token estimate over the chunks the dry run says are new; cap ${args.maxEmbedUsd}).`);
+    const capProblems = embedCapProblems(est, args.maxEmbedUsd);
+    if (capProblems.length) {
+      say('Refusing to write:');
+      for (const c of capProblems) say(`  - ${c}`);
+      process.exitCode = 2;
+      return;
+    }
+
+    const number = nextBatchNumber(await work.json(dirs.write, 'batches.json'));
+    const at = nowIso();
+    const auth = (await work.json(dirs.write, 'authorization.json')) ?? { entries: [] };
+    auth.entries.push({ at, batch: number, authorized_by: args.authorizedBy, review_sha256: reviewSha, prefixes: batch.map((d) => d.prefix) });
+    await work.save([dirs.write, 'authorization.json'], auth);
+    const mdFile = work.at(dirs.build, 'review.md');
+    if (existsSync(mdFile)) await writeFile(mdFile, withAuthorization(await readFile(mdFile, 'utf8'), { authorizedBy: args.authorizedBy, at, reviewSha, batch: number }));
+
+    say(`Writing batch ${number}: ${batch.length} document(s) of ${batch.length + remaining} pending to ${new URL(cred.url).host} (review ${reviewSha.slice(0, 12)}, authorized by: ${args.authorizedBy}):`);
+    const refused = [];
+    const wrote = [];
+    for (const [i, d] of batch.entries()) {
+      if (!args.rollback && !args.rewrite.includes(d.prefix)) {
+        const snap = (await work.json('current', `${d.prefix}.json`)).document;
+        const drift = driftProblems(snap, await liveRow(get, d, snap.id));
+        if (drift.length) {
+          say(`[${i + 1}/${batch.length}] REFUSED   ${d.prefix}  the row is not the snapshot: ${drift.join('; ')}`);
+          refused.push(d.prefix);
+          continue;
+        }
+      }
+      const startedAt = nowIso();
+      const r = await postIngest(cred, payloads[d.prefix], false);
+      await work.save([dirs.write, `${d.prefix}.json`], { started_at: startedAt, at: nowIso(), batch: number, payload_sha256: payloadShas[d.prefix], ...r });
+      say(`[${i + 1}/${batch.length}] ${resultLine(d.prefix, r)}`);
+      if (!['indexed', 'unchanged'].includes(r.status)) stop(`${d.prefix}: ${r.status}; stopping. The rest of the batch was not written. Re-running write resumes here.`);
+      wrote.push(d);
+      await sleep(2000);
+    }
+
+    // The audit pause: readback of what this batch wrote, recorded, and then stop.
+    say(`Batch ${number} written (${wrote.length}); reading it back:`);
+    const results = await readbackDocs(wrote, { ...ctx, get, dirs });
+    const log = addBatch(await work.json(dirs.write, 'batches.json'), { batch: number, at, authorized_by: args.authorizedBy, review_sha256: reviewSha, prefixes: batch.map((d) => d.prefix), written: wrote.map((d) => d.prefix), refused, readback_ok: results.every((x) => !x.problems.length) && !refused.length });
+    await work.save([dirs.write, 'batches.json'], log);
+    await work.save([dirs.readback, `batch-${number}.json`], { at: nowIso(), batch: number, results: results.map((x) => ({ prefix: x.prefix, problems: x.problems })) });
+    const dirty = results.filter((x) => x.problems.length).length;
+    if (refused.length || dirty) stop(`batch ${number}: ${refused.length} document(s) refused for drift, ${dirty} with a readback difference. Audit before another write.`);
+    say(`Batch ${number} is clean. ${remaining} document(s) remain. Audit it (independent audit of the written documents, ANALYZE document_chunks, documents, desk_rows), then run write again for the next batch.`);
+  } finally {
+    release();
   }
-  say('Done. Run readback next.');
 }
 
 // ---------------------------------------------------------------------------------------------
 // 6. readback
 // ---------------------------------------------------------------------------------------------
 
-async function cmdReadback(ctx) {
-  const { docs, work } = ctx;
-  const get = makeReader(credentials(process.env));
-  const columns = 'id,title,content_sha256,indexed_at,chunker_version,document_key:metadata->>document_key,n_chars:metadata->>n_chars,file_url_ambiguous:metadata->>file_url_ambiguous';
-  let bad = 0;
+const READBACK_COLUMNS = 'id,title,content_sha256,indexed_at,chunker_version,document_key:metadata->>document_key,n_chars:metadata->>n_chars,file_url_ambiguous:metadata->>file_url_ambiguous';
+
+/** Compares each document in NTER with its payload; saves readback/<prefix>.json; returns [{ prefix, problems }]. */
+async function readbackDocs(docs, { work, get, dirs }) {
+  const out = [];
   for (const [i, d] of docs.entries()) {
-    const loaded = await loadPayload(work, d.prefix);
+    const loaded = await loadPayload(work, dirs, d.prefix);
     if (!loaded) stop(`${d.prefix}: no built payload to compare with`);
-    const written = await work.json('write', `${d.prefix}.json`);
-    const dry = await work.json('dryrun', `${d.prefix}.json`);
+    const written = await work.json(dirs.write, `${d.prefix}.json`);
+    const dry = await work.json(dirs.dryrun, `${d.prefix}.json`);
     const planned = written ?? dry;
     if (!planned) stop(`${d.prefix}: no dry-run or write record to take the chunk count from`);
-    const { rows } = await get(documentQuery(d, columns));
-    const row = rows.length === 1 ? rows[0] : null;
+    const snapId = (await work.json('current', `${d.prefix}.json`))?.document?.id;
+    const row = await retryRead(async () => {
+      const { rows } = await get(documentQuery({ ...d, id: snapId ?? d.id }, READBACK_COLUMNS));
+      return rows.length === 1 ? rows[0] : null;
+    }, { sleep });
     const { total } = row ? await get(`document_chunks?select=id&document_id=eq.${row.id}`, { count: true }) : { total: null };
     const expected = {
       title: loaded.payload.title,
@@ -639,27 +894,37 @@ async function cmdReadback(ctx) {
       n_chars: loaded.payload.metadata.n_chars,
       chunk_count: planned.chunks,
       chunker_version: 2,
-      ...(d.action === 'retitle_unlink' ? { file_url_ambiguous: true } : {}),
+      ...(d.action === 'retitle_unlink' && !dirs.build.startsWith('rollback') ? { file_url_ambiguous: true } : {}),
     };
-    const problems = readbackProblems(expected, row ? { ...row, chunk_count: total } : null, { writtenAfter: written?.started_at ?? null });
-    await work.save(['readback', `${d.prefix}.json`], { at: nowIso(), expected, actual: row ? { ...row, chunk_count: total } : null, problems });
+    const problems = readbackProblems(expected, row ? { ...row, chunk_count: total } : null, { writtenAfter: readbackWrittenAfter(written) });
+    await work.save([dirs.readback, `${d.prefix}.json`], { at: nowIso(), expected, actual: row ? { ...row, chunk_count: total } : null, problems });
     say(`[${i + 1}/${docs.length}] ${problems.length ? 'DIFF' : 'OK  '} ${d.prefix}  ${clip(row?.title ?? '(not found)', 48)}  key=${row?.document_key ?? '-'}  chunks=${total}  indexed_at=${row?.indexed_at ?? 'null'}`);
     for (const p of problems) say(`       ${p}`);
-    if (problems.length) bad++;
+    out.push({ prefix: d.prefix, problems });
   }
+  return out;
+}
+
+async function cmdReadback(ctx) {
+  const { args, docs, work } = ctx;
+  const get = makeReader(credentials(process.env));
+  const results = await readbackDocs(docs, { work, get, dirs: stageDirs(args.rollback) });
+  const bad = results.filter((r) => r.problems.length).length;
   if (bad) stop(`${bad} document(s) differ from the build`);
   say('Every document in NTER matches the build.');
 }
 
 // ---------------------------------------------------------------------------------------------
 
-const COMMAND_FUNCTIONS = { prepare: cmdPrepare, pin: cmdPin, ocr: cmdOcr, build: cmdBuild, 'dry-run': cmdDryRun, write: cmdWrite, readback: cmdReadback };
-const USAGE = 'usage: node scripts/f281-repair/repair.mjs <prepare|pin|ocr|build|dry-run|write|readback> [--only <prefix> ...] [--manifest f] [--work dir] [--env f]\n'
-  + '       ocr [--go] [--max-usd N] [--pages-per-call N] [--via data|url]   write --confirm <manifest sha256>   prepare [--rows-only|--pdfs-only]   pin [--apply]   dry-run [--redo]\n'
+const COMMAND_FUNCTIONS = { prepare: cmdPrepare, pin: cmdPin, ocr: cmdOcr, build: cmdBuild, 'rollback-build': cmdRollbackBuild, 'dry-run': cmdDryRun, write: cmdWrite, readback: cmdReadback };
+const USAGE = 'usage: node scripts/f281-repair/repair.mjs <prepare|pin|ocr|build|rollback-build|dry-run|write|readback> [--only <prefix> ...] [--manifest f] [--work-dir dir] [--env f] [--rollback]\n'
+  + '       ocr [--go] [--max-usd N] [--pages-per-call N]   write --confirm <sha256 of build/review.json> --authorized-by "<text>" [--batch 20] [--max-embed-usd 1] [--rewrite <prefix>]\n'
+  + '       prepare [--rows-only|--pdfs-only]   pin [--apply]   dry-run [--redo]\n'
   + 'Read the header of this file for the order of the steps and what each one touches.';
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
+export async function main(argv = process.argv.slice(2), deps = {}) {
+  if (deps.sleep) pause = deps.sleep;
+  const args = parseArgs(argv);
   if (args.help || !args.command) {
     say(USAGE);
     process.exit(args.help ? 0 : 2);
@@ -668,9 +933,9 @@ async function main() {
   const docs = selectDocuments(manifest, args.only);
   const needsKeys = ['dry-run', 'write', 'readback'].includes(args.command) || (args.command === 'prepare' && !args.pdfsOnly) || (args.command === 'ocr' && args.go);
   if (needsKeys) await loadDotEnv(path.resolve(args.env));
-  const work = makeWork(path.resolve(args.work));
+  const work = makeWork(path.resolve(args.workDir));
   await work.ensure();
-  say(`F281 repair: ${args.command}, ${docs.length} document(s), manifest ${manifestSha.slice(0, 12)}, work ${path.relative(process.cwd(), work.at()) || '.'}`);
+  say(`F281 repair: ${args.command}${args.rollback ? ' (rollback)' : ''}, ${docs.length} document(s), manifest ${manifestSha.slice(0, 12)}, work ${work.at()}`);
   await COMMAND_FUNCTIONS[args.command]({ args, docs, work, manifest, manifestSha });
 }
 

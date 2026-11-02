@@ -365,11 +365,13 @@ export const LINK_FIELDS = Object.freeze(['document_key', 'bill_number', 'bill_y
  *  - action 'retitle_unlink' (text unchanged) needs retitle = { title }: the document keeps its text, takes
  *    the new title and leaves the desk. The key fields are dropped from the payload and file_url_ambiguous
  *    is set, which makes the server delete them from the stored metadata.
- *  - text_repair records what was done; `provenance` (source URL and hash, OCR model) is merged into it.
+ *  - text_repair records what was done; `provenance` (source URL and hash, OCR model) is merged into it. A repair
+ *    that changes the text may also set `metadataUpdates` (for example ocr_lang): the new values replace the old,
+ *    and the old ones, with the old n_chars and text_sha256, are kept under text_repair.previous.
  */
 export async function buildRepairPayload(existing, repair) {
   assertRepairable(existing);
-  const { text, action, rekey = null, retitle = null, provenance = {} } = repair ?? {};
+  const { text, action, rekey = null, retitle = null, provenance = {}, metadataUpdates = null } = repair ?? {};
   if (typeof text !== 'string' || !text.trim()) throw new Error('repair needs a non-empty text');
   if (typeof action !== 'string' || !action) throw new Error('repair needs an action');
   if (action === 'rekey' && !rekey) throw new Error('a rekey repair needs a rekey object');
@@ -409,6 +411,17 @@ export async function buildRepairPayload(existing, repair) {
     title = retitle.title;
     for (const field of LINK_FIELDS) delete metadata[field];
     metadata.file_url_ambiguous = true;
+  }
+
+  if (action !== 'rekey' && action !== 'retitle_unlink') {
+    // The text changes: what described the old text and its source is kept under text_repair.previous.
+    const previous = {};
+    for (const field of ['n_chars', 'text_sha256']) if (field in metadata) previous[field] = metadata[field];
+    for (const [field, value] of Object.entries(metadataUpdates ?? {})) {
+      if (field in metadata) previous[field] = metadata[field];
+      metadata[field] = value;
+    }
+    record.previous = previous;
   }
 
   metadata.n_chars = codePointLength(text);
@@ -506,5 +519,174 @@ export function chooseTitle({ desk = [], manifest = null, printed = null } = {})
   else if (candidates.manifest) pick = { title: candidates.manifest, source: 'manifest' };
   else if (candidates.printed) pick = { title: candidates.printed, source: 'printed in the text' };
   if (!pick) return null;
-  return { ...pick, candidates, agreesWithPrinted: candidates.printed ? titlesAgree(pick.title, candidates.printed) : null, deskAmbiguous: names.length > 1 };
+  return {
+    ...pick,
+    candidates,
+    agreesWithPrinted: candidates.printed ? titlesAgree(pick.title, candidates.printed) : null,
+    deskAmbiguous: names.length > 1,
+    replacesManifest: pick.source === 'desk_rows' && Boolean(candidates.manifest) && candidates.manifest !== pick.title,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Same-family bills: a title and a key are not enough to tell the Constitution (Amendment) Bills apart
+// ---------------------------------------------------------------------------------------------
+
+const BILL_NO = /\bB\w{2,3}\s+No\.?\s*([0-9]{1,4}|[IVXLC]{1,8})(?:\s*-\s*[A-Z])?\s+o[fF]\s+(\d{4})/i;
+
+/**
+ * "Bill No. 47 of 2001" (or "Bill No. LXXII of 2000" for the Rajya Sabha) printed in the opening of a Bill,
+ * read through OCR slips ("Bitt No. XXIV oF 2000") and the "-F" of a passed bill. { number, year } or null.
+ */
+export function printedBillNo(text, { headChars = 1500 } = {}) {
+  const m = BILL_NO.exec(String(text ?? '').slice(0, headChars));
+  return m ? { number: m[1].toUpperCase(), year: Number(m[2]) } : null;
+}
+
+const ROMAN_VALUE = { I: 1, V: 5, X: 10, L: 50, C: 100 };
+
+/** A bill number as a number: "47" is 47, "LXXII" is 72 (a Rajya Sabha number, which sansad files by its Arabic form too). */
+function billNumberValue(n) {
+  const t = String(n).toUpperCase();
+  if (/^\d+$/.test(t)) return Number(t);
+  if (!/^[IVXLC]+$/.test(t)) return null;
+  let total = 0;
+  for (let i = 0; i < t.length; i++) {
+    const v = ROMAN_VALUE[t[i]];
+    total += v < (ROMAN_VALUE[t[i + 1]] ?? 0) ? -v : v;
+  }
+  return total;
+}
+
+const sameBillNumber = (a, b) => String(a).toUpperCase() === String(b).toUpperCase() || (billNumberValue(a) !== null && billNumberValue(a) === billNumberValue(b));
+
+/** The article and section numbers a title names: "(Insertion of new article 16A)" gives [{ kind: 'article', id: '16A' }]. */
+export function titleRefs(title) {
+  const refs = [];
+  for (const m of String(title ?? '').matchAll(/\b(articles?|art\.?|sections?|sec\.?)\s*(?:no\.?\s*)?(\d+)\s?([A-Z]{1,2})?(?![A-Za-z0-9])/gi)) {
+    const kind = /^art/i.test(m[1]) ? 'article' : 'section';
+    refs.push({ kind, id: `${m[2]}${(m[3] ?? '').toUpperCase()}` });
+  }
+  return refs;
+}
+
+function textHasRef(head, { kind, id }) {
+  const [, digits, letter = ''] = /^(\d+)([A-Z]*)$/.exec(id);
+  const body = `${digits}${letter ? `\\s*${letter}` : ''}`;
+  // With a letter ("16A", "21A") the token alone is specific enough: the clause itself is headed "21A.", with no
+  // keyword before it. A bare number ("section 8") must follow its keyword, or it is any numbered paragraph.
+  const re = letter
+    ? new RegExp(`(?<![A-Za-z0-9])${body}(?![A-Za-z0-9])`)
+    : new RegExp(`\\b(?:${kind === 'article' ? 'articles?|art\\.?' : 'sections?|sec\\.?'})\\s*(?:no\\.?\\s*)?\\(?${body}(?![A-Za-z0-9])`, 'i');
+  return re.test(head);
+}
+
+/**
+ * Whether a text is the bill a title and key say it is, beyond the title's words (a Constitution (Amendment) Bill
+ * has the same words as every other). Returns { problems, notes }; a problem is a failure.
+ *  - The Bill No. printed in the opening must be the key's number (`key` is "bill:2001:47"; `billNo` { number, year }
+ *    stands in for a key when the document has none). A different printed year is a problem unless the opening
+ *    prints the key's year in a title (an OCR slip such as "of 2006" for 2000) and then it is a note.
+ *  - Every article or section the title names must occur in the opening (`headChars`).
+ *  - A text that prints no Bill No. is noted, not failed: the references still apply.
+ */
+export function identityProblems({ title, text, key = null, billNo = null, headChars = 3000 }) {
+  const problems = [];
+  const notes = [];
+  const head = String(text ?? '').slice(0, headChars);
+  const m = key ? DOCUMENT_KEY.exec(key) : null;
+  const expected = m ? { year: Number(m[1]), number: m[2].toUpperCase() } : billNo ? { year: Number(billNo.year), number: String(billNo.number).toUpperCase() } : null;
+  const printed = printedBillNo(text);
+  if (expected && printed) {
+    if (!sameBillNumber(printed.number, expected.number)) problems.push(`the text prints Bill No. ${printed.number} of ${printed.year}, but the bill is No. ${expected.number} of ${expected.year}`);
+    else if (printed.year !== expected.year) {
+      if (new RegExp(`BILL,?\\s*${expected.year}\\b`, 'i').test(head)) notes.push(`Bill No. is printed "of ${printed.year}" but the title prints ${expected.year}: an OCR slip?`);
+      else problems.push(`the text prints Bill No. ${printed.number} of ${printed.year}, but the bill is No. ${expected.number} of ${expected.year}`);
+    }
+  } else if (expected) notes.push('the opening prints no Bill No.');
+  for (const ref of titleRefs(title)) {
+    if (!textHasRef(head, ref)) problems.push(`the title names ${ref.kind} ${ref.id}, which the opening of the text does not`);
+  }
+  return { problems, notes };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Regulatory identity: is the new text the same document as the old one?
+// ---------------------------------------------------------------------------------------------
+
+const words = (t) => String(t ?? '').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+function shingles(ws, n) {
+  const out = new Set();
+  for (let i = 0; i + n <= ws.length; i++) out.add(ws.slice(i, i + n).join(' '));
+  return out;
+}
+
+/**
+ * How much of the old text is in the new one: the share of the old text's distinct n-word sequences (n = 4,
+ * case and punctuation aside) that the new text also holds. Measured old in new, not the reverse: the stored
+ * text of these documents is a tail of the document or debris from it, and the new text is the whole.
+ */
+export function oldTextContainment(oldText, newText, n = 4) {
+  const old = shingles(words(oldText), n);
+  if (!old.size) return { shingles: 0, contained: 0, share: null };
+  const next = shingles(words(newText), n);
+  let contained = 0;
+  for (const x of old) if (next.has(x)) contained++;
+  return { shingles: old.size, contained, share: contained / old.size };
+}
+
+/**
+ * Thresholds chosen from the 44 Regulatory documents of the batch (stored text against a local OCR of the official
+ * PDF, 2026-11-01): 38 of 44 had 0.54 or more, the low ones were the tails of table-heavy or garbled stored text
+ * (0.09 to 0.39), and a text of another document scores about 0. A new OCR may shift this: look again at the
+ * distribution of the first real run.
+ */
+export const IDENTITY_THRESHOLDS = Object.freeze({ minShingles: 100, fail: 0.05, look: 0.5 });
+
+/**
+ * { level: 'ok' | 'look' | 'fail', reason }. A garbage old text (the manifest says so) or one too short to
+ * measure cannot vouch for the new one: a person looks at what the new text opens with. Otherwise a share under
+ * `fail` is a failure, under `look` a look.
+ */
+export function identityVerdict({ share, shingles: count, garbage }) {
+  const t = IDENTITY_THRESHOLDS;
+  if (garbage) return { level: 'look', reason: 'the stored text is garbage, so its overlap with the new text cannot be measured' };
+  if (share === null || count < t.minShingles) return { level: 'look', reason: `the stored text is too short to measure (${count} four-word sequences, under ${t.minShingles})` };
+  const pct = `${(share * 100).toFixed(0)}% of the stored text's four-word sequences are in the new text`;
+  if (share < t.fail) return { level: 'fail', reason: `${pct}: the new text may be another document` };
+  if (share < t.look) return { level: 'look', reason: `${pct}: low, check that it is the same document` };
+  return { level: 'ok', reason: pct };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Rollback
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The payload that puts a document back as its pre-write snapshot had it: the snapshot's title, text and
+ * metadata, with n_chars and text_sha256 recomputed for the text (the server checks them). An unlinked document
+ * (action retitle_unlink) is re-linked: file_url_ambiguous is set to false, which makes the server take the key
+ * fields from the payload (document_key, bill_number, bill_year, house, status, file_url_source) instead of
+ * clearing them. text_repair is marked as a rollback; the server cannot delete a metadata field, so what the
+ * repair added stays beside it.
+ */
+export async function buildRollbackPayload(snapshot, { action }) {
+  assertRepairable(snapshot);
+  const text = snapshot.ocr_text;
+  if (typeof text !== 'string' || !text.trim()) throw new Error('the snapshot has no text to restore');
+  const metadata = structuredClone(snapshot.metadata ?? {});
+  metadata.n_chars = codePointLength(text);
+  metadata.text_sha256 = await sha256Hex(text);
+  if (action === 'retitle_unlink' && typeof metadata.file_url_ambiguous !== 'boolean') metadata.file_url_ambiguous = false;
+  metadata.text_repair = { ticket: REPAIR_TICKET, action: 'rollback', rolled_back_action: action };
+  return {
+    source_key: snapshot.source_key,
+    title: snapshot.title,
+    file_name: snapshot.file_name ?? null,
+    file_url: snapshot.file_url ?? null,
+    desk_tier: snapshot.desk_tier ?? null,
+    desk_feature: snapshot.desk_feature ?? null,
+    ocr_text: text,
+    metadata,
+  };
 }

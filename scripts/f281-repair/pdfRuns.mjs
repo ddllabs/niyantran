@@ -26,12 +26,116 @@ function mul(a, b) {
 }
 
 /**
+ * The runs of one page from its pdf.js operator list. `OPS` is pdf.js's operator numbering (passed in so the
+ * function can be tested with a synthetic list), `resolveFont(name)` gives { name, composite } for a font id.
+ * Text state handled: the CTM (cm, save/restore, form XObjects), the text matrix (Tm, Td, TD, T*), font and
+ * size (Tf), character spacing (Tc), word spacing (Tw, and the second and third operands of the " operator),
+ * horizontal scaling (Tz), and TJ adjustments.
+ * @returns {{ runs: Array<{ str: string, fontName: string, x: number, endX: number, y: number, size: number }>, fonts: Record<string, { name: string | null, composite: boolean | null }> }}
+ */
+export function runsFromOperatorList(list, OPS, resolveFont) {
+  const runs = [];
+  const fonts = {};
+  let ctm = identity();
+  let tm = identity();
+  let tlm = identity();
+  let fontName = null;
+  let fontSize = 1;
+  let leading = 0;
+  let charSpacing = 0;
+  let wordSpacing = 0;
+  let hScale = 1;
+  const stack = [];
+  const save = () => stack.push({ ctm, fontName, fontSize, leading, charSpacing, wordSpacing, hScale });
+  const restore = () => {
+    const s = stack.pop();
+    if (s) ({ ctm, fontName, fontSize, leading, charSpacing, wordSpacing, hScale } = s);
+  };
+  const moveText = (tx, ty) => {
+    tlm = mul([1, 0, 0, 1, tx, ty], tlm);
+    tm = tlm.slice();
+  };
+  const advance = (dx) => {
+    tm = mul([1, 0, 0, 1, dx, 0], tm);
+  };
+  const noteFont = () => {
+    if (fontName in fonts) return;
+    let info = { name: null, composite: null };
+    try {
+      const f = resolveFont(fontName);
+      info = { name: typeof f?.name === 'string' ? f.name : null, composite: typeof f?.composite === 'boolean' ? f.composite : null };
+    } catch {
+      // font object not resolved: the verdict then rests on the control codes alone
+    }
+    fonts[fontName] = info;
+  };
+  // One show becomes one run per stretch of glyphs. A TJ adjustment of 150 thousandths of an em or more to the
+  // right is a word gap (Word writes spaces that way, with no space glyph at all), so the run is cut there and
+  // the gap is left for the caller to read from endX and the next x.
+  const show = (items) => {
+    if (!fontName) return;
+    noteFont();
+    let seg = '';
+    let segStart = mul(tm, ctm);
+    const flush = () => {
+      if (seg) {
+        const end = mul(tm, ctm);
+        runs.push({ str: seg, fontName, x: segStart[4], endX: end[4], y: segStart[5], size: fontSize * Math.hypot(segStart[2], segStart[3]) });
+      }
+      seg = '';
+    };
+    for (const g of items) {
+      if (typeof g === 'number') {
+        const gap = g <= -WORD_GAP_TJ;
+        if (gap) flush();
+        advance((-g / 1000) * fontSize * hScale);
+        if (gap) segStart = mul(tm, ctm);
+      } else if (g && typeof g === 'object') {
+        seg += g.unicode ?? '';
+        advance(((g.width ?? 0) / 1000 * fontSize + charSpacing + (g.isSpace ? wordSpacing : 0)) * hScale);
+      }
+    }
+    flush();
+  };
+
+  for (let i = 0; i < list.fnArray.length; i++) {
+    const args = list.argsArray[i];
+    switch (list.fnArray[i]) {
+      case OPS.save: save(); break;
+      case OPS.restore: restore(); break;
+      case OPS.transform: ctm = mul(args, ctm); break;
+      case OPS.paintFormXObjectBegin: save(); if (Array.isArray(args?.[0])) ctm = mul(args[0], ctm); break;
+      case OPS.paintFormXObjectEnd: restore(); break;
+      case OPS.beginText: tm = identity(); tlm = identity(); break;
+      case OPS.setFont: fontName = args[0]; fontSize = args[1]; break;
+      case OPS.setTextMatrix: tm = args.slice(); tlm = args.slice(); break;
+      case OPS.moveText: moveText(args[0], args[1]); break;
+      case OPS.setLeadingMoveText: leading = -args[1]; moveText(args[0], args[1]); break;
+      case OPS.setLeading: leading = args[0]; break;
+      case OPS.nextLine: moveText(0, -leading); break;
+      case OPS.setCharSpacing: charSpacing = args[0]; break;
+      case OPS.setWordSpacing: wordSpacing = args[0]; break;
+      case OPS.setHScale: hScale = args[0] / 100; break;
+      case OPS.showText: show(args[0]); break;
+      case OPS.nextLineShowText: moveText(0, -leading); show(args[0]); break;
+      case OPS.nextLineSetSpacingShowText: // the " operator: aw ac string
+        wordSpacing = args[0];
+        charSpacing = args[1];
+        moveText(0, -leading);
+        show(args[2]);
+        break;
+      default: break;
+    }
+  }
+  return { runs, fonts };
+}
+
+/**
  * @param {Uint8Array} bytes
  * @returns {Promise<{ pages: Array<Array<{ str: string, fontName: string, x: number, endX: number, y: number, size: number }>>, fonts: Record<string, { name: string | null, composite: boolean | null }> }>}
  */
 export async function extractTextRuns(bytes) {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const { OPS } = pdfjs;
   const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes), isEvalSupported: false, verbosity: 0, useSystemFonts: false }).promise;
   const pages = [];
   const fonts = {};
@@ -39,92 +143,9 @@ export async function extractTextRuns(bytes) {
     for (let n = 1; n <= doc.numPages; n++) {
       const page = await doc.getPage(n);
       const list = await page.getOperatorList(); // also loads the font objects into commonObjs
-      const runs = [];
-      let ctm = identity();
-      let tm = identity();
-      let tlm = identity();
-      let fontName = null;
-      let fontSize = 1;
-      let leading = 0;
-      let charSpacing = 0;
-      let hScale = 1;
-      const stack = [];
-      const save = () => stack.push({ ctm, fontName, fontSize, leading, charSpacing, hScale });
-      const restore = () => {
-        const s = stack.pop();
-        if (s) ({ ctm, fontName, fontSize, leading, charSpacing, hScale } = s);
-      };
-      const moveText = (tx, ty) => {
-        tlm = mul([1, 0, 0, 1, tx, ty], tlm);
-        tm = tlm.slice();
-      };
-      const fontInfo = () => {
-        if (fontName in fonts) return;
-        let info = { name: null, composite: null };
-        try {
-          const font = page.commonObjs.get(fontName);
-          info = { name: typeof font?.name === 'string' ? font.name : null, composite: typeof font?.composite === 'boolean' ? font.composite : null };
-        } catch {
-          // font object not resolved: the verdict then rests on the control codes alone
-        }
-        fonts[fontName] = info;
-      };
-      const advance = (dx) => {
-        tm = mul([1, 0, 0, 1, dx, 0], tm);
-      };
-      // One showText/TJ becomes one run per stretch of glyphs. A TJ adjustment of 150 thousandths of an em
-      // or more to the right is a word gap (Word writes spaces that way, with no space glyph at all), so the
-      // run is cut there and the gap is left for the caller to read from endX and the next x.
-      const show = (items) => {
-        if (!fontName) return;
-        fontInfo();
-        let seg = '';
-        let segStart = mul(tm, ctm);
-        const flush = () => {
-          if (seg) {
-            const end = mul(tm, ctm);
-            runs.push({ str: seg, fontName, x: segStart[4], endX: end[4], y: segStart[5], size: fontSize * Math.hypot(segStart[2], segStart[3]) });
-          }
-          seg = '';
-        };
-        for (const g of items) {
-          if (typeof g === 'number') {
-            const gap = g <= -WORD_GAP_TJ;
-            if (gap) flush();
-            advance((-g / 1000) * fontSize * hScale);
-            if (gap) segStart = mul(tm, ctm);
-          } else if (g && typeof g === 'object') {
-            seg += g.unicode ?? '';
-            advance(((g.width ?? 0) / 1000 * fontSize + charSpacing) * hScale);
-          }
-        }
-        flush();
-      };
-
-      for (let i = 0; i < list.fnArray.length; i++) {
-        const args = list.argsArray[i];
-        switch (list.fnArray[i]) {
-          case OPS.save: save(); break;
-          case OPS.restore: restore(); break;
-          case OPS.transform: ctm = mul(args, ctm); break;
-          case OPS.paintFormXObjectBegin: save(); if (Array.isArray(args?.[0])) ctm = mul(args[0], ctm); break;
-          case OPS.paintFormXObjectEnd: restore(); break;
-          case OPS.beginText: tm = identity(); tlm = identity(); break;
-          case OPS.setFont: fontName = args[0]; fontSize = args[1]; break;
-          case OPS.setTextMatrix: tm = args.slice(); tlm = args.slice(); break;
-          case OPS.moveText: moveText(args[0], args[1]); break;
-          case OPS.setLeadingMoveText: leading = -args[1]; moveText(args[0], args[1]); break;
-          case OPS.setLeading: leading = args[0]; break;
-          case OPS.nextLine: moveText(0, -leading); break;
-          case OPS.setCharSpacing: charSpacing = args[0]; break;
-          case OPS.setHScale: hScale = args[0] / 100; break;
-          case OPS.showText: show(args[0]); break;
-          case OPS.nextLineShowText: moveText(0, -leading); show(args[0]); break;
-          case OPS.nextLineSetSpacingShowText: moveText(0, -leading); show(args[2]); break;
-          default: break;
-        }
-      }
-      pages.push(runs);
+      const r = runsFromOperatorList(list, pdfjs.OPS, (name) => page.commonObjs.get(name));
+      pages.push(r.runs);
+      for (const [name, info] of Object.entries(r.fonts)) if (!(name in fonts)) fonts[name] = info;
       page.cleanup();
     }
   } finally {

@@ -4,6 +4,10 @@ import { ingestOne, validateDocument } from '../../supabase/functions/ingest-doc
 import { composeDocument } from '../../supabase/functions/_shared/pageText.ts';
 import {
   GLYPH_TABLE,
+  IDENTITY_THRESHOLDS,
+  buildRollbackPayload,
+  identityVerdict,
+  oldTextContainment,
   assertNoControlCodes,
   assertRepairable,
   buildRepairPayload,
@@ -12,12 +16,15 @@ import {
   chooseTitle,
   decodeShiftedText,
   extractPrintedTitle,
+  identityProblems,
+  printedBillNo,
   ocrChecks,
   ocrPagesToDocument,
   ocrPagesToText,
   sha256Hex,
   stripLeadingForeignCover,
   titleCase,
+  titleRefs,
   titlesAgree,
 } from './documentRepair.js';
 
@@ -670,5 +677,245 @@ describe('buildRepairPayload: retitle_unlink', () => {
 
   it('a retitle object is only for retitle_unlink', async () => {
     await expect(buildRepairPayload(rekeyRow(), { text: OLD_TEXT, action: 'decode', retitle })).rejects.toThrow(/retitle/);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Same-family bills (independent review, finding 4)
+// ---------------------------------------------------------------------------------------------
+describe('printedBillNo', () => {
+  it('reads Arabic and Roman numbers, a passed bill\'s -F, and OCR slips; nothing deeper than the opening', () => {
+    expect(printedBillNo('Bill No. 47 of 2001\nTHE CONSTITUTION')).toEqual({ number: '47', year: 2001 });
+    expect(printedBillNo('Bill No. 105-F of 2025')).toEqual({ number: '105', year: 2025 });
+    expect(printedBillNo('Bitt No. XXIV oF 2000')).toEqual({ number: 'XXIV', year: 2000 });
+    expect(printedBillNo('AS INTRODUCED IN THE RAJYA SABHA\nBill No. LXXII of 2000')).toEqual({ number: 'LXXII', year: 2000 });
+    expect(printedBillNo('no number here')).toBeNull();
+    expect(printedBillNo(`${'x '.repeat(900)}Bill No. 3 of 2000`)).toBeNull();
+  });
+});
+
+describe('titleRefs', () => {
+  it('lists the articles and sections a title names, letters attached, and none for a plain title', () => {
+    expect(titleRefs('The Constitution (Amendment) Bill, 2000 (Insertion of new article 16A)')).toEqual([{ kind: 'article', id: '16A' }]);
+    expect(titleRefs('The Representation of the People (Amendment) Bill, 2000 (Amendment of section 29A, etc.)')).toEqual([{ kind: 'section', id: '29A' }]);
+    expect(titleRefs('The Constitution (Amendment) Bill, 2005 (Substitution of new article for article 253,etc.)')).toEqual([{ kind: 'article', id: '253' }]);
+    expect(titleRefs('The Constitution (Amendment) Bill, 2000 (art. 198)')).toEqual([{ kind: 'article', id: '198' }]);
+    expect(titleRefs('The Buy Indian Bill, 2004')).toEqual([]);
+  });
+});
+
+describe('identityProblems', () => {
+  const key = 'bill:2001:47';
+  it('passes a text that prints the key\'s number and holds the title\'s article', () => {
+    const r = identityProblems({ title: 'The Constitution (Amendment) Bill, 2001 (Insertion of new article 21A)', key, text: 'Bill No. 47 of 2001\nTHE CONSTITUTION (AMENDMENT) BILL, 2001\nAfter article 21 ... 21A. Right to education' });
+    expect(r).toEqual({ problems: [], notes: [] });
+  });
+
+  it('fails a different printed number, and a Roman number that is not the key\'s; a Roman and an Arabic form of one number agree', () => {
+    expect(identityProblems({ title: 'T', key, text: 'Bill No. 49 of 2001' }).problems[0]).toMatch(/No\. 49 of 2001, but the bill is No\. 47/);
+    expect(identityProblems({ title: 'T', key: 'bill:2000:LXXII', text: 'Bill No. LXXI of 2000' }).problems).toHaveLength(1);
+    expect(identityProblems({ title: 'T', key: 'bill:2000:LXXII', text: 'Bill No. LXXII of 2000' }).problems).toEqual([]);
+    expect(identityProblems({ title: 'T', key: 'bill:2000:LXXII', text: 'Bill No. 72 of 2000' }).problems).toEqual([]);
+  });
+
+  it('fails a different printed year, unless the title prints the key\'s year: then it is a note (an OCR slip)', () => {
+    expect(identityProblems({ title: 'T', key: 'bill:2000:130', text: 'Bill No. 130 of 1998' }).problems).toHaveLength(1);
+    const slip = identityProblems({ title: 'T', key: 'bill:2000:130', text: 'Bill No. 130 of 2006\nTHE REPRESENTATION OF THE PEOPLE (AMENDMENT) BILL, 2000' });
+    expect(slip.problems).toEqual([]);
+    expect(slip.notes[0]).toMatch(/OCR slip/);
+  });
+
+  it('notes, and does not fail, a text that prints no Bill No.', () => {
+    expect(identityProblems({ title: 'The Buy Indian Bill, 2004', key: 'bill:2004:88', text: 'THE BUY INDIAN BILL, 2004' })).toEqual({ problems: [], notes: ['the opening prints no Bill No.'] });
+  });
+
+  it('uses billNo when a document has no key; none and no key checks nothing but the references', () => {
+    expect(identityProblems({ title: 'T', billNo: { number: 'XXIV', year: 2000 }, text: 'Bitt No. XXIV oF 2000' }).problems).toEqual([]);
+    expect(identityProblems({ title: 'T', billNo: { number: 'XXIV', year: 2000 }, text: 'Bill No. XXV of 2000' }).problems).toHaveLength(1);
+    expect(identityProblems({ title: 'T', text: 'Bill No. 3 of 2000' })).toEqual({ problems: [], notes: [] });
+  });
+
+  it('a bare section number must follow its keyword; a lettered one may stand alone as a clause heading', () => {
+    expect(identityProblems({ title: 'X Bill (Amendment of section 8)', text: 'In section 8 of the Act' }).problems).toEqual([]);
+    expect(identityProblems({ title: 'X Bill (Amendment of section 8)', text: '8. Short title. In section 29A of the Act, and 8 members' }).problems).toHaveLength(1);
+    expect(identityProblems({ title: 'X Bill (Insertion of new article 21A)', text: "After article 21, insert '21A. Right'" }).problems).toEqual([]);
+    expect(identityProblems({ title: 'X Bill (Insertion of new article 21A)', text: 'In article 21 of the Constitution' }).problems).toHaveLength(1);
+    expect(identityProblems({ title: 'X Bill (Insertion of new article 16A)', text: 'article\n16 A shall be inserted' }).problems).toEqual([]);
+  });
+
+  describe('the eight Constitution (Amendment) Bills of the batch: each fails on the other seven', () => {
+    // Openings shaped like the stored texts (short, synthetic). Where the file prints a Bill No. it is here; where it
+    // does not, only the article tells the bills apart.
+    const BILLS = {
+      eb58009f: { title: 'The Constitution (Amendment) Bill, 2001 (Insertion of new article 21A)', key: 'bill:2001:47', head: 'THE CONSTITUTION (AMENDMENT) BILL, 2001\nAfter article 21 of the Constitution, insert: 21A. Right to education' },
+      '335d3607': { title: 'The Constitution (Amendment) Bill, 2006 (Amendment of article 85)', key: 'bill:2006:83', head: 'THE CONSTITUTION (AMENDMENT) BILL, 2006\nIn article 85 of the Constitution, in clause (2)' },
+      '390311bf': { title: 'The Constitution (Amendment) Bill, 2005 (Substitution of new article for article 253,etc.)', key: 'bill:2005:79', head: 'THE CONSTITUTION (AMENDMENT) BILL, 2005\nFor article 253 of the Constitution the following shall be substituted' },
+      '94fe0078': { title: 'The Constitution (Amendment) Bill, 1998 (Insertion of new article 51B)', key: 'bill:1998:32', head: 'THE CONSTITUTION (AMENDMENT) BILL, 1998\nAfter article 51A insert: 51B. Duty of the State' },
+      '99250d51': { title: 'The Constitution (Amendment) Bill, 1998 (Amendment of article 327)', key: 'bill:1998:49', head: 'Bill No. 49 of 1998\nTHE CONSTITUTION (AMENDMENT) BILL, 1998\nIn article 327 of the Constitution' },
+      a8403f6d: { title: 'The Constitution (Amendment) Bill, 1998 (Amendment of article 80)', key: 'bill:1998:67', head: 'Bill No. 67 of 1998\nTHE CONSTITUTION (AMENDMENT) BILL, 1998\nIn article 80 of the Constitution' },
+      f5ddf657: { title: 'The Constitution (Amendment) Bill, 2000 (Insertion of new article 16A)', key: 'bill:2000:75', head: 'Bill No. 75 of 2000.\nTHE CONSTITUTION (AMENDMENT) BILL, 2000\nAfter article 16 insert: 16A. Special provision' },
+      afd4f0e8: { title: 'The Constitution (Amendment) Bill, 2000 (art. 198)', key: null, billNo: { number: 'XXIV', year: 2000 }, head: 'Bitt No. XXIV oF 2000\nTHE CONSTITUTION (AMENDMENT) BILL, 2000\nIn article 198 of the Constitution' },
+    };
+    const ids = Object.keys(BILLS);
+    for (const a of ids) {
+      it(`${a} passes on its own text and fails on every other`, () => {
+        const check = (head) => identityProblems({ title: BILLS[a].title, key: BILLS[a].key, billNo: BILLS[a].billNo, text: head }).problems;
+        expect(check(BILLS[a].head)).toEqual([]);
+        for (const b of ids.filter((x) => x !== a)) expect(check(BILLS[b].head), `${a} on ${b}`).not.toEqual([]);
+      });
+    }
+  });
+
+  describe('6393d754 and c4472f57 (the same title, different sections)', () => {
+    const A = { title: 'The Representation of the People (Amendment) Bill, 2000 (Amendment of section 29A, etc.)', key: 'bill:2000:62', head: 'THE REPRESENTATION OF THE PEOPLE (AMENDMENT) BILL, 2000\n2. In section 29A of the Representation of the People Act, 1951' };
+    const B = { title: 'The Representation of the People (Amendment) Bill, 2000 (Amendment of section 8)', key: 'bill:2000:130', head: 'Bill No. 130 of 2006\nTHE REPRESENTATION OF THE PEOPLE (AMENDMENT) BILL, 2000\n2. In section 8 of the Representation of the People Act, 1951' };
+    it('each passes on its own text and fails on the other\'s', () => {
+      expect(identityProblems({ ...A, text: A.head }).problems).toEqual([]);
+      expect(identityProblems({ ...B, text: B.head }).problems).toEqual([]);
+      expect(identityProblems({ ...A, text: B.head }).problems).not.toEqual([]);
+      expect(identityProblems({ ...B, text: A.head }).problems).not.toEqual([]);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Regulatory identity (finding 6): the old text is a tail or debris of the same document, so the old text's
+// four-word sequences should be found in the new text (containment of old in new, not the reverse).
+// ---------------------------------------------------------------------------------------------
+describe('oldTextContainment', () => {
+  it('counts the old text\'s four-word sequences that occur in the new text, case and punctuation aside', () => {
+    expect(oldTextContainment('a b c d e f g h', 'x A, B c d e f y')).toEqual({ shingles: 5, contained: 3, share: 0.6 });
+  });
+
+  it('is not symmetric: a short tail inside a long new text is contained, the long text is not in the tail', () => {
+    const tail = 'one two three four five six';
+    const whole = `intro words here ${tail} and the rest of a long order continues`;
+    expect(oldTextContainment(tail, whole).share).toBe(1);
+    expect(oldTextContainment(whole, tail).share).toBeLessThan(0.5);
+  });
+
+  it('has nothing to measure for a text under four words', () => {
+    expect(oldTextContainment('one two', 'one two three')).toEqual({ shingles: 0, contained: 0, share: null });
+  });
+});
+
+describe('identityVerdict', () => {
+  it('fails an old text that is not in the new one, asks a person to look at a low or unmeasurable overlap, passes a high one', () => {
+    expect(IDENTITY_THRESHOLDS).toEqual({ minShingles: 100, fail: 0.05, look: 0.5 });
+    expect(identityVerdict({ share: 0.01, shingles: 1500, garbage: false }).level).toBe('fail');
+    expect(identityVerdict({ share: 0.09, shingles: 1481, garbage: false }).level).toBe('look');
+    expect(identityVerdict({ share: 0.49, shingles: 400, garbage: false }).level).toBe('look');
+    expect(identityVerdict({ share: 0.5, shingles: 400, garbage: false }).level).toBe('ok');
+    expect(identityVerdict({ share: 0.9, shingles: 3000, garbage: false }).level).toBe('ok');
+  });
+
+  it('cannot measure a garbage old text or a tiny one: a person must look, whatever the share', () => {
+    const g = identityVerdict({ share: 0.0, shingles: 1500, garbage: true });
+    expect(g.level).toBe('look');
+    expect(g.reason).toMatch(/cannot be measured/);
+    expect(identityVerdict({ share: 0.0, shingles: 7, garbage: false }).level).toBe('look');
+    expect(identityVerdict({ share: null, shingles: 0, garbage: false }).level).toBe('look');
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Provenance of a text repair: the fields that described the old source now describe the new one
+// ---------------------------------------------------------------------------------------------
+describe('buildRepairPayload: metadataUpdates', () => {
+  const row = () => ({ ...decodeRow(), metadata: { ...decodeRow().metadata, ocr_lang: 'eng', file_mtime: '2026-09-08T21:35:58Z' } });
+
+  it('applies the updates and keeps the old values, and the old text claims, under text_repair.previous', async () => {
+    const payload = await buildRepairPayload(row(), { text: 'new text here', action: 'ocr', metadataUpdates: { ocr_lang: 'mistral-ocr-4-1' } });
+    expect(payload.metadata.ocr_lang).toBe('mistral-ocr-4-1');
+    expect(payload.metadata.text_repair.previous).toEqual({ ocr_lang: 'eng', n_chars: REPORT_STORED.length, text_sha256: 'old' });
+  });
+
+  it('records previous text claims for any action that changes the text, and not for a title or key repair', async () => {
+    const strip = await buildRepairPayload(row(), { text: 'shorter', action: 'strip_cover' });
+    expect(strip.metadata.text_repair.previous).toEqual({ n_chars: REPORT_STORED.length, text_sha256: 'old' });
+    const rekey = await buildRepairPayload(rekeyRow(), { text: OLD_TEXT, action: 'rekey', rekey: { document_key: 'bill:2005:96', title: 'T' } });
+    expect(rekey.metadata.text_repair.previous).toBeUndefined();
+  });
+
+  it('does not write a field the document did not have as a "previous" of undefined', async () => {
+    const payload = await buildRepairPayload(decodeRow(), { text: 'x text', action: 'ocr', metadataUpdates: { ocr_lang: 'mistral-ocr-4-1' } });
+    expect(payload.metadata.text_repair.previous).not.toHaveProperty('ocr_lang');
+  });
+
+  it('survives the real ingestOne merge: the update wins, text_repair.previous is kept', async () => {
+    const existing = row();
+    const payload = await buildRepairPayload(existing, { text: 'new text here', action: 'ocr', metadataUpdates: { ocr_lang: 'mistral-ocr-4-1' } });
+    const { written } = await serverWrite(existing, payload);
+    expect(written.metadata.ocr_lang).toBe('mistral-ocr-4-1');
+    expect(written.metadata.text_repair.previous.ocr_lang).toBe('eng');
+  });
+});
+
+describe('chooseTitle: a desk title that replaces the manifest title is flagged', () => {
+  it('replacesManifest is true only when the desk name is used and differs from the manifest title', () => {
+    expect(chooseTitle({ desk: ['The Medical Profession (Regulation) Bill, 1998'], manifest: 'The Medical Professin (Regulation) Bill, 1998' }).replacesManifest).toBe(true);
+    expect(chooseTitle({ desk: ['The A Bill, 2000'], manifest: 'The A  Bill, 2000' }).replacesManifest).toBe(false);
+    expect(chooseTitle({ desk: [], manifest: 'The A Bill, 2000' }).replacesManifest).toBe(false);
+    expect(chooseTitle({ desk: ['The A Bill, 2000'], manifest: null }).replacesManifest).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Rollback (finding 7): a payload that puts a document back as the pre-write snapshot had it
+// ---------------------------------------------------------------------------------------------
+describe('buildRollbackPayload', () => {
+  const without = (o, ...keys) => Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k)));
+  /** The row the server holds after it applied a write of `existing`. */
+  const after = (existing, written) => ({ ...existing, title: written.title, metadata: written.metadata, content_sha256: written.content_sha256 ?? existing.content_sha256, chunker_version: 2, ocr_text: written.ocr_text ?? existing.ocr_text });
+
+  it('restores a re-keyed document: title, key, number, year and every other field', async () => {
+    const original = rekeyRow();
+    const repaired = await buildRepairPayload(original, { text: OLD_TEXT, action: 'rekey', rekey: { document_key: 'bill:2005:96', title: 'The National Child Welfare Board Bill, 2005', house: 'Rajya Sabha', status: 'Assented' } });
+    const { written } = await serverWrite(original, repaired);
+    const now = after(original, written);
+    const rollback = await buildRollbackPayload(original, { action: 'rekey' });
+    const { written: back } = await serverWrite(now, rollback);
+    expect(back.title).toBe(original.title);
+    // (the fixture's text_sha256 is a placeholder; a rollback recomputes it for the text it restores)
+    expect(without(back.metadata, 'text_repair', 'text_sha256')).toEqual(without(original.metadata, 'text_sha256'));
+    expect(back.metadata.text_sha256).toBe(await sha256Hex(OLD_TEXT));
+    expect(back.metadata.text_repair).toMatchObject({ action: 'rollback', rolled_back_action: 'rekey' });
+  });
+
+  it('restores an unlinked document: the key fields come back and file_url_ambiguous is false', async () => {
+    const original = rekeyRow();
+    const repaired = await buildRepairPayload(original, { text: OLD_TEXT, action: 'retitle_unlink', retitle: { title: 'The Code of Criminal Procedure (Amendment) Bill, 2000' } });
+    const { written } = await serverWrite(original, repaired);
+    const now = after(original, written);
+    expect(now.metadata).not.toHaveProperty('document_key');
+    expect(now.metadata.file_url_ambiguous).toBe(true);
+    const rollback = await buildRollbackPayload(original, { action: 'retitle_unlink' });
+    expect(rollback.metadata.file_url_ambiguous).toBe(false);
+    const { written: back } = await serverWrite(now, rollback);
+    expect(back.title).toBe(original.title);
+    expect(without(back.metadata, 'text_repair', 'file_url_ambiguous', 'text_sha256')).toEqual(without(original.metadata, 'text_sha256'));
+    expect(back.metadata.file_url_ambiguous).toBe(false);
+  });
+
+  it('restores the text of a decoded or OCR\'d document, with claims that match it', async () => {
+    const original = { ...decodeRow(), metadata: { ...decodeRow().metadata, ocr_lang: 'eng' } };
+    const repaired = await buildRepairPayload(original, { text: 'the repaired text', action: 'ocr', metadataUpdates: { ocr_lang: 'mistral-ocr-4-1' } });
+    const { written } = await serverWrite(original, repaired);
+    const now = after(original, written);
+    const rollback = await buildRollbackPayload(original, { action: 'ocr' });
+    expect(rollback.ocr_text).toBe(REPORT_STORED);
+    expect(rollback.metadata.n_chars).toBe(codePointLength(REPORT_STORED));
+    expect(rollback.metadata.text_sha256).toBe(await sha256Hex(REPORT_STORED));
+    const { written: back } = await serverWrite(now, rollback);
+    expect(back.ocr_text).toBe(REPORT_STORED);
+    expect(back.metadata.ocr_lang).toBe('eng');
+  });
+
+  it('is the snapshot and nothing else: same source_key and file, and it refuses a snapshot with no text', async () => {
+    const original = rekeyRow();
+    const rollback = await buildRollbackPayload(original, { action: 'rekey' });
+    for (const k of ['source_key', 'file_name', 'file_url', 'desk_tier', 'desk_feature']) expect(rollback[k]).toBe(original[k]);
+    await expect(buildRollbackPayload({ ...original, ocr_text: '' }, { action: 'rekey' })).rejects.toThrow(/text/);
+    await expect(buildRollbackPayload({ ...original, source_key: null }, { action: 'rekey' })).rejects.toThrow(/source_key/);
   });
 });

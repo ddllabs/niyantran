@@ -2,10 +2,14 @@
 // Vitest-collected so CI runs it; it was a node:test file before F281 widened the tool.
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { describe, it, it as test } from 'vitest';
 import {
-  checkSpend, clip, credentials, dependencyProblems, deskNames, deskQuery, documentQuery, idRange, loadManifest, makeReader, manifestProblems,
-  ocrPlan, orderForWrite, pageRuns, parseArgs, readbackProblems, renderReview, riskOf, selectDocuments, sha256, unpinned, usesPdf, withPins, writeGateProblems,
+  OCR_MODEL, OCR_REQUEST_FLAGS, addBatch, checkSpend, clip, credentials, dependencyProblems, deskNames, deskQuery, documentQuery, driftProblems, embedCapProblems,
+  embedEstimate, formatSums, idRange, ingestJobsQuery, liveClaimProblems, loadManifest, lockDecision, makeReader, manifestProblems, metadataHash, nextBatch,
+  nextBatchNumber, ocrCacheProblems, ocrPlan, orderForWrite, pageRuns, parseArgs, parseSums, readbackProblems, readbackWrittenAfter, renderReview, retryRead,
+  riskOf, selectDocuments, sha256, snapshotProblems, spentOnParts, stableJson, unpinned, usesPdf, withAuthorization, withPins, writeGateProblems,
 } from '../../scripts/f281-repair/lib.mjs';
 
 const MANIFEST = fileURLToPath(new URL('../../scripts/f281-repair/manifest.json', import.meta.url));
@@ -20,7 +24,9 @@ const CLEAN_REKEYS = {
   e4a7d7d2: 'bill:2005:96', e81c044c: 'bill:2001:50', eb58009f: 'bill:2001:47',
 };
 const SYNOPSIS_REKEYS = { '648594ab': 'bill:2000:LXXII', '5fca207d': 'bill:2001:XXVIII', '3d51552f': 'bill:2000:LXXVI' };
-const UNLINKED = ['f5ddf657', '0cfda1b0', 'a17e769c', '7268af49', '6f94685d', 'cbd4dbc1', '8bffca18', 'ee462209', '7020ee78', 'afd4f0e8', '8777b653', '1b7862fb', '300194ff', 'b2d4bfff'];
+// Four of the coordinator's first fourteen became re-keys (review finding 8): the keys exist or may exist without a desk record.
+const LATE_REKEYS = { f5ddf657: 'bill:2000:75', '0cfda1b0': 'bill:2000:72', a17e769c: 'bill:2000:LXXI', b2d4bfff: 'bill:2001:XXX' };
+const UNLINKED = ['7268af49', '6f94685d', 'cbd4dbc1', '8bffca18', 'ee462209', '7020ee78', 'afd4f0e8', '8777b653', '1b7862fb', '300194ff'];
 const GARBAGE_OCR_BILLS = ['06dc6288', '0c258b6d', 'e777c56d', '366b1414', '9611101e', '26b571c5'];
 
 describe('the committed manifest', () => {
@@ -28,9 +34,10 @@ describe('the committed manifest', () => {
     const { manifest, sha256: sha } = await loadManifest(MANIFEST);
     assert.equal(sha.length, 64);
     const byAction = Object.groupBy(manifest.documents, (d) => d.action);
-    assert.deepEqual(Object.fromEntries(Object.entries(byAction).map(([k, v]) => [k, v.length])), { decode: 2, reextract: 1, strip_cover: 2, ocr: 51, rekey: 27, retitle_unlink: 14 });
+    assert.deepEqual(Object.fromEntries(Object.entries(byAction).map(([k, v]) => [k, v.length])), { decode: 2, reextract: 1, strip_cover: 2, ocr: 51, rekey: 31, retitle_unlink: 10 });
     assert.equal(manifest.documents.length, 97);
-    assert.ok(manifest.documents.every((d) => d.id === null), 'ids are filled by the supervisor');
+    // ids are null until the supervisor fills them after prepare; a filled manifest is valid too (manifestProblems checks the form)
+    assert.ok(manifest.documents.every((d) => d.id === null || /^[0-9a-f-]{36}$/.test(d.id)));
   });
 
   it('names the documents of each action', async () => {
@@ -41,7 +48,7 @@ describe('the committed manifest', () => {
     assert.deepEqual(ids('reextract'), ['c8289e6b']);
     assert.deepEqual(ids('strip_cover'), ['40b1cec9', '7fd68cf2']);
     assert.deepEqual(ids('retitle_unlink'), [...UNLINKED].sort());
-    assert.deepEqual(Object.fromEntries(by.rekey.map((d) => [d.prefix, d.new_document_key])), { ...CLEAN_REKEYS, ...SYNOPSIS_REKEYS, '4530253a': 'bill:2000:76' });
+    assert.deepEqual(Object.fromEntries(by.rekey.map((d) => [d.prefix, d.new_document_key])), { ...CLEAN_REKEYS, ...SYNOPSIS_REKEYS, ...LATE_REKEYS, '4530253a': 'bill:2000:76' });
     const ocr = ids('ocr');
     for (const id of [...GARBAGE_OCR_BILLS, '712b7dab', '456b8787', '3f6669d6', '961175e5', '0c47142d', 'e3dd1af0', 'e77b7df8']) assert.ok(ocr.includes(id), id);
     assert.ok(!ocr.includes('c8289e6b'), 're-extracted, not OCR');
@@ -64,15 +71,42 @@ describe('the committed manifest', () => {
     assert.ok((pages * 4) / 1000 < parseArgs(['ocr']).maxUsd);
   });
 
-  it('pins every OCR, decode and re-extract source except the six Bills whose PDFs were not fetched yet', async () => {
+  it('pins every OCR, decode and re-extract source except, until pin has run, the six Bills whose PDFs were not fetched yet', async () => {
     const { manifest } = await loadManifest(MANIFEST);
     const unpinned = manifest.documents.filter((d) => ['ocr', 'decode', 'reextract'].includes(d.action) && !d.source_sha256).map((d) => d.prefix).sort();
-    assert.deepEqual(unpinned, [...GARBAGE_OCR_BILLS].sort());
+    assert.ok(unpinned.every((id) => GARBAGE_OCR_BILLS.includes(id)), `unexpected unpinned: ${unpinned}`);
   });
 
-  it('puts 4530253a after 3d51552f, and only that', async () => {
+  it('orders the two re-keys that take a key another document is still holding', async () => {
     const { manifest } = await loadManifest(MANIFEST);
-    assert.deepEqual(manifest.documents.filter((d) => d.after?.length).map((d) => [d.prefix, d.after]), [['4530253a', ['3d51552f']]]);
+    assert.deepEqual(manifest.documents.filter((d) => d.after?.length).map((d) => [d.prefix, d.after]).sort(), [['0cfda1b0', ['648594ab']], ['4530253a', ['3d51552f']]]);
+  });
+
+  it('records why four documents became re-keys and may have no desk record (review finding 8)', async () => {
+    const { manifest } = await loadManifest(MANIFEST);
+    const by = Object.fromEntries(manifest.documents.map((d) => [d.prefix, d]));
+    for (const id of Object.keys(LATE_REKEYS)) {
+      assert.equal(by[id].action, 'rekey', id);
+      assert.ok(by[id].reason.length > 20, `${id} has no reason`);
+      assert.equal(by[id].allow_missing_desk, true, id);
+    }
+    assert.equal(by.f5ddf657.new_title, 'The Constitution (Amendment) Bill, 2000 (Insertion of new article 16A)');
+    assert.equal(by['0cfda1b0'].new_house, 'Lok Sabha');
+    assert.equal(by.a17e769c.new_house, 'Rajya Sabha');
+  });
+
+  it('gives the Rajya Sabha unlinks the bill number the text prints, for the identity check', async () => {
+    const { manifest } = await loadManifest(MANIFEST);
+    const by = Object.fromEntries(manifest.documents.map((d) => [d.prefix, d]));
+    assert.deepEqual([by.afd4f0e8.new_bill_number, by.afd4f0e8.new_bill_year], ['XXIV', 2000]);
+    assert.deepEqual([by['8777b653'].new_bill_number, by['8777b653'].new_bill_year], ['LXVII', 2001]);
+    assert.deepEqual([by['7020ee78'].new_bill_number, by['7020ee78'].new_bill_year], ['LXXI', 2000]);
+  });
+
+  it('marks the documents whose stored text is garbage, so the identity check asks for a look instead', async () => {
+    const { manifest } = await loadManifest(MANIFEST);
+    const garbage = manifest.documents.filter((d) => d.old_text_garbage).map((d) => d.prefix).sort();
+    assert.deepEqual(garbage, ['06dc6288', '0c258b6d', '26b571c5', '366b1414', '3f6669d6', '456b8787', '961175e5', '9611101e', 'c8289e6b', 'e777c56d'].sort());
   });
 
   it('gives each re-key a distinct key, a title, and house and status where the listing gave them', async () => {
@@ -80,6 +114,7 @@ describe('the committed manifest', () => {
     const rekeys = manifest.documents.filter((d) => d.action === 'rekey');
     assert.equal(new Set(rekeys.map((d) => d.new_document_key)).size, rekeys.length);
     for (const d of rekeys) assert.ok(d.new_title && d.new_house && d.new_status, d.prefix);
+    assert.equal(rekeys.length, 31);
     const by = Object.fromEntries(rekeys.map((d) => [d.prefix, d]));
     assert.equal(by['648594ab'].new_house, 'Rajya Sabha');
     assert.equal(by.e4a7d7d2.new_title, 'The National Child Welfare Board Bill, 2005');
@@ -132,7 +167,11 @@ test('parseArgs: defaults, flags, and refusals', () => {
   assert.equal(a.command, 'ocr');
   assert.equal(a.go, false); // nothing is spent without --go
   assert.equal(a.maxUsd, 5);
-  assert.equal(a.via, 'data');
+  assert.equal(a.batch, 20);
+  assert.equal(a.maxEmbedUsd, 1);
+  assert.deepEqual(a.rewrite, []);
+  assert.equal(a.authorizedBy, null);
+  assert.equal(a.workDir, join(homedir(), '.niyantran', 'f281-repair'), 'outside the worktree by default');
   const b = parseArgs(['write', '--confirm', HEX('a'), '--only', 'abcdef01', '--only', '12345678']);
   assert.deepEqual(b.only, ['abcdef01', '12345678']);
   assert.equal(b.confirm, HEX('a'));
@@ -143,7 +182,15 @@ test('parseArgs: defaults, flags, and refusals', () => {
   assert.throws(() => parseArgs(['ocr', '--nope']), /unknown argument/);
   assert.throws(() => parseArgs(['ocr', '--max-usd', '0']), /max-usd/);
   assert.throws(() => parseArgs(['ocr', '--max-usd']), /needs a value/);
-  assert.throws(() => parseArgs(['ocr', '--via', 'ftp']), /--via/);
+  assert.throws(() => parseArgs(['ocr', '--via', 'url']), /unknown argument --via/, 'OCR always sends the verified bytes');
+  assert.equal(parseArgs(['write', '--work-dir', '/x/y']).workDir, '/x/y');
+  assert.equal(parseArgs(['write', '--work', '/x/z']).workDir, '/x/z', 'the old name still works');
+  assert.equal(parseArgs(['write', '--batch', '5', '--max-embed-usd', '0.2', '--authorized-by', 'owner, 2026-11-02, F281', '--rewrite', 'abcdef01', '--rewrite', '12345678']).batch, 5);
+  const w = parseArgs(['write', '--max-embed-usd', '0.2', '--authorized-by', 'owner, 2026-11-02, F281', '--rewrite', 'abcdef01', '--rewrite', '12345678', '--rollback']);
+  assert.deepEqual([w.maxEmbedUsd, w.authorizedBy, w.rewrite, w.rollback], [0.2, 'owner, 2026-11-02, F281', ['abcdef01', '12345678'], true]);
+  assert.throws(() => parseArgs(['write', '--batch', '0']), /--batch/);
+  assert.throws(() => parseArgs(['write', '--max-embed-usd', '-1']), /max-embed-usd/);
+  assert.equal(parseArgs(['rollback-build']).command, 'rollback-build');
   assert.equal(parseArgs([]).command, null);
 });
 
@@ -205,17 +252,24 @@ test('pageRuns cuts at the call size and at gaps', () => {
   assert.deepEqual(pageRuns([], 3), []);
 });
 
+const AUTH = 'owner, 2026-11-02: write the F281 batch after the dry run';
 function gateFixture() {
+  const reviewSha = HEX('5');
   const manifestSha = HEX('1');
   const doc = { prefix: 'abcdef01', id: 'abcdef01-0000-0000-0000-000000000000' };
   return {
-    confirm: manifestSha,
+    confirm: reviewSha,
+    reviewSha,
     manifestSha,
+    authorizedBy: AUTH,
     docs: [doc],
-    review: { manifest_sha256: manifestSha, documents: { abcdef01: { ok: true, payload_sha256: HEX('2') } } },
+    review: { manifest_sha256: manifestSha, documents: { abcdef01: { ok: true, payload_sha256: HEX('2'), text_sha256: HEX('4') } } },
     currentIds: { abcdef01: doc.id },
     payloadShas: { abcdef01: HEX('2') },
+    textShas: { abcdef01: HEX('4') },
     dryRuns: { abcdef01: { payload_sha256: HEX('2'), status: 'dry_run' } },
+    writtenPayloadShas: {},
+    rewrite: new Set(),
   };
 }
 
@@ -230,17 +284,43 @@ test('writeGateProblems: each way of being wrong is refused', () => {
   const problems = (patch) => writeGateProblems({ ...gateFixture(), ...patch }).join('|');
   assert.match(problems({ confirm: null }), /--confirm .* is required/);
   assert.match(problems({ confirm: 'abc' }), /64-hex/);
-  assert.match(problems({ confirm: HEX('9') }), /does not match the manifest/);
+  assert.match(problems({ confirm: HEX('9') }), /does not match the reviewed build/);
   assert.match(problems({ review: null }), /run build first/);
   assert.match(problems({ review: { ...gateFixture().review, manifest_sha256: HEX('7') } }), /different manifest/);
   assert.match(problems({ docs: [{ prefix: 'abcdef01', id: null }] }), /no full document id/);
   assert.match(problems({ currentIds: { abcdef01: 'abcdef01-1111-0000-0000-000000000000' } }), /not the row prepare read/);
-  assert.match(problems({ review: { ...gateFixture().review, documents: { abcdef01: { ok: false, payload_sha256: HEX('2') } } } }), /did not pass/);
+  assert.match(problems({ review: { ...gateFixture().review, documents: { abcdef01: { ok: false, payload_sha256: HEX('2'), text_sha256: HEX('4') } } } }), /did not pass/);
   assert.match(problems({ payloadShas: { abcdef01: HEX('3') } }), /not the reviewed one/);
   assert.match(problems({ dryRuns: {} }), /no dry run/);
   assert.match(problems({ dryRuns: { abcdef01: { payload_sha256: HEX('3'), status: 'dry_run' } } }), /different payload/);
   assert.match(problems({ dryRuns: { abcdef01: { payload_sha256: HEX('2'), status: 'refused', reason: 'page-aware document' } } }), /refused.*page-aware/);
   assert.match(problems({ dryRuns: { abcdef01: { payload_sha256: HEX('2'), status: 'error', error: 'boom' } } }), /error.*boom/);
+});
+
+test('the confirmation binds to the reviewed content (build/review.json), not to the manifest file', () => {
+  // The manifest hash alone is no longer a key: a manifest-sha confirm does not open the gate
+  assert.match(writeGateProblems({ ...gateFixture(), confirm: gateFixture().manifestSha }).join('|'), /does not match the reviewed build/);
+  assert.deepEqual(writeGateProblems({ ...gateFixture(), confirm: HEX('5') }), []);
+});
+
+test('write refuses if a payload or a text differs from the review', () => {
+  const f = gateFixture();
+  assert.match(writeGateProblems({ ...f, payloadShas: { abcdef01: HEX('9') } }).join('|'), /not the reviewed one/);
+  assert.match(writeGateProblems({ ...f, textShas: { abcdef01: HEX('9') } }).join('|'), /text.*not the reviewed one/);
+  assert.match(writeGateProblems({ ...f, review: { ...f.review, documents: { abcdef01: { ok: true, payload_sha256: HEX('2') } } } }).join('|'), /holds no text_sha256/);
+});
+
+test('write refuses to overwrite a document already written with a different payload unless --rewrite names it', () => {
+  const f = { ...gateFixture(), writtenPayloadShas: { abcdef01: HEX('8') } };
+  assert.match(writeGateProblems(f).join('|'), /already written with a different payload.*--rewrite abcdef01/);
+  assert.deepEqual(writeGateProblems({ ...f, rewrite: new Set(['abcdef01']) }), []);
+  assert.deepEqual(writeGateProblems({ ...f, writtenPayloadShas: { abcdef01: HEX('2') } }), [], 'the same payload is a resume, not an overwrite');
+});
+
+test('write refuses without an authorization line', () => {
+  assert.match(writeGateProblems({ ...gateFixture(), authorizedBy: null }).join('|'), /--authorized-by/);
+  assert.match(writeGateProblems({ ...gateFixture(), authorizedBy: '   ' }).join('|'), /--authorized-by/);
+  assert.match(writeGateProblems({ ...gateFixture(), authorizedBy: 'ok' }).join('|'), /--authorized-by.*who authorized/);
 });
 
 test('readbackProblems compares title, key, hash, count, version and indexing', () => {
@@ -320,8 +400,9 @@ test('the write gate takes a selection whose dependency was written in an earlie
   // inside the selection and ahead of it in the write order is fine
   f.docs = [{ prefix: 'cccccccc', id: 'cccccccc-0000-0000-0000-000000000000' }, { ...f.docs[0], after: ['cccccccc'] }];
   f.currentIds.cccccccc = 'cccccccc-0000-0000-0000-000000000000';
-  f.review.documents.cccccccc = { ok: true, payload_sha256: HEX('2') };
+  f.review.documents.cccccccc = { ok: true, payload_sha256: HEX('2'), text_sha256: HEX('4') };
   f.payloadShas.cccccccc = HEX('2');
+  f.textShas.cccccccc = HEX('4');
   f.dryRuns.cccccccc = { payload_sha256: HEX('2'), status: 'dry_run' };
   assert.deepEqual(writeGateProblems({ ...f, written: new Set() }), []);
 });
@@ -417,10 +498,11 @@ test('usesPdf and unpinned: the PDF actions read the official file; a null hash 
     { prefix: 'bbbbbbb2', action: 'ocr', source_sha256: HEX('a') },
     { prefix: 'ccccccc3', action: 'rekey' },
     { prefix: 'ddddddd4', action: 'rekey', source_sha256: HEX('b') },
+    { prefix: 'cccccc33', action: 'strip_cover', source_sha256: HEX('c') },
     { prefix: 'eeeeeee5', action: 'decode', source_sha256: null },
     { prefix: 'fffffff6', action: 'reextract', source_sha256: null },
   ];
-  assert.deepEqual(docs.map(usesPdf), [true, true, false, true, true, true]);
+  assert.deepEqual(docs.map(usesPdf), [true, true, false, false, false, true, true], 'a hash on a re-key is provenance: no download');
   assert.deepEqual(unpinned(docs).map((d) => d.prefix), ['aaaaaaa1', 'eeeeeee5', 'fffffff6']);
 });
 
@@ -433,4 +515,204 @@ test('withPins writes a hash only where the manifest has null, and never replace
   assert.throws(() => withPins(raw, [{ prefix: 'bbbbbbb2', sha: HEX('c') }]), /already pinned/);
   assert.throws(() => withPins(raw, [{ prefix: 'cccccccc', sha: HEX('c') }]), /not in the manifest/);
   assert.throws(() => withPins(raw, [{ prefix: 'aaaaaaa1', sha: 'abc' }]), /64 hex/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Review findings 2, 3, 5, 7 and the minor items: drift, writer exclusivity, batches, embedding cap, OCR cache,
+// snapshot sums, rollback review, readback retries
+// ---------------------------------------------------------------------------------------------
+const SNAP = { id: 'abcdef01-0000-0000-0000-000000000000', title: 'T', content_sha256: HEX('a'), chunker_version: 2, indexed_at: '2026-09-21T06:32:22.447+00:00', metadata: { b: 2, a: { y: [1, { z: 1, w: 2 }], x: 1 } } };
+
+test('stableJson and metadataHash do not depend on key order', () => {
+  assert.equal(stableJson({ b: 1, a: { d: 1, c: [2, 1] } }), stableJson({ a: { c: [2, 1], d: 1 }, b: 1 }));
+  assert.notEqual(stableJson({ a: [1, 2] }), stableJson({ a: [2, 1] }), 'array order matters');
+  assert.equal(metadataHash({ a: 1, b: 2 }), metadataHash({ b: 2, a: 1 }));
+  assert.notEqual(metadataHash({ a: 1 }), metadataHash({ a: 2 }));
+});
+
+test('driftProblems: a document that changed since prepare is refused, each way it can change', () => {
+  const live = { ...SNAP, metadata: { a: { x: 1, y: [1, { w: 2, z: 1 }] }, b: 2 } };
+  assert.deepEqual(driftProblems(SNAP, live), [], 'key order is not a change');
+  const diff = (patch) => driftProblems(SNAP, { ...live, ...patch }).join('|');
+  assert.match(diff({ content_sha256: HEX('b') }), /content_sha256/);
+  assert.match(diff({ title: 'T2' }), /title/);
+  assert.match(diff({ metadata: { ...live.metadata, extra: 1 } }), /metadata/);
+  assert.match(diff({ chunker_version: 1 }), /chunker_version/);
+  assert.match(diff({ indexed_at: '2026-10-01T00:00:00+00:00' }), /indexed_at/);
+  assert.match(driftProblems(SNAP, null).join('|'), /not found/);
+  assert.match(driftProblems(SNAP, { ...live, id: 'zzzzzzzz-0000-0000-0000-000000000000' }).join('|'), /id/);
+});
+
+test('liveClaimProblems: a running job with a live lease is a writer; queued jobs are named, an expired lease is not a claim', () => {
+  const now = Date.parse('2026-11-02T10:00:00Z');
+  const job = (status, lease) => ({ id: 'j', document_id: 'd', status, stage: 'ocr', lease_until: lease });
+  assert.deepEqual(liveClaimProblems([], now), []);
+  assert.match(liveClaimProblems([job('running', '2026-11-02T10:05:00Z')], now).join('|'), /live claim.*running/);
+  assert.deepEqual(liveClaimProblems([job('running', '2026-11-02T09:00:00Z')], now), [], 'lease expired');
+  assert.match(liveClaimProblems([job('queued', null)], now).join('|'), /1 queued/);
+  assert.equal(ingestJobsQuery(), 'ingest_jobs?select=id%2Cdocument_id%2Cstatus%2Cstage%2Clease_until&status=in.%28queued%2Crunning%29');
+});
+
+test('lockDecision never removes an active, unknown or foreign-host lock; a dead same-host lock may be reclaimed', () => {
+  const me = { host: 'mac', pid: 10 };
+  assert.equal(lockDecision(null, me, () => true), 'free');
+  assert.equal(lockDecision({ host: 'mac', pid: 99, token: 't' }, me, () => true), 'blocked');
+  assert.equal(lockDecision({ host: 'other', pid: 99, token: 't' }, me, () => false), 'blocked');
+  assert.equal(lockDecision({ host: 'mac', pid: 99, token: 't' }, me, () => false), 'reclaim');
+  assert.equal(lockDecision({ host: 'mac' }, me, () => false), 'blocked', 'unknown pid');
+  assert.equal(lockDecision('garbage', me, () => false), 'blocked');
+});
+
+test('nextBatch takes the next 20 not yet written, in write order, and says how many remain', () => {
+  const docs = Array.from({ length: 45 }, (_, i) => ({ prefix: String(i).padStart(8, '0') }));
+  const r = nextBatch(docs, new Set(['00000000', '00000001']), 20);
+  assert.equal(r.batch.length, 20);
+  assert.equal(r.batch[0].prefix, '00000002');
+  assert.equal(r.remaining, 43 - 20);
+  assert.deepEqual(nextBatch(docs.slice(0, 3), new Set(['00000000', '00000001', '00000002']), 20), { batch: [], remaining: 0 });
+  // dependencies first, as orderForWrite does, then batched
+  const dep = [{ prefix: 'aaaaaaaa', after: ['bbbbbbbb'] }, { prefix: 'bbbbbbbb' }];
+  assert.deepEqual(nextBatch(dep, new Set(), 1).batch.map((d) => d.prefix), ['bbbbbbbb']);
+});
+
+test('embedEstimate prices the chunks the dry run says are new, at the embedding model\'s price', () => {
+  const rows = (n, t) => Array.from({ length: n }, () => ({ tokenEstimate: t }));
+  const est = embedEstimate([
+    { prefix: 'a', rows: rows(10, 300), chunks: 10, inserted: 10 }, // all new: 3000 tokens
+    { prefix: 'b', rows: rows(10, 300), chunks: 10, inserted: 4 }, // 40%: 1200
+    { prefix: 'c', rows: rows(10, 300), chunks: 10, inserted: 0 }, // metadata only
+  ], 0.00000002);
+  assert.deepEqual(est.documents.map((d) => d.tokens), [3000, 1200, 0]);
+  assert.equal(est.tokens, 4200);
+  assert.ok(Math.abs(est.usd - 4200 * 0.00000002) < 1e-12);
+});
+
+test('embedCapProblems refuses above --max-embed-usd and says what it would cost', () => {
+  assert.deepEqual(embedCapProblems({ usd: 0.04 }, 1), []);
+  assert.match(embedCapProblems({ usd: 1.5 }, 1).join('|'), /1\.5000.*above --max-embed-usd 1/);
+  assert.deepEqual(embedCapProblems({ usd: 1 }, 1), [], 'exactly the cap');
+});
+
+test('the OCR cache is checked at build: source hash, model, request flags, pages, and that it validated', () => {
+  const part = (over = {}) => ({ valid: true, source_sha256: HEX('a'), model_requested: OCR_MODEL, flags: OCR_REQUEST_FLAGS, requested: [0, 1], pages: [{ index: 0 }, { index: 1 }], ...over });
+  const expected = { sha: HEX('a'), pages: 2 };
+  assert.deepEqual(ocrCacheProblems([part()], expected), []);
+  const bad = (over, exp = expected) => ocrCacheProblems([part(over)], exp).join('|');
+  assert.match(bad({ source_sha256: HEX('b') }), /source_sha256/);
+  assert.match(bad({ source_sha256: undefined }), /source_sha256/);
+  assert.match(bad({ model_requested: 'mistral-ocr-3' }), /model/);
+  assert.match(bad({ flags: { ...OCR_REQUEST_FLAGS, table_format: 'html' } }), /flags/);
+  assert.match(bad({ flags: undefined }), /flags/);
+  assert.match(bad({ valid: false }), /did not validate/);
+  assert.match(ocrCacheProblems([part({ pages: [{ index: 0 }] })], expected).join('|'), /pages/);
+  assert.match(ocrCacheProblems([], expected).join('|'), /no cached OCR/);
+  assert.match(ocrCacheProblems([part()], { sha: null, pages: 2 }).join('|'), /not pinned/);
+});
+
+test('the OCR request flags are the worker\'s, less the two the composition does not read', () => {
+  assert.deepEqual(OCR_REQUEST_FLAGS, { table_format: 'markdown', extract_header: true, extract_footer: true, include_blocks: false, include_image_base64: false });
+  assert.equal(OCR_MODEL, 'mistral-ocr-4-1');
+});
+
+test('spentOnParts counts every response that was paid for, valid or not', () => {
+  assert.equal(spentOnParts([{ valid: true, cost_usd: 0.1 }, { valid: false, cost_usd: 0.05 }, { cost_usd: 0.01 }]), 0.16);
+  assert.equal(spentOnParts([]), 0);
+});
+
+test('snapshot sums: formatted, parsed, and any file that changed or went missing is reported', () => {
+  const text = formatSums({ 'bbbbbbbb.json': HEX('2'), 'aaaaaaaa.json': HEX('1') });
+  assert.equal(text, `${HEX('1')}  aaaaaaaa.json\n${HEX('2')}  bbbbbbbb.json\n`);
+  assert.deepEqual(parseSums(text), { 'aaaaaaaa.json': HEX('1'), 'bbbbbbbb.json': HEX('2') });
+  assert.deepEqual(snapshotProblems(parseSums(text), { 'aaaaaaaa.json': HEX('1'), 'bbbbbbbb.json': HEX('2') }, ['aaaaaaaa', 'bbbbbbbb']), []);
+  const p = snapshotProblems(parseSums(text), { 'aaaaaaaa.json': HEX('9') }, ['aaaaaaaa', 'bbbbbbbb', 'cccccccc']).join('|');
+  assert.match(p, /aaaaaaaa.*changed/);
+  assert.match(p, /bbbbbbbb.*missing/);
+  assert.match(p, /cccccccc.*no recorded hash/);
+  assert.throws(() => parseSums('not a sums line\n'), /sums/);
+});
+
+test('retryRead waits for indexed_at a few times and then returns what it has', async () => {
+  const waits = [];
+  const rows = [{ indexed_at: null }, { indexed_at: null }, { indexed_at: '2026-11-02T10:00:00Z' }];
+  let i = 0;
+  const got = await retryRead(async () => rows[Math.min(i++, rows.length - 1)], { attempts: 5, delayMs: 7, sleep: async (ms) => waits.push(ms) });
+  assert.equal(got.indexed_at, '2026-11-02T10:00:00Z');
+  assert.deepEqual(waits, [7, 7]);
+  i = 0;
+  const never = await retryRead(async () => ({ indexed_at: null }), { attempts: 3, delayMs: 1, sleep: async () => {} });
+  assert.equal(never.indexed_at, null);
+  assert.equal(await retryRead(async () => null, { attempts: 2, delayMs: 1, sleep: async () => {} }), null);
+});
+
+test('readback does not expect indexed_at to move for an unchanged (metadata-only) write', () => {
+  const expected = { title: 'T', document_key: null, content_sha256: HEX('a'), n_chars: 5, chunk_count: 1, chunker_version: 2 };
+  const actual = { title: 'T', document_key: null, content_sha256: HEX('a'), n_chars: '5', chunk_count: 1, chunker_version: 2, indexed_at: '2026-09-21T06:00:00Z' };
+  assert.match(readbackProblems(expected, actual, { writtenAfter: '2026-11-02T10:00:00Z' }).join('|'), /before the write/);
+  assert.deepEqual(readbackWrittenAfter({ status: 'unchanged', started_at: '2026-11-02T10:00:00Z' }), null);
+  assert.equal(readbackWrittenAfter({ status: 'indexed', started_at: '2026-11-02T10:00:00Z' }), '2026-11-02T10:00:00Z');
+  assert.equal(readbackWrittenAfter(null), null);
+});
+
+test('an authorization is recorded as a block of review.md, and a second one replaces the first', () => {
+  const base = '# review\n\nbody\n';
+  const one = withAuthorization(base, { authorizedBy: 'owner A', at: '2026-11-02T10:00:00Z', reviewSha: HEX('5'), batch: 1 });
+  assert.match(one, /## Authorization/);
+  assert.match(one, /owner A/);
+  assert.match(one, new RegExp(HEX('5').slice(0, 12)));
+  const two = withAuthorization(one, { authorizedBy: 'owner B', at: '2026-11-02T11:00:00Z', reviewSha: HEX('5'), batch: 2 });
+  assert.equal(two.match(/## Authorization/g).length, 1);
+  assert.match(two, /owner A[^]*owner B/, 'the earlier lines stay, the block is one');
+  assert.ok(two.startsWith(base));
+});
+
+test('batch readback records: each batch is logged with its documents and the result', () => {
+  const log = addBatch({ batches: [] }, { batch: 1, prefixes: ['a', 'b'], at: 'T', authorizedBy: 'x', ok: true });
+  assert.deepEqual(addBatch(log, { batch: 2, prefixes: ['c'], at: 'T2', authorizedBy: 'x', ok: false }).batches.map((b) => [b.batch, b.ok]), [[1, true], [2, false]]);
+  assert.equal(nextBatchNumber(log), 2);
+  assert.equal(nextBatchNumber({ batches: [] }), 1);
+  assert.equal(nextBatchNumber(null), 1);
+});
+
+test('renderReview shows what the reviewer asked for: replaced titles, empty OCR pages, font verdicts, the identity check, the authorization', () => {
+  const e = entry('b0000001', {
+    action: 'ocr',
+    title_choice: { title: 'The Desk Title, 2000', source: 'desk_rows', agreesWithPrinted: true, replacesManifest: true, candidates: { manifest: 'The Manifest Title, 2000' } },
+    checks: {
+      title_guard: { ok: true, skipped: 'regulatory document: the title is a file name' },
+      identity: { ok: true, level: 'look', reason: 'the stored text is garbage, so its overlap cannot be measured', firstPageTitle: 'COMPETITION COMMISSION OF INDIA / Case No. 11 of 2009' },
+      ocr: { ok: true, kind: 'any', chars: 3000, pages: 3, charsPerPage: 1000, lowDensity: false },
+    },
+    notes: { attention: ['x'], empty_pages: [2, 5], fonts: [{ font: 'g_d0_f1', verdict: 'plain', chars: 10 }, { font: 'g_d0_f4', verdict: 'shifted', reason: 'control_codes', chars: 99 }, { font: 'g_d0_f6', verdict: 'shifted', reason: 'composite_sibling', chars: 2 }] },
+  });
+  const md = renderReview({ manifestSha: HEX('1'), entries: [e], excluded: [], authorization: { authorizedBy: 'owner, 2026-11-02', at: '2026-11-02T10:00:00Z', reviewSha: HEX('5') } });
+  assert.match(md, /desk title replaces the manifest title `The Manifest Title, 2000`/);
+  assert.match(md, /Empty OCR pages: 2, 5/);
+  assert.match(md, /Fonts: 1 plain, 2 shifted \(g_d0_f4 control_codes, g_d0_f6 composite_sibling\)/);
+  assert.match(md, /Identity against the stored text: LOOK — the stored text is garbage[^\n]*first page reads: COMPETITION COMMISSION OF INDIA/);
+  assert.match(md, /## Authorization[^]*owner, 2026-11-02/);
+});
+
+test('riskOf: an identity failure, a missing desk record and a replaced manifest title raise the risk', () => {
+  const clean = entry('c0000002');
+  assert.ok(riskOf(entry('c0000003', { checks: { identity: { ok: false, level: 'fail' } }, ok: false, failed: ['identity'] })) > 1000);
+  assert.ok(riskOf(entry('c0000004', { checks: { identity: { ok: true, level: 'look' } } })) > riskOf(clean));
+  assert.ok(riskOf(entry('c0000005', { title_choice: { title: 'x', source: 'desk_rows', agreesWithPrinted: true, replacesManifest: true } })) > riskOf(clean));
+});
+
+test('manifestProblems: the new fields are checked', () => {
+  const base = { prefix: 'abcdef01', id: null, action: 'rekey', new_document_key: 'bill:2005:96', new_title: 'T' };
+  const probs = (extra) => manifestProblems({ documents: [{ ...base, ...extra }] }).join('|');
+  assert.equal(probs({ reason: 'a reason that says why', allow_missing_desk: true, old_text_garbage: false }), '');
+  assert.match(probs({ reason: '' }), /reason/);
+  assert.match(probs({ allow_missing_desk: 'yes' }), /allow_missing_desk/);
+  assert.match(probs({ old_text_garbage: 1 }), /old_text_garbage/);
+  const unlink = (extra) => manifestProblems({ documents: [{ prefix: 'abcdef01', id: null, action: 'retitle_unlink', new_title: 'T', ...extra }] }).join('|');
+  assert.equal(unlink({ new_bill_number: 'XXIV', new_bill_year: 2000 }), '');
+  assert.match(unlink({ new_bill_number: 'XXIV' }), /new_bill_year/);
+  assert.match(unlink({ new_bill_number: 'XXIV', new_bill_year: 'x' }), /new_bill_year/);
+});
+
+test('a filled manifest (ids set, PDFs pinned) is still valid', () => {
+  const doc = { prefix: 'abcdef01', id: 'abcdef01-0000-4000-8000-000000000000', action: 'ocr', pages: 3, ocr_kind: 'any', source_url: 'https://example.org/a.pdf', source_sha256: HEX('a') };
+  assert.deepEqual(manifestProblems({ documents: [doc] }), []);
 });
