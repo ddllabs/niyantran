@@ -23,15 +23,17 @@
 --               law_documents_serving_set is replayed to prove the copy admits exactly the documents
 --               authenticated can read. The function still re-reads through RLS.
 --           Also: oversized text, quotes and backslashes in the text, that no other function mentions
---           the helper, that ts_rank_cd is applied only after the rule and the admitted-row cap, and that the
---           cap holds (2000 admitted rows by id).
+--           the helper, that ts_rank_cd is applied only after the rule and the word budget, and that the
+--           budget holds (the rarest words whose readable counts fit in 2000 are kept, digit-bearing words
+--           first, and every match of them is ranked, so the best match is kept).
 --   Part 3  the guards, each proved against the defect it guards: the helper's plan reads the GIN
 --           index and never scans a chunk partition sequentially (a direct keyword query as
 --           authenticated does); anon is refused by the schema's ACL (and is served once granted);
 --           a temp table or type cannot shadow what the helper reads (a function without the fixed
 --           search_path is shadowed); and the helper refuses to run when an access policy on documents or
 --           document_chunks (text, name, role, mode, a new one) no longer is the one its copy of the rule
---           was written against.
+--           was written against, with a terse error that names nothing internal, also for the empty-text
+--           call the migration makes as its last statement.
 --
 -- Vacuity: run.sh rebuilds the chain without the migration and this file must fail. It fails at the
 -- first assertion (the function does not exist); keep part 1 first.
@@ -124,10 +126,10 @@ select pg_temp.ok((select bool_and(pg_has_role(p.proowner, c.relowner, 'usage'))
 select pg_temp.ok((select position('c_rrf_k constant int := 60;' in prosrc) > 0 and position('c_candidates constant int := 100;' in prosrc) > 0
                           and position('c_nclt constant text := ''NCLT / NCLAT (Insolvency)'';' in prosrc) > 0
                      from pg_proc where oid = 'public.match_documents_hybrid(extensions.vector, text, integer, uuid[], text, text)'::regprocedure)
-  and (select position('c_rare_df_max constant int := 300;' in prosrc) > 0 and position('c_query_max constant int := 4000;' in prosrc) > 0 and position('c_admitted_cap constant int := 2000;' in prosrc) > 0
+  and (select position('c_rare_df_max constant int := 300;' in prosrc) > 0 and position('c_query_max constant int := 4000;' in prosrc) > 0 and position('c_match_budget constant int := 2000;' in prosrc) > 0
               and position('c_candidates constant int := 100;' in prosrc) > 0 and position('c_max_terms constant int := 64;' in prosrc) > 0
          from pg_proc where oid = 'retrieval_internal.hybrid_keyword_ids(text, text, text)'::regprocedure),
-  'pinned: fusion constant 60, 100 candidates, NCLT only; rare = in at most 300 readable chunks, 64 terms, 4000 characters of text, 2000 admitted rows ranked');
+  'pinned: fusion constant 60, 100 candidates, NCLT only; rare = in at most 300 readable chunks, 64 terms, 4000 characters of text, a word budget of 2000 readable chunks');
 
 -- The keyword index: one expression, one text configuration, on the parent and on every leaf partition.
 create temp table kw_idx as
@@ -221,13 +223,16 @@ select d.id, d.desk_feature, h.hash || k, h.base + k, 0, 4, h.text || ' ' || k, 
                ('honly', 7000, 'onlyhidden hidden', 5), ('hedge', 8000, 'edgehid hidden', 20)) h(hash, base, text, n)
   cross join lateral generate_series(1, h.n) k
   join documents d on d.id = 'f1000000-0000-4000-8000-000000000003'::uuid;
--- The admitted-row cap. 8 words ('capw1'..'capw8'), each in 290 readable NCLT chunks (2320 rows, all matches of a text
--- with the 8 words), plus one chunk with the first three words whose id is the largest possible, so it would rank first
--- without the cap and is the first the cap (smallest ids first) drops.
+-- The word budget. 'capw1'..'capw3' are each in 200 readable NCLT chunks and 'capw4'..'capw8' each in 290 (capw8 twice
+-- in each, so its chunks would rank right after the best match if capw8 were ranked), plus one chunk, 'capbest', with
+-- capw1 capw2 capw3 and the largest possible id. Readable counts: 201 three times, 290 five times, 2053 in all (2051
+-- distinct chunks), more than the budget of 2000. capbest is the best match of the eight words and the first chunk a
+-- cap of 2000 rows by smallest id (the earlier design) drops.
 insert into document_chunks (document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
-select d.id, d.desk_feature, 'capw' || j, 9000 + j, 0, 4, 'capw' || ((j - 1) / 290 + 1), pg_temp.cone(1, 0.7 + 0.0001 * j, 3000 + j), 4
-  from generate_series(1, 2320) j
-  join documents d on d.id = (case when j % 2 = 1 then 'f1000000-0000-4000-8000-000000000001' else 'f1000000-0000-4000-8000-000000000002' end)::uuid;
+select d.id, d.desk_feature, 'capw' || x.j, 9000 + x.j, 0, 4, 'capw' || x.w || case when x.w = 8 then ' capw8' else '' end,
+       pg_temp.cone(1, 0.7 + 0.0001 * x.j, 3000 + x.j), 4
+  from (select j, case when j <= 600 then (j - 1) / 200 + 1 else (j - 601) / 290 + 4 end as w from generate_series(1, 2050) j) x
+  join documents d on d.id = (case when x.j % 2 = 1 then 'f1000000-0000-4000-8000-000000000001' else 'f1000000-0000-4000-8000-000000000002' end)::uuid;
 insert into document_chunks (id, document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
 select 'ffffffff-ffff-4fff-bfff-ffffffffffff', d.id, d.desk_feature, 'capbest', 9999, 0, 4, 'capw1 capw2 capw3', pg_temp.cone(1, 0.99, 3999), 4
   from documents d where d.id = 'f1000000-0000-4000-8000-000000000001'::uuid;
@@ -266,19 +271,32 @@ create function pg_temp.v(qv text, n int default 40, ids uuid[] default null, ti
 
 -- The oracle for an NCLT feature search: reciprocal rank fusion, k = 60, in plain SQL, as the invoking role (so
 -- every count and every chunk is the caller's: nothing hidden can enter). Vector side: match_documents' own 100
--- rows. Keyword side: the first 4000 characters of the text; a term is rare when it is in 1 to 300 chunks the
--- caller can read; at most 64 terms (a digit first, then the longest); the best 100 chunks of the scope matching
--- the OR of the rare terms by ts_rank_cd (ties by id), ranked 1..n.
+-- rows. Keyword side: the first 4000 characters of the text; at most 64 terms are looked at (a digit first, then
+-- the longest); a term is rare when it is in 1 to 300 chunks the caller can read; of the rare terms, those with a
+-- digit first, then the others, each group by ascending count (ties by the term), a term is kept when the kept
+-- terms' counts stay within 2000; the best 100 chunks of the scope matching the OR of the kept terms by ts_rank_cd
+-- (ties by id), ranked 1..n.
 create function pg_temp.oracle(qv text, qtext text, n int, tier text) returns uuid[] language plpgsql as $$
 declare
   c_nclt constant text := 'NCLT / NCLAT (Insolvency)';
   v_n int := least(greatest(coalesce(n, 40), 1), 200);
   v_q tsquery; v_vec uuid[]; v_res uuid[];
+  v_used int := 0; v_kept text[] := '{}'; w record;
 begin
-  select string_agg(quote_literal(t.lex), ' | ')::tsquery into v_q
-    from (select x.lex from (select distinct unnest(tsvector_to_array(to_tsvector('simple'::regconfig, left(qtext, 4000)))) as lex) x
-           order by (x.lex ~ '[0-9]') desc, length(x.lex) desc, x.lex limit 64) t
-   where (select count(*) from (select 1 from document_chunks c where to_tsvector('simple'::regconfig, c.content) @@ quote_literal(t.lex)::tsquery limit 301) z) between 1 and 300;
+  for w in
+    select r.lex, r.df
+      from (select t.lex, (select count(*) from (select 1 from document_chunks c where to_tsvector('simple'::regconfig, c.content) @@ quote_literal(t.lex)::tsquery limit 301) z) as df
+              from (select x.lex from (select distinct unnest(tsvector_to_array(to_tsvector('simple'::regconfig, left(qtext, 4000)))) as lex) x
+                     order by (x.lex ~ '[0-9]') desc, length(x.lex) desc, x.lex limit 64) t) r
+     where r.df between 1 and 300
+     order by (r.lex ~ '[0-9]') desc, r.df, r.lex
+  loop
+    if v_used + w.df <= 2000 then
+      v_used := v_used + w.df;
+      v_kept := v_kept || quote_literal(w.lex);
+    end if;
+  end loop;
+  v_q := nullif(array_to_string(v_kept, ' | '), '')::tsquery;
   if qtext is null or v_q is null then
     return pg_temp.idsof(pg_temp.v(qv, v_n, null, tier, c_nclt));
   end if;
@@ -387,7 +405,10 @@ insert into nclt_cases values
   ('probeword',        'near', 'probeword',                       40,  null),
   ('oversize-ignored', 'near', repeat('filler ', 700) || 'zq4417', 40,  null),
   ('oversize-kept',    'near', 'zq4417 ' || repeat('filler ', 700), 40, null),
-  ('oversize-huge',    'near', repeat('qqqq ', 40000) || 'zq4417', 40,  null);
+  ('oversize-huge',    'near', repeat('qqqq ', 40000) || 'zq4417', 40,  null),
+  -- The word budget (the capw words, see the seed): more readable matches than 2000; capw8 does not fit.
+  ('budget-best',      'near', 'capw1 capw2 capw3 capw4 capw5 capw6 capw7 capw8', 40, null),
+  ('budget-mixed',     'near', 'capw8 capw7 capw6 capw5 capw4 capw3 capw2 capw1 zq4417 vexilla', 40, null);
 insert into nclt_cases select 'cap-full', 'near', 'zq4417 ' || string_agg('nonexistentword' || lpad(i::text, 3, '0'), ' '), 40, null from generate_series(1, 70) i;
 insert into nclt_cases select 'cap-edge', 'near', 'zq4417 ' || string_agg('nonexistentword' || lpad(i::text, 3, '0'), ' '), 40, null from generate_series(1, 63) i;
 grant select on nclt_cases to authenticated;
@@ -656,6 +677,39 @@ select pg_temp.ok((select seq = 0 from plan_stats where label = 'helper') and (s
   'the helper, called as authenticated: no chunk partition is scanned sequentially, the probes read the GIN index, and so does the candidate search (more index scans than the probes alone)');
 select pg_temp.ok((select seq > 0 and gin = 0 from plan_stats where label = 'direct'),
   'the check can fail: the same keyword predicate run directly as authenticated scans the partitions sequentially and never reads the GIN index');
+-- The rank lookup reads only the scope's partition: an NCLT search scans no btree index of another partition (the probes
+-- read every partition's keyword index, which is GIN and not counted here). The earlier lookup, by id with IS NOT DISTINCT
+-- FROM on the feature, could not prune and probed every partition's key for each row. A call with no feature, whose
+-- matches are in three partitions, shows that the count sees such lookups.
+create function pg_temp.other_btree_scans() returns bigint language sql as $$
+  select coalesce(sum(pg_stat_get_xact_numscans(i.indexrelid)), 0)::bigint
+    from pg_inherits h join pg_class p on p.oid = h.inhrelid join pg_index i on i.indrelid = p.oid
+    join pg_class k on k.oid = i.indexrelid join pg_am am on am.oid = k.relam
+   where h.inhparent = 'public.document_chunks'::regclass and am.amname = 'btree'
+     and pg_get_expr(p.relpartbound, p.oid) <> 'FOR VALUES IN (''NCLT / NCLAT (Insolvency)'')'
+$$;
+create temp table prune_stats(label text primary key, other bigint, n bigint);
+grant all on prune_stats to authenticated;
+set local enable_seqscan = off;
+set local enable_indexscan = on;
+set local role authenticated;
+do $$
+declare o0 bigint; n bigint;
+begin
+  o0 := pg_temp.other_btree_scans();
+  select count(*) into n from retrieval_internal.hybrid_keyword_ids('zq4417 vexilla', null, 'NCLT / NCLAT (Insolvency)');
+  insert into prune_stats values ('nclt', pg_temp.other_btree_scans() - o0, n);
+  o0 := pg_temp.other_btree_scans();
+  select count(*) into n from retrieval_internal.hybrid_keyword_ids('zq4417', null, null);
+  insert into prune_stats values ('no feature', pg_temp.other_btree_scans() - o0, n);
+end $$;
+reset role;
+set local enable_seqscan = on;
+set local enable_indexscan = off;
+select pg_temp.ok((select other = 0 and n = 4 from prune_stats where label = 'nclt'),
+  'the rank lookup of an NCLT search reads only the NCLT partition: no btree index of another partition is scanned (its four matches are ranked)');
+select pg_temp.ok((select other > 0 and n = 7 from prune_stats where label = 'no feature'),
+  'the check can fail: a call with no feature, whose seven matches are in three partitions (one with no feature), looks rows up in the others');
 
 -- (b) anon and the exposure of the schema. Granting anon the schema and the function makes the helper callable:
 -- the ACL is what refuses it, and the migration grants neither. (That the API does not expose the schema is
@@ -673,34 +727,59 @@ revoke usage on schema retrieval_internal from anon;
 select pg_temp.ok(not has_schema_privilege('anon', 'retrieval_internal', 'usage') and not has_function_privilege('anon', 'retrieval_internal.hybrid_keyword_ids(text, text, text)', 'execute'),
   'as migrated: anon holds neither');
 
--- (c) ts_rank_cd is applied only to rows that passed the rule and the admitted-row cap. The body mentions it once, after
--- the cap, and the first step (the match scan) does not mention it. (A call's rank is also computed per row, so applying it
--- first would put the cost of every hidden match into the call: the timing channel.)
+-- (c) ts_rank_cd is applied only to rows that passed the rule and the word budget. The body mentions it once, after
+-- the budget, and the first step (the match scan) does not mention it. (A call's rank is also computed per row, so applying it
+-- first would put the cost of every hidden match into the call: the timing channel.) The hidden-document filter is the
+-- subplan form (not an inlined = any (array), which made the planner estimate every hidden id). A null hidden list,
+-- which the coalesce rules out today, is refused (the subplan form would admit every row): pinned by text, as the
+-- branch cannot be reached.
 select pg_temp.ok((select (length(prosrc) - length(replace(prosrc, 'ts_rank_cd', ''))) / length('ts_rank_cd') = 1
-                          and position('ts_rank_cd' in prosrc) > position('limit c_admitted_cap' in prosrc) and position('limit c_admitted_cap' in prosrc) > 0
-                          and position('ts_rank_cd' in prosrc) > position('not (c.document_id = any (v_hidden))' in prosrc) and position('not (c.document_id = any (v_hidden))' in prosrc) > 0
+                          and position('ts_rank_cd' in prosrc) > position('v_sum + v_df <= c_match_budget' in prosrc) and position('v_sum + v_df <= c_match_budget' in prosrc) > 0
+                          and position('ts_rank_cd' in prosrc) > position('c.document_id is not null and c.document_id not in (select h.id from unnest(v_hidden) h(id))' in prosrc)
+                          and position('c.document_id is not null and c.document_id not in (select h.id from unnest(v_hidden) h(id))' in prosrc) > 0
+                          and (length(prosrc) - length(replace(prosrc, 'not in (select h.id from unnest(v_hidden) h(id))', ''))) / length('not in (select h.id from unnest(v_hidden) h(id))') = 2
+                          and position('any (v_hidden)' in prosrc) = 0
+                          and position('if v_hidden is null then' in prosrc) > position('into v_hidden' in prosrc)
+                          and position('into v_hidden' in prosrc) > 0
                      from pg_proc where oid = 'retrieval_internal.hybrid_keyword_ids(text, text, text)'::regprocedure),
-  'ts_rank_cd appears once in the helper, after the hidden-document filter and after the admitted-row cap');
+  'ts_rank_cd appears once in the helper, after the hidden-document filter and after the word budget; the filter (in the probe and the match scan) is a subplan over unnest, never = any (v_hidden); a null hidden list is refused right after it is built');
 
--- (d) The admitted-row cap holds: 2321 readable chunks match the 8 words; only the 2000 with the smallest ids are ranked,
--- so the chunk that would rank first (largest id) is not among the candidates, and the answer is the oracle's over those 2000.
+-- (d) The word budget. The eight capw words are in 2051 readable NCLT chunks, more than 2000. Kept, rarest first while they
+-- fit: capw1..capw3 (201 each), capw4..capw7 (290 each), 1763 in all; capw8 (290 more) is not. Every match of the kept
+-- words is ranked, so the best match, capbest (three of the words; the largest possible id, the first row a cap of 2000
+-- rows by id dropped), is first, and no capw8 chunk is ranked (they would follow capbest: capw8 is in each twice).
+-- With zq4417 (9 readable) and vexilla (2) added: zq4417 is kept first (a digit, rarest), capw8 still does not fit, and
+-- vexilla (no digit, after every digit word) still does, so far-both (zq4417 and vexilla) ranks with far-nclt (zq4417
+-- twice), right after capbest.
 set local role authenticated;
 create temp table cap_got as
-  select array_agg(id order by keyword_rank) as ids from retrieval_internal.hybrid_keyword_ids('capw1 capw2 capw3 capw4 capw5 capw6 capw7 capw8', null, 'NCLT / NCLAT (Insolvency)');
+  select (select array_agg(id order by keyword_rank) from retrieval_internal.hybrid_keyword_ids('capw1 capw2 capw3 capw4 capw5 capw6 capw7 capw8', null, 'NCLT / NCLAT (Insolvency)')) as best,
+         (select array_agg(id order by keyword_rank) from retrieval_internal.hybrid_keyword_ids('capw8 capw7 capw6 capw5 capw4 capw3 capw2 capw1 zq4417 vexilla', null, 'NCLT / NCLAT (Insolvency)')) as mixed;
 create temp table cap_want as
-  with adm as (select c.id, c.content from document_chunks c join documents d on d.id = c.document_id
-                where c.desk_feature = 'NCLT / NCLAT (Insolvency)' and c.embedding is not null and d.indexed_at is not null
-                  and to_tsvector('simple'::regconfig, c.content) @@ to_tsquery('simple', 'capw1 | capw2 | capw3 | capw4 | capw5 | capw6 | capw7 | capw8')
-                order by c.id limit 2000)
-  select (select array_agg(id order by rank desc, id) from (select id, ts_rank_cd(to_tsvector('simple'::regconfig, content), to_tsquery('simple', 'capw1 | capw2 | capw3 | capw4 | capw5 | capw6 | capw7 | capw8')) as rank from adm order by 2 desc, 1 limit 100) x) as ids,
-         (select count(*) from document_chunks c where c.chunk_hash ~ '^capw[0-9]+$' or c.chunk_hash = 'capbest') as matches,
-         (select array_agg(id order by rank desc, id) from (select c.id, ts_rank_cd(to_tsvector('simple'::regconfig, c.content), to_tsquery('simple', 'capw1 | capw2 | capw3 | capw4 | capw5 | capw6 | capw7 | capw8')) as rank
-                                                              from document_chunks c where c.chunk_hash ~ '^capw[0-9]+$' or c.chunk_hash = 'capbest' order by 2 desc, 1 limit 100) y) as uncapped;
+  select (select array_agg(id order by rank desc, id) from (
+            select c.id, ts_rank_cd(to_tsvector('simple'::regconfig, c.content), to_tsquery('simple', 'capw1 | capw2 | capw3 | capw4 | capw5 | capw6 | capw7')) as rank
+              from document_chunks c join documents d on d.id = c.document_id
+             where c.desk_feature = 'NCLT / NCLAT (Insolvency)' and c.embedding is not null and d.indexed_at is not null
+               and to_tsvector('simple'::regconfig, c.content) @@ to_tsquery('simple', 'capw1 | capw2 | capw3 | capw4 | capw5 | capw6 | capw7')
+             order by 2 desc, 1 limit 100) x) as best,
+         (select array_agg(n order by w) from (select w, (select count(*) from document_chunks c where to_tsvector('simple'::regconfig, c.content) @@ to_tsquery('simple', w)) as n
+                                                 from unnest(array['capw1', 'capw2', 'capw3', 'capw4', 'capw5', 'capw6', 'capw7', 'capw8']) w) z) as dfs,
+         (select count(*) from document_chunks c where to_tsvector('simple'::regconfig, c.content) @@ to_tsquery('simple', 'capw1 | capw2 | capw3 | capw4 | capw5 | capw6 | capw7 | capw8')) as matches_all,
+         (select count(*) from document_chunks c where to_tsvector('simple'::regconfig, c.content) @@ to_tsquery('simple', 'capw1 | capw2 | capw3 | capw4 | capw5 | capw6 | capw7')) as matches_kept,
+         array(select c.id from document_chunks c where to_tsvector('simple'::regconfig, c.content) @@ to_tsquery('simple', 'capw8')) as capw8_ids;
 reset role;
-select pg_temp.ok((select matches from cap_want) = 2321 and (select uncapped[1] from cap_want) = 'ffffffff-ffff-4fff-bfff-ffffffffffff'::uuid
-  and (select ids from cap_got) = (select ids from cap_want) and (select cardinality(ids) from cap_got) = 100
-  and 'ffffffff-ffff-4fff-bfff-ffffffffffff'::uuid <> all (array(select unnest(ids) from cap_got)),
-  'the cap holds: of 2321 matching readable chunks only the 2000 smallest ids are ranked; the chunk that would rank first is dropped, and the candidates are the oracle''s over those 2000');
+select pg_temp.ok((select dfs from cap_want) = array[201, 201, 201, 290, 290, 290, 290, 290]::bigint[]
+  and (select matches_all from cap_want) = 2051 and (select matches_kept from cap_want) = 1761
+  and (select cardinality(capw8_ids) from cap_want) = 290,
+  'the budget seed is as intended: readable counts 201 x 3 and 290 x 5; the eight words match 2051 readable chunks (over 2000), the seven kept 1761');
+select pg_temp.ok((select best[1] from cap_got) = 'ffffffff-ffff-4fff-bfff-ffffffffffff'::uuid
+  and (select best from cap_got) = (select best from cap_want) and (select cardinality(best) from cap_got) = 100
+  and not ((select best from cap_got) && (select capw8_ids from cap_want)),
+  'the budget keeps the best match: of eight words matching 2051 readable chunks the seven rarest that fit are kept and all their matches ranked; capbest (largest id) is first, no capw8 chunk is ranked, and the candidates are those of capw1..capw7');
+select pg_temp.ok((select mixed[1] from cap_got) = 'ffffffff-ffff-4fff-bfff-ffffffffffff'::uuid
+  and (select array_agg(u order by u) from unnest((select mixed[2:3] from cap_got)) u) = (select array_agg(u order by u) from unnest(pg_temp.cids(array['far-nclt', 'far-both'])) u)
+  and not ((select mixed from cap_got) && (select capw8_ids from cap_want)),
+  'only the rare words are ranked when many words exceed the budget: zq4417 and vexilla are kept, capw8 is not (no capw8 chunk); far-both ranks with far-nclt right after capbest, so vexilla counted');
 
 -- (e) Drift. The helper's copy of the publication rule was written against exact access policies on documents and
 -- document_chunks (name, mode, roles, text). It refuses to run when any of them is different, or another is added, and so does
@@ -708,15 +787,31 @@ select pg_temp.ok((select matches from cap_want) = 2321 and (select uncapped[1] 
 create temp table orig_pol as select polrelid as tab, polname::text as name, pg_get_expr(polqual, polrelid) as qual
   from pg_policy where polrelid in ('public.documents'::regclass, 'public.document_chunks'::regclass);
 create function pg_temp.pol_qual(t text, n text) returns text language sql as $$ select qual from orig_pol where tab = t::regclass and name = n $$;
+-- The error a statement raises: SQLSTATE, message, detail, hint (what PostgREST would pass to the client).
+create function pg_temp.err_of(q text) returns text[] language plpgsql as $$
+declare v_state text; v_msg text; v_detail text; v_hint text;
+begin
+  execute q;
+  return null;
+exception when others then
+  get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text, v_detail = pg_exception_detail, v_hint = pg_exception_hint;
+  return array[v_state, v_msg, coalesce(v_detail, ''), coalesce(v_hint, '')];
+end $$;
 create function pg_temp.drift_case(label text, mutate text, restore text) returns void language plpgsql as $$
 begin
   execute mutate;
   perform pg_temp.fails('select * from retrieval_internal.hybrid_keyword_ids(''zq4417'', null, null)', '55000', 'drift refused by the helper: ' || label);
+  -- The call the migration makes as its last statement: an empty text still runs the check (it comes first).
+  perform pg_temp.fails('select * from retrieval_internal.hybrid_keyword_ids('''', null, null)', '55000', 'drift refused by the migration''s own call (empty text): ' || label);
   perform pg_temp.fails($q$select * from match_documents_hybrid((select v from q where name = 'near'), 'zq4417', 5, null, null, 'NCLT / NCLAT (Insolvency)')$q$,
                         '55000', 'drift refused by the search function (NCLT): ' || label);
+  -- The error the client sees is terse and names nothing internal: no detail, no hint.
+  perform pg_temp.ok(pg_temp.err_of($q$select * from match_documents_hybrid((select v from q where name = 'near'), 'zq4417', 5, null, null, 'NCLT / NCLAT (Insolvency)')$q$)
+                       = array['55000', 'keyword search unavailable', '', ''], 'the refusal is terse (message only, no detail or hint): ' || label);
   perform pg_temp.ok(jsonb_array_length(pg_temp.h('near', 'zq4417', 5, null, null, 'Parliamentary Question Database')) = 5, 'other scopes do not call the helper: ' || label);
   execute restore;
   perform pg_temp.ok((select count(*) from retrieval_internal.hybrid_keyword_ids('zq4417', null, 'NCLT / NCLAT (Insolvency)')) = 3, 'after undoing it the helper runs again: ' || label);
+  perform pg_temp.ok((select count(*) from retrieval_internal.hybrid_keyword_ids('', null, null)) = 0, 'and so does the migration''s own call (no row): ' || label);
 end $$;
 select pg_temp.drift_case('the restrictive document policy loosened',
   'alter policy law_documents_serving on public.documents using (true)',

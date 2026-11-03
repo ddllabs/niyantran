@@ -40,6 +40,23 @@ Write scope: new `supabase/migrations/20261102120000_chunk_hybrid_search.sql`, n
 `supabase/tests/chunk_hybrid_search.sql` and its `supabase/tests/run.sh` chain entry, `scripts/eval-retrieval.mjs`,
 `src/lib/retrievalEval*`. Not `supabase/functions/` (the app switch is a separate task after the eval).
 
+**Review fixes (2026-11-03).** The security review found no blocking issue; four smaller ones were fixed in the
+migration and its fixture, each keeping the security properties (no answer depends on a hidden row; the policy check
+runs before any row is read; the timing residual stays about a microsecond per hidden match).
+
+- Hidden-document list: the helper tests it as `document_id not in (select ... from unnest(list))` instead of
+  `= any (list)`. Custom plans inlined the list and the planner estimated every element (8,000 hidden documents: a
+  probe planned in 12 ms warm, 471 ms cold). A null `document_id` is excluded explicitly.
+- Cap: the 2,000-row cap by id ranked a random sample once a text matched more than 2,000 chunks, so the best match
+  could be dropped. The helper now chooses words instead of rows: of the rare words, those with a digit first, then the
+  others, each group rarest first, a word is kept while its readable count fits in a budget of 2,000; every match of
+  the kept words is ranked. A single word can never exceed the budget (a rare word is in at most 300 readable chunks).
+  The eval ran with the old cap; typical questions never reached it, but the eval should be re-run on this version.
+- Policy check: the migration calls the helper as its last statement, so a policy mismatch fails the migration and
+  rolls it back. The check now runs first, before the empty-text return. The client sees only
+  `keyword search unavailable` (55000); the explanation is a code comment.
+- Rank lookup: by `id` and `desk_feature =` (partitions pruned), with a separate branch for chunks with no feature.
+
 ## C3. Set-based registration (Opus), design first
 
 **Outcome.** One call registers a batch of documents with the same admission rules as today, rejects a text that is

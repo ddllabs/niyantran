@@ -876,6 +876,38 @@ hybrid_exposure_check() {
 #    the schema with the credits migration's own revoke, a table and a security definer function with the default
 #    (PUBLIC execute) ACL, so a stray grant or revoke on anything in private shows. The same snapshot must differ
 #    when a grant is added by hand (proof the check can see one).
+# chunk_hybrid_search only: the migration's last statement runs the helper's policy check on the database being
+# migrated. On a database whose access policies differ from the helper's list it must fail with 55000 and leave
+# nothing behind (one transaction); the same run without the drift must apply (so the check is not vacuous).
+hybrid_drift_rollback_check() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i f drift out left rc_m
+  local db=niyantran_chunk_hybrid_search_drift_test
+  local objs="select (select count(*) from pg_namespace where nspname = 'retrieval_internal')
+                   + (select count(*) from pg_class where relname = 'document_chunks_content_tsv')
+                   + (select count(*) from pg_proc where proname in ('hybrid_keyword_ids', 'match_documents_hybrid'))"
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  for drift in "alter policy law_documents_serving on public.documents rename to law_documents_serving_x" ""; do
+    q "drop database if exists $db" >/dev/null; q "create database $db" >/dev/null
+    i=0
+    for f in "${FILES[@]}"; do
+      i=$((i+1)); [ $i -eq $n ] && break
+      psql_in $db < "$f" >/dev/null 2>&1 || { echo "  DRIFT: bootstrap broke at $(basename "$f")"; q "drop database if exists $db" >/dev/null; return 1; }
+    done
+    [ -n "$drift" ] && q "$drift" -d $db >/dev/null
+    out="$({ echo '\set VERBOSITY verbose'; cat "$guard"; } | psql_in $db 2>&1)" && rc_m=0 || rc_m=$?
+    left="$(q "$objs" -d $db)"
+    q "drop database if exists $db" >/dev/null
+    if [ -n "$drift" ]; then
+      if [ $rc_m -eq 0 ] || ! grep -q 'ERROR:  55000: keyword search unavailable' <<<"$out" || [ "$left" != 0 ]; then
+        echo "  DRIFT FAIL - on a drifted database the migration must fail with 55000 and leave nothing (exit $rc_m, objects left $left)"; return 1
+      fi
+    elif [ $rc_m -ne 0 ] || [ "$left" != 4 ]; then
+      echo "  DRIFT FAIL - without drift the migration did not apply (exit $rc_m, objects $left)"; return 1
+    fi
+  done
+  echo "  drift ok - a drifted database refuses the migration with 55000 and keeps nothing; without drift it applies"
+}
+
 hybrid_private_check() {
   local mig="$MIG/20261102120000_chunk_hybrid_search.sql" guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f
   local db=niyantran_chunk_hybrid_search_acl_test
@@ -992,7 +1024,7 @@ run_fixture() {
     [ "$name" = billing_purchases ] && { bash "$TESTS/billing_concurrency.sh" || rc=1; }
     [ "$name" = credit_paise_contract ] && { credit_paise_atomic_check "$db" || rc=1; }
     [ "${VACUITY:-1}" = 1 ] && { vacuity_check "$name" || rc=1; }
-    [ "$name" = chunk_hybrid_search ] && { hybrid_exposure_check || rc=1; hybrid_private_check || rc=1; }
+    [ "$name" = chunk_hybrid_search ] && { hybrid_exposure_check || rc=1; hybrid_private_check || rc=1; hybrid_drift_rollback_check || rc=1; }
     [ "$name" = corpus_records ] && { corpus_records_checks || rc=1; }
     [ "$name" = document_chunks_partitions ] && { document_chunks_partitions_checks || rc=1; }
     [ "$name" = feed_records ] && { feed_records_checks || rc=1; }

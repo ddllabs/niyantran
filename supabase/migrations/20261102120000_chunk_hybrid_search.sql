@@ -8,9 +8,12 @@
 --     other feature, document ids, an NCLT search that names document ids) returns exactly what
 --     match_documents returns, because the keyword rules regressed those features in the eval.
 --   * The keyword side searches only the question's rare words: a word counts when it is in at most 300
---     chunks the caller can read (about 0.08% of the table); the rare words are OR'd; matches are ranked by ts_rank_cd;
---     reciprocal rank fusion, weight 1, k = 60, with the 100 vector rows of match_documents. A strict AND of every word
---     of a sentence matches nothing; an OR of every word is dominated by common words (both measured).
+--     chunks the caller can read (about 0.08% of the table). Of those, it keeps as many as a budget of 2000
+--     readable chunks allows: words with a digit first, then the others, each group rarest first (ties by the
+--     word), a word kept when its readable count still fits in what is left. The kept words are OR'd; every match
+--     of them is ranked by ts_rank_cd; reciprocal rank fusion, weight 1, k = 60, with the 100 vector rows of
+--     match_documents. A strict AND of every word of a sentence matches nothing; an OR of every word is dominated
+--     by common words (both measured).
 --   * The text configuration is 'simple': case numbers and bill names stay whole; no stemming; Hindi and other
 --     scripts are tokenised, not stemmed (pgroonga stays the candidate if the eval fails there, spec §4.2).
 --   * It ships only after it clearly beats vector-only on a fresh NCLT question set (a later task).
@@ -40,7 +43,7 @@
 --      supabase/config.toml covers only local development.
 --
 --   3. retrieval_internal.hybrid_keyword_ids(p_query_text, p_desk_tier, p_desk_feature) returns (id, keyword_rank): the ids
---      of the chunks (of the scope, indexed, embedded, in documents the caller can read) that match the rare
+--      of the chunks (of the scope, indexed, embedded, in documents the caller can read) that match the kept rare
 --      words, best first, ranks 1..n. SECURITY DEFINER, search_path = pg_catalog, pg_temp, custom plans.
 --
 --   4. public.match_documents_hybrid(query_embedding, query_text, match_count, p_document_ids, p_desk_tier,
@@ -48,6 +51,10 @@
 --      search it keeps the helper's ids that the caller's RLS lets it read, fuses them with match_documents'
 --      vector rows and reads every returned chunk back through RLS once more; otherwise it is match_documents. `similarity` is the chunk's cosine
 --      similarity to the query vector (not the fused score) and rows are in fused order.
+--
+--   5. Last, the migration calls the helper once (with an empty text: only the policy check below runs, no row is
+--      read), so a mismatch fails the migration on the database being migrated, and rolls it back, instead of
+--      surfacing at the first search.
 --
 -- WHY A DEFINER HELPER. Under row-level security the keyword predicate cannot use the GIN index: the match
 -- operator (@@) is not leakproof, so the planner may not evaluate it before the restrictive policy
@@ -65,20 +72,31 @@
 --       or id in (select public.law_published_document_ids())
 --       or not (metadata->>'origin' = 'supplied-text')
 --   (a null result is not admitted either; the chunk policy law_chunks_serving admits a chunk exactly when its
---   document is admitted), and leaves their chunks out of the document-frequency count and out of the candidate
---   scan before anything is counted, ranked or cut. Which words are rare, which chunks match, their order and
---   which 100 survive are therefore functions of rows the caller can read: no hidden id, count or rank reaches
---   the caller, directly or through the search function. (An earlier draft ran both over all rows and filtered
---   afterwards; the cut then revealed how many hidden chunks matched. Another computed the ranking function for
---   every match, hidden ones included, and its running time revealed the same: now it is computed only for the
---   admitted rows, at most 2000.)
+--   document is admitted, so a chunk with a null document_id, which the column's NOT NULL already forbids, is
+--   left out too), and leaves their chunks out of the document-frequency count and out of the candidate
+--   scan before anything is counted, ranked or cut. Which words are rare, which of them fit the word budget, which
+--   chunks match, their order and which 100 survive are therefore functions of rows the caller can read: no hidden
+--   id, count or rank reaches the caller, directly or through the search function. (An earlier draft ran both over
+--   all rows and filtered afterwards; the cut then revealed how many hidden chunks matched. Another computed the
+--   ranking function for every match, hidden ones included, and its running time revealed the same: now it is
+--   computed only for the admitted rows, at most 2000 because of the word budget.)
+--   The hidden list is applied as `document_id not in (select ... from unnest(list))`: a subplan that the planner
+--   sizes from the array's length alone and hashes (built once per statement, at the first row that reaches it, and
+--   probed per row) unless it expects only a few rows; the scan keeps its shape and the probe's limit still stops it
+--   at 301 readable rows. A null document_id is tested apart (not in an empty list is true). (`= any (list)` with
+--   the list inlined, as custom plans inline it, made the planner estimate every element: with 8000 hidden
+--   documents a probe planned in 12 ms warm, 471 ms cold. An EXISTS over unnest would become an anti join whose
+--   join order the planner picks; hashing the chunk side would read every match of a word, past the probe's limit.)
 --   The rule is a copy of the policy's. Two guards keep the copy honest. supabase/tests/chunk_hybrid_search.sql
 --   replays the matrix of law_documents_serving_set.sql (every kind of document the rule distinguishes, six
 --   listing states) and requires the helper to return exactly the chunks authenticated reads. And at run time,
---   before reading any chunk, the helper compares the normalised text, name, command, roles and mode of every
+--   first, before reading any row, the helper compares the normalised text, name, command, roles and mode of every
 --   policy on documents and document_chunks (and their number) with the list it was written against, and raises
 --   (55000) if anything differs, so a later policy change cannot silently diverge from the copy: the search
---   function fails for an NCLT search until this file is updated. Other scopes never call the helper.
+--   function fails for an NCLT search until this file is updated. Other scopes never call the helper. This
+--   migration calls the helper as its last statement, so the comparison also runs on the target database at
+--   migration time and a mismatch rolls the migration back. The error the client sees (through PostgREST) is terse
+--   and names nothing internal; the explanation for operators is the comment at the raise.
 --   Before applying, read pg_get_expr(polqual, polrelid) of those policies on the production database: the
 --   comparison is on PostgreSQL's deparsed text and the list was captured on PostgreSQL 17.
 --   If the policy ever depends on the caller, the helper must change.
@@ -98,14 +116,19 @@
 --   written public.<name>, and no caller-supplied text becomes SQL (a lexeme is escaped into a tsquery literal and
 --   only compared). Parameters cannot name an object.
 --   Cost, and what it still reveals. The text is cut to 4000 characters, at most 64 words are probed (each a
---   bounded index count of at most 301 readable chunks), and at most 2000 admitted matches are ranked, by id. The
---   worst call is therefore 64 probes, one scan of documents (once, for the rule), one index scan per partition for
---   the matches, 2000 primary-key lookups with a rank each (an estimated 0.2 to 0.5 s at the 100 to 260
---   microseconds a row implied by the 2 to 5 s the security review measured for 19,200 rows; to be measured on the
---   replica, where the 8 s statement timeout is the limit) and a sort of 2000. Residual channel, accepted: the bitmap
---   scan and the filter still walk the hidden chunks that match a word (roughly a microsecond to ten each), so a
---   call's duration grows slightly with how many hidden chunks contain the words; thousands of them move it by
---   milliseconds. No id, count, rank or text reaches the caller through it.
+--   bounded index count of at most 301 readable chunks), and the words kept have readable counts that add up to at
+--   most 2000. A kept word's count is exact (at most 300) and counts every readable chunk with the word, in every
+--   feature and tier, so the matches of the kept words in the scope are at most that sum: at most 2000 admitted
+--   matches, and all of them are ranked (no row is dropped, so the best match is always among them). No single
+--   word can exceed the budget: a word is rare only when its count is at most 300, so the first word always fits
+--   and at least six do. The worst call is therefore 64 probes, one scan of documents (once, for the rule), one
+--   index scan per partition for the matches, 2000 lookups by the unique key (id, desk_feature) with a rank each
+--   (an estimated 0.2 to 0.5 s at the 100 to 260 microseconds a row implied by the 2 to 5 s the security review
+--   measured for 19,200 rows; to be measured on the replica, where the 8 s statement timeout is the limit) and a
+--   sort of 2000. Residual channel, accepted: the bitmap scan and the filter still walk the hidden chunks that
+--   match a word (roughly a microsecond to ten each), so a call's duration grows slightly with how many hidden
+--   chunks contain the words; thousands of them move it by milliseconds. No id, count, rank or text reaches the
+--   caller through it.
 --   The owner is the migrating role (postgres on NTER), which owns document_chunks and documents.
 --
 -- Rollback (nothing else depends on any of it):
@@ -147,10 +170,11 @@ declare
   c_max_terms constant int := 64;
   -- Characters of the text that are analysed.
   c_query_max constant int := 4000;
-  -- Admitted matches (readable, in scope) that are ranked: the 2000 with the smallest ids. The ranking function cannot use an
-  -- index and is the only per-row cost that grows with the matches, so this bounds a call; it is the cap the eval ran
-  -- with (there it kept the first 2000 matches in scan order). Typical questions never reach it.
-  c_admitted_cap constant int := 2000;
+  -- The word budget: the kept words' readable counts add up to at most this, so at most this many admitted matches are
+  -- ranked, and every one of them is. The ranking function cannot use an index and is the only per-row cost that grows
+  -- with the matches, so this bounds a call. It replaces a cap of 2000 rows by id (the eval ran with a cap of 2000 rows
+  -- in scan order), which above 2000 matches ranked a random sample. Typical questions never reach it.
+  c_match_budget constant int := 2000;
   -- The access policies this helper's copy of the publication rule was written against, one line each, in the form
   -- table|name|mode|command|roles|using|with check, whitespace and the schema name public. removed from the
   -- expression. Any difference (text, a name, a role, a mode, a policy added or dropped) stops the helper.
@@ -163,17 +187,17 @@ declare
   v_lex     text;
   v_lit     text;
   v_df      int;
+  v_lexes   text[] := '{}';
+  v_lits    text[] := '{}';
+  v_dfs     int[]  := '{}';
+  v_sum     int    := 0;
   v_terms   text[] := '{}';
   v_query   tsquery;
   v_hidden  uuid[];
   v_found   uuid[];
 begin
-  v_text := left(p_query_text, c_query_max);
-  if nullif(btrim(coalesce(v_text, '')), '') is null then
-    return;
-  end if;
-
-  -- Fail closed: the copy of the publication rule below is correct only for these policies.
+  -- Fail closed: the copy of the publication rule below is correct only for these policies. First, before any row is
+  -- read and whatever the text, so the migration's own call (an empty text) runs it.
   if (select string_agg(format('%s|%s|%s|%s|%s|%s|%s', p.polrelid::regclass::text, p.polname,
                                case when p.polpermissive then 'permissive' else 'restrictive' end, p.polcmd,
                                case when 0 = any (p.polroles) then 'public'
@@ -183,8 +207,17 @@ begin
                         chr(10) order by p.polrelid::regclass::text, p.polname)
         from pg_policy p
        where p.polrelid in ('public.documents'::regclass, 'public.document_chunks'::regclass)) is distinct from c_policies then
-    raise exception 'hybrid_keyword_ids: the access policies on documents or document_chunks are not the ones its copy of the publication rule was written for'
-      using errcode = '55000', hint = 'Update the rule and the policy list in 20261102120000_chunk_hybrid_search.sql together with the policy change.';
+    -- For operators: the access policies on public.documents and public.document_chunks are no longer the ones in
+    -- c_policies, the list this helper's copy of the publication rule of law_documents_serving was written against.
+    -- Update the copy (the v_hidden query) and c_policies in a new migration together with the policy change; until
+    -- then every NCLT keyword search fails here, and so does this migration if it is applied to such a database.
+    -- The message is terse and names nothing internal because PostgREST returns it to the client.
+    raise exception 'keyword search unavailable' using errcode = '55000';
+  end if;
+
+  v_text := left(p_query_text, c_query_max);
+  if nullif(btrim(coalesce(v_text, '')), '') is null then
+    return;
   end if;
 
   -- The documents the publication rule of law_documents_serving does not admit (a null result is not admitted
@@ -195,8 +228,14 @@ begin
           or not exists (select 1 from public.law_listing_settings where active)
           or d.id in (select public.law_published_document_ids())
           or not (d.metadata->>'origin' = 'supplied-text')) is not true;
+  -- The hidden-list test below admits every row when the list is null (unnest(null) is empty): fail closed instead,
+  -- should a later edit drop the coalesce.
+  if v_hidden is null then
+    raise exception 'keyword search unavailable' using errcode = '55000';
+  end if;
 
-  -- The rare words. The probe is a bounded count of readable chunks: at most c_rare_df_max + 1 are read.
+  -- The rare words. The probe is a bounded count of readable chunks: at most c_rare_df_max + 1 are read. (On the
+  -- form of the hidden-list test, here and below, see "The hidden list" in the header.)
   for v_lex in
     select x.lex
       from (select distinct unnest(tsvector_to_array(to_tsvector('simple'::regconfig, v_text))) as lex) x
@@ -208,9 +247,26 @@ begin
       from (select 1
               from public.document_chunks c
              where to_tsvector('simple'::regconfig, c.content) @@ v_lit::tsquery
-               and not (c.document_id = any (v_hidden))
+               and c.document_id is not null and c.document_id not in (select h.id from unnest(v_hidden) h(id))
              limit c_rare_df_max + 1) z;
     if v_df between 1 and c_rare_df_max then
+      v_lexes := v_lexes || v_lex;
+      v_lits := v_lits || v_lit;
+      v_dfs := v_dfs || v_df;
+    end if;
+  end loop;
+
+  -- The word budget, from the readable counts alone: words with a digit (case and section numbers) first, then the
+  -- others, each group rarest first, ties by the word; a word is kept when its count still fits in what is left of
+  -- c_match_budget, and skipped otherwise (a rarer word after it may still fit). Every count is at most c_rare_df_max,
+  -- below the budget, so the first word is always kept.
+  for v_lit, v_df in
+    select w.lit, w.df
+      from unnest(v_lexes, v_lits, v_dfs) w(lex, lit, df)
+     order by (w.lex ~ '[0-9]') desc, w.df, w.lex
+  loop
+    if v_sum + v_df <= c_match_budget then
+      v_sum := v_sum + v_df;
       v_terms := v_terms || v_lit;
     end if;
   end loop;
@@ -221,15 +277,16 @@ begin
 
   -- The candidates. Step 1 reads the ids of the matching chunks of the scope through the GIN index on their own
   -- (materialized, so the planner cannot pick another path), leaving hidden documents' chunks out; no rank is
-  -- computed here. Step 2 keeps those whose document is indexed and in the tier, at most c_admitted_cap by id.
-  -- Step 3 ranks only those, by primary key, and keeps the best c_candidates by rank and id.
+  -- computed here. Step 2 keeps those whose document is indexed and in the tier: all of them, at most v_sum (each
+  -- matches a kept word and is among that word's readable count), so at most c_match_budget. Step 3 reads each one's
+  -- text back by its unique key (id, desk_feature), ranks it, and keeps the best c_candidates by rank and id.
   with m as materialized (
     select c.id, c.document_id, c.desk_feature
       from public.document_chunks c
      where to_tsvector('simple'::regconfig, c.content) @@ v_query
        and c.embedding is not null
        and (p_desk_feature is null or c.desk_feature = p_desk_feature)
-       and not (c.document_id = any (v_hidden))
+       and c.document_id is not null and c.document_id not in (select h.id from unnest(v_hidden) h(id))
   ),
   admitted as (
     select m.id, m.desk_feature
@@ -237,16 +294,21 @@ begin
       join public.documents d on d.id = m.document_id
      where d.indexed_at is not null
        and (p_desk_tier is null or d.desk_tier = p_desk_tier)
-     order by m.id
-     limit c_admitted_cap
   )
   select array_agg(k.id order by k.rank desc, k.id) into v_found
-    from (select a.id, r.rank
+    from (select a.id, ts_rank_cd(to_tsvector('simple'::regconfig, r.content), v_query) as rank
             from admitted a
-            cross join lateral (select ts_rank_cd(to_tsvector('simple'::regconfig, c.content), v_query) as rank
-                                  from public.document_chunks c
-                                 where c.id = a.id and c.desk_feature is not distinct from a.desk_feature) r
-           order by r.rank desc, a.id
+            cross join lateral (
+              -- A chunk with a feature: equality on the partition key, so only that feature's partition is read.
+              select c.content
+                from public.document_chunks c
+               where c.id = a.id and c.desk_feature = a.desk_feature
+              union all
+              -- A chunk without one (the default partition), reached only by a direct call with no feature.
+              select c.content
+                from public.document_chunks c
+               where a.desk_feature is null and c.id = a.id and c.desk_feature is null) r
+           order by 2 desc, a.id
            limit c_candidates) k;
   if v_found is null then
     return;
@@ -348,5 +410,13 @@ $fn$;
 
 revoke all on function public.match_documents_hybrid(extensions.vector, text, int, uuid[], text, text) from public, anon;
 grant execute on function public.match_documents_hybrid(extensions.vector, text, int, uuid[], text, text) to authenticated, service_role;
+
+-- The policy check, now, on this database: the helper raises 55000 if the access policies are not the ones its copy
+-- of the rule was written against, and the error rolls this migration back. The empty text reads no row.
+do $$
+begin
+  perform 1 from retrieval_internal.hybrid_keyword_ids('', null, null);
+end
+$$;
 
 commit;
