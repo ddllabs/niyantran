@@ -847,6 +847,90 @@ document_chunks_partitions_checks() {
   q "drop database if exists $base" >/dev/null
   return $rc
 }
+# chunk_hybrid_search only. Schema retrieval_internal holds the keyword helper, a security definer function that
+# reads every chunk, so it must never be exposed through the API: supabase/config.toml's [api] schemas and
+# extra_search_path must not name it. Proved non-vacuous: the same check on a copy with it added must see it.
+# (The hosted project's "Exposed schemas" setting is the production counterpart and is checked by hand.)
+hybrid_exposure_check() {
+  local cfg=supabase/config.toml
+  api_schemas() { sed -n '/^\[api\]/,/^\[/p' "$1" | grep -E '^(schemas|extra_search_path)[[:space:]]*='; }
+  if ! api_schemas "$cfg" | grep -q '"public"'; then
+    echo "  EXPOSURE FAIL - could not read [api] schemas from $cfg"; return 1
+  fi
+  sed 's/^schemas = \[/schemas = ["retrieval_internal", /' "$cfg" > "$WORK/config_hybrid.toml"
+  if ! api_schemas "$WORK/config_hybrid.toml" | grep -q '"retrieval_internal"'; then
+    echo "  EXPOSURE FAIL - the check cannot see a schema added to [api] schemas"; return 1
+  fi
+  if api_schemas "$cfg" | grep -q '"retrieval_internal"'; then
+    echo "  EXPOSURE FAIL - schema retrieval_internal is exposed through the API in $cfg"; return 1
+  fi
+  echo "  exposure ok - schema retrieval_internal is not in [api] schemas or extra_search_path (and the check sees it when added)"
+}
+
+# chunk_hybrid_search only: the migration must not touch the billing and credits schema (named private, created by
+# the credits migrations; hard-stop scope). Three checks.
+#  * The migration names no schema called private, not even in a comment, and no other migration uses the name
+#    retrieval_internal (CREATE SCHEMA has no IF NOT EXISTS, so a clash would fail, not reuse).
+#  * ACLs: the schema's, every function's and every relation's in private, before and after the migration, on the
+#    chain without it. The hybrid chain does not include the credits migrations, so a stand-in is created first:
+#    the schema with the credits migration's own revoke, a table and a security definer function with the default
+#    (PUBLIC execute) ACL, so a stray grant or revoke on anything in private shows. The same snapshot must differ
+#    when a grant is added by hand (proof the check can see one).
+hybrid_private_check() {
+  local mig="$MIG/20261102120000_chunk_hybrid_search.sql" guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f
+  local db=niyantran_chunk_hybrid_search_acl_test
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  if grep -qiw private "$mig"; then
+    echo "  PRIVATE FAIL - the migration names the schema private:"; grep -niw private "$mig" | head -3 | sed 's/^/    /'; return 1
+  fi
+  if grep -rlw retrieval_internal "$MIG" | grep -vq '20261102120000_chunk_hybrid_search.sql'; then
+    echo "  PRIVATE FAIL - another migration uses the name retrieval_internal:"; grep -rlw retrieval_internal "$MIG" | grep -v chunk_hybrid_search | sed 's/^/    /'; return 1
+  fi
+  if ! grep -q '^create schema retrieval_internal;' "$mig"; then
+    echo "  PRIVATE FAIL - the migration must create its schema with a plain CREATE SCHEMA (no IF NOT EXISTS)"; return 1
+  fi
+  q "drop database if exists $db" >/dev/null
+  q "create database $db" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $db < "$f" >/dev/null 2>&1 || { echo "  PRIVATE: bootstrap broke at $(basename "$f")"; return 1; }
+  done
+  psql_in $db >/dev/null 2>&1 <<'SQL' || { echo "  PRIVATE FAIL - could not create the stand-in"; return 1; }
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated, service_role;
+create table if not exists private.acl_sentinel (x int);
+create or replace function private.acl_sentinel_fn() returns int language sql security definer as $f$ select 1 $f$;
+SQL
+  local snap="select string_agg(l, E'\n' order by l) from (
+      select 'schema ' || coalesce(nspacl::text, '-') || ' owner ' || nspowner::regrole::text as l from pg_namespace where nspname = 'private'
+      union all select 'func ' || p.oid::regprocedure::text || ' ' || coalesce(p.proacl::text, '-') || ' owner ' || p.proowner::regrole::text
+        from pg_proc p where p.pronamespace = 'private'::regnamespace
+      union all select 'rel ' || c.relname || ' ' || coalesce(c.relacl::text, '-') || ' owner ' || c.relowner::regrole::text
+        from pg_class c where c.relnamespace = 'private'::regnamespace
+      union all select 'col ' || c.relname || '.' || a.attname || ' ' || a.attacl::text
+        from pg_attribute a join pg_class c on c.oid = a.attrelid where c.relnamespace = 'private'::regnamespace and a.attacl is not null
+      union all select 'default ' || d.defaclobjtype::text || ' ' || d.defaclacl::text from pg_default_acl d where d.defaclnamespace = 'private'::regnamespace
+    ) x"
+  local before after
+  before="$(q "$snap" -d $db)"
+  if [ -z "$before" ] || ! printf '%s' "$before" | grep -q 'func private.acl_sentinel_fn'; then
+    echo "  PRIVATE FAIL - the snapshot did not see the stand-in objects"; q "drop database if exists $db" >/dev/null; return 1
+  fi
+  psql_in $db < "$guard" >/dev/null 2>&1 || { echo "  PRIVATE FAIL - the migration did not apply"; q "drop database if exists $db" >/dev/null; return 1; }
+  after="$(q "$snap" -d $db)"
+  q "grant usage on schema private to authenticated" -d $db >/dev/null
+  local changed
+  changed="$(q "$snap" -d $db)"
+  q "drop database if exists $db" >/dev/null
+  if [ "$before" != "$after" ]; then
+    echo "  PRIVATE FAIL - the migration changed an ACL in private:"; diff <(printf '%s\n' "$before") <(printf '%s\n' "$after") | head -6 | sed 's/^/    /'; return 1
+  fi
+  if [ "$changed" = "$after" ]; then
+    echo "  PRIVATE FAIL - the snapshot cannot see a grant added by hand"; return 1
+  fi
+  echo "  private ok - the migration names no such schema, uses a fresh schema name, and changes no ACL in private ($(printf '%s\n' "$before" | wc -l | tr -d ' ') entries compared; a grant added by hand is seen)"
+}
+
 credit_paise_atomic_check() {
   local db="$1" line
   : > "$WORK/credit_paise_atomic.expanded.sql"
@@ -908,6 +992,7 @@ run_fixture() {
     [ "$name" = billing_purchases ] && { bash "$TESTS/billing_concurrency.sh" || rc=1; }
     [ "$name" = credit_paise_contract ] && { credit_paise_atomic_check "$db" || rc=1; }
     [ "${VACUITY:-1}" = 1 ] && { vacuity_check "$name" || rc=1; }
+    [ "$name" = chunk_hybrid_search ] && { hybrid_exposure_check || rc=1; hybrid_private_check || rc=1; }
     [ "$name" = corpus_records ] && { corpus_records_checks || rc=1; }
     [ "$name" = document_chunks_partitions ] && { document_chunks_partitions_checks || rc=1; }
     [ "$name" = feed_records ] && { feed_records_checks || rc=1; }

@@ -1,21 +1,31 @@
 -- Disposable local fixture for 20261102120000_chunk_hybrid_search (F278 step 4, plan
--- docs/plans/2026-11-02-phase-c-hybrid-and-registration.md task C1).
--- Chain: document_chunks_partitions' chain (the law listing, the partitioned document_chunks of
--- 20261101120000 and the policy set of 20261101110000) + the migration, as a non-superuser.
+-- docs/plans/2026-11-02-phase-c-hybrid-and-registration.md task C1; design decisions of
+-- 2026-11-03: security-definer helper in a retrieval_internal schema, keyword search for NCLT only,
+-- rare-terms rule). Chain: law_documents_serving_set's chain (the law listing, the partitioned
+-- document_chunks of 20261101120000, the policy set of 20261101130000) + the migration, all applied
+-- as a non-superuser.
 --
---   Part 1  what the migration creates: the keyword index on the parent and on every partition, in
---           the one text configuration the function uses; the function's signature, result columns,
---           security, search_path, volatility and grants (anon denied).
+--   Part 1  what the migration creates: the retrieval_internal schema and its ACL, the helper (security
+--           definer, fixed search_path, custom plans, ids and ranks only), the invoker function's
+--           properties, the keyword index on the parent and on every partition, the pinned constants.
 --   Part 2  behaviour on a small seeded corpus, as `authenticated` under RLS and the law serving
---           policy. The vector side is made exact (enable_indexscan off, so the HNSW indexes are not
---           used on these few rows; match_documents' approximate passes are its own fixtures'
---           business), and an independent oracle written in plain SQL (reciprocal rank fusion over
---           the same scope, k = 60, 100 candidates a side) must equal the function row for row, in
---           every scope: unscoped, tier, feature, document ids, and combinations. A keyword-only
---           match (an identifier whose chunk the vector search ranks far outside its candidates)
---           is returned; nothing outside the scope, hidden by RLS or the law policy, unindexed or
---           without a vector is returned; null, empty and no-lexeme text return the vector result
---           unchanged; the caller's hnsw settings are restored.
+--           policy (never as the owner). The vector side is made exact (enable_indexscan off).
+--             * Outside the NCLT feature (unscoped, tier, other features, document ids, an NCLT
+--               search that names document ids) the function returns exactly match_documents' rows.
+--             * For an NCLT feature search it equals an independent oracle (reciprocal rank fusion of
+--               match_documents' 100 vector rows and the rare-terms keyword rows, k = 60) in every
+--               case: a keyword-only match, OR over rare terms, common words and unknown words
+--               ignored, the document-frequency boundary (300 in, 301 out), the term cap.
+--             * The access check: nothing hidden by RLS or the law policy, unindexed or without a
+--               vector comes back from the function, whatever the helper hands it; service_role and the
+--               owner do see the hidden chunk (so the helper does read it). The helper itself returns
+--               candidate ids without the caller's visibility (PostgreSQL forbids SET ROLE inside a
+--               definer function); the fixture states that and relies on exposure and ACL for it.
+--   Part 3  the guards, each proved against the defect it guards: the helper's plan reads the GIN
+--           index and never scans a chunk partition sequentially (a direct keyword query as
+--           authenticated does); anon is refused by the schema's ACL (and is served once granted);
+--           a temp table or type cannot shadow what the helper reads (a function without the fixed
+--           search_path is shadowed).
 --
 -- Vacuity: run.sh rebuilds the chain without the migration and this file must fail. It fails at the
 -- first assertion (the function does not exist); keep part 1 first.
@@ -51,8 +61,11 @@ $$;
 -- ===========================================================================================
 -- Part 1. What the migration creates.
 
-select pg_temp.ok(to_regprocedure('public.match_documents_hybrid(extensions.vector, text, integer, uuid[], text, text)') is not null,
-  'match_documents_hybrid(query_embedding, query_text, match_count, p_document_ids, p_desk_tier, p_desk_feature) exists');
+select pg_temp.ok(to_regprocedure('public.match_documents_hybrid(extensions.vector, text, integer, uuid[], text, text)') is not null
+  and to_regprocedure('retrieval_internal.hybrid_keyword_ids(text, text, text)') is not null,
+  'match_documents_hybrid(...) and retrieval_internal.hybrid_keyword_ids(text, text, text) exist');
+
+-- The invoker function.
 select pg_temp.ok((select pg_get_function_arguments(oid) from pg_proc where oid = 'public.match_documents_hybrid(extensions.vector, text, integer, uuid[], text, text)'::regprocedure)
   = 'query_embedding vector, query_text text, match_count integer DEFAULT 40, p_document_ids uuid[] DEFAULT NULL::uuid[], p_desk_tier text DEFAULT NULL::text, p_desk_feature text DEFAULT NULL::text',
   'argument names, types and defaults');
@@ -65,7 +78,7 @@ select pg_temp.ok((select not h.prosecdef and h.provolatile = 's' and h.proconfi
                      from pg_proc h, pg_proc m
                     where h.oid = 'public.match_documents_hybrid(extensions.vector, text, integer, uuid[], text, text)'::regprocedure
                       and m.oid = 'public.match_documents(extensions.vector, integer, uuid[], text, text)'::regprocedure),
-  'security invoker, stable, set-returning, the same fixed search_path as match_documents');
+  'the search function is security invoker, stable, set-returning, with match_documents'' fixed search_path');
 select pg_temp.ok(not has_function_privilege('anon', 'public.match_documents_hybrid(extensions.vector, text, integer, uuid[], text, text)', 'execute')
   and has_function_privilege('authenticated', 'public.match_documents_hybrid(extensions.vector, text, integer, uuid[], text, text)', 'execute')
   and has_function_privilege('service_role', 'public.match_documents_hybrid(extensions.vector, text, integer, uuid[], text, text)', 'execute')
@@ -73,11 +86,42 @@ select pg_temp.ok(not has_function_privilege('anon', 'public.match_documents_hyb
                    where p.oid = 'public.match_documents_hybrid(extensions.vector, text, integer, uuid[], text, text)'::regprocedure and a.grantee = 0),
   'executable by authenticated and service_role; not by anon or PUBLIC');
 
--- The constants the measurement chose (docs/research/2026-11-02-hybrid-search.md): changing one is a decision to re-measure.
+-- The helper: definer, fixed search_path with pg_temp last, custom plans, ids and ranks only.
+select pg_temp.ok((select p.prosecdef and p.provolatile = 's' and p.proretset
+                          and (select array_agg(c order by c) from unnest(p.proconfig) c)
+                              = array['plan_cache_mode=force_custom_plan', 'search_path=public, extensions, pg_temp']
+                          and pg_get_function_result(p.oid) = 'TABLE(id uuid, keyword_rank integer)'
+                     from pg_proc p where p.oid = 'retrieval_internal.hybrid_keyword_ids(text, text, text)'::regprocedure),
+  'the helper is a stable security definer returning (id uuid, keyword_rank integer), search_path public, extensions, pg_temp, force_custom_plan');
+select pg_temp.ok(has_function_privilege('authenticated', 'retrieval_internal.hybrid_keyword_ids(text, text, text)', 'execute')
+  and has_function_privilege('service_role', 'retrieval_internal.hybrid_keyword_ids(text, text, text)', 'execute')
+  and not has_function_privilege('anon', 'retrieval_internal.hybrid_keyword_ids(text, text, text)', 'execute')
+  and not exists (select 1 from pg_proc p, aclexplode(p.proacl) a where p.oid = 'retrieval_internal.hybrid_keyword_ids(text, text, text)'::regprocedure and a.grantee = 0),
+  'the helper: execute for authenticated and service_role only (not anon, not PUBLIC)');
+select pg_temp.ok(has_schema_privilege('authenticated', 'retrieval_internal', 'usage') and has_schema_privilege('service_role', 'retrieval_internal', 'usage')
+  and not has_schema_privilege('anon', 'retrieval_internal', 'usage')
+  and not exists (select 1 from pg_namespace n, aclexplode(n.nspacl) a where n.nspname = 'retrieval_internal' and a.grantee = 0)
+  and not has_schema_privilege('authenticated', 'retrieval_internal', 'create') and not has_schema_privilege('service_role', 'retrieval_internal', 'create'),
+  'schema retrieval_internal: usage for authenticated and service_role only; nobody but the owner may create in it');
+select pg_temp.ok((select count(*) from pg_proc where pronamespace = 'retrieval_internal'::regnamespace) = 1
+  and not exists (select 1 from pg_class where relnamespace = 'retrieval_internal'::regnamespace)
+  and not exists (select 1 from pg_type where typnamespace = 'retrieval_internal'::regnamespace and typtype <> 'c' and typelem = 0 and typname !~ '^_'),
+  'schema retrieval_internal holds the helper and nothing else (no table, view or type)');
+-- The helper reads every chunk as its owner; that works only if the owner is not subject to RLS on them.
+select pg_temp.ok((select bool_and(pg_has_role(p.proowner, c.relowner, 'usage'))
+                     from pg_proc p, pg_class c
+                    where p.oid = 'retrieval_internal.hybrid_keyword_ids(text, text, text)'::regprocedure
+                      and c.oid in ('public.document_chunks'::regclass, 'public.documents'::regclass)),
+  'the helper''s owner owns (or is a member of the owner of) document_chunks and documents, so its candidate scan is not filtered by RLS');
+
+-- The constants the measurement chose (docs/research/2026-11-02-hybrid-search.md).
 select pg_temp.ok((select position('c_rrf_k constant int := 60;' in prosrc) > 0 and position('c_candidates constant int := 100;' in prosrc) > 0
-                          and position('c_keyword_cap constant int := 2000;' in prosrc) > 0
-                     from pg_proc where oid = 'public.match_documents_hybrid(extensions.vector, text, integer, uuid[], text, text)'::regprocedure),
-  'the fusion constant (60), the candidates per side (100) and the keyword cap (2000) are the documented ones');
+                          and position('c_nclt constant text := ''NCLT / NCLAT (Insolvency)'';' in prosrc) > 0
+                     from pg_proc where oid = 'public.match_documents_hybrid(extensions.vector, text, integer, uuid[], text, text)'::regprocedure)
+  and (select position('c_rare_df_max constant int := 300;' in prosrc) > 0 and position('c_keyword_cap constant int := 2000;' in prosrc) > 0
+              and position('c_candidates constant int := 100;' in prosrc) > 0 and position('c_max_terms constant int := 64;' in prosrc) > 0
+         from pg_proc where oid = 'retrieval_internal.hybrid_keyword_ids(text, text, text)'::regprocedure),
+  'pinned: fusion constant 60, 100 candidates, NCLT only; rare = at most 300 chunks, keyword cap 2000, 64 terms');
 
 -- The keyword index: one expression, one text configuration, on the parent and on every leaf partition.
 create temp table kw_idx as
@@ -91,8 +135,8 @@ create temp table kw_idx as
 select pg_temp.ok((select count(*) from kw_idx where tab = 'document_chunks') = 1
   and (select count(*) from kw_idx where tab = 'document_chunks' and am = 'gin' and name = 'document_chunks_content_tsv') = 1,
   'one GIN keyword index on the parent, document_chunks_content_tsv');
-select pg_temp.ok((select def ~ '^USING gin \(to_tsvector\(''(simple|english)''::regconfig, content\)\)$' from kw_idx where tab = 'document_chunks'),
-  'the index is on the expression to_tsvector(<config>::regconfig, content): no stored column');
+select pg_temp.ok((select def = 'USING gin (to_tsvector(''simple''::regconfig, content))' from kw_idx where tab = 'document_chunks'),
+  'the index is on the expression to_tsvector(''simple''::regconfig, content): no stored column');
 select pg_temp.ok((select count(*) = count(*) filter (where am = 'gin' and indisvalid and parent = 'document_chunks_content_tsv' and def = (select def from kw_idx where tab = 'document_chunks'))
                           and count(*) >= 2
                      from kw_idx where tab <> 'document_chunks'),
@@ -100,9 +144,6 @@ select pg_temp.ok((select count(*) = count(*) filter (where am = 'gin' and indis
 select pg_temp.ok((select array_agg(c.relname::text order by c.relname) from pg_inherits i join pg_class c on c.oid = i.inhrelid where i.inhparent = 'public.document_chunks'::regclass)
   = (select array_agg(tab order by tab) from kw_idx where tab <> 'document_chunks'),
   'the partitions with a keyword index are exactly the partitions of document_chunks');
-select pg_temp.ok(pg_get_functiondef('public.match_documents_hybrid(extensions.vector, text, integer, uuid[], text, text)'::regprocedure)
-  like '%to_tsvector(' || quote_literal((select substring(def from 'to_tsvector\(''([a-z]+)''') from kw_idx where tab = 'document_chunks')) || '::regconfig, c.content)%',
-  'the function ranks and matches on exactly the indexed expression, in the same configuration');
 
 -- ===========================================================================================
 -- Part 2. Behaviour.
@@ -120,16 +161,18 @@ insert into documents (id, source_key, title, desk_tier, desk_feature, content_s
   ('f3000000-0000-4000-8000-000000000001', 'hy-pq', 'PQ', 'national', 'Parliamentary Question Database', 'x', 'a', 4, now(), '{}'),
   ('f4000000-0000-4000-8000-000000000001', 'hy-nofeature', 'No feature', null, null, 'x', 'a', 4, now(), '{}');
 
--- 130 vector-near chunks (distance 0.004 k from axis 1) spread over the six searchable documents;
--- chunk 3 also holds the identifier. The identifier's other chunks are vector-far (distance
--- 0.70 + 0.02 i, outside the 100 nearest) and sit in every kind of document, searchable or not.
--- (A writer sets desk_feature to its document's, as chunk_commit does; the trigger fills the other facets.)
+-- A writer sets desk_feature to its document's, as chunk_commit does; the trigger fills the other facets.
+-- 160 vector-near chunks (distance 0.004 k from axis 1): 140 in the two NCLT orders (so an NCLT vector
+-- search is saturated by them), 20 in the other searchable documents. Chunk 3 holds the identifier.
 insert into document_chunks (document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
 select d.id, d.desk_feature, 'near' || k, k, 0, 4, case when k = 3 then 'filler passage ' || k || ' mentions zq4417 once' else 'filler passage ' || k end,
        pg_temp.cone(1, 0.004 * k, k), 4
-  from generate_series(1, 130) k
-  join documents d on d.id = (array['f1000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000002', 'f2000000-0000-4000-8000-000000000001',
-              'f2000000-0000-4000-8000-000000000002', 'f3000000-0000-4000-8000-000000000001', 'f4000000-0000-4000-8000-000000000001'])[1 + k % 6]::uuid;
+  from generate_series(1, 160) k
+  join documents d on d.id = (case when k <= 140 then (case when k % 2 = 1 then 'f1000000-0000-4000-8000-000000000001' else 'f1000000-0000-4000-8000-000000000002' end)
+                                   else (array['f2000000-0000-4000-8000-000000000001', 'f2000000-0000-4000-8000-000000000002',
+                                               'f3000000-0000-4000-8000-000000000001', 'f4000000-0000-4000-8000-000000000001'])[1 + k % 4] end)::uuid;
+-- The identifier's other chunks are vector-far (distance 0.70 + 0.02 i, outside the 100 nearest) and sit
+-- in every kind of document, searchable or not.
 insert into document_chunks (document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
 select d.id, d.desk_feature, h, 1000 + i, 0, 4, content, case when h = 'far-null' then null else pg_temp.cone(1, 0.70 + 0.02 * i, 500 + i) end, 4
   from (values
@@ -142,247 +185,367 @@ select d.id, d.desk_feature, h, 1000 + i, 0, 4, content, case when h = 'far-null
     ('f2000000-0000-4000-8000-000000000003', 'far-unindexed', 'unindexed zq4417', 7),
     ('f2000000-0000-4000-8000-000000000001', 'far-null', 'zq4417 not yet embedded', 8),
     ('f1000000-0000-4000-8000-000000000002', 'far-other', 'unrelated tribunal text', 9),
-    ('f2000000-0000-4000-8000-000000000001', 'far-phrase', 'the quorum vexilla was recorded', 10),
-    ('f2000000-0000-4000-8000-000000000001', 'far-reversed', 'vexilla and quorum, reversed', 11),
-    ('f2000000-0000-4000-8000-000000000001', 'far-quorum', 'only the quorum', 12)
+    ('f1000000-0000-4000-8000-000000000001', 'far-both', 'zq4417 and vexilla together', 10),
+    ('f1000000-0000-4000-8000-000000000002', 'far-vexilla', 'only vexilla here', 11),
+    ('f1000000-0000-4000-8000-000000000003', 'far-hidden-vexilla', 'hidden vexilla', 12)
   ) v(doc, h, content, i) join documents d on d.id = v.doc::uuid;
+-- Document frequency: 'commonword' is in 350 chunks, 'edgea' in 301 of them, 'edgeb' in 300 (the rare-terms
+-- boundary is at most 300), and 'filler' is in all 160 near chunks and these 350 (not rare).
+insert into document_chunks (document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
+select d.id, d.desk_feature, 'edge' || j, 2000 + j, 0, 4,
+       'commonword filler' || case when j <= 301 then ' edgea' else '' end || case when j <= 300 then ' edgeb' else '' end,
+       pg_temp.cone(1, 0.9705 + 0.00008 * j, 700 + j), 4
+  from generate_series(1, 350) j
+  join documents d on d.id = (case when j % 2 = 1 then 'f1000000-0000-4000-8000-000000000001' else 'f1000000-0000-4000-8000-000000000002' end)::uuid;
 analyze documents; analyze document_chunks;
 
 update law_listing_settings set seeded = true, active = true;
-create temp table cfg as
-  select (select substring(def from 'to_tsvector\(''([a-z]+)''') from kw_idx where tab = 'document_chunks')::regconfig as c;
-grant select on cfg to authenticated, service_role;
 create temp table q(name text primary key, v vector);
 insert into q values ('near', pg_temp.cone(1, 0, 0)), ('side', pg_temp.cone(1, 0.3, 77));
 grant select on q to authenticated, service_role;
-create temp table want(label text primary key, ids uuid[]);
-create temp table got(label text primary key, ids uuid[]);
-grant all on want, got to authenticated, service_role;
+-- Document frequency of every lexeme, over all chunks (the owner's view, as the helper has it).
+create temp table df as
+  select lex, (select count(*) from document_chunks c where to_tsvector('simple'::regconfig, c.content) @@ quote_literal(lex)::tsquery) as n
+    from (select distinct unnest(tsvector_to_array(to_tsvector('simple'::regconfig, content))) as lex from document_chunks) x;
+grant select on df to authenticated, service_role;
+select pg_temp.ok((select n from df where lex = 'edgeb') = 300 and (select n from df where lex = 'edgea') = 301
+  and (select n from df where lex = 'commonword') = 350 and (select n from df where lex = 'zq4417') = 10 and (select n from df where lex = 'vexilla') = 3,
+  'the seeded document frequencies are the intended ones (edgeb 300, edgea 301, commonword 350, zq4417 10, vexilla 3)');
 
--- The oracle: reciprocal rank fusion in plain SQL, as the invoking role (RLS applies). Vector side:
--- the 100 nearest eligible chunks, ranked by the distance match_documents ranks by (halfvec when
--- unscoped, full precision when scoped). Keyword side: websearch_to_tsquery matches ranked by
--- ts_rank_cd, ties by id. Scope as match_documents: document ids win over a feature.
-create function pg_temp.oracle(qv vector, qtext text, n int, ids uuid[], tier text, feat text) returns uuid[] language sql as $$
-  with scope as (
-    select c.id, c.content, c.embedding, c.document_id,
-           case when coalesce(cardinality(ids), 0) = 0 and feat is null
-                then (c.embedding::halfvec(1536)) <=> (qv::halfvec(1536)) else c.embedding <=> qv end as dist
-      from document_chunks c join documents d on d.id = c.document_id
-     where c.embedding is not null and d.indexed_at is not null
-       and (coalesce(cardinality(ids), 0) = 0 or c.document_id = any (ids))
-       and (coalesce(cardinality(ids), 0) > 0 or feat is null or c.desk_feature = feat)
-       and (tier is null or d.desk_tier = tier)),
-  vec as (select id, row_number() over (order by dist, id) rn from scope order by dist, id limit 100),
-  kw as (select id, row_number() over (order by ts_rank_cd(to_tsvector((select c from cfg), content), websearch_to_tsquery((select c from cfg), qtext)) desc, id) rn
-           from scope
-          where nullif(trim(qtext), '') is not null
-            and numnode(websearch_to_tsquery((select c from cfg), qtext)) > 0
-            and to_tsvector((select c from cfg), content) @@ websearch_to_tsquery((select c from cfg), qtext)),
-  fused as (select coalesce(v.id, k.id) id, v.rn vr, k.rn kr, coalesce(1.0 / (60 + v.rn), 0) + coalesce(1.0 / (60 + k.rn), 0) score
-              from vec v full join (select * from kw limit 1000) k on k.id = v.id)
-  select array_agg(id order by score desc, vr nulls last, kr nulls last, id)
-    from (select * from fused order by score desc, vr nulls last, kr nulls last, id limit n) f
-$$;
--- The function's rows, in order.
-create function pg_temp.hybrid(qv vector, qtext text, n int default 40, ids uuid[] default null, tier text default null, feat text default null)
-returns uuid[] language sql as $$
-  select array_agg(id order by ord) from (select id, row_number() over () ord from match_documents_hybrid(qv, qtext, n, ids, tier, feat)) f
-$$;
-create function pg_temp.vector_only(qv vector, n int default 40, ids uuid[] default null, tier text default null, feat text default null)
-returns uuid[] language sql as $$
-  select array_agg(id order by ord) from (select id, row_number() over () ord from match_documents(qv, n, ids, tier, feat)) f
-$$;
-create function pg_temp.g(l text) returns uuid[] language sql as $$ select ids from got where label = l $$;
 create function pg_temp.cid(h text) returns uuid language sql as $$ select id from document_chunks where chunk_hash = h $$;
 create function pg_temp.cids(hs text[]) returns uuid[] language sql as $$ select array_agg(pg_temp.cid(h) order by o) from unnest(hs) with ordinality t(h, o) $$;
+-- The rows of a query, as jsonb in order (every column, so "the same rows" means the same rows).
+create function pg_temp.rowsj(q text) returns jsonb language plpgsql as $$
+declare r jsonb;
+begin
+  execute 'select coalesce(jsonb_agg(to_jsonb(t)), ''[]''::jsonb) from (' || q || ') t' into r;
+  return r;
+end $$;
+create function pg_temp.idsof(j jsonb) returns uuid[] language sql as $$ select array_agg((e->>'id')::uuid order by o) from jsonb_array_elements(j) with ordinality t(e, o) $$;
+-- hybrid and match_documents with the same arguments.
+create function pg_temp.h(qv text, qtext text, n int default 40, ids uuid[] default null, tier text default null, feat text default null) returns jsonb language sql as $$
+  select pg_temp.rowsj(format('select * from match_documents_hybrid(%L::vector, %L, %L, %L::uuid[], %L, %L)', (select v::text from q where name = qv), qtext, n, ids, tier, feat)) $$;
+create function pg_temp.v(qv text, n int default 40, ids uuid[] default null, tier text default null, feat text default null) returns jsonb language sql as $$
+  select pg_temp.rowsj(format('select * from match_documents(%L::vector, %L, %L::uuid[], %L, %L)', (select v::text from q where name = qv), n, ids, tier, feat)) $$;
+
+-- The oracle for an NCLT feature search: reciprocal rank fusion, k = 60, in plain SQL, as the invoking role.
+-- Vector side: match_documents' own 100 rows. Keyword side, as specified in the migration header: a term is rare
+-- when it is in 1 to 300 chunks of the whole table, at most 64 terms (a digit first, then the longest); the
+-- best 100 chunks of the scope matching the OR of the rare terms by ts_rank_cd (ties by id) are chosen over every
+-- chunk, as the owner (kw_all, a definer function in the temp schema); the caller then keeps those it can read
+-- and ranks them 1..n. (So hidden matches can crowd a visible one out of the 100: the header's residual (i).)
+create function pg_temp.kw_all(q text, tier text) returns uuid[] language sql stable security definer as $$
+  select array_agg(s.id order by s.rank desc, s.id)
+    from (select c.id, ts_rank_cd(to_tsvector('simple'::regconfig, c.content), q::tsquery) as rank
+            from public.document_chunks c join public.documents d on d.id = c.document_id
+           where c.desk_feature = 'NCLT / NCLAT (Insolvency)' and c.embedding is not null and d.indexed_at is not null
+             and (tier is null or d.desk_tier = tier) and to_tsvector('simple'::regconfig, c.content) @@ q::tsquery
+           order by 2 desc, 1 limit 100) s
+$$;
+grant execute on function pg_temp.kw_all(text, text) to authenticated;
+create function pg_temp.oracle(qv text, qtext text, n int, tier text) returns uuid[] language plpgsql as $$
+declare
+  c_nclt constant text := 'NCLT / NCLAT (Insolvency)';
+  v_n int := least(greatest(coalesce(n, 40), 1), 200);
+  v_q tsquery; v_vec uuid[]; v_res uuid[];
+begin
+  select string_agg(quote_literal(t.lex), ' | ')::tsquery into v_q
+    from (select x.lex from (select distinct unnest(tsvector_to_array(to_tsvector('simple'::regconfig, qtext))) as lex) x
+           order by (x.lex ~ '[0-9]') desc, length(x.lex) desc, x.lex limit 64) t
+    join df on df.lex = t.lex and df.n between 1 and 300;
+  if qtext is null or v_q is null then
+    return pg_temp.idsof(pg_temp.v(qv, v_n, null, tier, c_nclt));
+  end if;
+  v_vec := pg_temp.idsof(pg_temp.v(qv, 100, null, tier, c_nclt));
+  with vec as (select e.id, e.o as rn from unnest(coalesce(v_vec, '{}')) with ordinality e(id, o)),
+       kw as (select s.id, row_number() over (order by s.o) rn
+                from unnest(coalesce(pg_temp.kw_all(v_q::text, tier), '{}')) with ordinality s(id, o)
+               where exists (select 1 from document_chunks c where c.id = s.id)),
+       fused as (select coalesce(v.id, k.id) id, v.rn vr, k.rn kr, coalesce(1.0 / (60 + v.rn), 0) + coalesce(1.0 / (60 + k.rn), 0) score
+                   from vec v full join kw k on k.id = v.id)
+  select array_agg(id order by score desc, vr nulls last, kr nulls last, id) into v_res
+    from (select * from fused order by score desc, vr nulls last, kr nulls last, id limit v_n) f;
+  return v_res;
+end $$;
 
 -- The vector side is exact on these few rows: no index scans (GIN is bitmap-only, unaffected).
 set local enable_indexscan = off;
 set local hnsw.ef_search = 40;
 set local hnsw.iterative_scan = 'strict_order';
-set local role authenticated;
 
--- 1. A keyword-only match: the identifier's far chunks are outside the vector search's reach.
-insert into got values ('v-unscoped', pg_temp.vector_only((select v from q where name = 'near'), 40));
-insert into got values ('h-unscoped', pg_temp.hybrid((select v from q where name = 'near'), 'zq4417', 40));
-reset role;
-select pg_temp.ok(not (pg_temp.cids(array['far-nclt', 'far-bill', 'far-state', 'far-pq', 'far-nofeature']) && (select ids from got where label = 'v-unscoped')),
-  'vector search alone does not return the identifier''s far chunks (they are keyword-only matches)');
-select pg_temp.ok(pg_temp.cids(array['far-nclt', 'far-bill', 'far-state', 'far-pq', 'far-nofeature']) <@ (select ids from got where label = 'h-unscoped'),
-  'hybrid returns all five searchable keyword-only matches');
-select pg_temp.ok(pg_temp.cid('near3') = any ((select ids from got where label = 'h-unscoped')[1:3]),
-  'the chunk that matches both sides (near chunk 3) is in the first three rows');
-select pg_temp.ok(not (pg_temp.cids(array['far-hidden', 'far-unindexed', 'far-null']) && (select ids from got where label = 'h-unscoped')),
-  'hidden by the law policy, unindexed and without a vector: none returned');
-select pg_temp.ok(cardinality((select ids from got where label = 'h-unscoped')) = 40, 'match_count rows come back');
-
--- 2. The oracle equals the function, row for row, in every scope.
-create temp table cases(label text primary key, qtext text, n int, ids uuid[], tier text, feat text, qv text);
-grant all on cases to authenticated, service_role;
-insert into cases values
-  ('unscoped',            'zq4417',            40,  null, null,       null, 'near'),
-  ('unscoped-10',         'zq4417',            10,  null, null,       null, 'near'),
-  ('unscoped-side',       'zq4417',            40,  null, null,       null, 'side'),
-  ('tier-national',       'zq4417',            40,  null, 'national', null, 'near'),
-  ('tier-state',          'zq4417',            40,  null, 'state',    null, 'near'),
-  ('feature-nclt',        'zq4417',            40,  null, null, 'NCLT / NCLAT (Insolvency)', 'near'),
-  ('feature-bills',       'zq4417',            40,  null, null, 'Bill Passage Probability Index', 'near'),
-  ('feature-bills-state', 'zq4417',            40,  null, 'state', 'Bill Passage Probability Index', 'near'),
-  ('feature-pq',          'zq4417',            40,  null, null, 'Parliamentary Question Database', 'near'),
-  ('feature-none',        'zq4417',            40,  null, null, 'Industry Updates (Ministry Data)', 'near'),
-  ('ids',                 'zq4417',            40,  array['f1000000-0000-4000-8000-000000000001', 'f2000000-0000-4000-8000-000000000001']::uuid[], null, null, 'near'),
-  ('ids-ignore-feature',  'zq4417',            40,  array['f1000000-0000-4000-8000-000000000001', 'f2000000-0000-4000-8000-000000000001']::uuid[], null, 'Parliamentary Question Database', 'near'),
-  ('ids-with-tier',       'zq4417',            40,  array['f1000000-0000-4000-8000-000000000001', 'f2000000-0000-4000-8000-000000000001']::uuid[], 'law', null, 'near'),
-  ('ids-unindexed',       'zq4417',            40,  array['f2000000-0000-4000-8000-000000000003']::uuid[], null, null, 'near'),
-  ('ids-hidden',          'zq4417',            40,  array['f1000000-0000-4000-8000-000000000003']::uuid[], null, null, 'near'),
-  ('empty-ids',           'zq4417',            40,  array[]::uuid[], null, null, 'near'),
-  ('phrase',              '"quorum vexilla"',  40,  null, null,       null, 'near'),
-  ('two-terms',           'quorum vexilla',    40,  null, null,       null, 'near'),
-  ('negation',            'quorum -vexilla',   40,  null, null,       null, 'near'),
-  ('no-match',            'qqqzzzxxx',         40,  null, null,       null, 'near'),
-  ('count-1',             'zq4417',            1,   null, null,       null, 'near'),
-  ('count-0',             'zq4417',            0,   null, null,       null, 'near'),
-  ('count-null',          'zq4417',            null, null, null,      null, 'near'),
-  ('count-big',           'zq4417',            1000, null, null,      null, 'near');
+-- 1. Outside the NCLT feature the function returns exactly match_documents' rows (every column, in order).
+create temp table same_cases(label text primary key, qv text, qtext text, n int, ids uuid[], tier text, feat text);
+insert into same_cases values
+  ('unscoped',              'near', 'zq4417',            40,   null, null,       null),
+  ('unscoped-side',         'side', 'zq4417 vexilla',    40,   null, null,       null),
+  ('unscoped-10',           'near', 'zq4417',            10,   null, null,       null),
+  ('tier-national',         'near', 'zq4417',            40,   null, 'national', null),
+  ('tier-state',            'near', 'zq4417',            40,   null, 'state',    null),
+  ('tier-law',              'near', 'zq4417',            40,   null, 'law',      null),
+  ('feature-bills',         'near', 'zq4417',            40,   null, null, 'Bill Passage Probability Index'),
+  ('feature-bills-state',   'near', 'zq4417',            40,   null, 'state', 'Bill Passage Probability Index'),
+  ('feature-pq',            'near', 'zq4417',            40,   null, null, 'Parliamentary Question Database'),
+  ('feature-none',          'near', 'zq4417',            40,   null, null, 'Industry Updates (Ministry Data)'),
+  ('ids',                   'near', 'zq4417',            40,   array['f1000000-0000-4000-8000-000000000001', 'f2000000-0000-4000-8000-000000000001']::uuid[], null, null),
+  ('ids-nclt-with-feature', 'near', 'zq4417',            40,   array['f1000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000002']::uuid[], null, 'NCLT / NCLAT (Insolvency)'),
+  ('ids-hidden',            'near', 'zq4417',            40,   array['f1000000-0000-4000-8000-000000000003']::uuid[], null, null),
+  ('ids-unindexed',         'near', 'zq4417',            40,   array['f2000000-0000-4000-8000-000000000003']::uuid[], null, null),
+  ('empty-ids-other',       'near', 'zq4417',            40,   array[]::uuid[], null, 'Parliamentary Question Database'),
+  ('count-1',               'near', 'zq4417',            1,    null, null,       null),
+  ('count-0',               'near', 'zq4417',            0,    null, null,       null),
+  ('count-null',            'near', 'zq4417',            null, null, null,       null),
+  ('count-big',             'near', 'zq4417',            1000, null, null,       null),
+  ('null-text',             'near', null,                40,   null, null,       null),
+  ('empty-text',            'near', '',                  40,   null, null,       null);
+grant select on same_cases to authenticated;
 set local role authenticated;
-insert into want select label, pg_temp.oracle((select v from q where name = qv), qtext, least(greatest(coalesce(n, 40), 1), 200), ids, tier, feat) from cases;
-insert into got select label || '#', pg_temp.hybrid((select v from q where name = qv), qtext, n, ids, tier, feat) from cases;
+create temp table same_got(label text primary key, h jsonb, v jsonb);
+grant all on same_got to authenticated;
+insert into same_got select label, pg_temp.h(qv, qtext, n, ids, tier, feat), pg_temp.v(qv, coalesce(n, 40), ids, tier, feat) from same_cases;
+-- NCLT feature searches that have no keyword terms are the vector result too.
+insert into same_got select 'nclt-null-text', pg_temp.h('near', null, 40, null, null, 'NCLT / NCLAT (Insolvency)'), pg_temp.v('near', 40, null, null, 'NCLT / NCLAT (Insolvency)');
+insert into same_got select 'nclt-empty-text', pg_temp.h('near', '   ', 40, null, null, 'NCLT / NCLAT (Insolvency)'), pg_temp.v('near', 40, null, null, 'NCLT / NCLAT (Insolvency)');
+insert into same_got select 'nclt-common-word', pg_temp.h('near', 'commonword filler', 40, null, null, 'NCLT / NCLAT (Insolvency)'), pg_temp.v('near', 40, null, null, 'NCLT / NCLAT (Insolvency)');
+insert into same_got select 'nclt-unknown-word', pg_temp.h('near', 'qqqzzzxxx', 40, null, null, 'NCLT / NCLAT (Insolvency)'), pg_temp.v('near', 40, null, null, 'NCLT / NCLAT (Insolvency)');
+insert into same_got select 'nclt-punctuation', pg_temp.h('near', '!!! ... ---', 40, null, null, 'NCLT / NCLAT (Insolvency)'), pg_temp.v('near', 40, null, null, 'NCLT / NCLAT (Insolvency)');
+insert into same_got select 'nclt-df-301', pg_temp.h('near', 'edgea', 40, null, null, 'NCLT / NCLAT (Insolvency)'), pg_temp.v('near', 40, null, null, 'NCLT / NCLAT (Insolvency)');
+insert into same_got select 'nclt-tier-without-rows', pg_temp.h('near', 'zq4417', 40, null, 'national', 'NCLT / NCLAT (Insolvency)'), pg_temp.v('near', 40, null, 'national', 'NCLT / NCLAT (Insolvency)');
 reset role;
 do $$
 declare r record;
 begin
-  for r in select w.label, w.ids as want, g.ids as got from want w join got g on g.label = w.label || '#' where w.ids is distinct from g.ids loop
-    raise exception 'FAIL: hybrid differs from the oracle in scope %: want % got %', r.label, r.want, r.got;
+  for r in select label from same_got where h is distinct from v loop
+    raise exception 'FAIL: hybrid differs from match_documents in scope %', r.label;
   end loop;
-  raise notice 'PASS: hybrid equals the independent RRF oracle, row for row, in all 24 scopes and count edge cases';
+  raise notice 'PASS: outside an NCLT keyword search the rows are exactly match_documents'' rows, every column, in order (% scopes)', (select count(*) from same_got);
 end $$;
-select pg_temp.ok((select count(*) from want where ids is not null) = 21
-  and (select array_agg(label order by label) from want where ids is null) = array['feature-none', 'ids-hidden', 'ids-unindexed'],
-  'the comparison is not vacuous: 21 scopes return rows, the three with nothing visible return none');
-select pg_temp.ok((select cardinality(ids) from got where label = 'count-0#') = 1
-  and (select cardinality(ids) from got where label = 'count-1#') = 1
-  and (select cardinality(ids) from got where label = 'count-null#') = 40
-  and (select cardinality(ids) from got where label = 'unscoped-10#') = 10,
-  'match_count: 0 becomes 1, null means 40');
-select pg_temp.ok((select cardinality(ids) from got where label = 'count-big#') = 105,
-  'match_count above 200 is clamped to 200: 105 rows exist (100 vector candidates and the 5 keyword-only matches)');
+select pg_temp.ok((select array_agg(label order by label) from same_got where jsonb_array_length(v) = 0)
+  = array['feature-none', 'ids-hidden', 'ids-unindexed', 'nclt-tier-without-rows'],
+  'the comparison is not vacuous: every scope returns rows except the four with nothing visible');
 
--- 3. Scope is respected on the keyword side.
-select pg_temp.ok((select ids from got where label = 'feature-nclt#') && pg_temp.cids(array['far-nclt'])
-  and not ((select ids from got where label = 'feature-nclt#') && pg_temp.cids(array['far-bill', 'far-state', 'far-pq', 'far-nofeature'])),
-  'feature: only NCLT chunks, including the keyword-only NCLT match');
-select pg_temp.ok(not ((select ids from got where label = 'tier-state#') && pg_temp.cids(array['far-nclt', 'far-bill', 'far-pq', 'far-nofeature']))
-  and (select ids from got where label = 'tier-state#') && pg_temp.cids(array['far-state']),
-  'tier: only state-tier chunks');
-select pg_temp.ok((select ids from got where label = 'feature-bills-state#') && pg_temp.cids(array['far-state'])
-  and not ((select ids from got where label = 'feature-bills-state#') && pg_temp.cids(array['far-bill'])),
-  'feature and tier together: the state Bill only');
-select pg_temp.ok((select ids from got where label = 'ids#') && pg_temp.cids(array['far-nclt', 'far-bill'])
-  and not ((select ids from got where label = 'ids#') && pg_temp.cids(array['far-state', 'far-pq', 'far-nofeature']))
-  and not exists (select 1 from document_chunks c where c.id = any (pg_temp.g('ids#'))
-                    and c.document_id not in ('f1000000-0000-4000-8000-000000000001', 'f2000000-0000-4000-8000-000000000001')),
-  'document ids: only the named documents, including their keyword-only matches');
-select pg_temp.ok((select ids from got where label = 'ids#') = (select ids from got where label = 'ids-ignore-feature#'),
-  'document ids win over a feature, as in match_documents');
-select pg_temp.ok((select ids from got where label = 'ids-with-tier#') is not null
-  and not exists (select 1 from document_chunks c where c.id = any (pg_temp.g('ids-with-tier#')) and c.document_id <> 'f1000000-0000-4000-8000-000000000001'),
-  'document ids and a tier together: the tier filters the named documents');
-select pg_temp.ok((select ids from got where label = 'empty-ids#') = (select ids from got where label = 'unscoped#'),
-  'an empty document id array means unscoped, as in match_documents');
-select pg_temp.ok((select ids from got where label = 'feature-none#') is null,
-  'a feature without chunks returns nothing, not a keyword match from another feature');
-
--- 4. Websearch syntax is honoured on the keyword side (the chunks involved are vector-far, so only
--- the keyword search can bring them).
-select pg_temp.ok((select ids from got where label = 'phrase#') && pg_temp.cids(array['far-phrase'])
-  and not ((select ids from got where label = 'phrase#') && pg_temp.cids(array['far-reversed', 'far-quorum'])),
-  'a quoted phrase matches only the chunk with the words adjacent, in order');
-select pg_temp.ok((select ids from got where label = 'two-terms#') @> pg_temp.cids(array['far-phrase', 'far-reversed'])
-  and not ((select ids from got where label = 'two-terms#') && pg_temp.cids(array['far-quorum'])),
-  'two words without quotes match every chunk that has both');
-select pg_temp.ok((select ids from got where label = 'negation#') && pg_temp.cids(array['far-quorum'])
-  and not ((select ids from got where label = 'negation#') && pg_temp.cids(array['far-phrase', 'far-reversed'])),
-  'a negated word excludes the chunks that have it');
-
--- 5. Text that gives no keyword search returns the vector result unchanged.
+-- 2. An NCLT feature search: equal to the oracle, row for row.
+create temp table nclt_cases(label text primary key, qv text, qtext text, n int, tier text);
+insert into nclt_cases values
+  ('identifier',        'near', 'zq4417',                          40,  null),
+  ('identifier-10',     'near', 'zq4417',                          10,  null),
+  ('identifier-side',   'side', 'zq4417',                          40,  null),
+  ('tier-law',          'near', 'zq4417',                          40,  'law'),
+  ('or-two-rare-terms', 'near', 'zq4417 vexilla',                  40,  null),
+  ('common-word-added', 'near', 'commonword zq4417',               40,  null),
+  ('filler-added',      'near', 'zq4417 filler',                   40,  null),
+  ('unknown-word-added','near', 'qqqzzzxxx zq4417',                40,  null),
+  ('df-300',            'near', 'edgeb',                           40,  null),
+  ('df-300-with-id',    'near', 'edgeb zq4417',                    40,  null),
+  ('rare-passage',      'near', 'zq4417 passage',                  40,  null),
+  ('case-and-punctuation','near', 'ZQ4417, (Vexilla)!',            40,  null),
+  ('count-1',           'near', 'zq4417',                          1,   null),
+  ('count-big',         'near', 'zq4417',                          1000,null);
+-- The term cap: 64 distinct terms, those with a digit first, then the longest. 70 long made-up words with a digit
+-- fill the cap and push the identifier out; 63 of them leave room for it.
+insert into nclt_cases select 'cap-full', 'near', 'zq4417 ' || string_agg('nonexistentword' || lpad(i::text, 3, '0'), ' '), 40, null from generate_series(1, 70) i;
+insert into nclt_cases select 'cap-edge', 'near', 'zq4417 ' || string_agg('nonexistentword' || lpad(i::text, 3, '0'), ' '), 40, null from generate_series(1, 63) i;
+grant select on nclt_cases to authenticated;
 set local role authenticated;
-insert into got select 'null-text', pg_temp.hybrid((select v from q where name = 'near'), null);
-insert into got select 'empty-text', pg_temp.hybrid((select v from q where name = 'near'), '');
-insert into got select 'blank-text', pg_temp.hybrid((select v from q where name = 'near'), E'  \n\t ');
-insert into got select 'punctuation-text', pg_temp.hybrid((select v from q where name = 'near'), '!!! ... ---');
-insert into got select 'v-feature', pg_temp.vector_only((select v from q where name = 'near'), 40, null, null, 'NCLT / NCLAT (Insolvency)');
-insert into got select 'null-text-feature', pg_temp.hybrid((select v from q where name = 'near'), null, 40, null, null, 'NCLT / NCLAT (Insolvency)');
-insert into got select 'v-ids', pg_temp.vector_only((select v from q where name = 'near'), 40, array['f1000000-0000-4000-8000-000000000001', 'f2000000-0000-4000-8000-000000000001']::uuid[]);
-insert into got select 'null-text-ids', pg_temp.hybrid((select v from q where name = 'near'), null, 40, array['f1000000-0000-4000-8000-000000000001', 'f2000000-0000-4000-8000-000000000001']::uuid[]);
-insert into got select 'v-tier', pg_temp.vector_only((select v from q where name = 'near'), 40, null, 'state');
-insert into got select 'empty-text-tier', pg_temp.hybrid((select v from q where name = 'near'), '', 40, null, 'state');
+create temp table nclt_got(label text primary key, want uuid[], got uuid[]);
+grant all on nclt_got to authenticated;
+insert into nclt_got select label, pg_temp.oracle(qv, qtext, n, tier),
+       pg_temp.idsof(pg_temp.h(qv, qtext, n, null, tier, 'NCLT / NCLAT (Insolvency)')) from nclt_cases;
 reset role;
-select pg_temp.ok((select ids from got where label = 'v-unscoped') is not null
-  and (select ids from got where label = 'null-text') = (select ids from got where label = 'v-unscoped')
-  and (select ids from got where label = 'empty-text') = (select ids from got where label = 'v-unscoped')
-  and (select ids from got where label = 'blank-text') = (select ids from got where label = 'v-unscoped')
-  and (select ids from got where label = 'punctuation-text') = (select ids from got where label = 'v-unscoped'),
-  'null, empty, blank and no-lexeme text: exactly the match_documents rows, in order');
-select pg_temp.ok((select ids from got where label = 'v-feature') is not null
-  and (select ids from got where label = 'null-text-feature') = (select ids from got where label = 'v-feature')
-  and (select ids from got where label = 'null-text-ids') = (select ids from got where label = 'v-ids')
-  and (select ids from got where label = 'empty-text-tier') = (select ids from got where label = 'v-tier'),
-  'the same in a feature, a document-id and a tier scope');
-select pg_temp.ok((select ids from got where label = 'no-match#') = (select ids from got where label = 'v-unscoped'),
-  'text that matches no chunk: the vector result');
+do $$
+declare r record;
+begin
+  for r in select label, want, got from nclt_got where want is distinct from got loop
+    raise exception 'FAIL: NCLT hybrid differs from the oracle in case %: want % got %', r.label, r.want, r.got;
+  end loop;
+  raise notice 'PASS: an NCLT feature search equals the independent RRF oracle, row for row, in all % cases', (select count(*) from nclt_got);
+end $$;
+select pg_temp.ok((select count(*) from nclt_got where want is not null) = (select count(*) from nclt_got), 'the oracle returned rows in every case');
 
--- 6. The access check: RLS and the law serving policy hide the same rows as match_documents.
--- The unpublished order is hidden from authenticated while the law listing is active, visible to
--- service_role (which bypasses RLS) and visible again once the listing is off.
-create temp table hid(state text, role text, fn text, n int);
+-- The oracle and the vector result differ exactly where keyword rows are expected, so the rule is not vacuous.
+set local role authenticated;
+create temp table vec_ref(label text primary key, ids uuid[]);
+grant all on vec_ref to authenticated;
+insert into vec_ref select 'nclt-40', pg_temp.idsof(pg_temp.v('near', 40, null, null, 'NCLT / NCLAT (Insolvency)'));
+reset role;
+select pg_temp.ok((select got from nclt_got where label = 'identifier') && pg_temp.cids(array['far-nclt', 'far-both'])
+  and not (pg_temp.cids(array['far-nclt', 'far-both']) && (select ids from vec_ref)),
+  'a keyword-only match (the identifier''s far NCLT chunks, outside the 100 nearest) is returned; the vector search alone does not return it');
+select pg_temp.ok((select got from nclt_got where label = 'identifier') && pg_temp.cids(array['near3'])
+  and (select array_position(got, pg_temp.cid('near3')) from nclt_got where label = 'identifier') <= 3,
+  'the chunk that matches both sides is in the first three rows');
+select pg_temp.ok(not ((select got from nclt_got where label = 'identifier') && pg_temp.cids(array['far-bill', 'far-state', 'far-pq', 'far-nofeature', 'far-hidden', 'far-unindexed', 'far-null'])),
+  'only NCLT chunks: no other feature, no hidden order, no unindexed chunk, no chunk without a vector');
+select pg_temp.ok((select got from nclt_got where label = 'or-two-rare-terms') @> pg_temp.cids(array['far-both', 'far-vexilla', 'far-nclt'])
+  and (select array_position(got, pg_temp.cid('far-both')) from nclt_got where label = 'or-two-rare-terms')
+      < (select array_position(got, pg_temp.cid('far-vexilla')) from nclt_got where label = 'or-two-rare-terms'),
+  'rare terms are OR''d: a chunk with either term is returned, the one with both ranks above the one with one');
+select pg_temp.ok((select got from nclt_got where label = 'common-word-added') = (select got from nclt_got where label = 'identifier')
+  and (select got from nclt_got where label = 'filler-added') = (select got from nclt_got where label = 'identifier')
+  and (select got from nclt_got where label = 'unknown-word-added') = (select got from nclt_got where label = 'identifier'),
+  'a common word (350 or 510 chunks) and a word in no chunk add nothing');
+select pg_temp.ok((select got from nclt_got where label = 'df-300') is distinct from (select ids from vec_ref)
+  and (select count(*) from same_got where label = 'nclt-df-301' and h = v) = 1,
+  'the boundary: a word in 300 chunks is rare (keyword rows join), a word in 301 is not (the vector result)');
+select pg_temp.ok((select got from nclt_got where label = 'case-and-punctuation') = (select got from nclt_got where label = 'or-two-rare-terms'),
+  'case and punctuation are ignored, as by the simple configuration');
+select pg_temp.ok((select got from nclt_got where label = 'cap-full') = (select ids from vec_ref)
+  and (select got from nclt_got where label = 'cap-edge') is distinct from (select ids from vec_ref),
+  'the term cap: with 70 digit-bearing long words the identifier is outside the 64 used; with 63 it is the 64th');
+
+-- 3. The access check: RLS and the law serving policy hide the same chunks from the function and from the helper.
+-- The unpublished order is hidden from authenticated while the law listing is active, visible to service_role
+-- (which bypasses RLS) and to the owner, and visible again once the listing is off.
+create temp table hid(state text, who text, fn text, hidden int, total int);
 grant all on hid to authenticated, service_role;
 create function pg_temp.hid_rows(st text, rl text) returns void language plpgsql as $$
+declare v_hidden uuid := pg_temp.cid('far-hidden'); v_hv uuid := pg_temp.cid('far-hidden-vexilla'); a uuid[];
 begin
   perform set_config('role', rl, true);
-  insert into hid select st, rl, 'match_documents', count(*) from match_documents((select v from q where name = 'near'), 40, array['f1000000-0000-4000-8000-000000000003']::uuid[]);
-  insert into hid select st, rl, 'hybrid', count(*) from match_documents_hybrid((select v from q where name = 'near'), 'zq4417', 40, array['f1000000-0000-4000-8000-000000000003']::uuid[]);
-  insert into hid select st, rl, 'hybrid-feature', count(*) from match_documents_hybrid((select v from q where name = 'near'), 'zq4417', 40, null, null, 'NCLT / NCLAT (Insolvency)') h
-    where h.document_id = 'f1000000-0000-4000-8000-000000000003';
+  a := pg_temp.idsof(pg_temp.h('near', 'zq4417 vexilla', 40, null, null, 'NCLT / NCLAT (Insolvency)'));
+  insert into hid values (st, rl, 'hybrid', (select count(*) from unnest(coalesce(a, '{}')) u where u in (v_hidden, v_hv)), cardinality(a));
+  a := array(select id from retrieval_internal.hybrid_keyword_ids('zq4417 vexilla', null, 'NCLT / NCLAT (Insolvency)'));
+  insert into hid values (st, rl, 'helper', (select count(*) from unnest(coalesce(a, '{}')) u where u in (v_hidden, v_hv)), cardinality(a));
   perform set_config('role', 'postgres', true);
 end $$;
 select pg_temp.hid_rows('listing active', 'authenticated');
 select pg_temp.hid_rows('listing active', 'service_role');
+select pg_temp.hid_rows('listing active', 'postgres');
 update law_listing_settings set active = false;
 select pg_temp.hid_rows('listing off', 'authenticated');
 update law_listing_settings set active = true;
-select pg_temp.ok((select array_agg(row(role, fn, n)::text order by role, fn) from hid where state = 'listing active')
-  = array['(authenticated,hybrid,0)', '(authenticated,hybrid-feature,0)', '(authenticated,match_documents,0)',
-          '(service_role,hybrid,1)', '(service_role,hybrid-feature,1)', '(service_role,match_documents,1)'],
-  'listing active: the unpublished order''s chunk is hidden from authenticated in both functions, visible to service_role in both');
-select pg_temp.ok((select array_agg(row(fn, n)::text order by fn) from hid where state = 'listing off')
-  = array['(hybrid,1)', '(hybrid-feature,1)', '(match_documents,1)'],
-  'listing off: visible to authenticated in both functions (the hiding above is not vacuous)');
+select pg_temp.ok((select array_agg(row(who, fn, hidden)::text order by who, fn) from hid where state = 'listing active' and fn = 'hybrid')
+  = array['(authenticated,hybrid,0)', '(postgres,hybrid,2)', '(service_role,hybrid,2)'],
+  'listing active: the search function does not return the unpublished order''s chunks to authenticated, whatever the helper hands it; service_role and the owner see both (so the helper does read them)');
+select pg_temp.ok((select array_agg(row(who, hidden)::text order by who) from hid where state = 'listing active' and fn = 'helper')
+  = array['(authenticated,2)', '(postgres,2)', '(service_role,2)'],
+  'documented residual: the helper returns candidate ids without the caller''s visibility (SET ROLE is forbidden in a definer function); it is closed by the schema not being exposed and by its ACL');
+select pg_temp.ok((select array_agg(row(fn, hidden)::text order by fn) from hid where state = 'listing off' and who = 'authenticated')
+  = array['(helper,2)', '(hybrid,2)'],
+  'listing off: authenticated gets them from the search function (the hiding above is not vacuous)');
+select pg_temp.ok((select min(total) from hid where fn = 'hybrid') >= 5 and (select min(total) from hid where fn = 'helper') >= 4, 'every one of those calls returned rows');
 
--- 7. Privileges and settings.
-set local role anon;
-select pg_temp.fails($q$select * from match_documents_hybrid(pg_temp.cone(1, 0, 0), 'zq4417')$q$, '42501', 'anon cannot search');
+-- The helper called directly: ids and consecutive ranks, nothing else. It is not filtered by the caller's visibility.
+set local role authenticated;
+create temp table direct_h as select * from retrieval_internal.hybrid_keyword_ids('zq4417', null, 'NCLT / NCLAT (Insolvency)');
+create temp table direct_h_all as select * from retrieval_internal.hybrid_keyword_ids('zq4417', null, null);
+reset role;
+select pg_temp.ok((select array_agg(keyword_rank order by keyword_rank) from direct_h) = array[1, 2, 3, 4]
+  and (select array_agg(id) from direct_h) @> pg_temp.cids(array['near3', 'far-nclt', 'far-both', 'far-hidden']) and (select count(*) from direct_h) = 4,
+  'called directly: the four NCLT chunks that have the identifier, ranks 1 to 4 (the hidden one included: see the residual above)');
+select pg_temp.ok((select array_agg(id) from direct_h_all) @> pg_temp.cids(array['near3', 'far-nclt', 'far-both', 'far-hidden', 'far-bill', 'far-state', 'far-pq', 'far-nofeature'])
+  and (select count(*) from direct_h_all) = 8,
+  'with no feature, every indexed and embedded chunk with the identifier');
+select pg_temp.ok(not exists (select 1 from direct_h_all h where h.id in (select id from document_chunks where document_id = 'f2000000-0000-4000-8000-000000000003' or embedding is null)),
+  'never an unindexed chunk or one without a vector');
+
+-- The caller's role and settings are what they were.
+set local role authenticated;
+select pg_temp.ok(current_setting('role') = 'authenticated' and current_user = 'authenticated' and session_user = 'postgres',
+  'after the helper, the caller is still authenticated');
 reset role;
 select pg_temp.ok(current_setting('hnsw.ef_search') = '40' and current_setting('hnsw.iterative_scan') = 'strict_order',
   'the caller''s ef_search and iterative_scan are restored after every search');
+-- The function carries its own search_path (the vector is passed through q, not cast under pg_catalog).
 set local search_path = pg_catalog;
 set local role authenticated;
-select pg_temp.ok((select count(*) from public.match_documents_hybrid((select v from q where name = 'near'), 'zq4417', 5)) = 5,
-  'five rows with a caller search_path that names neither public nor extensions (the function carries its own)');
+select pg_temp.ok((select count(*) from public.match_documents_hybrid((select v from q where name = 'near'), 'zq4417', 5, null, null, 'NCLT / NCLAT (Insolvency)')) = 5,
+  'five rows with a caller search_path that names neither public nor extensions');
 reset role;
 set local search_path = public, extensions;
 
--- 8. The keyword predicate, as the function writes it, is served by the GIN index of every partition.
-create function pg_temp.plan(q text) returns text language plpgsql as $$
-declare l text; res text := '';
-begin
-  for l in execute 'explain ' || q loop res := res || l || E'\n'; end loop;
-  return res;
-end $$;
+-- anon is refused by the function and the helper.
+set local role anon;
+select pg_temp.fails($q$select * from match_documents_hybrid((select v from q where name = 'near'), 'zq4417', 5, null, null, 'NCLT / NCLAT (Insolvency)')$q$, '42501', 'anon cannot search');
+select pg_temp.fails($q$select * from retrieval_internal.hybrid_keyword_ids('zq4417', null, null)$q$, '42501', 'anon cannot call the helper (no usage on the schema)');
+reset role;
+
+-- ===========================================================================================
+-- Part 3. The guards, each against the defect it guards.
+
+-- (a) The plan. The helper's candidate scan reads the GIN index and no chunk partition sequentially. The same
+-- predicate written directly as authenticated (the original design) cannot use the index under RLS (the match
+-- operator is not leakproof) and scans every partition. Run with seqscan off, so a seq scan means no index path.
+create function pg_temp.seq_scans() returns bigint language sql as $$
+  select coalesce(sum(pg_stat_get_xact_numscans(c.oid)), 0)::bigint
+    from pg_inherits i join pg_class c on c.oid = i.inhrelid where i.inhparent = 'public.document_chunks'::regclass
+$$;
+create function pg_temp.gin_scans() returns bigint language sql as $$
+  select coalesce(sum(pg_stat_get_xact_numscans(k.oid)), 0)::bigint from pg_class k where k.relname like 'document_chunks%to_tsvector_idx'
+$$;
+create function public.hy_direct_probe(q tsquery) returns bigint language sql stable security invoker set search_path = public, extensions as $$
+  select count(*) from (select 1 from public.document_chunks where to_tsvector('simple'::regconfig, content) @@ q limit 2001) x
+$$;
+grant execute on function public.hy_direct_probe(tsquery) to authenticated;
+create temp table plan_stats(label text primary key, seq bigint, gin bigint);
+grant all on plan_stats to authenticated;
 set local enable_seqscan = off;
-select pg_temp.ok((select bool_and(pg_temp.plan(format(
-          'select id from document_chunks where to_tsvector(%1$L::regconfig, content) @@ websearch_to_tsquery(%1$L::regconfig, %2$L)', (select c::text from cfg), 'zq4417')) like '%' || k.name || '%')
-                     from kw_idx k where k.tab <> 'document_chunks'),
-  'the planner reads each partition''s keyword index for the function''s predicate');
+set local enable_indexscan = on;
+set local role authenticated;
+do $$
+declare s0 bigint; g0 bigint; n bigint;
+begin
+  s0 := pg_temp.seq_scans(); g0 := pg_temp.gin_scans();
+  select count(*) into n from retrieval_internal.hybrid_keyword_ids('zq4417 vexilla', null, 'NCLT / NCLAT (Insolvency)');
+  insert into plan_stats values ('helper', pg_temp.seq_scans() - s0, pg_temp.gin_scans() - g0);
+  s0 := pg_temp.seq_scans(); g0 := pg_temp.gin_scans();
+  select public.hy_direct_probe(to_tsquery('simple', 'zq4417 | vexilla')) into n;
+  insert into plan_stats values ('direct', pg_temp.seq_scans() - s0, pg_temp.gin_scans() - g0);
+end $$;
+reset role;
+set local enable_seqscan = on;
+set local enable_indexscan = off;
+select pg_temp.ok((select seq = 0 and gin > 0 from plan_stats where label = 'helper'),
+  'the helper, called as authenticated: the GIN index is read and no chunk partition is scanned sequentially');
+select pg_temp.ok((select seq > 0 and gin = 0 from plan_stats where label = 'direct'),
+  'the check can fail: the same keyword predicate run directly as authenticated scans the partitions sequentially and never reads the GIN index');
+
+-- (b) anon and the exposure of the schema. Granting anon the schema and the function makes the helper callable:
+-- the ACL is what refuses it, and the migration grants neither. (That the API does not expose the schema is
+-- checked by run.sh against supabase/config.toml.)
+grant usage on schema retrieval_internal to anon;
+grant execute on function retrieval_internal.hybrid_keyword_ids(text, text, text) to anon;
+select pg_temp.ok(has_schema_privilege('anon', 'retrieval_internal', 'usage') and has_function_privilege('anon', 'retrieval_internal.hybrid_keyword_ids(text, text, text)', 'execute'),
+  'the check can fail: once granted, anon holds usage on the schema and execute on the helper');
+set local role anon;
+create temp table anon_served as select * from retrieval_internal.hybrid_keyword_ids('zq4417', null, null);
+reset role;
+select pg_temp.ok((select count(*) from anon_served) = 8, 'and is then served (the schema ACL is what refuses it)');
+revoke execute on function retrieval_internal.hybrid_keyword_ids(text, text, text) from anon;
+revoke usage on schema retrieval_internal from anon;
+select pg_temp.ok(not has_schema_privilege('anon', 'retrieval_internal', 'usage') and not has_function_privilege('anon', 'retrieval_internal.hybrid_keyword_ids(text, text, text)', 'execute'),
+  'as migrated: anon holds neither');
+
+-- (c) Shadowing. Names a definer function reads must not resolve to the caller's temp objects. A definer function
+-- without a fixed search_path (pg_temp implicitly first) is shadowed, for a table and for a type; the helper is not.
+create function public.hy_shadowable() returns bigint language sql stable security definer set search_path = public as $$
+  select count(*) from document_chunks
+$$;
+create function public.hy_shadowable_cast() returns text language sql stable security definer set search_path = public as $$
+  select '(x)'::tsquery::text
+$$;
+grant execute on function public.hy_shadowable(), public.hy_shadowable_cast() to authenticated;
+set local role authenticated;
+create temp table before_shadow as select count(*) as n, (select array_agg(id order by keyword_rank) from retrieval_internal.hybrid_keyword_ids('zq4417 vexilla', null, 'NCLT / NCLAT (Insolvency)')) as ids
+  from public.document_chunks;
+reset role;
+set local role authenticated;
+create temp table document_chunks (id uuid, document_id uuid, content text, embedding vector(1536), desk_feature text);
+create temp table documents (id uuid, indexed_at timestamptz, desk_tier text);
+insert into pg_temp.document_chunks values (gen_random_uuid(), gen_random_uuid(), 'zq4417 forged', null, 'NCLT / NCLAT (Insolvency)');
+create type pg_temp.tsquery as (a text);
+discard plans;
+create temp table shadow_result as
+  select public.hy_shadowable() as shadowable, public.hy_shadowable_cast() as shadow_cast,
+         (select array_agg(id order by keyword_rank) from retrieval_internal.hybrid_keyword_ids('zq4417 vexilla', null, 'NCLT / NCLAT (Insolvency)')) as ids;
+reset role;
+drop type pg_temp.tsquery;
+discard plans;
+select pg_temp.ok((select shadowable = 1 from shadow_result),
+  'the check can fail: a definer function with search_path = public reads the caller''s temp table instead of document_chunks');
+select pg_temp.ok((select shadow_cast = '(x)' from shadow_result),
+  'the check can fail: the same function casts to the caller''s temp type tsquery instead of the catalog''s');
+select pg_temp.ok((select ids from shadow_result) = (select ids from before_shadow) and (select ids from before_shadow) is not null
+  and (select cardinality(ids) from before_shadow) = 6,
+  'with a temp document_chunks, documents and tsquery in place the helper still reads the real tables: its answer is unchanged');
 
 commit;
