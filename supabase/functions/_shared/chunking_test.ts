@@ -399,7 +399,7 @@ async function pagesOf(specs: Array<{ markdown: string; blocks?: MistralBlock[];
     images: (s.images ?? []).map((id) => ({ id })),
   }));
   const document = composeDocument(pages);
-  return { document, ...(await chunkPages({ document, pages })) };
+  return { document, pages, ...(await chunkPages({ document, pages })) };
 }
 const TOKEN = '![img:3-0](img:3-0)';
 
@@ -530,4 +530,37 @@ Deno.test('rows with equal chunk_hash are de-duplicated, keeping the first, and 
   const spans = chunkUnit({ unitKey: 'page:1', text: 'y'.repeat(12_000), sourceKind: 'pdf_page', pageNumber: 1 });
   assertEquals(spans.map((s) => s.content.length), [6000, 6000]);
   assertEquals(out.rows.map((r) => [r.page_number, r.chunk_index, r.char_from]), [[1, 0, 0], [2, 1, 12_002]]);
+});
+
+Deno.test('a document header prefixes the embedding input only: chunk_hash, content and section are unchanged', async () => {
+  const long = Array.from({ length: 12 }, (_, i) => `Sentence ${i} of the second page.`).join(' ');
+  const specs = [
+    { markdown: '# Part One\n\nIntro.', blocks: [title('# Part One'), body('Intro.')] },
+    { markdown: long, blocks: [body(long)] },
+  ];
+  const plain = await pagesOf(specs);
+  const header = 'NCLT / NCLAT (Insolvency) | In the matter of Acme Ltd\nCP (IB) No.1 of 2020 | NCLT | 2024-01-02';
+  const document = plain.document;
+  const withHeader = await chunkPages({ document, pages: plain.pages, header });
+  assertEquals(withHeader.rows.length, plain.rows.length);
+  assert(plain.rows.length > 0);
+  for (const [i, r] of withHeader.rows.entries()) {
+    const was = plain.rows[i];
+    assertEquals(r.chunk_hash, was.chunk_hash);
+    assertEquals(r.content, was.content);
+    assertEquals(r.section, was.section);
+    assertEquals(r.char_from, was.char_from);
+    assertEquals(r.token_estimate, was.token_estimate);
+    assertEquals(r.embedding_input, `${header}\n\n${was.embedding_input}`);
+    assertEquals(r.embed_hash, await sha256Hex(normalise(r.embedding_input)));
+    assertNotEquals(r.embed_hash, was.embed_hash);
+  }
+});
+
+Deno.test('no header, an empty header and an undefined header leave every page chunk byte-identical', async () => {
+  const plain = await pagesOf([{ markdown: paragraphs(4) }]);
+  for (const header of [undefined, '']) {
+    const again = await chunkPages({ document: plain.document, pages: plain.pages, header });
+    assertEquals(again.rows, plain.rows);
+  }
 });

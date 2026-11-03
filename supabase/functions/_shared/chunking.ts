@@ -7,6 +7,7 @@
 // every embedding; CHUNK.version participates so a chunker change re-embeds.
 
 import { normalise, sha256Hex } from './textNormalise.ts';
+import { chunkHeaderPrefix } from './chunkHeader.ts';
 import { type ComposedDocument, isMarginNote, locateBlocks, type MistralPage } from './pageText.ts';
 
 export interface ChunkOptions {
@@ -292,11 +293,14 @@ export interface PageChunkRow {
   char_to: number;
   content: string;
   section: PageSection;
-  /** Section prefix, a repeated table header when the chunk starts inside a table, then the content (R4). */
+  /**
+   * The document header when one was given, the section prefix, a repeated table header when the chunk
+   * starts inside a table, then the content (R4).
+   */
   embedding_input: string;
   /** SHA-256(PAGE_CHUNK_VERSION ‖ unit_key ‖ normalise(content)): identity, independent of the section. */
   chunk_hash: string;
-  /** SHA-256(normalise(embedding_input)): decides whether an identity hit may keep its vector. */
+  /** SHA-256(normalise(embedding_input)): decides whether an identity hit may keep its vector. Includes the header. */
   embed_hash: string;
   block_refs: BlockRef[];
   /** Placeholder ids (`img:<page>-<n>`) whose whole token lies inside the chunk. */
@@ -312,6 +316,13 @@ export interface PageChunkInput {
    * dimensions are read here, for sections (R2) and block links (R5). A page with no entry has no blocks.
    */
   pages: ReadonlyArray<Pick<MistralPage, 'index' | 'blocks' | 'dimensions'>>;
+  /**
+   * The document's contextual header (chunkHeader.ts buildChunkHeader), put in front of every chunk's
+   * embedding input. Off when absent or empty: the rows are then byte-identical to today's. It touches
+   * embedding_input and embed_hash only; chunk_hash (identity) never sees it, so a document's existing
+   * chunks keep their identity and only their embed_hash differs.
+   */
+  header?: string;
 }
 
 /** R2: section values and the "first 200 characters" window. */
@@ -482,6 +493,7 @@ export async function chunkPages(input: PageChunkInput): Promise<{ rows: PageChu
     }),
   );
   const events = sectionEvents(document, located, sources);
+  const headerPrefix = chunkHeaderPrefix(input.header);
 
   const rows: PageChunkRow[] = [];
   const seen = new Set<string>();
@@ -512,7 +524,8 @@ export async function chunkPages(input: PageChunkInput): Promise<{ rows: PageChu
       const charFrom = page.char_from + s.charFrom;
       const charTo = page.char_from + s.charTo;
       const section = sectionAt(events, charFrom, charTo);
-      const embeddingInput = sectionPrefix(section) + tableHeaderPrefix(page.text, tables, s.charFrom) + s.content;
+      const embeddingInput =
+        headerPrefix + sectionPrefix(section) + tableHeaderPrefix(page.text, tables, s.charFrom) + s.content;
       rows.push({
         chunk_index: rows.length,
         page_number: page.page_number,

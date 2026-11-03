@@ -705,3 +705,19 @@ Deno.test('supplied text compares the complete registered chunk plan before embe
  await assertRejects(()=>suppliedTextStep(deps(f.db,e.embed,clock().now),job({input_kind:'supplied_text'}),FAR),IngestError,'plan');
  assertEquals(e.calls.length,0);
 });
+
+Deno.test('index: planIndex with a document header keeps every chunk_hash and changes only the embedding input and embed_hash', async () => {
+  const pages = await billPages();
+  const plain = await planIndex(DOC, EXTRACT_HASH, pages.length, pages);
+  const header = 'Parliamentary Bill | The Example Bill, 2025\nBill No. IX | Rajya Sabha';
+  const headed = await planIndex(DOC, EXTRACT_HASH, pages.length, pages, header);
+  assert(plain.chunks.length > 0);
+  assertEquals(headed.chunks.map((c) => c.chunk_hash), plain.chunks.map((c) => c.chunk_hash));
+  assertEquals(headed.pages, plain.pages);
+  for (const [i, c] of headed.chunks.entries()) {
+    assertEquals(c.content, plain.chunks[i].content);
+    assert(c.embedding_input.startsWith(`${header}\n\n`));
+    assert(c.embed_hash !== plain.chunks[i].embed_hash);
+  }
+  assertEquals((await planIndex(DOC, EXTRACT_HASH, pages.length, pages)).chunks, plain.chunks);
+});

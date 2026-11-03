@@ -62,6 +62,8 @@ export async function planIndex(
   extractHash: string,
   pagesTotal: number,
   stored: readonly StoredOcrPage[],
+  /** The document's contextual header (_shared/chunkHeader.ts); absent means none. indexStep does not pass one yet. */
+  header?: string,
 ): Promise<IndexPlan> {
   const byNumber = new Map(stored.map((p) => [p.page_number, p.raw]));
   const raws = [];
@@ -75,7 +77,7 @@ export async function planIndex(
   }
 
   const document = composeDocument(raws);
-  const { rows: chunks } = await chunkPages({ document, pages: raws });
+  const { rows: chunks } = await chunkPages({ document, pages: raws, header });
 
   const pages: PageRow[] = document.pages.map((p) => ({ document_id: documentId, extract_hash: extractHash, ...p }));
 

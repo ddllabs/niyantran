@@ -1,6 +1,7 @@
-import { assert, assertEquals } from 'jsr:@std/assert@1';
+import { assert, assertEquals, assertNotEquals } from 'jsr:@std/assert@1';
 import { chunkTextWithContext } from './textContext.ts';
 import { chunkDocument } from './chunking.ts';
+import { normalise, sha256Hex } from './textNormalise.ts';
 
 Deno.test('context: short Markdown sections never pack together and source spans stay exact', async () => {
   const text = '# Powers\nFirst power.\n\n## Appeals\nSecond remedy.';
@@ -87,4 +88,33 @@ Deno.test('context: a short clause label stays with the following long paragraph
   assert(definitions[0].content.length >= 200);
   assert(definitions[0].content.startsWith('Definitions.'));
   for (const r of definitions) assertEquals(r.content, text.slice(r.charFrom, r.charTo));
+});
+
+const HEADER = 'NCLT / NCLAT (Insolvency) | In the matter of Acme Ltd\nCP (IB) No.1 of 2020 | NCLT | 2024-01-02';
+
+Deno.test('context: a document header changes embed_hash and embedding_input only; chunk_hash, content and token_count keep their identity', async () => {
+  const text = '# Powers\n' + 'The same complete sentence. '.repeat(100) + '\n\n# Appeals\n' + 'Another complete sentence. '.repeat(60);
+  const plain = await chunkTextWithContext(text);
+  const headed = await chunkTextWithContext(text, { header: HEADER });
+  assertEquals(headed.length, plain.length);
+  assert(plain.length > 1);
+  for (const [i, r] of headed.entries()) {
+    const was = plain[i];
+    assertEquals(r.chunkHash, was.chunkHash);
+    assertEquals(r.content, was.content);
+    assertEquals([r.charFrom, r.charTo, r.chunkIndex], [was.charFrom, was.charTo, was.chunkIndex]);
+    assertEquals(r.tokenEstimate, was.tokenEstimate);
+    assertEquals(r.section, was.section);
+    assertEquals(r.embedding_input, `${HEADER}\n\n${was.embedding_input}`);
+    assertEquals(r.embed_hash, await sha256Hex(normalise(r.embedding_input)));
+    assertNotEquals(r.embed_hash, was.embed_hash);
+  }
+});
+
+Deno.test('context: no header, an empty header and an undefined header give byte-identical rows', async () => {
+  const text = '# Powers\n' + 'The same complete sentence. '.repeat(100);
+  const plain = await chunkTextWithContext(text);
+  assertEquals(await chunkTextWithContext(text, {}), plain);
+  assertEquals(await chunkTextWithContext(text, { header: undefined }), plain);
+  assertEquals(await chunkTextWithContext(text, { header: '' }), plain);
 });
