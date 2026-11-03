@@ -142,6 +142,9 @@ section. A chunk that says "the respondent's appeal is dismissed" then also carr
   today's shape on a disposable copy.
 - **Gate.** Each step in §4.1–4.3 ships only if recall@10 is equal or better for every feature, and p95 latency is no
   worse. Each is measured on its own, so a step that does not help is dropped.
+  Recorded exceptions: step 3 (partitions), broad and focused search latency (recall unchanged), accepted by the
+  developer on 2026-11-03, conditional on a before-and-after measurement on production, with
+  the evidence in [the partitions plan](../plans/2026-11-01-chunk-partitions.md#b3-result-and-the-broad-search-exception-2026-11-03).
 - **Production.** The partition migration rebuilds the chunk table and its indexes. It is tested end to end on a
   disposable database, with SQL fixtures for the access policies, and applied to production only with the
   developer's explicit authorization of that migration.

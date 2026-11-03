@@ -43,31 +43,46 @@
 -- test one by one with law_document_is_published and read whenever they are visible.
 --
 -- Lock. ALTER POLICY takes ACCESS EXCLUSIVE on documents, which every search reads, and a waiting
--- ACCESS EXCLUSIVE request makes new readers queue behind it. So it is requested with a 500 ms
--- lock_timeout and retried (as the partition migration's swap does): a search waits at most about
--- half a second. Nothing else here takes a lock on a table.
+-- ACCESS EXCLUSIVE request makes new readers queue behind it. So it is requested with a 2 s
+-- lock_timeout and retried every half second, 240 times (about 10 minutes), as the partition
+-- migration's swap does: a search queues at most about 2 s behind it. Nothing else here takes a
+-- lock on a table.
 --
--- Ordered before the partitioning; 20261101120000 checks only document_chunks' policies, which this
--- file does not change. Ship the two together, this one first, never this one alone: on the
--- unpartitioned table the new policy changes the plan of match_documents' feature-size count
--- (select count(*) ... limit 15001, which joins documents) and makes feature search slower
+-- The second of a pair: 20261101120000_document_chunks_partitioned first, then this file, shipped
+-- together; never this one alone, and it refuses to apply until document_chunks is partitioned. On
+-- the unpartitioned table the new policy changes the plan of match_documents' feature-size count
+-- (select count(*) ... limit 15001, which joins documents) and makes feature search 2-10x slower
 -- (rehearsal 2026-11-02: NCLT 1.8 -> 4.4 s, Bills 0.20 -> 2.1 s), while with the partitions that
--- count reads the chunk's own desk_feature and is fast (NCLT 0.28 s, Bills 0.20 s).
+-- count reads the chunk's own desk_feature and is fast (NCLT 0.28 s, Bills 0.20 s). Applying it
+-- second also keeps today's policy for the whole of the partition build. 20261101120000 checks only
+-- document_chunks' policies, which this file does not change, so its preconditions hold in this
+-- order, and this file's own check (today's documents policy, verbatim) is untouched by it.
 --
--- Rollback:
+-- Rollback, the first half of the pair's: this file first, then 20261101120000's (its header).
+-- Rolling back only this file is allowed and leaves today's policy over the partitions; rolling back
+-- the partitions requires this one first, because this file may not stand alone on the
+-- unpartitioned table.
 --   begin;
 --   alter policy law_documents_serving on public.documents using(
 --    not (starts_with(source_key,'law:trib:IBBI_NCLT:') and metadata->>'origin'='supplied-text')
 --    or not exists(select 1 from public.law_listing_settings where active)
 --    or public.law_document_is_published(id));
 --   drop function public.law_published_document_ids();
+--   delete from supabase_migrations.schema_migrations where version = '20261101130000';
 --   commit;
+-- Deleting the version row lets `supabase db push` apply the file again later; without it the CLI
+-- believes it is applied. (The ALTER POLICY takes ACCESS EXCLUSIVE on documents; run it when no long
+-- reader holds the table, or with the same lock retry as the migration.)
 
 begin;
 
--- The policy this file replaces must be today's, word for word (whitespace and schema aside).
+-- The partitions first (see the header), and the policy this file replaces must be today's, word
+-- for word (whitespace and schema aside).
 do $$
 begin
+  if (select relkind from pg_class where oid = to_regclass('public.document_chunks')) is distinct from 'p' then
+    raise exception 'law_documents_serving_set: document_chunks is not partitioned; apply 20261101120000_document_chunks_partitioned first';
+  end if;
   if (select array_agg(format('%s %s %s %s', polpermissive, polcmd, polroles::regrole[],
                               regexp_replace(pg_get_expr(polqual, polrelid), '\s+|public\.', '', 'g')))
         from pg_policy where polrelid = 'public.documents'::regclass and polname = 'law_documents_serving')
@@ -87,8 +102,8 @@ grant execute on function public.law_published_document_ids() to authenticated, 
 
 do $$
 declare
-  c_wait constant text := '500ms';
-  c_attempts constant int := 600;
+  c_wait constant text := '2s';
+  c_attempts constant int := 240;
 begin
   for attempt in 1..c_attempts loop
     begin

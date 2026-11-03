@@ -24,6 +24,7 @@ import {
   sha256Hex,
   stripLeadingForeignCover,
   titleCase,
+  titleInOpening,
   titleRefs,
   titlesAgree,
 } from './documentRepair.js';
@@ -553,6 +554,30 @@ describe('titleCase', () => {
     expect(titleCase('THE LAYOUT-DESIGN BILL, 2000')).toBe('The Layout-Design Bill, 2000');
     expect(titleCase('THE APPROPRIATION (RAILWAYS) NO. 2 ACT, 2003')).toBe('The Appropriation (Railways) No. 2 Act, 2003');
     expect(titleCase('The Buy Indian Bill, 2004')).toBe('The Buy Indian Bill, 2004');
+    // a compound number keeps its second word in lower case, as the listing writes it (Seventy-third, Ninety-ninth)
+    expect(titleCase('THE CONSTITUTION (NINETY-THIRD AMENDMENT) BILL, 2001')).toBe('The Constitution (Ninety-third Amendment) Bill, 2001');
+    expect(titleCase('THE CONSTITUTION (TWENTY-SEVENTH AMENDMENT) BILL, 1971')).toBe('The Constitution (Twenty-seventh Amendment) Bill, 1971');
+    expect(titleCase('THE CONSTITUTION (ONE HUNDRED AND THIRD AMENDMENT) BILL, 2019')).toBe('The Constitution (One Hundred and Third Amendment) Bill, 2019');
+  });
+});
+
+describe('titleInOpening', () => {
+  const text = '# AS PASSED BY LOK SABHA ON 11TH MAY, 2005 THE RIGHT TO INFORMATION BILL, 2005\n\n## ARRANGEMENT OF CLAUSES';
+  it('is true when the title is printed in the opening, whatever its case, spacing, line breaks or punctuation', () => {
+    expect(titleInOpening('The Right to Information Bill, 2005', text)).toBe(true);
+    expect(titleInOpening('The Representation of the People (Amendment) Bill, 2000', 'THE REPRESENTATION OF THE PEOPLE\n(AMENDMENT) BILL, 2000\nA')).toBe(true);
+    expect(titleInOpening('The “Tribhuvan” Sahkari University Bill, 2025', '# THE "TRIBHUVAN" SAHKARI UNIVERSITY BILL, 2025')).toBe(true);
+  });
+  it('is false for a title that is not printed there: a different bill, a different year, a part of a word, or beyond the opening', () => {
+    expect(titleInOpening('The Right to Information Bill, 2006', text)).toBe(false);
+    expect(titleInOpening('The Right to Information (Amendment) Bill, 2005', text)).toBe(false);
+    expect(titleInOpening('The Right to Info Bill, 2005', text)).toBe(false);
+    expect(titleInOpening('The Right to Information Bill, 2005', `${'x '.repeat(2000)}${text}`)).toBe(false);
+    expect(titleInOpening('', text)).toBe(false);
+    expect(titleInOpening('The Right to Information Bill, 2005', '')).toBe(false);
+  });
+  it('reads as far as headChars', () => {
+    expect(titleInOpening('The Right to Information Bill, 2005', `${'x '.repeat(2000)}${text}`, { headChars: 5000 })).toBe(true);
   });
 });
 
@@ -677,6 +702,94 @@ describe('buildRepairPayload: retitle_unlink', () => {
 
   it('a retitle object is only for retitle_unlink', async () => {
     await expect(buildRepairPayload(rekeyRow(), { text: OLD_TEXT, action: 'decode', retitle })).rejects.toThrow(/retitle/);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// retitle: a document with a file name for a title and no key. New title only: text, key and links unchanged.
+// ---------------------------------------------------------------------------------------------
+describe('buildRepairPayload: retitle', () => {
+  const retitle = { title: 'The Right to Information Bill, 2005' };
+  const LINK_FIELDS = ['document_key', 'bill_number', 'bill_year', 'house', 'status', 'file_url_source'];
+  const keylessRow = () => {
+    const row = rekeyRow();
+    row.title = 'right to information eng';
+    for (const f of LINK_FIELDS) delete row.metadata[f];
+    return row;
+  };
+
+  it('changes the title and records the old one; the text, the key fields and everything else stay', async () => {
+    const existing = keylessRow();
+    const payload = await buildRepairPayload(existing, { text: OLD_TEXT, action: 'retitle', retitle });
+    expect(payload.title).toBe(retitle.title);
+    expect(payload.ocr_text).toBe(OLD_TEXT);
+    expect(() => validateDocument(payload)).not.toThrow();
+    const { text_repair, n_chars, text_sha256, ...rest } = payload.metadata;
+    const { n_chars: _n, text_sha256: _t, ...before } = existing.metadata;
+    expect(rest).toEqual(before);
+    for (const f of [...LINK_FIELDS, 'file_url_ambiguous']) expect(payload.metadata).not.toHaveProperty(f);
+    expect(text_repair).toEqual({ ticket: 'F281', action: 'retitle', previous_title: 'right to information eng' });
+    expect(n_chars).toBe(codePointLength(OLD_TEXT));
+    expect(text_sha256).toBe(await sha256Hex(OLD_TEXT));
+  });
+
+  it('does not mutate the row, and keeps the file and desk fields', async () => {
+    const existing = keylessRow();
+    const copy = JSON.parse(JSON.stringify(existing));
+    const payload = await buildRepairPayload(existing, { text: OLD_TEXT, action: 'retitle', retitle });
+    expect(existing).toEqual(copy);
+    for (const k of ['source_key', 'file_name', 'file_url', 'desk_tier', 'desk_feature']) expect(payload[k]).toBe(existing[k]);
+  });
+
+  it('through the real ingestOne (version 1: re-chunked) the title changes and no key appears', async () => {
+    const existing = keylessRow();
+    const payload = await buildRepairPayload(existing, { text: OLD_TEXT, action: 'retitle', retitle });
+    const { result, written } = await serverWrite(existing, payload);
+    expect(result.status).toBe('indexed');
+    expect(written.title).toBe(retitle.title);
+    for (const f of [...LINK_FIELDS, 'file_url_ambiguous']) expect(written.metadata).not.toHaveProperty(f);
+    expect(written.metadata).toMatchObject({ document_role: 'as_introduced', source_host: 'sansad.in', doc_type: 'bill', title_stem: '1748LS', n_pages: 6 });
+  });
+
+  it('through the real ingestOne at the current chunker version it is the metadata-only shortcut: no re-chunk, no embedding', async () => {
+    const existing = { ...keylessRow(), chunker_version: 2, content_sha256: await sha256Hex(OLD_TEXT) };
+    const payload = await buildRepairPayload(existing, { text: OLD_TEXT, action: 'retitle', retitle });
+    const { result, written } = await serverWrite(existing, payload);
+    expect(result).toMatchObject({ status: 'unchanged', inserted: 0, embedded_tokens: 0 });
+    expect(written.title).toBe(retitle.title);
+    expect(written.metadata).not.toHaveProperty('document_key');
+  });
+
+  it('refuses without a title, with the old title again, on a document that has a key, with links, and on a rekey object', async () => {
+    await expect(buildRepairPayload(keylessRow(), { text: OLD_TEXT, action: 'retitle' })).rejects.toThrow(/retitle/);
+    await expect(buildRepairPayload(keylessRow(), { text: OLD_TEXT, action: 'retitle', retitle: { title: ' ' } })).rejects.toThrow(/title/);
+    await expect(buildRepairPayload(keylessRow(), { text: OLD_TEXT, action: 'retitle', retitle: { title: 'right to information eng' } })).rejects.toThrow(/already has the title/);
+    await expect(buildRepairPayload(rekeyRow(), { text: OLD_TEXT, action: 'retitle', retitle })).rejects.toThrow(/document_key/);
+    const linked = keylessRow();
+    linked.metadata.links = [{ document_key: 'bill:2012:74' }];
+    await expect(buildRepairPayload(linked, { text: OLD_TEXT, action: 'retitle', retitle })).rejects.toThrow(/links/);
+    await expect(buildRepairPayload(keylessRow(), { text: OLD_TEXT, action: 'retitle', retitle, rekey: { document_key: 'bill:2005:96', title: 'x' } })).rejects.toThrow(/rekey/);
+  });
+
+  it('refuses a document the unlink action would refuse: an ambiguous file URL', async () => {
+    const ambiguous = keylessRow();
+    ambiguous.metadata.file_url_ambiguous = true;
+    await expect(buildRepairPayload(ambiguous, { text: OLD_TEXT, action: 'retitle', retitle })).rejects.toThrow(/file_url_ambiguous/);
+  });
+
+  it('is rolled back by the snapshot: the old title returns and nothing else is touched', async () => {
+    const original = keylessRow();
+    const repaired = await buildRepairPayload(original, { text: OLD_TEXT, action: 'retitle', retitle });
+    const { written } = await serverWrite(original, repaired);
+    const now = { ...original, title: written.title, metadata: written.metadata };
+    const rollback = await buildRollbackPayload(original, { action: 'retitle' });
+    expect(rollback.metadata).not.toHaveProperty('file_url_ambiguous');
+    const { written: back } = await serverWrite(now, rollback);
+    expect(back.title).toBe(original.title);
+    const { text_repair, text_sha256, ...restored } = back.metadata;
+    const { text_sha256: _t, ...before } = original.metadata;
+    expect(restored).toEqual(before);
+    expect(text_repair).toMatchObject({ action: 'rollback', rolled_back_action: 'retitle' });
   });
 });
 
