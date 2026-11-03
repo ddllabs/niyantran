@@ -8,7 +8,7 @@
 --     other feature, document ids, an NCLT search that names document ids) returns exactly what
 --     match_documents returns, because the keyword rules regressed those features in the eval.
 --   * The keyword side searches only the question's rare words: a word counts when it is in at most 300
---     chunks of the table (about 0.08%); the rare words are OR'd; matches are ranked by ts_rank_cd; reciprocal
+--     chunks the caller can read (about 0.08% of the table); the rare words are OR'd; matches are ranked by ts_rank_cd; reciprocal
 --     rank fusion, weight 1, k = 60, with the 100 vector rows of match_documents. A strict AND of every word
 --     of a sentence matches nothing; an OR of every word is dominated by common words (both measured).
 --   * The text configuration is 'simple': case numbers and bill names stay whole; no stemming; Hindi and other
@@ -26,7 +26,11 @@
 --
 --   2. Schema retrieval_internal, used by hybrid search and nothing else, not exposed through the API
 --      (supabase/config.toml: schemas = public, graphql_public). USAGE for authenticated and service_role only
---      (the invoker function runs as the caller), so no one can create objects in it but its owner. CREATE
+--      (the invoker function runs as the caller), so no one can create objects in it but its owner. (A function
+--      added later would be executable by PUBLIC, PostgreSQL's built-in default, but only reachable by those two
+--      roles: ALTER DEFAULT PRIVILEGES IN SCHEMA ... REVOKE cannot cancel that default, it has no effect, so it is
+--      not used; the fixture asserts the schema holds exactly the helper, and a function added here must revoke
+--      explicitly, as the helper does.) CREATE
 --      SCHEMA has no IF NOT EXISTS: if the name is ever taken, this migration fails instead of reusing it.
 --      The schema that holds billing and credits is a different schema and is not touched: this file names no
 --      other schema and changes no privilege outside retrieval_internal, public.document_chunks (the index)
@@ -36,9 +40,8 @@
 --      supabase/config.toml covers only local development.
 --
 --   3. retrieval_internal.hybrid_keyword_ids(p_query_text, p_desk_tier, p_desk_feature) returns (id, keyword_rank): the ids
---      of chunks (of the scope, indexed, embedded) that match the rare words, best first, ranks 1..n, NOT
---      filtered by the caller's visibility. SECURITY DEFINER, search_path = public, extensions, pg_temp
---      (pg_temp last, every table schema-qualified), custom plans.
+--      of the chunks (of the scope, indexed, embedded, in documents the caller can read) that match the rare
+--      words, best first, ranks 1..n. SECURITY DEFINER, search_path = pg_catalog, pg_temp, custom plans.
 --
 --   4. public.match_documents_hybrid(query_embedding, query_text, match_count, p_document_ids, p_desk_tier,
 --      p_desk_feature): SECURITY INVOKER, same parameters and columns as match_documents. For an NCLT feature
@@ -49,35 +52,44 @@
 -- WHY A DEFINER HELPER. Under row-level security the keyword predicate cannot use the GIN index: the match
 -- operator (@@) is not leakproof, so the planner may not evaluate it before the restrictive policy
 -- law_chunks_serving, and a signed-in user's keyword query seq-scans every chunk and probes documents for
--- each (measured 22 to 29 s with no match, against 57 ms as service_role). The helper finds the candidates as
--- its owner, with the index, then returns only what the caller could have read anyway.
+-- each (measured 22 to 29 s with no match, against 57 ms as service_role). The helper runs as its owner, with
+-- the index, and so must itself keep hidden rows out of everything it computes.
 --
 -- SECURITY ARGUMENT (for the reviewer).
---   What the helper can see that the caller cannot: every chunk and document, including the unpublished
---   NCLT orders hidden by law_chunks_serving / law_documents_serving, because its owner owns the tables and
---   so bypasses RLS. Document frequencies, candidates and their ranks are computed over all of it.
---   What it hands back: chunk ids and ranks, never text, titles, scores or counts. Those ids may include the
---   ids of hidden chunks. The caller never receives them through the search function:
---     a. match_documents_hybrid is SECURITY INVOKER. It keeps only the helper's ids that an existence check
---        through the caller's own RLS lets it read, ranks the survivors, fuses, and reads every row it returns
---        through RLS again (the access check is last, and is the policies themselves, not a copy of them).
---     b. The helper cannot filter by the caller's identity itself: PostgreSQL forbids SET ROLE inside a
---        SECURITY DEFINER function ('cannot set parameter "role" within security-definer function').
---        So a caller who can run SQL and call the helper directly would see candidate ids of hidden chunks
---        (an existence signal: a hidden chunk matches these rare words), not their content. That path is closed
---        by exposure, not by the function: the schema is not in the API's exposed schemas, so no HTTP
---        client can reach the helper, and it is executable only by authenticated and service_role. A
---        signed-in browser or app user has no SQL connection. Options that would close it in the database
---        (a copy of the publication rule inside the helper, or a non-bypass owner role for the search function)
---        are listed in the task report; neither is done here.
---     c. Identity. The helper runs as its owner, so every name must resolve to what was meant: search_path is
---        fixed with pg_temp last (a caller's temp table or type cannot shadow a catalog or public name), every
---        table is written public.<name>, and no caller-supplied text becomes SQL (a lexeme is escaped into a
---        tsquery literal and only compared). Parameters cannot name an object.
---     d. Residual channels, accepted: (i) the 2000-row candidate cap and the best-100 cut run before the
---        visibility check, so hidden matching chunks can crowd a visible chunk out of the candidates (at most
---        the hidden chunks, 69 now); (ii) whether a word is rare depends on its count over all chunks, hidden
---        ones included, and a call's duration depends on the candidates; neither returns text or ids.
+--   The helper reads as its owner, who owns the tables and so bypasses RLS: it could see every chunk and
+--   document, including the unpublished NCLT orders hidden by law_chunks_serving and law_documents_serving.
+--   It never uses them. Both of its queries (the document-frequency count of each word and the candidate
+--   search) join public.documents and apply the publication rule of law_documents_serving to the document:
+--       not starts_with(source_key, 'law:trib:IBBI_NCLT:')
+--       or not exists (select 1 from public.law_listing_settings where active)
+--       or id in (select public.law_published_document_ids())
+--       or not (metadata->>'origin' = 'supplied-text')
+--   (the chunk policy law_chunks_serving admits a chunk exactly when its document is admitted). Everything the
+--   helper computes (which words are rare, which chunks match, their order, which 100 survive the cut) is
+--   therefore a function of rows the caller can read, so it cannot differ with what a hidden order contains
+--   and no hidden id, count or rank can reach the caller, directly or through the search function. An earlier
+--   draft ran both over all rows and filtered afterwards; the cut then revealed how many hidden chunks matched
+--   (a caller who controls the text could test which words occur in hidden orders). That is why the filter is
+--   inside the queries and not after them.
+--   This copies the rule of the policy; it does not replace it. supabase/tests/chunk_hybrid_search.sql replays
+--   the matrix of law_documents_serving_set.sql (every kind of document the rule distinguishes, six listing
+--   states) and requires the helper to return exactly the chunks authenticated reads, so a change to the policy
+--   that is not made here fails that fixture. If the policy ever depends on the caller, the helper must change.
+--   Because the helper applies authenticated's rule to every caller, service_role gets no keyword rows from
+--   hidden orders either.
+--   Second line of defence: match_documents_hybrid is SECURITY INVOKER. It keeps only the helper's ids that an
+--   existence check through the caller's own RLS lets it read, ranks the survivors, fuses, and reads every row it
+--   returns through RLS again (the access check is last, and is the policies themselves).
+--   Exposure. The schema is not in the API's exposed schemas, so no HTTP client can call the helper, and it is
+--   executable only by authenticated and service_role. The database cannot tell whether the hosted project's
+--   API exposes the schema: BEFORE APPLYING, check it by hand (dashboard, Settings, API, "Exposed schemas" and
+--   "Extra search path"). Called directly by a caller with SQL access, the helper returns ids of readable chunks only.
+--   Identity. The helper runs as its owner, so every name must resolve to what was meant: search_path is
+--   pg_catalog, pg_temp (a caller's temp table or type cannot shadow anything), every table and function is
+--   written public.<name>, and no caller-supplied text becomes SQL (a lexeme is escaped into a tsquery literal and
+--   only compared). Parameters cannot name an object. The text is cut to 4000 characters and at most 64 words
+--   are probed, so a caller cannot make one call arbitrarily expensive.
+--   Residual: the length of a call depends on how many readable chunks match; nothing else.
 --   The owner is the migrating role (postgres on NTER), which owns document_chunks and documents.
 --
 -- Rollback (nothing else depends on any of it):
@@ -106,20 +118,20 @@ create function retrieval_internal.hybrid_keyword_ids(
 language plpgsql
 stable
 security definer
-set search_path = public, extensions, pg_temp
+set search_path = pg_catalog, pg_temp
 set plan_cache_mode = force_custom_plan
 as $fn$
 #variable_conflict use_column
 declare
-  -- A word is rare when it is in at most this many chunks of the whole table.
+  -- A word is rare when it is in at most this many chunks the caller can read.
   c_rare_df_max constant int := 300;
-  -- Keyword matches ranked before the best c_candidates are kept; ts_rank_cd cannot use the index, so a common
-  -- word could otherwise match most of the table.
-  c_keyword_cap constant int := 2000;
   c_candidates constant int := 100;
   -- Words probed per call (a probe is one index count): those with a digit first (case and section numbers),
   -- then the longest.
   c_max_terms constant int := 64;
+  -- Characters of the text that are analysed.
+  c_query_max constant int := 4000;
+  v_text    text;
   v_lex     text;
   v_lit     text;
   v_df      int;
@@ -127,21 +139,29 @@ declare
   v_query   tsquery;
   v_found   uuid[];
 begin
-  if nullif(btrim(coalesce(p_query_text, '')), '') is null then
+  v_text := left(p_query_text, c_query_max);
+  if nullif(btrim(coalesce(v_text, '')), '') is null then
     return;
   end if;
 
-  -- The rare words. The probe is a bounded index count: at most c_rare_df_max + 1 chunks are read.
+  -- The rare words. The probe is a bounded count: at most c_rare_df_max + 1 readable chunks are read.
   for v_lex in
     select x.lex
-      from (select distinct unnest(tsvector_to_array(to_tsvector('simple'::regconfig, p_query_text))) as lex) x
+      from (select distinct unnest(tsvector_to_array(to_tsvector('simple'::regconfig, v_text))) as lex) x
      order by (x.lex ~ '[0-9]') desc, length(x.lex) desc, x.lex
      limit c_max_terms
   loop
     v_lit := '''' || replace(replace(v_lex, '\', '\\'), '''', '''''') || '''';
     select count(*) into v_df
-      from (select 1 from public.document_chunks c
+      from (select 1
+              from public.document_chunks c
+              join public.documents d on d.id = c.document_id
              where to_tsvector('simple'::regconfig, c.content) @@ v_lit::tsquery
+               -- the publication rule of law_documents_serving (the copy the fixture checks)
+               and (not starts_with(d.source_key, 'law:trib:IBBI_NCLT:')
+                    or not exists (select 1 from public.law_listing_settings where active)
+                    or d.id in (select public.law_published_document_ids())
+                    or not (d.metadata->>'origin' = 'supplied-text'))
              limit c_rare_df_max + 1) z;
     if v_df between 1 and c_rare_df_max then
       v_terms := v_terms || v_lit;
@@ -152,19 +172,31 @@ begin
   end if;
   v_query := array_to_string(v_terms, ' | ')::tsquery;
 
-  -- The candidates, as the owner, through the GIN index (under RLS the match operator could not use it).
+  -- The candidates. Step 1 reads the matching chunks through the GIN index on their own, with their rank
+  -- (materialized, so the planner cannot pick another path and no second pass over the chunks is needed); step 2
+  -- drops every chunk whose document the caller cannot read, then keeps the best c_candidates by rank and id.
+  -- The rank of a hidden chunk is computed and discarded: hidden chunks are gone before anything is counted or
+  -- cut. The rare-word rule bounds step 1 (at most 64 words of at most 300 readable chunks each).
+  with m as materialized (
+    select c.id, c.document_id, c.desk_feature,
+           ts_rank_cd(to_tsvector('simple'::regconfig, c.content), v_query) as rank
+      from public.document_chunks c
+     where to_tsvector('simple'::regconfig, c.content) @@ v_query
+       and c.embedding is not null
+  )
   select array_agg(k.id order by k.rank desc, k.id) into v_found
-    from (select s.id, s.rank
-            from (select c.id, ts_rank_cd(to_tsvector('simple'::regconfig, c.content), v_query) as rank
-                    from public.document_chunks c
-                    join public.documents d on d.id = c.document_id
-                   where to_tsvector('simple'::regconfig, c.content) @@ v_query
-                     and c.embedding is not null
-                     and d.indexed_at is not null
-                     and (p_desk_feature is null or c.desk_feature = p_desk_feature)
-                     and (p_desk_tier is null or d.desk_tier = p_desk_tier)
-                   limit c_keyword_cap) s
-           order by s.rank desc, s.id
+    from (select m.id, m.rank
+            from m
+            join public.documents d on d.id = m.document_id
+           where d.indexed_at is not null
+             -- the publication rule of law_documents_serving (the copy the fixture checks)
+             and (not starts_with(d.source_key, 'law:trib:IBBI_NCLT:')
+                  or not exists (select 1 from public.law_listing_settings where active)
+                  or d.id in (select public.law_published_document_ids())
+                  or not (d.metadata->>'origin' = 'supplied-text'))
+             and (p_desk_feature is null or m.desk_feature = p_desk_feature)
+             and (p_desk_tier is null or d.desk_tier = p_desk_tier)
+           order by m.rank desc, m.id
            limit c_candidates) k;
   if v_found is null then
     return;
