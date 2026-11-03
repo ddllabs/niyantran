@@ -635,6 +635,21 @@ insert into oracle select 'ids', array_agg(id order by ord), array_agg(sim order
     join documents d on d.id = s.document_id
    where s.rn <= 8 and d.indexed_at is not null
    order by s.dist limit 40) x;
+-- The same statement for other lists of documents, with the function's quota.
+create function pg_temp.ids_oracle(mode text, p_ids uuid[]) returns void language sql as $f$
+  insert into oracle select mode, array_agg(id order by ord), array_agg(sim order by ord) from (
+    select s.id, (1 - s.dist)::float8 as sim, row_number() over (order by s.dist) as ord
+      from (select c.id, c.document_id, (c.embedding <=> (select v from q where name = 'mixed')) as dist,
+                   row_number() over (partition by c.document_id order by c.embedding <=> (select v from q where name = 'mixed')) as rn
+              from document_chunks_unpartitioned c
+             where c.document_id = any (p_ids) and c.embedding is not null) s
+      join documents d on d.id = s.document_id
+     where s.rn <= greatest(ceil(40::numeric / cardinality(p_ids))::int, 1) and d.indexed_at is not null
+     order by s.dist limit 40) x
+$f$;
+select pg_temp.ids_oracle('ids-bills', array['c3000000-0000-4000-8000-000000000001', 'c3000000-0000-4000-8000-000000000004']::uuid[]);
+select pg_temp.ids_oracle('ids-nofeature', array['c6000000-0000-4000-8000-000000000001']::uuid[]);
+select pg_temp.ids_oracle('ids-hidden', array['c2000000-0000-4000-8000-000000000001']::uuid[]);
 -- Unscoped, tier, feature (helper and exact) and the helper alone: exact top 40.
 insert into oracle select 'unscoped-nclt', array_agg(id order by ord), null from (
   select c.id, row_number() over (order by (c.embedding::halfvec(1536)) <=> ((select v from q where name = 'nclt')::halfvec(1536)), c.id) ord
@@ -680,7 +695,7 @@ insert into oracle select 'helper-bills', array_agg(id order by ord), null from 
    order by ord limit 40) x;
 reset role;
 revoke select on document_chunks_unpartitioned from authenticated;
-select pg_temp.ok((select count(*) from oracle where cardinality(ids) > 0) = 9
+select pg_temp.ok((select count(*) from oracle where cardinality(ids) > 0) = 11 and (select ids is null from oracle where mode = 'ids-hidden')
   and (select cardinality(ids) from oracle where mode = 'ids') = 24 and (select cardinality(ids) from oracle where mode = 'feature-bills-state') = 10
   and (select cardinality(ids) from oracle where mode = 'feature-nclt') = 40,
   'oracles: every mode has rows (document ids: 3 visible documents x 8; state bills: 10)');
@@ -736,6 +751,9 @@ set local work_mem = '3MB';
 set local role authenticated;
 select pg_temp.call('ids', $q$select * from match_documents((select v from q where name = 'mixed'), 40, array['c3000000-0000-4000-8000-000000000001', 'c4000000-0000-4000-8000-000000000001',
   'c2000000-0000-4000-8000-000000000001', 'c3000000-0000-4000-8000-000000000004', 'c1000000-0000-4000-8000-000000000001']::uuid[])$q$);
+select pg_temp.call('ids-bills', $q$select * from match_documents((select v from q where name = 'mixed'), 40, array['c3000000-0000-4000-8000-000000000001', 'c3000000-0000-4000-8000-000000000004']::uuid[])$q$);
+select pg_temp.call('ids-nofeature', $q$select * from match_documents((select v from q where name = 'mixed'), 40, array['c6000000-0000-4000-8000-000000000001']::uuid[])$q$);
+select pg_temp.call('ids-hidden', $q$select * from match_documents((select v from q where name = 'mixed'), 40, array['c2000000-0000-4000-8000-000000000001']::uuid[])$q$);
 select pg_temp.call('unscoped-nclt', $q$select * from match_documents((select v from q where name = 'nclt'), 40)$q$);
 select pg_temp.call('unscoped-default', $q$select * from match_documents((select v from q where name = 'default'), 40)$q$);
 select pg_temp.call('tier', $q$select * from match_documents((select v from q where name = 'default'), 40, null, 'national')$q$);
@@ -752,6 +770,17 @@ reset role;
 select pg_temp.ok((select ids from got where mode = 'ids') = (select ids from oracle where mode = 'ids')
   and (select sims from got where mode = 'ids') = (select sims from oracle where mode = 'ids'),
   'document ids: the same rows, order and similarities as the old branch on the unpartitioned copy');
+select pg_temp.ok((select bool_and(g.ids is not distinct from o.ids and g.sims is not distinct from o.sims) from got g join oracle o using (mode)
+                    where mode in ('ids-bills', 'ids-nofeature', 'ids-hidden')),
+  'document ids (Bills only; a document without a feature; an unpublished order): the same rows as the old branch');
+select pg_temp.ok((select nclt > 0 and bills > 0 and reg = 0 and dflt > 0 from got where mode = 'ids'),
+  'document ids read only the partitions of the documents'' features (NCLT, Bills, default; not Regulatory)');
+select pg_temp.ok((select nclt = 0 and bills > 0 and reg = 0 and dflt = 0 from got where mode = 'ids-bills'),
+  'document ids of Bills read only the Bills partition');
+select pg_temp.ok((select nclt = 0 and bills = 0 and reg = 0 and dflt > 0 from got where mode = 'ids-nofeature'),
+  'a document without a feature reads only the default partition');
+select pg_temp.ok((select nclt = 0 and bills = 0 and reg = 0 and dflt = 0 from got where mode = 'ids-hidden'),
+  'a document the caller cannot see opens no partition (its chunks were invisible before too)');
 select pg_temp.ok((select ids from got where mode = 'unscoped-nclt') = (select ids from oracle where mode = 'unscoped-nclt'),
   'unscoped (NCLT query): the same rows and order as exact search on the unpartitioned copy');
 select pg_temp.ok((select ids from got where mode = 'unscoped-default') = (select ids from oracle where mode = 'unscoped-default'),

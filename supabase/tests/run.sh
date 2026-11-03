@@ -101,18 +101,19 @@ chain() {
     document_chunks_partitions)
       chain pq_admission_links
       FILES+=("$(as_non_superuser 20261027231901_admin_corpus_readiness.sql)" "$(as_non_superuser 20261015130000_unscoped_ef_search.sql)"
-              "$(as_non_superuser 20261027185840_feature_search_recovery.sql)" "$(as_non_superuser 20261101110000_law_documents_serving_set.sql)"
-              "$(as_non_superuser 20261101120000_document_chunks_partitioned.sql)") ;;
-    # F278 step 4 (C1): hybrid (keyword + vector) search. The partitioned chunk table's chain, then the
-    # migration, as a non-superuser. The vacuity check drops the last.
+              "$(as_non_superuser 20261027185840_feature_search_recovery.sql)" "$(as_non_superuser 20261101120000_document_chunks_partitioned.sql)") ;;
+    # F278 step 4 (C1): hybrid (keyword + vector) search. The partitions-and-policy pair's chain
+    # (law_documents_serving_set: partitions, then the policy), then the migration, as a non-superuser.
+    # The vacuity check drops the last.
     chunk_hybrid_search)
-      chain document_chunks_partitions
+      chain law_documents_serving_set
       FILES+=("$(as_non_superuser 20261102120000_chunk_hybrid_search.sql)") ;;
-    # The law publication policy on documents evaluated once per query (same rows): the law listing
-    # chain, then the migration, as a non-superuser. The vacuity check drops the last.
+    # The law publication policy on documents evaluated once per query (same rows), the second of
+    # the pair: document_chunks_partitions' chain (which ends with the partitions), then the
+    # migration, as a non-superuser. The vacuity check drops the last.
     law_documents_serving_set)
-      chain pq_admission_links
-      FILES+=("$(as_non_superuser 20261101110000_law_documents_serving_set.sql)") ;;
+      chain document_chunks_partitions
+      FILES+=("$(as_non_superuser 20261101130000_law_documents_serving_set.sql)") ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;
@@ -799,6 +800,53 @@ record_brief_format_checks() {
   return $rc
 }
 
+# document_chunks_partitions only: the partition migration's preconditions refuse what it would
+# otherwise drop silently. From the chain without the migration (base), one copy per anomaly: inject
+# it, apply the migration, and require the named refusal with nothing changed. The untouched base
+# must then apply.
+document_chunks_partitions_checks() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f rc=0
+  local base=niyantran_dcp_base_test try=niyantran_dcp_try_test
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  for db in $base $try; do q "drop database if exists $db" >/dev/null; done
+  q "create database $base" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $base < "$f" >/dev/null 2>&1 || { echo "  CHECKS: bootstrap broke at $(basename "$f")"; return 1; }
+  done
+  local cases=(
+    "grant select on public.document_chunks to anon|has grants this migration does not carry over"
+    "grant references on public.document_chunks to authenticated|has grants this migration does not carry over"
+    "grant select (content) on public.document_chunks to anon|has column grants"
+    "alter table public.document_chunks set (fillfactor = 90)|or one of its indexes has storage parameters"
+    "alter table public.document_chunks alter column content set storage external|has a column storage or compression setting"
+    "alter table public.document_chunks alter column metadata set compression pglz|has a column storage or compression setting"
+    "alter index public.document_chunks_embedding_halfvec_hnsw set (m = 24)|or one of its indexes has storage parameters"
+  )
+  local c sql want
+  for c in "${cases[@]}"; do
+    sql="${c%%|*}"; want="${c#*|}"
+    q "drop database if exists $try" >/dev/null; q "create database $try template $base" >/dev/null
+    q "$sql" -d $try >/dev/null 2>&1 || { echo "  PRECONDITION CHECK: could not inject: $sql"; rc=1; continue; }
+    if psql_in $try < "$guard" > "$WORK/dcp.txt" 2>&1; then
+      echo "  PRECONDITION FAIL - applied over: $sql"; rc=1
+    elif ! grep -q "document_chunks_partitioned: .*$want" "$WORK/dcp.txt"; then
+      echo "  PRECONDITION FAIL - $sql: unexpected output:"; grep ERROR "$WORK/dcp.txt" | head -1 | sed 's/^/    /'; rc=1
+    elif [ "$(q "select relkind from pg_class where oid = 'public.document_chunks'::regclass" -d $try)" != r ]; then
+      echo "  PRECONDITION FAIL - $sql: document_chunks changed although the migration refused"; rc=1
+    fi
+  done
+  q "drop database if exists $try" >/dev/null
+  if [ $rc -eq 0 ]; then
+    if psql_in $base < "$guard" >/dev/null 2>&1 && [ "$(q "select relkind from pg_class where oid = 'public.document_chunks'::regclass" -d $base)" = p ]; then
+      echo "  preconditions ok - ${#cases[@]} anomalies refused by name, nothing changed; the untouched chain applies"
+    else
+      echo "  PRECONDITION FAIL - the untouched chain did not apply"; rc=1
+    fi
+  fi
+  q "drop database if exists $base" >/dev/null
+  return $rc
+}
 credit_paise_atomic_check() {
   local db="$1" line
   : > "$WORK/credit_paise_atomic.expanded.sql"
@@ -861,6 +909,7 @@ run_fixture() {
     [ "$name" = credit_paise_contract ] && { credit_paise_atomic_check "$db" || rc=1; }
     [ "${VACUITY:-1}" = 1 ] && { vacuity_check "$name" || rc=1; }
     [ "$name" = corpus_records ] && { corpus_records_checks || rc=1; }
+    [ "$name" = document_chunks_partitions ] && { document_chunks_partitions_checks || rc=1; }
     [ "$name" = feed_records ] && { feed_records_checks || rc=1; }
     [ "$name" = feed_admin ] && { feed_admin_checks || rc=1; }
     [ "$name" = feed_register_page ] && { feed_register_page_checks || rc=1; }

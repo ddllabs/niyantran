@@ -1,6 +1,7 @@
--- Disposable local fixture for 20261101110000_law_documents_serving_set. Chain: pq_admission_links
--- (the law listing tables, functions and policies of 20261023184450) + the migration, as a
--- non-superuser.
+-- Disposable local fixture for 20261101130000_law_documents_serving_set. Chain: document_chunks_partitions'
+-- (pq_admission_links, with the law listing tables, functions and policies of 20261023184450, then
+-- the partitioned document_chunks of 20261101120000) + the migration, as a non-superuser. The
+-- migration is the second of that pair; chunks therefore carry their document's desk_feature.
 --
 -- The rewritten law_documents_serving must admit exactly the rows the 20261023184450 expression
 -- admitted. The old expression is kept below, verbatim, as the oracle, and evaluated by the owner
@@ -35,6 +36,9 @@ end $$;
 
 -- ---------------------------------------------------------------------------------------------
 -- What only the migration makes true.
+
+select pg_temp.ok((select relkind from pg_class where oid = 'public.document_chunks'::regclass) = 'p',
+  'the chain applies the pair in order: document_chunks is partitioned before this migration');
 
 select pg_temp.ok(to_regprocedure('public.law_published_document_ids()') is not null, 'law_published_document_ids() exists');
 select pg_temp.ok((select prosecdef and provolatile = 's' and proconfig = '{search_path=public}' and proretset
@@ -88,8 +92,8 @@ select ('e2000000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid, source_key,
   from kinds;
 insert into law_document_links (document_id, record_id, text_sha256, evidence_sha256)
 select ('e2000000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid, record, 'x', repeat('c', 64) from kinds where record is not null;
-insert into document_chunks (document_id, chunk_hash, chunk_index, char_from, char_to, content, chunker_version)
-select d.id, 'c' || i, i, 0, 4, 'text', 4 from documents d, generate_series(1, 2) i where d.source_key in (select source_key from kinds);
+insert into document_chunks (document_id, chunk_hash, chunk_index, char_from, char_to, content, chunker_version, desk_feature)
+select d.id, 'c' || i, i, 0, 4, 'text', 4, d.desk_feature from documents d, generate_series(1, 2) i where d.source_key in (select source_key from kinds);
 insert into document_pages (document_id, extract_hash, page_number, text, char_from, char_to)
 select d.id, 'x', 1, 'text', 0, 4 from documents d where d.source_key in (select source_key from kinds);
 

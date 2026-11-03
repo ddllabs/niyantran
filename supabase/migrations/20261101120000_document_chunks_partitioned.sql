@@ -3,6 +3,9 @@
 -- list-partitioned on the chunk's own copy of its document's feature, with typed facet
 -- columns kept equal to the document by triggers. Code keeps naming public.document_chunks.
 --
+-- The first of a pair, shipped together: this file, then 20261101130000_law_documents_serving_set
+-- (the documents access policy evaluated as a set), which refuses to apply before this one.
+--
 -- What changes
 --   * public.document_chunks is a new table, partitioned by list (desk_feature):
 --       document_chunks_nclt        'NCLT / NCLAT (Insolvency)'                 225,273 chunks on 2026-11-01
@@ -63,9 +66,11 @@
 --   everything that need not hold readers (functions, policies, grants and the old table's revokes,
 --   which take no table lock) runs before the swap. The swap itself takes ACCESS EXCLUSIVE on the
 --   old table only for the renames, catalogue updates held until commit. Because readers queue
---   behind an ACCESS EXCLUSIVE request even while it waits, the request uses a 500 ms lock_timeout
---   and is retried, so a search waits at most about half a second for it. (The B3 rehearsal of the
---   first version, which ran ANALYZE after the renames, blocked readers for 32.4 s.)
+--   behind an ACCESS EXCLUSIVE request even while it waits, the request uses a 2 s lock_timeout and
+--   is retried every half second, 240 times (about 10 minutes) before the migration gives up and
+--   rolls back: a search queues at most about 2 s behind it, inside its 8 s timeout, and a reader
+--   longer than 2 s does not make the migration fail at once. (The B3 rehearsal of the first
+--   version, which ran ANALYZE after the renames, blocked readers for 32.4 s.)
 --   A writer still blocked when the swap commits re-resolves public.document_chunks
 --   to the new table; an older chunk_commit body already running in that session would insert
 --   without desk_feature and is refused by the trigger (loud, retryable), never misplaced.
@@ -102,8 +107,10 @@
 -- parent. Supabase's default privileges grant every new table to anon and authenticated, hence
 -- the revoke: a partition read directly bypasses the parent's policies.
 --
--- Rollback, while document_chunks_unpartitioned still exists (stop ingestion first). It copies
--- back the chunk writes made since the swap, so nothing written after the swap is lost:
+-- Rollback, while document_chunks_unpartitioned still exists (stop ingestion first). It is the
+-- second half of the pair's rollback: first run 20261101130000_law_documents_serving_set's rollback
+-- (its header), because that policy may not stand alone on the unpartitioned table; then this. It
+-- copies back the chunk writes made since the swap, so nothing written after the swap is lost:
 --
 --   begin;
 --   set local lock_timeout = '30s';
@@ -138,8 +145,14 @@
 --   -- run 20261001120000_page_contract.sql's chunk_commit create or replace, revoke and grant;
 --   -- run 20261015130000_unscoped_ef_search.sql's match_documents create or replace, revoke and grant;
 --   -- run 20261027185840_feature_search_recovery.sql's match_documents_feature_hnsw create or replace, revoke and grant;
+--   delete from supabase_migrations.schema_migrations where version = '20261101120000';
 --   commit;
 --   analyze public.document_chunks;
+--
+-- With both version rows deleted (20261101130000's by its own rollback), `supabase db push` sees
+-- the pair as not applied and can apply it again, in order, once the cause is fixed; with a row
+-- left behind the CLI would skip that file. Ingestion stays stopped until the pair is back or the
+-- rollback is complete.
 --
 -- The old table's policies (document_chunks_read, law_chunks_serving) were never removed, so
 -- the rename restores them. Then check that exactly one overload of each function exists, and
@@ -151,9 +164,16 @@ begin;
 
 set local statement_timeout = '2h';
 set local lock_timeout = '30s';
--- The value NTER accepted for the halfvec index build (20260929120000). Two HNSW builds of
--- about 225k and 168k vectors exceed it, so pgvector builds partly on disk: slower, not wrong.
--- Raise it only after checking NTER's memory (plan B3 measures the build times).
+-- =============================================================================================
+-- TUNABLE: maintenance_work_mem for this migration's index builds (the only line to change).
+--   256MB  the value NTER accepted for the halfvec index build (20260929120000); production's
+--          own setting is 128MB (2026-11-03), so this raises it for this transaction only. The
+--          NCLT and Bills graphs exceed it and pgvector builds them partly on disk: slower, not
+--          wrong (B3 rehearsal at 256MB: 22 min 42 s in all).
+--   1GB    if the instance is upgraded first (decision pending): every graph fits in memory
+--          (rehearsal 2026-11-02 at 1GB: 9 min 53 s). Do not set it above what the instance can
+--          spare beside shared_buffers (512MB) while the migration runs.
+-- =============================================================================================
 set local maintenance_work_mem = '256MB';
 
 -- ---------------------------------------------------------------------------
@@ -206,6 +226,32 @@ begin
   if v_missing is not null or v_extra is not null then
     raise exception 'document_chunks_partitioned: unexpected columns on document_chunks (missing: %; unexpected: %)',
       coalesce(v_missing, 'none'), coalesce(v_extra, 'none');
+  end if;
+
+  -- Settings the new table would not carry over: its grants must be exactly those below (the
+  -- owner aside), with no column grant, no storage parameter on the table or its indexes, and
+  -- every column at its type's default storage and compression. Production on 2026-11-03:
+  -- authenticated SELECT; service_role DELETE, INSERT, SELECT, UPDATE; postgres (owner) all.
+  if (select array_agg(format('%s:%s', coalesce(r.rolname, 'PUBLIC'), a.privilege_type)
+                        order by format('%s:%s', coalesce(r.rolname, 'PUBLIC'), a.privilege_type))
+        from pg_class c cross join lateral aclexplode(c.relacl) a left join pg_roles r on r.oid = a.grantee
+       where c.oid = v_old and a.grantee <> c.relowner)
+     is distinct from array['authenticated:SELECT', 'service_role:DELETE', 'service_role:INSERT',
+                            'service_role:SELECT', 'service_role:UPDATE'] then
+    raise exception 'document_chunks_partitioned: document_chunks has grants this migration does not carry over';
+  end if;
+  if exists (select 1 from pg_attribute where attrelid = v_old and attnum > 0 and not attisdropped
+               and coalesce(cardinality(attacl), 0) > 0) then
+    raise exception 'document_chunks_partitioned: document_chunks has column grants this migration does not carry over';
+  end if;
+  if (select reloptions from pg_class where oid = v_old) is not null
+     or exists (select 1 from pg_index i join pg_class c on c.oid = i.indexrelid where i.indrelid = v_old and c.reloptions is not null) then
+    raise exception 'document_chunks_partitioned: document_chunks or one of its indexes has storage parameters this migration does not carry over';
+  end if;
+  if exists (select 1 from pg_attribute a join pg_type t on t.oid = a.atttypid
+              where a.attrelid = v_old and a.attnum > 0 and not a.attisdropped
+                and (a.attstorage <> t.typstorage or a.attcompression <> '')) then
+    raise exception 'document_chunks_partitioned: document_chunks has a column storage or compression setting this migration does not carry over';
   end if;
 
   -- Objects that would stay attached to the old table and silently stop applying.
@@ -490,6 +536,19 @@ revoke all on table public.document_chunks_partitioned, public.document_chunks_n
   from public, anon, authenticated, service_role;
 grant select on table public.document_chunks_partitioned to authenticated;
 grant select, insert, update, delete on table public.document_chunks_partitioned to service_role;
+-- The new table carries exactly the old table's grants (checked in the preconditions).
+do $$
+begin
+  if (select array_agg(format('%s:%s', coalesce(r.rolname, 'PUBLIC'), a.privilege_type)
+                        order by format('%s:%s', coalesce(r.rolname, 'PUBLIC'), a.privilege_type))
+        from pg_class c cross join lateral aclexplode(c.relacl) a left join pg_roles r on r.oid = a.grantee
+       where c.oid = 'public.document_chunks_partitioned'::regclass and a.grantee <> c.relowner)
+     is distinct from array['authenticated:SELECT', 'service_role:DELETE', 'service_role:INSERT',
+                            'service_role:SELECT', 'service_role:UPDATE'] then
+    raise exception 'document_chunks_partitioned: the new table''s grants differ from the old table''s';
+  end if;
+end
+$$;
 do $$ begin raise notice 'phase: policies and grants end'; end $$;
 
 -- ---------------------------------------------------------------------------
@@ -633,8 +692,11 @@ grant execute on function public.chunk_commit(uuid, jsonb, text[]) to service_ro
 
 -- match_documents_feature_hnsw: 20261027185840's helper, scoped on the chunk's own feature and
 -- tier so the planner reads one partition, with the approximate pass walking the index until
--- enough rows pass the filters (pgvector 0.8 hnsw.iterative_scan, relaxed_order; the candidates
--- are re-sorted by distance). Both settings are set with set_config and restored afterwards: NTER
+-- enough rows pass the filters (pgvector 0.8 hnsw.iterative_scan, relaxed_order). With relaxed_order
+-- the walk may emit rows slightly out of distance order, so the rows kept are the first match_count
+-- the walk emits that pass the filters: approximately the nearest, not guaranteed to be the nearest
+-- rows it visited. Those rows are then returned in halfvec-distance order (ties by id), which is
+-- all the re-sort guarantees. Both settings are set with set_config and restored afterwards: NTER
 -- refuses a SET clause for a custom setting (see 20261001120000). Recovery and its bound are
 -- unchanged. It still runs when the walk stops before match_count rows pass the filters: when the
 -- feature has fewer eligible chunks than match_count, or when its chunks are so rare among the
@@ -794,38 +856,63 @@ declare
   c_unscoped_work_mem constant text := '256kB';
   v_previous text;
   v_previous_work_mem text;
+  v_features text[];
+  v_featureless boolean;
 begin
   if v_docs > 0 then
     -- Scoped. The predicate on document_id is unconditional here, so the planner
     -- pre-filters with document_chunks_document_order and scores only that
     -- document's rows. HNSW is deliberately unused: over 23-915 rows an exact
     -- scan is both faster and, unlike an approximate index, complete.
+    --
+    -- On the partitioned table a document_id predicate alone probes every partition's
+    -- document_order index and runs every partition's access check. Every chunk carries its
+    -- document's feature (the facet trigger refuses anything else), so the scan is also
+    -- limited to the features of the requested documents the caller can read, which
+    -- prunes it to their partitions. A document the caller cannot read contributes no
+    -- feature, and its chunks were refused by law_chunks_serving anyway, so the rows are
+    -- the same; the access check and indexed_at still apply to every row. The statement is
+    -- run with EXECUTE so it is planned with the feature list known: a cached generic plan
+    -- cannot prune on an array parameter. A document without a feature adds the default
+    -- partition (desk_feature is null); no readable document reads nothing.
     v_quota := greatest(ceil(v_limit::numeric / v_docs)::int, 1);
-    return query
+    select coalesce(array_agg(distinct d.desk_feature) filter (where d.desk_feature is not null), '{}'),
+           coalesce(bool_or(d.desk_feature is null), false)
+      into v_features, v_featureless
+      from public.documents d where d.id = any (p_document_ids);
+    -- documents is joined after ranking, against the quota'd handful of rows, so indexed_at
+    -- costs a primary-key probe instead of hashing every document.
+    return query execute format($q$
       with scoped as (
         select c.id, c.document_id, c.content, c.chunk_index, c.source_kind,
                c.page_number, c.char_from, c.char_to,
                c.block_ids, c.image_ids, c.metadata->'section' as section,
-               (c.embedding <=> query_embedding) as dist,
+               (c.embedding <=> $1) as dist,
                row_number() over (partition by c.document_id
-                                  order by c.embedding <=> query_embedding) as rn
+                                  order by c.embedding <=> $1) as rn
           from public.document_chunks c
-         where c.document_id = any (p_document_ids)
+         where c.document_id = any ($2)
+           and %s
            and c.embedding is not null
       )
-      -- documents is joined after ranking, against the quota'd handful of rows,
-      -- so indexed_at costs a primary-key probe instead of hashing every document.
       select s.id, s.document_id, s.content, (1 - s.dist)::float8,
              s.chunk_index, s.source_kind, s.page_number, s.char_from, s.char_to,
              d.title, d.file_name, d.file_url, d.desk_tier, d.desk_feature,
              s.block_ids, s.image_ids, s.section
         from scoped s
         join public.documents d on d.id = s.document_id
-       where s.rn <= v_quota
+       where s.rn <= $4
          and d.indexed_at is not null
-         and (p_desk_tier is null or d.desk_tier = p_desk_tier)
+         and ($5::text is null or d.desk_tier = $5)
        order by s.dist
-       limit v_limit;
+       limit $6$q$,
+      -- Only the parts that apply, so the planner prunes: an empty array inside an OR keeps
+      -- every partition. Fixed text; the feature values go in as the parameter $3.
+      case when cardinality(v_features) > 0 and v_featureless then '(c.desk_feature = any ($3) or c.desk_feature is null)'
+           when cardinality(v_features) > 0 then 'c.desk_feature = any ($3)'
+           when v_featureless then 'c.desk_feature is null'
+           else 'false' end)
+      using query_embedding, p_document_ids, v_features, v_quota, p_desk_tier, v_limit;
   elsif p_desk_feature is null then
     -- Unscoped: ranked on the half-precision HNSW index of each partition, merged
     -- by distance (document_chunks_embedding_halfvec_hnsw); the similarity returned is
@@ -940,8 +1027,8 @@ do $$ begin raise notice 'phase: old table grants end'; end $$;
 do $$ begin raise notice 'phase: swap start'; end $$;
 do $$
 declare
-  c_wait constant text := '500ms';
-  c_attempts constant int := 600;
+  c_wait constant text := '2s';       -- the longest a search queues behind the request
+  c_attempts constant int := 240;     -- (2 s + 0.5 s) x 240: about 10 minutes before giving up
 begin
   for attempt in 1..c_attempts loop
     begin
