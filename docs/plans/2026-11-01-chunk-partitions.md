@@ -119,6 +119,15 @@ The final pair (sha256 `77ddc136…` then `295f9ebc…`) was rehearsed back to b
 (`*rehearsal-b8part*`); the swap held its lock 20 to 21 ms; 392,945 rows verified each time. Apply:
 [runbook](../operations/2026-11-03-phase-b-apply.md).
 
+**B5, production apply (2026-11-03).** Both files applied to NTER with psql and exit 0, as the runbook says (the
+partition migration took about 7 min 27 s); 395,375 rows verified; history rows written by hand (F283). The
+before-and-after measurement on NTER (315 questions; two were excluded because the F281 repairs changed their gold
+chunks) is no worse in every mode, with no question lost. Broad p95 went from 1,516 to 1,368 ms, focused from
+677 to 641 ms and feature from 812 to 762 ms. Document hit@10 rose slightly: broad 196 to 199 of 249, feature 205 to
+206. So the broad and focused exceptions above were not needed on production. Figures, checks and a
+correction to two comments in the applied file are in the runbook's log. `document_chunks_unpartitioned` (5.3 GB)
+stays for the rollback until an agreed drop.
+
 ## Exclusions
 
 - No hybrid search, headers or re-embedding (steps 4 and 5). No change to registration or admission. No production

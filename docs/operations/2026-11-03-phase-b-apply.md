@@ -138,4 +138,47 @@ header's script does. Run the after-apply live checks again against the restored
 
 ## Log
 
-(Filled in during the apply.)
+Applied 2026-11-03, authorized by the developer in chat. Times are IST; the apply times are the creation and
+last-write times of the two psql logs, which hold only the phase notices.
+
+| Step | Time | Result |
+|---|---|---|
+| Preconditions | before 20:55 | Large instance, 20 GB disk; healthy and writable; 0 ingest jobs; no history rows for either version; psql 17 |
+| Before measurement | 20:55 | `*prod-before-phase-b*`, 315 questions (below) |
+| Partition migration | 21:30:35 to 21:38:02 | exit 0, about 7 min 27 s in one transaction; 395,375 rows copied and verified; swap lock taken on the first attempt |
+| Policy migration | 21:42:08 to 21:42:09 | exit 0 |
+| History rows | after 21:42 | `INSERT 0 2` under the repository's versions; the connection string unset |
+| Statistics | after the apply | `analyze` on the three corpus tables |
+| After measurement | 22:00 | `*prod-after-phase-b*`, `--compare` verdict no worse |
+
+The partition migration took about a third of the fastest rehearsal (24 min 17 s on the laptop).
+
+**Live checks (read-only).** `document_chunks` is partitioned, with NCLT 225,273 rows, Bills 89,009, Regulatory
+12,983 and default 68,110: 395,375 in all, equal to the copy and verify counts. Each partition has a valid HNSW
+index; grants match the before state; `document_chunks_unpartitioned` has no grants. As a signed-in user (`authenticated`, 8 s
+timeout, an NCLT chunk's vector as the query), a broad, an NCLT feature and a focused search each return 10 rows,
+and the three unpublished orders stay hidden. The security advisor
+shows only the expected new items: an RLS notice for each of the four partitions, which no role but the owner and
+`service_role` can read, and the `law_published_document_ids` warning, which is by design. Database 12 GB; the
+backup table 5,301 MB.
+
+**Measurement.** The harness refused the full set: the F281 repairs replaced the gold chunks of q-0197 and
+q-0209. Both runs used the other 315 questions, unchanged, as `service_role` against NTER with frozen vectors.
+Timings include about 330 ms of network round trip.
+
+| Mode | p50 before → after | p95 before → after |
+|---|---|---|
+| Broad | 758 → 560 ms | 1,516 → 1,368 ms |
+| Focused | 382 → 367 ms | 677 → 641 ms |
+| Feature | 695 → 662 ms | 812 → 762 ms |
+
+Document hit@10, before → after: broad 196 → 199 of 249 (Regulatory 47 → 50, the rest equal); feature
+205 → 206 (NCLT 29 → 30, the rest equal); focused 249 of 249 both. No question was lost in any mode. Four broad
+calls took over 2 s (slowest 2.7 s). The broad and focused exceptions recorded in the plan were not needed on
+production: both are faster than before.
+
+**Correction to the applied file's comments.** The header and the comment above `match_documents` in
+`20261101120000_document_chunks_partitioned.sql` say its document-id and unscoped branches are unchanged. Both
+changed: the document-id branch is limited to the requested documents' partitions, and the unscoped branch sets
+`work_mem` 256kB for its access check and restores it. The function bodies carry the correct comments. The file
+is left byte-identical to what was applied (sha256 `77ddc136…`).
