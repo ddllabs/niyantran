@@ -1,0 +1,646 @@
+{
+ "kind": "rehearsal",
+ "ranAt": "2026-11-03T11:49:30.845Z",
+ "migration": {
+  "file": "20261101120000_document_chunks_partitioned.sql",
+  "bytes": 62781,
+  "sha256": "77ddc13606479bed30661e653b48f2ce9b2e9477ffafb0e5d27d785b22697e97"
+ },
+ "source": {
+  "database": "niyantran_retrieval_replica",
+  "sizeBytes": 5449324211
+ },
+ "target": {
+  "database": "niyantran_rehearsal_b8part",
+  "kept": true
+ },
+ "disk": {
+  "freeBytes": 979701194752,
+  "requiredBytes": 10898648422
+ },
+ "copy": {
+  "ms": 74489.562625
+ },
+ "prelude": {
+  "file": "b3-prelude.sql",
+  "bytes": 63,
+  "sha256": "522dd42652cf6c01371392dd8c925c8ab2c523f78a2121267a1ffa33fc5cafb6",
+  "ms": 471.0824999999895
+ },
+ "migrationRun": {
+  "ok": true,
+  "exitCode": 0,
+  "ms": 1456888.263125,
+  "error": [],
+  "settings": [
+   {
+    "name": "max_parallel_maintenance_workers",
+    "value": "0"
+   }
+  ],
+  "transaction": {
+   "mode": "self-managed",
+   "reason": "the file has its own begin; and commit;"
+  }
+ },
+ "phases": {
+  "phases": [
+   {
+    "name": "preconditions",
+    "startMs": 157.4308330000058,
+    "endMs": 196.85725000000093,
+    "durationMs": 39.426416999995126,
+    "complete": true
+   },
+   {
+    "name": "lock",
+    "startMs": 196.85725000000093,
+    "endMs": 197.8787910000101,
+    "durationMs": 1.0215410000091651,
+    "complete": true
+   },
+   {
+    "name": "date facet function",
+    "startMs": 197.8787910000101,
+    "endMs": 212.75604100000055,
+    "durationMs": 14.877249999990454,
+    "complete": true
+   },
+   {
+    "name": "new table",
+    "startMs": 212.75604100000055,
+    "endMs": 249.64325000000827,
+    "durationMs": 36.887209000007715,
+    "complete": true
+   },
+   {
+    "name": "copy",
+    "startMs": 249.64325000000827,
+    "endMs": 168329.065833,
+    "durationMs": 168079.42258299998,
+    "complete": true
+   },
+   {
+    "name": "keys and indexes",
+    "startMs": 168329.065833,
+    "endMs": 176624.997708,
+    "durationMs": 8295.93187500001,
+    "complete": true
+   },
+   {
+    "name": "hnsw nclt",
+    "startMs": 176628.078958,
+    "endMs": 1152289.483958,
+    "durationMs": 975661.405,
+    "complete": true
+   },
+   {
+    "name": "hnsw bills",
+    "startMs": 1152289.483958,
+    "endMs": 1260552.046791,
+    "durationMs": 108262.56283299997,
+    "complete": true
+   },
+   {
+    "name": "hnsw regulatory",
+    "startMs": 1260552.046791,
+    "endMs": 1265655.04075,
+    "durationMs": 5102.9939589998685,
+    "complete": true
+   },
+   {
+    "name": "hnsw default",
+    "startMs": 1265655.04075,
+    "endMs": 1328853.4925,
+    "durationMs": 63198.45175000001,
+    "complete": true
+   },
+   {
+    "name": "verify",
+    "startMs": 1328865.608375,
+    "endMs": 1415976.585,
+    "durationMs": 87110.9766249999,
+    "complete": true
+   },
+   {
+    "name": "sync triggers",
+    "startMs": 1415976.585,
+    "endMs": 1416082.1465,
+    "durationMs": 105.56150000006892,
+    "complete": true
+   },
+   {
+    "name": "policies and grants",
+    "startMs": 1416082.1465,
+    "endMs": 1416179.838541,
+    "durationMs": 97.69204099988565,
+    "complete": true
+   },
+   {
+    "name": "functions",
+    "startMs": 1416179.838541,
+    "endMs": 1416223.817958,
+    "durationMs": 43.97941700019874,
+    "complete": true
+   },
+   {
+    "name": "analyze",
+    "startMs": 1416223.817958,
+    "endMs": 1456650.077208,
+    "durationMs": 40426.25924999989,
+    "complete": true
+   },
+   {
+    "name": "old table grants",
+    "startMs": 1456650.077208,
+    "endMs": 1456672.131666,
+    "durationMs": 22.054457999998704,
+    "complete": true
+   },
+   {
+    "name": "swap",
+    "startMs": 1456672.131666,
+    "endMs": 1456691.937958,
+    "durationMs": 19.806291999993846,
+    "complete": true
+   }
+  ],
+  "marks": [
+   {
+    "name": "verified 392945 rows",
+    "atMs": 1415973.435208,
+    "sincePreviousMs": 87107.82683299994
+   },
+   {
+    "name": "swap lock taken on attempt 1",
+    "atMs": 1456675.2605,
+    "sincePreviousMs": 3.128834000090137
+   }
+  ],
+  "warnings": []
+ },
+ "readerProbe": {
+  "count": 5799,
+  "errors": 0,
+  "maxMs": 287.6527080000378,
+  "maxAtMs": 569569.63875,
+  "p50Ms": 2.4477909998968244,
+  "p95Ms": 11.245832999993581,
+  "over1sCount": 0
+ },
+ "analyze": {
+  "ms": 68996.29891599994
+ },
+ "sizes": {
+  "before": {
+   "databaseBytes": 5449324211,
+   "relations": [
+    {
+     "name": "document_chunks",
+     "kind": "r",
+     "totalBytes": 5396471808,
+     "tableBytes": 456753152,
+     "indexBytes": 1682857984
+    },
+    {
+     "name": "document_chunks_document_id_chunk_hash_key",
+     "kind": "i",
+     "totalBytes": 58408960,
+     "tableBytes": 58408960,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_document_order",
+     "kind": "i",
+     "totalBytes": 20127744,
+     "tableBytes": 20127744,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_embedding_halfvec_hnsw",
+     "kind": "i",
+     "totalBytes": 1591910400,
+     "tableBytes": 1591910400,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_pkey",
+     "kind": "i",
+     "totalBytes": 12410880,
+     "tableBytes": 12410880,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents",
+     "kind": "r",
+     "totalBytes": 42541056,
+     "tableBytes": 9764864,
+     "indexBytes": 2547712
+    },
+    {
+     "name": "documents_desk",
+     "kind": "i",
+     "totalBytes": 180224,
+     "tableBytes": 180224,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_document_key",
+     "kind": "i",
+     "totalBytes": 253952,
+     "tableBytes": 253952,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_pkey",
+     "kind": "i",
+     "totalBytes": 573440,
+     "tableBytes": 573440,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_source_key_key",
+     "kind": "i",
+     "totalBytes": 1540096,
+     "tableBytes": 1540096,
+     "indexBytes": 0
+    }
+   ]
+  },
+  "after": {
+   "databaseBytes": 10878842547,
+   "relations": [
+    {
+     "name": "document_chunks",
+     "kind": "p",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_bills",
+     "kind": "r",
+     "totalBytes": 1211523072,
+     "tableBytes": 94978048,
+     "indexBytes": 378896384
+    },
+    {
+     "name": "document_chunks_bills_desk_feature_desk_tier_idx",
+     "kind": "i",
+     "totalBytes": 663552,
+     "tableBytes": 663552,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_bills_desk_feature_doc_date_idx",
+     "kind": "i",
+     "totalBytes": 679936,
+     "tableBytes": 679936,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_bills_desk_feature_language_idx",
+     "kind": "i",
+     "totalBytes": 663552,
+     "tableBytes": 663552,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_bills_document_id_chunk_hash_desk_feature_key",
+     "kind": "i",
+     "totalBytes": 12591104,
+     "tableBytes": 12591104,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_bills_document_id_chunk_index_idx",
+     "kind": "i",
+     "totalBytes": 3637248,
+     "tableBytes": 3637248,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_bills_embedding_halfvec_hnsw",
+     "kind": "i",
+     "totalBytes": 354631680,
+     "tableBytes": 354631680,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_bills_id_desk_feature_key",
+     "kind": "i",
+     "totalBytes": 6029312,
+     "tableBytes": 6029312,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_default",
+     "kind": "r",
+     "totalBytes": 944087040,
+     "tableBytes": 80674816,
+     "indexBytes": 298024960
+    },
+    {
+     "name": "document_chunks_default_desk_feature_desk_tier_idx",
+     "kind": "i",
+     "totalBytes": 516096,
+     "tableBytes": 516096,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_default_desk_feature_doc_date_idx",
+     "kind": "i",
+     "totalBytes": 532480,
+     "tableBytes": 532480,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_default_desk_feature_language_idx",
+     "kind": "i",
+     "totalBytes": 516096,
+     "tableBytes": 516096,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_default_document_id_chunk_hash_desk_feature_key",
+     "kind": "i",
+     "totalBytes": 10338304,
+     "tableBytes": 10338304,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_default_document_id_chunk_index_idx",
+     "kind": "i",
+     "totalBytes": 2793472,
+     "tableBytes": 2793472,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_default_embedding_halfvec_hnsw",
+     "kind": "i",
+     "totalBytes": 278708224,
+     "tableBytes": 278708224,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_default_id_desk_feature_key",
+     "kind": "i",
+     "totalBytes": 4620288,
+     "tableBytes": 4620288,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_document_id_chunk_hash_desk_feature_key",
+     "kind": "I",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_document_order",
+     "kind": "I",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_embedding_halfvec_hnsw",
+     "kind": "I",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_feature_date",
+     "kind": "I",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_feature_language",
+     "kind": "I",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_feature_tier",
+     "kind": "I",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_id_desk_feature_key",
+     "kind": "I",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_nclt",
+     "kind": "r",
+     "totalBytes": 3130605568,
+     "tableBytes": 283287552,
+     "indexBytes": 980885504
+    },
+    {
+     "name": "document_chunks_nclt_desk_feature_desk_tier_idx",
+     "kind": "i",
+     "totalBytes": 1638400,
+     "tableBytes": 1638400,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_nclt_desk_feature_doc_date_idx",
+     "kind": "i",
+     "totalBytes": 1720320,
+     "tableBytes": 1720320,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_nclt_desk_feature_language_idx",
+     "kind": "i",
+     "totalBytes": 1638400,
+     "tableBytes": 1638400,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_nclt_document_id_chunk_hash_desk_feature_key",
+     "kind": "i",
+     "totalBytes": 31858688,
+     "tableBytes": 31858688,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_nclt_document_id_chunk_index_idx",
+     "kind": "i",
+     "totalBytes": 9166848,
+     "tableBytes": 9166848,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_nclt_embedding_halfvec_hnsw",
+     "kind": "i",
+     "totalBytes": 919633920,
+     "tableBytes": 919633920,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_nclt_id_desk_feature_key",
+     "kind": "i",
+     "totalBytes": 15228928,
+     "tableBytes": 15228928,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_regulatory",
+     "kind": "r",
+     "totalBytes": 142188544,
+     "tableBytes": 12476416,
+     "indexBytes": 42254336
+    },
+    {
+     "name": "document_chunks_regulatory_desk_feature_desk_tier_idx",
+     "kind": "i",
+     "totalBytes": 98304,
+     "tableBytes": 98304,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_regulatory_desk_feature_doc_date_idx",
+     "kind": "i",
+     "totalBytes": 98304,
+     "tableBytes": 98304,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_regulatory_desk_feature_language_idx",
+     "kind": "i",
+     "totalBytes": 98304,
+     "tableBytes": 98304,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_regulatory_document_id_chunk_hash_desk_feat_key",
+     "kind": "i",
+     "totalBytes": 1712128,
+     "tableBytes": 1712128,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_regulatory_document_id_chunk_index_idx",
+     "kind": "i",
+     "totalBytes": 442368,
+     "tableBytes": 442368,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_regulatory_embedding_halfvec_hnsw",
+     "kind": "i",
+     "totalBytes": 38887424,
+     "tableBytes": 38887424,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_regulatory_id_desk_feature_key",
+     "kind": "i",
+     "totalBytes": 917504,
+     "tableBytes": 917504,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_unpartitioned",
+     "kind": "r",
+     "totalBytes": 5396471808,
+     "tableBytes": 456753152,
+     "indexBytes": 1682857984
+    },
+    {
+     "name": "document_chunks_unpartitioned_document_id_chunk_hash_key",
+     "kind": "i",
+     "totalBytes": 58408960,
+     "tableBytes": 58408960,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_unpartitioned_document_order",
+     "kind": "i",
+     "totalBytes": 20127744,
+     "tableBytes": 20127744,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_unpartitioned_embedding_halfvec_hnsw",
+     "kind": "i",
+     "totalBytes": 1591910400,
+     "tableBytes": 1591910400,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_unpartitioned_pkey",
+     "kind": "i",
+     "totalBytes": 12410880,
+     "tableBytes": 12410880,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents",
+     "kind": "r",
+     "totalBytes": 42541056,
+     "tableBytes": 9764864,
+     "indexBytes": 2547712
+    },
+    {
+     "name": "documents_desk",
+     "kind": "i",
+     "totalBytes": 180224,
+     "tableBytes": 180224,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_document_key",
+     "kind": "i",
+     "totalBytes": 253952,
+     "tableBytes": 253952,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_pkey",
+     "kind": "i",
+     "totalBytes": 573440,
+     "tableBytes": 573440,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_source_key_key",
+     "kind": "i",
+     "totalBytes": 1540096,
+     "tableBytes": 1540096,
+     "indexBytes": 0
+    }
+   ]
+  },
+  "peak": {
+   "samples": 409,
+   "peakDatabaseBytes": 10878285491,
+   "peakDatabaseAtMs": 1456888.267083,
+   "startWalBytes": 419430400,
+   "peakWalBytes": 1073741824,
+   "peakCombinedBytes": 11952027315,
+   "minFreeBytes": 968185159680
+  }
+ },
+ "rowCounts": {
+  "before": {
+   "documents": 17609,
+   "document_chunks": 392945
+  },
+  "after": {
+   "documents": 17609,
+   "document_chunks": 392945
+  },
+  "equal": true
+ }
+}

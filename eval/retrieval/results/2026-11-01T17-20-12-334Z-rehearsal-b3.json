@@ -1,0 +1,403 @@
+{
+ "kind": "rehearsal",
+ "ranAt": "2026-11-01T15:38:37.580Z",
+ "migration": {
+  "file": "20261101120000_document_chunks_partitioned.sql",
+  "bytes": 49257,
+  "sha256": "cba18e904720491895fc2cbc4eccb29efedbf04c0b9815fc571a02908be81e4a"
+ },
+ "source": {
+  "database": "niyantran_retrieval_replica",
+  "sizeBytes": 5449324211
+ },
+ "target": {
+  "database": "niyantran_rehearsal_b3",
+  "kept": true
+ },
+ "disk": {
+  "freeBytes": 990394331136,
+  "requiredBytes": 10898648422
+ },
+ "copy": {
+  "ms": 25877.132
+ },
+ "prelude": {
+  "file": "b3-prelude.sql",
+  "bytes": 63,
+  "sha256": "522dd42652cf6c01371392dd8c925c8ab2c523f78a2121267a1ffa33fc5cafb6",
+  "ms": 710.3267079999969
+ },
+ "migrationRun": {
+  "ok": true,
+  "exitCode": 0,
+  "ms": 5830078.310540999,
+  "error": [],
+  "settings": [
+   {
+    "name": "max_parallel_maintenance_workers",
+    "value": "0"
+   }
+  ],
+  "transaction": {
+   "mode": "self-managed",
+   "reason": "the file has its own begin; and commit;"
+  }
+ },
+ "phases": {
+  "phases": [],
+  "marks": [],
+  "warnings": []
+ },
+ "readerProbe": {
+  "count": 22078,
+  "errors": 0,
+  "maxMs": 32352.64862499945,
+  "maxAtMs": 5797613.779790999,
+  "p50Ms": 3.9117499999701977,
+  "p95Ms": 37.982790999813005,
+  "over1sCount": 76
+ },
+ "analyze": {
+  "ms": 224202.48158299923
+ },
+ "sizes": {
+  "before": {
+   "databaseBytes": 5449324211,
+   "relations": [
+    {
+     "name": "document_chunks",
+     "kind": "r",
+     "totalBytes": 5396471808,
+     "tableBytes": 456753152,
+     "indexBytes": 1682857984
+    },
+    {
+     "name": "document_chunks_document_id_chunk_hash_key",
+     "kind": "i",
+     "totalBytes": 58408960,
+     "tableBytes": 58408960,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_document_order",
+     "kind": "i",
+     "totalBytes": 20127744,
+     "tableBytes": 20127744,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_embedding_halfvec_hnsw",
+     "kind": "i",
+     "totalBytes": 1591910400,
+     "tableBytes": 1591910400,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_pkey",
+     "kind": "i",
+     "totalBytes": 12410880,
+     "tableBytes": 12410880,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents",
+     "kind": "r",
+     "totalBytes": 42541056,
+     "tableBytes": 9764864,
+     "indexBytes": 2547712
+    },
+    {
+     "name": "documents_desk",
+     "kind": "i",
+     "totalBytes": 180224,
+     "tableBytes": 180224,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_document_key",
+     "kind": "i",
+     "totalBytes": 253952,
+     "tableBytes": 253952,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_pkey",
+     "kind": "i",
+     "totalBytes": 573440,
+     "tableBytes": 573440,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_source_key_key",
+     "kind": "i",
+     "totalBytes": 1540096,
+     "tableBytes": 1540096,
+     "indexBytes": 0
+    }
+   ]
+  },
+  "after": {
+   "databaseBytes": 10878178995,
+   "relations": [
+    {
+     "name": "document_chunks",
+     "kind": "p",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_default",
+     "kind": "r",
+     "totalBytes": 2297651200,
+     "tableBytes": 188088320,
+     "indexBytes": 719093760
+    },
+    {
+     "name": "document_chunks_default_desk_feature_desk_tier_idx",
+     "kind": "i",
+     "totalBytes": 1253376,
+     "tableBytes": 1253376,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_default_desk_feature_doc_date_idx",
+     "kind": "i",
+     "totalBytes": 1294336,
+     "tableBytes": 1294336,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_default_desk_feature_language_idx",
+     "kind": "i",
+     "totalBytes": 1253376,
+     "tableBytes": 1253376,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_default_document_id_chunk_hash_desk_feature_key",
+     "kind": "i",
+     "totalBytes": 24649728,
+     "tableBytes": 24649728,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_default_document_id_chunk_index_idx",
+     "kind": "i",
+     "totalBytes": 6832128,
+     "tableBytes": 6832128,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_default_embedding_halfvec_hnsw",
+     "kind": "i",
+     "totalBytes": 672243712,
+     "tableBytes": 672243712,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_default_id_desk_feature_key",
+     "kind": "i",
+     "totalBytes": 11567104,
+     "tableBytes": 11567104,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_document_id_chunk_hash_desk_feature_key",
+     "kind": "I",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_document_order",
+     "kind": "I",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_embedding_halfvec_hnsw",
+     "kind": "I",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_feature_date",
+     "kind": "I",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_feature_language",
+     "kind": "I",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_feature_tier",
+     "kind": "I",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_id_desk_feature_key",
+     "kind": "I",
+     "totalBytes": 0,
+     "tableBytes": 0,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_nclt",
+     "kind": "r",
+     "totalBytes": 3130621952,
+     "tableBytes": 283287552,
+     "indexBytes": 980885504
+    },
+    {
+     "name": "document_chunks_nclt_desk_feature_desk_tier_idx",
+     "kind": "i",
+     "totalBytes": 1638400,
+     "tableBytes": 1638400,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_nclt_desk_feature_doc_date_idx",
+     "kind": "i",
+     "totalBytes": 1720320,
+     "tableBytes": 1720320,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_nclt_desk_feature_language_idx",
+     "kind": "i",
+     "totalBytes": 1638400,
+     "tableBytes": 1638400,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_nclt_document_id_chunk_hash_desk_feature_key",
+     "kind": "i",
+     "totalBytes": 31858688,
+     "tableBytes": 31858688,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_nclt_document_id_chunk_index_idx",
+     "kind": "i",
+     "totalBytes": 9166848,
+     "tableBytes": 9166848,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_nclt_embedding_halfvec_hnsw",
+     "kind": "i",
+     "totalBytes": 919633920,
+     "tableBytes": 919633920,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_nclt_id_desk_feature_key",
+     "kind": "i",
+     "totalBytes": 15228928,
+     "tableBytes": 15228928,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_unpartitioned",
+     "kind": "r",
+     "totalBytes": 5396471808,
+     "tableBytes": 456753152,
+     "indexBytes": 1682857984
+    },
+    {
+     "name": "document_chunks_unpartitioned_document_id_chunk_hash_key",
+     "kind": "i",
+     "totalBytes": 58408960,
+     "tableBytes": 58408960,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_unpartitioned_document_order",
+     "kind": "i",
+     "totalBytes": 20127744,
+     "tableBytes": 20127744,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_unpartitioned_embedding_halfvec_hnsw",
+     "kind": "i",
+     "totalBytes": 1591910400,
+     "tableBytes": 1591910400,
+     "indexBytes": 0
+    },
+    {
+     "name": "document_chunks_unpartitioned_pkey",
+     "kind": "i",
+     "totalBytes": 12410880,
+     "tableBytes": 12410880,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents",
+     "kind": "r",
+     "totalBytes": 42541056,
+     "tableBytes": 9764864,
+     "indexBytes": 2547712
+    },
+    {
+     "name": "documents_desk",
+     "kind": "i",
+     "totalBytes": 180224,
+     "tableBytes": 180224,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_document_key",
+     "kind": "i",
+     "totalBytes": 253952,
+     "tableBytes": 253952,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_pkey",
+     "kind": "i",
+     "totalBytes": 573440,
+     "tableBytes": 573440,
+     "indexBytes": 0
+    },
+    {
+     "name": "documents_source_key_key",
+     "kind": "i",
+     "totalBytes": 1540096,
+     "tableBytes": 1540096,
+     "indexBytes": 0
+    }
+   ]
+  },
+  "peak": {
+   "samples": 1221,
+   "peakDatabaseBytes": 10877826739,
+   "peakDatabaseAtMs": 5830079.166166,
+   "startWalBytes": 1006632960,
+   "peakWalBytes": 1056964608,
+   "peakCombinedBytes": 11934791347,
+   "minFreeBytes": 979482529792
+  }
+ },
+ "rowCounts": {
+  "before": {
+   "documents": 17609,
+   "document_chunks": 392945
+  },
+  "after": {
+   "documents": 17609,
+   "document_chunks": 392945
+  },
+  "equal": true
+ }
+}
