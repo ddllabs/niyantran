@@ -189,7 +189,11 @@ async function embedSlice(
     model_requested: EMBED_MODEL,
     provider: 'openrouter',
   } as const;
-  const usage = { job_id: job.id, document_id: job.document_id, inputs: chunks.length, first_chunk_index: chunks[0].chunk_index };
+  // A batch job's calls carry its batch, so the stop rules count them even if this claim is killed.
+  const usage = {
+    ...(job.batch_id ? { batch_id: job.batch_id } : {}),
+    job_id: job.id, document_id: job.document_id, inputs: chunks.length, first_chunk_index: chunks[0].chunk_index,
+  };
   try {
     const r = await deps.embed(chunks.map((c) => c.embedding_input));
     await deps.db.logCall({

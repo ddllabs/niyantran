@@ -13,6 +13,7 @@ import { serviceClient } from '../_shared/supabase.ts';
 import { handleWorker, type RunDeps } from './handler.ts';
 import { indexStep } from './index-step.ts';
 import { suppliedTextStep } from './supplied-step.ts';
+import { suppliedBatchStep } from './supplied-batch-step.ts';
 import { callMistralOcr } from './mistral.ts';
 import { ocrStep } from './ocr.ts';
 import {
@@ -60,6 +61,11 @@ export function supabaseIngestDb(client: SupabaseClient): IngestDb {
   }
 
   return {
+    async settings() {
+      const { data, error } = await client.from('ingest_settings').select('max_running,claim_batch').single();
+      fail('ingest_settings read', error);
+      return data as { max_running: number; claim_batch: number };
+    },
     async textInput(documentId) {
       const { data, error } = await client.from('ingest_text_inputs').select('payload,payload_sha256,expected').eq('document_id', documentId).single();
       fail('supplied-text read', error);
@@ -291,7 +297,11 @@ export function buildWorkerDeps(client: SupabaseClient, env: Env): RunDeps {
     documentUrlOverride: (sha256) => documentUrlOverride(supabaseUrl, env, sha256),
     now: Date.now,
     log: (event, fields) => log(event, fields),
-    steps: { ocr: ocrStep, index: (deps, job, deadline) => job.input_kind === 'supplied_text' ? suppliedTextStep(deps, job, deadline) : indexStep(deps, job, deadline) },
+    steps: {
+      ocr: ocrStep,
+      index: (deps, job, deadline) => job.input_kind === 'supplied_text' ? suppliedTextStep(deps, job, deadline) : indexStep(deps, job, deadline),
+      suppliedBatch: suppliedBatchStep,
+    },
     secrets: [mistralKey, openrouterKey, env('INGEST_WORKER_SECRET') ?? ''].filter(Boolean),
   };
 }

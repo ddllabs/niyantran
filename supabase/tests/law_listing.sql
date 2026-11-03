@@ -24,16 +24,16 @@ select pg_temp.ok((public.law_listing_page('{}')->>'total')::int=2,'baseline see
 select pg_temp.ok((public.law_listing_page('{"pageSize":200}')->>'total')::int=2,'standard 200 row page accepted');
 select pg_temp.ok((public.law_listing_page('{"key":"legacy-order"}')->'rows'->0->>'id')='legacy-order','legacy row key preserved');
 insert into auth.users(id,email) values('11111111-1111-4111-8111-111111111111','fixture@example.invalid') on conflict do nothing;
-create function pg_temp.request(k text,u text,dt text default '2026-07-08') returns jsonb language sql as $$
- with r as(select jsonb_build_object('source_key',k,'title','Future Company','text','A court order.',
- 'text_sha256',encode(sha256(convert_to('A court order.','UTF8')),'hex'),'file_url',u,
+create function pg_temp.request(k text,u text,dt text default '2026-07-08',t text default 'A court order.') returns jsonb language sql as $$
+ with r as(select jsonb_build_object('source_key',k,'title','Future Company','text',t,
+ 'text_sha256',encode(sha256(convert_to(t,'UTF8')),'hex'),'file_url',u,
  'desk_tier','law','desk_feature','NCLT / NCLAT (Insolvency)',
  'citation',jsonb_build_object('kind','tribunal_order','forum','NCLT','source','IBBI_NCLT','case_number','CP/1/2026','order_date',dt),
- 'review',jsonb_build_object('status','eligible','source_key',k,'text_sha256',encode(sha256(convert_to('A court order.','UTF8')),'hex'),
+ 'review',jsonb_build_object('status','eligible','source_key',k,'text_sha256',encode(sha256(convert_to(t,'UTF8')),'hex'),
  'rules_sha256',repeat('c',64),'package_id','fixture-pack','mapping_version','1','decision_id','fixture-approved',
  'checks','{"identity":true,"completeness":true,"sensitivity":true,"dedupe":true,"rights":true}'::jsonb))::text payload)
  select jsonb_build_object('actor','11111111-1111-4111-8111-111111111111','payload',payload,'payload_sha256',encode(sha256(convert_to(payload,'UTF8')),'hex'),
- 'expected',jsonb_build_array(jsonb_build_object('chunk_hash',repeat('a',64),'embed_hash',repeat('b',64),'chunk_index',0,'source_kind','document','char_from',0,'char_to',14,'content','A court order.','token_count',4,'chunker_version',4)),
+ 'expected',jsonb_build_array(jsonb_build_object('chunk_hash',repeat('a',64),'embed_hash',repeat('b',64),'chunk_index',0,'source_kind','document','char_from',0,'char_to',length(t),'content',t,'token_count',4,'chunker_version',4)),
  'pages',jsonb_build_array(),'sections',jsonb_build_array()) from r
 $$;
 -- A previously indexed document without a publication remains readable until explicit cutover.
@@ -88,23 +88,23 @@ select pg_temp.ok((select document_key like 'law-record:%' and record_text=row::
 select pg_temp.ok((select row->>'title'='Existing Company' from public.desk_rows where row_key='legacy-order'),'refresh preserves projection');
 -- Same company announcement is not the order. A new order gets a distinct listing.
 truncate inputs,registered,claim;
-insert into inputs select pg_temp.request('law:trib:IBBI_NCLT:two','https://ibbi.gov.in/uploads/order/two.pdf');
+insert into inputs select pg_temp.request('law:trib:IBBI_NCLT:two','https://ibbi.gov.in/uploads/order/two.pdf','2026-07-08','A second court order.');
 select pg_temp.ok(public.law_reconcile(jsonb_build_object('record',(p->>'payload')::jsonb))->>'action'='create-listing','announcement not matched by company') from inputs;
 insert into registered select public.ingest_register_text(p||jsonb_build_object('mapping_fingerprint',public.law_reconcile(jsonb_build_object('record',(p->>'payload')::jsonb))->>'fingerprint')) from inputs;
 -- Force a projection failure AFTER indexing. Durable pending state must survive.
 create function pg_temp.fail_projection() returns trigger language plpgsql as $$begin raise exception 'fixture projection unavailable'; end$$;
 create trigger fixture_failure before insert on public.desk_rows for each row execute function pg_temp.fail_projection();
 insert into claim select * from public.ingest_claim(1,interval '5 minutes');
-select public.ingest_text_commit(id,claim_token,jsonb_build_array(jsonb_build_object('chunk_hash',repeat('a',64),'embed_hash',repeat('b',64),'chunk_index',0,'source_kind','document','char_from',0,'char_to',14,'content','A court order.','token_count',4,'chunker_version',4,'embedding',to_jsonb(array_fill(0.01::real,array[1536]))))) from claim;
+select public.ingest_text_commit(id,claim_token,jsonb_build_array(jsonb_build_object('chunk_hash',repeat('a',64),'embed_hash',repeat('b',64),'chunk_index',0,'source_kind','document','char_from',0,'char_to',21,'content','A second court order.','token_count',4,'chunker_version',4,'embedding',to_jsonb(array_fill(0.01::real,array[1536]))))) from claim;
 select public.ingest_text_activate(id,claim_token,0,0) from claim;
 select pg_temp.ok((select status='pending' and last_error like '%projection unavailable%' from public.law_publications where document_id=(select (r->>'document_id')::uuid from registered)),'publication error remains pending');
 select pg_temp.refused('select public.law_activate_listings()','indexed orphan');
 select pg_temp.ok((select status='succeeded' from public.ingest_jobs where id=(select (r->>'job_id')::uuid from registered)),'publication error never fails indexing');
 drop trigger fixture_failure on public.desk_rows;
 create temp table frozen as select md5(string_agg(to_jsonb(c)::text,'' order by id)) h from public.document_chunks c;
-create temp table proposal as select public.law_reconcile(jsonb_build_object('document_id',r->>'document_id','text_sha256',encode(sha256(convert_to('A court order.','UTF8')),'hex'))) p from registered;
-select pg_temp.refused($q$select public.law_publish(p||jsonb_build_object('text_sha256',encode(sha256(convert_to('A court order.','UTF8')),'hex'),'expected_fingerprint',repeat('0',64),'decision_id','approved','approver','Fixture','evidence_sha256',repeat('c',64))) from proposal$q$,'stale mapping');
-select public.law_publish(p||jsonb_build_object('text_sha256',encode(sha256(convert_to('A court order.','UTF8')),'hex'),'expected_fingerprint',p->>'fingerprint','decision_id','approved','approver','Fixture','evidence_sha256',repeat('c',64))) from proposal;
+create temp table proposal as select public.law_reconcile(jsonb_build_object('document_id',r->>'document_id','text_sha256',encode(sha256(convert_to('A second court order.','UTF8')),'hex'))) p from registered;
+select pg_temp.refused($q$select public.law_publish(p||jsonb_build_object('text_sha256',encode(sha256(convert_to('A second court order.','UTF8')),'hex'),'expected_fingerprint',repeat('0',64),'decision_id','approved','approver','Fixture','evidence_sha256',repeat('c',64))) from proposal$q$,'stale mapping');
+select public.law_publish(p||jsonb_build_object('text_sha256',encode(sha256(convert_to('A second court order.','UTF8')),'hex'),'expected_fingerprint',p->>'fingerprint','decision_id','approved','approver','Fixture','evidence_sha256',repeat('c',64))) from proposal;
 select pg_temp.ok((select count(*) from public.law_records)=3,'new order distinct listing');
 select pg_temp.ok((select h from frozen)=(select md5(string_agg(to_jsonb(c)::text,'' order by id)) from public.document_chunks c),'metadata retry leaves chunks and vectors byte-identical');
 select pg_temp.ok((public.law_listing_page('{"q":"Future","filter":[{"col":"record_type","value":"tribunal_order"}]}')->>'total')::int=1,'filter and query exact counts');

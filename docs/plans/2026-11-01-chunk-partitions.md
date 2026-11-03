@@ -96,6 +96,38 @@ Rehearsals on copies of the replica (results in `eval/retrieval/results/`):
 feature-scoped search, 98% of real use, is much faster; recall is unchanged everywhere. Recheck broad latency
 after any instance upgrade, and before the National bulk load.
 
+**Final files, gate rerun (2026-11-03, `*b7-final*`).** The rehearsed final files (`niyantran_rehearsal_b6final`,
+document-id pruning included) on an idle machine; the same-day baselines (`*baseline-v2-b6*`, `*baseline-v2-b7*`)
+ran under load (network round trip p50 105 to 160 ms against about 60 ms clean) and are not used; the comparison is
+with the clean `*baseline-v2-b5*` on the same replica, same functions:
+- Recall identical in every feature and mode (0 lost questions, as in every earlier run).
+- Feature search p50 773 to 656 ms, p95 3,671 to 1,599 ms.
+- Broad search p50 292 to 797 ms. Calls 227 to 239 took 4 to 32 s while the plain round trip took up to 5 s (a
+  machine stall, not the query); outside them two calls took 4.3 and 5.5 s.
+- Focused search p50 62 to 80 ms, p95 95 to 159 ms (the bar allows 134 ms). The document-id pruning did not change
+  it: the run before it measured 156 ms.
+
+**Exception extended (developer, 2026-11-03):** focused-search latency is accepted with broad search, on condition
+that broad and focused search are measured on NTER (read-only, the same queries) right before and right after the
+apply, and the paired rollback is run if production is clearly worse. NTER now has 8 GB RAM and 2 GB shared buffers
+against this machine's 512 MB, which is expected to narrow both gaps; that expectation is what the production
+measurement checks.
+
+**Build memory (2026-11-03).** With the upgrade, the migration's TUNABLE `maintenance_work_mem` is 1GB (was 256MB).
+The final pair (sha256 `77ddc136…` then `295f9ebc…`) was rehearsed back to back: 46 min 44 s and 227 ms
+(`*rehearsal-b9part*`, `*rehearsal-b9final*`); an earlier run of the same partition file took 24 min 17 s
+(`*rehearsal-b8part*`); the swap held its lock 20 to 21 ms; 392,945 rows verified each time. Apply:
+[runbook](../operations/2026-11-03-phase-b-apply.md).
+
+**B5, production apply (2026-11-03).** Both files applied to NTER with psql and exit 0, as the runbook says (the
+partition migration took about 7 min 27 s); 395,375 rows verified; history rows written by hand (F283). The
+before-and-after measurement on NTER (315 questions; two were excluded because the F281 repairs changed their gold
+chunks) is no worse in every mode, with no question lost. Broad p95 went from 1,516 to 1,368 ms, focused from
+677 to 641 ms and feature from 812 to 762 ms. Document hit@10 rose slightly: broad 196 to 199 of 249, feature 205 to
+206. So the broad and focused exceptions above were not needed on production. Figures, checks and a
+correction to two comments in the applied file are in the runbook's log. `document_chunks_unpartitioned` (5.3 GB)
+stays for the rollback until an agreed drop.
+
 ## Exclusions
 
 - No hybrid search, headers or re-embedding (steps 4 and 5). No change to registration or admission. No production

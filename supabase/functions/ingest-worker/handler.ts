@@ -18,6 +18,7 @@ import { json } from '../_shared/http.ts';
 import { redactText } from './mistral.ts';
 import {
   type AdvancePatch,
+  type BatchStep,
   INGEST,
   IngestError,
   type IngestJob,
@@ -30,8 +31,11 @@ import {
 export const MAX_REPORTED_MESSAGE = 500;
 
 export interface RunDeps extends WorkerDeps {
-  /** The stage steps; production passes ocrStep and indexStep, tests pass fakes. */
-  steps: { ocr: Step; index: Step };
+  /**
+   * The stage steps; production passes ocrStep and indexStep, tests pass fakes. suppliedBatch runs
+   * several supplied-text index jobs of one batch claimed together (design 4.2).
+   */
+  steps: { ocr: Step; index: Step; suppliedBatch?: BatchStep };
   /** Exact values removed from every reported message (API keys, the worker secret). */
   secrets?: string[];
 }
@@ -124,8 +128,6 @@ function stepFor(deps: RunDeps, job: IngestJob): Step | null {
 }
 
 async function runClaimed(deps: RunDeps, job: IngestJob, deadline: number): Promise<void> {
-  const secrets = deps.secrets ?? [];
-  const ids = { job_id: job.id, document_id: job.document_id };
   const step = stepFor(deps, job);
 
   let outcome: StepOutcome;
@@ -143,7 +145,13 @@ async function runClaimed(deps: RunDeps, job: IngestJob, deadline: number): Prom
       outcome = { patch: failurePatch(e) };
     }
   }
+  await report(deps, job, outcome);
+}
 
+/** One job's outcome, under that job's own claim token. */
+async function report(deps: RunDeps, job: IngestJob, outcome: StepOutcome): Promise<void> {
+  const secrets = deps.secrets ?? [];
+  const ids = { job_id: job.id, document_id: job.document_id };
   if (outcome.activated) {
     safeLog(deps.log, 'worker.activated', ids);
     return;
@@ -181,14 +189,39 @@ async function runClaimed(deps: RunDeps, job: IngestJob, deadline: number): Prom
   });
 }
 
-/** Claims at most one job and runs one step of it. Never rejects. */
+/**
+ * How many jobs to claim: ingest_settings.claim_batch (the claim caps it again). Without a settings
+ * reader, or when the read fails, one, as before.
+ */
+async function claimSize(deps: RunDeps): Promise<number> {
+  if (!deps.db.settings) return 1;
+  try {
+    const n = (await deps.db.settings()).claim_batch;
+    return Number.isInteger(n) && n >= 1 ? n : 1;
+  } catch (e) {
+    safeLog(deps.log, 'worker.settings_failed', { message: redactMessage(messageOf(e), deps.secrets ?? []) });
+    return 1;
+  }
+}
+
+/** Supplied-text index jobs of one batch: the jobs a multi-job claim returns for the batch step. */
+function oneBatch(jobs: IngestJob[]): boolean {
+  return jobs.length > 1 && !!jobs[0].batch_id &&
+    jobs.every((j) => j.batch_id === jobs[0].batch_id && j.input_kind === 'supplied_text' && j.stage === 'index');
+}
+
+/**
+ * Claims up to claim_batch jobs and runs one step of each: the jobs of one batch together, any other
+ * claim job by job, so no claimed job is left running. Never rejects.
+ */
 export async function runOnce(deps: RunDeps): Promise<void> {
   const secrets = deps.secrets ?? [];
   try {
     const deadline = deps.now() + INGEST.budgetMs;
+    const size = await claimSize(deps);
     let jobs: IngestJob[];
     try {
-      jobs = await deps.db.claim(1, INGEST.leaseSeconds);
+      jobs = await deps.db.claim(size, INGEST.leaseSeconds);
     } catch (e) {
       safeLog(deps.log, 'worker.claim_failed', { message: redactMessage(messageOf(e), secrets) });
       return;
@@ -197,15 +230,27 @@ export async function runOnce(deps: RunDeps): Promise<void> {
       safeLog(deps.log, 'worker.idle');
       return;
     }
-    const job = jobs[0];
+    for (const job of jobs) {
+      safeLog(deps.log, 'worker.claimed', {
+        job_id: job.id,
+        document_id: job.document_id,
+        stage: job.stage,
+        attempts: job.attempts,
+        batch_id: job.batch_id ?? null,
+      });
+    }
+    if (oneBatch(jobs) && deps.steps.suppliedBatch) {
+      let outcomes: StepOutcome[];
+      try {
+        outcomes = await deps.steps.suppliedBatch(deps, jobs, deadline);
+      } catch (e) {
+        outcomes = jobs.map(() => ({ patch: failurePatch(e) }));
+      }
+      for (const [i, job] of jobs.entries()) await report(deps, job, outcomes[i]);
+      return;
+    }
     if (jobs.length > 1) safeLog(deps.log, 'worker.claim_extra', { claimed: jobs.length });
-    safeLog(deps.log, 'worker.claimed', {
-      job_id: job.id,
-      document_id: job.document_id,
-      stage: job.stage,
-      attempts: job.attempts,
-    });
-    await runClaimed(deps, job, deadline);
+    for (const job of jobs) await runClaimed(deps, job, deadline);
   } catch (e) {
     safeLog(deps.log, 'worker.unexpected', { message: redactMessage(messageOf(e), secrets) });
   }
