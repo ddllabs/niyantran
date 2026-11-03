@@ -170,11 +170,12 @@ set local lock_timeout = '30s';
 --          own setting is 128MB (2026-11-03), so this raises it for this transaction only. The
 --          NCLT and Bills graphs exceed it and pgvector builds them partly on disk: slower, not
 --          wrong (B3 rehearsal at 256MB: 22 min 42 s in all).
---   1GB    if the instance is upgraded first (decision pending): every graph fits in memory
---          (rehearsal 2026-11-02 at 1GB: 9 min 53 s). Do not set it above what the instance can
---          spare beside shared_buffers (512MB) while the migration runs.
+--   1GB    chosen: NTER was upgraded to 8 GB RAM on 2026-11-03 (shared_buffers 2GB, its own
+--          maintenance_work_mem 512MB). Every graph fits in memory (rehearsal 2026-11-02 at 1GB:
+--          9 min 53 s). Do not set it above what the instance can spare beside shared_buffers
+--          while the migration runs; on the former 2 GB instance use 256MB.
 -- =============================================================================================
-set local maintenance_work_mem = '256MB';
+set local maintenance_work_mem = '1GB';
 
 -- ---------------------------------------------------------------------------
 -- Preconditions. Each failure aborts before anything is changed.
