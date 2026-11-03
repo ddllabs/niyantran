@@ -33,12 +33,36 @@
 2. **Hybrid round 2.** The keyword side also sees the header, so a chunk that says "the appeal is dismissed" matches
    the company's name and case number (contextual keyword search). Fusion is tuned from a failure analysis of round 1.
 3. **One measured matrix**, not one step at a time, because the two interact. Arms: vector-only, headers only,
-   hybrid round 2 only, headers plus hybrid round 2. Each arm is judged per feature on v2, on the development set,
+   hybrid round 2 only, headers plus hybrid round 2, and Supabase's recipe as written. Each arm is judged per feature on v2, on the development set,
    and once, at the end, on the sealed set.
 4. **The vectors computed for the rehearsal are reused for production** where a chunk's text and header are
    unchanged (`embed_hash` equal), so the embedding cost is paid once.
 
-## Decisions needed (developer)
+## Relation to Supabase's hybrid search recipe
+
+Round 1 follows Supabase's recipe (`docs/guides/ai/hybrid-search`, function `hybrid_search`): a full-text search and a
+vector search run separately and are fused by reciprocal rank fusion, with `full_text_weight`, `semantic_weight` and
+`rrf_k`. It departs from it where the recipe does not fit this corpus:
+
+- **The query.** The recipe matches `websearch_to_tsquery(query_text)`, which requires every word of the question.
+  Measured 2026-11-04 on the rehearsal copy (`english`, as the recipe's default): 28 of the 30 held-out NCLT questions
+  match no chunk at all, so for them the recipe returns vector search alone. Round 1 searches the question's rare
+  words instead.
+- **Row-level security.** The recipe's function runs as the caller. Under this table's restrictive policies the
+  keyword match cannot use its index for a signed-in user (22 to 29 s measured), so round 1 uses a definer helper
+  that applies the publication rule itself.
+- **Scope.** The recipe searches the whole table; round 1 searches inside the feature's partition.
+- **Text configuration.** `simple` instead of `english`, so case and section numbers stay whole.
+
+T7 adds the recipe as written (its query, `english`, k = 50, 60 candidates a side) as a fifth arm, so the choice is
+measured rather than argued.
+
+## Decisions (developer, 2026-11-04)
+
+D1 to D4 approved as recommended: headers built from metadata; a second sealed set written by the developer;
+no reranker; the NCLT gate as stated.
+
+## Decisions as proposed
 
 - **D1. What the header is.**
   - Recommended: built from metadata (title, feature, case number, date, forum, section, order type; per-feature
@@ -66,7 +90,7 @@
 | T4. Header builder: a pure function from a document's stored fields to the header text, per feature, versioned, with the header version folded into `embed_hash`; used by the worker for new chunks | Sonnet, Opus reviews | `supabase/functions/_shared/chunkHeader.ts` and its test; `supabase/functions/ingest-worker/` embed input only | D1 | Deno tests (headers for each feature from real metadata shapes; empty fields omitted; version change changes `embed_hash`); `npm run lint` |
 | T5. Re-embedding on a copy: a script that embeds header plus text for chosen features of a rehearsal copy into a side column, resumable, with a cost ceiling, and writes the vectors to a local file keyed by chunk id and `embed_hash` for reuse | Sonnet builds, supervisor runs (paid) | `scripts/eval-replica/reembed.mjs` and its offline test | T4 | offline test with a fake embedder; supervisor run with the ceiling, cost recorded |
 | T6. Hybrid round 2: keyword side over header plus text (how the header reaches the index, a stored per-chunk column or a per-document `tsvector`, is chosen by measured index size and build time), fusion changes from T3; the round 1 security properties kept, with the fixture extended | Sonnet builds, Opus reviews | the C1 migration (not applied anywhere, so revised in place), `supabase/tests/chunk_hybrid_search.sql`, `supabase/tests/run.sh` entry | T3, T4 | `npm run test:sql` (no VACUITY FAIL), the security probes of round 1 |
-| T7. The matrix on the copy: four arms × three sets, quiet machine, latency run twice | supervisor | `eval/retrieval/results/`, a research note | T2, T5, T6 | `--compare` per arm against vector-only; the sealed set run once, last |
+| T7. The matrix on the copy: five arms × three sets, quiet machine, latency run twice | supervisor | `eval/retrieval/results/`, a research note | T2, T5, T6 | `--compare` per arm against vector-only; the sealed set run once, last |
 | T8. Gate review | Fable | none (report) | T7 | review notes |
 | T9. Production, each step separately authorized: headers in the worker and the re-embedding backfill (vectors loaded where `embed_hash` matches, the rest through the worker), then the hybrid migration, then the app switch | supervisor | runbook under `docs/operations/` | T8 and the developer's authorization | before-and-after measurement on NTER, as for Phase B |
 
