@@ -5,8 +5,13 @@
 --
 -- What changes
 --   * public.document_chunks is a new table, partitioned by list (desk_feature):
---       document_chunks_nclt     for 'NCLT / NCLAT (Insolvency)' (225,273 chunks on 2026-11-01)
---       document_chunks_default  everything else, including a null feature
+--       document_chunks_nclt        'NCLT / NCLAT (Insolvency)'                 225,273 chunks on 2026-11-01
+--       document_chunks_bills       'Bill Passage Probability Index'             89,014; about 445,000 with National v1.1-v1.5
+--       document_chunks_regulatory  'Regulatory Body Watch (RBI SEBI TRAI CCI)'  about 10,500; about 228,000 likewise
+--       document_chunks_default     everything else, including a null feature
+--     Bills and Regulatory get their partitions now, before the National load takes them past the
+--     spec's 100,000-chunk threshold (owner decision 2026-11-02, National before the legal pack),
+--     so no later migration has to move live rows out of the default partition.
 --     It has the old columns (same types, defaults and check) plus four facets:
 --       desk_tier, desk_feature (the partition key), doc_date, language.
 --     Unique keys must include the partition key: (id, desk_feature) and
@@ -75,8 +80,13 @@
 -- (scripts/eval-replica/rehearse.mjs, plan task B2) times.
 --
 -- Adding a partition later (a feature that passes the 100,000-chunk threshold, spec §4.1).
--- Its rows are in the default partition, which must not keep any row the new bound accepts.
--- With ingestion for the feature stopped, in one migration:
+-- Prefer creating it before its load, as here for Bills and Regulatory: an empty feature needs
+-- only `create table public.document_chunks_<slug> partition of public.document_chunks for values
+-- in ('<feature>')` (which scans the default partition to prove it holds no such row), then the
+-- revoke and RLS lines below; its indexes, triggers and foreign key come from the parent.
+-- A feature whose rows are already in the default partition must move them, because the default
+-- partition must not keep any row the new bound accepts. With ingestion for the feature stopped,
+-- in one migration:
 --   lock table public.document_chunks in share row exclusive mode;
 --   create table public.document_chunks_<slug> (like public.document_chunks including defaults including constraints);
 --   insert into public.document_chunks_<slug> select * from public.document_chunks_default where desk_feature = '<feature>';
@@ -163,6 +173,8 @@ begin
   if to_regclass('public.document_chunks_unpartitioned') is not null
      or to_regclass('public.document_chunks_partitioned') is not null
      or to_regclass('public.document_chunks_nclt') is not null
+     or to_regclass('public.document_chunks_bills') is not null
+     or to_regclass('public.document_chunks_regulatory') is not null
      or to_regclass('public.document_chunks_default') is not null then
     raise exception 'document_chunks_partitioned: a table this migration creates already exists';
   end if;
@@ -292,6 +304,10 @@ create table public.document_chunks_partitioned (
 
 create table public.document_chunks_nclt partition of public.document_chunks_partitioned
   for values in ('NCLT / NCLAT (Insolvency)');
+create table public.document_chunks_bills partition of public.document_chunks_partitioned
+  for values in ('Bill Passage Probability Index');
+create table public.document_chunks_regulatory partition of public.document_chunks_partitioned
+  for values in ('Regulatory Body Watch (RBI SEBI TRAI CCI)');
 create table public.document_chunks_default partition of public.document_chunks_partitioned default;
 do $$ begin raise notice 'phase: new table end'; end $$;
 
@@ -338,12 +354,24 @@ do $$ begin raise notice 'phase: hnsw nclt start'; end $$;
 create index document_chunks_nclt_embedding_halfvec_hnsw on public.document_chunks_nclt
   using hnsw ((embedding::extensions.halfvec(1536)) extensions.halfvec_cosine_ops);
 do $$ begin raise notice 'phase: hnsw nclt end'; end $$;
+do $$ begin raise notice 'phase: hnsw bills start'; end $$;
+create index document_chunks_bills_embedding_halfvec_hnsw on public.document_chunks_bills
+  using hnsw ((embedding::extensions.halfvec(1536)) extensions.halfvec_cosine_ops);
+do $$ begin raise notice 'phase: hnsw bills end'; end $$;
+do $$ begin raise notice 'phase: hnsw regulatory start'; end $$;
+create index document_chunks_regulatory_embedding_halfvec_hnsw on public.document_chunks_regulatory
+  using hnsw ((embedding::extensions.halfvec(1536)) extensions.halfvec_cosine_ops);
+do $$ begin raise notice 'phase: hnsw regulatory end'; end $$;
 do $$ begin raise notice 'phase: hnsw default start'; end $$;
 create index document_chunks_default_embedding_halfvec_hnsw on public.document_chunks_default
   using hnsw ((embedding::extensions.halfvec(1536)) extensions.halfvec_cosine_ops);
 do $$ begin raise notice 'phase: hnsw default end'; end $$;
 alter index public.document_chunks_partitioned_embedding_halfvec_hnsw
   attach partition public.document_chunks_nclt_embedding_halfvec_hnsw;
+alter index public.document_chunks_partitioned_embedding_halfvec_hnsw
+  attach partition public.document_chunks_bills_embedding_halfvec_hnsw;
+alter index public.document_chunks_partitioned_embedding_halfvec_hnsw
+  attach partition public.document_chunks_regulatory_embedding_halfvec_hnsw;
 alter index public.document_chunks_partitioned_embedding_halfvec_hnsw
   attach partition public.document_chunks_default_embedding_halfvec_hnsw;
 
@@ -450,12 +478,15 @@ do $$ begin raise notice 'phase: sync triggers end'; end $$;
 do $$ begin raise notice 'phase: policies and grants start'; end $$;
 alter table public.document_chunks_partitioned enable row level security;
 alter table public.document_chunks_nclt enable row level security;
+alter table public.document_chunks_bills enable row level security;
+alter table public.document_chunks_regulatory enable row level security;
 alter table public.document_chunks_default enable row level security;
 create policy document_chunks_read on public.document_chunks_partitioned for select to authenticated using (true);
 create policy law_chunks_serving on public.document_chunks_partitioned as restrictive for select to authenticated using (
   exists (select 1 from public.documents d where d.id = document_id));
 
-revoke all on table public.document_chunks_partitioned, public.document_chunks_nclt, public.document_chunks_default
+revoke all on table public.document_chunks_partitioned, public.document_chunks_nclt, public.document_chunks_bills,
+  public.document_chunks_regulatory, public.document_chunks_default
   from public, anon, authenticated, service_role;
 grant select on table public.document_chunks_partitioned to authenticated;
 grant select, insert, update, delete on table public.document_chunks_partitioned to service_role;
@@ -756,7 +787,13 @@ declare
   -- Above about 500 the planner turns to an exact scan. Measured:
   -- docs/research/2026-10-15-unscoped-search-recall.md.
   c_unscoped_ef_search constant text := '200';
+  -- The unscoped search's work_mem: small enough that the access check on chunks
+  -- (law_chunks_serving, exists a visible document) is planned as a primary-key probe of
+  -- documents for each row the search returns, not as a hash of every visible document
+  -- built once per partition. See the branch's comment.
+  c_unscoped_work_mem constant text := '256kB';
   v_previous text;
+  v_previous_work_mem text;
 begin
   if v_docs > 0 then
     -- Scoped. The predicate on document_id is unconditional here, so the planner
@@ -795,8 +832,21 @@ begin
     -- still computed at full precision for the rows kept. ef_search is set with
     -- set_config and restored afterwards, as in match_documents_feature_hnsw
     -- (NTER refuses a SET clause for it; see that function's comment).
+    --
+    -- On the partitioned table the access check of each partition's scan is its own
+    -- SubPlan, and the planner hashes it (it cannot know that LIMIT stops each scan after a
+    -- few rows): every unscoped search then read and filtered all of documents once per
+    -- partition, four times, about 25-50 ms warm. A hash table must fit in work_mem
+    -- (times hash_mem_multiplier) to be chosen, so the search runs with a small work_mem:
+    -- the check becomes a primary-key probe for each row pulled (about 44), while the
+    -- documents policy's published set (declared rows 10000) still hashes. Same rows: only
+    -- the evaluation of the same predicates changes, and the access check still applies to
+    -- every row. Measured on a full copy of the replica (2026-11-03): warm, 74 -> 15 ms and
+    -- 15,711 -> 11,036 buffers for one broad question. Restored afterwards, like ef_search.
     v_previous := current_setting('hnsw.ef_search', true);
+    v_previous_work_mem := current_setting('work_mem');
     perform set_config('hnsw.ef_search', c_unscoped_ef_search, true);
+    perform set_config('work_mem', c_unscoped_work_mem, true);
     return query
       select c.id, c.document_id, c.content,
              (1 - (c.embedding <=> query_embedding))::float8,
@@ -810,6 +860,7 @@ begin
          and (p_desk_tier is null or d.desk_tier = p_desk_tier)
        order by (c.embedding::extensions.halfvec(1536)) <=> (query_embedding::extensions.halfvec(1536))
        limit v_limit;
+    perform set_config('work_mem', v_previous_work_mem, true);
     perform set_config('hnsw.ef_search', coalesce(nullif(v_previous, ''), '40'), true);
   else
     -- Feature, no ids: hybrid X, on the chunk's own feature (one partition). Count the

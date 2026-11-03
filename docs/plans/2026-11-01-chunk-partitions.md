@@ -72,6 +72,30 @@
   window. If NTER would need a larger disk or instance, that is a billing change and stops for approval.
 - Task agents never read `.env.local`, call NTER or any paid API, or commit.
 
+## B3 result and the broad-search exception (2026-11-03)
+
+Rehearsals on copies of the replica (results in `eval/retrieval/results/`):
+- The two migrations ship together, policy first: the policy migration alone makes feature search on the
+  unpartitioned table slower (its feature-size count changed plan), so it is never applied alone.
+- Four partitions (NCLT, Bills, Regulatory, default; developer decision 2026-11-02, National first). Swap 12 to
+  28 ms; row counts equal; reader waits during the build come from load, not locks.
+- Clean gate run (idle machine, both copies prewarmed; `*baseline-v2-b5*` against `*b5-four-partitions*`):
+  recall identical in every feature (0 lost questions); feature search p50 773 to 646 ms and p95 3,671 to
+  1,462 ms; focused 62 to 86 ms p50; broad search p50 292 to 625 ms and p95 513 to 971 ms, which fails the
+  spec's "p95 no worse" bar.
+- Cause (B1, measured): a broad search walks four HNSW graphs, touching about 3.7 times the index pages of one
+  graph at equal recall (10,758 against 2,935 buffers per query), although the four indexes total the same size.
+  Warm, that is about 70 against 24 ms; when the indexes don't fit in memory (this machine: 4 GB for Docker,
+  512 MB shared buffers; production: 2 GB RAM), the extra pages are cache misses. A per-row access check in the
+  broad path (`work_mem` 256 kB, set and restored inside `match_documents`) cut a warm query from 74 to 15 ms
+  and is kept; it does not close the cold-cache gap.
+- Usage (NTER, read-only, 2026-11-03): 182 of 185 conversations started from a desk (feature scope); 3 used
+  broad search.
+
+**Exception (developer, 2026-11-03):** broad-search latency is accepted as a recorded exception to the §4.4 gate:
+feature-scoped search, 98% of real use, is much faster; recall is unchanged everywhere. Recheck broad latency
+after any instance upgrade, and before the National bulk load.
+
 ## Exclusions
 
 - No hybrid search, headers or re-embedding (steps 4 and 5). No change to registration or admission. No production
