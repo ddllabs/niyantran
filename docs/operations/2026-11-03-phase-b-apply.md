@@ -7,7 +7,7 @@
 
 ## What is applied
 
-In this order, as one `supabase db push` from `main` after the pull request is merged:
+In this order, each with psql from the developer's terminal, from `main` at the merge commit (`515fb489`, PR #95):
 
 1. `supabase/migrations/20261101120000_document_chunks_partitioned.sql`: builds the partitioned table beside the old
    one (NCLT, Bills, Regulatory, default; one HNSW index each), verifies it row for row, then swaps the names. The old
@@ -23,7 +23,7 @@ migration straight after it (`*rehearsal-b9part*`, `*rehearsal-b9final*`), took 
 (copy 8 min 2 s, NCLT graph 32 min 12 s; swap 21 ms; 392,945 rows verified), and the policy migration 227 ms. At 256MB
 it took 39 min 33 s. Plan for up to an hour on NTER; the file's own statement timeout is 2 h.
 
-## Preconditions (each checked, and recorded with the time, before the push)
+## Preconditions (each checked, and recorded with the time, before the apply)
 
 | Check | How | Pass |
 |---|---|---|
@@ -33,8 +33,8 @@ it took 39 min 33 s. Plan for up to an hour on NTER; the file's own statement ti
 | Health | `get_project` status; `pg_is_in_recovery()` false; `default_transaction_read_only` off | healthy, writable |
 | Quiet | `ingest_jobs` running or queued; conversations in the last 10 minutes; active client sessions | 0 jobs; low traffic |
 | Freeze | see below | everyone told |
-| History | `supabase migration list --linked`: both files pending, nothing else pending | only these two |
-| Dry run | `supabase db push --linked --dry-run` | lists exactly the two files |
+| History | `select version from supabase_migrations.schema_migrations where version in ('20261101120000','20261101130000')` | no row |
+| Client | `/opt/homebrew/opt/libpq/bin/psql --version` in the developer's terminal | psql 17 or later |
 | Before measurement | below | results file written |
 
 **Who is frozen for the window (up to about an hour).** Nothing writes chunks or documents:
@@ -48,13 +48,34 @@ Readers (chat and search) keep working throughout; the swap makes them wait at m
 
 ## Connection and host
 
-- Run the push from the developer's laptop on mains power, with sleep prevented for the whole run:
-  `caffeinate -dimsu supabase db push --linked 2>&1 | tee <scratch>/phase-b-push.log`. The laptop does not sleep,
-  close or change network during the window.
-- The CLI's linked connection is used as for every earlier migration (F30, P12, migration 51). The file sets
-  `statement_timeout` 2 h and `lock_timeout` 30 s locally; the role's 120 s timeout does not apply inside it.
-- If the connection drops, do **not** push again. The server may still be running, and committing, the file it was
-  sent. Do the orphan check first.
+**Not `supabase db push`.** Since 2026-10-18 migrations were applied to NTER through the Supabase MCP, which records
+its own timestamp as the version: 19 history rows differ from the repository's file versions (open work F283). A push
+would therefore try to re-run 18 old migrations, the billing ones among them. Until F283 is resolved, a migration is
+applied by running its file, and its history row is written by hand under the repository's version.
+
+The developer runs it in their own terminal, on mains power, with sleep prevented. The connection string (Dashboard →
+Connect → Session pooler, port 5432, IPv4; or the direct connection where IPv6 works) is pasted there and never into
+chat, the repository or a log. TCP keepalives are set so a quiet connection is not dropped while the NCLT graph builds:
+
+```bash
+cd "<repository>"   # main at 515fb489; check both sha256 values first
+read -rs PGURL      # paste the connection string; nothing is echoed
+export PGURL="${PGURL}?keepalives=1&keepalives_idle=30&keepalives_interval=10&keepalives_count=6&application_name=phase-b-apply"
+PSQL=/opt/homebrew/opt/libpq/bin/psql
+caffeinate -dimsu "$PSQL" "$PGURL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261101120000_document_chunks_partitioned.sql 2>&1 | tee ~/phase-b-1.log
+# only when the first exits 0:
+"$PSQL" "$PGURL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261101130000_law_documents_serving_set.sql 2>&1 | tee ~/phase-b-2.log
+"$PSQL" "$PGURL" -X -v ON_ERROR_STOP=1 -c "insert into supabase_migrations.schema_migrations (version, name) values ('20261101120000', 'document_chunks_partitioned'), ('20261101130000', 'law_documents_serving_set')"
+unset PGURL
+```
+
+(If the pasted string already has a `?`, join the extra parameters with `&` instead.) Each file is one transaction
+with its own `begin;` and `commit;`; it sets `statement_timeout` 2 h and `lock_timeout` 30 s locally, so the role's
+120 s timeout does not apply inside it. The laptop does not sleep, close or change network during the window. The
+logs hold only the phase notices; the supervisor reads them and runs every check below read-only.
+
+- If the connection drops, do **not** run the file again. The server may still be running, and committing, the file
+  it was sent. Do the orphan check first.
 
 ### Orphan check (after any disconnect or unclear exit)
 
@@ -62,8 +83,8 @@ Read-only, on NTER:
 
 ```sql
 begin transaction read only;
-select pid, state, now() - xact_start as age, left(query, 80)
-  from pg_stat_activity where query ilike '%document_chunks%' and pid <> pg_backend_pid();
+select pid, state, now() - xact_start as age, application_name, left(query, 80)
+  from pg_stat_activity where (query ilike '%document_chunks%' or application_name = 'phase-b-apply') and pid <> pg_backend_pid();
 select relkind from pg_class where oid = 'public.document_chunks'::regclass;          -- 'p' = partitioned (applied)
 select to_regclass('public.document_chunks_unpartitioned') is not null as old_kept;
 select version from supabase_migrations.schema_migrations where version in ('20261101120000','20261101130000');
@@ -71,9 +92,8 @@ rollback;
 ```
 
 - A backend still running the migration: wait for it; never start a second one.
-- Partitioned table present but its version row missing: the file committed without the CLI recording it. Insert the
-  version row (developer authorization), then push again so only the policy file runs.
-- Neither: nothing was committed (the file is one transaction); fix the cause and push again.
+- Partitioned table present: the first file committed. Go on with the policy file, then the history rows.
+- Neither: nothing was committed (the file is one transaction); fix the cause and run it again.
 
 ## Before and after measurement (the exception's condition)
 
@@ -93,7 +113,7 @@ npx vite-node --config vitest.config.js scripts/eval-retrieval.mjs -- --set eval
   **Roll back** if recall drops anywhere, if signed-in searches fail or time out, or if broad or focused p95 is more
   than twice the before figure. Otherwise the result is recorded and the exception stands.
 
-## After the push
+## After the apply
 
 1. `analyze public.document_chunks; analyze public.desk_rows; analyze public.documents;`, then compare `n_live_tup`
    with exact counts (`AGENTS.md`).
@@ -106,9 +126,9 @@ npx vite-node --config vitest.config.js scripts/eval-retrieval.mjs -- --set eval
 ## Rollback (paired, while `document_chunks_unpartitioned` exists)
 
 Ingestion stays frozen. First the policy migration's rollback, then the partition migration's, both as written in
-the headers of the two files (each also deletes its own version row so a later push re-applies it). The old table
+the headers of the two files (each also deletes its own version row). Run each the same way, with psql from the developer's terminal. The old table
 comes back by rename under a short exclusive lock; any rows written since the swap are copied back first, as the
-header's script does. Run the after-push live checks again against the restored table.
+header's script does. Run the after-apply live checks again against the restored table.
 
 ## Later (open work)
 
