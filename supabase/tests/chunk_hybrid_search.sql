@@ -22,13 +22,16 @@
 --               appear as an id nor change a visible answer (the crowding case); the matrix of
 --               law_documents_serving_set is replayed to prove the copy admits exactly the documents
 --               authenticated can read. The function still re-reads through RLS.
---           Also: oversized text, quotes and backslashes in the text, and that no other function mentions
---           the helper.
+--           Also: oversized text, quotes and backslashes in the text, that no other function mentions
+--           the helper, that ts_rank_cd is applied only after the rule and the admitted-row cap, and that the
+--           cap holds (2000 admitted rows by id).
 --   Part 3  the guards, each proved against the defect it guards: the helper's plan reads the GIN
 --           index and never scans a chunk partition sequentially (a direct keyword query as
 --           authenticated does); anon is refused by the schema's ACL (and is served once granted);
 --           a temp table or type cannot shadow what the helper reads (a function without the fixed
---           search_path is shadowed).
+--           search_path is shadowed); and the helper refuses to run when an access policy on documents or
+--           document_chunks (text, name, role, mode, a new one) no longer is the one its copy of the rule
+--           was written against.
 --
 -- Vacuity: run.sh rebuilds the chain without the migration and this file must fail. It fails at the
 -- first assertion (the function does not exist); keep part 1 first.
@@ -121,10 +124,10 @@ select pg_temp.ok((select bool_and(pg_has_role(p.proowner, c.relowner, 'usage'))
 select pg_temp.ok((select position('c_rrf_k constant int := 60;' in prosrc) > 0 and position('c_candidates constant int := 100;' in prosrc) > 0
                           and position('c_nclt constant text := ''NCLT / NCLAT (Insolvency)'';' in prosrc) > 0
                      from pg_proc where oid = 'public.match_documents_hybrid(extensions.vector, text, integer, uuid[], text, text)'::regprocedure)
-  and (select position('c_rare_df_max constant int := 300;' in prosrc) > 0 and position('c_query_max constant int := 4000;' in prosrc) > 0
+  and (select position('c_rare_df_max constant int := 300;' in prosrc) > 0 and position('c_query_max constant int := 4000;' in prosrc) > 0 and position('c_admitted_cap constant int := 2000;' in prosrc) > 0
               and position('c_candidates constant int := 100;' in prosrc) > 0 and position('c_max_terms constant int := 64;' in prosrc) > 0
          from pg_proc where oid = 'retrieval_internal.hybrid_keyword_ids(text, text, text)'::regprocedure),
-  'pinned: fusion constant 60, 100 candidates, NCLT only; rare = in at most 300 readable chunks, 64 terms, 4000 characters of text');
+  'pinned: fusion constant 60, 100 candidates, NCLT only; rare = in at most 300 readable chunks, 64 terms, 4000 characters of text, 2000 admitted rows ranked');
 
 -- The keyword index: one expression, one text configuration, on the parent and on every leaf partition.
 create temp table kw_idx as
@@ -218,6 +221,16 @@ select d.id, d.desk_feature, h.hash || k, h.base + k, 0, 4, h.text || ' ' || k, 
                ('honly', 7000, 'onlyhidden hidden', 5), ('hedge', 8000, 'edgehid hidden', 20)) h(hash, base, text, n)
   cross join lateral generate_series(1, h.n) k
   join documents d on d.id = 'f1000000-0000-4000-8000-000000000003'::uuid;
+-- The admitted-row cap. 8 words ('capw1'..'capw8'), each in 290 readable NCLT chunks (2320 rows, all matches of a text
+-- with the 8 words), plus one chunk with the first three words whose id is the largest possible, so it would rank first
+-- without the cap and is the first the cap (smallest ids first) drops.
+insert into document_chunks (document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
+select d.id, d.desk_feature, 'capw' || j, 9000 + j, 0, 4, 'capw' || ((j - 1) / 290 + 1), pg_temp.cone(1, 0.7 + 0.0001 * j, 3000 + j), 4
+  from generate_series(1, 2320) j
+  join documents d on d.id = (case when j % 2 = 1 then 'f1000000-0000-4000-8000-000000000001' else 'f1000000-0000-4000-8000-000000000002' end)::uuid;
+insert into document_chunks (id, document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
+select 'ffffffff-ffff-4fff-bfff-ffffffffffff', d.id, d.desk_feature, 'capbest', 9999, 0, 4, 'capw1 capw2 capw3', pg_temp.cone(1, 0.99, 3999), 4
+  from documents d where d.id = 'f1000000-0000-4000-8000-000000000001'::uuid;
 analyze documents; analyze document_chunks;
 
 update law_listing_settings set seeded = true, active = true;
@@ -660,7 +673,68 @@ revoke usage on schema retrieval_internal from anon;
 select pg_temp.ok(not has_schema_privilege('anon', 'retrieval_internal', 'usage') and not has_function_privilege('anon', 'retrieval_internal.hybrid_keyword_ids(text, text, text)', 'execute'),
   'as migrated: anon holds neither');
 
--- (c) Shadowing. Names a definer function reads must not resolve to the caller's temp objects. A definer function
+-- (c) ts_rank_cd is applied only to rows that passed the rule and the admitted-row cap. The body mentions it once, after
+-- the cap, and the first step (the match scan) does not mention it. (A call's rank is also computed per row, so applying it
+-- first would put the cost of every hidden match into the call: the timing channel.)
+select pg_temp.ok((select (length(prosrc) - length(replace(prosrc, 'ts_rank_cd', ''))) / length('ts_rank_cd') = 1
+                          and position('ts_rank_cd' in prosrc) > position('limit c_admitted_cap' in prosrc) and position('limit c_admitted_cap' in prosrc) > 0
+                          and position('ts_rank_cd' in prosrc) > position('not (c.document_id = any (v_hidden))' in prosrc) and position('not (c.document_id = any (v_hidden))' in prosrc) > 0
+                     from pg_proc where oid = 'retrieval_internal.hybrid_keyword_ids(text, text, text)'::regprocedure),
+  'ts_rank_cd appears once in the helper, after the hidden-document filter and after the admitted-row cap');
+
+-- (d) The admitted-row cap holds: 2321 readable chunks match the 8 words; only the 2000 with the smallest ids are ranked,
+-- so the chunk that would rank first (largest id) is not among the candidates, and the answer is the oracle's over those 2000.
+set local role authenticated;
+create temp table cap_got as
+  select array_agg(id order by keyword_rank) as ids from retrieval_internal.hybrid_keyword_ids('capw1 capw2 capw3 capw4 capw5 capw6 capw7 capw8', null, 'NCLT / NCLAT (Insolvency)');
+create temp table cap_want as
+  with adm as (select c.id, c.content from document_chunks c join documents d on d.id = c.document_id
+                where c.desk_feature = 'NCLT / NCLAT (Insolvency)' and c.embedding is not null and d.indexed_at is not null
+                  and to_tsvector('simple'::regconfig, c.content) @@ to_tsquery('simple', 'capw1 | capw2 | capw3 | capw4 | capw5 | capw6 | capw7 | capw8')
+                order by c.id limit 2000)
+  select (select array_agg(id order by rank desc, id) from (select id, ts_rank_cd(to_tsvector('simple'::regconfig, content), to_tsquery('simple', 'capw1 | capw2 | capw3 | capw4 | capw5 | capw6 | capw7 | capw8')) as rank from adm order by 2 desc, 1 limit 100) x) as ids,
+         (select count(*) from document_chunks c where c.chunk_hash ~ '^capw[0-9]+$' or c.chunk_hash = 'capbest') as matches,
+         (select array_agg(id order by rank desc, id) from (select c.id, ts_rank_cd(to_tsvector('simple'::regconfig, c.content), to_tsquery('simple', 'capw1 | capw2 | capw3 | capw4 | capw5 | capw6 | capw7 | capw8')) as rank
+                                                              from document_chunks c where c.chunk_hash ~ '^capw[0-9]+$' or c.chunk_hash = 'capbest' order by 2 desc, 1 limit 100) y) as uncapped;
+reset role;
+select pg_temp.ok((select matches from cap_want) = 2321 and (select uncapped[1] from cap_want) = 'ffffffff-ffff-4fff-bfff-ffffffffffff'::uuid
+  and (select ids from cap_got) = (select ids from cap_want) and (select cardinality(ids) from cap_got) = 100
+  and 'ffffffff-ffff-4fff-bfff-ffffffffffff'::uuid <> all (array(select unnest(ids) from cap_got)),
+  'the cap holds: of 2321 matching readable chunks only the 2000 smallest ids are ranked; the chunk that would rank first is dropped, and the candidates are the oracle''s over those 2000');
+
+-- (e) Drift. The helper's copy of the publication rule was written against exact access policies on documents and
+-- document_chunks (name, mode, roles, text). It refuses to run when any of them is different, or another is added, and so does
+-- the search function for an NCLT search (other scopes never call it). Each change is made, checked, and undone.
+create temp table orig_pol as select polrelid as tab, polname::text as name, pg_get_expr(polqual, polrelid) as qual
+  from pg_policy where polrelid in ('public.documents'::regclass, 'public.document_chunks'::regclass);
+create function pg_temp.pol_qual(t text, n text) returns text language sql as $$ select qual from orig_pol where tab = t::regclass and name = n $$;
+create function pg_temp.drift_case(label text, mutate text, restore text) returns void language plpgsql as $$
+begin
+  execute mutate;
+  perform pg_temp.fails('select * from retrieval_internal.hybrid_keyword_ids(''zq4417'', null, null)', '55000', 'drift refused by the helper: ' || label);
+  perform pg_temp.fails($q$select * from match_documents_hybrid((select v from q where name = 'near'), 'zq4417', 5, null, null, 'NCLT / NCLAT (Insolvency)')$q$,
+                        '55000', 'drift refused by the search function (NCLT): ' || label);
+  perform pg_temp.ok(jsonb_array_length(pg_temp.h('near', 'zq4417', 5, null, null, 'Parliamentary Question Database')) = 5, 'other scopes do not call the helper: ' || label);
+  execute restore;
+  perform pg_temp.ok((select count(*) from retrieval_internal.hybrid_keyword_ids('zq4417', null, 'NCLT / NCLAT (Insolvency)')) = 3, 'after undoing it the helper runs again: ' || label);
+end $$;
+select pg_temp.drift_case('the restrictive document policy loosened',
+  'alter policy law_documents_serving on public.documents using (true)',
+  format('alter policy law_documents_serving on public.documents using (%s)', pg_temp.pol_qual('public.documents', 'law_documents_serving')));
+select pg_temp.drift_case('the chunk policy loosened',
+  'alter policy law_chunks_serving on public.document_chunks using (true)',
+  format('alter policy law_chunks_serving on public.document_chunks using (%s)', pg_temp.pol_qual('public.document_chunks', 'law_chunks_serving')));
+select pg_temp.drift_case('a policy added',
+  'create policy hy_extra on public.documents for select to authenticated using (false)', 'drop policy hy_extra on public.documents');
+select pg_temp.drift_case('a policy''s roles widened',
+  'alter policy documents_read on public.documents to authenticated, anon', 'alter policy documents_read on public.documents to authenticated');
+select pg_temp.drift_case('a policy renamed',
+  'alter policy law_documents_serving on public.documents rename to law_documents_serving_x', 'alter policy law_documents_serving_x on public.documents rename to law_documents_serving');
+select pg_temp.drift_case('the restrictive chunk policy made permissive',
+  format('drop policy law_chunks_serving on public.document_chunks; create policy law_chunks_serving on public.document_chunks for select to authenticated using (%s)', pg_temp.pol_qual('public.document_chunks', 'law_chunks_serving')),
+  format('drop policy law_chunks_serving on public.document_chunks; create policy law_chunks_serving on public.document_chunks as restrictive for select to authenticated using (%s)', pg_temp.pol_qual('public.document_chunks', 'law_chunks_serving')));
+
+-- (f) Shadowing. (Last of the guards that use the tables: it leaves temp tables named like them.) Names a definer function reads must not resolve to the caller's temp objects. A definer function
 -- without a fixed search_path (pg_temp implicitly first) is shadowed, for a table and for a type; the helper is not.
 create function public.hy_shadowable() returns bigint language sql stable security definer set search_path = public as $$
   select count(*) from document_chunks
@@ -693,13 +767,14 @@ select pg_temp.ok((select ids from shadow_result) = (select ids from before_shad
   and (select cardinality(ids) from before_shadow) = 4,
   'with a temp document_chunks, documents and tsquery in place the helper still reads the real tables: its answer is unchanged');
 
--- (d) Nothing else reaches the helper. No other function, view or policy mentions it (so it has one caller), and the
+-- (g) Nothing else reaches the helper. No other function, view or policy mentions it (so it has one caller), and the
 -- scan can see a caller when there is one.
 create function pg_temp.helper_mentions() returns text language sql as $$
   select string_agg(x.what, ', ' order by x.what) from (
     select 'function ' || p.oid::regprocedure::text as what from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where p.prosrc like '%hybrid_keyword_ids%' and n.nspname !~ '^pg_temp'
        and p.oid <> 'public.match_documents_hybrid(extensions.vector, text, integer, uuid[], text, text)'::regprocedure
+       and p.oid <> 'retrieval_internal.hybrid_keyword_ids(text, text, text)'::regprocedure
     union all select 'view ' || schemaname || '.' || viewname from pg_views where definition like '%hybrid_keyword_ids%'
     union all select 'policy ' || polname from pg_policy where pg_get_expr(polqual, polrelid) like '%hybrid_keyword_ids%'
   ) x
@@ -710,7 +785,7 @@ select pg_temp.ok((select pg_temp.helper_mentions() = 'function hy_second_caller
 drop function public.hy_second_caller();
 select pg_temp.ok((select pg_temp.helper_mentions() is null), 'and not found once dropped');
 
--- (e) Default privileges. ALTER DEFAULT PRIVILEGES IN SCHEMA ... REVOKE cannot cancel PostgreSQL's built-in
+-- (h) Default privileges. ALTER DEFAULT PRIVILEGES IN SCHEMA ... REVOKE cannot cancel PostgreSQL's built-in
 -- PUBLIC default (tried: no pg_default_acl entry results and a function added later keeps PUBLIC execute), so the
 -- migration does not pretend to. What holds, and is asserted: such a function would be unreachable by anon and PUBLIC
 -- (no usage on the schema) and the schema holds exactly the helper now; a function added to it must revoke
