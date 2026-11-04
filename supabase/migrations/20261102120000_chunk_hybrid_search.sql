@@ -77,13 +77,14 @@
 --      vector rows and reads every returned chunk back through RLS once more; otherwise it is match_documents. `similarity` is the chunk's cosine
 --      similarity to the query vector (not the fused score) and rows are in fused order.
 --
---   5. Last, the migration calls the helper once (with an empty text: only the policy check below runs, no row is
+--   5. Before the index is built, the migration calls the helper once (with an empty text: only the policy check below runs, no row is
 --      read), so a mismatch fails the migration on the database being migrated, and rolls it back, instead of
 --      surfacing at the first search.
 --
 -- The keyword side, in order (the helper). The question is cut to 4000 characters. Each of its first 64 words (digit
--- words first, then the longest) is probed: a word is rare when it is in at most 300 chunks the caller can read
--- (about 0.08% of the table). Of the rare words it keeps as many as a budget of 2000 readable chunks allows: words
+-- words first, then the longest) is probed: a word is rare when it is in at most 300 chunks of the searched feature the caller can read
+-- (about 0.13% of the NCLT partition; counted over the feature, not the whole table, so a party name that also
+-- occurs in 400 Bills chunks is still rare for an NCLT search). Of the rare words it keeps as many as a budget of 2000 readable chunks allows: words
 -- with a digit first, then the others, each group rarest first (ties by the word), a word kept when its readable
 -- count still fits in what is left. Of those, the name-like ones (change B) form the query, OR'd. Every chunk of the
 -- scope that matches it (at most the budget, and fewer after the gate) is ordered by similarity (change A) and the best 100
@@ -119,7 +120,7 @@
 --   draft ran both over all rows and filtered afterwards; the cut then revealed how many hidden chunks matched.
 --   Another computed the ranking function for every match, hidden ones included, and its running time revealed the
 --   same: now the similarity is computed only for the admitted rows, at most 2000 for the keyword list because of the
---   word budget and at most c_month_max_chunks + 1 for the month list, whose scan stops there.)
+--   word budget and at most c_month_max_chunks for the month list, whose count stops at c_month_max_chunks + 1 and computes no distance above it.)
 --   The hidden list is applied as `document_id not in (select ... from unnest(list))`: a subplan that the planner
 --   sizes from the array's length alone and hashes (built once per statement, at the first row that reaches it, and
 --   probed per row) unless it expects only a few rows; the scan keeps its shape and the probe's limit still stops it
@@ -159,14 +160,16 @@
 --   text becomes SQL (a lexeme is escaped into a tsquery literal and only compared; the month is two integers
 --   parsed from the text). Parameters cannot name an object.
 --   Cost, and what it still reveals. The text is cut to 4000 characters, at most 64 words are probed (each a
---   bounded index count of at most 301 readable chunks), and the words kept have readable counts that add up to at
---   most 2000. A kept word's count is exact (at most 300) and counts every readable chunk with the word, in every
---   feature and tier, so the matches of the kept words in the scope are at most that sum: at most 2000 admitted
+--   count that stops after 301 readable chunks: the LIMIT stops the heap scan, but the GIN bitmap for the word is built
+--   in full first, so a probe costs at least the word's matches in the whole partition, hidden ones included), and
+--   the words kept have readable counts that add up to at
+--   most 2000. A kept word's count is exact (at most 300) and counts every readable chunk with the word in the
+--   searched feature (every feature when the call names none), in every tier, so the matches of the kept words in the scope are at most that sum: at most 2000 admitted
 --   matches, and all of them are ordered by similarity (no row is dropped before the order, so the best match is
 --   always among them). No single word can exceed the budget: a word is rare only when its count is at most 300, so
 --   the first word always fits and at least six do. The name gate is one scan of the scope's documents (the titles,
 --   about 7,500 for NCLT) computed once and compared with the kept words. The month list is one index range scan on
---   (desk_feature, doc_date) that stops at c_month_max_chunks + 1 admitted chunks. The worst call is therefore 64
+--   (desk_feature, doc_date) that counts admitted chunks up to c_month_max_chunks + 1 (ids only) and, within the cap, repeats with the distance. The worst call is therefore 64
 --   probes, two scans of documents (once for the rule, once for the titles), one index scan per partition for the
 --   keyword matches, 2000 lookups by the unique key (id, desk_feature) with a distance each, a sort of 2000, a month
 --   scan of at most 20,001 chunks with a distance each, and a sort of those. To be measured on the replica, where
@@ -184,9 +187,6 @@
 --   drop index public.document_chunks_content_tsv;
 
 begin;
-
-create index document_chunks_content_tsv on public.document_chunks
-  using gin (to_tsvector('simple'::regconfig, content));
 
 create schema retrieval_internal;
 revoke all on schema retrieval_internal from public, anon, authenticated, service_role;
@@ -231,13 +231,13 @@ declare
   -- chunks on the rehearsal copy (8,616 of 104 months), and bounds the distances computed for a month.
   c_month_max_chunks constant int := 20000;
   -- The access policies this helper's copy of the publication rule was written against, one line each, in the form
-  -- table|name|mode|command|roles|using|with check, whitespace and the schema name public. removed from the
-  -- expression. Any difference (text, a name, a role, a mode, a policy added or dropped) stops the helper.
+  -- table|name|mode|command|roles|using|with check, with the schema name public. removed from the expression and every run of
+  -- whitespace collapsed to one space (so a space inside a string literal is still compared; two spaces and one are not told apart). Any difference (text, a name, a role, a mode, a policy added or dropped) stops the helper.
   c_policies constant text :=
     'public.document_chunks|document_chunks_read|permissive|r|authenticated|true|-' || chr(10) ||
-    'public.document_chunks|law_chunks_serving|restrictive|r|authenticated|(EXISTS(SELECT1FROMdocumentsdWHERE(d.id=document_chunks.document_id)))|-' || chr(10) ||
+    'public.document_chunks|law_chunks_serving|restrictive|r|authenticated|(EXISTS ( SELECT 1 FROM documents d WHERE (d.id = document_chunks.document_id)))|-' || chr(10) ||
     'public.documents|documents_read|permissive|r|authenticated|true|-' || chr(10) ||
-    'public.documents|law_documents_serving|restrictive|r|authenticated|((NOTstarts_with(source_key,''law:trib:IBBI_NCLT:''::text))OR(NOT(EXISTS(SELECT1FROMlaw_listing_settingsWHERElaw_listing_settings.active)))OR(idIN(SELECTlaw_published_document_ids()ASlaw_published_document_ids))OR(NOT((metadata->>''origin''::text)=''supplied-text''::text)))|-';
+    'public.documents|law_documents_serving|restrictive|r|authenticated|((NOT starts_with(source_key, ''law:trib:IBBI_NCLT:''::text)) OR (NOT (EXISTS ( SELECT 1 FROM law_listing_settings WHERE law_listing_settings.active))) OR (id IN ( SELECT law_published_document_ids() AS law_published_document_ids)) OR (NOT ((metadata ->> ''origin''::text) = ''supplied-text''::text)))|-';
   v_text    text;
   v_lex     text;
   v_lit     text;
@@ -256,6 +256,7 @@ declare
   v_from    date;
   v_to      date;
   v_mfound  uuid[];
+  v_mn      int;
 begin
   -- Fail closed: the copy of the publication rule below is correct only for these policies. First, before any row is
   -- read and whatever the text, so the migration's own call (an empty text) runs it.
@@ -263,8 +264,8 @@ begin
                                case when p.polpermissive then 'permissive' else 'restrictive' end, p.polcmd,
                                case when 0 = any (p.polroles) then 'public'
                                     else (select string_agg(r.rolname, ',' order by r.rolname) from pg_roles r where r.oid = any (p.polroles)) end,
-                               regexp_replace(coalesce(pg_get_expr(p.polqual, p.polrelid), '-'), '\s+|public\.', '', 'g'),
-                               regexp_replace(coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '-'), '\s+|public\.', '', 'g')),
+                               regexp_replace(regexp_replace(coalesce(pg_get_expr(p.polqual, p.polrelid), '-'), 'public\.', '', 'g'), '\s+', ' ', 'g'),
+                               regexp_replace(regexp_replace(coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '-'), 'public\.', '', 'g'), '\s+', ' ', 'g')),
                         chr(10) order by p.polrelid::regclass::text, p.polname)
         from pg_policy p
        where p.polrelid in ('public.documents'::regclass, 'public.document_chunks'::regclass)) is distinct from c_policies then
@@ -299,7 +300,8 @@ begin
   -- ---------------------------------------------------------------------------------------------------------------
   -- The keyword list.
   --
-  -- The rare words. The probe is a bounded count of readable chunks: at most c_rare_df_max + 1 are read. (On the
+  -- The rare words. The probe counts readable chunks of the feature and stops after c_rare_df_max + 1 (the LIMIT stops the heap
+  -- scan; the bitmap of the word is built in full first). (On the
   -- form of the hidden-list test, here and below, see "The hidden list" in the header.)
   for v_lex in
     select x.lex
@@ -312,6 +314,7 @@ begin
       from (select 1
               from public.document_chunks c
              where to_tsvector('simple'::regconfig, c.content) @@ v_lit::tsquery
+               and (p_desk_feature is null or c.desk_feature = p_desk_feature)
                and c.document_id is not null and c.document_id not in (select h.id from unnest(v_hidden) h(id))
              limit c_rare_df_max + 1) z;
     if v_df between 1 and c_rare_df_max then
@@ -409,9 +412,10 @@ begin
   if v_month is not null and p_desk_feature is not null then
     v_from := make_date(v_month[2]::int, (position(lower(left(v_month[1], 3)) in 'janfebmaraprmayjunjulaugsepoctnovdec') + 2) / 3, 1);
     v_to := (v_from + interval '1 month')::date;
-    select case when count(*) <= c_month_max_chunks then (array_agg(s.id order by s.dist, s.id))[1:c_candidates] end into v_mfound
-      from (select c.id,
-                   (c.embedding::extensions.halfvec(1536)) operator(extensions.<=>) (p_query_embedding::extensions.halfvec(1536)) as dist
+    -- First only the number of admitted chunks, ids and no distance, stopping at c_month_max_chunks + 1: a month above the
+    -- cap does no distance work. Then, within the cap, the same scan with the distance.
+    select count(*) into v_mn
+      from (select 1
               from public.document_chunks c
               join public.documents d on d.id = c.document_id
              where c.desk_feature = p_desk_feature
@@ -420,7 +424,21 @@ begin
                and d.indexed_at is not null
                and (p_desk_tier is null or d.desk_tier = p_desk_tier)
                and c.document_id is not null and c.document_id not in (select h.id from unnest(v_hidden) h(id))
-             limit c_month_max_chunks + 1) s;
+             limit c_month_max_chunks + 1) z;
+    if v_mn <= c_month_max_chunks then
+      select (array_agg(s.id order by s.dist, s.id))[1:c_candidates] into v_mfound
+        from (select c.id,
+                     (c.embedding::extensions.halfvec(1536)) operator(extensions.<=>) (p_query_embedding::extensions.halfvec(1536)) as dist
+                from public.document_chunks c
+                join public.documents d on d.id = c.document_id
+               where c.desk_feature = p_desk_feature
+                 and c.doc_date >= v_from and c.doc_date < v_to
+                 and c.embedding is not null
+                 and d.indexed_at is not null
+                 and (p_desk_tier is null or d.desk_tier = p_desk_tier)
+                 and c.document_id is not null and c.document_id not in (select h.id from unnest(v_hidden) h(id))
+               limit c_month_max_chunks) s;
+    end if;
   end if;
 
   return query
@@ -538,5 +556,10 @@ begin
   perform 1 from retrieval_internal.hybrid_candidate_ids('', null, null, null);
 end
 $$;
+
+-- The index last, so that a database whose policies drifted rolls back at the check above before paying for the build.
+-- (The check reads no row and does not use the index.)
+create index document_chunks_content_tsv on public.document_chunks
+  using gin (to_tsvector('simple'::regconfig, content));
 
 commit;

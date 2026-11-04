@@ -1005,23 +1005,41 @@ hybrid_mutation_checks() {
   local names=(
     "title count includes unpublished orders"
     "title count includes unindexed orders"
+    "title count ignores the feature"
     "name gate removed"
     "probe counts unpublished chunks"
+    "probe ignores the feature"
     "keyword scan returns unpublished chunks"
-    "month scan returns unpublished chunks"
+    "month scans return unpublished chunks"
+    "month scans ignore the tier"
+    "month scans keep chunks without a vector"
     "keyword list ordered by id, not by distance"
     "month cap removed"
-    "month list left out of the fusion")
+    "month list left out of the fusion"
+    "invoker's existence check removed"
+    "drift guard ignores a policy's command"
+    "drift guard blind to a space inside a literal"
+    "word budget one too small"
+    "word budget one too large")
   local exprs=(
     's/\n         and d\.id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n    \),/\n    ),/'
     's/where d\.indexed_at is not null\n         and \(p_desk_feature is null/where (p_desk_feature is null/'
+    's/(where d\.indexed_at is not null\n)         and \(p_desk_feature is null or d\.desk_feature = p_desk_feature\)\n/$1/'
     's/where n\.n between 1 and c_name_df_max/where n.n >= 1/'
     's/\n               and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n             limit c_rare_df_max/\n             limit c_rare_df_max/'
+    's/\n               and \(p_desk_feature is null or c\.desk_feature = p_desk_feature\)(\n               and c\.document_id is not null)/$1/'
     's/\n         and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n    \),\n    admitted/\n    ),\n    admitted/'
-    's/\n               and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n             limit c_month_max_chunks/\n             limit c_month_max_chunks/'
+    's/\n\s+and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)(\n\s+limit c_month_max_chunks)/$1/g'
+    's/\n\s+and \(p_desk_tier is null or d\.desk_tier = p_desk_tier\)(\n\s+and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n\s+limit c_month_max_chunks)/$1/g'
+    's/(c\.doc_date < v_to)\n\s+and c\.embedding is not null/$1/g'
     's/order by k\.dist, k\.id/order by k.id/'
-    's/case when count\(\*\) <= c_month_max_chunks then/case when true then/'
-    's/ \+ coalesce\(1\.0 \/ \(c_rrf_k \+ m\.rn\), 0\)//')
+    's/if v_mn <= c_month_max_chunks then/if true then/'
+    's/ \+ coalesce\(1\.0 \/ \(c_rrf_k \+ m\.rn\), 0\)//'
+    's/\n   where exists \(select 1 from public\.document_chunks c where c\.id = h\.id and c\.desk_feature = c_nclt\)//'
+    's/(case when p\.polpermissive then \x27permissive\x27 else \x27restrictive\x27 end,) p\.polcmd,/$1 \x27r\x27,/'
+    's/regexp_replace\(regexp_replace\(coalesce\(pg_get_expr\(p\.polqual/regexp_replace(regexp_replace(regexp_replace(coalesce(pg_get_expr(p.polqual/; s/(pg_get_expr\(p\.polqual.*?\x27\\s\+\x27, \x27 \x27, \x27g\x27\)),/$1, \x27supplied ?- ?text\x27, \x27supplied-text\x27, \x27g\x27),/s'
+    's/v_sum \+ v_df <= c_match_budget/v_sum + v_df < c_match_budget/'
+    's/v_sum \+ v_df <= c_match_budget/v_sum + v_df <= c_match_budget + 1/')
   q "drop database if exists $base" >/dev/null; q "create database $base" >/dev/null
   for f in "${FILES[@]}"; do
     i=$((i+1)); [ $i -eq $n ] && break

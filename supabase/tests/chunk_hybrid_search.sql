@@ -23,9 +23,10 @@
 --               law_documents_serving_set is replayed to prove the copy admits exactly the documents
 --               authenticated can read. The function still re-reads through RLS.
 --           Also: oversized text, quotes and backslashes in the text, that no other function mentions
---           the helper, that ts_rank_cd is applied only after the rule and the word budget, and that the
---           budget holds (the rarest words whose readable counts fit in 2000 are kept, digit-bearing words
---           first, and every match of them is ranked, so the best match is kept).
+--           the helper, that the distance is computed only after the hidden filter and the word budget (ts_rank_cd
+--           is no longer used: round 2 orders by distance), and that the budget holds (the rarest words whose
+--           readable counts fit in 2000 are kept, digit-bearing words first, exactly 2000 fits and 2001 does not,
+--           and every match of them is ordered by distance, so the nearest match is kept).
 --   Part 3  the guards, each proved against the defect it guards: the helper's plan reads the GIN
 --           index and never scans a chunk partition sequentially (a direct keyword query as
 --           authenticated does); anon is refused by the schema's ACL (and is served once granted);
@@ -161,8 +162,8 @@ select pg_temp.ok((select array_agg(c.relname::text order by c.relname) from pg_
 -- authenticated while the law listing is active), bN and bS national and state Bills, pq a
 -- Parliamentary Question, unidx an unindexed Bill, nf a document without a feature.
 insert into documents (id, source_key, title, desk_tier, desk_feature, content_sha256, ocr_text, chunker_version, indexed_at, metadata) values
-  ('f1000000-0000-4000-8000-000000000001', 'hy-nclt-a', 'NCLT A zq4417 vexilla padword probeword zorbaxan quillfeather edgeb edgehid capw1 capw2 capw3 capw4 capw5 capw6 capw7 capw8', 'law', 'NCLT / NCLAT (Insolvency)', 'x', 'a', 4, now(), '{}'),
-  ('f1000000-0000-4000-8000-000000000002', 'hy-nclt-b', 'NCLT B zq4417 vexilla padword probeword zorbaxan quillfeather edgeb edgehid capw1 capw2 capw3 capw4 capw5 capw6 capw7 capw8', 'law', 'NCLT / NCLAT (Insolvency)', 'x', 'a', 4, now(), '{}'),
+  ('f1000000-0000-4000-8000-000000000001', 'hy-nclt-a', 'NCLT A zq4417 vexilla padword probeword zorbaxan quillfeather edgeb edgehid capw1 capw2 capw3 capw4 capw5 capw6 capw7 capw8 scopeword crowdname bnda1 bnda2 bnda3 bnda4 bnda5 bnda6 bnda7 bndb1 bndb2 bndb3 bndb4 bndb5 bndb6 bndb7', 'law', 'NCLT / NCLAT (Insolvency)', 'x', 'a', 4, now(), '{}'),
+  ('f1000000-0000-4000-8000-000000000002', 'hy-nclt-b', 'NCLT B zq4417 vexilla padword probeword zorbaxan quillfeather edgeb edgehid capw1 capw2 capw3 capw4 capw5 capw6 capw7 capw8 scopeword crowdname bnda1 bnda2 bnda3 bnda4 bnda5 bnda6 bnda7 bndb1 bndb2 bndb3 bndb4 bndb5 bndb6 bndb7', 'law', 'NCLT / NCLAT (Insolvency)', 'x', 'a', 4, now(), '{}'),
   ('f1000000-0000-4000-8000-000000000003', 'law:trib:IBBI_NCLT:hy-hidden', 'Hidden NCLT hiddentitleword gatefifty', 'law', 'NCLT / NCLAT (Insolvency)', 'x', 'a', 4, now(), '{"origin": "supplied-text"}'),
   ('f2000000-0000-4000-8000-000000000001', 'hy-bill-n', 'Bill N', 'national', 'Bill Passage Probability Index', 'x', 'a', 4, now(), '{}'),
   ('f2000000-0000-4000-8000-000000000002', 'hy-bill-s', 'Bill S', 'state', 'Bill Passage Probability Index', 'x', 'a', 4, now(), '{}'),
@@ -278,6 +279,51 @@ select d.id, d.desk_feature, 'mo-' || mo.sk || '-' || k, 12000 + k, 0, 4, 'month
                                         ('law:trib:IBBI_NCLT:hy-month-hidden', 30, 0.50), ('hy-month-unindexed', 5, 0.55), ('hy-month-bill', 1, 0.75)) z(sk, n, base)) mo
   join documents d on d.source_key = mo.sk
  cross join lateral generate_series(1, mo.n) k;
+-- Review round (2026-11-05) seeds.
+-- 'scopeword': in 250 NCLT chunks and 100 Bills chunks; rare for an NCLT search (250 of the feature) though 350 in all.
+-- 'billtitleword': only in the title of a Bills document (and in a chunk of A): not an NCLT name.
+-- 'crowdname': in 60 readable NCLT chunks (distance 0.90) and 120 of the unpublished order (distance 0.50), so a keyword scan
+--   that did not leave hidden rows out would fill its 100 with unpublished chunks.
+-- 'bnda1'..'bnda7' and 'bndb1'..'bndb7': the 2000 boundary of the word budget. X (300 chunks, far) holds bnda1..5 and
+--   bndb1..5; Y (300, nearer) is bnda6 alone, Y2 (300, nearer) bndb6 alone; Z (200) is bnda7, Z2 (201) bndb7. Rarest first:
+--   bnda7 200, bnda1..5 1500, bnda6 300 = exactly 2000, all kept (Y heads the list); bndb7 201, bndb1..5 1500, bndb6 300 = 2001,
+--   bndb6 does not fit (no Y2 chunk in the list).
+-- Tier and nulls in a month: a 'state'-tier NCLT order dated 2024-10-20 (3 chunks, nearer than the others of October), and
+--   one chunk without a vector in the May order.
+insert into documents (id, source_key, title, desk_tier, desk_feature, content_sha256, ocr_text, chunker_version, indexed_at, metadata) values
+  ('f2000000-0000-4000-8000-000000000012', 'hy-bill-title', 'Bill title billtitleword', 'national', 'Bill Passage Probability Index', 'x', 'a', 4, now(), '{}'),
+  ('f5000000-0000-4000-8000-000000000106', 'hy-month-state', 'Month doc state', 'state', 'NCLT / NCLAT (Insolvency)', 'x', 'a', 4, now(), '{"citation": {"order_date": "2024-10-20"}}');
+insert into document_chunks (document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
+select d.id, d.desk_feature, 'scope-' || k, 13000 + k, 0, 4, 'scopeword ' || k, pg_temp.cone(1, 0.93 + 0.0001 * k, 7000 + k), 4
+  from generate_series(1, 250) k join documents d on d.id = (case when k % 2 = 1 then 'f1000000-0000-4000-8000-000000000001' else 'f1000000-0000-4000-8000-000000000002' end)::uuid;
+insert into document_chunks (document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
+select d.id, d.desk_feature, 'scopebill-' || k, 13500 + k, 0, 4, 'scopeword bill ' || k, pg_temp.cone(1, 0.93 + 0.0001 * k, 7500 + k), 4
+  from generate_series(1, 100) k join documents d on d.id = 'f2000000-0000-4000-8000-000000000001'::uuid;
+insert into document_chunks (document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
+select d.id, d.desk_feature, v.h, v.i, 0, 4, v.content, pg_temp.cone(1, v.dist, 7800 + v.i), 4
+  from (values ('f1000000-0000-4000-8000-000000000001', 'far-billtitle', 13700, 'billtitleword is only in a title of another feature', 0.86)) v(doc, h, i, content, dist)
+  join documents d on d.id = v.doc::uuid;
+insert into document_chunks (document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
+select d.id, d.desk_feature, 'crowd-' || k, 14000 + k, 0, 4, 'crowdname ' || k, pg_temp.cone(1, 0.90 + 0.001 * k, 8000 + k), 4
+  from generate_series(1, 60) k join documents d on d.id = (case when k % 2 = 1 then 'f1000000-0000-4000-8000-000000000001' else 'f1000000-0000-4000-8000-000000000002' end)::uuid;
+insert into document_chunks (document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
+select d.id, d.desk_feature, 'crowdhid-' || k, 14200 + k, 0, 4, 'crowdname hidden ' || k, pg_temp.cone(1, 0.50 + 0.001 * k, 8200 + k), 4
+  from generate_series(1, 120) k join documents d on d.id = 'f1000000-0000-4000-8000-000000000003'::uuid;
+insert into document_chunks (document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
+select d.id, d.desk_feature, v.h || '-' || k, v.base + k, 0, 4, v.content || ' ' || k, pg_temp.cone(1, v.dist + 0.0001 * k, v.phase + k), 4
+  from (values ('bndx', 15000, 'bnda1 bnda2 bnda3 bnda4 bnda5 bndb1 bndb2 bndb3 bndb4 bndb5', 300, 0.93, 9000),
+               ('bndy', 15400, 'bnda6', 300, 0.70, 9400),
+               ('bndy2', 15800, 'bndb6', 300, 0.72, 9800),
+               ('bndz', 16200, 'bnda7', 200, 0.95, 10200),
+               ('bndz2', 16500, 'bndb7', 201, 0.96, 10500)) v(h, base, content, n, dist, phase)
+  cross join lateral generate_series(1, v.n) k
+  join documents d on d.id = (case when k % 2 = 1 then 'f1000000-0000-4000-8000-000000000001' else 'f1000000-0000-4000-8000-000000000002' end)::uuid;
+insert into document_chunks (document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
+select d.id, d.desk_feature, 'mo-state-' || k, 17000 + k, 0, 4, 'monthrow state ' || k, pg_temp.cone(1, 0.60 + 0.001 * k, 11000 + k), 4
+  from generate_series(1, 3) k join documents d on d.source_key = 'hy-month-state';
+insert into document_chunks (document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
+select d.id, d.desk_feature, 'mo-nullemb', 17100, 0, 4, 'monthrow without a vector', null, 4
+  from documents d where d.source_key = 'hy-month-5';
 analyze documents; analyze document_chunks;
 
 update law_listing_settings set seeded = true, active = true;
@@ -341,7 +387,7 @@ declare
 begin
   for w in
     select r.lex, r.df
-      from (select t.lex, (select count(*) from (select 1 from document_chunks c where to_tsvector('simple'::regconfig, c.content) @@ quote_literal(t.lex)::tsquery limit 301) z) as df
+      from (select t.lex, (select count(*) from (select 1 from document_chunks c where c.desk_feature = c_nclt and to_tsvector('simple'::regconfig, c.content) @@ quote_literal(t.lex)::tsquery limit 301) z) as df
               from (select x.lex from (select distinct unnest(tsvector_to_array(to_tsvector('simple'::regconfig, left(qtext, 4000)))) as lex) x
                      order by (x.lex ~ '[0-9]') desc, length(x.lex) desc, x.lex limit 64) t) r
      where r.df between 1 and 300
@@ -503,6 +549,15 @@ insert into nclt_cases values
   ('month-with-gate',     'near', 'gatefifty june 2024',                      200, null),
   ('month-feb-boundary',  'near', 'February 2024',                            40,  null),
   ('month-apr-boundary',  'near', 'April 2024',                               40,  null);
+insert into nclt_cases values
+  ('scope-rare',          'near', 'scopeword',                                200, null),
+  ('gate-other-feature',  'near', 'billtitleword',                            40,  null),
+  ('namecrowd',          'near', 'crowdname',                                200, null),
+  ('budget-2000',         'near', 'bnda1 bnda2 bnda3 bnda4 bnda5 bnda6 bnda7', 200, null),
+  ('budget-2001',         'near', 'bndb1 bndb2 bndb3 bndb4 bndb5 bndb6 bndb7', 200, null),
+  ('month-oct',           'near', 'October 2024',                             40,  null),
+  ('month-oct-law',       'near', 'October 2024',                             40,  'law'),
+  ('month-may',           'near', 'May 2024',                                 40,  null);
 grant select on nclt_cases to authenticated;
 set local role authenticated;
 create temp table nclt_got(label text primary key, want uuid[], got uuid[]);
@@ -707,6 +762,68 @@ create temp table cap_month as
 reset role;
 select pg_temp.ok((select row(march90, march89, june90, march, june)::text from cap_month) = '(90,0,0,90,100)',
   'the cap on a month: inclusive, counted over readable indexed chunks only (90 of 125 in March), a month above it has no list');
+
+-- Review round: the protections the first nine mutants did not cover.
+-- (1) The probe counts the feature's readable chunks: 'scopeword' is in 250 NCLT and 100 Bills chunks (350 in all), rare for an NCLT search.
+select pg_temp.ok((select got from nclt_got where label = 'scope-rare') is distinct from (select ids from vec_ref where label = 'nclt-200')
+  and (select got from nclt_got where label = 'scope-rare') @> (select array_agg(id) from (select id from document_chunks where chunk_hash ~ '^scope-[0-9]+$' order by (embedding::halfvec(1536)) <=> ((select v from q where name = 'near')::halfvec(1536)), id limit 100) x),
+  'the rare-word probe is scoped to the feature: a word in 250 NCLT chunks and 100 Bills chunks is searched, and its 100 nearest NCLT chunks join the answer');
+-- (2) The title gate counts titles of the feature only.
+select pg_temp.ok((select got from nclt_got where label = 'gate-other-feature') = (select ids from vec_ref where label = 'nclt-40'),
+  'a word that is only in the title of a Bills document is not an NCLT name: the vector result');
+-- (3) The month list honours the tier and leaves out chunks without a vector.
+select pg_temp.ok(exists (select 1 from unnest((select got from nclt_got where label = 'month-oct')) u where u = any (array(select id from document_chunks where chunk_hash ~ '^mo-state-')))
+  and not exists (select 1 from unnest((select got from nclt_got where label = 'month-oct-law')) u where u = any (array(select id from document_chunks where chunk_hash ~ '^mo-state-'))),
+  'the month list honours the tier: the state-tier order''s October chunks are in the answer for no tier and not for tier law');
+select pg_temp.ok(not exists (select 1 from unnest((select got from nclt_got where label = 'month-may')) u where u = pg_temp.cid('mo-nullemb'))
+  and (select got from nclt_got where label = 'month-may') is distinct from (select ids from vec_ref where label = 'nclt-40'),
+  'the month list leaves out a chunk without a vector (May has two with one, and the answer differs from the vector result)');
+-- (4) Crowding at function level: 120 unpublished chunks of a name (nearer than the 60 readable ones) must not take the keyword list's 100 places.
+select pg_temp.ok((select count(*) from unnest((select got from nclt_got where label = 'namecrowd')) u where u <> all (pg_temp.vecref('nclt-100'))) = 60
+  and (select got from nclt_got where label = 'namecrowd') @> (select array_agg(id) from document_chunks where chunk_hash ~ '^crowd-[0-9]+$'),
+  'crowding: a name in 60 readable and 120 unpublished (nearer) chunks brings the 60 readable ones into the answer; the unpublished ones do not use up the 100 places');
+-- (5) The word budget at its boundary: 2000 fits, 2001 does not.
+select pg_temp.ok((select count(*) from unnest((select got from nclt_got where label = 'budget-2000')) u where u = any (array(select id from document_chunks where chunk_hash ~ '^bndy-[0-9]+$'))) >= 100
+  and not exists (select 1 from unnest((select got from nclt_got where label = 'budget-2001')) u where u = any (array(select id from document_chunks where chunk_hash ~ '^bndy2-[0-9]+$')))
+  and exists (select 1 from unnest((select got from nclt_got where label = 'budget-2001')) u where u = any (array(select id from document_chunks where chunk_hash ~ '^bndx-[0-9]+$' or chunk_hash ~ '^bndz2-[0-9]+$'))),
+  'the word budget: seven words whose readable counts add up to exactly 2000 are all searched (the nearest 100 are the last word''s), seven that add up to 2001 are not (the last word''s chunks are absent, the others'' present)');
+-- (6) The invoker's own existence check, with a helper that leaks. A stub helper (made and undone inside a subtransaction) returns
+-- an unpublished chunk at rank 1 of both lists. The answer must equal the answer with a stub that does not: the invoker drops
+-- the id before ranking, so it cannot take a place or move a rank. (The final read through RLS alone would still remove the row,
+-- but the unpublished id would have shifted the ranks of the others.)
+do $$
+declare ids_leak uuid[]; ids_clean uuid[]; hid uuid := pg_temp.cid('far-hidden'); qv vector := (select v from q where name = 'near');
+begin
+  begin
+    execute $f$create or replace function retrieval_internal.hybrid_candidate_ids(p_query_text text, p_query_embedding extensions.vector, p_desk_tier text, p_desk_feature text)
+      returns table (list_name text, id uuid, list_rank integer) language sql stable security definer set search_path = pg_catalog, pg_temp as
+      $b$ select 'keyword'::text, x.id, x.n::integer from unnest(array[$f$ || quote_literal(hid) || $f$::uuid, (select id from public.document_chunks where chunk_hash = 'far-nclt'), (select id from public.document_chunks where chunk_hash = 'far-both')]) with ordinality x(id, n)
+         union all select 'month'::text, y.id, y.n::integer from unnest(array[$f$ || quote_literal(hid) || $f$::uuid, (select id from public.document_chunks where chunk_hash = 'far-vexilla')]) with ordinality y(id, n) $b$ $f$;
+    perform set_config('role', 'authenticated', true);
+    ids_leak := array(select m.id from public.match_documents_hybrid(qv, 'stub', 40, null, null, 'NCLT / NCLAT (Insolvency)') m);
+    perform set_config('role', 'postgres', true);
+    execute $f$create or replace function retrieval_internal.hybrid_candidate_ids(p_query_text text, p_query_embedding extensions.vector, p_desk_tier text, p_desk_feature text)
+      returns table (list_name text, id uuid, list_rank integer) language sql stable security definer set search_path = pg_catalog, pg_temp as
+      $b$ select 'keyword'::text, x.id, x.n::integer from unnest(array[(select id from public.document_chunks where chunk_hash = 'far-nclt'), (select id from public.document_chunks where chunk_hash = 'far-both')]) with ordinality x(id, n)
+         union all select 'month'::text, y.id, y.n::integer from unnest(array[(select id from public.document_chunks where chunk_hash = 'far-vexilla')]) with ordinality y(id, n) $b$ $f$;
+    perform set_config('role', 'authenticated', true);
+    ids_clean := array(select m.id from public.match_documents_hybrid(qv, 'stub', 40, null, null, 'NCLT / NCLAT (Insolvency)') m);
+    perform set_config('role', 'postgres', true);
+    raise exception 'stub' using detail = ids_leak::text || '|' || ids_clean::text;
+  exception when others then
+    perform set_config('role', 'postgres', true);
+    if sqlerrm <> 'stub' then raise; end if;
+    declare d text; begin
+      get stacked diagnostics d = pg_exception_detail;
+      if split_part(d, '|', 1) <> split_part(d, '|', 2) or split_part(d, '|', 1) = '' or position(hid::text in d) > 0 or array_length(string_to_array(split_part(d, '|', 1), ','), 1) < 30 then
+        raise exception 'FAIL: the invoker keeps an id the caller cannot read in the ranks of a list (or the stub did not run)';
+      end if;
+    end;
+  end;
+  raise notice 'PASS: the search function drops an unreadable id from the helper''s lists before ranking: a leaking helper changes nothing';
+end $$;
+select pg_temp.ok((select count(*) from pg_proc where proname = 'hybrid_candidate_ids' and prosrc like '%bnd%') = 0 and (select position('c_name_df_max' in prosrc) > 0 from pg_proc where proname = 'hybrid_candidate_ids'),
+  'and the real helper is back in place after the stub');
 
 -- 3. The access check: RLS and the law serving policy hide the same chunks from the function and from the helper.
 -- The unpublished order is hidden from authenticated while the law listing is active, visible to service_role
@@ -1023,7 +1140,7 @@ select pg_temp.ok(not has_schema_privilege('anon', 'retrieval_internal', 'usage'
 -- (the probe, the titles, the keyword scan, the month scan), never = any (v_hidden). A null hidden list, which the coalesce
 -- rules out today, is refused right after it is built.
 select pg_temp.ok((select position('ts_rank_cd' in prosrc) = 0
-                          and (length(prosrc) - length(replace(prosrc, 'not in (select h.id from unnest(v_hidden) h(id))', ''))) / length('not in (select h.id from unnest(v_hidden) h(id))') = 4
+                          and (length(prosrc) - length(replace(prosrc, 'not in (select h.id from unnest(v_hidden) h(id))', ''))) / length('not in (select h.id from unnest(v_hidden) h(id))') = 5
                           and (length(prosrc) - length(replace(prosrc, 'operator(extensions.<=>)', ''))) / length('operator(extensions.<=>)') = 2
                           and position('operator(extensions.<=>)' in prosrc) > position('v_sum + v_df <= c_match_budget' in prosrc) and position('v_sum + v_df <= c_match_budget' in prosrc) > 0
                           and position('operator(extensions.<=>)' in prosrc) > position('c.document_id is not null and c.document_id not in (select h.id from unnest(v_hidden) h(id))' in prosrc)
@@ -1033,7 +1150,7 @@ select pg_temp.ok((select position('ts_rank_cd' in prosrc) = 0
                           and position('order by k.dist, k.id' in prosrc) > 0
                           and position('d.id not in (select h.id from unnest(v_hidden) h(id))' in prosrc) > 0
                      from pg_proc where oid = 'retrieval_internal.hybrid_candidate_ids(text, extensions.vector, text, text)'::regprocedure),
-  'the helper: no ts_rank_cd; the distance appears twice (keyword list, month list), after the hidden filter and the word budget; the hidden filter is a subplan over unnest in all four places (probe, titles, keyword scan, month scan), never = any (v_hidden); a null hidden list is refused right after it is built');
+  'the helper: no ts_rank_cd; the distance appears twice (keyword list, month list), after the hidden filter and the word budget; the hidden filter is a subplan over unnest in all five places (probe, titles, keyword scan, month count, month distance scan), never = any (v_hidden); a null hidden list is refused right after it is built');
 
 -- (d) The word budget. The eight capw words are in 2050 readable NCLT chunks, more than 2000. Kept, rarest first while they
 -- fit: capw1..capw3 (200 each), capw4..capw7 (290 each), 1760 in all; capw8 (290 more) is not. Every match of the kept words
@@ -1118,6 +1235,12 @@ select pg_temp.drift_case('a policy added',
   'create policy hy_extra on public.documents for select to authenticated using (false)', 'drop policy hy_extra on public.documents');
 select pg_temp.drift_case('a policy''s roles widened',
   'alter policy documents_read on public.documents to authenticated, anon', 'alter policy documents_read on public.documents to authenticated');
+select pg_temp.drift_case('a policy''s command widened',
+  'drop policy documents_read on public.documents; create policy documents_read on public.documents for all to authenticated using (true)',
+  'drop policy documents_read on public.documents; create policy documents_read on public.documents for select to authenticated using (true)');
+select pg_temp.drift_case('a space inside a string literal of the rule',
+  format('alter policy law_documents_serving on public.documents using (%s)', replace(pg_temp.pol_qual('public.documents', 'law_documents_serving'), '''supplied-text''', '''supplied -text''')),
+  format('alter policy law_documents_serving on public.documents using (%s)', pg_temp.pol_qual('public.documents', 'law_documents_serving')));
 select pg_temp.drift_case('a policy renamed',
   'alter policy law_documents_serving on public.documents rename to law_documents_serving_x', 'alter policy law_documents_serving_x on public.documents rename to law_documents_serving');
 select pg_temp.drift_case('the restrictive chunk policy made permissive',
