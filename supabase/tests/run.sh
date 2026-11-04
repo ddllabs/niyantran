@@ -967,7 +967,7 @@ hybrid_drift_rollback_check() {
   local db=niyantran_chunk_hybrid_search_drift_test
   local objs="select (select count(*) from pg_namespace where nspname = 'retrieval_internal')
                    + (select count(*) from pg_class where relname = 'document_chunks_content_tsv')
-                   + (select count(*) from pg_proc where proname in ('hybrid_keyword_ids', 'match_documents_hybrid'))"
+                   + (select count(*) from pg_proc where proname in ('hybrid_candidate_ids', 'match_documents_hybrid'))"
   q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
   for drift in "alter policy law_documents_serving on public.documents rename to law_documents_serving_x" ""; do
     q "drop database if exists $db" >/dev/null; q "create database $db" >/dev/null
@@ -989,6 +989,64 @@ hybrid_drift_rollback_check() {
     fi
   done
   echo "  drift ok - a drifted database refuses the migration with 55000 and keeps nothing; without drift it applies"
+}
+
+# chunk_hybrid_search only: the fixture's guards, each proved against the defect it guards. The migration is mutated once per
+# defect (a perl substitution on the as-non-superuser copy; a mutation that changes nothing fails the check, so a reworded
+# migration cannot make a mutation silently vanish). Each mutated migration must still APPLY, and the fixture must then
+# FAIL on one of its own assertions ("FAIL:"), not on an error. Round 2 added the title gate, the month list and the
+# similarity order to the helper; the paths that read rows (the probe, the titles, the keyword scan, the month scan) must each
+# keep hidden documents out, which is why each exclusion has its own mutation. The chain without the migration is built once
+# and copied for each mutation.
+hybrid_mutation_checks() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f rc=0 k out
+  local base=niyantran_chunk_hybrid_search_mutbase_test db=niyantran_chunk_hybrid_search_mut_test
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  local names=(
+    "title count includes unpublished orders"
+    "title count includes unindexed orders"
+    "name gate removed"
+    "probe counts unpublished chunks"
+    "keyword scan returns unpublished chunks"
+    "month scan returns unpublished chunks"
+    "keyword list ordered by id, not by distance"
+    "month cap removed"
+    "month list left out of the fusion")
+  local exprs=(
+    's/\n         and d\.id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n    \),/\n    ),/'
+    's/where d\.indexed_at is not null\n         and \(p_desk_feature is null/where (p_desk_feature is null/'
+    's/where n\.n between 1 and c_name_df_max/where n.n >= 1/'
+    's/\n               and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n             limit c_rare_df_max/\n             limit c_rare_df_max/'
+    's/\n         and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n    \),\n    admitted/\n    ),\n    admitted/'
+    's/\n               and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n             limit c_month_max_chunks/\n             limit c_month_max_chunks/'
+    's/order by k\.dist, k\.id/order by k.id/'
+    's/case when count\(\*\) <= c_month_max_chunks then/case when true then/'
+    's/ \+ coalesce\(1\.0 \/ \(c_rrf_k \+ m\.rn\), 0\)//')
+  q "drop database if exists $base" >/dev/null; q "create database $base" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $base < "$f" >/dev/null 2>&1 || { echo "  MUTATION: bootstrap broke at $(basename "$f")"; q "drop database if exists $base" >/dev/null; return 1; }
+  done
+  for k in "${!names[@]}"; do
+    perl -0pe "${exprs[$k]}" "$guard" > "$WORK/hybrid_mutant.sql"
+    if cmp -s "$guard" "$WORK/hybrid_mutant.sql"; then
+      echo "  MUTATION FAIL - '${names[$k]}' did not change the migration (the pattern no longer matches)"; rc=1; continue
+    fi
+    q "drop database if exists $db" >/dev/null; q "create database $db template $base" >/dev/null
+    if ! psql_in $db < "$WORK/hybrid_mutant.sql" > "$WORK/hybrid_mutant.out" 2>&1; then
+      echo "  MUTATION FAIL - '${names[$k]}': the mutated migration does not apply"; sed 's/^/    /' "$WORK/hybrid_mutant.out" | head -3; rc=1; q "drop database if exists $db" >/dev/null; continue
+    fi
+    if out="$(fixture_sql chunk_hybrid_search | psql_in $db 2>&1)"; then
+      echo "  MUTATION FAIL - the fixture still passes with: ${names[$k]}"; rc=1
+    elif ! grep -q 'FAIL:' <<<"$out"; then
+      echo "  MUTATION FAIL - with '${names[$k]}' the fixture stopped on an error, not on an assertion:"; grep -m2 ERROR <<<"$out" | sed 's/^/    /'; rc=1
+    else
+      echo "  mutation ok - fails with: ${names[$k]}  [$(grep -m1 'FAIL:' <<<"$out" | sed 's/^ERROR:  FAIL: //' | cut -c1-110)]"
+    fi
+    q "drop database if exists $db" >/dev/null
+  done
+  q "drop database if exists $base" >/dev/null
+  return $rc
 }
 
 hybrid_private_check() {
@@ -1108,7 +1166,7 @@ run_fixture() {
     [ "$name" = billing_purchases ] && { bash "$TESTS/billing_concurrency.sh" || rc=1; }
     [ "$name" = credit_paise_contract ] && { credit_paise_atomic_check "$db" || rc=1; }
     [ "${VACUITY:-1}" = 1 ] && { vacuity_check "$name" || rc=1; }
-    [ "$name" = chunk_hybrid_search ] && { hybrid_exposure_check || rc=1; hybrid_private_check || rc=1; hybrid_drift_rollback_check || rc=1; }
+    [ "$name" = chunk_hybrid_search ] && { hybrid_exposure_check || rc=1; hybrid_private_check || rc=1; hybrid_drift_rollback_check || rc=1; hybrid_mutation_checks || rc=1; }
     [ "$name" = corpus_records ] && { corpus_records_checks || rc=1; }
     [ "$name" = document_chunks_partitions ] && { document_chunks_partitions_checks || rc=1; }
     [ "$name" = feed_records ] && { feed_records_checks || rc=1; }
