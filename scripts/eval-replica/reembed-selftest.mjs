@@ -592,15 +592,19 @@ create table public.document_chunks_nclt partition of public.document_chunks for
 create table public.document_chunks_default partition of public.document_chunks default;
 create index document_chunks_embedding_halfvec_hnsw on public.document_chunks using hnsw ((embedding::extensions.halfvec(1536)) extensions.halfvec_cosine_ops);
 ` : `create index document_chunks_embedding_halfvec_hnsw on public.document_chunks using hnsw ((embedding::extensions.halfvec(1536)) extensions.halfvec_cosine_ops);`}
+-- Makes every update non-HOT, as packed pages do on the real table: a HOT-updated old version is never indexed, so on
+-- this small table the old versions would not reach the HNSW build and the size check below would prove nothing.
+create index document_chunks_embed_hash_idx on public.document_chunks (embed_hash);
 `;
 
 function seed() {
-  const e0 = `[1${',0'.repeat(EMBED_DIMS - 1)}]`;
+  // a distinct old vector per row: HNSW folds equal vectors into one node, which would hide old versions in the index
+  const e0 = (i) => `[1${',0'.repeat(EMBED_DIMS - 2)},${(i + 1) / 100}]`;
   const w = fakeWorld({ nDocs: 4, perDoc: 3 });
   const values = [];
   for (const d of w.docs) values.push(`('${d.id}', '${d.title}', 'x', '${d.desk_feature}', '${JSON.stringify(d.metadata)}')`);
   psql(`insert into public.documents values ${values.join(',')}`);
-  const rows = w.chunks.map((c, i) => `('${c.id}', '${c.document_id}', '${c.chunk_hash}', ${i}, '${c.content.replace(/'/g, "''")}', '${e0}', '${JSON.stringify(c.section ? { section: c.section } : {})}', null, '${c.desk_feature}')`);
+  const rows = w.chunks.map((c, i) => `('${c.id}', '${c.document_id}', '${c.chunk_hash}', ${i}, '${c.content.replace(/'/g, "''")}', '${e0(i)}', '${JSON.stringify(c.section ? { section: c.section } : {})}', null, '${c.desk_feature}')`);
   psql(`insert into public.document_chunks (id, document_id, chunk_hash, chunk_index, content, embedding, metadata, embed_hash, desk_feature) values ${rows.join(',')}`);
   // text that breaks naive line splitting or quoting: U+2028, a lone CR, a quote, a backslash, rupee sign, Devanagari
   psql("update public.document_chunks set content = E'Rs. \\u20b9 5,00,000 \\u2028 line\\rcarriage \\'quoted\\' back\\\\slash \\u0928\\u093f\\u092f\\u0902\\u0924\\u094d\\u0930\\u0923' where id = '" + w.chunks[2].id + "'");
@@ -636,6 +640,13 @@ for (const partitioned of [true, false]) {
       assert.equal(snapshot('chunk_hash'), before.hash, 'chunk_hash unchanged');
       assert.equal(indexNames(), before.indexes, 'the same indexes, valid, attached the same way');
       assert.equal(psql("select to_regclass('public.reembed_stage') is null"), 't', 'the staging table is gone');
+
+      // The rebuilt index holds live rows only. Built in the update's transaction it also held the old row versions and
+      // came out at twice the size (seen on the full corpus: NCLT 1,754 MB against 877 MB).
+      const hnswBytes = () => psql("select sum(pg_relation_size(c.oid)) from pg_class c join pg_am a on a.oid = c.relam where a.amname = 'hnsw' and c.relkind = 'i'");
+      const loadedBytes = hnswBytes();
+      psql('reindex table public.document_chunks');
+      assert.equal(loadedBytes, hnswBytes(), 'the rebuilt indexes are the size of a build over live rows alone');
 
       const first = w.chunks[0];
       const expected = `${buildChunkHeader(w.docs[0])}\n\n${first.content}`;

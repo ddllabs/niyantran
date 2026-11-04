@@ -145,6 +145,11 @@ Done on `task/hybrid-search`, unmerged: T1, T3, T4, T5, T6. Nothing here has rea
 - The HNSW path with hidden rows, the migration run as the production role, and the production policy text.
 - Whether signed-in users can reach `retrieval_internal` while the Data API's "Automatically expose new tables" is on.
 - Whether the new function is reachable, since the Data API exposes only part of the schema's functions.
+- **Disk for the backfill.** An in-place update of every chunk doubled the tables and, before the tool was fixed, the
+  HNSW indexes on the rehearsal copy (tables 3.6 GB to 7.1 GB, NCLT index 877 MB to 1,754 MB). The space is not returned
+  by a plain vacuum. NTER has a 20 GB disk with 12 GB used, of which 5.3 GB is the Phase B backup table, so the backfill
+  needs that table dropped first or to run in batches with a vacuum between them. Decide this in the T9 runbook. Build
+  HNSW indexes only after the old row versions are gone, or they are indexed too.
 - `indexStep` does not pass a header yet, and the supplied-text path freezes `embed_hash` at registration, so it needs
   the header built in `prepareSuppliedText`. Both are T9 work.
 

@@ -30,9 +30,10 @@
  *  5. Only when every selected chunk has a vector, loads the TARGET (a niyantran_rehearsal_* database, enforced before
  *     anything else): the vectors go into an unlogged staging table by binary COPY, then ONE set-based UPDATE sets
  *     `embedding` (and `embed_hash` when the column exists), matched on id, desk_feature and chunk_hash; content and
- *     chunk_hash are never written. The HNSW indexes are dropped before the update and recreated after it, in the
- *     same transaction (--index rebuild, the default when the load touches a quarter of the table or more; --index keep
- *     updates them in place), then the table is vacuumed and analysed. Every step is timed and printed. A run stopped by
+ *     chunk_hash are never written. The HNSW indexes are dropped before the update and recreated after it has committed
+ *     and a vacuum has removed the old row versions (--index rebuild, the default when the load touches a quarter of the
+ *     table or more; --index keep updates them in place), so a failure between the two leaves the vectors loaded and the
+ *     indexes missing. The table is then vacuumed and analysed. Every step is timed and printed. A run stopped by
  *     the ceiling, --limit or an error loads nothing: a half re-embedded feature would make the measurement meaningless.
  *
  * Prints only counts, timings and cost. Never prints the key, a vector or chunk text.
@@ -643,7 +644,7 @@ export function makeDockerTarget(database) {
 
       const rebuild = info.indexes.length > 0 && (indexMode === 'rebuild' || (indexMode === 'auto' && expected >= 0.25 * info.rows));
       log(`target: ${info.rows.toLocaleString('en-US')} chunks; ${expected.toLocaleString('en-US')} vectors to load; ${info.indexes.length} HNSW/IVF index(es); index mode ${rebuild ? 'rebuild' : 'keep (updated in place)'}${info.embedHash ? '' : '; no embed_hash column, not set'}`);
-      const timings = { stageMs: 0, dropMs: 0, updateMs: 0, rebuildMs: 0, vacuumMs: 0 };
+      const timings = { stageMs: 0, dropMs: 0, updateMs: 0, sweepMs: 0, rebuildMs: 0, vacuumMs: 0 };
 
       await q('drop table if exists public.reembed_stage');
       await q(`create unlogged table public.reembed_stage (id uuid not null, desk_feature text, chunk_hash text not null, embed_hash text not null, embedding ${info.vectorType} not null)`);
@@ -659,7 +660,7 @@ export function makeDockerTarget(database) {
       const vectorSchema = /^"?([^".]+)"?\.vector\(/.exec(info.vectorType)?.[1];
       const roots = info.indexes.filter((i) => !i.parent);
       const children = info.indexes.filter((i) => i.parent);
-      const script = [
+      const settings = [
         '\\timing on',
         "set maintenance_work_mem = '1GB';",
         'set max_parallel_maintenance_workers = 0;',
@@ -667,6 +668,10 @@ export function makeDockerTarget(database) {
         "set lock_timeout = '30s';",
         // the vector comparison operator lives in the extension's schema (`extensions` on Supabase)
         ...(vectorSchema ? [`set search_path = public, ${quoteIdent(vectorSchema)};`] : []),
+      ];
+      const cleanup = ['\\echo @@cleanup', 'drop table public.reembed_stage;'];
+      const updateScript = [
+        ...settings,
         '\\echo @@drop',
         ...(rebuild ? roots.map((i) => `drop index public.${quoteIdent(i.name)};`) : []),
         '\\echo @@update',
@@ -678,20 +683,33 @@ export function makeDockerTarget(database) {
              where c.embedding = s.embedding${info.embedHash ? ' and c.embed_hash = s.embed_hash' : ''};
            if n <> ${expected} then raise exception 'reembed: % of ${expected} staged vectors are in document_chunks; rolled back', n; end if;
          end $check$;`,
-        '\\echo @@rebuild',
-        ...(rebuild ? [...roots.map((i) => `${i.def};`), ...children.map((i) => `${i.def};`), ...children.map((i) => `alter index public.${quoteIdent(i.parent)} attach partition public.${quoteIdent(i.name)};`)] : []),
-        '\\echo @@cleanup',
-        'drop table public.reembed_stage;',
+        ...(rebuild ? [] : cleanup),
       ].join('\n');
-      const out = await psqlRun(database, { input: script, single: true });
+      const out = await psqlRun(database, { input: updateScript, single: true });
       const t = parseTimings(out);
       timings.dropMs = t.drop ?? 0;
       timings.updateMs = t.update ?? 0;
-      timings.rebuildMs = rebuild ? (t.rebuild ?? 0) : 0;
       const updated = Number(/updated=(\d+)/.exec(out)?.[1] ?? NaN);
       log(`update: ${updated.toLocaleString('en-US')} rows in ${ms(timings.updateMs)}`);
-      if (rebuild) log(`index work: dropped ${roots.length} root index(es) in ${ms(timings.dropMs)}, rebuilt ${info.indexes.length} index(es) in ${ms(timings.rebuildMs)}`);
-      else log('index work: none (indexes updated in place by the update above)');
+
+      // The update replaced every row, so each old version is still on its page. An index built now would hold those too:
+      // HNSW keeps dead versions from a build as nodes, doubling the index and spending ef_search on them. So the update
+      // commits first, vacuum removes the old versions, and only then are the indexes built.
+      if (rebuild) {
+        const swept = await timed(() => q('vacuum public.document_chunks'));
+        timings.sweepMs = swept.ms;
+        log(`old row versions removed in ${ms(swept.ms)}`);
+        const rebuildScript = [
+          ...settings,
+          '\\echo @@rebuild',
+          ...roots.map((i) => `${i.def};`),
+          ...children.map((i) => `${i.def};`),
+          ...children.map((i) => `alter index public.${quoteIdent(i.parent)} attach partition public.${quoteIdent(i.name)};`),
+          ...cleanup,
+        ].join('\n');
+        timings.rebuildMs = parseTimings(await psqlRun(database, { input: rebuildScript, single: true })).rebuild ?? 0;
+        log(`index work: dropped ${roots.length} root index(es) in ${ms(timings.dropMs)}, rebuilt ${info.indexes.length} index(es) in ${ms(timings.rebuildMs)}`);
+      } else log('index work: none (indexes updated in place by the update above)');
 
       const vac = await timed(async () => {
         await q('vacuum (analyze) public.document_chunks');
