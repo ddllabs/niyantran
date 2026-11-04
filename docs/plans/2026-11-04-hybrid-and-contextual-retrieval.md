@@ -30,8 +30,9 @@
 1. **Contextual headers.** Each chunk's embedding input becomes a short header built from its document, then the
    chunk text. The stored text is unchanged; `embed_hash` records the header version. Headers are built by a pure
    function per feature from stored metadata, unless D1 picks a model-written context.
-2. **Hybrid round 2.** The keyword side also sees the header, so a chunk that says "the appeal is dismissed" matches
-   the company's name and case number (contextual keyword search). Fusion is tuned from a failure analysis of round 1.
+2. **Hybrid round 2.** Candidate selection and fusion are rebuilt from a failure analysis of round 1. The keyword side
+   indexes the chunk text only, not the header: T3's emulation of a header-aware keyword side showed no gain, so the
+   header reaches search through the embedding.
 3. **One measured matrix**, not one step at a time, because the two interact. Arms: vector-only, headers only,
    hybrid round 2 only, headers plus hybrid round 2, and Supabase's recipe as written. Each arm is judged per feature on v2, on the development set,
    and once, at the end, on the sealed set.
@@ -89,7 +90,7 @@ no reranker; the NCLT gate as stated.
 | T3. Round 1 failure analysis, read-only on `niyantran_rehearsal_c1hybrid`: for every NCLT question whose rank changed, and every miss in both arms, the kept words, keyword ranks and fused ranks; candidate fusion changes with their predicted effect | Sonnet | new `docs/research/2026-11-04-hybrid-round1-failures.md` | none | every claim cites a query run on the copy |
 | T4. Header builder: a pure function from a document's stored fields to the header text, per feature, versioned, with the header version folded into `embed_hash`; used by the worker for new chunks | Sonnet, Opus reviews | `supabase/functions/_shared/chunkHeader.ts` and its test; `supabase/functions/ingest-worker/` embed input only | D1 | Deno tests (headers for each feature from real metadata shapes; empty fields omitted; version change changes `embed_hash`); `npm run lint` |
 | T5. Re-embedding on a copy: a script that embeds header plus text for chosen features of a rehearsal copy into a side column, resumable, with a cost ceiling, and writes the vectors to a local file keyed by chunk id and `embed_hash` for reuse | Sonnet builds, supervisor runs (paid) | `scripts/eval-replica/reembed.mjs` and its offline test | T4 | offline test with a fake embedder; supervisor run with the ceiling, cost recorded |
-| T6. Hybrid round 2: keyword side over header plus text (how the header reaches the index, a stored per-chunk column or a per-document `tsvector`, is chosen by measured index size and build time), fusion changes from T3; the round 1 security properties kept, with the fixture extended | Sonnet builds, Opus reviews | the C1 migration (not applied anywhere, so revised in place), `supabase/tests/chunk_hybrid_search.sql`, `supabase/tests/run.sh` entry | T3, T4 | `npm run test:sql` (no VACUITY FAIL), the security probes of round 1 |
+| T6. Hybrid round 2: fusion and candidate changes from T3 (the keyword side stays over `content`, see Outcome 2); the round 1 security properties kept, with the fixture extended | Sonnet builds, Opus reviews | the C1 migration (not applied anywhere, so revised in place), `supabase/tests/chunk_hybrid_search.sql`, `supabase/tests/run.sh` entry | T3, T4 | `npm run test:sql` (no VACUITY FAIL), the security probes of round 1 |
 | T7. The matrix on the copy: five arms × three sets, quiet machine, latency run twice | supervisor | `eval/retrieval/results/`, a research note | T2, T5, T6 | `--compare` per arm against vector-only; the sealed set run once, last |
 | T8. Gate review | Fable | none (report) | T7 | review notes |
 | T9. Production, each step separately authorized: headers in the worker and the re-embedding backfill (vectors loaded where `embed_hash` matches, the rest through the worker), then the hybrid migration, then the app switch | supervisor | runbook under `docs/operations/` | T8 and the developer's authorization | before-and-after measurement on NTER, as for Phase B |
@@ -98,6 +99,54 @@ no reranker; the NCLT gate as stated.
   `embed_hash` rule. T6 waits on T3 and T4.
 - Task agents do not read `.env.local`, call NTER or a paid API, or commit. Embedding runs are the supervisor's.
 - Docker-heavy work (T3 queries, T5 runs, T7) runs one at a time; no test suites during a measured run.
+
+## Progress (2026-11-05)
+
+Done on `task/hybrid-search`, unmerged: T1, T3, T4, T5, T6. Nothing here has reached production.
+
+- **T5 run.** All 392,945 chunks of `niyantran_rehearsal_c2headers` embedded with headers for US$2.17 (108,572,162
+  tokens) under a US$3 ceiling. The vectors are in a local file outside the repo, for reuse at T9.
+- **T6.** Migration sha256 `2978589ebeec657d742584b8d995033ff5c594b8617dd05b6fbd750b5181c223`. `npm run test:sql`: 71
+  fixtures pass, 18 mutations caught, no VACUITY FAIL. Opus reviewed the commit before the six fixes and found no
+  blocker; the fixes themselves have not had an independent review, so T8 covers them.
+- **T6 measured, feature mode, vector-only then hybrid round 2 (doc@5/10/40).** Recomputed from the raw result files.
+  These two sets are the ones it was tuned on, so they are not a verdict.
+
+  | Set | Scope | Vector-only | Round 2 | Lost from top 10 |
+  |---|---|---|---|---|
+  | Development (45) | NCLT, 30 | 19/19/21 | 22/23/25 | none |
+  | Development (45) | Bills, PQ, Regulatory, 15 | identical | identical | none |
+  | v2 | NCLT generated, 56 | 29/29/34 | 42/44/47 | none |
+  | v2 | NCLT developer, 14 | 10/10/10 | 13/13/13 | none |
+  | v2 | every other feature | identical | identical | none |
+
+- The `c3-*` result files are stamped commit `05f08dd4` because the fixes were uncommitted when they ran. The
+  rehearsal file in the same batch records the migration hash above.
+- Latency of these runs is not a measurement: the re-embedding was competing for Docker.
+
+### Known limits of round 2
+
+- The month parser reads an English month followed by a four-digit year. A day between them is missed.
+- The word budget runs before the name gate.
+- `match_count` above 100 returns fewer rows.
+- Per-call cost grows with documents and hidden documents, because the hidden list is built on each call.
+- The rare-word limit of 300 chunks and the 20,000-chunk month cap are fixed numbers. As the corpus grows 10× or 100×,
+  fewer words stay rare and more months pass the cap, so both lists quietly stop helping. Re-measure before each
+  large ingestion.
+- A word probe builds that word's whole GIN bitmap before its `LIMIT` applies, hidden rows included.
+- No real month is over the cap yet (the largest holds 8,616 chunks). The over-cap path was measured with a simulated
+  cap of 1,000.
+
+### Still to check before T9
+
+- Cold month scan on NTER against the 8 s limit (locally: warm about 0.2 s, cold 2 to 4 s; a local whole-month count
+  took 1.3 s).
+- Vector-index recall: q-0003 and q-0022 are at exact ranks 35 and 28 but the index misses them.
+- The HNSW path with hidden rows, the migration run as the production role, and the production policy text.
+- Whether signed-in users can reach `retrieval_internal` while the Data API's "Automatically expose new tables" is on.
+- Whether the new function is reachable, since the Data API exposes only part of the schema's functions.
+- `indexStep` does not pass a header yet, and the supplied-text path freezes `embed_hash` at registration, so it needs
+  the header built in `prepareSuppliedText`. Both are T9 work.
 
 ## Exclusions
 
