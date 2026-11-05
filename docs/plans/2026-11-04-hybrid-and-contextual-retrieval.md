@@ -158,6 +158,18 @@ Written before any sealed question existed, and committed before the run.
   Local timings do not settle it: cold latency on NTER remains the blocking check.
 - **Passing here does not authorize production.** T8 follows, and each T9 step needs its own authorization.
 
+### The sealed run: result (2026-11-05)
+
+[Full result](../research/2026-11-05-hybrid-and-headers-matrix.md#the-sealed-run). The hybrid-only arm's feature pass had
+17 timeouts on every desk, during a slow window of unknown cause, so the headline and the repeated calls disagree:
+
+- As written, timeouts as misses: NCLT doc@10 vector 14, hybrid 14, hybrid with NCLT headers 19.
+- With the 17 calls repeated once, reported separately: hybrid 21 with nothing lost, hybrid with NCLT headers 19 with 1 lost.
+- Neither candidate meets the latency bar locally. Headers gain in broad search (38 to 42 of 45), where hybrid does not act.
+
+Which reading stands is the developer's decision, after T8. The sealed set is spent; any change to the search after this
+needs a new set.
+
 ### Known limits of round 2
 
 - The month parser reads an English month followed by a four-digit year. A day between them is missed.

@@ -1,0 +1,86 @@
+{
+ "setVersion": "set.jsonl",
+ "label": "t7seal-ncltheaders-repeat",
+ "commit": "07144f86",
+ "fingerprint": {
+  "target": "replica",
+  "database": "niyantran_rehearsal_c2mixed",
+  "rpc": "match_documents_hybrid",
+  "documents": 17603,
+  "chunks": 392876,
+  "latestIndexedAt": "2026-10-31T20:25:01.298011+00:00",
+  "migrationVersion": "match_documents_feature_hnsw@20261027185840_feature_search_recovery.sql; match_documents@20261015130000_unscoped_ef_search.sql (replica copied 2026-11-01T11:42:56.68002+00:00)"
+ },
+ "cost": {
+  "embeddingTokens": 0,
+  "usd": 0
+ },
+ "modes": {
+  "broad": {
+   "outcomes": {
+    "s-0012": {
+     "docRank": null,
+     "keyRank": null,
+     "chunkRank": null,
+     "chunkScored": false
+    }
+   },
+   "ranked": {
+    "s-0012": [
+     "043a6e59-0006-4d4f-b215-79c57c99bf1d",
+     "2981e507-0980-46f9-a7de-4dacbb910be9",
+     "d0d884da-abb8-417c-8bc6-866e5783b842",
+     "cd9180c2-7a60-44db-9caf-ff181b2abc81",
+     "afa07937-1294-440f-a4c5-5d8a949c8df0",
+     "15fa983d-569a-47b8-9216-7ef38b883374",
+     "02c6816e-880d-49f2-81f3-461ad5231f02",
+     "1c2a6e60-6897-4b8d-b49b-4c53ef956eaf",
+     "ab942ae7-43a4-42c2-a21f-391a09ef44b7",
+     "f62b4dfd-a56b-4266-a9c4-e619d9df1355",
+     "b74eff1f-2b51-43da-9d76-c35d3734ac46",
+     "cc1fe601-17fa-4747-a557-68b13a288657",
+     "206fb957-9dfb-469e-8b16-b53a5a94d81e",
+     "102eaab2-e4fb-4371-b892-89cf75dda4f5",
+     "ae84a510-82d7-4ee8-adb4-3102d71fdc27",
+     "62749b56-fcba-4236-ab40-7b4ca466921b",
+     "36aad79d-4b12-4d67-b0f6-bd37d3d7ab6f",
+     "8584a0ae-bd7b-4a2f-9ddf-4ad51a4f542e",
+     "d6dbbb4b-3383-4f8c-b632-eca5e4dd1826",
+     "7cb8f3a3-fb5e-4dc5-993c-32dd77ec04f1",
+     "60c03250-0577-4e1e-81ad-f4abaa9234a9",
+     "a0763d1d-9a4d-4d08-bdcf-33f57e410fd5",
+     "c527d970-7ca0-45a7-a2f6-6a84602e5379",
+     "5a6f565b-f69a-4099-b876-0d2b0e11db96",
+     "e5f064c3-e427-4c7f-8df2-ec6e630977d0",
+     "02111c13-fbf3-4531-9c09-a71d641f7a5f",
+     "3f96cb31-86a2-48a7-95a7-d7e3b7475d50",
+     "83cbbd2d-7eaf-4639-8f96-727bebbefe2b",
+     "6ecfa951-2ec5-417d-9f33-c4de50cf235b",
+     "57513b7b-a1e9-4282-b66e-2ff5048215cf",
+     "a1d0f5b0-aa99-4aa3-9f5b-9805f74d59be",
+     "423c69c0-8d2b-443d-b5a6-721d3735f22a",
+     "3534b15b-8d24-49d4-a277-aec6c512a5dc",
+     "dd97c67e-834d-41f4-8f96-ca3465992d8f",
+     "dbde2517-409c-49e5-8092-5a5f33db4a9a",
+     "0ad73de6-acb8-49e2-8fb8-6e237164ceda",
+     "30de6040-59c8-402d-83ba-b6df8dab9e4e",
+     "f665e89d-dc0a-4e31-be3b-2ab26e1d66ee",
+     "6a04f91d-ca26-46c4-adfb-2b0562fba05e",
+     "510bf108-1f0a-4306-aed1-eca88ed9bb51"
+    ]
+   },
+   "latencyMs": [
+    143.26625000000058
+   ],
+   "networkMs": [
+    78.82679199999984
+   ],
+   "responseBytes": [
+    57234
+   ],
+   "skipped": 0,
+   "timeouts": 0
+  }
+ },
+ "ranAt": "2026-11-05T16:08:14.212Z"
+}

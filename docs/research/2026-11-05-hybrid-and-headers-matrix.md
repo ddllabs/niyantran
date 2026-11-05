@@ -2,8 +2,8 @@
 
 > **Status: Living (2026-11-05).** Task T7 of the
 > [hybrid round 2 and contextual headers plan](../plans/2026-11-04-hybrid-and-contextual-retrieval.md). Everything here
-> is from local rehearsal copies. The sealed set has not been run, so this is not the verdict. Round 2 was tuned on
-> the development set and on v2; the headers were not.
+> is from local rehearsal copies. Round 2 was tuned on the development set and on v2; the headers were not. The sealed
+> run is [below](#the-sealed-run). It was written by agents, not by a practitioner.
 
 ## Copies and arms
 
@@ -107,9 +107,66 @@ Warm and quiet, both candidates finish inside the limit locally, with an NCLT p9
 vector-only. Cold, every arm times out, vector-only included. Broad search with NCLT headers was timed only on an
 uncompacted copy under load, so it has no valid latency yet.
 
+## The sealed run
+
+Run once on 2026-11-05 under the [rules committed before it](../plans/2026-11-04-hybrid-and-contextual-retrieval.md#the-sealed-run-rules-fixed-before-it-runs-2026-11-05)
+(`07144f86`). 45 questions: 30 NCLT, half naming no party, and 5 each for Bills, Parliamentary Questions and Regulatory.
+Fresh agents wrote them from 82 randomly drawn documents outside the tuning sets; another fresh agent checked them
+against the source, dropped 12 of 57 and reworded 16 of the 45 kept. The supervisor did not read them before the run.
+They were written from the document by a model, and a practitioner has not reviewed them. The set is now spent.
+
+**The hybrid-only arm's feature pass is not clean.** It had 17 timeouts, p50 5.4 s, on every desk, including 5 on
+desks where hybrid does nothing, while the same search path ran vector-only two minutes earlier with no timeout (slowest
+2.0 s). Host load rose from about 3 to about 12 during that window, and the warm-up after it was also slow (24 timeouts).
+The cause is not established: no autovacuum appears and no other query was found. As the rules allow, the 17
+calls were repeated once, unchanged, at load about 4: none timed out, the slowest took 1.7 s. A repeat is partly warm, so
+those timings flatter. One broad call of the third arm was repeated too.
+
+Feature search, top 5 / 10 / 40:
+
+| Scope | Vector-only | Hybrid, as run | Hybrid, timeouts repeated | Hybrid, NCLT headers |
+|---|---|---|---|---|
+| NCLT (30) | 13/14/22 | 12/14/16 | **18/21/25** | 18/19/23 |
+| NCLT, no party (15) | 3/3/9 | 5/5/7 | 6/6/10 | 4/4/8 |
+| NCLT, names a party (15) | 10/11/13 | 7/9/9 | 12/15/15 | 14/15/15 |
+| Bills (5) | 4/5/5 | 3/4/4 | 4/5/5 | 4/5/5 |
+| Parliamentary Questions (5) | 5/5/5 | 2/2/2 | 5/5/5 | 5/5/5 |
+| Regulatory (5) | 5/5/5 | 4/4/4 | 5/5/5 | 5/5/5 |
+
+Top-10 changes against vector-only: hybrid with repeats gains 7 and loses none; hybrid with NCLT headers gains 6 and
+loses 1. Against hybrid with repeats, adding headers gains 1 and loses 3.
+
+Broad search, top 10, all 45: vector-only and hybrid are the same (hybrid does not act there), 38; NCLT headers 42,
+gaining 6 and losing 2. NCLT alone goes 13 to 17. Focused is 45 of 45 in all arms.
+
+Read against the rules:
+
+- **As written, with timeouts as misses:** hybrid only fails D4 (NCLT doc@10 14 to 14, 5 lost elsewhere) and hybrid with
+  NCLT headers passes it (14 to 19, none lost elsewhere). The 5 lost elsewhere are timeouts on desks hybrid does not touch.
+- **With the repeats, reported separately as the rules require:** both pass D4 on recall. Hybrid only is higher, 21
+  against 19, so by the rule for headers they are not added.
+- The two arms differ by 2 of 30, which is within noise for a set this size.
+
+Latency against the code's bar (feature p95 at most 1.2 × vector-only + 20 ms, no call over 4 s). Neither candidate
+passes locally:
+
+| Arm | Run | Feature p95 | Bar | Calls over 4 s |
+|---|---|---|---|---|
+| Hybrid only | v2, quiet, last | 2.37 s | 2.15 s | 7 |
+| Hybrid, NCLT headers | v2, quiet, last | 3.26 s | 2.15 s | 10 |
+| Hybrid, NCLT headers | sealed | 2.03 s | 1.83 s | 0 |
+| Hybrid only | sealed | not valid (above) | | |
+
+Broad search under the 8 s limit, 317 calls, compacted copies: vector-only last pass p50 1.0 s, p95 1.9 s, slowest 4.9 s;
+NCLT headers last pass p50 0.8 s, p95 1.9 s, slowest 4.9 s, no timeouts in either last pass. First passes each had one
+timeout. Its p95 is within the bar; its 3 calls over 4 s, against 1 for vector-only, are not.
+
+Slow windows hitting every desk have now appeared in three hybrid-side sessions on this cluster (the two runs under load
+above and this one). They were read as machine load, which fits the first two, but the cause of this one is unknown and
+hybrid's own cache pressure on a 512 MB buffer cannot be ruled out. See F286.
+
 ## Not yet known
 
-- Broad search latency with headers on NCLT only. Its ranking is measured: on v2 doc@10 goes 200 to 219 of 251 generated
-  questions, losing only NCLT questions (4), against 216 for headers everywhere.
 - Whether a higher `ef_search`, or a rebuild with higher build parameters, recovers the index misses, and at what cost.
-- The sealed-set result.
+- What caused the slow window in the sealed run (F286), and whether hybrid's calls contribute to it.
+- How users split between broad and feature search, which decides how much the headers' broad gain is worth.
