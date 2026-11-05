@@ -171,7 +171,7 @@ hybrid's own cache pressure on a 512 MB buffer cannot be ruled out. See F286.
 
 ### Gate review (T8, 2026-11-05)
 
-Fable, read-only, recomputed every sealed and `t7lim` figure from the raw files and found them accurate. It found no
+The reviewer, read-only, recomputed every sealed and `t7lim` figure from the raw files and found them accurate. It found no
 critical defect in the SQL and no test that passes on broken code, and reviewed the six `c473327b` fixes as correct.
 Verdict: changes requested, no production step yet.
 

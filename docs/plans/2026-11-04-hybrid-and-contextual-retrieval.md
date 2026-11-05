@@ -95,16 +95,16 @@ no reranker; the NCLT gate as stated.
 
 ## Tasks
 
-| Task | Model | Write scope | Depends on | Verification |
+| Task | Role | Write scope | Depends on | Verification |
 |---|---|---|---|---|
-| T1. Research note for round 1: the design as built, the measurements above, the per-question changes, why it does not ship | Haiku | new `docs/research/2026-11-02-hybrid-search.md` (the migration's header already cites it) | none | facts match the committed result files; links resolve |
+| T1. Research note for round 1: the design as built, the measurements above, the per-question changes, why it does not ship | Documentation | new `docs/research/2026-11-02-hybrid-search.md` (the migration's header already cites it) | none | facts match the committed result files; links resolve |
 | T2. Sealed set 2 | developer | filled in outside the repo as `~/niyantran-eval-cache/sealed-set-2026-11.csv`, unread by anyone tuning; a script converts it to `eval/retrieval/developer-questions.sealed-2026-11.jsonl` and embeds it just before the final run, printing only counts and unresolved row numbers | D2 | the harness loads it; gold documents exist in the copy |
-| T3. Round 1 failure analysis, read-only on `niyantran_rehearsal_c1hybrid`: for every NCLT question whose rank changed, and every miss in both arms, the kept words, keyword ranks and fused ranks; candidate fusion changes with their predicted effect | Sonnet | new `docs/research/2026-11-04-hybrid-round1-failures.md` | none | every claim cites a query run on the copy |
-| T4. Header builder: a pure function from a document's stored fields to the header text, per feature, versioned, with the header version folded into `embed_hash`; used by the worker for new chunks | Sonnet, Opus reviews | `supabase/functions/_shared/chunkHeader.ts` and its test; `supabase/functions/ingest-worker/` embed input only | D1 | Deno tests (headers for each feature from real metadata shapes; empty fields omitted; version change changes `embed_hash`); `npm run lint` |
-| T5. Re-embedding on a copy: a script that embeds header plus text for chosen features of a rehearsal copy into a side column, resumable, with a cost ceiling, and writes the vectors to a local file keyed by chunk id and `embed_hash` for reuse | Sonnet builds, supervisor runs (paid) | `scripts/eval-replica/reembed.mjs` and its offline test | T4 | offline test with a fake embedder; supervisor run with the ceiling, cost recorded |
-| T6. Hybrid round 2: fusion and candidate changes from T3 (the keyword side stays over `content`, see Outcome 2); the round 1 security properties kept, with the fixture extended | Sonnet builds, Opus reviews | the C1 migration (not applied anywhere, so revised in place), `supabase/tests/chunk_hybrid_search.sql`, `supabase/tests/run.sh` entry | T3, T4 | `npm run test:sql` (no VACUITY FAIL), the security probes of round 1 |
+| T3. Round 1 failure analysis, read-only on `niyantran_rehearsal_c1hybrid`: for every NCLT question whose rank changed, and every miss in both arms, the kept words, keyword ranks and fused ranks; candidate fusion changes with their predicted effect | Engineer | new `docs/research/2026-11-04-hybrid-round1-failures.md` | none | every claim cites a query run on the copy |
+| T4. Header builder: a pure function from a document's stored fields to the header text, per feature, versioned, with the header version folded into `embed_hash`; used by the worker for new chunks | Engineer, independent reviewer | `supabase/functions/_shared/chunkHeader.ts` and its test; `supabase/functions/ingest-worker/` embed input only | D1 | Deno tests (headers for each feature from real metadata shapes; empty fields omitted; version change changes `embed_hash`); `npm run lint` |
+| T5. Re-embedding on a copy: a script that embeds header plus text for chosen features of a rehearsal copy into a side column, resumable, with a cost ceiling, and writes the vectors to a local file keyed by chunk id and `embed_hash` for reuse | Engineer builds, supervisor runs (paid) | `scripts/eval-replica/reembed.mjs` and its offline test | T4 | offline test with a fake embedder; supervisor run with the ceiling, cost recorded |
+| T6. Hybrid round 2: fusion and candidate changes from T3 (the keyword side stays over `content`, see Outcome 2); the round 1 security properties kept, with the fixture extended | Engineer, independent reviewer | the C1 migration (not applied anywhere, so revised in place), `supabase/tests/chunk_hybrid_search.sql`, `supabase/tests/run.sh` entry | T3, T4 | `npm run test:sql` (no VACUITY FAIL), the security probes of round 1 |
 | T7. The matrix on the copy: five arms × three sets, quiet machine, latency run twice | supervisor | `eval/retrieval/results/`, a research note | T2, T5, T6 | `--compare` per arm against vector-only; the sealed set run once, last |
-| T8. Gate review | Fable | none (report) | T7 | review notes |
+| T8. Gate review | Independent reviewer | none (report) | T7 | review notes |
 | T9. Production, each step separately authorized: the hybrid migration, then the app switch. Under D5 the steps for headers in the worker and the re-embedding backfill are out, unless F289 brings them back | supervisor | runbook under `docs/operations/` | T8 and the developer's authorization | before-and-after measurement on NTER, as for Phase B |
 
 - T1, T3 and T4 can run in parallel: their write scopes are disjoint. T5 waits on T4's header function and
@@ -119,7 +119,7 @@ Done on `task/hybrid-search`, unmerged: T1, T3, T4, T5, T6. Nothing here has rea
 - **T5 run.** All 392,945 chunks of `niyantran_rehearsal_c2headers` embedded with headers for US$2.17 (108,572,162
   tokens) under a US$3 ceiling. The vectors are in a local file outside the repo, for reuse at T9.
 - **T6.** Migration sha256 `2978589ebeec657d742584b8d995033ff5c594b8617dd05b6fbd750b5181c223`. `npm run test:sql`: 71
-  fixtures pass, 18 mutations caught, no VACUITY FAIL. Opus reviewed the commit before the six fixes and found no
+  fixtures pass, 18 mutations caught, no VACUITY FAIL. A separate review of the commit before the six fixes found no
   blocker; the fixes themselves have not had an independent review, so T8 covers them.
 - **T6 measured, feature mode, vector-only then hybrid round 2 (doc@5/10/40).** Recomputed from the raw result files.
   These two sets are the ones it was tuned on, so they are not a verdict.

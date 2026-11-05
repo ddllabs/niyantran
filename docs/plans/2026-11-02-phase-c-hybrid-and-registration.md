@@ -18,7 +18,7 @@
   documents, upsert by `source_key`, chunk and embed in the same request). Law supplied text goes through
   `ingest_register_text`. Nothing rejects the same text under a different `source_key`.
 
-## C1. Hybrid search (Sonnet builds, Opus reviews)
+## C1. Hybrid search (built, then independently reviewed)
 
 **Outcome.** A new RPC `match_documents_hybrid` with `match_documents`'s scoping (document ids, tier, feature) plus the
 query text: keyword search and vector search run in the same scope and are fused by reciprocal rank fusion. The
@@ -57,7 +57,7 @@ runs before any row is read; the timing residual stays about a microsecond per h
   `keyword search unavailable` (55000); the explanation is a code comment.
 - Rank lookup: by `id` and `desk_feature =` (partitions pruned), with a separate branch for chunks with no feature.
 
-## C3. Set-based registration (Opus), design first
+## C3. Set-based registration, design first
 
 **Outcome.** One call registers a batch of documents with the same admission rules as today, rejects a text that is
 already live under another `source_key`, and leaves chunking and embedding to the worker, so the bulk runner never
