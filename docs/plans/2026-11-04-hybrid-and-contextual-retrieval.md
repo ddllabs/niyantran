@@ -134,6 +134,30 @@ Done on `task/hybrid-search`, unmerged: T1, T3, T4, T5, T6. Nothing here has rea
 - The re-embedding tool built its indexes inside the update's transaction, which doubled them with old row versions.
   Fixed in `65384b9a`; the headers copy was compacted before any measurement.
 
+### The sealed run: rules fixed before it runs (2026-11-05)
+
+Written before any sealed question existed, and committed before the run.
+
+- **Who wrote the set: a change to D2.** The developer handed authoring to agents on 2026-11-05 ("Fill it up for me. It's
+  your call."). A script drew 82 documents at random from outside the 506 gold documents of every tuning set. Fresh
+  agents with no tuning context write questions from those documents; another fresh agent checks them. The supervisor
+  tuned on these sets, so it does not read the questions before the run. This is weaker evidence than D2: the
+  questions are written from the document, by a model, and not by a practitioner. Report the result with that label.
+- **Arms.** Vector-only: `niyantran_rehearsal_c2hybrid`, `match_documents`. Hybrid only: the same copy,
+  `match_documents_hybrid`. Hybrid with NCLT headers: `niyantran_rehearsal_c2mixed`, `match_documents_hybrid`. Modes
+  broad, focused and feature, under the 8 s limit, once each. No tuning change between arms or after the run.
+- **Warm-up and timeouts.** Each copy is warmed with one v2 feature pass first. A sealed call that times out is a miss
+  in the headline figures. Those calls may be repeated once for information, reported separately.
+- **Gate (D4).** NCLT doc@10 at least 3 of 30 better than vector-only, and no question lost from the top 10 in any other
+  feature.
+- **Headers or hybrid only.** Headers need a separate backfill, so they are added only if the arm's NCLT doc@10 is
+  strictly above hybrid only. A tie goes to hybrid only.
+- **Latency.** D4's allowance is the code's own bar (`LATENCY` in `src/lib/retrievalEval.js`): feature p95 at most 1.2 ×
+  vector-only p95 + 20 ms, and no call over 4 s. It is reported as measured, not relaxed. If an arm passes on recall
+  and fails this bar, shipping it needs a recorded developer decision, as for Phase B's broad and focused exception.
+  Local timings do not settle it: cold latency on NTER remains the blocking check.
+- **Passing here does not authorize production.** T8 follows, and each T9 step needs its own authorization.
+
 ### Known limits of round 2
 
 - The month parser reads an English month followed by a four-digit year. A day between them is missed.
