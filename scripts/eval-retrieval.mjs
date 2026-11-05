@@ -41,7 +41,7 @@ import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { createClient } from '@supabase/supabase-js';
 import { REPLICA_DATABASE, assertEvalDatabase } from '../src/lib/rehearsal.js';
-import { exitCodeFor, fingerprintCheck, judgeNoWorse, outcome, renderReport, replicaCallSql, rpcParams } from '../src/lib/retrievalEval.js';
+import { exitCodeFor, fingerprintCheck, isCallTimeout, judgeNoWorse, outcome, renderReport, replicaCallSql, rpcParams } from '../src/lib/retrievalEval.js';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 const MATCH_COUNT = 40;
@@ -219,7 +219,7 @@ function replicaBackend(database = REPLICA_DATABASE) {
       return new Map(rows.map((r) => [r.desk_feature, Number(r.n)]));
     },
     async rpc(fn, params) {
-      return json(replicaCallSql(fn, params));
+      return JSON.parse(psql(asUser(replicaCallSql(fn, params, { limited: true }))) || '[]');
     },
     async ping() {
       psql(asUser('select 1;'));
@@ -272,14 +272,26 @@ async function main(argv) {
   const featureCalls = [];
   for (const mode of args.modes) {
     const active = lines.filter((l) => paramsFor(mode, l));
-    for (const l of active.slice(0, WARMUPS)) await backend.rpc(args.rpc, paramsFor(mode, l));
+    // A timed-out call is a miss, as it would be an error for the user; any other failure still stops the run.
+    const call = async (l) => {
+      try {
+        return await backend.rpc(args.rpc, paramsFor(mode, l));
+      } catch (err) {
+        if (!isCallTimeout(err)) throw err;
+        return null;
+      }
+    };
+    for (const l of active.slice(0, WARMUPS)) await call(l);
+    let timeouts = 0;
     const outcomes = new Map();
     const ranked = {};
     const latencyMs = [];
     const networkMs = [];
     const responseBytes = [];
     for (const line of shuffled(active, SEED)) {
-      const { res: rows, ms } = await timed(() => backend.rpc(args.rpc, paramsFor(mode, line)));
+      const { res, ms } = await timed(() => call(line));
+      if (res === null) timeouts += 1;
+      const rows = res ?? [];
       latencyMs.push(ms);
       responseBytes.push(Buffer.byteLength(JSON.stringify(rows)));
       outcomes.set(line.id, outcome(line, rows, keyOf));
@@ -288,8 +300,8 @@ async function main(argv) {
       const net = await timed(() => backend.ping());
       networkMs.push(net.ms);
     }
-    run.modes[mode] = { lines: active, outcomes, latencyMs, networkMs, responseBytes, skipped: lines.length - active.length };
-    results.modes[mode] = { outcomes: Object.fromEntries(outcomes), ranked, latencyMs, networkMs, responseBytes, skipped: lines.length - active.length };
+    run.modes[mode] = { lines: active, outcomes, latencyMs, networkMs, responseBytes, skipped: lines.length - active.length, timeouts };
+    results.modes[mode] = { outcomes: Object.fromEntries(outcomes), ranked, latencyMs, networkMs, responseBytes, skipped: lines.length - active.length, timeouts };
     console.log(`${mode}: ${active.length} questions`);
   }
   if (featureCalls.length) results.featureCalls = featureCalls;

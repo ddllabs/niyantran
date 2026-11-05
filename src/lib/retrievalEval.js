@@ -379,6 +379,12 @@ export function rpcParams({ rpc, mode, line, vector, matchCount }) {
   return { ...params, query_text: line.question };
 }
 
+/**
+ * The limit a signed-in user's call has on NTER. `set role` does not apply a role's settings, so the replica states it
+ * in each call. Without this a call of 22 s counted as a success.
+ */
+const CALL_LIMIT = '8s';
+
 /** Positional parameters of each RPC: the leading ones always sent, the rest only when the call sets them. */
 const RPC_ARGS = {
   match_documents: { names: ['query_embedding', 'match_count', 'p_document_ids', 'p_desk_tier', 'p_desk_feature'], required: 4 },
@@ -391,7 +397,7 @@ const RPC_ARGS = {
  * match_documents. p_desk_feature is sent only when the params carry the key, so a replica whose
  * function predates it still runs the broad and focused modes.
  */
-export function replicaCallSql(fn, params) {
+export function replicaCallSql(fn, params, { limited = false } = {}) {
   if (!/^[a-z_][a-z0-9_]*$/.test(fn)) throw new Error(`bad function name ${fn}`);
   const spec = isTextRpc(fn) ? RPC_ARGS.match_documents_hybrid : (RPC_ARGS[fn] ?? RPC_ARGS.match_documents);
   if (isTextRpc(fn) && typeof params.query_text !== 'string') throw new Error(`${fn} needs query_text`);
@@ -405,8 +411,12 @@ export function replicaCallSql(fn, params) {
     p_desk_feature: (v) => (v ? lit(v) : 'null'),
   };
   const args = spec.names.filter((name, i) => i < spec.required || name in params).map((name) => render[name](params[name] ?? null));
-  return `select * from public.${fn}(${args.join(', ')})`;
+  const call = `select * from public.${fn}(${args.join(', ')})`;
+  return limited ? `set statement_timeout = '${CALL_LIMIT}';\nselect coalesce(json_agg(t), '[]'::json) from (${call}) t;` : call;
 }
+
+/** Whether a failed call is the statement timeout: production would have returned an error to the user. */
+export const isCallTimeout = (err) => err instanceof Error && /canceling statement due to statement timeout/.test(err.message);
 
 /** Report order for modes; any other mode follows, alphabetically. */
 export const MODE_ORDER = ['broad', 'focused', 'focused-multi', 'feature'];
@@ -501,6 +511,7 @@ export function renderReport(run) {
       const perDoc = Math.ceil(MATCH_COUNT / MULTI_DOCS);
       out.push(`Gold plus four distractors: the per-document quota is ceil(${MATCH_COUNT}/${MULTI_DOCS}) = ${perDoc} rows, so chunk hit@k for k > ${perDoc} is capped.`);
       if (m.skipped) out.push(`${m.skipped} question(s) skipped: no distractors.`);
+      if (m.timeouts) out.push(`**${m.timeouts} call(s) passed the 8 s limit and count as misses.**`);
       out.push('');
     }
     out.push(modeTable(m.lines, m.outcomes));

@@ -8,6 +8,7 @@ import {
   outcome,
   percentile,
   renderReport,
+  isCallTimeout,
   replicaCallSql,
   rpcParams,
   summarise,
@@ -815,6 +816,19 @@ describe('rpcParams (what each mode sends)', () => {
   it('refuses a hybrid call for a question without text rather than sending an empty search', () => {
     expect(() => send('broad', 'match_documents_hybrid', line('q3', { question: '' }))).toThrow(/no question text/);
     expect(() => send('broad', 'match_documents_hybrid', line('q4', { question: undefined }))).toThrow(/no question text/);
+  });
+});
+
+describe('the call limit on the replica', () => {
+  it('states the limit in the call itself, since set role does not apply the role\'s timeout', () => {
+    expect(replicaCallSql('match_documents', { query_embedding: [1], match_count: 40 }, { limited: true }))
+      .toBe("set statement_timeout = '8s';\nselect coalesce(json_agg(t), '[]'::json) from (select * from public.match_documents('[1]'::extensions.vector, 40, null::uuid[], null)) t;");
+  });
+
+  it('tells a timeout from any other failure', () => {
+    expect(isCallTimeout(new Error('replica psql failed: ERROR:  canceling statement due to statement timeout'))).toBe(true);
+    expect(isCallTimeout(new Error('replica psql failed: ERROR:  keyword search unavailable'))).toBe(false);
+    expect(isCallTimeout('canceling statement due to statement timeout')).toBe(false);
   });
 });
 

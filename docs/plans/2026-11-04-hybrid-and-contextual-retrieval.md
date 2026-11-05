@@ -146,6 +146,9 @@ Done on `task/hybrid-search`, unmerged: T1, T3, T4, T5, T6. Nothing here has rea
 
 ### Still to check before T9
 
+- The eval did not enforce the 8 s limit on the replica before commit after `c5a766e4` (`set role` does not apply a role's
+  settings), so every local result to that point counted a slower call as a success. Ranking in those runs stands; any
+  call over 8 s there would have failed on NTER. Latency runs from now on count a timeout as a miss.
 - **Blocking:** cold hybrid latency on NTER against the 8 s limit. A local question took 12 to 22 s on its first call
   and 1.2 s on its second, on a far smaller cache than NTER's. (Month scan alone: warm about 0.2 s, cold 2 to 4 s.)
 - Vector-index recall: q-0003 and q-0022 are at exact ranks 35 and 28 but the index misses them.

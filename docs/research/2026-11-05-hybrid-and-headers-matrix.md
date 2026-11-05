@@ -61,8 +61,9 @@ in `eval/retrieval/results/2026-11-05-t7-exact-chunk-ranks.json`.
 
 ## Latency
 
-Feature search, 317 v2 calls, p95 in seconds, `authenticated` under RLS. The first pass ran after the Mac had slept
-partway through the night's run, and the host was still busy when the second pass began.
+Feature search, 317 v2 calls, p95 in seconds, `authenticated` under RLS. The Mac slept during the recipe arm, between
+the first and second passes, and the host was still busy when the second pass began. The recipe arm's latency is not
+valid and is left out.
 
 | Arm | Pass 1 | Pass 2 | Pass 3 | NCLT only, last pass |
 |---|---|---|---|---|
@@ -77,6 +78,10 @@ question timed twice in a row, as `authenticated` with no vectors in memory: 22.
 The local cluster has `shared_buffers` 512 MB in 3.8 GiB, shared by several 10 GB copies; NTER has 2 GB in 8 GB. The
 local figures cannot say what NTER does. A first call over the 8 s limit would fail, so cold latency on NTER blocks
 production until measured. Why the two copies differ cold is not established; the headers copy was compacted.
+
+The runs in this note did not enforce the 8 s limit: `set role authenticated` does not apply a role's settings, so a
+slow call was recorded as a success. On NTER the same call would have failed. Rankings above assume every call
+returns. The eval now states the limit in each call and counts a timeout as a miss.
 
 ## Not yet known
 
