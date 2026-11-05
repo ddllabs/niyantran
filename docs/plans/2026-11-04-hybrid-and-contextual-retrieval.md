@@ -126,8 +126,11 @@ Done on `task/hybrid-search`, unmerged: T1, T3, T4, T5, T6. Nothing here has rea
 
 - **T7 on the tuning sets** ([note](../research/2026-11-05-hybrid-and-headers-matrix.md)): hybrid only gains with nothing
   lost, the recipe adds nothing, and headers on every feature are not acceptable under D4 because they lose
-  Parliamentary Questions by the embedding itself. Headers on NCLT only is being measured as a sixth arm on
-  `niyantran_rehearsal_c2mixed`, from the existing vectors.
+  Parliamentary Questions by the embedding itself. Headers on NCLT only was measured as a sixth arm on
+  `niyantran_rehearsal_c2mixed`, from the existing vectors at no cost, and is the leading candidate: v2 feature doc@10
+  208 to 226 and broad 200 to 219 of 251, losing only NCLT questions (2 and 4). Hybrid only is the fallback. T7's
+  sealed run compares vector-only, hybrid only, and hybrid with NCLT headers. Broad latency for the mixed copy is
+  still to be timed.
 - The re-embedding tool built its indexes inside the update's transaction, which doubled them with old row versions.
   Fixed in `65384b9a`; the headers copy was compacted before any measurement.
 
@@ -146,7 +149,7 @@ Done on `task/hybrid-search`, unmerged: T1, T3, T4, T5, T6. Nothing here has rea
 
 ### Still to check before T9
 
-- The eval did not enforce the 8 s limit on the replica before commit after `c5a766e4` (`set role` does not apply a role's
+- The eval did not enforce the 8 s limit on the replica before `7eb55c61` (`set role` does not apply a role's
   settings), so every local result to that point counted a slower call as a success. Ranking in those runs stands; any
   call over 8 s there would have failed on NTER. Latency runs from now on count a timeout as a miss.
 - **Blocking:** cold hybrid latency on NTER against the 8 s limit. A local question took 12 to 22 s on its first call

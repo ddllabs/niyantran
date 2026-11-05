@@ -83,8 +83,33 @@ The runs in this note did not enforce the 8 s limit: `set role authenticated` do
 slow call was recorded as a success. On NTER the same call would have failed. Rankings above assume every call
 returns. The eval now states the limit in each call and counts a timeout as a miss.
 
+### Under the 8 s limit
+
+Later on 2026-11-05, feature search, 317 v2 calls, a timeout counted as a miss, NCLT compacted on every copy
+(`*-t7lim-*`). Seconds:
+
+| Arm | Run | Host load | p50 | p95 | Slowest | Timeouts | NCLT p95 |
+|---|---|---|---|---|---|---|---|
+| Vector-only | first | about 6 | 1.4 | 4.8 | 10.6 | 6 | 9.2 |
+| Vector-only | last | about 6 | 0.9 | 1.8 | 2.6 | 0 | 2.0 |
+| Hybrid only | first | about 6 to 13 | 1.4 | 5.9 | 15.2 | 7 | 8.8 |
+| Hybrid only | last | about 8 | 0.9 | 2.4 | 6.4 | 0 | 5.1 |
+| Hybrid, headers on NCLT | under load | about 20 | 1.3 to 1.7 | 9.2 to 9.9 | 20.5 | 31 and 32 | 9.4 to 13.3 |
+| Hybrid, headers on NCLT | quiet, first | about 5 | 1.3 | 3.6 | 9.3 | 4 | 8.3 |
+| Hybrid, headers on NCLT | quiet, second | about 7 | 1.1 | 3.3 | 7.6 | 0 | 5.7 |
+
+Host load is approximate, read at the start of a run or partway through. In the runs under load, even a trivial ping
+had a p95 of 1.1 s against 0.12 to 0.23 s elsewhere, and timeouts hit desks where hybrid does nothing; the copy
+was healthy when checked afterwards. Those two runs say nothing about the arm. With every call returning, NCLT hits are
+42/44/47 for hybrid and 44/47/48 for hybrid with NCLT headers, as above.
+
+Warm and quiet, both candidates finish inside the limit locally, with an NCLT p95 of about 5 to 6 s against 2 s for
+vector-only. Cold, every arm times out, vector-only included. Broad search with NCLT headers was timed only on an
+uncompacted copy under load, so it has no valid latency yet.
+
 ## Not yet known
 
-- Broad search with headers on NCLT only. Chunks with and without headers compete there, so it needs its own copy.
+- Broad search latency with headers on NCLT only. Its ranking is measured: on v2 doc@10 goes 200 to 219 of 251 generated
+  questions, losing only NCLT questions (4), against 216 for headers everywhere.
 - Whether a higher `ef_search`, or a rebuild with higher build parameters, recovers the index misses, and at what cost.
 - The sealed-set result.
