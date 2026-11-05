@@ -167,7 +167,7 @@ Written before any sealed question existed, and committed before the run.
 - With the 17 calls repeated once, reported separately: hybrid 21 with nothing lost, hybrid with NCLT headers 19 with 1 lost.
 - Neither candidate meets the latency bar locally. Headers gain in broad search (38 to 42 of 45), where hybrid does not act.
 
-Which reading stands is the developer's decision, after T8. The sealed set is spent; any change to the search after this
+T8 reviewed this on 2026-11-05 ([findings](../research/2026-11-05-hybrid-and-headers-matrix.md#gate-review-t8-2026-11-05)): changes requested, no production step yet. Which option goes forward is the developer's decision. The sealed set is spent; any change to the search after this
 needs a new set.
 
 ### Known limits of round 2
@@ -188,6 +188,15 @@ needs a new set.
 - The eval did not enforce the 8 s limit on the replica before `7eb55c61` (`set role` does not apply a role's
   settings), so every local result to that point counted a slower call as a success. Ranking in those runs stands; any
   call over 8 s there would have failed on NTER. Latency runs from now on count a timeout as a miss.
+- **Before the first production step (T8):** the migration refuses to run if NTER has any extra policy (55000), so read
+  NTER's policy text first. The GIN build holds ShareLock on every partition in one transaction and its duration is
+  unrecorded, so writes wait: apply with no ingestion running.
+- **Before the app switch (T8):** an app-side fallback from 57014 to `match_documents`, behind an `app_flags` kill switch
+  (F288), and the probe measured with a production-sized hidden list. The eval copies had 3 hidden documents.
+- **On NTER, first (T8):** cold then warm NCLT feature p95 and timeouts against `match_documents`, as `authenticated`,
+  twice; 57014 and 55000 counts; buffer hit ratio; a canary question naming an unpublished order's party, which must
+  return identical rows with and without that order. Stop on any 55000, a cold timeout where vector-only returns,
+  sustained p95 over the bar, a hit-ratio drop coinciding with slow windows, or a canary difference.
 - **Blocking:** cold hybrid latency on NTER against the 8 s limit. A local question took 12 to 22 s on its first call
   and 1.2 s on its second, on a far smaller cache than NTER's. (Month scan alone: warm about 0.2 s, cold 2 to 4 s.)
 - Vector-index recall: q-0003 and q-0022 are at exact ranks 35 and 28 but the index misses them.

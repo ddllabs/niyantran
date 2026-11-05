@@ -155,15 +155,34 @@ passes locally:
 | Hybrid only | v2, quiet, last | 2.37 s | 2.15 s | 7 |
 | Hybrid, NCLT headers | v2, quiet, last | 3.26 s | 2.15 s | 10 |
 | Hybrid, NCLT headers | sealed | 2.03 s | 1.83 s | 0 |
-| Hybrid only | sealed | not valid (above) | | |
+| Hybrid only | sealed | 11.2 s (the slow window above) | 1.83 s | 25, with 17 timeouts |
+
+Broad search on the sealed pass: vector-only p95 1.0 s, slowest 1.2 s, no timeouts; hybrid the same path, 1.1 s; NCLT
+headers p95 4.3 s, 5 calls over 4 s, one 13.8 s timeout, which fails the bar. Focused: vector-only p95 133 ms, NCLT headers
+555 ms. Every arm's figure above is stated as measured, including the hybrid pass inside the slow window.
 
 Broad search under the 8 s limit, 317 calls, compacted copies: vector-only last pass p50 1.0 s, p95 1.9 s, slowest 4.9 s;
 NCLT headers last pass p50 0.8 s, p95 1.9 s, slowest 4.9 s, no timeouts in either last pass. First passes each had one
 timeout. Its p95 is within the bar; its 3 calls over 4 s, against 1 for vector-only, are not.
 
-Slow windows hitting every desk have now appeared in three hybrid-side sessions on this cluster (the two runs under load
+Slow windows hitting every desk have now appeared in three hybrid-side runs on this cluster (the two runs under load
 above and this one). They were read as machine load, which fits the first two, but the cause of this one is unknown and
 hybrid's own cache pressure on a 512 MB buffer cannot be ruled out. See F286.
+
+### Gate review (T8, 2026-11-05)
+
+Fable, read-only, recomputed every sealed and `t7lim` figure from the raw files and found them accurate. It found no
+critical defect in the SQL and no test that passes on broken code, and reviewed the six `c473327b` fixes as correct.
+Verdict: changes requested, no production step yet.
+
+- As written, hybrid only fails and hybrid with NCLT headers passes recall but fails latency. With the repeats, hybrid
+  only passes recall and its latency is unmeasured. Neither passes in full.
+- The repeat is the sound reading for recall only: ranks are deterministic given the index, so a repeat recovers the true
+  rank and flatters only latency. The rule was fixed beforehand and hybrid's cache pressure is not excluded.
+- Hybrid only against headers, 21 to 19, is noise: four discordant questions, 3 to 1, sign test p about 0.6. Hybrid
+  against vector-only, 7 gained and 0 lost, is credible (p about 0.016). Headers against vector-only, 6 and 1, is marginal
+  (p about 0.13). Model-written questions copy party spellings exactly, which favours keyword search, so expect a smaller
+  gain from real users.
 
 ## Not yet known
 
