@@ -124,6 +124,13 @@ Done on `task/hybrid-search`, unmerged: T1, T3, T4, T5, T6. Nothing here has rea
   rehearsal file in the same batch records the migration hash above.
 - Latency of these runs is not a measurement: the re-embedding was competing for Docker.
 
+- **T7 on the tuning sets** ([note](../research/2026-11-05-hybrid-and-headers-matrix.md)): hybrid only gains with nothing
+  lost, the recipe adds nothing, and headers on every feature are not acceptable under D4 because they lose
+  Parliamentary Questions by the embedding itself. Headers on NCLT only is being measured as a sixth arm on
+  `niyantran_rehearsal_c2mixed`, from the existing vectors.
+- The re-embedding tool built its indexes inside the update's transaction, which doubled them with old row versions.
+  Fixed in `65384b9a`; the headers copy was compacted before any measurement.
+
 ### Known limits of round 2
 
 - The month parser reads an English month followed by a four-digit year. A day between them is missed.
@@ -139,8 +146,8 @@ Done on `task/hybrid-search`, unmerged: T1, T3, T4, T5, T6. Nothing here has rea
 
 ### Still to check before T9
 
-- Cold month scan on NTER against the 8 s limit (locally: warm about 0.2 s, cold 2 to 4 s; a local whole-month count
-  took 1.3 s).
+- **Blocking:** cold hybrid latency on NTER against the 8 s limit. A local question took 12 to 22 s on its first call
+  and 1.2 s on its second, on a far smaller cache than NTER's. (Month scan alone: warm about 0.2 s, cold 2 to 4 s.)
 - Vector-index recall: q-0003 and q-0022 are at exact ranks 35 and 28 but the index misses them.
 - The HNSW path with hidden rows, the migration run as the production role, and the production policy text.
 - Whether signed-in users can reach `retrieval_internal` while the Data API's "Automatically expose new tables" is on.
