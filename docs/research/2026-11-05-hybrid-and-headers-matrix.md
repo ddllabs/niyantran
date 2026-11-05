@@ -184,6 +184,12 @@ Verdict: changes requested, no production step yet.
   (p about 0.13). Model-written questions copy party spellings exactly, which favours keyword search, so expect a smaller
   gain from real users.
 
+### Decision (developer, 2026-11-06)
+
+Hybrid only goes forward; headers are a later decision (F289). [D5](../plans/2026-11-04-hybrid-and-contextual-retrieval.md#decisions-developer-2026-11-04)
+records the reasoning. The headers measured here are metadata labels built by code. No model wrote any context, so
+nothing in this note measures model-written chunk context.
+
 ## Not yet known
 
 - Whether a higher `ef_search`, or a rebuild with higher build parameters, recovers the index misses, and at what cost.

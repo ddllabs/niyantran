@@ -63,6 +63,18 @@ measured rather than argued.
 D1 to D4 approved as recommended: headers built from metadata; a second sealed set written by the developer;
 no reranker; the NCLT gate as stated.
 
+**D5 (developer, 2026-11-06): hybrid only goes forward.** Headers are not shipped and are a later decision (F289).
+
+- This takes the repeated-calls reading for recall, which T8 found sound for recall only. Hybrid was not shown to find
+  more than headers: 21 to 19 is noise. The choice rests on lower risk: 7 gained and 0 lost against vector-only, no
+  re-embedding, no rewrite of stored vectors, one embedding recipe, and a function that can simply stop being called.
+- It gives up the headers' broad-search gain (38 to 42 of 45), since hybrid acts in NCLT feature search only.
+- It grants no latency exception. Hybrid fails the local bar and its sealed latency is unmeasured, so cold latency on
+  NTER still blocks production.
+- "Contextual" in this plan's title means metadata headers. No model wrote any context, so the results say nothing about
+  D1's model-written alternatives.
+- The header code stays in the repository, off: `indexStep` passes no header, so rows stay byte-identical to today's.
+
 ## Decisions as proposed
 
 - **D1. What the header is.**
@@ -93,7 +105,7 @@ no reranker; the NCLT gate as stated.
 | T6. Hybrid round 2: fusion and candidate changes from T3 (the keyword side stays over `content`, see Outcome 2); the round 1 security properties kept, with the fixture extended | Sonnet builds, Opus reviews | the C1 migration (not applied anywhere, so revised in place), `supabase/tests/chunk_hybrid_search.sql`, `supabase/tests/run.sh` entry | T3, T4 | `npm run test:sql` (no VACUITY FAIL), the security probes of round 1 |
 | T7. The matrix on the copy: five arms × three sets, quiet machine, latency run twice | supervisor | `eval/retrieval/results/`, a research note | T2, T5, T6 | `--compare` per arm against vector-only; the sealed set run once, last |
 | T8. Gate review | Fable | none (report) | T7 | review notes |
-| T9. Production, each step separately authorized: headers in the worker and the re-embedding backfill (vectors loaded where `embed_hash` matches, the rest through the worker), then the hybrid migration, then the app switch | supervisor | runbook under `docs/operations/` | T8 and the developer's authorization | before-and-after measurement on NTER, as for Phase B |
+| T9. Production, each step separately authorized: the hybrid migration, then the app switch. Under D5 the steps for headers in the worker and the re-embedding backfill are out, unless F289 brings them back | supervisor | runbook under `docs/operations/` | T8 and the developer's authorization | before-and-after measurement on NTER, as for Phase B |
 
 - T1, T3 and T4 can run in parallel: their write scopes are disjoint. T5 waits on T4's header function and
   `embed_hash` rule. T6 waits on T3 and T4.
@@ -167,7 +179,7 @@ Written before any sealed question existed, and committed before the run.
 - With the 17 calls repeated once, reported separately: hybrid 21 with nothing lost, hybrid with NCLT headers 19 with 1 lost.
 - Neither candidate meets the latency bar locally. Headers gain in broad search (38 to 42 of 45), where hybrid does not act.
 
-T8 reviewed this on 2026-11-05 ([findings](../research/2026-11-05-hybrid-and-headers-matrix.md#gate-review-t8-2026-11-05)): changes requested, no production step yet. Which option goes forward is the developer's decision. The sealed set is spent; any change to the search after this
+T8 reviewed this on 2026-11-05 ([findings](../research/2026-11-05-hybrid-and-headers-matrix.md#gate-review-t8-2026-11-05)): changes requested, no production step yet. The developer chose hybrid only on 2026-11-06 (D5). The sealed set is spent; any change to the search after this
 needs a new set.
 
 ### Known limits of round 2
@@ -203,13 +215,13 @@ needs a new set.
 - The HNSW path with hidden rows, the migration run as the production role, and the production policy text.
 - Whether signed-in users can reach `retrieval_internal` while the Data API's "Automatically expose new tables" is on.
 - Whether the new function is reachable, since the Data API exposes only part of the schema's functions.
-- **Disk for the backfill.** An in-place update of every chunk doubled the tables and, before the tool was fixed, the
+- **Disk for the backfill (only if F289 brings headers back).** An in-place update of every chunk doubled the tables and, before the tool was fixed, the
   HNSW indexes on the rehearsal copy (tables 3.6 GB to 7.1 GB, NCLT index 877 MB to 1,754 MB). The space is not returned
   by a plain vacuum. NTER has a 20 GB disk with 12 GB used, of which 5.3 GB is the Phase B backup table, so the backfill
   needs that table dropped first or to run in batches with a vacuum between them. Decide this in the T9 runbook. Build
   HNSW indexes only after the old row versions are gone, or they are indexed too.
-- `indexStep` does not pass a header yet, and the supplied-text path freezes `embed_hash` at registration, so it needs
-  the header built in `prepareSuppliedText`. Both are T9 work.
+- Only if F289 brings headers back: `indexStep` does not pass a header yet, and the supplied-text path freezes `embed_hash` at registration, so it needs
+  the header built in `prepareSuppliedText`.
 
 ## Exclusions
 
