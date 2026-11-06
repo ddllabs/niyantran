@@ -100,6 +100,11 @@ chain() {
     ingest_register_batch|ingest_register_text_parity|ingest_register_batch_attack)
       chain document_chunks_partitions
       FILES+=("$TESTS/bootstrap_corpus_ingest.sql" "$(as_non_superuser 20261102130000_batch_registration.sql)") ;;
+    # F290: the admission lookups no longer scan the corpus. ingest_register_batch's chain, then the
+    # migration, as a non-superuser. The vacuity check drops the last.
+    ingest_admission_scans)
+      chain ingest_register_batch
+      FILES+=("$(as_non_superuser 20261106120000_admission_scans.sql)") ;;
     # F278 step 3 (B1): document_chunks partitioned by feature. pq_admission_links' chain plus the
     # other migrations whose functions read chunks (the readiness helper, the unscoped ef_search, the
     # feature search recovery), then the migration, all as a non-superuser. The vacuity check drops
@@ -1149,6 +1154,9 @@ fixture_sql() {
       cat backend/sql/operations/reset_test_billing.sql
     elif [ "$line" = '\i scripts/pq-row-refresh.sql' ]; then
       cat scripts/pq-row-refresh.sql
+    elif [ "$line" = '\i supabase/tests/ingest_register_batch.sql' ]; then
+      # Every case, without the closing rollback: the including fixture closes the transaction.
+      sed '/^rollback;$/d' supabase/tests/ingest_register_batch.sql
     elif [ "$line" = '\i supabase/migrations/20261101120000_document_chunks_partitioned.sql' ]; then
       cat supabase/migrations/20261101120000_document_chunks_partitioned.sql
     else

@@ -1,6 +1,9 @@
 -- Test-only indexes for the F287 load, on the disposable proof database. Not a migration, and nothing here
 -- is on NTER.
 --
+-- Superseded by 20261106120000_admission_scans.sql (F290). Kept as the record of what the F287 figures relied on:
+-- do not apply it alongside that migration.
+--
 -- ingest_admit_document scans every national document (pq_answer_key over file_url) and every question row
 -- (row->>'source_url') once per document admitted. On the full-size copy that is about 870 ms a document, so
 -- a 100-document ingest_register_batch call passes corpus_ingest's 60 s limit. These indexes let the load
