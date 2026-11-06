@@ -263,9 +263,28 @@ export interface RegisteredBatch {
   state: string;
 }
 
+/** The largest part of an ingest_register_batch call the harness sends; the function refuses over 8 MB. */
+export const MAX_CALL_BYTES = 7_000_000;
+
+/**
+ * Where the call starting at `start` ends: at most 100 documents and MAX_CALL_BYTES of JSON, counted on the
+ * whole request. A request also carries a row per chunk, so the text alone undercounts it.
+ */
+export function callEnd(requests: unknown[], start: number): number {
+  const encoder = new TextEncoder();
+  let end = start, bytes = 0;
+  while (end < requests.length && end - start < 100) {
+    const size = encoder.encode(JSON.stringify(requests[end])).length + 1;
+    if (end > start && bytes + size > MAX_CALL_BYTES) break;
+    bytes += size;
+    end += 1;
+  }
+  return end;
+}
+
 /**
  * Opens, fills, seals and registers one batch (at most 10,000 documents) as corpus_ingest. Documents go
- * up at most 100 and about 6 MB at a time, as the function allows.
+ * up at most 100 and 7 MB at a time (callEnd).
  */
 export async function registerBatch(
   runner: SupabaseClient,
@@ -296,11 +315,7 @@ export async function registerBatch(
   const results: RegisteredBatch['results'] = [];
   let state = opened.state ?? '';
   for (let i = 0; i < docs.length;) {
-    let j = i, bytes = 0;
-    while (j < docs.length && j - i < 100 && bytes + docs[j].request.payload.length * 1.3 < 6_000_000) {
-      bytes += docs[j++].request.payload.length * 1.3;
-    }
-    if (j === i) j = i + 1;
+    const j = callEnd(docs.map((d) => d.request), i);
     const res = await rpc<{ results: RegisteredBatch['results']; batch?: { state?: string } }>(
       runner,
       'ingest_register_batch',

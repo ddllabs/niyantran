@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertNotEquals } from 'jsr:@std/assert@1';
-import { pickChunkCount, synthDoc, MAX_SYNTH_CHUNKS, loadTextPool } from './synth.ts';
+import { callEnd, loadTextPool, MAX_CALL_BYTES, MAX_SYNTH_CHUNKS, pickChunkCount, synthDoc } from './synth.ts';
 import { rng } from './lib.ts';
 import { prepareSuppliedText } from '../../supabase/functions/_shared/suppliedText.ts';
 
@@ -43,4 +43,19 @@ Deno.test('a document at the largest size the generator asks for stays under the
     const d = await synthDoc({ tag: 'cap', n: n * 7919, chunks: MAX_SYNTH_CHUNKS, seed: 1, textPool });
     assert(d.chunks <= 800, `${d.chunks} chunks`);
   }
+});
+
+Deno.test('a registration call counts the whole request, not only its text', () => {
+  // Short text, and rows per chunk that hold nearly all the bytes: what the old estimate missed.
+  const request = { payload: 'x', expected: ['y'.repeat(1_000_000)] };
+  const requests = Array.from({ length: 20 }, () => request);
+  const end = callEnd(requests, 0);
+  assertEquals(end, 6);
+  assert(JSON.stringify(requests.slice(0, end)).length <= MAX_CALL_BYTES + 100);
+  assertEquals(callEnd(requests, end), 12);
+});
+
+Deno.test('a registration call stops at 100 documents, and one oversized document still goes alone', () => {
+  assertEquals(callEnd(Array.from({ length: 150 }, () => ({})), 0), 100);
+  assertEquals(callEnd([{ a: 'z'.repeat(9_000_000) }, {}], 0), 1);
 });
