@@ -20,5 +20,9 @@ create index concurrently if not exists lp_desk_rows_source_url
 -- changing what admission does. Rewriting the query as a UNION ALL gives the same plan (0.15 ms), and is the
 -- better fix for the real migration.
 alter function public.pq_answer_key(text) cost 100000;
+-- The hint did not hold. On 2026-11-06 at 04:42 UTC an automatic analyze moved the row estimate, the planner went
+-- back to the primary key, and a call that took 7 s passed 60 s. No index or cost makes this plan stable: the real
+-- fix is the UNION ALL rewrite. To finish the load, this copy turns plain index scans off inside admission only.
+alter function public.ingest_admit_document(jsonb, jsonb) set enable_indexscan = off;
 analyze public.documents;
 analyze public.desk_rows;
