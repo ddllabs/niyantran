@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertNotEquals } from 'jsr:@std/assert@1';
-import { pickChunkCount, synthDoc } from './synth.ts';
+import { pickChunkCount, synthDoc, MAX_SYNTH_CHUNKS, loadTextPool } from './synth.ts';
 import { rng } from './lib.ts';
 import { prepareSuppliedText } from '../../supabase/functions/_shared/suppliedText.ts';
 
@@ -35,4 +35,12 @@ Deno.test('chunk counts follow a given distribution, and the default is long-tai
   const xs = Array.from({ length: 500 }, () => pickChunkCount(next, null));
   assert(xs.every((x) => x >= 1 && x <= 120));
   assert(Math.max(...xs) > 3 * xs.sort((p, q) => p - q)[250], 'a tail longer than three medians');
+});
+
+Deno.test('a document at the largest size the generator asks for stays under the worker limit', async () => {
+  const textPool = await loadTextPool('bills');
+  for (let n = 1; n <= 40; n++) {
+    const d = await synthDoc({ tag: 'cap', n: n * 7919, chunks: MAX_SYNTH_CHUNKS, seed: 1, textPool });
+    assert(d.chunks <= 800, `${d.chunks} chunks`);
+  }
 });
