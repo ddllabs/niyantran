@@ -52,6 +52,13 @@ Stop and report on any of these: host below 6 GiB free; a failed job; a worker f
 sign of a server crash in the log; a chunk landing in the wrong partition; a request past its timeout. The idempotence check
 (no embedding call for work already committed) belongs to E1.
 
+## What changed in the measured runs
+
+- E4 gained a control, because repeats of the grown passes came out worse than the first ones: base and grown in one sitting,
+  in the order base, base, grown, grown, base.
+- E5 gained a second pair of windows, because the first window of each kind ran cold.
+- Registration ran with test-only indexes throughout, and the unindexed cost was measured first.
+
 ## Rollback
 
 Everything is local: drop `niyantran_ingest_load_test`, then run `scripts/load-proof/postgrest.sh down --drop-role`, which
