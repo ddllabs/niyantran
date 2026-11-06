@@ -108,6 +108,12 @@ chain() {
       chain pq_admission_links
       FILES+=("$(as_non_superuser 20261027231901_admin_corpus_readiness.sql)" "$(as_non_superuser 20261015130000_unscoped_ef_search.sql)"
               "$(as_non_superuser 20261027185840_feature_search_recovery.sql)" "$(as_non_superuser 20261101120000_document_chunks_partitioned.sql)") ;;
+    # F278 step 4 (C1): hybrid (keyword + vector) search. The partitions-and-policy pair's chain
+    # (law_documents_serving_set: partitions, then the policy), then the migration, as a non-superuser.
+    # The vacuity check drops the last.
+    chunk_hybrid_search)
+      chain law_documents_serving_set
+      FILES+=("$(as_non_superuser 20261102120000_chunk_hybrid_search.sql)") ;;
     # The law publication policy on documents evaluated once per query (same rows), the second of
     # the pair: document_chunks_partitions' chain (which ends with the partitions), then the
     # migration, as a non-superuser. The vacuity check drops the last.
@@ -924,6 +930,198 @@ document_chunks_partitions_checks() {
   q "drop database if exists $base" >/dev/null
   return $rc
 }
+# chunk_hybrid_search only. Schema retrieval_internal holds the keyword helper, a security definer function that
+# reads every chunk, so it must never be exposed through the API: supabase/config.toml's [api] schemas and
+# extra_search_path must not name it. Proved non-vacuous: the same check on a copy with it added must see it.
+# (The hosted project's "Exposed schemas" setting is the production counterpart and is checked by hand.)
+hybrid_exposure_check() {
+  local cfg=supabase/config.toml
+  api_schemas() { sed -n '/^\[api\]/,/^\[/p' "$1" | grep -E '^(schemas|extra_search_path)[[:space:]]*='; }
+  if ! api_schemas "$cfg" | grep -q '"public"'; then
+    echo "  EXPOSURE FAIL - could not read [api] schemas from $cfg"; return 1
+  fi
+  sed 's/^schemas = \[/schemas = ["retrieval_internal", /' "$cfg" > "$WORK/config_hybrid.toml"
+  if ! api_schemas "$WORK/config_hybrid.toml" | grep -q '"retrieval_internal"'; then
+    echo "  EXPOSURE FAIL - the check cannot see a schema added to [api] schemas"; return 1
+  fi
+  if api_schemas "$cfg" | grep -q '"retrieval_internal"'; then
+    echo "  EXPOSURE FAIL - schema retrieval_internal is exposed through the API in $cfg"; return 1
+  fi
+  echo "  exposure ok - schema retrieval_internal is not in [api] schemas or extra_search_path (and the check sees it when added)"
+}
+
+# chunk_hybrid_search only: the migration must not touch the billing and credits schema (named private, created by
+# the credits migrations; hard-stop scope). Three checks.
+#  * The migration names no schema called private, not even in a comment, and no other migration uses the name
+#    retrieval_internal (CREATE SCHEMA has no IF NOT EXISTS, so a clash would fail, not reuse).
+#  * ACLs: the schema's, every function's and every relation's in private, before and after the migration, on the
+#    chain without it. The hybrid chain does not include the credits migrations, so a stand-in is created first:
+#    the schema with the credits migration's own revoke, a table and a security definer function with the default
+#    (PUBLIC execute) ACL, so a stray grant or revoke on anything in private shows. The same snapshot must differ
+#    when a grant is added by hand (proof the check can see one).
+# chunk_hybrid_search only: the migration's last statement runs the helper's policy check on the database being
+# migrated. On a database whose access policies differ from the helper's list it must fail with 55000 and leave
+# nothing behind (one transaction); the same run without the drift must apply (so the check is not vacuous).
+hybrid_drift_rollback_check() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i f drift out left rc_m
+  local db=niyantran_chunk_hybrid_search_drift_test
+  local objs="select (select count(*) from pg_namespace where nspname = 'retrieval_internal')
+                   + (select count(*) from pg_class where relname = 'document_chunks_content_tsv')
+                   + (select count(*) from pg_proc where proname in ('hybrid_candidate_ids', 'match_documents_hybrid'))"
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  for drift in "alter policy law_documents_serving on public.documents rename to law_documents_serving_x" ""; do
+    q "drop database if exists $db" >/dev/null; q "create database $db" >/dev/null
+    i=0
+    for f in "${FILES[@]}"; do
+      i=$((i+1)); [ $i -eq $n ] && break
+      psql_in $db < "$f" >/dev/null 2>&1 || { echo "  DRIFT: bootstrap broke at $(basename "$f")"; q "drop database if exists $db" >/dev/null; return 1; }
+    done
+    [ -n "$drift" ] && q "$drift" -d $db >/dev/null
+    out="$({ echo '\set VERBOSITY verbose'; cat "$guard"; } | psql_in $db 2>&1)" && rc_m=0 || rc_m=$?
+    left="$(q "$objs" -d $db)"
+    q "drop database if exists $db" >/dev/null
+    if [ -n "$drift" ]; then
+      if [ $rc_m -eq 0 ] || ! grep -q 'ERROR:  55000: keyword search unavailable' <<<"$out" || [ "$left" != 0 ]; then
+        echo "  DRIFT FAIL - on a drifted database the migration must fail with 55000 and leave nothing (exit $rc_m, objects left $left)"; return 1
+      fi
+    elif [ $rc_m -ne 0 ] || [ "$left" != 4 ]; then
+      echo "  DRIFT FAIL - without drift the migration did not apply (exit $rc_m, objects $left)"; return 1
+    fi
+  done
+  echo "  drift ok - a drifted database refuses the migration with 55000 and keeps nothing; without drift it applies"
+}
+
+# chunk_hybrid_search only: the fixture's guards, each proved against the defect it guards. The migration is mutated once per
+# defect (a perl substitution on the as-non-superuser copy; a mutation that changes nothing fails the check, so a reworded
+# migration cannot make a mutation silently vanish). Each mutated migration must still APPLY, and the fixture must then
+# FAIL on one of its own assertions ("FAIL:"), not on an error. Round 2 added the title gate, the month list and the
+# similarity order to the helper; the paths that read rows (the probe, the titles, the keyword scan, the month scan) must each
+# keep hidden documents out, which is why each exclusion has its own mutation. The chain without the migration is built once
+# and copied for each mutation.
+hybrid_mutation_checks() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f rc=0 k out
+  local base=niyantran_chunk_hybrid_search_mutbase_test db=niyantran_chunk_hybrid_search_mut_test
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  local names=(
+    "title count includes unpublished orders"
+    "title count includes unindexed orders"
+    "title count ignores the feature"
+    "name gate removed"
+    "probe counts unpublished chunks"
+    "probe ignores the feature"
+    "keyword scan returns unpublished chunks"
+    "month scans return unpublished chunks"
+    "month scans ignore the tier"
+    "month scans keep chunks without a vector"
+    "keyword list ordered by id, not by distance"
+    "month cap removed"
+    "month list left out of the fusion"
+    "invoker's existence check removed"
+    "drift guard ignores a policy's command"
+    "drift guard blind to a space inside a literal"
+    "word budget one too small"
+    "word budget one too large")
+  local exprs=(
+    's/\n         and d\.id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n    \),/\n    ),/'
+    's/where d\.indexed_at is not null\n         and \(p_desk_feature is null/where (p_desk_feature is null/'
+    's/(where d\.indexed_at is not null\n)         and \(p_desk_feature is null or d\.desk_feature = p_desk_feature\)\n/$1/'
+    's/where n\.n between 1 and c_name_df_max/where n.n >= 1/'
+    's/\n               and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n             limit c_rare_df_max/\n             limit c_rare_df_max/'
+    's/\n               and \(p_desk_feature is null or c\.desk_feature = p_desk_feature\)(\n               and c\.document_id is not null)/$1/'
+    's/\n         and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n    \),\n    admitted/\n    ),\n    admitted/'
+    's/\n\s+and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)(\n\s+limit c_month_max_chunks)/$1/g'
+    's/\n\s+and \(p_desk_tier is null or d\.desk_tier = p_desk_tier\)(\n\s+and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n\s+limit c_month_max_chunks)/$1/g'
+    's/(c\.doc_date < v_to)\n\s+and c\.embedding is not null/$1/g'
+    's/order by k\.dist, k\.id/order by k.id/'
+    's/if v_mn <= c_month_max_chunks then/if true then/'
+    's/ \+ coalesce\(1\.0 \/ \(c_rrf_k \+ m\.rn\), 0\)//'
+    's/\n   where exists \(select 1 from public\.document_chunks c where c\.id = h\.id and c\.desk_feature = c_nclt\)//'
+    's/(case when p\.polpermissive then \x27permissive\x27 else \x27restrictive\x27 end,) p\.polcmd,/$1 \x27r\x27,/'
+    's/regexp_replace\(regexp_replace\(coalesce\(pg_get_expr\(p\.polqual/regexp_replace(regexp_replace(regexp_replace(coalesce(pg_get_expr(p.polqual/; s/(pg_get_expr\(p\.polqual.*?\x27\\s\+\x27, \x27 \x27, \x27g\x27\)),/$1, \x27supplied ?- ?text\x27, \x27supplied-text\x27, \x27g\x27),/s'
+    's/v_sum \+ v_df <= c_match_budget/v_sum + v_df < c_match_budget/'
+    's/v_sum \+ v_df <= c_match_budget/v_sum + v_df <= c_match_budget + 1/')
+  q "drop database if exists $base" >/dev/null; q "create database $base" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $base < "$f" >/dev/null 2>&1 || { echo "  MUTATION: bootstrap broke at $(basename "$f")"; q "drop database if exists $base" >/dev/null; return 1; }
+  done
+  for k in "${!names[@]}"; do
+    perl -0pe "${exprs[$k]}" "$guard" > "$WORK/hybrid_mutant.sql"
+    if cmp -s "$guard" "$WORK/hybrid_mutant.sql"; then
+      echo "  MUTATION FAIL - '${names[$k]}' did not change the migration (the pattern no longer matches)"; rc=1; continue
+    fi
+    q "drop database if exists $db" >/dev/null; q "create database $db template $base" >/dev/null
+    if ! psql_in $db < "$WORK/hybrid_mutant.sql" > "$WORK/hybrid_mutant.out" 2>&1; then
+      echo "  MUTATION FAIL - '${names[$k]}': the mutated migration does not apply"; sed 's/^/    /' "$WORK/hybrid_mutant.out" | head -3; rc=1; q "drop database if exists $db" >/dev/null; continue
+    fi
+    if out="$(fixture_sql chunk_hybrid_search | psql_in $db 2>&1)"; then
+      echo "  MUTATION FAIL - the fixture still passes with: ${names[$k]}"; rc=1
+    elif ! grep -q 'FAIL:' <<<"$out"; then
+      echo "  MUTATION FAIL - with '${names[$k]}' the fixture stopped on an error, not on an assertion:"; grep -m2 ERROR <<<"$out" | sed 's/^/    /'; rc=1
+    else
+      echo "  mutation ok - fails with: ${names[$k]}  [$(grep -m1 'FAIL:' <<<"$out" | sed 's/^ERROR:  FAIL: //' | cut -c1-110)]"
+    fi
+    q "drop database if exists $db" >/dev/null
+  done
+  q "drop database if exists $base" >/dev/null
+  return $rc
+}
+
+hybrid_private_check() {
+  local mig="$MIG/20261102120000_chunk_hybrid_search.sql" guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f
+  local db=niyantran_chunk_hybrid_search_acl_test
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  if grep -qiw private "$mig"; then
+    echo "  PRIVATE FAIL - the migration names the schema private:"; grep -niw private "$mig" | head -3 | sed 's/^/    /'; return 1
+  fi
+  if grep -rlw retrieval_internal "$MIG" | grep -vq '20261102120000_chunk_hybrid_search.sql'; then
+    echo "  PRIVATE FAIL - another migration uses the name retrieval_internal:"; grep -rlw retrieval_internal "$MIG" | grep -v chunk_hybrid_search | sed 's/^/    /'; return 1
+  fi
+  if ! grep -q '^create schema retrieval_internal;' "$mig"; then
+    echo "  PRIVATE FAIL - the migration must create its schema with a plain CREATE SCHEMA (no IF NOT EXISTS)"; return 1
+  fi
+  q "drop database if exists $db" >/dev/null
+  q "create database $db" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $db < "$f" >/dev/null 2>&1 || { echo "  PRIVATE: bootstrap broke at $(basename "$f")"; return 1; }
+  done
+  psql_in $db >/dev/null 2>&1 <<'SQL' || { echo "  PRIVATE FAIL - could not create the stand-in"; return 1; }
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated, service_role;
+create table if not exists private.acl_sentinel (x int);
+create or replace function private.acl_sentinel_fn() returns int language sql security definer as $f$ select 1 $f$;
+SQL
+  local snap="select string_agg(l, E'\n' order by l) from (
+      select 'schema ' || coalesce(nspacl::text, '-') || ' owner ' || nspowner::regrole::text as l from pg_namespace where nspname = 'private'
+      union all select 'func ' || p.oid::regprocedure::text || ' ' || coalesce(p.proacl::text, '-') || ' owner ' || p.proowner::regrole::text
+        from pg_proc p where p.pronamespace = 'private'::regnamespace
+      union all select 'rel ' || c.relname || ' ' || coalesce(c.relacl::text, '-') || ' owner ' || c.relowner::regrole::text
+        from pg_class c where c.relnamespace = 'private'::regnamespace
+      union all select 'col ' || c.relname || '.' || a.attname || ' ' || a.attacl::text
+        from pg_attribute a join pg_class c on c.oid = a.attrelid where c.relnamespace = 'private'::regnamespace and a.attacl is not null
+      union all select 'default ' || d.defaclobjtype::text || ' ' || d.defaclacl::text from pg_default_acl d where d.defaclnamespace = 'private'::regnamespace
+    ) x"
+  local before after
+  before="$(q "$snap" -d $db)"
+  if [ -z "$before" ] || ! printf '%s' "$before" | grep -q 'func private.acl_sentinel_fn'; then
+    echo "  PRIVATE FAIL - the snapshot did not see the stand-in objects"; q "drop database if exists $db" >/dev/null; return 1
+  fi
+  psql_in $db < "$guard" >/dev/null 2>&1 || { echo "  PRIVATE FAIL - the migration did not apply"; q "drop database if exists $db" >/dev/null; return 1; }
+  after="$(q "$snap" -d $db)"
+  q "grant usage on schema private to authenticated" -d $db >/dev/null
+  local changed
+  changed="$(q "$snap" -d $db)"
+  q "drop database if exists $db" >/dev/null
+  if [ "$before" != "$after" ]; then
+    echo "  PRIVATE FAIL - the migration changed an ACL in private:"; diff <(printf '%s\n' "$before") <(printf '%s\n' "$after") | head -6 | sed 's/^/    /'; return 1
+  fi
+  if [ "$changed" = "$after" ]; then
+    echo "  PRIVATE FAIL - the snapshot cannot see a grant added by hand"; return 1
+  fi
+  echo "  private ok - the migration names no such schema, uses a fresh schema name, and changes no ACL in private ($(printf '%s\n' "$before" | wc -l | tr -d ' ') entries compared; a grant added by hand is seen)"
+}
+
 credit_paise_atomic_check() {
   local db="$1" line
   : > "$WORK/credit_paise_atomic.expanded.sql"
@@ -986,6 +1184,7 @@ run_fixture() {
     [ "$name" = billing_purchases ] && { bash "$TESTS/billing_concurrency.sh" || rc=1; }
     [ "$name" = credit_paise_contract ] && { credit_paise_atomic_check "$db" || rc=1; }
     [ "${VACUITY:-1}" = 1 ] && { vacuity_check "$name" || rc=1; }
+    [ "$name" = chunk_hybrid_search ] && { hybrid_exposure_check || rc=1; hybrid_private_check || rc=1; hybrid_drift_rollback_check || rc=1; hybrid_mutation_checks || rc=1; }
     [ "$name" = corpus_records ] && { corpus_records_checks || rc=1; }
     [ "$name" = document_chunks_partitions ] && { document_chunks_partitions_checks || rc=1; }
     [ "$name" = feed_records ] && { feed_records_checks || rc=1; }

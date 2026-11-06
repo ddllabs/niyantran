@@ -2,6 +2,7 @@
 // notes: uncertain layout stays ordinary text. Versions 2 and 3 remain unchanged.
 import { CHUNK, blocks, tableHeaderPrefix, chunkUnit, estimateTokens, type ChunkRow, type PageSection } from './chunking.ts';
 import { normalise, sha256Hex } from './textNormalise.ts';
+import { chunkHeaderPrefix } from './chunkHeader.ts';
 
 export const TEXT_CONTEXT_VERSION = 4;
 export interface ContextChunk extends ChunkRow {
@@ -87,8 +88,19 @@ function regions(text: string): Region[] {
   return out;
 }
 
+export interface ContextOptions {
+  /**
+   * The document's contextual header (chunkHeader.ts buildChunkHeader), put in front of every chunk's
+   * embedding input. Off when absent or empty: the rows are then byte-identical to today's. Only
+   * embedding_input and embed_hash see it; chunkHash is derived from the input WITHOUT the header, so a
+   * chunk keeps its identity, its token estimate and its place when the header is switched on.
+   */
+  header?: string;
+}
+
 /** Pack within each detected section, retaining exact global source offsets. */
-export async function chunkTextWithContext(text: string): Promise<ContextChunk[]> {
+export async function chunkTextWithContext(text: string, options: ContextOptions = {}): Promise<ContextChunk[]> {
+  const headerPrefix = chunkHeaderPrefix(options.header);
   const boundaries = regions(text);
   const rows: ContextChunk[] = [];
   for (let i = 0; i < boundaries.length; i++) {
@@ -110,14 +122,17 @@ export async function chunkTextWithContext(text: string): Promise<ContextChunk[]
     }
     const prefix = [section.heading, section.note].filter(Boolean).join(' › ');
     for (const s of spans) {
-      const embedding_input = (prefix ? prefix + '\n\n' : '') + tableHeaderPrefix(regionText, tables, s.charFrom) + s.content;
-      const embed_hash = await sha256Hex(normalise(embedding_input));
+      const bare = (prefix ? prefix + '\n\n' : '') + tableHeaderPrefix(regionText, tables, s.charFrom) + s.content;
+      const bareHash = await sha256Hex(normalise(bare));
+      const embedding_input = headerPrefix + bare;
+      const embed_hash = headerPrefix ? await sha256Hex(normalise(embedding_input)) : bareHash;
       rows.push({
         ...s, charFrom: from + s.charFrom, charTo: from + s.charTo,
         chunkIndex: rows.length,
-        // Context changes invalidate reuse, even for identical continuation text.
-        chunkHash: await sha256Hex(`${TEXT_CONTEXT_VERSION}|document|${embed_hash}`),
-        tokenEstimate: estimateTokens(embedding_input), section: { ...section },
+        // Context changes invalidate reuse, even for identical continuation text. The section context is part
+        // of the identity; the document header is not (bareHash), so switching it on re-embeds, not re-identifies.
+        chunkHash: await sha256Hex(`${TEXT_CONTEXT_VERSION}|document|${bareHash}`),
+        tokenEstimate: estimateTokens(bare), section: { ...section },
         embedding_input, embed_hash,
       });
     }

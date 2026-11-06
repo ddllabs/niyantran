@@ -8,6 +8,9 @@ import {
   outcome,
   percentile,
   renderReport,
+  isCallTimeout,
+  replicaCallSql,
+  rpcParams,
   summarise,
   summariseByFeature,
 } from './retrievalEval.js';
@@ -773,5 +776,87 @@ describe('developer questions have their own figures and their own "no worse" ju
       expect(out).toContain('Lost developer questions (broad document hit@10): 1');
       expect(out).toContain(`| d01 | ${BILLS} | 3 | 25 |`);
     });
+  });
+});
+
+describe('rpcParams (what each mode sends)', () => {
+  const l = line('q1', { question: "What did the Tribunal hold in Smith's case?", gold_document_ids: ['g1', 'g2'], distractor_ids: ['x1', 'x2'], desk_feature: NCLT });
+  const vector = [0.1, 0.2];
+  const send = (mode, rpc = 'match_documents', over = l) => rpcParams({ rpc, mode, line: over, vector, matchCount: 40 });
+
+  it('keeps match_documents exactly as before: no query text in any mode', () => {
+    expect(send('broad')).toEqual({ query_embedding: vector, match_count: 40 });
+    expect(send('focused')).toEqual({ query_embedding: vector, match_count: 40, p_document_ids: ['g1', 'g2'] });
+    expect(send('focused-multi')).toEqual({ query_embedding: vector, match_count: 40, p_document_ids: ['g1', 'g2', 'x1', 'x2'] });
+    expect(send('feature')).toEqual({ query_embedding: vector, match_count: 40, p_document_ids: null, p_desk_tier: null, p_desk_feature: NCLT });
+  });
+
+  it('skips focused-multi for a question with no distractors', () => {
+    expect(send('focused-multi', 'match_documents', line('q2'))).toBeNull();
+    expect(send('focused-multi', 'match_documents_hybrid', line('q2'))).toBeNull();
+  });
+
+  it('sends the question text with the frozen vector to the hybrid RPC, in every mode', () => {
+    for (const mode of ['broad', 'focused', 'focused-multi', 'feature']) {
+      const hybrid = send(mode, 'match_documents_hybrid');
+      const vectorOnly = send(mode);
+      expect(hybrid.query_text, mode).toBe(l.question);
+      expect(hybrid.query_embedding, mode).toBe(vector);
+      // The scope is identical to the vector-only call; only the text is added.
+      const { query_text: _text, ...scope } = hybrid;
+      expect(scope, mode).toEqual(vectorOnly);
+    }
+  });
+
+  it('treats a variant of the hybrid RPC (a candidate under test) the same way', () => {
+    expect(send('broad', 'match_documents_hybrid_exp').query_text).toBe(l.question);
+    expect(send('broad', 'match_documents_hybridish')).not.toHaveProperty('query_text');
+  });
+
+  it('refuses a hybrid call for a question without text rather than sending an empty search', () => {
+    expect(() => send('broad', 'match_documents_hybrid', line('q3', { question: '' }))).toThrow(/no question text/);
+    expect(() => send('broad', 'match_documents_hybrid', line('q4', { question: undefined }))).toThrow(/no question text/);
+  });
+});
+
+describe('the call limit on the replica', () => {
+  it('states the limit in the call itself, since set role does not apply the role\'s timeout', () => {
+    expect(replicaCallSql('match_documents', { query_embedding: [1], match_count: 40 }, { limited: true }))
+      .toBe("set statement_timeout = '8s';\nselect coalesce(json_agg(t), '[]'::json) from (select * from public.match_documents('[1]'::extensions.vector, 40, null::uuid[], null)) t;");
+  });
+
+  it('tells a timeout from any other failure', () => {
+    expect(isCallTimeout(new Error('replica psql failed: ERROR:  canceling statement due to statement timeout'))).toBe(true);
+    expect(isCallTimeout(new Error('replica psql failed: ERROR:  keyword search unavailable'))).toBe(false);
+    expect(isCallTimeout('canceling statement due to statement timeout')).toBe(false);
+  });
+});
+
+describe('replicaCallSql (the replica backend\'s call)', () => {
+  const vector = [0.5, 1];
+  it('calls match_documents positionally, as the replica baseline always did', () => {
+    expect(replicaCallSql('match_documents', { query_embedding: vector, match_count: 40 }))
+      .toBe("select * from public.match_documents('[0.5,1]'::extensions.vector, 40, null::uuid[], null)");
+    expect(replicaCallSql('match_documents', { query_embedding: vector, match_count: 40, p_document_ids: ['a', 'b'], p_desk_tier: 'law', p_desk_feature: "N'C" }))
+      .toBe("select * from public.match_documents('[0.5,1]'::extensions.vector, 40, array['a','b']::uuid[], 'law', 'N''C')");
+    expect(replicaCallSql('match_documents', { query_embedding: vector, match_count: 40, p_document_ids: null, p_desk_tier: null, p_desk_feature: null }))
+      .toBe("select * from public.match_documents('[0.5,1]'::extensions.vector, 40, null::uuid[], null, null)");
+  });
+
+  it('puts the question text second for the hybrid RPC, quoted', () => {
+    expect(replicaCallSql('match_documents_hybrid', { query_embedding: vector, query_text: "Smith's \"case\" \\ 12/2019", match_count: 40 }))
+      .toBe("select * from public.match_documents_hybrid('[0.5,1]'::extensions.vector, 'Smith''s \"case\" \\ 12/2019', 40, null::uuid[], null)");
+    expect(replicaCallSql('match_documents_hybrid', { query_embedding: vector, query_text: 'q', match_count: 40, p_document_ids: null, p_desk_tier: null, p_desk_feature: NCLT }))
+      .toBe(`select * from public.match_documents_hybrid('[0.5,1]'::extensions.vector, 'q', 40, null::uuid[], null, '${NCLT}')`);
+  });
+
+  it('orders a hybrid variant\'s arguments like the hybrid RPC', () => {
+    expect(replicaCallSql('match_documents_hybrid_exp', { query_embedding: vector, query_text: 'q', match_count: 40 }))
+      .toBe("select * from public.match_documents_hybrid_exp('[0.5,1]'::extensions.vector, 'q', 40, null::uuid[], null)");
+  });
+
+  it('refuses a hybrid call without text and a function name that is not an identifier', () => {
+    expect(() => replicaCallSql('match_documents_hybrid', { query_embedding: vector, match_count: 40 })).toThrow(/query_text/);
+    expect(() => replicaCallSql('match_documents; drop table x', { query_embedding: vector, match_count: 40 })).toThrow(/bad function name/);
   });
 });

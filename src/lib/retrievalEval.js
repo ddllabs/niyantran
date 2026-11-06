@@ -356,6 +356,68 @@ export function percentile(values, p) {
   return sorted[Math.ceil((p / 100) * sorted.length) - 1];
 }
 
+/** The search RPCs that also take the question's text (keyword side) with its vector: the hybrid RPC and its variants. */
+const isTextRpc = (rpc) => /^match_documents_hybrid(_[a-z0-9_]+)?$/.test(rpc);
+
+/**
+ * The parameters one question sends in one mode, or null when the mode does not apply to it
+ * (focused-multi needs distractors). Every mode sends the question's frozen vector; a hybrid RPC
+ * (isTextRpc) also gets the question's text as `query_text`, with the same scope as the vector-only call.
+ */
+export function rpcParams({ rpc, mode, line, vector, matchCount }) {
+  const base = { query_embedding: vector, match_count: matchCount };
+  let params;
+  if (mode === 'broad') params = base;
+  else if (mode === 'focused') params = { ...base, p_document_ids: line.gold_document_ids };
+  else if (mode === 'focused-multi') {
+    if (!line.distractor_ids.length) return null;
+    params = { ...base, p_document_ids: [...line.gold_document_ids, ...line.distractor_ids] };
+  } else if (mode === 'feature') params = { ...base, p_document_ids: null, p_desk_tier: null, p_desk_feature: line.desk_feature };
+  else throw new Error(`unknown mode ${mode}`);
+  if (!isTextRpc(rpc)) return params;
+  if (typeof line.question !== 'string' || !line.question.trim()) throw new Error(`${line.id}: no question text to send to ${rpc}`);
+  return { ...params, query_text: line.question };
+}
+
+/**
+ * The limit a signed-in user's call has on NTER. `set role` does not apply a role's settings, so the replica states it
+ * in each call. Without this a call of 22 s counted as a success.
+ */
+const CALL_LIMIT = '8s';
+
+/** Positional parameters of each RPC: the leading ones always sent, the rest only when the call sets them. */
+const RPC_ARGS = {
+  match_documents: { names: ['query_embedding', 'match_count', 'p_document_ids', 'p_desk_tier', 'p_desk_feature'], required: 4 },
+  match_documents_hybrid: { names: ['query_embedding', 'query_text', 'match_count', 'p_document_ids', 'p_desk_tier', 'p_desk_feature'], required: 5 },
+};
+
+/**
+ * The SQL the replica backend runs for one call (scripts/eval-retrieval.mjs, as `authenticated`):
+ * positional arguments in the RPC's declared order. A candidate with another name is called like
+ * match_documents. p_desk_feature is sent only when the params carry the key, so a replica whose
+ * function predates it still runs the broad and focused modes.
+ */
+export function replicaCallSql(fn, params, { limited = false } = {}) {
+  if (!/^[a-z_][a-z0-9_]*$/.test(fn)) throw new Error(`bad function name ${fn}`);
+  const spec = isTextRpc(fn) ? RPC_ARGS.match_documents_hybrid : (RPC_ARGS[fn] ?? RPC_ARGS.match_documents);
+  if (isTextRpc(fn) && typeof params.query_text !== 'string') throw new Error(`${fn} needs query_text`);
+  const lit = (v) => `'${String(v).replace(/'/g, "''")}'`;
+  const render = {
+    query_embedding: (v) => `${lit(JSON.stringify(v))}::extensions.vector`,
+    query_text: lit,
+    match_count: (v) => String(Number(v)),
+    p_document_ids: (v) => (v ? `array[${v.map(lit).join(',')}]::uuid[]` : 'null::uuid[]'),
+    p_desk_tier: (v) => (v ? lit(v) : 'null'),
+    p_desk_feature: (v) => (v ? lit(v) : 'null'),
+  };
+  const args = spec.names.filter((name, i) => i < spec.required || name in params).map((name) => render[name](params[name] ?? null));
+  const call = `select * from public.${fn}(${args.join(', ')})`;
+  return limited ? `set statement_timeout = '${CALL_LIMIT}';\nselect coalesce(json_agg(t), '[]'::json) from (${call}) t;` : call;
+}
+
+/** Whether a failed call is the statement timeout: production would have returned an error to the user. */
+export const isCallTimeout = (err) => err instanceof Error && /canceling statement due to statement timeout/.test(err.message);
+
 /** Report order for modes; any other mode follows, alphabetically. */
 export const MODE_ORDER = ['broad', 'focused', 'focused-multi', 'feature'];
 const MATCH_COUNT = 40;
@@ -449,6 +511,7 @@ export function renderReport(run) {
       const perDoc = Math.ceil(MATCH_COUNT / MULTI_DOCS);
       out.push(`Gold plus four distractors: the per-document quota is ceil(${MATCH_COUNT}/${MULTI_DOCS}) = ${perDoc} rows, so chunk hit@k for k > ${perDoc} is capped.`);
       if (m.skipped) out.push(`${m.skipped} question(s) skipped: no distractors.`);
+      if (m.timeouts) out.push(`**${m.timeouts} call(s) passed the 8 s limit and count as misses.**`);
       out.push('');
     }
     out.push(modeTable(m.lines, m.outcomes));
