@@ -1,0 +1,31 @@
+document_chunks_bills | 445183 | 516071424 | 3645497344 | 1262174208 | 5465161728
+document_chunks_nclt | 225300 | 283639808 | 1845477376 | 1004568576 | 3154698240
+document_chunks_regulatory | 222550 | 290512896 | 1823268864 | 709615616 | 2844155904
+document_chunks_default | 73578 | 87826432 | 603783168 | 328769536 | 1027301376
+ingest_text_inputs | 21494 | 5472256 | 589905920 | 974848 | 603373568
+documents | 39606 | 61186048 | 268763136 | 32718848 | 366747648
+record_document_links | 21794 | 15736832 | 0 | 5332992 | 21110784
+desk_rows | 22521 | 9420800 | 0 | 10002432 | 19464192
+ingest_batch_items | 22521 | 7593984 | 0 | 3981312 | 11616256
+ingest_jobs | 21494 | 5996544 | 0 | 2744320 | 8781824
+ingest_batches | 89 | 147456 | 0 | 73728 | 253952
+index | document_chunks_bills_embedding_halfvec_hnsw | 1092313088
+index | document_chunks_regulatory_embedding_halfvec_hnsw | 614539264
+index | document_chunks_bills_document_id_chunk_hash_desk_feature_key | 87089152
+index | document_chunks_regulatory_document_id_chunk_hash_desk_feat_key | 48742400
+index | document_chunks_bills_id_desk_feature_key | 41967616
+index | document_chunks_bills_document_id_chunk_index_idx | 25862144
+index | document_chunks_regulatory_id_desk_feature_key | 25190400
+index | document_chunks_regulatory_document_id_chunk_index_idx | 13230080
+index | document_chunks_bills_desk_feature_doc_date_idx | 5070848
+index | document_chunks_bills_desk_feature_desk_tier_idx | 4964352
+index | document_chunks_bills_desk_feature_language_idx | 4907008
+index | document_chunks_regulatory_desk_feature_desk_tier_idx | 2637824
+index | document_chunks_regulatory_desk_feature_doc_date_idx | 2637824
+index | document_chunks_regulatory_desk_feature_language_idx | 2637824
+db | 13545330355
+wal setting | checkpoint_timeout | 300
+wal setting | full_page_writes | on
+wal setting | max_wal_size | 1024
+wal setting | shared_buffers | 65536
+wal setting | wal_compression | off

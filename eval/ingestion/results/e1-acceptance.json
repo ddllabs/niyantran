@@ -1,0 +1,704 @@
+{
+ "suite": "F287 E1",
+ "mode": "prove",
+ "finished": "2026-11-06T03:08:17.055Z",
+ "database": "niyantran_ingest_load_sample_test",
+ "checks": [
+  {
+   "case": "single",
+   "check": "bills: the job succeeded",
+   "ok": true,
+   "detail": "{\"document_id\":\"a66c5247-8154-4a38-8c7f-925c3da90f83\",\"status\":\"succeeded\",\"stage\":\"done\",\"error_code\":null,\"batch_id\":null}"
+  },
+  {
+   "case": "single",
+   "check": "bills: chunks are in document_chunks_bills",
+   "ok": true,
+   "detail": "[{\"part\":\"document_chunks_bills\",\"n\":8}]"
+  },
+  {
+   "case": "single",
+   "check": "bills: every planned chunk is stored",
+   "ok": true,
+   "detail": "8 of 8"
+  },
+  {
+   "case": "single",
+   "check": "bills: chunk facets equal the document",
+   "ok": true,
+   "detail": "0 chunks differ; document is national|Bill Passage Probability Index"
+  },
+  {
+   "case": "single",
+   "check": "bills: a search as authenticated returns the document",
+   "ok": true,
+   "detail": "scoped true, unscoped true"
+  },
+  {
+   "case": "single",
+   "check": "nclt: the job succeeded",
+   "ok": true,
+   "detail": "{\"document_id\":\"e5a90b5b-1035-425c-a076-f0bad3650b29\",\"status\":\"succeeded\",\"stage\":\"done\",\"error_code\":null,\"batch_id\":null}"
+  },
+  {
+   "case": "single",
+   "check": "nclt: chunks are in document_chunks_nclt",
+   "ok": true,
+   "detail": "[{\"part\":\"document_chunks_nclt\",\"n\":8}]"
+  },
+  {
+   "case": "single",
+   "check": "nclt: every planned chunk is stored",
+   "ok": true,
+   "detail": "8 of 8"
+  },
+  {
+   "case": "single",
+   "check": "nclt: chunk facets equal the document",
+   "ok": true,
+   "detail": "0 chunks differ; document is law|NCLT / NCLAT (Insolvency)"
+  },
+  {
+   "case": "single",
+   "check": "nclt: a search as authenticated returns the document",
+   "ok": true,
+   "detail": "scoped true, unscoped true"
+  },
+  {
+   "case": "single",
+   "check": "regulatory: the job succeeded",
+   "ok": true,
+   "detail": "{\"document_id\":\"4b350198-293c-421c-9579-a1627dc3d42d\",\"status\":\"succeeded\",\"stage\":\"done\",\"error_code\":null,\"batch_id\":null}"
+  },
+  {
+   "case": "single",
+   "check": "regulatory: chunks are in document_chunks_regulatory",
+   "ok": true,
+   "detail": "[{\"part\":\"document_chunks_regulatory\",\"n\":8}]"
+  },
+  {
+   "case": "single",
+   "check": "regulatory: every planned chunk is stored",
+   "ok": true,
+   "detail": "8 of 8"
+  },
+  {
+   "case": "single",
+   "check": "regulatory: chunk facets equal the document",
+   "ok": true,
+   "detail": "0 chunks differ; document is national|Regulatory Body Watch (RBI SEBI TRAI CCI)"
+  },
+  {
+   "case": "single",
+   "check": "regulatory: a search as authenticated returns the document",
+   "ok": true,
+   "detail": "scoped true, unscoped true"
+  },
+  {
+   "case": "single",
+   "check": "pq: the job succeeded",
+   "ok": true,
+   "detail": "{\"document_id\":\"6a6bd4a2-e565-4b6a-8125-3e7509481d83\",\"status\":\"succeeded\",\"stage\":\"done\",\"error_code\":null,\"batch_id\":null}"
+  },
+  {
+   "case": "single",
+   "check": "pq: chunks are in document_chunks_default",
+   "ok": true,
+   "detail": "[{\"part\":\"document_chunks_default\",\"n\":11}]"
+  },
+  {
+   "case": "single",
+   "check": "pq: every planned chunk is stored",
+   "ok": true,
+   "detail": "11 of 11"
+  },
+  {
+   "case": "single",
+   "check": "pq: chunk facets equal the document",
+   "ok": true,
+   "detail": "0 chunks differ; document is national|Parliamentary Question Database"
+  },
+  {
+   "case": "single",
+   "check": "pq: doc_date is the answer date, 2026-04-02",
+   "ok": true,
+   "detail": "2026-04-02"
+  },
+  {
+   "case": "single",
+   "check": "pq: a search as authenticated returns the document",
+   "ok": true,
+   "detail": "scoped true, unscoped true"
+  },
+  {
+   "case": "single",
+   "check": "other: the job succeeded",
+   "ok": true,
+   "detail": "{\"document_id\":\"114a0686-b3e4-45fb-a598-55c6a8da74ad\",\"status\":\"succeeded\",\"stage\":\"done\",\"error_code\":null,\"batch_id\":null}"
+  },
+  {
+   "case": "single",
+   "check": "other: chunks are in document_chunks_default",
+   "ok": true,
+   "detail": "[{\"part\":\"document_chunks_default\",\"n\":9}]"
+  },
+  {
+   "case": "single",
+   "check": "other: every planned chunk is stored",
+   "ok": true,
+   "detail": "9 of 9"
+  },
+  {
+   "case": "single",
+   "check": "other: chunk facets equal the document",
+   "ok": true,
+   "detail": "0 chunks differ; document is national|Proof Feature Without A Partition"
+  },
+  {
+   "case": "single",
+   "check": "other: a search as authenticated returns the document",
+   "ok": true,
+   "detail": "scoped true, unscoped true"
+  },
+  {
+   "case": "batch",
+   "check": "every document was admitted",
+   "ok": true,
+   "detail": "[\"admitted\",\"admitted\",\"admitted\",\"admitted\",\"admitted\",\"admitted\",\"admitted\",\"admitted\",\"admitted\",\"admitted\",\"admitted\",\"admitted\"]"
+  },
+  {
+   "case": "batch",
+   "check": "every document is indexed and its job succeeded",
+   "ok": true,
+   "detail": "12 indexed; [\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\"]"
+  },
+  {
+   "case": "batch",
+   "check": "the ledger counts match",
+   "ok": true,
+   "detail": "items [{\"outcome\":\"admitted\",\"n\":12}]; batch registered|12|142; stored 142 of 142"
+  },
+  {
+   "case": "batch",
+   "check": "embedding calls carry the batch id",
+   "ok": true,
+   "detail": "[{\"batch_id\":\"755d508d-279b-4f11-9764-792827df127e\",\"jobs\":8},{\"batch_id\":\"755d508d-279b-4f11-9764-792827df127e\",\"jobs\":2},{\"batch_id\":\"755d508d-279b-4f11-9764-792827df127e\",\"jobs\":2}]"
+  },
+  {
+   "case": "batch",
+   "check": "the batch step shared embedding calls between documents",
+   "ok": true,
+   "detail": "3 calls for 12 documents"
+  },
+  {
+   "case": "pages",
+   "check": "the document is indexed with its pages",
+   "ok": true,
+   "detail": "{\"job\":{\"document_id\":\"27a29a67-0ae3-4a24-aa10-c81bb5e5aa54\",\"status\":\"succeeded\",\"stage\":\"done\",\"error_code\":null,\"batch_id\":null},\"doc\":{\"indexed_at\":\"2026-11-06T03:05:30.804412+00:00\",\"page_count\":4,\"pages\":4}}"
+  },
+  {
+   "case": "pages",
+   "check": "chunks are in document_chunks_bills",
+   "ok": true,
+   "detail": "[{\"part\":\"document_chunks_bills\",\"n\":12}]"
+  },
+  {
+   "case": "pages",
+   "check": "the OCR stage ran once, over every page",
+   "ok": true,
+   "detail": "[[0,1,2,3]]"
+  },
+  {
+   "case": "pages",
+   "check": "the OCR call was logged with its cost",
+   "ok": true,
+   "detail": "1 rows"
+  },
+  {
+   "case": "pages",
+   "check": "a search as authenticated returns the document",
+   "ok": true,
+   "detail": "5 hits"
+  },
+  {
+   "case": "rerun",
+   "check": "registering the batch again admits nothing new",
+   "ok": true,
+   "detail": "{\"same\":true,\"outcomes\":[\"existing\",\"existing\",\"existing\",\"existing\",\"existing\",\"existing\"],\"docsAfter\":6,\"jobsAfter\":6}"
+  },
+  {
+   "case": "rerun",
+   "check": "registering the batch again adds no chunk",
+   "ok": true,
+   "detail": "49:74d15dbeb5eff2ed6ecb71c155013947 -> 49:74d15dbeb5eff2ed6ecb71c155013947; embed calls 1 -> 1"
+  },
+  {
+   "case": "rerun",
+   "check": "the killed run was held before the rerun",
+   "ok": true,
+   "detail": "{\"held\":[{\"document_id\":\"8505c22b-9cac-45b3-a41d-ce857f79a059\",\"status\":\"failed\",\"stage\":\"index\",\"error_code\":\"text_outcome_uncertain\",\"batch_id\":\"325f4662-34b2-4c20-a964-9b807e9f27be\"},{\"document_id\":\"01fb3e89-106c-4f7d-9a4f-defcb870bd67\",\"status\":\"failed\",\"stage\":\"index\",\"error_code\":\"text_outcome_uncertain\",\"batch_id\":\"325f4662-34b2-4c20-a964-9b807e9f27be\"},{\"document_id\":\"3ee8aaaa-8de2-4645-a19c-3bc8afe638d7\",\"status\":\"failed\",\"stage\":\"index\",\"error_code\":\"text_outcome_uncertain\",\"batch_id\":\"325f4662-34b2-4c20-a964-9b807e9f27be\"}]}"
+  },
+  {
+   "case": "rerun",
+   "check": "the rerun makes no embedding call",
+   "ok": true,
+   "detail": "0 calls"
+  },
+  {
+   "case": "rerun",
+   "check": "the rerun adds no chunk and changes no chunk id",
+   "ok": true,
+   "detail": "33:4bf914da4bed6acb777bd23a752fab9e -> 33:4bf914da4bed6acb777bd23a752fab9e; [\"succeeded\",\"succeeded\",\"succeeded\"]"
+  },
+  {
+   "case": "kill",
+   "check": "every job of the killed claim is held as text_outcome_uncertain",
+   "ok": true,
+   "detail": "[\"failed/text_outcome_uncertain\",\"failed/text_outcome_uncertain\",\"failed/text_outcome_uncertain\",\"failed/text_outcome_uncertain\",\"failed/text_outcome_uncertain\",\"failed/text_outcome_uncertain\",\"failed/text_outcome_uncertain\",\"failed/text_outcome_uncertain\",\"failed/text_outcome_uncertain\",\"failed/text_outcome_uncertain\",\"failed/text_outcome_uncertain\",\"failed/text_outcome_uncertain\"]"
+  },
+  {
+   "case": "kill",
+   "check": "the slice that came back before the kill is committed",
+   "ok": true,
+   "detail": "96 of 147 chunks"
+  },
+  {
+   "case": "kill",
+   "check": "requeue finishes every document",
+   "ok": true,
+   "detail": "requeued 12; [\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\",\"succeeded\"]; 147 of 147 chunks"
+  },
+  {
+   "case": "kill",
+   "check": "committed slices are not embedded again after requeue",
+   "ok": true,
+   "detail": "0 inputs repeated; 51 embedded after requeue, 51 were uncommitted"
+  },
+  {
+   "case": "provider",
+   "check": "the failed document stopped as embed_failed",
+   "ok": true,
+   "detail": "{\"job\":{\"document_id\":\"bfaa218e-43df-432f-ac2f-61c08f24986b\",\"status\":\"failed\",\"stage\":\"index\",\"error_code\":\"embed_failed\",\"batch_id\":null},\"failed\":{\"error_code\":\"embed_failed\",\"last_error\":\"provider down: 503\"}}"
+  },
+  {
+   "case": "provider",
+   "check": "the failed document keeps its committed slice",
+   "ok": true,
+   "detail": "100 chunks stored, indexed f"
+  },
+  {
+   "case": "provider",
+   "check": "the other documents finished",
+   "ok": true,
+   "detail": "[\"succeeded\",\"failed\",\"succeeded\"]"
+  },
+  {
+   "case": "provider",
+   "check": "the other documents are searchable",
+   "ok": true,
+   "detail": "[true,true]"
+  },
+  {
+   "case": "provider",
+   "check": "the failed call was logged",
+   "ok": true,
+   "detail": "1 error rows"
+  },
+  {
+   "case": "provider",
+   "check": "batch step: the jobs the failed call carried stopped as embed_failed",
+   "ok": true,
+   "detail": "{\"carried\":2,\"states\":[{\"document_id\":\"b861b9c9-4039-4fba-b6ee-30aab8b2f9b5\",\"status\":\"failed\",\"error_code\":\"embed_failed\"},{\"document_id\":\"75ea4a2a-bf3f-44f8-bf5c-22760b2acef4\",\"status\":\"failed\",\"error_code\":\"embed_failed\"}]}"
+  },
+  {
+   "case": "provider",
+   "check": "batch step: the job finished before the failed call is indexed",
+   "ok": true,
+   "detail": "{\"finished\":2,\"indexed\":[true,true]}"
+  },
+  {
+   "case": "provider",
+   "check": "batch step: the carried job keeps the slice committed before the failure",
+   "ok": true,
+   "detail": "28 chunks of the carried jobs stored, expected 28 (96 less the finished jobs' chunks)"
+  },
+  {
+   "case": "provider",
+   "check": "batch step: the failed call is logged against the batch and both jobs",
+   "ok": true,
+   "detail": "[{\"batch_id\":\"0504fad7-9ed2-4ade-8050-b668d2524490\",\"job_ids\":[\"ad08d406-7652-4c32-8002-93360661c2ba\",\"b97106a4-a56c-4eca-af23-6e715d0d278b\"]}]"
+  },
+  {
+   "case": "killstop",
+   "check": "the kill leaves the batch unstopped: nothing claimed it again to evaluate the policy",
+   "ok": true,
+   "detail": "{\"uncertain\":12,\"state\":\"registered\",\"stop_reason\":null}"
+  },
+  {
+   "case": "killstop",
+   "check": "requeue refuses the first job as uncertain_count, stops the batch, and refuses the rest as batch_stopped",
+   "ok": true,
+   "detail": "{\"first\":[\"uncertain_count\",\"batch_stopped\",\"batch_stopped\",\"batch_stopped\",\"batch_stopped\",\"batch_stopped\",\"batch_stopped\",\"batch_stopped\",\"batch_stopped\",\"batch_stopped\",\"batch_stopped\",\"batch_stopped\"],\"state\":\"stopped\",\"stop_reason\":\"uncertain_count\"}"
+  },
+  {
+   "case": "killstop",
+   "check": "after resume, requeue is refused as uncertain_count again and no job is requeued",
+   "ok": true,
+   "detail": "{\"requeued\":0,\"outcomes\":[\"uncertain_count\",\"batch_stopped\",\"batch_stopped\"],\"end\":{\"state\":\"stopped\",\"stop_reason\":\"uncertain_count\"}}"
+  }
+ ],
+ "passed": 57,
+ "total": 57,
+ "breaks": [
+  {
+   "id": "single:partition",
+   "case": "single",
+   "expected": "bills: chunks are in document_chunks_bills",
+   "tripped": true,
+   "failed_checks": [
+    "bills: chunks are in document_chunks_bills",
+    "bills: chunk facets equal the document",
+    "bills: a search as authenticated returns the document"
+   ]
+  },
+  {
+   "id": "single:job",
+   "case": "single",
+   "expected": "other: the job succeeded",
+   "tripped": true,
+   "failed_checks": [
+    "other: the job succeeded"
+   ]
+  },
+  {
+   "id": "single:facets",
+   "case": "single",
+   "expected": "regulatory: chunk facets equal the document",
+   "tripped": true,
+   "failed_checks": [
+    "regulatory: chunk facets equal the document",
+    "regulatory: a search as authenticated returns the document"
+   ]
+  },
+  {
+   "id": "single:search",
+   "case": "single",
+   "expected": "nclt: a search as authenticated returns the document",
+   "tripped": true,
+   "failed_checks": [
+    "nclt: a search as authenticated returns the document"
+   ]
+  },
+  {
+   "id": "single:count",
+   "case": "single",
+   "expected": "pq: every planned chunk is stored",
+   "tripped": true,
+   "failed_checks": [
+    "pq: every planned chunk is stored",
+    "pq: a search as authenticated returns the document"
+   ]
+  },
+  {
+   "id": "single:date",
+   "case": "single",
+   "expected": "pq: doc_date is the answer date, 2026-04-02",
+   "tripped": true,
+   "failed_checks": [
+    "pq: chunk facets equal the document",
+    "pq: doc_date is the answer date, 2026-04-02"
+   ]
+  },
+  {
+   "id": "batch:admit",
+   "case": "batch",
+   "expected": "every document was admitted",
+   "tripped": true,
+   "failed_checks": [
+    "every document was admitted"
+   ]
+  },
+  {
+   "id": "batch:jobs",
+   "case": "batch",
+   "expected": "every document is indexed and its job succeeded",
+   "tripped": true,
+   "failed_checks": [
+    "every document is indexed and its job succeeded"
+   ]
+  },
+  {
+   "id": "batch:ledger",
+   "case": "batch",
+   "expected": "the ledger counts match",
+   "tripped": true,
+   "failed_checks": [
+    "the ledger counts match"
+   ]
+  },
+  {
+   "id": "batch:logs",
+   "case": "batch",
+   "expected": "embedding calls carry the batch id",
+   "tripped": true,
+   "failed_checks": [
+    "embedding calls carry the batch id"
+   ]
+  },
+  {
+   "id": "batch:onebyone",
+   "case": "batch",
+   "expected": "the batch step shared embedding calls between documents",
+   "tripped": true,
+   "failed_checks": [
+    "the batch step shared embedding calls between documents"
+   ]
+  },
+  {
+   "id": "pages:partition",
+   "case": "pages",
+   "expected": "chunks are in document_chunks_bills",
+   "tripped": true,
+   "failed_checks": [
+    "chunks are in document_chunks_bills"
+   ]
+  },
+  {
+   "id": "pages:index",
+   "case": "pages",
+   "expected": "the document is indexed with its pages",
+   "tripped": true,
+   "failed_checks": [
+    "the document is indexed with its pages",
+    "a search as authenticated returns the document"
+   ]
+  },
+  {
+   "id": "pages:search",
+   "case": "pages",
+   "expected": "a search as authenticated returns the document",
+   "tripped": true,
+   "failed_checks": [
+    "a search as authenticated returns the document"
+   ]
+  },
+  {
+   "id": "pages:ocr",
+   "case": "pages",
+   "expected": "the OCR stage ran once, over every page",
+   "tripped": true,
+   "failed_checks": [
+    "the OCR stage ran once, over every page",
+    "the OCR call was logged with its cost"
+   ]
+  },
+  {
+   "id": "pages:ocrlog",
+   "case": "pages",
+   "expected": "the OCR call was logged with its cost",
+   "tripped": true,
+   "failed_checks": [
+    "the OCR call was logged with its cost"
+   ]
+  },
+  {
+   "id": "rerun:reregister",
+   "case": "rerun",
+   "expected": "registering the batch again admits nothing new",
+   "tripped": true,
+   "failed_checks": [
+    "registering the batch again admits nothing new"
+   ]
+  },
+  {
+   "id": "rerun:chunks",
+   "case": "rerun",
+   "expected": "registering the batch again adds no chunk",
+   "tripped": true,
+   "failed_checks": [
+    "registering the batch again adds no chunk"
+   ]
+  },
+  {
+   "id": "rerun:held",
+   "case": "rerun",
+   "expected": "the killed run was held before the rerun",
+   "tripped": true,
+   "failed_checks": [
+    "the killed run was held before the rerun"
+   ]
+  },
+  {
+   "id": "rerun:corrupt",
+   "case": "rerun",
+   "expected": "the rerun makes no embedding call",
+   "tripped": true,
+   "failed_checks": [
+    "the rerun makes no embedding call"
+   ]
+  },
+  {
+   "id": "rerun:newchunks",
+   "case": "rerun",
+   "expected": "the rerun adds no chunk and changes no chunk id",
+   "tripped": true,
+   "failed_checks": [
+    "the rerun adds no chunk and changes no chunk id"
+   ]
+  },
+  {
+   "id": "kill:nokill",
+   "case": "kill",
+   "expected": "every job of the killed claim is held as text_outcome_uncertain",
+   "tripped": true,
+   "failed_checks": [
+    "every job of the killed claim is held as text_outcome_uncertain",
+    "the slice that came back before the kill is committed"
+   ]
+  },
+  {
+   "id": "kill:committed",
+   "case": "kill",
+   "expected": "the slice that came back before the kill is committed",
+   "tripped": true,
+   "failed_checks": [
+    "the slice that came back before the kill is committed"
+   ]
+  },
+  {
+   "id": "kill:corrupt",
+   "case": "kill",
+   "expected": "committed slices are not embedded again after requeue",
+   "tripped": true,
+   "failed_checks": [
+    "committed slices are not embedded again after requeue"
+   ]
+  },
+  {
+   "id": "kill:early",
+   "case": "kill",
+   "expected": "requeue finishes every document",
+   "tripped": true,
+   "failed_checks": [
+    "requeue finishes every document",
+    "committed slices are not embedded again after requeue"
+   ]
+  },
+  {
+   "id": "provider:none",
+   "case": "provider",
+   "expected": "the failed document stopped as embed_failed",
+   "tripped": true,
+   "failed_checks": [
+    "the failed document stopped as embed_failed",
+    "the failed document keeps its committed slice",
+    "the failed call was logged"
+   ]
+  },
+  {
+   "id": "provider:uncommit",
+   "case": "provider",
+   "expected": "the failed document keeps its committed slice",
+   "tripped": true,
+   "failed_checks": [
+    "the failed document keeps its committed slice"
+   ]
+  },
+  {
+   "id": "provider:others",
+   "case": "provider",
+   "expected": "the other documents finished",
+   "tripped": true,
+   "failed_checks": [
+    "the other documents finished"
+   ]
+  },
+  {
+   "id": "provider:search",
+   "case": "provider",
+   "expected": "the other documents are searchable",
+   "tripped": true,
+   "failed_checks": [
+    "the other documents are searchable"
+   ]
+  },
+  {
+   "id": "provider:log",
+   "case": "provider",
+   "expected": "the failed call was logged",
+   "tripped": true,
+   "failed_checks": [
+    "the failed call was logged"
+   ]
+  },
+  {
+   "id": "provider:bnone",
+   "case": "provider",
+   "expected": "batch step: the jobs the failed call carried stopped as embed_failed",
+   "tripped": true,
+   "failed_checks": [
+    "batch step: the jobs the failed call carried stopped as embed_failed",
+    "batch step: the job finished before the failed call is indexed",
+    "batch step: the carried job keeps the slice committed before the failure",
+    "batch step: the failed call is logged against the batch and both jobs"
+   ]
+  },
+  {
+   "id": "provider:bfinished",
+   "case": "provider",
+   "expected": "batch step: the job finished before the failed call is indexed",
+   "tripped": true,
+   "failed_checks": [
+    "batch step: the job finished before the failed call is indexed"
+   ]
+  },
+  {
+   "id": "provider:bslice",
+   "case": "provider",
+   "expected": "batch step: the carried job keeps the slice committed before the failure",
+   "tripped": true,
+   "failed_checks": [
+    "batch step: the carried job keeps the slice committed before the failure"
+   ]
+  },
+  {
+   "id": "provider:blog",
+   "case": "provider",
+   "expected": "batch step: the failed call is logged against the batch and both jobs",
+   "tripped": true,
+   "failed_checks": [
+    "batch step: the failed call is logged against the batch and both jobs"
+   ]
+  },
+  {
+   "id": "killstop:stopped",
+   "case": "killstop",
+   "expected": "the kill leaves the batch unstopped: nothing claimed it again to evaluate the policy",
+   "tripped": true,
+   "failed_checks": [
+    "the kill leaves the batch unstopped: nothing claimed it again to evaluate the policy",
+    "requeue refuses the first job as uncertain_count, stops the batch, and refuses the rest as batch_stopped"
+   ]
+  },
+  {
+   "id": "killstop:roomy",
+   "case": "killstop",
+   "expected": "requeue refuses the first job as uncertain_count, stops the batch, and refuses the rest as batch_stopped",
+   "tripped": true,
+   "failed_checks": [
+    "requeue refuses the first job as uncertain_count, stops the batch, and refuses the rest as batch_stopped",
+    "after resume, requeue is refused as uncertain_count again and no job is requeued"
+   ]
+  },
+  {
+   "id": "killstop:lenient",
+   "case": "killstop",
+   "expected": "after resume, requeue is refused as uncertain_count again and no job is requeued",
+   "tripped": true,
+   "failed_checks": [
+    "requeue refuses the first job as uncertain_count, stops the batch, and refuses the rest as batch_stopped",
+    "after resume, requeue is refused as uncertain_count again and no job is requeued"
+   ]
+  }
+ ]
+}

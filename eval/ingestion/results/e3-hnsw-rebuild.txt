@@ -1,0 +1,10 @@
+Time: 0.210 ms
+Time: 0.406 ms
+before|document_chunks_regulatory_embedding_halfvec_hnsw|614539264
+before|document_chunks_bills_embedding_halfvec_hnsw|1092313088
+Time: 14.363 ms
+Time: 1006498.681 ms (16:46.499)
+Time: 3644329.436 ms (01:00:44.329)
+after|document_chunks_bills_embedding_halfvec_hnsw|1091092480
+after|document_chunks_regulatory_embedding_halfvec_hnsw|582868992
+Time: 143.593 ms
