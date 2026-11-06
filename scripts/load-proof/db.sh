@@ -97,6 +97,8 @@ load_real() {
   local p
   {
     echo "set maintenance_work_mem = '1GB';"
+    # A parallel build needs /dev/shm for its shared memory, and this container has 64 MB of it.
+    echo "set max_parallel_maintenance_workers = 0;"
     echo "create index $hnsw_parent on only public.document_chunks using hnsw ((embedding::extensions.halfvec(1536)) extensions.halfvec_cosine_ops);"
     for p in $parts; do
       echo "create index ${p}_embedding_halfvec_hnsw on public.$p using hnsw ((embedding::extensions.halfvec(1536)) extensions.halfvec_cosine_ops);"
