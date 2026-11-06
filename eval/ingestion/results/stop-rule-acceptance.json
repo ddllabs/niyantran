@@ -1,0 +1,1708 @@
+{
+ "run": {
+  "tag": "ldmw4eaidt",
+  "feature": "bills",
+  "partition": "document_chunks_bills",
+  "target_chunks": 40000,
+  "base_chunks": 7071,
+  "concurrency_levels": [
+   2,
+   4
+  ],
+  "level_chunks": 1500,
+  "claim_batch": 2,
+  "max_running": 8,
+  "postgrest_pool": 10,
+  "docs_per_batch": 300,
+  "bucket_chunks": 4000,
+  "seed": 1,
+  "dry_run": false,
+  "started": "2026-11-06T03:08:34.578Z",
+  "wall_seconds": 29.563133042,
+  "fetch_timeout_ms": 120000,
+  "postgres": "PostgreSQL 17.11 (Debian 17.11-1.pgdg12+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit",
+  "settings": [
+   {
+    "name": "checkpoint_completion_target",
+    "setting": "0.9",
+    "unit": null
+   },
+   {
+    "name": "checkpoint_timeout",
+    "setting": "300",
+    "unit": "s"
+   },
+   {
+    "name": "effective_cache_size",
+    "setting": "524288",
+    "unit": "8kB"
+   },
+   {
+    "name": "full_page_writes",
+    "setting": "on",
+    "unit": null
+   },
+   {
+    "name": "maintenance_work_mem",
+    "setting": "65536",
+    "unit": "kB"
+   },
+   {
+    "name": "max_connections",
+    "setting": "100",
+    "unit": null
+   },
+   {
+    "name": "max_parallel_maintenance_workers",
+    "setting": "2",
+    "unit": null
+   },
+   {
+    "name": "max_wal_size",
+    "setting": "1024",
+    "unit": "MB"
+   },
+   {
+    "name": "min_wal_size",
+    "setting": "80",
+    "unit": "MB"
+   },
+   {
+    "name": "shared_buffers",
+    "setting": "65536",
+    "unit": "8kB"
+   },
+   {
+    "name": "statement_timeout",
+    "setting": "0",
+    "unit": "ms"
+   },
+   {
+    "name": "synchronous_commit",
+    "setting": "on",
+    "unit": null
+   },
+   {
+    "name": "wal_compression",
+    "setting": "off",
+    "unit": null
+   },
+   {
+    "name": "wal_level",
+    "setting": "replica",
+    "unit": null
+   },
+   {
+    "name": "work_mem",
+    "setting": "4096",
+    "unit": "kB"
+   }
+  ]
+ },
+ "pools": {
+  "required": true,
+  "missing": [],
+  "vectors": {
+   "file": "~/niyantran-eval-cache/load-proof/pool-bills.f32",
+   "count": 3000
+  },
+  "text": {
+   "file": "~/niyantran-eval-cache/load-proof/text-bills.json",
+   "count": 5000
+  },
+  "chunk_counts": {
+   "file": "~/niyantran-eval-cache/load-proof/counts-bills.json",
+   "count": 2891
+  },
+  "sigma": {
+   "used": 0.0091,
+   "from": "~/niyantran-eval-cache/load-proof/sigma-bills.json"
+  },
+  "fallbacks": []
+ },
+ "vector_fidelity": {
+  "sigma": 0.0091,
+  "real": {
+   "desk_chunks": 89014,
+   "n": 273,
+   "p05": 0.7628,
+   "p25": 0.8262,
+   "p50": 0.8872,
+   "p75": 0.972,
+   "p95": 1,
+   "mean": 0.8915,
+   "share_over_0_99": 0.2051
+  },
+  "synthetic": {
+   "population": 89014,
+   "pool_vectors": 3000,
+   "n": 300,
+   "p05": 0.8898,
+   "p25": 0.893,
+   "p50": 0.8947,
+   "p75": 0.8965,
+   "p95": 0.8989,
+   "mean": 0.8947,
+   "share_over_0_99": 0
+  },
+  "method": "exact nearest-neighbour cosine to any other chunk of the desk; sequential scan, read only"
+ },
+ "size_per_chunk": null,
+ "stop_reason": "STOP: the database logged 2026-11-06T03:08:59.382985584Z 2026-11-06 03:08:59.382 UTC [467828] ERROR:  canceling statement due to statement timeout",
+ "totals": {
+  "docs": 58,
+  "chunks_inserted": 0,
+  "commits": 0,
+  "failed_commits": 0,
+  "embed_calls": 0,
+  "max_inflight_commits": 0
+ },
+ "throughput": [],
+ "partial_buckets": [],
+ "commit_ms": null,
+ "commit_server_ms": null,
+ "other_calls_ms": {
+  "claim": {
+   "failed": 0
+  },
+  "textActivate": {
+   "failed": 0
+  },
+  "activate": {
+   "failed": 0
+  }
+ },
+ "loop_lag_ms": {
+  "all": {
+   "n": 281,
+   "p50": 1.91,
+   "p95": 2.48,
+   "p99": 3.48,
+   "max": 9.28,
+   "mean": 1.68
+  }
+ },
+ "batches": [
+  {
+   "n": 1,
+   "level": 2,
+   "docs": 58,
+   "chunks_planned": 1500,
+   "chunks_inserted": 0,
+   "size_start": 7071,
+   "size_end": 7071,
+   "t_start_s": 1,
+   "done": true,
+   "synth_s": 0.18,
+   "register_s": 27.67,
+   "relabel_s": 0.08,
+   "lsn_drain_start": "72/89AD58F0",
+   "drain_t0_ms": 28997.480125000002,
+   "drain_t1_ms": 28997.782834,
+   "lsn_drain_end": "72/89AD58F0",
+   "wal_bytes_drain": 0,
+   "drain_s": 0,
+   "max_inflight_commits": 0,
+   "max_inflight_calls": 0,
+   "chunks_per_second_drain": null,
+   "wal_bytes_per_chunk_drain": null
+  }
+ ],
+ "samples": [
+  {
+   "t_s": 0.8,
+   "chunks_inserted": 0,
+   "chunks_in_partition": 7071,
+   "wal_lsn": "72/897F9C00",
+   "wal_bytes_since_start": 176,
+   "wal_bytes_per_chunk_since_last": null,
+   "pg_stat_wal": {
+    "wal_records": 2286585,
+    "wal_fpi": 39693,
+    "wal_bytes": 1061999302,
+    "wal_buffers_full": 3909
+   },
+   "checkpoints": {
+    "num_timed": 8,
+    "num_requested": 4,
+    "write_time": 38739,
+    "sync_time": 143,
+    "buffers_written": 15836
+   },
+   "host_free_gib": 32.27,
+   "loop_lag_ms": {
+    "p99": 0,
+    "max": 0
+   },
+   "relations": [
+    {
+     "name": "document_chunks_nclt",
+     "kind": "r",
+     "heap": 22323200,
+     "toast": 141697024,
+     "indexes": 75620352,
+     "index_sizes": {
+      "document_chunks_nclt_id_desk_feature_key": 1179648,
+      "document_chunks_nclt_embedding_halfvec_hnsw": 69885952,
+      "document_chunks_nclt_desk_feature_doc_date_idx": 245760,
+      "document_chunks_nclt_desk_feature_language_idx": 139264,
+      "document_chunks_nclt_desk_feature_desk_tier_idx": 139264,
+      "document_chunks_nclt_document_id_chunk_index_idx": 909312,
+      "document_chunks_nclt_document_id_chunk_hash_desk_feature_key": 3121152
+     },
+     "total": 239738880
+    },
+    {
+     "name": "document_chunks_default",
+     "kind": "r",
+     "heap": 12025856,
+     "toast": 82714624,
+     "indexes": 29925376,
+     "index_sizes": {
+      "document_chunks_default_id_desk_feature_key": 794624,
+      "document_chunks_default_embedding_halfvec_hnsw": 26091520,
+      "document_chunks_default_desk_feature_doc_date_idx": 155648,
+      "document_chunks_default_desk_feature_language_idx": 131072,
+      "document_chunks_default_desk_feature_desk_tier_idx": 131072,
+      "document_chunks_default_document_id_chunk_index_idx": 557056,
+      "document_chunks_default_document_id_chunk_hash_desk_feature_key": 2064384
+     },
+     "total": 124747776
+    },
+    {
+     "name": "document_chunks_bills",
+     "kind": "r",
+     "heap": 8003584,
+     "toast": 58605568,
+     "indexes": 31072256,
+     "index_sizes": {
+      "document_chunks_bills_id_desk_feature_key": 499712,
+      "document_chunks_bills_embedding_halfvec_hnsw": 28672000,
+      "document_chunks_bills_desk_feature_doc_date_idx": 90112,
+      "document_chunks_bills_desk_feature_language_idx": 81920,
+      "document_chunks_bills_desk_feature_desk_tier_idx": 81920,
+      "document_chunks_bills_document_id_chunk_index_idx": 376832,
+      "document_chunks_bills_document_id_chunk_hash_desk_feature_key": 1269760
+     },
+     "total": 97755136
+    },
+    {
+     "name": "documents",
+     "kind": "r",
+     "heap": 7315456,
+     "toast": 21569536,
+     "indexes": 7020544,
+     "index_sizes": {
+      "documents_desk": 131072,
+      "documents_pkey": 360448,
+      "documents_file_sha256": 16384,
+      "documents_document_key": 147456,
+      "documents_content_sha256": 1376256,
+      "documents_readiness_page": 1449984,
+      "documents_source_key_key": 1048576,
+      "documents_readiness_cohort": 1990656,
+      "documents_readiness_legacy_key": 491520,
+      "documents_v2_document_key_unique": 8192
+     },
+     "total": 35971072
+    },
+    {
+     "name": "document_chunks_regulatory",
+     "kind": "r",
+     "heap": 1130496,
+     "toast": 7684096,
+     "indexes": 3948544,
+     "index_sizes": {
+      "document_chunks_regulatory_id_desk_feature_key": 98304,
+      "document_chunks_regulatory_embedding_halfvec_hnsw": 3530752,
+      "document_chunks_regulatory_desk_feature_doc_date_idx": 16384,
+      "document_chunks_regulatory_desk_feature_language_idx": 16384,
+      "document_chunks_regulatory_desk_feature_desk_tier_idx": 16384,
+      "document_chunks_regulatory_document_id_chunk_index_idx": 57344,
+      "document_chunks_regulatory_document_id_chunk_hash_desk_feat_key": 212992
+     },
+     "total": 12820480
+    },
+    {
+     "name": "ingest_text_inputs",
+     "kind": "r",
+     "heap": 73728,
+     "toast": 4431872,
+     "indexes": 40960,
+     "index_sizes": {
+      "ingest_text_inputs_pkey": 40960
+     },
+     "total": 4603904
+    },
+    {
+     "name": "record_document_links",
+     "kind": "r",
+     "heap": 253952,
+     "toast": 8192,
+     "indexes": 98304,
+     "index_sizes": {
+      "record_document_links_pkey": 57344,
+      "record_document_links_document": 40960
+     },
+     "total": 393216
+    },
+    {
+     "name": "desk_rows",
+     "kind": "r",
+     "heap": 139264,
+     "toast": 8192,
+     "indexes": 139264,
+     "index_sizes": {
+      "desk_rows_pkey": 49152,
+      "desk_rows_feature": 16384,
+      "desk_rows_row_gin": 65536,
+      "desk_rows_document_key": 8192
+     },
+     "total": 335872
+    },
+    {
+     "name": "ingest_jobs",
+     "kind": "r",
+     "heap": 131072,
+     "toast": 8192,
+     "indexes": 131072,
+     "index_sizes": {
+      "ingest_jobs_pkey": 40960,
+      "ingest_jobs_batch": 16384,
+      "ingest_jobs_active_due": 16384,
+      "ingest_jobs_one_active": 16384,
+      "ingest_jobs_document_created": 40960
+     },
+     "total": 303104
+    },
+    {
+     "name": "document_chunks_unpartitioned",
+     "kind": "r",
+     "heap": 0,
+     "toast": 8192,
+     "indexes": 40960,
+     "index_sizes": {
+      "document_chunks_unpartitioned_pkey": 8192,
+      "document_chunks_unpartitioned_document_order": 8192,
+      "document_chunks_unpartitioned_embedding_halfvec_hnsw": 16384,
+      "document_chunks_unpartitioned_document_id_chunk_hash_key": 8192
+     },
+     "total": 49152
+    }
+   ]
+  },
+  {
+   "t_s": 5.9,
+   "chunks_inserted": 0,
+   "chunks_in_partition": 7071,
+   "wal_lsn": "72/8985E000",
+   "wal_bytes_since_start": 410800,
+   "wal_bytes_per_chunk_since_last": null,
+   "pg_stat_wal": {
+    "wal_records": 2286893,
+    "wal_fpi": 39693,
+    "wal_bytes": 1062057905,
+    "wal_buffers_full": 3909
+   },
+   "checkpoints": {
+    "num_timed": 8,
+    "num_requested": 4,
+    "write_time": 38739,
+    "sync_time": 143,
+    "buffers_written": 17000
+   },
+   "host_free_gib": 32.27,
+   "loop_lag_ms": {
+    "p99": 2.42,
+    "max": 2.42
+   },
+   "relations": [
+    {
+     "name": "document_chunks_nclt",
+     "kind": "r",
+     "heap": 22323200,
+     "toast": 141697024,
+     "indexes": 75620352,
+     "index_sizes": {
+      "document_chunks_nclt_id_desk_feature_key": 1179648,
+      "document_chunks_nclt_embedding_halfvec_hnsw": 69885952,
+      "document_chunks_nclt_desk_feature_doc_date_idx": 245760,
+      "document_chunks_nclt_desk_feature_language_idx": 139264,
+      "document_chunks_nclt_desk_feature_desk_tier_idx": 139264,
+      "document_chunks_nclt_document_id_chunk_index_idx": 909312,
+      "document_chunks_nclt_document_id_chunk_hash_desk_feature_key": 3121152
+     },
+     "total": 239738880
+    },
+    {
+     "name": "document_chunks_default",
+     "kind": "r",
+     "heap": 12025856,
+     "toast": 82714624,
+     "indexes": 29925376,
+     "index_sizes": {
+      "document_chunks_default_id_desk_feature_key": 794624,
+      "document_chunks_default_embedding_halfvec_hnsw": 26091520,
+      "document_chunks_default_desk_feature_doc_date_idx": 155648,
+      "document_chunks_default_desk_feature_language_idx": 131072,
+      "document_chunks_default_desk_feature_desk_tier_idx": 131072,
+      "document_chunks_default_document_id_chunk_index_idx": 557056,
+      "document_chunks_default_document_id_chunk_hash_desk_feature_key": 2064384
+     },
+     "total": 124747776
+    },
+    {
+     "name": "document_chunks_bills",
+     "kind": "r",
+     "heap": 8003584,
+     "toast": 58605568,
+     "indexes": 31072256,
+     "index_sizes": {
+      "document_chunks_bills_id_desk_feature_key": 499712,
+      "document_chunks_bills_embedding_halfvec_hnsw": 28672000,
+      "document_chunks_bills_desk_feature_doc_date_idx": 90112,
+      "document_chunks_bills_desk_feature_language_idx": 81920,
+      "document_chunks_bills_desk_feature_desk_tier_idx": 81920,
+      "document_chunks_bills_document_id_chunk_index_idx": 376832,
+      "document_chunks_bills_document_id_chunk_hash_desk_feature_key": 1269760
+     },
+     "total": 97755136
+    },
+    {
+     "name": "documents",
+     "kind": "r",
+     "heap": 7331840,
+     "toast": 21618688,
+     "indexes": 7020544,
+     "index_sizes": {
+      "documents_desk": 131072,
+      "documents_pkey": 360448,
+      "documents_file_sha256": 16384,
+      "documents_document_key": 147456,
+      "documents_content_sha256": 1376256,
+      "documents_readiness_page": 1449984,
+      "documents_source_key_key": 1048576,
+      "documents_readiness_cohort": 1990656,
+      "documents_readiness_legacy_key": 491520,
+      "documents_v2_document_key_unique": 8192
+     },
+     "total": 36036608
+    },
+    {
+     "name": "document_chunks_regulatory",
+     "kind": "r",
+     "heap": 1130496,
+     "toast": 7684096,
+     "indexes": 3948544,
+     "index_sizes": {
+      "document_chunks_regulatory_id_desk_feature_key": 98304,
+      "document_chunks_regulatory_embedding_halfvec_hnsw": 3530752,
+      "document_chunks_regulatory_desk_feature_doc_date_idx": 16384,
+      "document_chunks_regulatory_desk_feature_language_idx": 16384,
+      "document_chunks_regulatory_desk_feature_desk_tier_idx": 16384,
+      "document_chunks_regulatory_document_id_chunk_index_idx": 57344,
+      "document_chunks_regulatory_document_id_chunk_hash_desk_feat_key": 212992
+     },
+     "total": 12820480
+    },
+    {
+     "name": "ingest_text_inputs",
+     "kind": "r",
+     "heap": 81920,
+     "toast": 4579328,
+     "indexes": 40960,
+     "index_sizes": {
+      "ingest_text_inputs_pkey": 40960
+     },
+     "total": 4759552
+    },
+    {
+     "name": "record_document_links",
+     "kind": "r",
+     "heap": 270336,
+     "toast": 8192,
+     "indexes": 98304,
+     "index_sizes": {
+      "record_document_links_pkey": 57344,
+      "record_document_links_document": 40960
+     },
+     "total": 409600
+    },
+    {
+     "name": "desk_rows",
+     "kind": "r",
+     "heap": 163840,
+     "toast": 8192,
+     "indexes": 155648,
+     "index_sizes": {
+      "desk_rows_pkey": 57344,
+      "desk_rows_feature": 16384,
+      "desk_rows_row_gin": 73728,
+      "desk_rows_document_key": 8192
+     },
+     "total": 376832
+    },
+    {
+     "name": "ingest_jobs",
+     "kind": "r",
+     "heap": 131072,
+     "toast": 8192,
+     "indexes": 131072,
+     "index_sizes": {
+      "ingest_jobs_pkey": 40960,
+      "ingest_jobs_batch": 16384,
+      "ingest_jobs_active_due": 16384,
+      "ingest_jobs_one_active": 16384,
+      "ingest_jobs_document_created": 40960
+     },
+     "total": 303104
+    },
+    {
+     "name": "document_chunks_unpartitioned",
+     "kind": "r",
+     "heap": 0,
+     "toast": 8192,
+     "indexes": 40960,
+     "index_sizes": {
+      "document_chunks_unpartitioned_pkey": 8192,
+      "document_chunks_unpartitioned_document_order": 8192,
+      "document_chunks_unpartitioned_embedding_halfvec_hnsw": 16384,
+      "document_chunks_unpartitioned_document_id_chunk_hash_key": 8192
+     },
+     "total": 49152
+    }
+   ]
+  },
+  {
+   "t_s": 10.9,
+   "chunks_inserted": 0,
+   "chunks_in_partition": 7071,
+   "wal_lsn": "72/898E4000",
+   "wal_bytes_since_start": 959664,
+   "wal_bytes_per_chunk_since_last": null,
+   "pg_stat_wal": {
+    "wal_records": 2286893,
+    "wal_fpi": 39693,
+    "wal_bytes": 1062057905,
+    "wal_buffers_full": 3909
+   },
+   "checkpoints": {
+    "num_timed": 8,
+    "num_requested": 4,
+    "write_time": 38739,
+    "sync_time": 143,
+    "buffers_written": 18142
+   },
+   "host_free_gib": 32.27,
+   "loop_lag_ms": {
+    "p99": 2.81,
+    "max": 2.81
+   },
+   "relations": [
+    {
+     "name": "document_chunks_nclt",
+     "kind": "r",
+     "heap": 22323200,
+     "toast": 141697024,
+     "indexes": 75620352,
+     "index_sizes": {
+      "document_chunks_nclt_id_desk_feature_key": 1179648,
+      "document_chunks_nclt_embedding_halfvec_hnsw": 69885952,
+      "document_chunks_nclt_desk_feature_doc_date_idx": 245760,
+      "document_chunks_nclt_desk_feature_language_idx": 139264,
+      "document_chunks_nclt_desk_feature_desk_tier_idx": 139264,
+      "document_chunks_nclt_document_id_chunk_index_idx": 909312,
+      "document_chunks_nclt_document_id_chunk_hash_desk_feature_key": 3121152
+     },
+     "total": 239738880
+    },
+    {
+     "name": "document_chunks_default",
+     "kind": "r",
+     "heap": 12025856,
+     "toast": 82714624,
+     "indexes": 29925376,
+     "index_sizes": {
+      "document_chunks_default_id_desk_feature_key": 794624,
+      "document_chunks_default_embedding_halfvec_hnsw": 26091520,
+      "document_chunks_default_desk_feature_doc_date_idx": 155648,
+      "document_chunks_default_desk_feature_language_idx": 131072,
+      "document_chunks_default_desk_feature_desk_tier_idx": 131072,
+      "document_chunks_default_document_id_chunk_index_idx": 557056,
+      "document_chunks_default_document_id_chunk_hash_desk_feature_key": 2064384
+     },
+     "total": 124747776
+    },
+    {
+     "name": "document_chunks_bills",
+     "kind": "r",
+     "heap": 8003584,
+     "toast": 58605568,
+     "indexes": 31072256,
+     "index_sizes": {
+      "document_chunks_bills_id_desk_feature_key": 499712,
+      "document_chunks_bills_embedding_halfvec_hnsw": 28672000,
+      "document_chunks_bills_desk_feature_doc_date_idx": 90112,
+      "document_chunks_bills_desk_feature_language_idx": 81920,
+      "document_chunks_bills_desk_feature_desk_tier_idx": 81920,
+      "document_chunks_bills_document_id_chunk_index_idx": 376832,
+      "document_chunks_bills_document_id_chunk_hash_desk_feature_key": 1269760
+     },
+     "total": 97755136
+    },
+    {
+     "name": "documents",
+     "kind": "r",
+     "heap": 7356416,
+     "toast": 21708800,
+     "indexes": 7028736,
+     "index_sizes": {
+      "documents_desk": 131072,
+      "documents_pkey": 360448,
+      "documents_file_sha256": 16384,
+      "documents_document_key": 147456,
+      "documents_content_sha256": 1376256,
+      "documents_readiness_page": 1449984,
+      "documents_source_key_key": 1056768,
+      "documents_readiness_cohort": 1990656,
+      "documents_readiness_legacy_key": 491520,
+      "documents_v2_document_key_unique": 8192
+     },
+     "total": 36159488
+    },
+    {
+     "name": "document_chunks_regulatory",
+     "kind": "r",
+     "heap": 1130496,
+     "toast": 7684096,
+     "indexes": 3948544,
+     "index_sizes": {
+      "document_chunks_regulatory_id_desk_feature_key": 98304,
+      "document_chunks_regulatory_embedding_halfvec_hnsw": 3530752,
+      "document_chunks_regulatory_desk_feature_doc_date_idx": 16384,
+      "document_chunks_regulatory_desk_feature_language_idx": 16384,
+      "document_chunks_regulatory_desk_feature_desk_tier_idx": 16384,
+      "document_chunks_regulatory_document_id_chunk_index_idx": 57344,
+      "document_chunks_regulatory_document_id_chunk_hash_desk_feat_key": 212992
+     },
+     "total": 12820480
+    },
+    {
+     "name": "ingest_text_inputs",
+     "kind": "r",
+     "heap": 81920,
+     "toast": 4841472,
+     "indexes": 40960,
+     "index_sizes": {
+      "ingest_text_inputs_pkey": 40960
+     },
+     "total": 5021696
+    },
+    {
+     "name": "record_document_links",
+     "kind": "r",
+     "heap": 278528,
+     "toast": 8192,
+     "indexes": 98304,
+     "index_sizes": {
+      "record_document_links_pkey": 57344,
+      "record_document_links_document": 40960
+     },
+     "total": 417792
+    },
+    {
+     "name": "desk_rows",
+     "kind": "r",
+     "heap": 163840,
+     "toast": 8192,
+     "indexes": 155648,
+     "index_sizes": {
+      "desk_rows_pkey": 57344,
+      "desk_rows_feature": 16384,
+      "desk_rows_row_gin": 73728,
+      "desk_rows_document_key": 8192
+     },
+     "total": 376832
+    },
+    {
+     "name": "ingest_jobs",
+     "kind": "r",
+     "heap": 131072,
+     "toast": 8192,
+     "indexes": 131072,
+     "index_sizes": {
+      "ingest_jobs_pkey": 40960,
+      "ingest_jobs_batch": 16384,
+      "ingest_jobs_active_due": 16384,
+      "ingest_jobs_one_active": 16384,
+      "ingest_jobs_document_created": 40960
+     },
+     "total": 303104
+    },
+    {
+     "name": "document_chunks_unpartitioned",
+     "kind": "r",
+     "heap": 0,
+     "toast": 8192,
+     "indexes": 40960,
+     "index_sizes": {
+      "document_chunks_unpartitioned_pkey": 8192,
+      "document_chunks_unpartitioned_document_order": 8192,
+      "document_chunks_unpartitioned_embedding_halfvec_hnsw": 16384,
+      "document_chunks_unpartitioned_document_id_chunk_hash_key": 8192
+     },
+     "total": 49152
+    }
+   ]
+  },
+  {
+   "t_s": 15.9,
+   "chunks_inserted": 0,
+   "chunks_in_partition": 7071,
+   "wal_lsn": "72/89978000",
+   "wal_bytes_since_start": 1565872,
+   "wal_bytes_per_chunk_since_last": null,
+   "pg_stat_wal": {
+    "wal_records": 2286894,
+    "wal_fpi": 39693,
+    "wal_bytes": 1062057963,
+    "wal_buffers_full": 3909
+   },
+   "checkpoints": {
+    "num_timed": 8,
+    "num_requested": 4,
+    "write_time": 38739,
+    "sync_time": 143,
+    "buffers_written": 19303
+   },
+   "host_free_gib": 32.27,
+   "loop_lag_ms": {
+    "p99": 5.48,
+    "max": 5.48
+   },
+   "relations": [
+    {
+     "name": "document_chunks_nclt",
+     "kind": "r",
+     "heap": 22323200,
+     "toast": 141697024,
+     "indexes": 75620352,
+     "index_sizes": {
+      "document_chunks_nclt_id_desk_feature_key": 1179648,
+      "document_chunks_nclt_embedding_halfvec_hnsw": 69885952,
+      "document_chunks_nclt_desk_feature_doc_date_idx": 245760,
+      "document_chunks_nclt_desk_feature_language_idx": 139264,
+      "document_chunks_nclt_desk_feature_desk_tier_idx": 139264,
+      "document_chunks_nclt_document_id_chunk_index_idx": 909312,
+      "document_chunks_nclt_document_id_chunk_hash_desk_feature_key": 3121152
+     },
+     "total": 239738880
+    },
+    {
+     "name": "document_chunks_default",
+     "kind": "r",
+     "heap": 12025856,
+     "toast": 82714624,
+     "indexes": 29925376,
+     "index_sizes": {
+      "document_chunks_default_id_desk_feature_key": 794624,
+      "document_chunks_default_embedding_halfvec_hnsw": 26091520,
+      "document_chunks_default_desk_feature_doc_date_idx": 155648,
+      "document_chunks_default_desk_feature_language_idx": 131072,
+      "document_chunks_default_desk_feature_desk_tier_idx": 131072,
+      "document_chunks_default_document_id_chunk_index_idx": 557056,
+      "document_chunks_default_document_id_chunk_hash_desk_feature_key": 2064384
+     },
+     "total": 124747776
+    },
+    {
+     "name": "document_chunks_bills",
+     "kind": "r",
+     "heap": 8003584,
+     "toast": 58605568,
+     "indexes": 31072256,
+     "index_sizes": {
+      "document_chunks_bills_id_desk_feature_key": 499712,
+      "document_chunks_bills_embedding_halfvec_hnsw": 28672000,
+      "document_chunks_bills_desk_feature_doc_date_idx": 90112,
+      "document_chunks_bills_desk_feature_language_idx": 81920,
+      "document_chunks_bills_desk_feature_desk_tier_idx": 81920,
+      "document_chunks_bills_document_id_chunk_index_idx": 376832,
+      "document_chunks_bills_document_id_chunk_hash_desk_feature_key": 1269760
+     },
+     "total": 97755136
+    },
+    {
+     "name": "documents",
+     "kind": "r",
+     "heap": 7372800,
+     "toast": 21831680,
+     "indexes": 7028736,
+     "index_sizes": {
+      "documents_desk": 131072,
+      "documents_pkey": 360448,
+      "documents_file_sha256": 16384,
+      "documents_document_key": 147456,
+      "documents_content_sha256": 1376256,
+      "documents_readiness_page": 1449984,
+      "documents_source_key_key": 1056768,
+      "documents_readiness_cohort": 1990656,
+      "documents_readiness_legacy_key": 491520,
+      "documents_v2_document_key_unique": 8192
+     },
+     "total": 36298752
+    },
+    {
+     "name": "document_chunks_regulatory",
+     "kind": "r",
+     "heap": 1130496,
+     "toast": 7684096,
+     "indexes": 3948544,
+     "index_sizes": {
+      "document_chunks_regulatory_id_desk_feature_key": 98304,
+      "document_chunks_regulatory_embedding_halfvec_hnsw": 3530752,
+      "document_chunks_regulatory_desk_feature_doc_date_idx": 16384,
+      "document_chunks_regulatory_desk_feature_language_idx": 16384,
+      "document_chunks_regulatory_desk_feature_desk_tier_idx": 16384,
+      "document_chunks_regulatory_document_id_chunk_index_idx": 57344,
+      "document_chunks_regulatory_document_id_chunk_hash_desk_feat_key": 212992
+     },
+     "total": 12820480
+    },
+    {
+     "name": "ingest_text_inputs",
+     "kind": "r",
+     "heap": 81920,
+     "toast": 5185536,
+     "indexes": 40960,
+     "index_sizes": {
+      "ingest_text_inputs_pkey": 40960
+     },
+     "total": 5365760
+    },
+    {
+     "name": "record_document_links",
+     "kind": "r",
+     "heap": 294912,
+     "toast": 8192,
+     "indexes": 98304,
+     "index_sizes": {
+      "record_document_links_pkey": 57344,
+      "record_document_links_document": 40960
+     },
+     "total": 434176
+    },
+    {
+     "name": "desk_rows",
+     "kind": "r",
+     "heap": 163840,
+     "toast": 8192,
+     "indexes": 155648,
+     "index_sizes": {
+      "desk_rows_pkey": 57344,
+      "desk_rows_feature": 16384,
+      "desk_rows_row_gin": 73728,
+      "desk_rows_document_key": 8192
+     },
+     "total": 376832
+    },
+    {
+     "name": "ingest_jobs",
+     "kind": "r",
+     "heap": 131072,
+     "toast": 8192,
+     "indexes": 131072,
+     "index_sizes": {
+      "ingest_jobs_pkey": 40960,
+      "ingest_jobs_batch": 16384,
+      "ingest_jobs_active_due": 16384,
+      "ingest_jobs_one_active": 16384,
+      "ingest_jobs_document_created": 40960
+     },
+     "total": 303104
+    },
+    {
+     "name": "document_chunks_unpartitioned",
+     "kind": "r",
+     "heap": 0,
+     "toast": 8192,
+     "indexes": 40960,
+     "index_sizes": {
+      "document_chunks_unpartitioned_pkey": 8192,
+      "document_chunks_unpartitioned_document_order": 8192,
+      "document_chunks_unpartitioned_embedding_halfvec_hnsw": 16384,
+      "document_chunks_unpartitioned_document_id_chunk_hash_key": 8192
+     },
+     "total": 49152
+    }
+   ]
+  },
+  {
+   "t_s": 20.9,
+   "chunks_inserted": 0,
+   "chunks_in_partition": 7071,
+   "wal_lsn": "72/899EC000",
+   "wal_bytes_since_start": 2041008,
+   "wal_bytes_per_chunk_since_last": null,
+   "pg_stat_wal": {
+    "wal_records": 2286894,
+    "wal_fpi": 39693,
+    "wal_bytes": 1062057963,
+    "wal_buffers_full": 3909
+   },
+   "checkpoints": {
+    "num_timed": 8,
+    "num_requested": 4,
+    "write_time": 38739,
+    "sync_time": 143,
+    "buffers_written": 20442
+   },
+   "host_free_gib": 32.27,
+   "loop_lag_ms": {
+    "p99": 9.28,
+    "max": 9.28
+   },
+   "relations": [
+    {
+     "name": "document_chunks_nclt",
+     "kind": "r",
+     "heap": 22323200,
+     "toast": 141697024,
+     "indexes": 75620352,
+     "index_sizes": {
+      "document_chunks_nclt_id_desk_feature_key": 1179648,
+      "document_chunks_nclt_embedding_halfvec_hnsw": 69885952,
+      "document_chunks_nclt_desk_feature_doc_date_idx": 245760,
+      "document_chunks_nclt_desk_feature_language_idx": 139264,
+      "document_chunks_nclt_desk_feature_desk_tier_idx": 139264,
+      "document_chunks_nclt_document_id_chunk_index_idx": 909312,
+      "document_chunks_nclt_document_id_chunk_hash_desk_feature_key": 3121152
+     },
+     "total": 239738880
+    },
+    {
+     "name": "document_chunks_default",
+     "kind": "r",
+     "heap": 12025856,
+     "toast": 82714624,
+     "indexes": 29925376,
+     "index_sizes": {
+      "document_chunks_default_id_desk_feature_key": 794624,
+      "document_chunks_default_embedding_halfvec_hnsw": 26091520,
+      "document_chunks_default_desk_feature_doc_date_idx": 155648,
+      "document_chunks_default_desk_feature_language_idx": 131072,
+      "document_chunks_default_desk_feature_desk_tier_idx": 131072,
+      "document_chunks_default_document_id_chunk_index_idx": 557056,
+      "document_chunks_default_document_id_chunk_hash_desk_feature_key": 2064384
+     },
+     "total": 124747776
+    },
+    {
+     "name": "document_chunks_bills",
+     "kind": "r",
+     "heap": 8003584,
+     "toast": 58605568,
+     "indexes": 31072256,
+     "index_sizes": {
+      "document_chunks_bills_id_desk_feature_key": 499712,
+      "document_chunks_bills_embedding_halfvec_hnsw": 28672000,
+      "document_chunks_bills_desk_feature_doc_date_idx": 90112,
+      "document_chunks_bills_desk_feature_language_idx": 81920,
+      "document_chunks_bills_desk_feature_desk_tier_idx": 81920,
+      "document_chunks_bills_document_id_chunk_index_idx": 376832,
+      "document_chunks_bills_document_id_chunk_hash_desk_feature_key": 1269760
+     },
+     "total": 97755136
+    },
+    {
+     "name": "documents",
+     "kind": "r",
+     "heap": 7397376,
+     "toast": 21929984,
+     "indexes": 7036928,
+     "index_sizes": {
+      "documents_desk": 131072,
+      "documents_pkey": 360448,
+      "documents_file_sha256": 16384,
+      "documents_document_key": 147456,
+      "documents_content_sha256": 1376256,
+      "documents_readiness_page": 1449984,
+      "documents_source_key_key": 1056768,
+      "documents_readiness_cohort": 1998848,
+      "documents_readiness_legacy_key": 491520,
+      "documents_v2_document_key_unique": 8192
+     },
+     "total": 36429824
+    },
+    {
+     "name": "document_chunks_regulatory",
+     "kind": "r",
+     "heap": 1130496,
+     "toast": 7684096,
+     "indexes": 3948544,
+     "index_sizes": {
+      "document_chunks_regulatory_id_desk_feature_key": 98304,
+      "document_chunks_regulatory_embedding_halfvec_hnsw": 3530752,
+      "document_chunks_regulatory_desk_feature_doc_date_idx": 16384,
+      "document_chunks_regulatory_desk_feature_language_idx": 16384,
+      "document_chunks_regulatory_desk_feature_desk_tier_idx": 16384,
+      "document_chunks_regulatory_document_id_chunk_index_idx": 57344,
+      "document_chunks_regulatory_document_id_chunk_hash_desk_feat_key": 212992
+     },
+     "total": 12820480
+    },
+    {
+     "name": "ingest_text_inputs",
+     "kind": "r",
+     "heap": 90112,
+     "toast": 5455872,
+     "indexes": 40960,
+     "index_sizes": {
+      "ingest_text_inputs_pkey": 40960
+     },
+     "total": 5644288
+    },
+    {
+     "name": "record_document_links",
+     "kind": "r",
+     "heap": 311296,
+     "toast": 8192,
+     "indexes": 106496,
+     "index_sizes": {
+      "record_document_links_pkey": 65536,
+      "record_document_links_document": 40960
+     },
+     "total": 458752
+    },
+    {
+     "name": "desk_rows",
+     "kind": "r",
+     "heap": 163840,
+     "toast": 8192,
+     "indexes": 155648,
+     "index_sizes": {
+      "desk_rows_pkey": 57344,
+      "desk_rows_feature": 16384,
+      "desk_rows_row_gin": 73728,
+      "desk_rows_document_key": 8192
+     },
+     "total": 376832
+    },
+    {
+     "name": "ingest_jobs",
+     "kind": "r",
+     "heap": 131072,
+     "toast": 8192,
+     "indexes": 131072,
+     "index_sizes": {
+      "ingest_jobs_pkey": 40960,
+      "ingest_jobs_batch": 16384,
+      "ingest_jobs_active_due": 16384,
+      "ingest_jobs_one_active": 16384,
+      "ingest_jobs_document_created": 40960
+     },
+     "total": 303104
+    },
+    {
+     "name": "document_chunks_unpartitioned",
+     "kind": "r",
+     "heap": 0,
+     "toast": 8192,
+     "indexes": 40960,
+     "index_sizes": {
+      "document_chunks_unpartitioned_pkey": 8192,
+      "document_chunks_unpartitioned_document_order": 8192,
+      "document_chunks_unpartitioned_embedding_halfvec_hnsw": 16384,
+      "document_chunks_unpartitioned_document_id_chunk_hash_key": 8192
+     },
+     "total": 49152
+    }
+   ]
+  },
+  {
+   "t_s": 25.9,
+   "chunks_inserted": 0,
+   "chunks_in_partition": 7071,
+   "wal_lsn": "72/89A56000",
+   "wal_bytes_since_start": 2475184,
+   "wal_bytes_per_chunk_since_last": null,
+   "pg_stat_wal": {
+    "wal_records": 2286894,
+    "wal_fpi": 39693,
+    "wal_bytes": 1062057963,
+    "wal_buffers_full": 3909
+   },
+   "checkpoints": {
+    "num_timed": 8,
+    "num_requested": 4,
+    "write_time": 38739,
+    "sync_time": 143,
+    "buffers_written": 21588
+   },
+   "host_free_gib": 32.27,
+   "loop_lag_ms": {
+    "p99": 3.48,
+    "max": 3.48
+   },
+   "relations": [
+    {
+     "name": "document_chunks_nclt",
+     "kind": "r",
+     "heap": 22323200,
+     "toast": 141697024,
+     "indexes": 75620352,
+     "index_sizes": {
+      "document_chunks_nclt_id_desk_feature_key": 1179648,
+      "document_chunks_nclt_embedding_halfvec_hnsw": 69885952,
+      "document_chunks_nclt_desk_feature_doc_date_idx": 245760,
+      "document_chunks_nclt_desk_feature_language_idx": 139264,
+      "document_chunks_nclt_desk_feature_desk_tier_idx": 139264,
+      "document_chunks_nclt_document_id_chunk_index_idx": 909312,
+      "document_chunks_nclt_document_id_chunk_hash_desk_feature_key": 3121152
+     },
+     "total": 239738880
+    },
+    {
+     "name": "document_chunks_default",
+     "kind": "r",
+     "heap": 12025856,
+     "toast": 82714624,
+     "indexes": 29925376,
+     "index_sizes": {
+      "document_chunks_default_id_desk_feature_key": 794624,
+      "document_chunks_default_embedding_halfvec_hnsw": 26091520,
+      "document_chunks_default_desk_feature_doc_date_idx": 155648,
+      "document_chunks_default_desk_feature_language_idx": 131072,
+      "document_chunks_default_desk_feature_desk_tier_idx": 131072,
+      "document_chunks_default_document_id_chunk_index_idx": 557056,
+      "document_chunks_default_document_id_chunk_hash_desk_feature_key": 2064384
+     },
+     "total": 124747776
+    },
+    {
+     "name": "document_chunks_bills",
+     "kind": "r",
+     "heap": 8003584,
+     "toast": 58605568,
+     "indexes": 31072256,
+     "index_sizes": {
+      "document_chunks_bills_id_desk_feature_key": 499712,
+      "document_chunks_bills_embedding_halfvec_hnsw": 28672000,
+      "document_chunks_bills_desk_feature_doc_date_idx": 90112,
+      "document_chunks_bills_desk_feature_language_idx": 81920,
+      "document_chunks_bills_desk_feature_desk_tier_idx": 81920,
+      "document_chunks_bills_document_id_chunk_index_idx": 376832,
+      "document_chunks_bills_document_id_chunk_hash_desk_feature_key": 1269760
+     },
+     "total": 97755136
+    },
+    {
+     "name": "documents",
+     "kind": "r",
+     "heap": 7421952,
+     "toast": 22003712,
+     "indexes": 7036928,
+     "index_sizes": {
+      "documents_desk": 131072,
+      "documents_pkey": 360448,
+      "documents_file_sha256": 16384,
+      "documents_document_key": 147456,
+      "documents_content_sha256": 1376256,
+      "documents_readiness_page": 1449984,
+      "documents_source_key_key": 1056768,
+      "documents_readiness_cohort": 1998848,
+      "documents_readiness_legacy_key": 491520,
+      "documents_v2_document_key_unique": 8192
+     },
+     "total": 36528128
+    },
+    {
+     "name": "document_chunks_regulatory",
+     "kind": "r",
+     "heap": 1130496,
+     "toast": 7684096,
+     "indexes": 3948544,
+     "index_sizes": {
+      "document_chunks_regulatory_id_desk_feature_key": 98304,
+      "document_chunks_regulatory_embedding_halfvec_hnsw": 3530752,
+      "document_chunks_regulatory_desk_feature_doc_date_idx": 16384,
+      "document_chunks_regulatory_desk_feature_language_idx": 16384,
+      "document_chunks_regulatory_desk_feature_desk_tier_idx": 16384,
+      "document_chunks_regulatory_document_id_chunk_index_idx": 57344,
+      "document_chunks_regulatory_document_id_chunk_hash_desk_feat_key": 212992
+     },
+     "total": 12820480
+    },
+    {
+     "name": "ingest_text_inputs",
+     "kind": "r",
+     "heap": 90112,
+     "toast": 5677056,
+     "indexes": 40960,
+     "index_sizes": {
+      "ingest_text_inputs_pkey": 40960
+     },
+     "total": 5865472
+    },
+    {
+     "name": "record_document_links",
+     "kind": "r",
+     "heap": 319488,
+     "toast": 8192,
+     "indexes": 106496,
+     "index_sizes": {
+      "record_document_links_pkey": 65536,
+      "record_document_links_document": 40960
+     },
+     "total": 466944
+    },
+    {
+     "name": "desk_rows",
+     "kind": "r",
+     "heap": 163840,
+     "toast": 8192,
+     "indexes": 155648,
+     "index_sizes": {
+      "desk_rows_pkey": 57344,
+      "desk_rows_feature": 16384,
+      "desk_rows_row_gin": 73728,
+      "desk_rows_document_key": 8192
+     },
+     "total": 376832
+    },
+    {
+     "name": "ingest_jobs",
+     "kind": "r",
+     "heap": 131072,
+     "toast": 8192,
+     "indexes": 131072,
+     "index_sizes": {
+      "ingest_jobs_pkey": 40960,
+      "ingest_jobs_batch": 16384,
+      "ingest_jobs_active_due": 16384,
+      "ingest_jobs_one_active": 16384,
+      "ingest_jobs_document_created": 40960
+     },
+     "total": 303104
+    },
+    {
+     "name": "ingest_batch_items",
+     "kind": "r",
+     "heap": 114688,
+     "toast": 8192,
+     "indexes": 114688,
+     "index_sizes": {
+      "ingest_batch_items_job": 40960,
+      "ingest_batch_items_pkey": 73728
+     },
+     "total": 270336
+    },
+    {
+     "name": "document_chunks_unpartitioned",
+     "kind": "r",
+     "heap": 0,
+     "toast": 8192,
+     "indexes": 40960,
+     "index_sizes": {
+      "document_chunks_unpartitioned_pkey": 8192,
+      "document_chunks_unpartitioned_document_order": 8192,
+      "document_chunks_unpartitioned_embedding_halfvec_hnsw": 16384,
+      "document_chunks_unpartitioned_document_id_chunk_hash_key": 8192
+     },
+     "total": 49152
+    }
+   ]
+  },
+  {
+   "t_s": 29.2,
+   "chunks_inserted": 0,
+   "chunks_in_partition": 7071,
+   "wal_lsn": "72/89AD58F0",
+   "wal_bytes_since_start": 2997664,
+   "wal_bytes_per_chunk_since_last": null,
+   "pg_stat_wal": {
+    "wal_records": 2291168,
+    "wal_fpi": 39807,
+    "wal_bytes": 1064983539,
+    "wal_buffers_full": 3909
+   },
+   "checkpoints": {
+    "num_timed": 8,
+    "num_requested": 4,
+    "write_time": 38739,
+    "sync_time": 143,
+    "buffers_written": 22374
+   },
+   "host_free_gib": 32.27,
+   "loop_lag_ms": {
+    "p99": 2.87,
+    "max": 2.87
+   },
+   "relations": [
+    {
+     "name": "document_chunks_nclt",
+     "kind": "r",
+     "heap": 22323200,
+     "toast": 141697024,
+     "indexes": 75620352,
+     "index_sizes": {
+      "document_chunks_nclt_id_desk_feature_key": 1179648,
+      "document_chunks_nclt_embedding_halfvec_hnsw": 69885952,
+      "document_chunks_nclt_desk_feature_doc_date_idx": 245760,
+      "document_chunks_nclt_desk_feature_language_idx": 139264,
+      "document_chunks_nclt_desk_feature_desk_tier_idx": 139264,
+      "document_chunks_nclt_document_id_chunk_index_idx": 909312,
+      "document_chunks_nclt_document_id_chunk_hash_desk_feature_key": 3121152
+     },
+     "total": 239738880
+    },
+    {
+     "name": "document_chunks_default",
+     "kind": "r",
+     "heap": 12025856,
+     "toast": 82714624,
+     "indexes": 29925376,
+     "index_sizes": {
+      "document_chunks_default_id_desk_feature_key": 794624,
+      "document_chunks_default_embedding_halfvec_hnsw": 26091520,
+      "document_chunks_default_desk_feature_doc_date_idx": 155648,
+      "document_chunks_default_desk_feature_language_idx": 131072,
+      "document_chunks_default_desk_feature_desk_tier_idx": 131072,
+      "document_chunks_default_document_id_chunk_index_idx": 557056,
+      "document_chunks_default_document_id_chunk_hash_desk_feature_key": 2064384
+     },
+     "total": 124747776
+    },
+    {
+     "name": "document_chunks_bills",
+     "kind": "r",
+     "heap": 8003584,
+     "toast": 58605568,
+     "indexes": 31072256,
+     "index_sizes": {
+      "document_chunks_bills_id_desk_feature_key": 499712,
+      "document_chunks_bills_embedding_halfvec_hnsw": 28672000,
+      "document_chunks_bills_desk_feature_doc_date_idx": 90112,
+      "document_chunks_bills_desk_feature_language_idx": 81920,
+      "document_chunks_bills_desk_feature_desk_tier_idx": 81920,
+      "document_chunks_bills_document_id_chunk_index_idx": 376832,
+      "document_chunks_bills_document_id_chunk_hash_desk_feature_key": 1269760
+     },
+     "total": 97755136
+    },
+    {
+     "name": "documents",
+     "kind": "r",
+     "heap": 7544832,
+     "toast": 22028288,
+     "indexes": 7061504,
+     "index_sizes": {
+      "documents_desk": 131072,
+      "documents_pkey": 360448,
+      "documents_file_sha256": 16384,
+      "documents_document_key": 147456,
+      "documents_content_sha256": 1392640,
+      "documents_readiness_page": 1449984,
+      "documents_source_key_key": 1056768,
+      "documents_readiness_cohort": 2007040,
+      "documents_readiness_legacy_key": 491520,
+      "documents_v2_document_key_unique": 8192
+     },
+     "total": 36700160
+    },
+    {
+     "name": "document_chunks_regulatory",
+     "kind": "r",
+     "heap": 1130496,
+     "toast": 7684096,
+     "indexes": 3948544,
+     "index_sizes": {
+      "document_chunks_regulatory_id_desk_feature_key": 98304,
+      "document_chunks_regulatory_embedding_halfvec_hnsw": 3530752,
+      "document_chunks_regulatory_desk_feature_doc_date_idx": 16384,
+      "document_chunks_regulatory_desk_feature_language_idx": 16384,
+      "document_chunks_regulatory_desk_feature_desk_tier_idx": 16384,
+      "document_chunks_regulatory_document_id_chunk_index_idx": 57344,
+      "document_chunks_regulatory_document_id_chunk_hash_desk_feat_key": 212992
+     },
+     "total": 12820480
+    },
+    {
+     "name": "ingest_text_inputs",
+     "kind": "r",
+     "heap": 90112,
+     "toast": 5758976,
+     "indexes": 40960,
+     "index_sizes": {
+      "ingest_text_inputs_pkey": 40960
+     },
+     "total": 5947392
+    },
+    {
+     "name": "record_document_links",
+     "kind": "r",
+     "heap": 327680,
+     "toast": 8192,
+     "indexes": 106496,
+     "index_sizes": {
+      "record_document_links_pkey": 65536,
+      "record_document_links_document": 40960
+     },
+     "total": 475136
+    },
+    {
+     "name": "desk_rows",
+     "kind": "r",
+     "heap": 163840,
+     "toast": 8192,
+     "indexes": 155648,
+     "index_sizes": {
+      "desk_rows_pkey": 57344,
+      "desk_rows_feature": 16384,
+      "desk_rows_row_gin": 73728,
+      "desk_rows_document_key": 8192
+     },
+     "total": 376832
+    },
+    {
+     "name": "ingest_jobs",
+     "kind": "r",
+     "heap": 131072,
+     "toast": 8192,
+     "indexes": 131072,
+     "index_sizes": {
+      "ingest_jobs_pkey": 40960,
+      "ingest_jobs_batch": 16384,
+      "ingest_jobs_active_due": 16384,
+      "ingest_jobs_one_active": 16384,
+      "ingest_jobs_document_created": 40960
+     },
+     "total": 303104
+    },
+    {
+     "name": "ingest_batch_items",
+     "kind": "r",
+     "heap": 114688,
+     "toast": 8192,
+     "indexes": 114688,
+     "index_sizes": {
+      "ingest_batch_items_job": 40960,
+      "ingest_batch_items_pkey": 73728
+     },
+     "total": 270336
+    },
+    {
+     "name": "document_chunks_unpartitioned",
+     "kind": "r",
+     "heap": 0,
+     "toast": 8192,
+     "indexes": 40960,
+     "index_sizes": {
+      "document_chunks_unpartitioned_pkey": 8192,
+      "document_chunks_unpartitioned_document_order": 8192,
+      "document_chunks_unpartitioned_embedding_halfvec_hnsw": 16384,
+      "document_chunks_unpartitioned_document_id_chunk_hash_key": 8192
+     },
+     "total": 49152
+    }
+   ]
+  },
+  {
+   "t_s": 29.4,
+   "chunks_inserted": 0,
+   "chunks_in_partition": 7071,
+   "wal_lsn": "72/89AD58F0",
+   "wal_bytes_since_start": 2997664,
+   "wal_bytes_per_chunk_since_last": null,
+   "pg_stat_wal": {
+    "wal_records": 2291168,
+    "wal_fpi": 39807,
+    "wal_bytes": 1064983539,
+    "wal_buffers_full": 3909
+   },
+   "checkpoints": {
+    "num_timed": 8,
+    "num_requested": 4,
+    "write_time": 38739,
+    "sync_time": 143,
+    "buffers_written": 22420
+   },
+   "host_free_gib": 32.27,
+   "loop_lag_ms": {
+    "p99": 1.31,
+    "max": 1.31
+   },
+   "relations": [
+    {
+     "name": "document_chunks_nclt",
+     "kind": "r",
+     "heap": 22323200,
+     "toast": 141697024,
+     "indexes": 75620352,
+     "index_sizes": {
+      "document_chunks_nclt_id_desk_feature_key": 1179648,
+      "document_chunks_nclt_embedding_halfvec_hnsw": 69885952,
+      "document_chunks_nclt_desk_feature_doc_date_idx": 245760,
+      "document_chunks_nclt_desk_feature_language_idx": 139264,
+      "document_chunks_nclt_desk_feature_desk_tier_idx": 139264,
+      "document_chunks_nclt_document_id_chunk_index_idx": 909312,
+      "document_chunks_nclt_document_id_chunk_hash_desk_feature_key": 3121152
+     },
+     "total": 239738880
+    },
+    {
+     "name": "document_chunks_default",
+     "kind": "r",
+     "heap": 12025856,
+     "toast": 82714624,
+     "indexes": 29925376,
+     "index_sizes": {
+      "document_chunks_default_id_desk_feature_key": 794624,
+      "document_chunks_default_embedding_halfvec_hnsw": 26091520,
+      "document_chunks_default_desk_feature_doc_date_idx": 155648,
+      "document_chunks_default_desk_feature_language_idx": 131072,
+      "document_chunks_default_desk_feature_desk_tier_idx": 131072,
+      "document_chunks_default_document_id_chunk_index_idx": 557056,
+      "document_chunks_default_document_id_chunk_hash_desk_feature_key": 2064384
+     },
+     "total": 124747776
+    },
+    {
+     "name": "document_chunks_bills",
+     "kind": "r",
+     "heap": 8003584,
+     "toast": 58605568,
+     "indexes": 31072256,
+     "index_sizes": {
+      "document_chunks_bills_id_desk_feature_key": 499712,
+      "document_chunks_bills_embedding_halfvec_hnsw": 28672000,
+      "document_chunks_bills_desk_feature_doc_date_idx": 90112,
+      "document_chunks_bills_desk_feature_language_idx": 81920,
+      "document_chunks_bills_desk_feature_desk_tier_idx": 81920,
+      "document_chunks_bills_document_id_chunk_index_idx": 376832,
+      "document_chunks_bills_document_id_chunk_hash_desk_feature_key": 1269760
+     },
+     "total": 97755136
+    },
+    {
+     "name": "documents",
+     "kind": "r",
+     "heap": 7544832,
+     "toast": 22028288,
+     "indexes": 7061504,
+     "index_sizes": {
+      "documents_desk": 131072,
+      "documents_pkey": 360448,
+      "documents_file_sha256": 16384,
+      "documents_document_key": 147456,
+      "documents_content_sha256": 1392640,
+      "documents_readiness_page": 1449984,
+      "documents_source_key_key": 1056768,
+      "documents_readiness_cohort": 2007040,
+      "documents_readiness_legacy_key": 491520,
+      "documents_v2_document_key_unique": 8192
+     },
+     "total": 36700160
+    },
+    {
+     "name": "document_chunks_regulatory",
+     "kind": "r",
+     "heap": 1130496,
+     "toast": 7684096,
+     "indexes": 3948544,
+     "index_sizes": {
+      "document_chunks_regulatory_id_desk_feature_key": 98304,
+      "document_chunks_regulatory_embedding_halfvec_hnsw": 3530752,
+      "document_chunks_regulatory_desk_feature_doc_date_idx": 16384,
+      "document_chunks_regulatory_desk_feature_language_idx": 16384,
+      "document_chunks_regulatory_desk_feature_desk_tier_idx": 16384,
+      "document_chunks_regulatory_document_id_chunk_index_idx": 57344,
+      "document_chunks_regulatory_document_id_chunk_hash_desk_feat_key": 212992
+     },
+     "total": 12820480
+    },
+    {
+     "name": "ingest_text_inputs",
+     "kind": "r",
+     "heap": 90112,
+     "toast": 5758976,
+     "indexes": 40960,
+     "index_sizes": {
+      "ingest_text_inputs_pkey": 40960
+     },
+     "total": 5947392
+    },
+    {
+     "name": "record_document_links",
+     "kind": "r",
+     "heap": 327680,
+     "toast": 8192,
+     "indexes": 106496,
+     "index_sizes": {
+      "record_document_links_pkey": 65536,
+      "record_document_links_document": 40960
+     },
+     "total": 475136
+    },
+    {
+     "name": "desk_rows",
+     "kind": "r",
+     "heap": 163840,
+     "toast": 8192,
+     "indexes": 155648,
+     "index_sizes": {
+      "desk_rows_pkey": 57344,
+      "desk_rows_feature": 16384,
+      "desk_rows_row_gin": 73728,
+      "desk_rows_document_key": 8192
+     },
+     "total": 376832
+    },
+    {
+     "name": "ingest_jobs",
+     "kind": "r",
+     "heap": 131072,
+     "toast": 8192,
+     "indexes": 131072,
+     "index_sizes": {
+      "ingest_jobs_pkey": 40960,
+      "ingest_jobs_batch": 16384,
+      "ingest_jobs_active_due": 16384,
+      "ingest_jobs_one_active": 16384,
+      "ingest_jobs_document_created": 40960
+     },
+     "total": 303104
+    },
+    {
+     "name": "ingest_batch_items",
+     "kind": "r",
+     "heap": 114688,
+     "toast": 8192,
+     "indexes": 114688,
+     "index_sizes": {
+      "ingest_batch_items_job": 40960,
+      "ingest_batch_items_pkey": 73728
+     },
+     "total": 270336
+    },
+    {
+     "name": "document_chunks_unpartitioned",
+     "kind": "r",
+     "heap": 0,
+     "toast": 8192,
+     "indexes": 40960,
+     "index_sizes": {
+      "document_chunks_unpartitioned_pkey": 8192,
+      "document_chunks_unpartitioned_document_order": 8192,
+      "document_chunks_unpartitioned_embedding_halfvec_hnsw": 16384,
+      "document_chunks_unpartitioned_document_id_chunk_hash_key": 8192
+     },
+     "total": 49152
+    }
+   ]
+  }
+ ],
+ "failures": [],
+ "worker_events": {},
+ "slices": []
+}

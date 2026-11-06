@@ -1,0 +1,4 @@
+NOTICE:  ef 40 : walk returned 200 of 200, distance 0.5225 to 0.5868
+NOTICE:  ef 400 : walk returned 200 of 200, distance 0.5225 to 0.5858
+NOTICE:  ef 1000 : walk returned 200 of 200, distance 0.5225 to 0.5833
+exact nearest|0.3855

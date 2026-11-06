@@ -1,0 +1,8 @@
+Time: 0.936 ms
+Time: 173436.379 ms (02:53.436)
+gin|document_chunks_regulatory_to_tsvector_idx|91471872
+gin|document_chunks_bills_to_tsvector_idx|88170496
+gin|document_chunks_nclt_to_tsvector_idx|78864384
+gin|document_chunks_default_to_tsvector_idx|36782080
+gin|document_chunks_content_tsv|0
+Time: 40.454 ms
