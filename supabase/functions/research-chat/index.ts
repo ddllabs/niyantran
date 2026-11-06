@@ -152,49 +152,58 @@ function metadata(payload: Record<string, unknown>, generation: string | null): 
 }
 /** Local to query retrieval: ingestion keeps its existing batching behavior.
  * Validate before marking success; shared embedTexts' inferred cost/zeros are
- * never used as observed usage for accounting. */
+ * never used as observed usage for accounting.
+ * F296: embedTexts retries a provider's answer, but a call that never answers
+ * throws straight through it. One such call is retried per query; embedding
+ * writes nothing, so unlike the RPCs in bounded() a retry cannot double a write. */
 export async function embedQuery(query: string, context: RetrievalContext, r: Runtime, apiKey: string) {
+  let noResponseRetried = false;
+  const callProvider = async (url: Parameters<typeof fetch>[0], init: RequestInit): Promise<Response> => {
+    context.signal.throwIfAborted();
+    let attempt: ReturnType<RetrievalContext['beginEmbeddingAttempt']> | undefined;
+    let responded = false;
+    try {
+      return await bounded(
+        async (signal) => {
+          context.signal.throwIfAborted();
+          attempt = context.beginEmbeddingAttempt(EMBED_MODEL);
+          const response = await r.fetch(url, { ...init, signal });
+          responded = true;
+          context.signal.throwIfAborted();
+          attempt.observe(metadata({}, response.headers.get('x-generation-id')));
+          const payload = await response.json().catch(() => ({}));
+          context.signal.throwIfAborted();
+          const data = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
+          attempt.observe(metadata(data, response.headers.get('x-generation-id')));
+          if (response.ok) {
+            const vectors = data.data as { index: unknown; embedding: unknown }[];
+            if (
+              !servedModelMatches(String(data.model ?? '')) || !Array.isArray(vectors) || vectors.length !== 1 ||
+              vectors[0]?.index !== 0 ||
+              !Array.isArray(vectors[0].embedding) || vectors[0].embedding.length !== EMBED_DIMS ||
+              !vectors[0].embedding.every((v) => typeof v === 'number' && Number.isFinite(v))
+            ) throw new Error('Invalid query embedding');
+          }
+          signal.throwIfAborted();
+          attempt.finish(response.ok ? 'success' : 'error');
+          return new Response(JSON.stringify(data), {
+            status: response.status,
+            headers: { 'content-type': 'application/json' },
+          });
+        },
+        r.timeoutMs,
+        context.signal,
+      );
+    } catch (error) {
+      attempt?.finish(context.signal.aborted ? 'aborted' : 'error');
+      if (responded || noResponseRetried) throw error;
+      noResponseRetried = true;
+      return await callProvider(url, init);
+    }
+  };
   const result = await embedTexts({
     apiKey,
-    fetch: async (url, init) => {
-      context.signal.throwIfAborted();
-      let attempt: ReturnType<RetrievalContext['beginEmbeddingAttempt']> | undefined;
-      try {
-        return await bounded(
-          async (signal) => {
-            context.signal.throwIfAborted();
-            attempt = context.beginEmbeddingAttempt(EMBED_MODEL);
-            const response = await r.fetch(url, { ...init, signal });
-            context.signal.throwIfAborted();
-            attempt.observe(metadata({}, response.headers.get('x-generation-id')));
-            const payload = await response.json().catch(() => ({}));
-            context.signal.throwIfAborted();
-            const data = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
-            attempt.observe(metadata(data, response.headers.get('x-generation-id')));
-            if (response.ok) {
-              const vectors = data.data as { index: unknown; embedding: unknown }[];
-              if (
-                !servedModelMatches(String(data.model ?? '')) || !Array.isArray(vectors) || vectors.length !== 1 ||
-                vectors[0]?.index !== 0 ||
-                !Array.isArray(vectors[0].embedding) || vectors[0].embedding.length !== EMBED_DIMS ||
-                !vectors[0].embedding.every((v) => typeof v === 'number' && Number.isFinite(v))
-              ) throw new Error('Invalid query embedding');
-            }
-            signal.throwIfAborted();
-            attempt.finish(response.ok ? 'success' : 'error');
-            return new Response(JSON.stringify(data), {
-              status: response.status,
-              headers: { 'content-type': 'application/json' },
-            });
-          },
-          r.timeoutMs,
-          context.signal,
-        );
-      } catch (error) {
-        attempt?.finish(context.signal.aborted ? 'aborted' : 'error');
-        throw error;
-      }
-    },
+    fetch: callProvider,
     sleep: (ms) =>
       bounded(
         (signal) =>

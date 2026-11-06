@@ -313,6 +313,63 @@ Deno.test('D6: abort during embedding retry prevents another paid fetch', async 
   assertEquals(c.attempts.length, 1);
   assertEquals(c.attempts[0].status, ['error']);
 });
+function stalledFetch(onCall: () => void) {
+  return (_url: unknown, init: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      onCall();
+      init.signal?.addEventListener('abort', () => reject(new Error('provider stalled')), { once: true });
+    });
+}
+Deno.test('F296: an embedding call with no response is retried once and the search succeeds', async () => {
+  const f = fixture(), c = embeddingContext();
+  let calls = 0;
+  const stall = stalledFetch(() => {});
+  f.runtime.fetch = (url: unknown, init: RequestInit) => {
+    calls++;
+    return calls === 1 ? stall(url, init) : Promise.resolve(new Response(JSON.stringify(vector())));
+  };
+  const d = createDependencies(request(), f.runtime);
+  await d.requireUser(request());
+  await d.searchDocuments({ query: 'Question' }, [], c.context);
+  assertEquals(calls, 2);
+  assertEquals(c.attempts.map((a) => a.status), [['error'], ['success']]);
+  assertEquals(f.calls.some((x) => x.table === 'match_documents'), true);
+});
+Deno.test('F296: a second stall fails the search, so a query costs at most one retry', async () => {
+  const f = fixture(), c = embeddingContext();
+  let calls = 0;
+  f.runtime.fetch = stalledFetch(() => calls++);
+  const d = createDependencies(request(), f.runtime);
+  await d.requireUser(request());
+  await assertRejects(() => d.searchDocuments({ query: 'Question' }, [], c.context));
+  assertEquals(calls, 2);
+  assertEquals(c.attempts.map((a) => a.status), [['error'], ['error']]);
+  assertEquals(f.calls.some((x) => x.table === 'match_documents'), false);
+});
+Deno.test('F296: an aborted turn does not retry a stalled embedding call', async () => {
+  const f = fixture(), c = embeddingContext();
+  let calls = 0;
+  f.runtime.fetch = stalledFetch(() => {
+    calls++;
+    queueMicrotask(() => c.controller.abort());
+  });
+  const d = createDependencies(request(), f.runtime);
+  await d.requireUser(request());
+  await assertRejects(() => d.searchDocuments({ query: 'Question' }, [], c.context));
+  assertEquals(calls, 1);
+});
+Deno.test('F296: a provider response that fails validation is not retried', async () => {
+  const f = fixture(), c = embeddingContext();
+  let calls = 0;
+  f.runtime.fetch = () => {
+    calls++;
+    return Promise.resolve(new Response(JSON.stringify({ ...vector(), model: 'wrong-model' })));
+  };
+  const d = createDependencies(request(), f.runtime);
+  await d.requireUser(request());
+  await assertRejects(() => d.searchDocuments({ query: 'Question' }, [], c.context));
+  assertEquals(calls, 1);
+});
 Deno.test('D6: invalid vectors fail accounting and never reach retrieval RPC', async () => {
   for (
     const bad of [{ ...vector(), data: [{ index: 0, embedding: [1] }] }, {
