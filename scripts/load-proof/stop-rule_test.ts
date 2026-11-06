@@ -1,5 +1,6 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { MIN_FREE_GIB, stopFor } from './stop-rule.ts';
+import { dirOf } from './lib.ts';
 
 Deno.test('plenty of disk and nothing wrong does not stop', () => {
   assertEquals(stopFor({ freeGiB: 17.9, failedJobs: 0, trouble: [], wrongPartition: 0 }), null);
@@ -26,4 +27,11 @@ Deno.test('a failed job, a timeout, a deadlock, a misplaced chunk and a worker f
     ),
   );
   assert(stopFor({ workerFailure: '{"event":"worker.step_failed"}' })?.includes('worker'));
+});
+
+Deno.test('--out without a slash goes to the current directory, not to a name with its last letter cut off', () => {
+  assertEquals(dirOf('results.json'), '.');
+  assertEquals(dirOf('/a/b/results.json'), '/a/b');
+  assertEquals(dirOf('/results.json'), '/');
+  assertEquals(dirOf('eval/results.json'), 'eval');
 });

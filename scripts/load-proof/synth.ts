@@ -218,7 +218,16 @@ const rpc = async <T = unknown>(c: SupabaseClient, fn: string, args: Record<stri
 };
 
 /** An active, generous policy for a collection, once. Approved by service_role as the supervisor would. */
-export async function ensurePolicy(svc: SupabaseClient, collection: string): Promise<void> {
+export async function ensurePolicy(
+  svc: SupabaseClient,
+  collection: string,
+  stopThresholds: Record<string, number> = {
+    refusal_share: 1,
+    failure_rate: 1,
+    uncertain_max: 1_000_000,
+    min_decided: 1,
+  },
+): Promise<void> {
   if (
     await psql(`select 1 from public.ingest_collection_policies where collection = '${collection}' limit 1`) === '1'
   ) return;
@@ -232,7 +241,7 @@ export async function ensurePolicy(svc: SupabaseClient, collection: string): Pro
       require_page_count: false,
       budget_usd: 1_000_000,
       chunk_ceiling: 100_000_000,
-      stop_thresholds: { refusal_share: 1, failure_rate: 1, uncertain_max: 1_000_000, min_decided: 1 },
+      stop_thresholds: stopThresholds,
       decision_id: 'load-proof-policy',
       approver: 'Load Proof Harness',
       evidence_sha256: 'e'.repeat(64),

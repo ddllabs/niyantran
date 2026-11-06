@@ -12,7 +12,7 @@ export interface Observation {
   /** Jobs of this run in status failed, and the first one's code and message. */
   failedJobs?: number;
   failedWhy?: string;
-  /** Database log lines that are statement timeouts or deadlocks. */
+  /** Database log lines that are statement timeouts, deadlocks or signs of a crash restart (lib.ts). */
   trouble?: string[];
   /** Chunks of this run outside their expected partition. */
   wrongPartition?: number;

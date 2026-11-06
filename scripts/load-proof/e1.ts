@@ -1,24 +1,28 @@
 // E1 of the F287 spec (docs/specs/2026-11-06-ingestion-load-proof.md): the real worker, through real
 // PostgREST as service_role, on the database built from the migration chain, with only the outside
-// providers faked. Six cases:
+// providers faked. Seven cases:
 //
-//   1 single   supplied text, one document each on Bills, NCLT, Regulatory, Parliamentary Questions
-//              (default partition) and a feature without a partition (default partition)
-//   2 batch    a sealed batch through ingest_register_batch and suppliedBatchStep
-//   3 pages    the page path: OCR stage, then chunk_commit, on one partitioned feature
-//   4 rerun    the same batch registered again; a finished run requeued
-//   5 kill     a worker killed mid-batch
-//   6 provider a provider failure
+//   1 single    supplied text, one document each on Bills, NCLT, Regulatory, Parliamentary Questions
+//               (default partition) and a feature without a partition (default partition)
+//   2 batch     a sealed batch through ingest_register_batch and suppliedBatchStep
+//   3 pages     the page path: OCR stage, then chunk_commit, on one partitioned feature
+//   4 rerun     the same batch registered again; then a run killed after its last slice and before
+//               activation, held as text_outcome_uncertain, requeued and run again
+//   5 kill      a worker killed mid-batch (lenient policy), held and requeued
+//   6 provider  a provider failure, in the single-job step and in suppliedBatchStep
+//   7 killstop  the same kill under a strict policy: the claim stops the batch, and what requeue does next
 //
-//   deno run -A scripts/load-proof/e1.ts                  run every case
-//   deno run -A scripts/load-proof/e1.ts --case kill      run one
-//   deno run -A scripts/load-proof/e1.ts --break batch:ledger   run with one deliberate break
-//   deno run -A scripts/load-proof/e1.ts --prove          run every break and require its named check to fail
+//   scripts/load-proof/lp.sh e1.ts                          run every case
+//   scripts/load-proof/lp.sh e1.ts --case kill              run one
+//   scripts/load-proof/lp.sh e1.ts --break batch:ledger     run with one deliberate break
+//   scripts/load-proof/lp.sh e1.ts --prove                  run every break and require its named check to fail
+//   --out PATH     where the results file goes (default eval/ingestion/results/e1-<time>.json)
 //
 // A break changes the scenario or the state it is judged on (a document left on the wrong partition, a
 // ledger row altered, a worker that does not die, a provider that does not fail), never a check. A check
 // is proved able to fail when the run with its break reports it failed. Exit status 1 on any failed
-// check, so a clean run exits 0 and a broken one exits 1.
+// check, so a clean run exits 0 and a broken one exits 1. The results file holds every check, and in
+// --prove mode every break and the checks it tripped.
 //
 // The database is the proof database; start PostgREST first (postgrest.sh up). Every case uses its own
 // source keys, so the suite can run again on the same database.
@@ -47,6 +51,8 @@ interface Outcome {
   check: string;
   ok: boolean;
   detail: string;
+  /** The break this outcome was produced under; absent in a clean run. */
+  breakId?: string;
 }
 
 const outcomes: Outcome[] = [];
@@ -55,7 +61,7 @@ let activeBreak: string | null = null;
 const brk = (id: string) => activeBreak === id;
 
 function check(name: string, ok: boolean, detail = '') {
-  outcomes.push({ case: activeCase, check: name, ok, detail });
+  outcomes.push({ case: activeCase, check: name, ok, detail, ...(activeBreak ? { breakId: activeBreak } : {}) });
   console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${name}${ok || !detail ? '' : `  -- ${detail}`}`);
 }
 
@@ -84,13 +90,48 @@ export const BREAKS: Array<{ id: string; case: string; fails: string }> = [
   { id: 'rerun:newchunks', case: 'rerun', fails: 'the rerun adds no chunk and changes no chunk id' },
   { id: 'kill:nokill', case: 'kill', fails: 'every job of the killed claim is held as text_outcome_uncertain' },
   { id: 'kill:committed', case: 'kill', fails: 'the slice that came back before the kill is committed' },
-  { id: 'kill:corrupt', case: 'kill', fails: 'nothing is embedded twice' },
+  { id: 'kill:corrupt', case: 'kill', fails: 'committed slices are not embedded again after requeue' },
   { id: 'kill:early', case: 'kill', fails: 'requeue finishes every document' },
   { id: 'provider:none', case: 'provider', fails: 'the failed document stopped as embed_failed' },
   { id: 'provider:uncommit', case: 'provider', fails: 'the failed document keeps its committed slice' },
   { id: 'provider:others', case: 'provider', fails: 'the other documents finished' },
   { id: 'provider:search', case: 'provider', fails: 'the other documents are searchable' },
   { id: 'provider:log', case: 'provider', fails: 'the failed call was logged' },
+  {
+    id: 'provider:bnone',
+    case: 'provider',
+    fails: 'batch step: the jobs the failed call carried stopped as embed_failed',
+  },
+  {
+    id: 'provider:bfinished',
+    case: 'provider',
+    fails: 'batch step: the job finished before the failed call is indexed',
+  },
+  {
+    id: 'provider:bslice',
+    case: 'provider',
+    fails: 'batch step: the carried job keeps the slice committed before the failure',
+  },
+  {
+    id: 'provider:blog',
+    case: 'provider',
+    fails: 'batch step: the failed call is logged against the batch and both jobs',
+  },
+  {
+    id: 'killstop:stopped',
+    case: 'killstop',
+    fails: 'the kill leaves the batch unstopped: nothing claimed it again to evaluate the policy',
+  },
+  {
+    id: 'killstop:roomy',
+    case: 'killstop',
+    fails: 'requeue refuses the first job as uncertain_count, stops the batch, and refuses the rest as batch_stopped',
+  },
+  {
+    id: 'killstop:lenient',
+    case: 'killstop',
+    fails: 'after resume, requeue is refused as uncertain_count again and no job is requeued',
+  },
 ];
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -637,7 +678,10 @@ async function caseKill() {
   );
   const again = embedder.repeated();
   check(
-    'nothing is embedded twice',
+    // The bound is the committed slices. The call that was in flight when the worker died is not counted:
+    // the fake counts a call only when it returns, and a real provider would have charged for it, so that
+    // call can be paid twice (the design's reason for holding the job as uncertain).
+    'committed slices are not embedded again after requeue',
     again.length === 0 && embedder.inputsEmbedded - paidBefore === total - committed,
     `${again.length} inputs repeated; ${embedder.inputsEmbedded - paidBefore} embedded after requeue, ${
       total - committed
@@ -721,9 +765,199 @@ async function caseProvider() {
   );
   check('the failed call was logged', errLog === 1, `${errLog} error rows`);
   h.close();
+  await providerBatch();
 }
 
 // ─── main ────────────────────────────────────────────────────────────────────
+
+// The same failure through suppliedBatchStep: four documents of about 35 chunks, one batch, claimed together;
+// their stale chunks are one stream (in claim order, which is not registration order) cut into embedding
+// calls of 96. The first call holds the first two documents and part of the third; the second call holds the
+// rest of the third and the fourth, and fails. So two jobs are carried by the failed call, whichever documents
+// they are: both stop as embed_failed, the two finished in call one are indexed, and the third keeps the slice
+// call one committed. The expectations are read from the failed call's own log row, not from document order.
+async function providerBatch() {
+  await setClaimBatch(4, 4);
+  const tag = tagOf('g');
+  const docs: SynthDoc[] = [];
+  for (let n = 1; n <= 4; n++) docs.push(await synthDoc({ tag, n, chunks: 35, seed: 60 + n }));
+  const embedder = makeFakeEmbedder({
+    fail: (_inputs, call) => (!brk('provider:bnone') && call === 2 ? new Error('provider down: 503') : null),
+  });
+  const h = await makeHarness({ embedder });
+  await seedDeskRows(docs);
+  await ensurePolicy(h.svc, 'national-pq');
+  const runner = await h.rest.client('corpus_ingest');
+  const reg = await registerBatch(runner, docs, { collection: 'national-pq' });
+  const docIds = reg.results.map((r) => r.document_id!), jobIds = reg.results.map((r) => r.job_id!);
+  await drain(h, { pending: pendingOf(docIds) });
+
+  if (brk('provider:blog')) {
+    await psql(
+      `update public.model_call_logs set raw_usage = raw_usage - 'batch_id' where status = 'error' and raw_usage->>'batch_id' = '${reg.batchId}'`,
+    );
+  }
+
+  const logged = await psqlJson<Array<{ batch_id: string | null; job_ids: string[] }>>(
+    `select raw_usage->>'batch_id' batch_id, array(select jsonb_array_elements_text(raw_usage->'job_ids')) job_ids
+       from public.model_call_logs where purpose = 'embedding' and status = 'error'
+        and (raw_usage->'job_ids') ?| array[${jobIds.map((j) => `'${j}'`).join(',')}]`,
+  );
+  const carried = new Set(logged.flatMap((l) => l.job_ids));
+  const idx = (set: boolean) => jobIds.map((_, i) => i).filter((i) => carried.has(jobIds[i]) === set);
+  const failedIdx = idx(true), finishedIdx = idx(false);
+  if (brk('provider:bfinished') && finishedIdx.length) {
+    await psql(
+      `update public.ingest_jobs set status = 'failed', stage = 'index', error_code = 'broken', finished_at = now() where document_id = '${
+        docIds[finishedIdx[0]]
+      }'`,
+    );
+  }
+  if (brk('provider:bslice') && failedIdx.length) {
+    await psql(`delete from public.document_chunks where document_id = any(${ids(failedIdx.map((i) => docIds[i]))})`);
+  }
+
+  // Keyed by document id, so registration order and claim order do not matter.
+  const byDoc = new Map(
+    (await psqlJson<Array<{ document_id: string; status: string; error_code: string | null }>>(
+      `select document_id, status, error_code from public.ingest_jobs where document_id = any(${ids(docIds)})`,
+    )).map((r) => [r.document_id, r]),
+  );
+  check(
+    'batch step: the jobs the failed call carried stopped as embed_failed',
+    failedIdx.length === 2 &&
+      failedIdx.every((i) =>
+        byDoc.get(docIds[i])?.status === 'failed' && byDoc.get(docIds[i])?.error_code === 'embed_failed'
+      ),
+    JSON.stringify({ carried: failedIdx.length, states: failedIdx.map((i) => byDoc.get(docIds[i])) }),
+  );
+  const indexedRows = await psqlJson<Array<{ id: string }>>(
+    `select id from public.documents where id = any(${ids(docIds)}) and indexed_at is not null`,
+  );
+  const indexed = new Set(indexedRows.map((r) => r.id));
+  check(
+    'batch step: the job finished before the failed call is indexed',
+    finishedIdx.length === 2 &&
+      finishedIdx.every((i) => byDoc.get(docIds[i])?.status === 'succeeded' && indexed.has(docIds[i])),
+    JSON.stringify({ finished: finishedIdx.length, indexed: finishedIdx.map((i) => indexed.has(docIds[i])) }),
+  );
+  const stored = Number(
+    failedIdx.length
+      ? await psql(
+        `select count(*) from public.document_chunks where document_id = any(${ids(failedIdx.map((i) => docIds[i]))})`,
+      )
+      : 0,
+  );
+  const expected = 96 - finishedIdx.reduce((n, i) => n + docs[i].chunks, 0);
+  check(
+    'batch step: the carried job keeps the slice committed before the failure',
+    failedIdx.length > 0 && stored === expected && stored > 0 && failedIdx.every((i) => !indexed.has(docIds[i])),
+    `${stored} chunks of the carried jobs stored, expected ${expected} (96 less the finished jobs' chunks)`,
+  );
+  check(
+    'batch step: the failed call is logged against the batch and both jobs',
+    logged.length === 1 && logged[0].batch_id === reg.batchId && logged[0].job_ids.length === 2,
+    JSON.stringify(logged),
+  );
+  h.close();
+}
+
+// ─── case 7: the kill under a strict policy ──────────────────────────────────
+
+// What the real functions do when a killed claim leaves more uncertain jobs than the policy's uncertain_max.
+// Observed, and asserted so a change is seen: the claim marks the jobs uncertain but evaluates the batch's
+// policy only when it has a job of the batch to hand out, so with every job failed nothing stops the batch;
+// ingest_batch_requeue then evaluates it (v_uncertain > uncertain_max, before anything is requeued), refuses
+// the first job as uncertain_count and stops the batch; ingest_batch_resume restores the state but keeps the
+// batch's policy snapshot, so the next requeue is refused the same way. No job can be requeued while the
+// uncertain count stays above uncertain_max, and requeue is the only thing that lowers it.
+async function caseKillStop() {
+  const collection = brk('killstop:lenient')
+    ? 'national-pq-lenient'
+    : brk('killstop:roomy')
+    ? 'national-pq-strict-roomy'
+    : 'national-pq-strict';
+  // Jobs an earlier break left queued (a requeue nobody drained) would be claimed before this batch's; finish them first.
+  const quiet = await makeHarness();
+  await setClaimBatch(20, 20);
+  await drain(quiet, { timeoutMs: 120_000 });
+  quiet.close();
+  let hungAt = 0;
+  const embedder = makeFakeEmbedder({ hang: (_i, call) => (call === 2 ? (hungAt = call, true) : false) });
+  const h = await makeHarness({ embedder });
+  await setClaimBatch(20, 20);
+  const strict = { refusal_share: 1, failure_rate: 1, uncertain_max: 2, min_decided: 1 };
+  await ensurePolicy(h.svc, 'national-pq-strict', strict);
+  await ensurePolicy(h.svc, 'national-pq-strict-roomy', { ...strict, uncertain_max: 12 });
+  await ensurePolicy(h.svc, 'national-pq-lenient');
+  const tag = tagOf('x');
+  const docs: SynthDoc[] = [];
+  for (let n = 1; n <= 12; n++) docs.push(await synthDoc({ tag, n, chunks: 12, seed: 71 }));
+  await seedDeskRows(docs);
+  const runner = await h.rest.client('corpus_ingest');
+  const reg = await registerBatch(runner, docs, { collection });
+  const docIds = reg.results.map((r) => r.document_id!), jobIds = reg.results.map((r) => r.job_id!);
+  void runOnce(h.workerDeps().deps);
+  for (let i = 0; i < 400 && !hungAt; i++) await sleep(50);
+  if (!hungAt) throw new Error('the worker never reached its second embedding call');
+  await psql(
+    `update public.ingest_jobs set lease_until = now() - interval '1 second' where document_id = any(${
+      ids(docIds)
+    }) and status = 'running'`,
+  );
+  await drain(h, { pending: pendingOf(docIds) });
+  if (brk('killstop:stopped')) {
+    await psql(
+      `update public.ingest_batches set state = 'stopped', stopped_from = 'registered', stop_reason = 'uncertain_count' where id = '${reg.batchId}'`,
+    );
+  }
+  const batch = async () =>
+    (await psqlJson<Array<{ state: string; stop_reason: string | null }>>(
+      `select state, stop_reason from public.ingest_batches where id = '${reg.batchId}'`,
+    ))[0];
+  const requeue = async () => {
+    const r = await runner.rpc('ingest_batch_requeue', { p_batch: reg.batchId, p_job_ids: jobIds });
+    if (r.error) throw new Error(`ingest_batch_requeue: ${r.error.message}`);
+    const results = (r.data as { results: Array<{ outcome: string; reason?: string }> }).results;
+    return { results, outcomes: results.map((x) => x.reason ?? x.outcome) };
+  };
+
+  const afterKill = await batch();
+  const uncertain = Number(
+    await psql(
+      `select count(*) from public.ingest_jobs where batch_id = '${reg.batchId}' and error_code = 'text_outcome_uncertain'`,
+    ),
+  );
+  check(
+    'the kill leaves the batch unstopped: nothing claimed it again to evaluate the policy',
+    uncertain === docs.length && afterKill.state !== 'stopped' && afterKill.stop_reason === null,
+    JSON.stringify({ uncertain, ...afterKill }),
+  );
+  const first = await requeue();
+  const mid = await batch();
+  check(
+    'requeue refuses the first job as uncertain_count, stops the batch, and refuses the rest as batch_stopped',
+    first.outcomes[0] === 'uncertain_count' && first.outcomes.slice(1).every((o) => o === 'batch_stopped') &&
+      mid.state === 'stopped' && mid.stop_reason === 'uncertain_count',
+    JSON.stringify({ first: first.outcomes, ...mid }),
+  );
+  if (mid.state === 'stopped') {
+    const r = await h.svc.rpc('ingest_batch_resume', {
+      p_batch: reg.batchId,
+      p: { decision_id: 'load-proof', approver: 'Load Proof Harness', evidence_sha256: 'e'.repeat(64) },
+    });
+    if (r.error) throw new Error(`ingest_batch_resume: ${r.error.message}`);
+  }
+  const second = await requeue();
+  const end = await batch();
+  const requeued = second.results.filter((r) => r.outcome === 'requeued').length;
+  check(
+    'after resume, requeue is refused as uncertain_count again and no job is requeued',
+    requeued === 0 && second.outcomes[0] === 'uncertain_count' && end.state === 'stopped',
+    JSON.stringify({ requeued, outcomes: second.outcomes.slice(0, 3), end }),
+  );
+  h.close();
+}
 
 const CASES: Record<string, () => Promise<void>> = {
   single: caseSingle,
@@ -732,6 +966,7 @@ const CASES: Record<string, () => Promise<void>> = {
   rerun: caseRerun,
   kill: caseKill,
   provider: caseProvider,
+  killstop: caseKillStop,
 };
 
 async function runCase(name: string, brokenWith: string | null) {
@@ -752,6 +987,39 @@ const arg = (flag: string) => {
   return i >= 0 ? Deno.args[i + 1] : null;
 };
 
+/** S8: every check, and in --prove mode every break with the checks it tripped. */
+async function writeResults(
+  mode: string,
+  breaks: Array<{ id: string; case: string; expected: string; tripped: boolean; failed_checks: string[] }>,
+) {
+  const file = arg('--out') ??
+    decodeURIComponent(
+      new URL(`../../eval/ingestion/results/e1-${new Date().toISOString().replace(/[:.]/g, '-')}.json`, import.meta.url)
+        .pathname,
+    ); // a repository path with spaces comes back percent-encoded from .pathname
+  const dir = file.includes('/') ? file.slice(0, file.lastIndexOf('/')) : '.';
+  await Deno.mkdir(dir, { recursive: true });
+  const clean = outcomes.filter((o) => !o.breakId);
+  await Deno.writeTextFile(
+    file,
+    JSON.stringify(
+      {
+        suite: 'F287 E1',
+        mode,
+        finished: new Date().toISOString(),
+        database: Deno.env.get('LOAD_PROOF_DB') ?? 'niyantran_ingest_load_test',
+        checks: clean.map(({ case: c, check: k, ok, detail }) => ({ case: c, check: k, ok, detail })),
+        passed: clean.filter((o) => o.ok).length,
+        total: clean.length,
+        breaks,
+      },
+      null,
+      1,
+    ),
+  );
+  console.log(`results: ${file}`);
+}
+
 if (import.meta.main) {
   const only = arg('--case');
   const onlyBreak = arg('--break');
@@ -761,6 +1029,7 @@ if (import.meta.main) {
   if (Deno.args.includes('--prove')) {
     // Every case clean, then every break: its named check must fail and the case must otherwise run.
     const verdicts: Array<{ break: string; check: string; failed: boolean }> = [];
+    const breakRecords: Parameters<typeof writeResults>[1] = [];
     const cleanChecks: Outcome[] = [];
     for (const n of names) {
       const at = outcomes.length;
@@ -771,6 +1040,13 @@ if (import.meta.main) {
         await runCase(n, b.id);
         const failed = outcomes.slice(from).some((o) => o.check === b.fails && !o.ok);
         verdicts.push({ break: b.id, check: b.fails, failed });
+        breakRecords.push({
+          id: b.id,
+          case: b.case,
+          expected: b.fails,
+          tripped: failed,
+          failed_checks: outcomes.slice(from).filter((o) => !o.ok).map((o) => o.check),
+        });
       }
     }
     console.log('\n== proof that each check can fail');
@@ -784,6 +1060,7 @@ if (import.meta.main) {
     const covered = new Set(BREAKS.map((b) => kind(b.fails)));
     const uncovered = [...new Set(cleanChecks.map((o) => kind(o.check)))].filter((k) => !covered.has(k));
     const cleanFailed = cleanChecks.filter((o) => !o.ok);
+    await writeResults('prove', breakRecords);
     console.log(`\nclean runs: ${cleanChecks.length - cleanFailed.length} of ${cleanChecks.length} checks passed`);
     for (const o of cleanFailed) console.log(`  CLEAN-FAILED  ${o.case}: ${o.check}  ${o.detail}`);
     for (const k of uncovered) console.log(`  NO-BREAK-FOR  ${k}`);
@@ -799,5 +1076,6 @@ if (import.meta.main) {
   }
   const failed = outcomes.filter((o) => !o.ok);
   console.log(`\n${outcomes.length - failed.length} of ${outcomes.length} checks passed`);
+  await writeResults(onlyBreak ? `break ${onlyBreak}` : 'run', []);
   Deno.exit(failed.length ? 1 : 0);
 }

@@ -31,12 +31,21 @@ case "$DB" in niyantran_ingest_load*_test) ;; *) die "database name $DB must mat
 
 pg() { docker exec -i "$CONTAINER" psql -U postgres -X -q -At -v ON_ERROR_STOP=1 "$@"; }
 exists() { [ "$(pg -d postgres -c "select 1 from pg_database where datname = '$1'")" = 1 ]; }
+# A database that holds a load is slow to rebuild: replacing or dropping one needs LOAD_PROOF_ALLOW_DROP_LOADED=1.
+guard_loaded() {
+  local n
+  n="$(pg -d "$DB" -c 'select count(*) from public.document_chunks' 2> /dev/null || echo 0)"
+  if [ "${n:-0}" -gt 100000 ] && [ "${LOAD_PROOF_ALLOW_DROP_LOADED:-}" != 1 ]; then
+    die "$DB holds $n chunks; set LOAD_PROOF_ALLOW_DROP_LOADED=1 to replace or drop it"
+  fi
+}
 
 build() {
   local replace=0
   [ "${1:-}" = --replace ] && replace=1
   if exists "$DB"; then
     [ $replace = 1 ] || die "$DB exists; use build --replace to drop and rebuild it"
+    guard_loaded
     pg -d postgres -c "drop database $DB with (force)"
   fi
   pg -d postgres -c "create database $DB"
@@ -122,6 +131,7 @@ SQL
 
 drop_db() {
   exists "$DB" || { echo "$DB does not exist"; return 0; }
+  guard_loaded
   pg -d postgres -c "drop database $DB with (force)"
   echo "dropped $DB"
 }
