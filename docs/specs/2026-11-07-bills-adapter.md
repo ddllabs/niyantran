@@ -2,7 +2,7 @@
 
 > **Status: Living (2026-11-07).** Spec for the Bills part of F275, under the
 > [bulk ingestion spec](2026-11-01-bulk-ingestion.md) step 6. Figures are read-only from NTER on 2026-11-07, or from the client's
-> completion plan and inventory on `task/client-corpus-claude-2026-10-29`. Built in
+> completion plan and inventory on the client branch. Built in
 > `supabase/migrations/20261107120000_bills_adapter.sql`, not on NTER. The relaxed text check still needs the owner's agreement.
 
 ## Current state
