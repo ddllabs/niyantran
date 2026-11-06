@@ -28,6 +28,7 @@ export const FEATURES = {
   other: { tier: 'national', feature: 'Proof Feature Without A Partition' },
 } as const;
 export type FeatureKey = keyof typeof FEATURES;
+const BILLS = FEATURES.bills;
 
 const WORDS = (
   'ministry scheme state government allocation fund district programme committee report notified amendment ' +
@@ -98,21 +99,25 @@ export interface SynthDoc {
   /** What ingest_register_batch and ingest_register_text take. */
   request: { payload: string; payload_sha256: string; expected: unknown[]; pages: unknown[]; sections: unknown[] };
   item: { source_key: string; payload_sha256: string; content_sha256: string; chunks: number; est_tokens: number };
-  deskRow: { row_key: string; row: Record<string, unknown>; record_text: string };
+  deskRow: { row_key: string; feature?: string; document_key?: string; row: Record<string, unknown>; record_text: string };
 }
 
 const CHARS_PER_CHUNK = 760; // refined per document below
 
 export async function synthDoc(
-  o: { tag: string; n: number; chunks: number; seed: number; textPool?: string[] | null },
+  o: { tag: string; n: number; chunks: number; seed: number; textPool?: string[] | null; bill?: boolean },
 ): Promise<SynthDoc> {
   const { tag, n } = o;
   const next = rng((o.seed * 2654435761 + n) >>> 0);
   const sourceKey = (await sha256Hex(`load-proof:${tag}:${n}`)).slice(0, 40);
   const stem = `AU${n}_${tag}`;
-  const url = `https://sansad.in/getFile/loksabhaquestions/annex/187/${stem}.pdf?source=pqals`;
-  const subject = `Subject ${tag} ${n}`;
-  const header = `LOK SABHA UNSTARRED QUESTION ${n} (${tag}). ANSWER.`;
+  // A bill's number has to be unique across runs: it comes from the tag, as the source key does.
+  const billNumber = String(parseInt(sourceKey.slice(0, 7), 16) + 1000);
+  const url = o.bill
+    ? `https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/${billNumber}_2025.pdf?source=legislation`
+    : `https://sansad.in/getFile/loksabhaquestions/annex/187/${stem}.pdf?source=pqals`;
+  const subject = o.bill ? `The Load Proof ${tag} ${n} Measure Bill, 2025` : `Subject ${tag} ${n}`;
+  const header = o.bill ? `BILL NO. ${billNumber} OF 2025 (${tag}).` : `LOK SABHA UNSTARRED QUESTION ${n} (${tag}). ANSWER.`;
   const body = (chars: number) => {
     const parts = [header];
     let len = header.length;
@@ -141,19 +146,32 @@ export async function synthDoc(
       text: t,
       text_sha256: hash,
       desk_tier: PQ.tier,
-      desk_feature: PQ.feature,
+      desk_feature: o.bill ? BILLS.feature : PQ.feature,
       file_name: `${stem}.pdf`,
       file_url: url,
-      document_key_suggested: `pq:ls:187:${stem}`,
+      ...(o.bill
+        ? { document_key: `bill:2025:${billNumber}`, document_role: 'as_introduced' }
+        : { document_key_suggested: `pq:ls:187:${stem}` }),
       licence_class: 'gov_open',
-      citation: {
-        kind: 'parliamentary_question',
-        house: 'Lok Sabha',
-        session: '187',
-        subject,
-        ministry: 'MINISTRY OF PROOFS',
-        answered_on: '02.04.2026',
-      },
+      citation: o.bill
+        ? {
+          kind: 'bill',
+          bill_number: billNumber,
+          bill_year: '2025',
+          house: 'Lok Sabha',
+          bill_name: subject,
+          status: 'Pending',
+          introduced_on: '2025-03-04',
+          ministry: 'MINISTRY OF PROOFS',
+        }
+        : {
+          kind: 'parliamentary_question',
+          house: 'Lok Sabha',
+          session: '187',
+          subject,
+          ministry: 'MINISTRY OF PROOFS',
+          answered_on: '02.04.2026',
+        },
       review: {
         status: 'eligible',
         source_key: sourceKey,
@@ -191,7 +209,17 @@ export async function synthDoc(
     },
     deskRow: {
       row_key: `lp-${tag}-${n}`,
-      row: {
+      ...(o.bill ? { feature: BILLS.feature, document_key: `bill:2025:${billNumber}` } : {}),
+      row: o.bill
+        ? {
+          id: `lp-${tag}-${n}`,
+          bill_number: billNumber,
+          house: 'Lok Sabha',
+          bill_name: subject,
+          date_introduced: '2025-03-04',
+          source_url: 'https://sansad.in/rs/legislation',
+        }
+        : {
         id: `lp-${tag}-${n}`,
         house: 'Lok Sabha',
         date: '2026-04-02',
@@ -212,8 +240,8 @@ export async function seedDeskRows(docs: SynthDoc[]): Promise<void> {
   if (!docs.length) return;
   const json = JSON.stringify(docs.map((d) => d.deskRow));
   await psql(
-    `insert into public.desk_rows(tier,feature,row_key,row,record_text,snapshot_at)
-     select '${PQ.tier}', '${PQ.feature}', r->>'row_key', r->'row', r->>'record_text', now()
+    `insert into public.desk_rows(tier,feature,row_key,row,record_text,snapshot_at,document_key)
+     select '${PQ.tier}', coalesce(r->>'feature', '${PQ.feature}'), r->>'row_key', r->'row', r->>'record_text', now(), r->>'document_key'
        from jsonb_array_elements($lp$${json}$lp$::jsonb) r
      on conflict do nothing`,
   );
@@ -235,6 +263,7 @@ export async function ensurePolicy(
     uncertain_max: 1_000_000,
     min_decided: 1,
   },
+  admitted: Record<string, unknown> = { desk_tier: PQ.tier, desk_feature: PQ.feature, adapter: 'lok_sabha_answers' },
 ): Promise<void> {
   if (
     await psql(`select 1 from public.ingest_collection_policies where collection = '${collection}' limit 1`) === '1'
@@ -242,7 +271,7 @@ export async function ensurePolicy(
   await rpc(svc, 'ingest_policy_approve', {
     p: {
       collection,
-      admitted: [{ desk_tier: PQ.tier, desk_feature: PQ.feature, adapter: 'lok_sabha_answers' }],
+      admitted: [admitted],
       licence_classes: ['gov_open'],
       min_chars_per_page: 600,
       min_pages_for_density: 5,

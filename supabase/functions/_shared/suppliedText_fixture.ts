@@ -58,3 +58,20 @@ export async function nationalQuestion() {
     },
   };
 }
+export async function nationalBill() {
+  const r = await nationalQuestion();
+  const { document_key_suggested: _unused, ...rest } = r;
+  return {
+    ...rest,
+    title: 'The River Navigation (Amendment) Bill, 2025',
+    desk_feature: 'Bill Passage Probability Index',
+    file_name: '12_2025.pdf',
+    file_url: 'https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/12_2025.pdf?source=legislation',
+    document_key: 'bill:2025:12',
+    document_role: 'as_introduced',
+    citation: {
+      kind: 'bill', bill_number: '12', bill_year: '2025', house: 'Lok Sabha',
+      bill_name: 'The River Navigation (Amendment) Bill, 2025', status: 'Pending', introduced_on: '2025-03-04',
+    },
+  };
+}

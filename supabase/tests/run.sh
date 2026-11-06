@@ -105,6 +105,11 @@ chain() {
     ingest_admission_scans)
       chain ingest_register_batch
       FILES+=("$(as_non_superuser 20261106120000_admission_scans.sql)") ;;
+    # F275: Bills through a sealed batch. ingest_admission_scans' chain, then the migration, as a
+    # non-superuser. The vacuity check drops the last.
+    ingest_bills_adapter)
+      chain ingest_admission_scans
+      FILES+=("$(as_non_superuser 20261107120000_bills_adapter.sql)") ;;
     # F278 step 3 (B1): document_chunks partitioned by feature. pq_admission_links' chain plus the
     # other migrations whose functions read chunks (the readiness helper, the unscoped ef_search, the
     # feature search recovery), then the migration, all as a non-superuser. The vacuity check drops
