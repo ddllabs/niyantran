@@ -46,8 +46,9 @@ and 7 MB, counted on the whole request. Refuses to start when:
 - projected disk use passes the stop line given to the run, at 13,970 bytes a chunk;
 - two records share a text, unless the pack's own dedupe list names the keeper.
 
-**Pre-check.** `ingest_text_holders`, then `ingest_register_batch` with `p_dry_run`. Any refusal the runner did not predict is a
-disagreement, and it stops the batch.
+**Pre-check.** `ingest_text_holders`, then `ingest_register_batch` with `p_dry_run`. Each collection lists the refusals it expects, such
+as `no_desk_row`, which about 4% of live bills would get. Those are counted by reason and governed by the policy's refusal thresholds,
+and the dry run's verdict binds the real call. Any other refusal is a disagreement, and it stops the batch.
 
 **Run.** `ingest_batch_open`, `ingest_batch_add_items`, `ingest_batch_seal`, then registration call by call.
 
@@ -71,6 +72,11 @@ commit and stop reason.
 - On the load copy, with the real worker: a synthetic pack of question and bill records, a kill mid-batch, and a resume.
 - Rerunning a finished batch sends nothing and spends nothing.
 
+Result on the full-size copy, `scripts/load-proof/bulk-proof.ts`, with the real worker: a 229-document batch of bills, killed after one
+call of 100, resumed from the ledger in two calls. All 18 checks pass, including no document admitted twice, the patch loaded in place
+of its original, a control code removed, a corrigendum on its bill, an expected refusal written nowhere, and a rerun that sent and
+bought nothing. 56 unit tests pass, and 31 injected bugs were each caught.
+
 ## Plan
 
 Sequential. One write scope: `scripts/bulk-runner/`.
@@ -80,7 +86,7 @@ Sequential. One write scope: `scripts/bulk-runner/`.
 | T1. Prepare | `prepare.ts` and test | none | `deno test scripts/bulk-runner` |
 | T2. Plan and guards | `plan.ts` and test | T1 | same |
 | T3. Run, watch, receipt, pace | `run.ts`, `db.ts` and tests | T2 | same, with a fake `Db` |
-| T4. Load copy proof | `prove.ts` | T3 | a run against PostgREST on the load copy |
+| T4. Load copy proof | `scripts/load-proof/bulk-proof.ts` | T3 | a run against PostgREST on the load copy |
 | T5. Independent review | none | T4 | review notes |
 
 ## Not in this work
