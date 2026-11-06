@@ -3,7 +3,7 @@ import { pqAnswerKey, prepareSuppliedText } from './suppliedText.ts';
 import { sha256Hex } from './textNormalise.ts';
 import { chunkTextWithContext } from './textContext.ts';
 
-import { input, nationalQuestion } from './suppliedText_fixture.ts';
+import { input, nationalBill, nationalQuestion } from './suppliedText_fixture.ts';
 Deno.test('supplied text uses existing chunker and converts code points without changing text', async () => {
   const r = await input();
   const p = await prepareSuppliedText(r);
@@ -67,7 +67,7 @@ Deno.test('Lok Sabha answers are admitted only for their own module, official an
   assertEquals(p.input.document_key_suggested, 'pq:ls:187:AU6302_KIQmzb');
   assertEquals(p.chunks, await chunkTextWithContext(q.text));
   await prepareSuppliedText({ ...q, document_key_suggested: undefined });
-  await assertRejects(() => prepareSuppliedText({ ...q, desk_feature: 'Bill Passage Probability Index' }), Error, 'feature');
+  await assertRejects(() => prepareSuppliedText({ ...q, desk_feature: 'Bill Passage Probability Index' }), Error, 'sansad.in');
   await assertRejects(() => prepareSuppliedText({ ...q, desk_tier: 'law' }), Error, 'feature');
   await assertRejects(() => prepareSuppliedText({ ...q, file_url: 'https://example.org/AU6302_KIQmzb.pdf' }), Error, 'sansad.in');
   await assertRejects(() => prepareSuppliedText({ ...q, file_url: 'http://sansad.in/getFile/loksabhaquestions/annex/187/AU6302_KIQmzb.pdf' }), Error, 'sansad.in');
@@ -100,4 +100,32 @@ Deno.test('servable: the batch path carries false for the database to refuse, re
   const held = await prepareSuppliedText({ ...r, servable: false }, { batch: true });
   assertEquals(JSON.parse(held.payload).servable, false);
   await assertRejects(() => prepareSuppliedText({ ...r, servable: 'false' }, { batch: true }), Error, 'servable');
+});
+Deno.test('a National bill carries its key and role, and a check only when it was made', async () => {
+  const r = await nationalBill();
+  const p = await prepareSuppliedText(r);
+  assertEquals(p.input.document_key, 'bill:2025:12');
+  assertEquals(p.input.document_role, 'as_introduced');
+  assertEquals((p.input.review as { checks: Record<string, boolean> }).checks.bill_identity, undefined);
+  const checked = { ...r, review: { ...r.review, checks: { ...r.review.checks, bill_identity: true } } };
+  const q = await prepareSuppliedText(checked);
+  assertEquals((q.input.review as { checks: Record<string, boolean> }).checks.bill_identity, true);
+});
+Deno.test('a National bill must say what it is', async () => {
+  const r = await nationalBill();
+  await assertRejects(() => prepareSuppliedText({ ...r, file_url: 'https://example.com/bill.pdf' }), Error, 'sansad.in');
+  await assertRejects(
+    () => prepareSuppliedText({ ...r, file_url: 'https://sansad.in/getFile/BillsTexts/../secret.pdf' }),
+    Error,
+    'sansad.in',
+  );
+  await assertRejects(() => prepareSuppliedText({ ...r, document_role: 'memo' }), Error, 'document_role');
+  await assertRejects(() => prepareSuppliedText({ ...r, document_key: 'bill:2024:12' }), Error, 'document_key');
+});
+Deno.test('a question record is unchanged by the Bills adapter', async () => {
+  const r = await nationalQuestion();
+  const p = await prepareSuppliedText({ ...r, document_key: 'bill:2025:12', document_role: 'as_introduced' });
+  assertEquals(p.input.document_key, undefined);
+  assertEquals(p.input.document_role, undefined);
+  assertEquals(p.payload_sha256, (await prepareSuppliedText(r)).payload_sha256);
 });

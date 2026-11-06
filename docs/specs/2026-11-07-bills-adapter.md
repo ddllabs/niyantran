@@ -1,8 +1,9 @@
 # Bills adapter (F275)
 
-> **Status: Living (draft, 2026-11-07).** Spec for the Bills part of F275, under the
-> [bulk ingestion spec](2026-11-01-bulk-ingestion.md) step 6. Not approved. Figures are read-only from NTER on 2026-11-07, or from
-> the client's completion plan and inventory on `task/client-corpus-claude-2026-10-29`. Nothing here is built yet.
+> **Status: Living (2026-11-07).** Spec for the Bills part of F275, under the
+> [bulk ingestion spec](2026-11-01-bulk-ingestion.md) step 6. Figures are read-only from NTER on 2026-11-07, or from the client's
+> completion plan and inventory on `task/client-corpus-claude-2026-10-29`. Built in
+> `supabase/migrations/20261107120000_bills_adapter.sql`, not on NTER. The relaxed text check still needs the owner's agreement.
 
 ## Current state
 
@@ -54,11 +55,20 @@ rows that already match on number, house and year.
 
 - As introduced and as passed: the bill's title or its number must appear in the opening text. A failure is held for review,
   with a named reason, by the runner. It is not refused in admission, since OCR is the likely cause of most misses.
-- Synopsis, gazette notification and errata: exempt. They link by key and cannot establish a bill's identity.
+- Synopsis, gazette notification, errata and corrigendum: exempt. They link by key and cannot establish a bill's identity.
+
+`billTextIdentity` in `supabase/functions/_shared/billIdentity.ts` is that check. The runner calls it and records the result as
+review check `bill_identity`. Adding `bill_identity` to a collection's `required_checks` makes admission enforce it, so the rule
+can change with the owner's answer without a migration.
 
 This narrows the owner's gate, which names every sansad bill, so it needs the owner's agreement.
 
-**Links.** Written in the same transaction, as F266 does, with `decision_id` `admission:bill-key-v1`.
+**Links.** Written in the same transaction, as F266 does, with `decision_id` `admission:bill-key-v1` and the document's role.
+
+**One of each.** Admission refuses a file URL or a bill-and-role pair another document holds, by name. Two unique indexes hold the
+same rule if concurrent runs race past those lookups. Live bills have no duplicate of either.
+
+**One way in.** The single-document path refuses Bills, so every bill comes through a sealed batch and its policy.
 
 **Facets.** From the pack's citation: bill number, year, house, ministry, status, introduced on, per spec §4.5. Absent fields stay
 null and are not guessed.
@@ -98,11 +108,19 @@ settles that.
 
 ## Acceptance evidence
 
-- A fixture covers every refusal, multi-document bills, shared keys, and the year disagreement; it fails without the migration.
-- Every `ingest_register_batch` case still passes.
-- A dry run on the real pack reports each refusal class by count, and those counts are reviewed.
-- The per-page text check stays in the runner (F285), which also applies the patches and the 700-chunk hold.
-- A registration call stays inside F290's bound on the load copy.
+| Check | Result |
+|---|---|
+| Fixture covers every refusal, multi-document bills, shared keys, and the year disagreement | Passes; fails without the migration |
+| Every `ingest_register_batch` case on the replaced functions | Passes, by including that fixture |
+| Bills through the real worker on the full-size copy: partition, date, links, indexing, search | 6 of 6 checks |
+| Each of those breaks trips its named check | 5 of 5 |
+| The whole worker suite on the replaced functions | 63 of 63 checks |
+| Deliberate breaks of the migration | 25 run: 24 caught. Removing the per-bill lock is not, because one session cannot race itself; the unique indexes cover that case |
+| Applied before F290 | Refused, nothing created |
+| The rollback note, as written | Schema matches the F290 chain, apart from test scaffolding |
+
+Still to do before a validation batch: a dry run on the real pack, reporting each refusal class by count. The per-page text
+check, the patches, the 700-chunk hold and the text identity call stay in the runner (F285).
 
 ## Decisions
 

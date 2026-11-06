@@ -1,6 +1,6 @@
 // E1 of the F287 spec (docs/specs/2026-11-06-ingestion-load-proof.md): the real worker, through real
 // PostgREST as service_role, on the database built from the migration chain, with only the outside
-// providers faked. Seven cases:
+// providers faked. Eight cases:
 //
 //   1 single    supplied text, one document each on Bills, NCLT, Regulatory, Parliamentary Questions
 //               (default partition) and a feature without a partition (default partition)
@@ -11,6 +11,7 @@
 //   5 kill      a worker killed mid-batch (lenient policy), held and requeued
 //   6 provider  a provider failure, in the single-job step and in suppliedBatchStep
 //   7 killstop  the same kill under a strict policy: the claim stops the batch, and what requeue does next
+//   8 bills     bills through the real national_bills adapter (F275), to the Bills partition, with their links
 //
 //   scripts/load-proof/lp.sh e1.ts                          run every case
 //   scripts/load-proof/lp.sh e1.ts --case kill              run one
@@ -117,6 +118,11 @@ export const BREAKS: Array<{ id: string; case: string; fails: string }> = [
     case: 'provider',
     fails: 'batch step: the failed call is logged against the batch and both jobs',
   },
+  { id: 'bills:admit', case: 'bills', fails: 'every bill was admitted with one link' },
+  { id: 'bills:partition', case: 'bills', fails: 'every chunk is in the Bills partition' },
+  { id: 'bills:facets', case: 'bills', fails: 'doc_date is the introduction date, 2025-03-04' },
+  { id: 'bills:links', case: 'bills', fails: 'each bill is linked to its listing row, with its role' },
+  { id: 'bills:search', case: 'bills', fails: 'a search as authenticated returns the bill' },
   {
     id: 'killstop:stopped',
     case: 'killstop',
@@ -959,6 +965,81 @@ async function caseKillStop() {
   h.close();
 }
 
+// ─── case 8: bills through their own adapter ──────────────────────────────
+
+async function caseBills() {
+  const h = await makeHarness();
+  const auth = await h.rest.client('authenticated');
+  await setClaimBatch(10, 10);
+  const tag = tagOf('bl');
+  const docs: SynthDoc[] = [];
+  for (let n = 1; n <= 6; n++) docs.push(await synthDoc({ tag, n, chunks: 10, seed: 41, bill: true }));
+  await seedDeskRows(docs);
+  await ensurePolicy(h.svc, 'national-bills', undefined, {
+    desk_tier: 'national',
+    desk_feature: 'Bill Passage Probability Index',
+    adapter: 'national_bills',
+  });
+  const runner = await h.rest.client('corpus_ingest');
+  const reg = await registerBatch(runner, docs, { collection: 'national-bills' });
+  const docIds = reg.results.map((r) => r.document_id!).filter(Boolean);
+  await drain(h, { pending: pendingOf(docIds) });
+  await setClaimBatch(1);
+
+  if (brk('bills:admit')) reg.results[0].outcome = 'refused';
+  const first = `'${docIds[0]}'`;
+  if (brk('bills:partition')) {
+    await psql(`begin; set local session_replication_role = replica;
+      delete from public.document_chunks_bills where id in
+        (select id from public.document_chunks_bills where document_id = ${first} limit 1); commit;`);
+  }
+  if (brk('bills:facets')) {
+    await psql(`begin; set local session_replication_role = replica;
+      update public.document_chunks set doc_date = '2026-01-01' where document_id = ${first}; commit;`);
+  }
+  if (brk('bills:links')) await psql(`delete from public.record_document_links where document_id = ${first}`);
+  if (brk('bills:search')) {
+    await psql(`begin; set local session_replication_role = replica;
+      delete from public.document_chunks_bills where document_id = ${first}; commit;`);
+  }
+
+  check(
+    'every bill was admitted with one link',
+    reg.results.length === docs.length && reg.results.every((r) => r.outcome === 'admitted'),
+    JSON.stringify(reg.results.map((r) => r.outcome)),
+  );
+  const planned = docs.reduce((s, d) => s + d.chunks, 0);
+  const parts = await psqlJson<Array<{ part: string; n: number }>>(
+    `select tableoid::regclass::text part, count(*)::int n from public.document_chunks where document_id = any(${ids(docIds)}) group by 1`,
+  );
+  // The search break removes one bill's chunks on purpose, and is judged by the search check alone.
+  const expectedChunks = brk('bills:search') ? planned - docs[0].chunks : planned;
+  check(
+    'every chunk is in the Bills partition',
+    parts.length === 1 && parts[0].part.endsWith('document_chunks_bills') && parts[0].n === expectedChunks,
+    JSON.stringify(parts),
+  );
+  const dates = await psql(
+    `select string_agg(distinct doc_date::text, ',') from public.document_chunks where document_id = any(${ids(docIds)})`,
+  );
+  check('doc_date is the introduction date, 2025-03-04', dates === '2025-03-04', dates);
+  const links = await psql(
+    `select count(*) from public.record_document_links where document_id = any(${ids(docIds)})
+      and role = 'as_introduced' and decision_id = 'admission:bill-key-v1' and feature = 'Bill Passage Probability Index'`,
+  );
+  check('each bill is linked to its listing row, with its role', Number(links) === docs.length, links);
+  const indexed = await psql(`select count(*) from public.documents where id = any(${ids(docIds)}) and indexed_at is not null`);
+  const jobs = await jobsOf(docIds);
+  check(
+    'every bill is indexed and its job succeeded',
+    Number(indexed) === docs.length && jobs.every((j) => j.status === 'succeeded'),
+    `${indexed} indexed`,
+  );
+  const hit = await hitsDocument(auth, docs[0], docIds[0], FEATURES.bills);
+  check('a search as authenticated returns the bill', hit, `hit ${hit}`);
+  h.close();
+}
+
 const CASES: Record<string, () => Promise<void>> = {
   single: caseSingle,
   batch: caseBatch,
@@ -967,6 +1048,7 @@ const CASES: Record<string, () => Promise<void>> = {
   kill: caseKill,
   provider: caseProvider,
   killstop: caseKillStop,
+  bills: caseBills,
 };
 
 async function runCase(name: string, brokenWith: string | null) {

@@ -301,7 +301,7 @@ select pg_temp.refusal('national-pq', pg_temp.pq(99), 'no_desk_row');
 -- The manifest, the adapter and the collection.
 select pg_temp.refusal('national-pq', pg_temp.pq(13), 'not_in_manifest', false, pg_temp.pq(14));
 select pg_temp.refusal('national-pq', pg_temp.pq(13), 'manifest_mismatch', false, pg_temp.pq(13, '{"title":"Changed after sealing"}'));
-select pg_temp.refusal('national-pq', pg_temp.pq(13, '{"desk_feature":"Bill Passage Probability Index"}'), 'no_adapter');
+select pg_temp.refusal('national-pq', pg_temp.pq(13, '{"desk_feature":"Regulatory Body Watch (RBI SEBI TRAI CCI)"}'), 'no_adapter');
 select pg_temp.refusal('national-pq', pg_temp.pq(13, '{"desk_tier":"law","source_key":"law:hc:in-a-question-batch","desk_feature":"NCLT / NCLAT (Insolvency)"}'), 'collection_not_admitted');
 -- Policy and text-quality gates (design 2, 6).
 select pg_temp.refusal('national-pq', pg_temp.pq(13, '{"licence_class":"eci_govt_PERSONAL_DATA_G02"}'), 'licence_not_admitted');

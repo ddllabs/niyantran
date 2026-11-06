@@ -12,6 +12,22 @@ const SHA = /^[a-f0-9]{64}$/;
  * (ingest_register_text_unmapped) re-checks this and writes the listing links in the same transaction.
  */
 export const NATIONAL_QUESTIONS = Object.freeze({ tier: 'national', feature: 'Parliamentary Question Database' });
+/**
+ * National bills, batch only (F275). Identity is the bill's number, house and year: every listing row carries the same
+ * source_url, so ingest_admit_document matches on these and writes the links. ingest_register_text refuses them.
+ */
+export const NATIONAL_BILLS = Object.freeze({ tier: 'national', feature: 'Bill Passage Probability Index' });
+const BILL_URL = /^https:\/\/sansad\.in\/getFile\/(BillsTexts|BillsPDFFiles)\//;
+const BILL_ROLES = new Set([
+  'as_introduced',
+  'as_passed_lok_sabha',
+  'as_passed_rajya_sabha',
+  'as_passed_both_houses',
+  'gazette_notification',
+  'synopsis',
+  'errata',
+  'corrigendum',
+]);
 const NATIONAL_KEY = /^[0-9a-f]{40}$/;
 const PQ_URL = /^https:\/\/sansad\.in\/getFile\/loksabhaquestions\/annex\/([0-9]{1,4})\/([A-Za-z0-9_]{1,64})\.pdf(\?source=pqals)?$/;
 /** The answer document a Lok Sabha question URL names, `pq:ls:<session>:<file stem>`; null otherwise (pq_answer_key in SQL). */
@@ -55,13 +71,22 @@ export async function prepareSuppliedText(value: unknown, options: { batch?: boo
   if (r.text_sha256 !== hash || (r.content_sha256 !== undefined && r.content_sha256 !== hash)) {
     throw new Error('text hash mismatch');
   }
+  const bill = !law && r.desk_tier === NATIONAL_BILLS.tier && r.desk_feature === NATIONAL_BILLS.feature;
   const deskOk = law
     ? r.desk_tier === 'law'
-    : r.desk_tier === NATIONAL_QUESTIONS.tier && r.desk_feature === NATIONAL_QUESTIONS.feature;
+    : bill || (r.desk_tier === NATIONAL_QUESTIONS.tier && r.desk_feature === NATIONAL_QUESTIONS.feature);
   if (!DESK_CATALOG.some((e) => e.tier === r.desk_tier && e.feature === r.desk_feature) || !deskOk) {
     throw new Error('unsupported desk feature');
   }
-  if (!law) {
+  if (bill) {
+    const c = object(r.citation, 'citation');
+    const url = String(r.file_url ?? '');
+    if (!BILL_URL.test(url) || url.includes('..')) throw new Error('a bill needs its official sansad.in file_url');
+    if (!BILL_ROLES.has(String(r.document_role))) throw new Error('a bill needs a known document_role');
+    if (r.document_key !== `bill:${c.bill_year}:${c.bill_number}`) {
+      throw new Error('document_key does not match the citation');
+    }
+  } else if (!law) {
     const key = pqAnswerKey(r.file_url);
     if (!key) throw new Error('a National question needs its official sansad.in answer file_url');
     if (r.document_key_suggested !== undefined && r.document_key_suggested !== key) {
@@ -91,6 +116,8 @@ export async function prepareSuppliedText(value: unknown, options: { batch?: boo
     decision_id: string(review.decision_id, 'review decision'),
     checks: { identity: true, completeness: true, sensitivity: true, dedupe: true, rights: true },
   };
+  // Only ever true, and only for a runner that made the check: a policy may require it (ingest_policy_approve).
+  if (checks.bill_identity === true) (checkedReview.checks as Record<string, boolean>).bill_identity = true;
   const citation = object(r.citation, 'citation');
   if (!Object.keys(citation).length) throw new Error('citation is empty');
   // One pass builds code-point -> UTF-16 boundaries, including the final boundary.
@@ -157,6 +184,10 @@ export async function prepareSuppliedText(value: unknown, options: { batch?: boo
   if (options.batch) {
     if (r.servable !== undefined && r.servable !== null && typeof r.servable !== 'boolean') throw new Error('invalid servable');
     if (r.servable === false) input.servable = false;
+  }
+  if (bill) {
+    input.document_key = r.document_key;
+    input.document_role = r.document_role;
   }
   if (review.file_sha256 !== undefined) {
     if (!SHA.test(String(review.file_sha256))) throw new Error('review file hash required');
