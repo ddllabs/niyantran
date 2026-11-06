@@ -12,8 +12,8 @@
 
 ## Problem
 
-The pipeline stops at the database's front door. Eight-tenths of the rules the owner approved are the runner's job, and a bad
-batch costs money and leaves wrong text in a live product.
+The pipeline stops at the database's front door. Many of the rules the owner approved are the runner's job, such as patches first,
+oversized holds and stopping itself, and a bad batch costs money and leaves wrong text in a live product.
 
 ## Outcome
 
