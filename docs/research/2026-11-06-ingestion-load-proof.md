@@ -145,8 +145,9 @@ Only passes in one sitting are compared, because the same data ran about 1.5 tim
 - **Focused search:** flat.
 - **Calls over 4 s:** the bar also fails any such call. The morning quiet passes had none. Control grown 1 had three, two broad
   and one feature, and the control base passes before it had none.
-- **Timeouts:** none on any quiet pass. Local figures cannot say whether NTER would time out at this size. They do show that a
-  stall of the whole chain pushes search past 8 s at either size.
+- **Timeouts:** none on any quiet pass, against the 8 s database limit. The app aborts at 4 s ([F295](../plans/open-work.md)), so
+  the calls over 4 s are the ones that matter to users. Local figures cannot say what NTER would do at this size. They do show
+  that a stall of the whole chain pushes search past either limit at either size.
 
 The grown control passes carry 60,000 more Regulatory chunks than E4 specified, from the E5 windows, and rebuilt indexes.
 Recall at size is not claimed, as the spec says.
@@ -191,7 +192,7 @@ search passes and the index build. That label is inferred from the order and was
 
 ## What this cannot prove
 
-- **Speed on NTER.** The local database has 512 MB of shared buffers in 3.8 GiB, and NTER has 2.5 GB in 8 GB. This laptop is
+- **Speed on NTER.** The local database has 512 MB of shared buffers in 3.8 GiB, and NTER has 2 GB in 8 GB. This laptop is
   also shared with other work, as E4 shows.
 - **Real embeddings.** Synthetic vectors match the real nearest-neighbour median and not the shape:
 

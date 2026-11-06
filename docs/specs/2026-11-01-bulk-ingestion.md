@@ -1,6 +1,8 @@
 # Bulk corpus ingestion
 
-> **Status: Living (draft, 2026-11-01).** Not approved. The developer (Vighnesh Shukla) asked for this spec on 2026-11-01:
+> **Status: Living (draft, 2026-11-01; corrected 2026-11-06).** The owner's decisions of 2026-11-03 are recorded in
+> `docs/operations/national-v1.1-completion-plan.md` on the client branch; no sign-off of this spec as a whole is on record.
+> The developer (Vighnesh Shukla) asked for this spec on 2026-11-01:
 > "We have more than 18 million documents to ingest. We need to figure out a faster process." It changes who runs
 > ingestion and how runs are approved. So it needs the owner's sign-off, in one consolidated decision message, before
 > any part replaces the [rules for every ingestion run](../operations/2026-10-28-corpus-client-handoff.md#rules-for-every-ingestion-run-owner-2026-10-29).
@@ -39,7 +41,7 @@
 - **Time:** about 21,000 hours of submission.
 - **Approvals:** about 25,000 owner approvals and sign-ins.
 - **Storage:** about 400 million chunks and about 6.5 TB, of which about 1.5 TB is HNSW index that has to sit in memory to be fast.
-- **Search:** feature search already fails above 100,000 chunks.
+- **Search:** feature search can fail above 100,000 chunks when a walk comes up short.
 
 **Cost is not the constraint.** At today's rate, embedding everything costs about US$800.
 
@@ -90,8 +92,8 @@ access check last.**
    `desk_feature`, document date, jurisdiction or state, source type, language and `servable`. The exact list per
    collection comes from the inventory (§6). The document stays the source of truth; a trigger keeps the chunk copies
    equal, and a document whose feature changes moves partition with its chunks.
-3. **The access check stays last.** Row access, `indexed_at` and `servable` are still enforced on every result. They
-   are never used to scope.
+3. **The access check stays last.** Row access and `indexed_at` are enforced on every result. `servable` is refused at
+   batch registration; no search reads it, and the single-document path ignores it. They are never used to scope.
 
 The current `section` key in chunk `metadata` stays. The ontology in `supabase/functions/_shared/deskCatalog.json`
 (83 entries: global 16, national 12, state 22, law 12, economics 6, carbon 4, sports 6, entertainment 5) is the
@@ -301,8 +303,8 @@ parallel.
 1. Inventory (client agent, read-only), then the developers' overlap analysis.
 2. Retrieval eval set and baseline on today's shape (§4.4), on a disposable copy, with facet coverage per feature (§4.5).
 3. Partitioned `document_chunks` with chunk facets and the sync trigger: migration, access-policy fixtures (with a
-   vacuity check), search RPCs updated, and the eval rerun. This retires F272's 100,000-chunk bound for partitioned
-   features. Existing chunks are backfilled inside this migration (§4.5); the vectors are copied, not recomputed.
+   vacuity check), search RPCs updated, and the eval rerun. This removes the main cause of F272's short walks for partitioned
+   features; the bound itself stays in the helper. Existing chunks are backfilled inside this migration (§4.5); the vectors are copied, not recomputed.
 4. Hybrid search (§4.2), gated by the eval.
 5. Contextual headers and re-embedding (§4.3), gated by the eval.
 6. Bills adapter (F275) on the new shape, writing facets from its first document.

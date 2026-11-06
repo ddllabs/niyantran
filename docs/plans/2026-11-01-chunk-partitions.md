@@ -35,8 +35,8 @@
    on a partitioned table are cheap to add). A trigger on `documents` keeps the chunk copies equal, and a change of
    feature moves the chunks.
 3. Search RPCs scope by the chunk's own `desk_feature`, so a feature search reads only its partition (or the default
-   partition with an in-walk filter, `hnsw.iterative_scan`). The access check stays last. F272's recovery bound no
-   longer applies to a feature with its own partition.
+   partition with an in-walk filter, `hnsw.iterative_scan`). The access check stays last. Partitioning removes the main
+   cause of F272's short walks; the recovery bound itself stays in the helper.
 4. The backfill copies the existing chunks with their vectors unchanged, side by side, then swaps; no embedding call.
 5. Rehearsed on a copy of the replica: migration time per phase, peak disk, lock time at the swap, and the eval
    rerun with `--compare` against the baseline (exit 0 required).

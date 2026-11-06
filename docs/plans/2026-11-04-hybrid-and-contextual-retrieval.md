@@ -209,7 +209,7 @@ needs a new set.
   twice; 57014 and 55000 counts; buffer hit ratio; a canary question naming an unpublished order's party, which must
   return identical rows with and without that order. Stop on any 55000, a cold timeout where vector-only returns,
   sustained p95 over the bar, a hit-ratio drop coinciding with slow windows, or a canary difference.
-- **Blocking:** cold hybrid latency on NTER against the 8 s limit. A local question took 12 to 22 s on its first call
+- **Blocking:** cold hybrid latency on NTER against the app's 4 s search limit (F295), as well as the 8 s database limit. A local question took 12 to 22 s on its first call
   and 1.2 s on its second, on a far smaller cache than NTER's. (Month scan alone: warm about 0.2 s, cold 2 to 4 s.)
 - Vector-index recall: q-0003 and q-0022 are at exact ranks 35 and 28 but the index misses them.
 - The HNSW path with hidden rows, the migration run as the production role, and the production policy text.
