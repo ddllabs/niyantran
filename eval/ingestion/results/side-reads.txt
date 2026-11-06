@@ -1,0 +1,26 @@
+Readings that sit outside the run files, recorded here so the research note can be checked.
+
+E3 bytes per chunk
+  relations, first sample of the first Bills segment: 5,598,584,832 bytes
+  relations, last sample of the last Regulatory segment: 13,529,554,944 bytes
+  chunks inserted across the six E2 files: 568,699, which gives 13,946 bytes a chunk
+  database size: about 5,278 MB before any load, 13,545,330,355 bytes after E2 (e3-sizes-grown.txt);
+  573,422 chunks by count, which gives 13,970 bytes a chunk
+  Bills read 445,001 at the end of its run and 445,183 when sizes were read
+
+HNSW rebuild, Bills: server notice "hnsw graph no longer fits into maintenance_work_mem after 283211 tuples"
+
+Duplicate text, synthetic Regulatory: 128,892 distinct embed_hash among 222,540 chunks
+
+HNSW walks on real data, niyantran_rehearsal_b9final, rerun 2026-11-06 (limit 200, ef_search 400, iterative scan relaxed_order)
+  desk | questions | walks short of 200 | chunks
+  Bills | 81 | 0 | 89,014
+  NCLT | 72 | 0 | 225,273
+  Parliamentary Questions | 75 | 0 | 68,064
+  Regulatory | 74 | 0 | 10,548
+  Industry Updates and Budget hold 40 and 6 chunks, so their walks cannot reach 200
+
+GIN on real text, niyantran_rehearsal_c2hybrid, 392,945 chunks, 'simple' configuration
+  NCLT 75,563,008; default 33,128,448; Bills 24,199,168; Regulatory 8,298,496; total 141,189,120 bytes
+
+Largest real chunk counts a Bills document (counts-bills.json): 710, 741, 790, 915, 2,240

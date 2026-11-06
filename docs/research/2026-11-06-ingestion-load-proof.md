@@ -2,7 +2,7 @@
 
 > **Status: Living (2026-11-06).** Results of [F287](../plans/open-work.md), under the
 > [spec](../specs/2026-11-06-ingestion-load-proof.md) and [plan](../plans/2026-11-06-ingestion-load-proof.md). Local and
-> disposable: no NTER write, no paid API. Figures come from `eval/ingestion/results/`. NTER settings were read once, in a
+> disposable: no NTER write, no paid API. Figures come from `eval/ingestion/results/`, and readings outside the run files are in `side-reads.txt` there. NTER settings were read once, in a
 > read-only transaction. The disk options are in the [disk plan](../operations/2026-11-06-nter-disk-plan.md).
 
 ## Outcome
@@ -12,7 +12,7 @@
 | 1. Registration to searchable, on every partition, by both write paths | Proved: E1, 57 of 57 checks, 37 deliberate breaks all caught |
 | 2. Rerun is idempotent; a killed run stops and resumes as designed | Rerun and ordinary kill proved. A strict batch policy cannot recover after a kill ([F291](../plans/open-work.md)) |
 | 3. Speed by partition size and concurrency | Measured. Speed falls and WAL per chunk rises as a partition grows |
-| 4. Bytes per chunk | 13,970 bytes all-in. National v1.1 is about 8.8 GB, as estimated |
+| 4. Bytes per chunk | About 13,970 bytes all-in. National v1.1 is about 8.8 GB, as estimated |
 | 5. Search latency at size | Focused and feature search hold. Broad search fails the code's `LATENCY` bar. Timeouts appeared only in stalled passes, on the small copy as well as the grown one |
 | 6. Disk plan | [Written](../operations/2026-11-06-nter-disk-plan.md), options costed, no choice made |
 
@@ -37,7 +37,7 @@ Two faults in the harness itself were found by reading logs, not by exit status:
 
 ## E2. Write load
 
-Bills reached 445,001 chunks and Regulatory 222,540, through the real commit path, with no failed job or commit. Regulatory
+Bills reached 445,001 chunks at the end of its run and Regulatory 222,540, through the real commit path, with no failed job or commit. Regulatory
 is 2.4% short of its 228,000 target: 5,468 chunks of a stopped batch went unrelabelled to the default partition. The
 shortfall does not affect any conclusion. Bills ran at 172.8 chunks/s overall and Regulatory at 259.1.
 
@@ -66,17 +66,18 @@ Commit time on the server, in the final segments:
 
 Absolute speed does not transfer to NTER; WAL per chunk and the shape of the slowdown do.
 
-**Registration.** About 75 to 78 ms a document with the test indexes, flat through 19,000 documents, against about 870 ms
-unindexed.
+**Registration.** About 70 to 80 ms a document with the test indexes, rising slowly through 19,000 documents, with batch
+maxima to 144 ms, against about 870 ms unindexed.
 
 ## E3. Bytes per chunk
 
 The load added 8.01 GB for 573,422 chunks: **13,970 bytes a chunk, all-in.** That counts chunks, their indexes,
-`ingest_text_inputs`, documents and the other tables ingestion writes.
+`ingest_text_inputs`, documents and the other tables ingestion writes. The run files alone give 13,946, from the relations
+they sample and 568,699 inserted chunks. The two differ by 0.2%, and 8.8 GB holds either way.
 
 | Partition | Chunks | Bytes a chunk | HNSW as grown | HNSW bytes a chunk |
 |---|---|---|---|---|
-| Bills | 445,183 | 12,281 | 1,092 MB | 2,455 |
+| Bills | 445,183 | 12,276 | 1,092 MB | 2,454 |
 | Regulatory | 222,550 | 12,780 | 615 MB | 2,761 |
 
 `ingest_text_inputs` took 603 MB, about 1,052 bytes a chunk. Nothing in the migrations deletes those rows, so they stay.
@@ -100,8 +101,8 @@ first attached to the second pass was wrong. A control then ran base and grown i
 grown, grown, base. The last base pass, on the smallest copy, was the worst of all: 47 timeouts.
 
 So timeouts are not a function of size here. In the stalled passes the trivial PostgREST read timed beside each search slowed
-too. Across the slowest 5% of calls, that read's median was 1,265 to 1,496 ms in the worst passes, against about 100 ms
-normally, and rank correlation with search time reached 0.84. The whole chain stalled, not the search.
+too. Across the slowest 5% of calls, that read's median was 1,073 and 1,378 ms in the two worst passes, against 127 and 200 ms
+across all their calls, and rank correlation with search time reached 0.84. The whole chain stalled, not the search.
 
 The cause is only partly known. Host load averaged 9 and peaked at 24 during the last base pass, from other desktop work. It
 averaged 5 during the grown pass with 39 timeouts, with a peak of 12, the same average as the quiet grown pass before it, so
@@ -111,7 +112,9 @@ likely, not proved.
 
 ### Latency in ms, on the same 316 questions
 
-q-0238 is left out of every pass (see below). Passes marked stalled are not evidence about size.
+q-0238 is left out of every pass (see below). A pass is marked stalled if it had any timeout, and stalled passes are not
+evidence about size. The rule is blunt: grown 2 had no timeout and counts as quiet, yet shows a milder form of the same
+signature, with focused p50 doubled and the baseline read up in its later modes.
 
 | Pass | Chunks | Broad p50 | Broad p95 | Feature p50 | Feature p95 | Focused p95 | Timeouts | Baseline read p50 |
 |---|---|---|---|---|---|---|---|---|
@@ -136,8 +139,9 @@ Only passes in one sitting are compared, because the same data ran about 1.5 tim
 
 - **Broad search:** p50 grew 1.4 to 1.8 times and p95 1.5 to 2.1 times, for 2.5 times the chunks. Both sittings miss the code's
   bar of 1.2 × base + 20 ms. See [F292](../plans/open-work.md).
-- **Feature search:** on the quiet passes p95 stayed within the bar: 1,257 against 1,235 to 1,315, and 1,803 against 1,950 to
-  2,105. The second grown pass, 2,096, is above it, and the focused p50 doubled in that pass too, which points to the host.
+- **Feature search:** p95 stayed within the bar on two of the three quiet grown passes: 1,257 against 1,235 to 1,315, and 1,803
+  against 1,950 to 2,105. Grown 2, at 2,096, is above it. The signature above points to the host for that pass, but this
+  is a reading, not a proof.
 - **Focused search:** flat.
 - **Calls over 4 s:** the bar also fails any such call. The morning quiet passes had none. Control grown 1 had three, two broad
   and one feature, and the control base passes before it had none.
@@ -153,7 +157,7 @@ q-0238 (Regulatory, 40 results) raised `FEATURE_SEARCH_RECOVERY_LIMIT` at 222,00
 above. The HNSW walk returned 38 rows at every `ef_search` tried, from 40 to 1,000, which means an island in the graph. The
 harness reuses text: 42% of synthetic Regulatory chunks are exact duplicates of another chunk, the likely cause. After the
 rebuild the same walk returned 200 of 200 rows, though its best distance was 0.5225 against an exact 0.3855, so the rebuilt
-graph still does not reach the true nearest on this data. On the real data 0 of 232 walks on the four large desks came up
+graph still does not reach the true nearest on this data. On the real data 0 of 302 walks on the four large desks came up
 short. Treat it as not seen on real data, not as impossible, and check it in the first real batch
 ([F272](../plans/open-work.md)).
 
@@ -175,7 +179,7 @@ search passes and the index build. That label is inferred from the order and was
 10 for both B2 and A3, so it does not explain B2.
 
 - **Disk:** about 460 bytes more a chunk, in both pairs. This is the steadiest figure.
-- **WAL:** about 50% more warm, and about 100% more cold.
+- **WAL:** about 50% more warm (B1 against A2 and A3), and about 67% more cold (B2 against A1).
 - **Speed:** 3 to 16% slower warm, on one warm GIN window. Too thin to state more closely.
 - **Longest commit:** about twice as long warm, 23 s against 10 to 13 s.
 - **Build:** 2 min 53 s and 2 min 58 s on about 1,030,000 chunks.

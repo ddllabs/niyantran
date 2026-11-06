@@ -22,6 +22,8 @@ The Database Settings page shows it.
 
 ## What v1.1 needs
 
+GB here is decimal. The dashboard may show GiB, in which case each figure reads about 7% lower.
+
 | Item | GB | Source |
 |---|---|---|
 | Today | 12.47 | read from NTER |

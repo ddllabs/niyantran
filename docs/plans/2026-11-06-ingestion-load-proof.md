@@ -58,6 +58,8 @@ sign of a server crash in the log; a chunk landing in the wrong partition; a req
   in the order base, base, grown, grown, base.
 - E5 gained a second pair of windows, because the first window of each kind ran cold.
 - Registration ran with test-only indexes throughout, and the unindexed cost was measured first.
+- E2's spec names the default `max_running` of 2. Every run used 16, because the harness sets it to `claim_batch` × the highest
+  worker count so that workers do not queue behind it. The concurrency figures are by worker count.
 
 ## Rollback
 
