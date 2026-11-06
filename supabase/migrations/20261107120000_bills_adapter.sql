@@ -3,8 +3,9 @@
 -- A question answer finds its listing rows by URL. That cannot work here: all 9,817 bill rows carry the same
 -- source_url, a listing page. So a bill matches on desk_rows.document_key, the key every reader of bills already
 -- joins on, then house, then the whole bill name with its year removed. A name only chooses among rows that already
--- share the key, and it must match exactly. On the 2,764 live bills with a key, this identifies one bill for 2,646
--- and refuses 118, with none ambiguous.
+-- share the key, and it must match exactly. When the record gives its introduction date, the row's date must be within
+-- 3 days of it, as for all 1,145 live bills that have one. On the 2,764 live bills with a key, this identifies one bill
+-- for 2,646 and refuses 118, with none ambiguous.
 --
 -- New refusals: bill_identity_incomplete, bill_role_held, bill_identity_mismatch, and for this adapter file_url_held
 -- and no_desk_row. A policy can require review check bill_identity, the owner's text check, which the runner makes.
@@ -20,7 +21,7 @@
 --   re-run ingest_admit_document from 20261106120000_admission_scans.sql; re-run ingest_admit_tier,
 --   ingest_admit_adapter, ingest_register_text_unmapped and ingest_register_batch from
 --   20261102130000_batch_registration.sql; each written as CREATE OR REPLACE so that its grants stay;
---   drop function public.ingest_bill_rows(text, text, text);
+--   drop function public.ingest_bill_rows(text, text, text, text);
 --   drop function public.bill_admission_key(jsonb);
 --   drop function public.bill_norm(text);
 --   drop index public.documents_bill_file_url;
@@ -69,23 +70,28 @@ language sql immutable security definer set search_path = public, extensions, pg
 $$;
 
 -- The listing rows of one bill, locked in row_key order. candidates: rows with this key in this house. rows: those
--- whose whole name matches, which are every listing of the one bill.
-create function public.ingest_bill_rows(p_key text, p_house text, p_name text) returns jsonb
+-- whose whole name matches and whose date is close to the record's, when it gives one, which are every listing of
+-- the one bill. Sessions can reuse a name and a key, so the name alone cannot tell them apart.
+create function public.ingest_bill_rows(p_key text, p_house text, p_name text, p_introduced text) returns jsonb
 language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare v_name text := public.bill_norm(p_name); v_candidates int; v_rows jsonb;
+  v_date date := case when p_introduced ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' and pg_input_is_valid(p_introduced, 'date')
+                      then p_introduced::date end;
 begin
   with c as materialized (
-    select q.row_key, public.bill_norm(q.row->>'bill_name') nm from public.desk_rows q
+    select q.row_key, public.bill_norm(q.row->>'bill_name') nm, q.row->>'date_introduced' dt from public.desk_rows q
      where q.tier = 'national' and q.feature = 'Bill Passage Probability Index'
        and q.document_key = p_key and q.row->>'house' = p_house
      order by q.row_key for update of q
   )
   select (select count(*) from c),
-         (select coalesce(jsonb_agg(c.row_key order by c.row_key), '[]') from c where c.nm = v_name)
+         (select coalesce(jsonb_agg(c.row_key order by c.row_key), '[]') from c where c.nm = v_name
+           and (v_date is null or (c.dt ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' and pg_input_is_valid(c.dt, 'date')
+                                   and abs(c.dt::date - v_date) <= 3)))
     into v_candidates, v_rows;
   return jsonb_build_object('candidates', v_candidates, 'rows', v_rows);
 end $$;
-revoke all on function public.bill_norm(text), public.bill_admission_key(jsonb), public.ingest_bill_rows(text, text, text)
+revoke all on function public.bill_norm(text), public.bill_admission_key(jsonb), public.ingest_bill_rows(text, text, text, text)
   from public, anon, authenticated, service_role;
 
 create or replace function public.ingest_admit_tier(r jsonb) returns text
@@ -249,7 +255,8 @@ begin
     with m as materialized (
       select x.id, x.source_key from public.documents x
        where x.desk_tier='national' and x.desk_feature='Bill Passage Probability Index'
-         and x.metadata->>'document_key' = v_key and x.metadata->>'house' = r#>>'{citation,house}'
+         and x.metadata->>'document_key' = v_key
+         and coalesce(x.metadata->>'house', r#>>'{citation,house}') = r#>>'{citation,house}'
          and x.metadata->>'document_role' = v_link_role and v_link_role <> 'errata'
     )
     select m.id, m.source_key into holder from m order by m.id limit 1;
@@ -257,7 +264,7 @@ begin
       return jsonb_build_object('outcome','refused','reason','bill_role_held',
         'detail',jsonb_build_object('holder_document_id',holder.id,'holder_source_key',holder.source_key));
     end if;
-    v := public.ingest_bill_rows(v_key, r#>>'{citation,house}', r#>>'{citation,bill_name}');
+    v := public.ingest_bill_rows(v_key, r#>>'{citation,house}', r#>>'{citation,bill_name}', r#>>'{citation,introduced_on}');
     if (v->>'candidates')::int = 0 then return jsonb_build_object('outcome','refused','reason','no_desk_row'); end if;
     v_rows := array(select jsonb_array_elements_text(v->'rows'));
     if cardinality(v_rows) = 0 then

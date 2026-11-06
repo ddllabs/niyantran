@@ -14,7 +14,7 @@ create function pg_temp.bill(g int, over jsonb default '{}', cite jsonb default 
  select pg_temp.pq(9000 + g, jsonb_build_object('desk_feature','Bill Passage Probability Index','title',pg_temp.bill_name(g),
    'file_url',pg_temp.bill_url(g),'file_name',g || '_2025.pdf','document_key','bill:2025:' || g,'document_role','as_introduced',
    'citation',jsonb_build_object('kind','bill','bill_number',g::text,'bill_year','2025','house','Lok Sabha',
-     'bill_name',pg_temp.bill_name(g),'status','Pending','introduced_on','2025-03-04') || cite)
+     'bill_name',pg_temp.bill_name(g),'status','Pending') || cite)
    || case when over ? 'tag' then jsonb_build_object('source_key',left(encode(sha256(convert_to('bill-' || g || (over->>'tag'),'UTF8')),'hex'),40)) else '{}' end
    || over,
    'BILL NO. ' || g || ' OF 2025. ' || pg_temp.bill_name(g) || coalesce(' ' || (over->>'tag'), '')) $$;
@@ -112,6 +112,18 @@ select pg_temp.ok(pg_temp.reg('national-bills', pg_temp.bill(6, jsonb_build_obje
    'file_url','https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/6_2025.pdf'), '{"house":"Rajya Sabha"}'))->>'outcome' = 'admitted',
   'the Rajya Sabha bill with that number');
 select pg_temp.ok((select count(*) from public.record_document_links where row_key in ('r6l','r6r')) = 2, 'each linked to its own house''s row');
+-- Sessions can reuse a name and a key: the record's date picks, and a date near neither row is refused.
+select pg_temp.bill_row('r8a', '8', 'Lok Sabha', '2019-05-01', pg_temp.bill_name(8));
+select pg_temp.bill_row('r8b', '8', 'Lok Sabha', '2021-05-01', pg_temp.bill_name(8));
+select pg_temp.refusal('national-bills', pg_temp.bill(8, '{}', '{"introduced_on":"2023-01-01"}'), 'bill_identity_mismatch');
+select pg_temp.ok(pg_temp.reg('national-bills', pg_temp.bill(8, '{}', '{"introduced_on":"2021-05-03"}'))->>'outcome' = 'admitted', 'the date picks the session');
+select pg_temp.ok((select array_agg(row_key) from public.record_document_links where row_key like 'r8%') = '{r8b}', 'only that row is linked');
+-- A live holder with no house still holds.
+insert into public.documents(source_key,title,file_url,desk_tier,desk_feature,content_sha256,ocr_text,metadata)
+ values (repeat('5',40),'No house','https://sansad.in/getFile/BillsTexts/nohouse.pdf','national','Bill Passage Probability Index',repeat('5',64),'x',
+  '{"document_key":"bill:2025:9","document_role":"as_introduced"}');
+select pg_temp.bill_row('r9', '9', 'Lok Sabha', '2025-01-01', pg_temp.bill_name(9));
+select pg_temp.refusal('national-bills', pg_temp.bill(9), 'bill_role_held');
 -- A dry run says what would happen and writes nothing.
 select pg_temp.bill_row('r7', '7', 'Lok Sabha', '2025-01-01', pg_temp.bill_name(7));
 do $$ declare q jsonb := pg_temp.bill(7); before text := pg_temp.corpus(); res jsonb; begin
@@ -141,8 +153,8 @@ select pg_temp.ok(pg_temp.reg('national-bills-checked', pg_temp.bill(40, jsonb_b
 
 -- ═══ One way in, and no new door ══════════════════════
 select pg_temp.refused($q$select public.ingest_register_text_unmapped(pg_temp.bill(41))$q$, 'Bills enter through a sealed batch');
-select pg_temp.ok(not has_function_privilege('corpus_ingest', 'public.ingest_bill_rows(text,text,text)', 'execute')
-   and not has_function_privilege('service_role', 'public.ingest_bill_rows(text,text,text)', 'execute')
+select pg_temp.ok(not has_function_privilege('corpus_ingest', 'public.ingest_bill_rows(text,text,text,text)', 'execute')
+   and not has_function_privilege('service_role', 'public.ingest_bill_rows(text,text,text,text)', 'execute')
    and not has_function_privilege('corpus_ingest', 'public.bill_admission_key(jsonb)', 'execute')
    and not has_function_privilege('anon', 'public.bill_norm(text)', 'execute'), 'the helpers are owner-only');
 select pg_temp.ok((select bool_and(p.prosecdef and p.proconfig @> array['search_path=public, extensions, pg_temp'])

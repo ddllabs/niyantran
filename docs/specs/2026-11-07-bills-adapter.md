@@ -49,7 +49,9 @@ bills carry them in `metadata` and `metadata.citation`. `document_key` must equa
 
 **Finding the listing rows.** `document_key` must equal a row's stored `desk_rows.document_key`, in the same house. The whole bill
 name, with its closing year removed and only letters and digits kept, then picks among those rows. All rows of that one bill are
-linked. No row is refused `no_desk_row`, and rows with no name match are refused `bill_identity_mismatch`. A name of under 8
+linked. When the record gives `introduced_on`, the row's date must be within 3 days of it, as it is for all 1,145 live bills that
+have one, because sessions can reuse a name and a key. No row is refused `no_desk_row`, and rows with no match are refused
+`bill_identity_mismatch`. A name of under 8
 letters, or one that is not in Latin script, is refused `bill_identity_incomplete`. Title alone never links, and part of a
 name never matches.
 
@@ -71,7 +73,11 @@ This narrows the owner's gate, which names every sansad bill, so it needs the ow
 document holds. Errata can repeat. Two unique indexes hold the same rule if concurrent runs race past those lookups: the race then
 aborts that call, and a retry gets the named refusal. Live bills have no duplicate of either.
 
-**Role.** One of the seven live roles. The runner maps the 365 corrigenda to `errata`, which the app already labels.
+**Role.** One of the seven live roles.
+
+**Corrigenda.** The adapter takes them, but relabelling is not enough. The runner must map each of the 365 to its bill and give it
+that bill's identity, with role `errata`, which the app already labels. The 2026-10-23 reconciliation mapped 322, held 42 for
+mapping and excluded 1, so those 43 stay out until reviewed.
 
 **One way in.** The single-document path refuses Bills, so every bill comes through a sealed batch and its policy.
 
@@ -121,14 +127,15 @@ settles that.
 | Bills through the real worker on the full-size copy: partition, date, links, indexing, search | 6 of 6 checks |
 | Each of those breaks trips its named check | 5 of 5 |
 | The whole worker suite on the replaced functions | 63 of 63 checks |
-| Deliberate breaks of the migration | 25 run: 24 caught. Removing the per-bill lock is not, because one session cannot race itself; the unique indexes cover that case |
-| Old against new, questions and Law, independent reviewer | 2,500 SQL trials and 8,000 payload comparisons, on the version before the rewrite |
+| Deliberate breaks of the migration | 27 run: 26 caught. Removing the per-bill lock is not, because one session cannot race itself; the unique indexes cover that case |
+| Old against new, questions and Law, independent reviewer | 2,500 SQL trials and 8,000 payload comparisons, no difference, before the date and holder fixes, which touch only the Bills branch |
+| Independent review | Two rounds. The wrong-link paths are closed; three small items after the second round are fixed and proved here, not re-reviewed |
 | Applied before F290 | Refused, nothing created |
 | A dry run of a bill | Reports `would_admit`, writes nothing |
 | The rollback note, as written | Schema matches the F290 chain, apart from test scaffolding |
 
 Still to do before a validation batch: a dry run on the real pack, reporting each refusal class by count. The per-page text
-check, the patches, the 700-chunk hold and the text identity call stay in the runner (F285).
+check, the patches, the 700-chunk hold, the corrigenda mapping and the text identity call stay in the runner (F285).
 
 ## Decisions
 
@@ -143,6 +150,8 @@ check, the patches, the 700-chunk hold and the text identity call stay in the ru
 
 ## Known limits
 
+- The closing year of a record's name is not checked against its key: 2 of 1,149 live citations differ. The match still needs the
+  stored key, the house, the name and, where given, the date.
 - Readers join bills by key alone, so a row sharing a key can resolve to another bill's document (F300). This already exists.
   Switching readers to links needs the live bills linked first.
 - `billTextIdentity` can pass a recurring name from another year, such as a Finance Bill. It is a screen for the runner, and the
