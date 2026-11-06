@@ -17,20 +17,21 @@
 ## Problem
 
 The question adapter joins a document to its listing rows by answer URL. That cannot work here: all 9,817 bill rows carry the
-same `source_url`, a listing page. Identity has to come from number, year and house, and the listing is not clean:
+same `source_url`, a listing page. Every reader of bills joins on `desk_rows.document_key` instead, so admission has to as well,
+or a linked bill would still read as unmapped.
 
 | Measured on NTER | Count |
 |---|---|
 | Listing rows | 9,817 |
-| Distinct `bill:<year of introduction>:<number>` keys | 9,300 |
-| Keys shared by more than one row | 507 (1,024 rows) |
+| Distinct stored keys | 9,415 |
+| Keys held by more than one row | 398 |
 | Rows whose name states a year other than the year of introduction | 744 |
 | Rows with no year in the name | 3,372 |
 | Live documents with a key | 2,764 |
 | Live documents with no key | 132 |
 
-Lok Sabha numbers are arabic and Rajya Sabha numbers roman, so the two houses do not collide. Dates in `id` and
-`date_introduced` differ by a day on the rows sampled, so a date is not an exact key.
+Lok Sabha numbers are normally arabic and Rajya Sabha numbers roman, but a key has no house, so a collision is possible. Dates in
+`id` and `date_introduced` differ by a day on the rows sampled, so a date is not an exact key.
 
 ## Outcome
 
@@ -46,16 +47,17 @@ listing rows, or refused with a named reason, and nothing else is written.
 **Identity fields required:** `document_key`, `bill_number`, `bill_year`, `bill_name`, `house`, `document_role`, as the live
 bills carry them in `metadata` and `metadata.citation`. `document_key` must equal `bill:<bill_year>:<bill_number>`.
 
-**Finding the listing rows.** `bill_number` and `house` match exactly. Year narrows the candidates, by the year of introduction
-or the year in the bill's name. The normalised bill name then picks the bill. All rows of that one bill are linked. No candidate
-is refused `no_desk_row`, and no name match is refused `bill_identity_mismatch`. Title alone never links: it only chooses among
-rows that already match on number, house and year.
+**Finding the listing rows.** `document_key` must equal a row's stored `desk_rows.document_key`, in the same house. The whole bill
+name, with its closing year removed and only letters and digits kept, then picks among those rows. All rows of that one bill are
+linked. No row is refused `no_desk_row`, and rows with no name match are refused `bill_identity_mismatch`. A name of under 8
+letters, or one that is not in Latin script, is refused `bill_identity_incomplete`. Title alone never links, and part of a
+name never matches.
 
 **Text identity (the owner's gate).** This depends on the role, because the measured text does not support one rule for all:
 
 - As introduced and as passed: the bill's title or its number must appear in the opening text. A failure is held for review,
   with a named reason, by the runner. It is not refused in admission, since OCR is the likely cause of most misses.
-- Synopsis, gazette notification, errata and corrigendum: exempt. They link by key and cannot establish a bill's identity.
+- Synopsis, gazette notification and errata: exempt. They link by key and cannot establish a bill's identity.
 
 `billTextIdentity` in `supabase/functions/_shared/billIdentity.ts` is that check. The runner calls it and records the result as
 review check `bill_identity`. Adding `bill_identity` to a collection's `required_checks` makes admission enforce it, so the rule
@@ -65,8 +67,11 @@ This narrows the owner's gate, which names every sansad bill, so it needs the ow
 
 **Links.** Written in the same transaction, as F266 does, with `decision_id` `admission:bill-key-v1` and the document's role.
 
-**One of each.** Admission refuses a file URL or a bill-and-role pair another document holds, by name. Two unique indexes hold the
-same rule if concurrent runs race past those lookups. Live bills have no duplicate of either.
+**One of each.** Admission refuses, by name, a file URL another document holds, or a role of the bill in that house that another
+document holds. Errata can repeat. Two unique indexes hold the same rule if concurrent runs race past those lookups: the race then
+aborts that call, and a retry gets the named refusal. Live bills have no duplicate of either.
+
+**Role.** One of the seven live roles. The runner maps the 365 corrigenda to `errata`, which the app already labels.
 
 **One way in.** The single-document path refuses Bills, so every bill comes through a sealed batch and its policy.
 
@@ -85,10 +90,11 @@ The rule above, run read-only on NTER against the 2,764 live bills that carry a 
 
 | Result | Documents | Share |
 |---|---|---|
-| Identifies one bill | 2,675 | 96.8% |
-| Still ambiguous | 0 | 0% |
-| Refused: no row for number, house and year | 84 | 3.0% |
-| Refused: candidates, but no name match | 5 | 0.2% |
+| Identifies one bill | 2,646 | 95.7% |
+| Ambiguous | 0 | 0% |
+| Refused: no row for the key | 106 | 3.8% |
+| Refused: the key's row is in the other house | 1 | 0.04% |
+| Refused: rows for the key, no name match | 11 | 0.4% |
 
 Text identity, in the opening 6,000 characters:
 
@@ -116,7 +122,9 @@ settles that.
 | Each of those breaks trips its named check | 5 of 5 |
 | The whole worker suite on the replaced functions | 63 of 63 checks |
 | Deliberate breaks of the migration | 25 run: 24 caught. Removing the per-bill lock is not, because one session cannot race itself; the unique indexes cover that case |
+| Old against new, questions and Law, independent reviewer | 2,500 SQL trials and 8,000 payload comparisons, on the version before the rewrite |
 | Applied before F290 | Refused, nothing created |
+| A dry run of a bill | Reports `would_admit`, writes nothing |
 | The rollback note, as written | Schema matches the F290 chain, apart from test scaffolding |
 
 Still to do before a validation batch: a dry run on the real pack, reporting each refusal class by count. The per-page text
@@ -127,11 +135,23 @@ check, the patches, the 700-chunk hold and the text identity call stay in the ru
 | # | Question | Recommendation |
 |---|---|---|
 | 1 | Do we need pack samples to build? | No. Build on the shape the live bills show. Run the dry run on the pack before the validation batch |
-| 2 | Links for live bills | A separate backfill after the adapter, for the 2,675 that match. It needs no embedding, and each link is verified the same way |
-| 3 | The 89 live bills that do not match, and the 132 with no key | Report them for review. Fix nothing here |
+| 2 | Links for live bills | A separate backfill after the adapter, for the 2,646 that match. It needs no embedding, and each link is verified the same way |
+| 3 | The 118 live bills that do not match, and the 132 with no key | Report them for review. Fix nothing here |
 | 4 | Text identity | As in the design. Needs the owner's agreement |
 | 5 | R7's 315 staged sources | Keep the frozen manifest, and admit them through this adapter |
 | 6 | Over 700 chunks | Hold, as the client's plan says. A separate bounded load comes later |
+
+## Known limits
+
+- Readers join bills by key alone, so a row sharing a key can resolve to another bill's document (F300). This already exists.
+  Switching readers to links needs the live bills linked first.
+- `billTextIdentity` can pass a recurring name from another year, such as a Finance Bill. It is a screen for the runner, and the
+  match itself rests on key, house and name.
+
+## Applying on NTER
+
+Deploy `ingest-worker` and `admin-ingest` from this commit first, then apply the migration by `psql` with the worker paused, after
+F290. Each needs separate approval.
 
 ## Exclusions
 

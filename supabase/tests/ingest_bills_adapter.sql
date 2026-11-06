@@ -18,11 +18,12 @@ create function pg_temp.bill(g int, over jsonb default '{}', cite jsonb default 
    || case when over ? 'tag' then jsonb_build_object('source_key',left(encode(sha256(convert_to('bill-' || g || (over->>'tag'),'UTF8')),'hex'),40)) else '{}' end
    || over,
    'BILL NO. ' || g || ' OF 2025. ' || pg_temp.bill_name(g) || coalesce(' ' || (over->>'tag'), '')) $$;
+-- The stored key is built as billDocumentKey in src/lib/deskRows.js builds it: the title's year, else the date's.
 create function pg_temp.bill_row(k text, n text, house text, d text, name text) returns void language sql as $$
- insert into public.desk_rows(tier,feature,row_key,row,record_text,snapshot_at)
+ insert into public.desk_rows(tier,feature,row_key,row,record_text,snapshot_at,document_key)
  values ('national','Bill Passage Probability Index',k,
   jsonb_build_object('id',k,'bill_number',n,'house',house,'date_introduced',d,'bill_name',name,'source_url','https://sansad.in/rs/legislation'),
-  name, now()) $$;
+  name, now(), 'bill:' || coalesce(substring(name from ',\s*([0-9]{4})\s*\.?\s*$'), left(d,4)) || ':' || n) $$;
 create function pg_temp.reg(c text, q jsonb) returns jsonb language plpgsql as $$
  begin return pg_temp.i_reg(pg_temp.batch(c, jsonb_build_array(q)), jsonb_build_array(q))#>'{results,0}'; end $$;
 create function pg_temp.links(q jsonb) returns bigint language sql as $$
@@ -54,13 +55,13 @@ select pg_temp.ok(pg_temp.reg('national-bills', pg_temp.bill(1, jsonb_build_obje
   'file_url','https://sansad.in/getFile/BillsPDFFiles/synopsis/1-2025.pdf?source=loksabhadocs')))->>'outcome' = 'admitted', 'a second document of one bill');
 select pg_temp.ok((select bool_and(expected_link_count = 2) from public.record_document_links where row_key = 'r1'), 'the link count follows');
 
--- Year: the row's name and its date disagree on 744 live rows. Either may match.
+-- Year: the row's name and its date disagree on 744 live rows. The stored key decides, as it does for every reader.
 select pg_temp.bill_row('r2', '2', 'Lok Sabha', '2024-12-30', pg_temp.bill_name(2));
-select pg_temp.ok(pg_temp.reg('national-bills', pg_temp.bill(2))->>'outcome' = 'admitted', 'found by the year in the row''s name');
+select pg_temp.ok(pg_temp.reg('national-bills', pg_temp.bill(2))->>'outcome' = 'admitted', 'the name''s year decides the stored key');
 select pg_temp.bill_row('r3', '3', 'Lok Sabha', '2025-02-01', 'The Fixture Measure Number 3 Bill');
-select pg_temp.ok(pg_temp.reg('national-bills', pg_temp.bill(3))->>'outcome' = 'admitted', 'found by the date when the name has no year');
+select pg_temp.ok(pg_temp.reg('national-bills', pg_temp.bill(3))->>'outcome' = 'admitted', 'the date decides when the name has no year');
 
--- Number, house and year can match rows of two bills: the name picks.
+-- One key can hold rows of two bills: the whole name picks.
 select pg_temp.bill_row('r4a', '4', 'Lok Sabha', '2025-02-01', pg_temp.bill_name(4));
 select pg_temp.bill_row('r4b', '4', 'Lok Sabha', '2025-02-02', 'Quite A Different Measure Bill, 2025');
 select pg_temp.ok(pg_temp.reg('national-bills', pg_temp.bill(4))->>'outcome' = 'admitted', 'the name picks the bill');
@@ -80,9 +81,9 @@ select pg_temp.bill_row('r23', '23', 'Lok Sabha', '2025-01-01', 'Quite A Differe
 select pg_temp.refusal('national-bills', pg_temp.bill(23), 'bill_identity_mismatch');
 select pg_temp.bill_row('r24', '24', 'Lok Sabha', '2025-01-01', pg_temp.bill_name(99));
 select pg_temp.refusal('national-bills', pg_temp.bill(24), 'bill_identity_mismatch');   -- a title never links across numbers
-select pg_temp.bill_row('r25a', '25', 'Lok Sabha', '2025-01-01', pg_temp.bill_name(25) || ' extended');
-select pg_temp.bill_row('r25b', '25', 'Lok Sabha', '2025-01-02', pg_temp.bill_name(25) || ' revised');
-select pg_temp.refusal('national-bills', pg_temp.bill(25), 'ambiguous_listing_row');
+-- Containment is not enough: a part of a name, or a bill with a longer name, never links.
+select pg_temp.bill_row('r25', '25', 'Lok Sabha', '2025-01-01', pg_temp.bill_name(25) || ' extended, 2025');
+select pg_temp.refusal('national-bills', pg_temp.bill(25), 'bill_identity_mismatch');
 select pg_temp.refusal('national-bills', pg_temp.bill(26, '{"document_key":"bill:2024:26"}'), 'bill_identity_incomplete');
 select pg_temp.refusal('national-bills', pg_temp.bill(27, '{"document_role":"memo"}'), 'bill_identity_incomplete');
 select pg_temp.refusal('national-bills', pg_temp.bill(28, '{"file_url":"https://example.com/28_2025.pdf"}'), 'bill_identity_incomplete');
@@ -91,10 +92,34 @@ select pg_temp.refusal('national-bills', pg_temp.bill(30, '{}', '{"house":"Vidha
 select pg_temp.refusal('national-bills', pg_temp.bill(31, '{}', '{"bill_number":"xiv"}'), 'bill_identity_incomplete');
 select pg_temp.refusal('national-bills', pg_temp.bill(32, '{}', '{"bill_year":"25"}'), 'bill_identity_incomplete');
 select pg_temp.refusal('national-bills', pg_temp.bill(33, '{}', '{"bill_name":"---"}'), 'bill_identity_incomplete');
+select pg_temp.refusal('national-bills', pg_temp.bill(34, '{}', '{"bill_name":"Bill"}'), 'bill_identity_incomplete');
+select pg_temp.refusal('national-bills', pg_temp.bill(35, '{}', jsonb_build_object('bill_name',U&'\092C\0940\091F\093E \0935\093F\0927\0947\092F\0915, 2025')), 'bill_identity_incomplete');
+select pg_temp.refusal('national-bills', pg_temp.bill(36, '{"document_role":"corrigendum"}'), 'bill_identity_incomplete');
 -- A held URL, and a held role of the bill.
 select pg_temp.refusal('national-bills', pg_temp.bill(1, jsonb_build_object('tag','copy','document_role','as_passed_lok_sabha')), 'file_url_held');
 select pg_temp.refusal('national-bills', pg_temp.bill(1, jsonb_build_object('tag','copy',
   'file_url','https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/1_2025_other.pdf')), 'bill_role_held');
+-- Errata can repeat for a bill.
+select pg_temp.ok(pg_temp.reg('national-bills', pg_temp.bill(1, jsonb_build_object('tag','errata one','document_role','errata',
+  'file_url','https://sansad.in/getFile/BillsTexts/LSBillTexts/Errata/1_a.pdf')))->>'outcome' = 'admitted', 'a first erratum');
+select pg_temp.ok(pg_temp.reg('national-bills', pg_temp.bill(1, jsonb_build_object('tag','errata two','document_role','errata',
+  'file_url','https://sansad.in/getFile/BillsTexts/LSBillTexts/Errata/1_b.pdf')))->>'outcome' = 'admitted', 'a second erratum of one bill');
+-- A key has no house: the other house's bill with that number keeps its own role.
+select pg_temp.bill_row('r6l', '6', 'Lok Sabha', '2025-01-01', pg_temp.bill_name(6));
+select pg_temp.bill_row('r6r', '6', 'Rajya Sabha', '2025-01-01', pg_temp.bill_name(6));
+select pg_temp.ok(pg_temp.reg('national-bills', pg_temp.bill(6))->>'outcome' = 'admitted', 'the Lok Sabha bill');
+select pg_temp.ok(pg_temp.reg('national-bills', pg_temp.bill(6, jsonb_build_object('tag','rs',
+   'file_url','https://sansad.in/getFile/BillsTexts/RSBillTexts/Asintroduced/6_2025.pdf'), '{"house":"Rajya Sabha"}'))->>'outcome' = 'admitted',
+  'the Rajya Sabha bill with that number');
+select pg_temp.ok((select count(*) from public.record_document_links where row_key in ('r6l','r6r')) = 2, 'each linked to its own house''s row');
+-- A dry run says what would happen and writes nothing.
+select pg_temp.bill_row('r7', '7', 'Lok Sabha', '2025-01-01', pg_temp.bill_name(7));
+do $$ declare q jsonb := pg_temp.bill(7); before text := pg_temp.corpus(); res jsonb; begin
+ res := pg_temp.i_reg(pg_temp.batch('national-bills', jsonb_build_array(q)), jsonb_build_array(q), true);
+ perform pg_temp.ok(res#>>'{results,0,outcome}' = 'would_admit', 'a dry run reports would_admit');
+ perform pg_temp.ok(pg_temp.corpus() = before and pg_temp.links(q) = 0, 'a dry run writes no document and no link');
+end $$;
+
 -- Questions and bills do not cross.
 select pg_temp.refusal('national-pq', pg_temp.bill(1, '{"tag":"cross"}'), 'collection_not_admitted');
 select pg_temp.refusal('national-bills', pg_temp.pq(13), 'collection_not_admitted');
@@ -105,7 +130,7 @@ select pg_temp.refused($q$insert into public.documents(source_key,title,file_url
   'documents_bill_file_url');
 select pg_temp.refused($q$insert into public.documents(source_key,title,file_url,desk_tier,desk_feature,content_sha256,ocr_text,metadata)
   values (repeat('6',40),'Race','https://sansad.in/getFile/BillsTexts/race.pdf','national','Bill Passage Probability Index',repeat('6',64),'x',
-  '{"document_key":"bill:2025:1","document_role":"as_introduced"}')$q$, 'documents_bill_key_role');
+  '{"document_key":"bill:2025:1","document_role":"as_introduced","house":"Lok Sabha"}')$q$, 'documents_bill_key_role');
 
 -- ═══ The owner's text check, as a policy setting ══════
 select pg_temp.bill_row('r40', '40', 'Lok Sabha', '2025-01-01', pg_temp.bill_name(40));
@@ -116,8 +141,8 @@ select pg_temp.ok(pg_temp.reg('national-bills-checked', pg_temp.bill(40, jsonb_b
 
 -- ═══ One way in, and no new door ══════════════════════
 select pg_temp.refused($q$select public.ingest_register_text_unmapped(pg_temp.bill(41))$q$, 'Bills enter through a sealed batch');
-select pg_temp.ok(not has_function_privilege('corpus_ingest', 'public.ingest_bill_rows(text,text,text,text)', 'execute')
-   and not has_function_privilege('service_role', 'public.ingest_bill_rows(text,text,text,text)', 'execute')
+select pg_temp.ok(not has_function_privilege('corpus_ingest', 'public.ingest_bill_rows(text,text,text)', 'execute')
+   and not has_function_privilege('service_role', 'public.ingest_bill_rows(text,text,text)', 'execute')
    and not has_function_privilege('corpus_ingest', 'public.bill_admission_key(jsonb)', 'execute')
    and not has_function_privilege('anon', 'public.bill_norm(text)', 'execute'), 'the helpers are owner-only');
 select pg_temp.ok((select bool_and(p.prosecdef and p.proconfig @> array['search_path=public, extensions, pg_temp'])
@@ -129,7 +154,7 @@ create function pg_temp.reads(t text) returns bigint language sql as $$
 insert into public.documents(source_key,title,file_url,desk_tier,desk_feature,content_sha256,ocr_text,metadata)
 select repeat('c',8) || md5('seed' || g), 'Seed ' || g, pg_temp.bill_url(100000 + g),'national','Bill Passage Probability Index',
        md5('seedtext' || g) || md5('s' || g),'x',
-       jsonb_build_object('document_key','bill:2025:' || (100000 + g),'document_role','as_introduced')
+       jsonb_build_object('document_key','bill:2025:' || (100000 + g),'document_role','as_introduced','house','Lok Sabha')
   from generate_series(1,3000) g;
 select pg_temp.bill_row('s' || g, (200000 + g)::text, 'Lok Sabha', '2025-01-01', 'Seed Row ' || g) from generate_series(1,3000) g;
 select pg_temp.bill_row('c' || g, (500 + g)::text, 'Lok Sabha', '2025-01-01', pg_temp.bill_name(500 + g)) from generate_series(1,50) g;

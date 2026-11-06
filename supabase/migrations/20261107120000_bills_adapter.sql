@@ -1,25 +1,28 @@
 -- F275: Bills enter through a sealed batch, linked to their listing rows. Spec: docs/specs/2026-11-07-bills-adapter.md.
 --
 -- A question answer finds its listing rows by URL. That cannot work here: all 9,817 bill rows carry the same
--- source_url, a listing page. So identity is bill number, house and year, and the bill's name picks among the rows
--- those match. The name never links on its own. On the 2,764 live bills with a key, this identifies one bill for
--- 2,675, leaves none ambiguous, and refuses 89 by name.
+-- source_url, a listing page. So a bill matches on desk_rows.document_key, the key every reader of bills already
+-- joins on, then house, then the whole bill name with its year removed. A name only chooses among rows that already
+-- share the key, and it must match exactly. On the 2,764 live bills with a key, this identifies one bill for 2,646
+-- and refuses 118, with none ambiguous.
 --
--- New refusals: bill_identity_incomplete, bill_role_held, bill_identity_mismatch, ambiguous_listing_row, and for
--- this adapter file_url_held and no_desk_row. A policy can require review check bill_identity, the owner's text
--- check, which the runner performs. The single-document path refuses Bills.
+-- New refusals: bill_identity_incomplete, bill_role_held, bill_identity_mismatch, and for this adapter file_url_held
+-- and no_desk_row. A policy can require review check bill_identity, the owner's text check, which the runner makes.
+-- The single-document path refuses Bills.
 --
--- Depends on 20261106120000_admission_scans.sql, whose functions this replaces. Not on NTER: it applies after
--- that migration, by psql (F283), with separate approval.
+-- Depends on 20261106120000_admission_scans.sql, whose functions this replaces. Not on NTER. To apply, with separate
+-- approval: first deploy ingest-worker and admin-ingest from this commit, because the worker re-prepares a bill and the
+-- old code refuses one. Then run this by psql (F283) with the worker paused: the index builds block writers to
+-- documents and desk_rows until the commit. The analyze runs after the commit. A duplicate stops it with nothing done.
 --
--- Rollback, in one transaction:
+-- Rollback, in one transaction, before any bill is admitted. After that, admitted bills stay until their documents,
+-- jobs and links are removed by a reviewed step: these functions cannot process them.
 --   re-run ingest_admit_document from 20261106120000_admission_scans.sql; re-run ingest_admit_tier,
 --   ingest_admit_adapter, ingest_register_text_unmapped and ingest_register_batch from
 --   20261102130000_batch_registration.sql; each written as CREATE OR REPLACE so that its grants stay;
---   drop function public.ingest_bill_rows(text, text, text, text);
+--   drop function public.ingest_bill_rows(text, text, text);
 --   drop function public.bill_admission_key(jsonb);
 --   drop function public.bill_norm(text);
---   drop index public.desk_rows_bill_identity;
 --   drop index public.documents_bill_file_url;
 --   drop index public.documents_bill_key_role;
 --   delete from supabase_migrations.schema_migrations where version = '20261107120000';
@@ -34,19 +37,20 @@ begin
   end if;
 end $$;
 
-create index desk_rows_bill_identity on public.desk_rows ((row->>'bill_number'), (row->>'house'))
-  where tier = 'national' and feature = 'Bill Passage Probability Index';
--- Unique, so that two concurrent runs cannot both admit one file or one role of a bill: the lookups below refuse by
--- name, and these hold if a race gets past them. Live bills have no duplicate of either.
+-- Unique, so that two concurrent runs cannot both admit one file or one role of a bill in one house: the lookups
+-- below refuse by name, and these hold if a race gets past them. Errata can repeat for a bill. Live bills have no
+-- duplicate of either.
 create unique index documents_bill_file_url on public.documents (file_url)
   where desk_tier = 'national' and desk_feature = 'Bill Passage Probability Index';
-create unique index documents_bill_key_role on public.documents ((metadata->>'document_key'), (metadata->>'document_role'))
-  where desk_tier = 'national' and desk_feature = 'Bill Passage Probability Index';
+create unique index documents_bill_key_role
+  on public.documents ((metadata->>'document_key'), (metadata->>'house'), (metadata->>'document_role'))
+  where desk_tier = 'national' and desk_feature = 'Bill Passage Probability Index' and metadata->>'document_role' <> 'errata';
 
--- Letters and digits only, so that punctuation and case in a bill's name cannot decide a match.
+-- A bill's name for comparison: its closing year removed, then letters and digits only, so that punctuation and
+-- case cannot decide a match. Devanagari normalises away, so a Hindi name is incomplete, never a match.
 create function public.bill_norm(v text) returns text
 language sql immutable parallel safe set search_path = pg_catalog, pg_temp as $$
- select regexp_replace(lower(coalesce(v, '')), '[^a-z0-9]+', '', 'g')
+ select regexp_replace(lower(regexp_replace(coalesce(v, ''), ',?\s*[0-9]{4}\s*\.?\s*$', '')), '[^a-z0-9]+', '', 'g')
 $$;
 
 -- The bill a record claims to be: its key, or null when the record does not fully and consistently say so.
@@ -56,36 +60,32 @@ language sql immutable security definer set search_path = public, extensions, pg
    when r->>'file_url' ~ '^https://sansad\.in/getFile/(BillsTexts|BillsPDFFiles)/' and r->>'file_url' !~ '\.\.'
     and n ~ '^([0-9]+|[IVXLCDM]+)$' and y ~ '^[0-9]{4}$'
     and r#>>'{citation,house}' in ('Lok Sabha','Rajya Sabha')
-    and length(public.bill_norm(r#>>'{citation,bill_name}')) > 0
+    and length(public.bill_norm(r#>>'{citation,bill_name}')) >= 8
     and r->>'document_role' in ('as_introduced','as_passed_lok_sabha','as_passed_rajya_sabha','as_passed_both_houses',
-                                'gazette_notification','synopsis','errata','corrigendum')
+                                'gazette_notification','synopsis','errata')
     and r->>'document_key' = 'bill:' || y || ':' || n
    then r->>'document_key' end
   from (select r#>>'{citation,bill_number}' n, r#>>'{citation,bill_year}' y) f
 $$;
 
--- The listing rows of one bill, locked in row_key order. Year is the year of introduction or the year in the
--- row's name: they disagree on 744 rows. candidates: rows matching number, house and year. names: distinct bill
--- names among those that match this bill's name. rows: those rows, when there is one name.
-create function public.ingest_bill_rows(p_number text, p_house text, p_year text, p_name text) returns jsonb
+-- The listing rows of one bill, locked in row_key order. candidates: rows with this key in this house. rows: those
+-- whose whole name matches, which are every listing of the one bill.
+create function public.ingest_bill_rows(p_key text, p_house text, p_name text) returns jsonb
 language plpgsql security definer set search_path = public, extensions, pg_temp as $$
-declare v_name text := public.bill_norm(p_name); v_candidates int; v_names int; v_rows jsonb;
+declare v_name text := public.bill_norm(p_name); v_candidates int; v_rows jsonb;
 begin
   with c as materialized (
     select q.row_key, public.bill_norm(q.row->>'bill_name') nm from public.desk_rows q
      where q.tier = 'national' and q.feature = 'Bill Passage Probability Index'
-       and q.row->>'bill_number' = p_number and q.row->>'house' = p_house
-       and (left(q.row->>'date_introduced', 4) = p_year or substring(q.row->>'bill_name' from '([0-9]{4})\s*\.?\s*$') = p_year)
+       and q.document_key = p_key and q.row->>'house' = p_house
      order by q.row_key for update of q
-  ), m as (
-    select c.* from c where c.nm <> '' and (position(c.nm in v_name) > 0 or position(v_name in c.nm) > 0)
   )
-  select (select count(*) from c), (select count(distinct nm) from m),
-         (select coalesce(jsonb_agg(row_key order by row_key), '[]') from m)
-    into v_candidates, v_names, v_rows;
-  return jsonb_build_object('candidates', v_candidates, 'names', v_names, 'rows', v_rows);
+  select (select count(*) from c),
+         (select coalesce(jsonb_agg(c.row_key order by c.row_key), '[]') from c where c.nm = v_name)
+    into v_candidates, v_rows;
+  return jsonb_build_object('candidates', v_candidates, 'rows', v_rows);
 end $$;
-revoke all on function public.bill_norm(text), public.bill_admission_key(jsonb), public.ingest_bill_rows(text, text, text, text)
+revoke all on function public.bill_norm(text), public.bill_admission_key(jsonb), public.ingest_bill_rows(text, text, text)
   from public, anon, authenticated, service_role;
 
 create or replace function public.ingest_admit_tier(r jsonb) returns text
@@ -231,8 +231,8 @@ begin
     end if;
     if n = 0 then return jsonb_build_object('outcome','refused','reason','no_desk_row'); end if;
   elsif v_adapter = 'national_bills' then
-    -- F275: every listing row carries the same source_url, so identity is number, house and year, and the
-    -- bill's name then picks among those rows. The name never links on its own.
+    -- F275: every listing row carries the same source_url, so identity is the stored key and the house, and the
+    -- whole bill name then picks among those rows. The name never links on its own.
     v_key := public.bill_admission_key(r);
     if v_key is null then return jsonb_build_object('outcome','refused','reason','bill_identity_incomplete'); end if;
     v_link_role := r->>'document_role';
@@ -249,22 +249,20 @@ begin
     with m as materialized (
       select x.id, x.source_key from public.documents x
        where x.desk_tier='national' and x.desk_feature='Bill Passage Probability Index'
-         and x.metadata->>'document_key' = v_key and x.metadata->>'document_role' = v_link_role
+         and x.metadata->>'document_key' = v_key and x.metadata->>'house' = r#>>'{citation,house}'
+         and x.metadata->>'document_role' = v_link_role and v_link_role <> 'errata'
     )
     select m.id, m.source_key into holder from m order by m.id limit 1;
     if found then
       return jsonb_build_object('outcome','refused','reason','bill_role_held',
         'detail',jsonb_build_object('holder_document_id',holder.id,'holder_source_key',holder.source_key));
     end if;
-    v := public.ingest_bill_rows(r#>>'{citation,bill_number}', r#>>'{citation,house}', r#>>'{citation,bill_year}', r#>>'{citation,bill_name}');
+    v := public.ingest_bill_rows(v_key, r#>>'{citation,house}', r#>>'{citation,bill_name}');
     if (v->>'candidates')::int = 0 then return jsonb_build_object('outcome','refused','reason','no_desk_row'); end if;
-    if (v->>'names')::int = 0 then
+    v_rows := array(select jsonb_array_elements_text(v->'rows'));
+    if cardinality(v_rows) = 0 then
       return jsonb_build_object('outcome','refused','reason','bill_identity_mismatch','detail',jsonb_build_object('candidates',v->'candidates'));
     end if;
-    if (v->>'names')::int > 1 then
-      return jsonb_build_object('outcome','refused','reason','ambiguous_listing_row','detail',jsonb_build_object('names',v->'names'));
-    end if;
-    v_rows := array(select jsonb_array_elements_text(v->'rows'));
     n := cardinality(v_rows);
   end if;
 
@@ -422,7 +420,7 @@ begin
     v_texts := v_texts || (r->>'text_sha256');
     if adapter = 'law' then v_law := true; end if;
     if adapter = 'national_bills' then
-      v_answers := v_answers || coalesce(public.bill_admission_key(r), sk);
+      v_answers := v_answers || coalesce(public.bill_admission_key(r), sk) || coalesce(r->>'file_url', sk);
     end if;
     if adapter = 'lok_sabha_answers' then
       v_answers := v_answers || public.pq_answer_key(r->>'file_url');
@@ -519,5 +517,6 @@ begin
     'batch',jsonb_build_object('state',v_state,'stop_reason',(select stop_reason from public.ingest_batches where id=b.id)) || counts);
 end $$;
 
-analyze public.desk_rows;
 commit;
+analyze public.documents;
+analyze public.desk_rows;

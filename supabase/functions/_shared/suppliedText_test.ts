@@ -124,7 +124,13 @@ Deno.test('a National bill must say what it is', async () => {
 });
 Deno.test('a question record is unchanged by the Bills adapter', async () => {
   const r = await nationalQuestion();
-  const p = await prepareSuppliedText({ ...r, document_key: 'bill:2025:12', document_role: 'as_introduced' });
+  const checks = { ...r.review.checks, bill_identity: true };
+  const p = await prepareSuppliedText({
+    ...r,
+    document_key: 'bill:2025:12',
+    document_role: 'as_introduced',
+    review: { ...r.review, checks },
+  });
   assertEquals(p.input.document_key, undefined);
   assertEquals(p.input.document_role, undefined);
   assertEquals(p.payload_sha256, (await prepareSuppliedText(r)).payload_sha256);

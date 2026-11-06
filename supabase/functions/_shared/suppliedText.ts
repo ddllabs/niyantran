@@ -26,7 +26,6 @@ const BILL_ROLES = new Set([
   'gazette_notification',
   'synopsis',
   'errata',
-  'corrigendum',
 ]);
 const NATIONAL_KEY = /^[0-9a-f]{40}$/;
 const PQ_URL = /^https:\/\/sansad\.in\/getFile\/loksabhaquestions\/annex\/([0-9]{1,4})\/([A-Za-z0-9_]{1,64})\.pdf(\?source=pqals)?$/;
@@ -116,8 +115,8 @@ export async function prepareSuppliedText(value: unknown, options: { batch?: boo
     decision_id: string(review.decision_id, 'review decision'),
     checks: { identity: true, completeness: true, sensitivity: true, dedupe: true, rights: true },
   };
-  // Only ever true, and only for a runner that made the check: a policy may require it (ingest_policy_approve).
-  if (checks.bill_identity === true) (checkedReview.checks as Record<string, boolean>).bill_identity = true;
+  // Bills only, and only ever true, for a runner that made the check: a policy may require it (ingest_policy_approve).
+  if (bill && checks.bill_identity === true) (checkedReview.checks as Record<string, boolean>).bill_identity = true;
   const citation = object(r.citation, 'citation');
   if (!Object.keys(citation).length) throw new Error('citation is empty');
   // One pass builds code-point -> UTF-16 boundaries, including the final boundary.

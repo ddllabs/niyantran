@@ -20,7 +20,7 @@ Deno.test('a roman bill number matches', () => {
   assertEquals(billTextIdentity('BILL No. XLIII OF 2000', roman, 'as_introduced').number, false);
 });
 Deno.test('roles that cannot establish identity are not checked', () => {
-  for (const role of ['gazette_notification', 'synopsis', 'errata', 'corrigendum']) {
+  for (const role of ['gazette_notification', 'synopsis', 'errata']) {
     assertEquals(billTextIdentity('The River Navigation (Amendment) Act', bill, role).applies, false);
     assertEquals(billTextIdentity('nothing relevant', bill, role).pass, true);
   }

@@ -99,7 +99,7 @@ export interface SynthDoc {
   /** What ingest_register_batch and ingest_register_text take. */
   request: { payload: string; payload_sha256: string; expected: unknown[]; pages: unknown[]; sections: unknown[] };
   item: { source_key: string; payload_sha256: string; content_sha256: string; chunks: number; est_tokens: number };
-  deskRow: { row_key: string; feature?: string; row: Record<string, unknown>; record_text: string };
+  deskRow: { row_key: string; feature?: string; document_key?: string; row: Record<string, unknown>; record_text: string };
 }
 
 const CHARS_PER_CHUNK = 760; // refined per document below
@@ -209,7 +209,7 @@ export async function synthDoc(
     },
     deskRow: {
       row_key: `lp-${tag}-${n}`,
-      ...(o.bill ? { feature: BILLS.feature } : {}),
+      ...(o.bill ? { feature: BILLS.feature, document_key: `bill:2025:${billNumber}` } : {}),
       row: o.bill
         ? {
           id: `lp-${tag}-${n}`,
@@ -240,8 +240,8 @@ export async function seedDeskRows(docs: SynthDoc[]): Promise<void> {
   if (!docs.length) return;
   const json = JSON.stringify(docs.map((d) => d.deskRow));
   await psql(
-    `insert into public.desk_rows(tier,feature,row_key,row,record_text,snapshot_at)
-     select '${PQ.tier}', coalesce(r->>'feature', '${PQ.feature}'), r->>'row_key', r->'row', r->>'record_text', now()
+    `insert into public.desk_rows(tier,feature,row_key,row,record_text,snapshot_at,document_key)
+     select '${PQ.tier}', coalesce(r->>'feature', '${PQ.feature}'), r->>'row_key', r->'row', r->>'record_text', now(), r->>'document_key'
        from jsonb_array_elements($lp$${json}$lp$::jsonb) r
      on conflict do nothing`,
   );
