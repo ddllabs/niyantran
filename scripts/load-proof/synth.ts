@@ -76,8 +76,15 @@ export async function loadChunkCounts(slug: string): Promise<number[] | null> {
   }
 }
 
+/**
+ * The largest document the generator asks for. The worker refuses over 800 chunks and synthetic text can
+ * overshoot a request, so the real distribution's far tail is clamped here. Real documents past 800 chunks exist
+ * (Bills: 915 and 2,240) and cannot use the supplied-text path at all.
+ */
+export const MAX_SYNTH_CHUNKS = 600;
+
 export function pickChunkCount(next: () => number, counts: number[] | null): number {
-  if (counts) return counts[Math.floor(next() * counts.length)];
+  if (counts) return Math.min(MAX_SYNTH_CHUNKS, counts[Math.floor(next() * counts.length)]);
   return Math.min(120, Math.max(1, Math.round(Math.exp(1.4 + 1.1 * (next() + next() + next() - 1.5) * 1.15))));
 }
 
