@@ -57,7 +57,7 @@ Deno.test('control codes are stripped except tab, LF and CR; hashes, counts and 
   const out = await prepareRecord(r, OPT);
   assertEquals(out.kind, 'request');
   if (out.kind !== 'request') return;
-  const clean = 'Alpha beta\tgamma\r\ndelta\nend.' + PAD;
+  const clean = 'Alpha beta\tgamma\r\ndelta\nend\n.' + PAD; // a vertical tab is a layout break: it becomes a line break
   const payload = JSON.parse(out.request.payload);
   assertEquals(payload.text, clean);
   assertEquals(payload.text_sha256, await sha256Hex(clean));
@@ -109,19 +109,32 @@ Deno.test('a bill stripped of control codes carries the pack hash of the origina
   assertEquals(clean.kind === 'request' && JSON.parse(clean.request.payload).original_text_sha256, undefined);
 });
 
-Deno.test('control codes: up to 0.5% of the text are stripped, more is held, because shifted-font text was 13%', async () => {
-  const mk = (total: number, codes: number) => {
-    let t = 'x'.repeat(total - codes);
-    t = t.slice(0, 100) + '\u0001'.repeat(codes) + t.slice(100);
-    return t;
+Deno.test('page breaks become line breaks, so the words either side stay apart, and many of them are never a hold', async () => {
+  const text = 'Page one ends\u000cPage two\u000b' + 'Short page.\u000c'.repeat(300) + PAD;
+  const out = await prepareRecord(await withText(await nationalQuestion(), text), OPT);
+  assertEquals(out.kind, 'request');
+  if (out.kind !== 'request') return;
+  const p = JSON.parse(out.request.payload);
+  assertEquals(p.text, 'Page one ends\nPage two\n' + 'Short page.\n'.repeat(300) + PAD);
+  assertEquals(p.text_sha256, await sha256Hex(p.text));
+  assertEquals(out.controlCodesRemoved, 302, 'replaced codes are counted with removed ones');
+});
+
+Deno.test('control codes: more than 10 in any 2,000 characters is a held shifted font, wherever it sits in the text', async () => {
+  const codes = (n: number, gap: number) => Array.from({ length: n }, () => '\u0001' + 'x'.repeat(gap)).join('');
+  const long = (middle: string) => 'y'.repeat(140_000) + middle + 'y'.repeat(140_000);
+  const reason = async (t: string) => {
+    const o = await prepareRecord(await withText(await nationalQuestion(), t), { maxChunks: 100_000 });
+    return o.kind === 'hold' ? o.hold.reason : 'request';
   };
-  const at = await prepareRecord(await withText(await nationalQuestion(), mk(2000, 10)), OPT);
-  assertEquals(at.kind === 'request' && at.controlCodesRemoved, 10, '10 of 2000 is exactly 0.5%');
-  const over = await prepareRecord(await withText(await nationalQuestion(), mk(2000, 11)), OPT);
-  assertEquals(over.kind, 'hold');
-  if (over.kind === 'hold') assertEquals(over.hold.reason, 'control_codes_excess');
-  const shifted = await prepareRecord(await withText(await nationalQuestion(), mk(2000, 260)), OPT);
-  assertEquals(shifted.kind === 'hold' && shifted.hold.reason, 'control_codes_excess');
+  // A shifted annexure in a long text: a small share of the whole, but dense where it is.
+  assertEquals(await reason(long(codes(1400, 5))), 'control_codes_excess');
+  assertEquals(await reason(long(codes(11, 150))), 'control_codes_excess', '11 within 1,661 characters');
+  assertEquals(await reason(long(codes(10, 150))), 'request', '10 close together are stray codes');
+  // Stray codes spread through a long text are cleaned, however many there are in all.
+  assertEquals(await reason(codes(150, 1999)), 'request');
+  // A short text with a dense run is held too.
+  assertEquals(await reason(codes(260, 6) + PAD), 'control_codes_excess');
 });
 
 Deno.test('the original is verified before anything is changed: a record that does not bind its text is never admitted', async () => {

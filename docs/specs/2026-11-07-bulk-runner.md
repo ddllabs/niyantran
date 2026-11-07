@@ -37,13 +37,16 @@ can be, with one `Db` interface for the calls, so that tests need no database.
 | `superseded_by_patch` | A patch record replaces it. Patches load, and the original never does |
 | `patch_not_in_pack`, `patch_key_mismatch` | A patch names a record the pack does not hold, or a different one |
 | `corrigendum_conflict` | A corrigendum's own citation or key disagrees with its mapping |
-| `control_codes_excess` | More than 10 control codes and more than 1 in 200 characters: likely a shifted font, not stray codes |
+| `control_codes_excess` | More than 10 control codes, other than page breaks, within any 2,000 characters: likely a shifted font |
 | `duplicate_of_keeper` | Set by the plan: another record keeps this text, by the pack's dedupe list |
 
 Control codes are handled after the pack's hashes are checked against the original text, so a record cannot be altered and then
-rehashed as clean. Up to the cap they are removed, the hashes are recomputed, the count is reported, and a bill carries its pack hash
-as `original_text_sha256`. Registration refuses them otherwise. On 2,896 live bills, 510 have some, 149 more than 10 and 9 more than
-100, at most 143. `maxChunks` must be given; there is no default. Any claim in the pack that a text matches its bill is dropped, since
+rehashed as clean. Vertical tabs and form feeds are page breaks from PDF extraction and become line breaks; other codes are removed.
+The hashes are recomputed, the count is reported, and a bill carries its pack hash as `original_text_sha256`. Registration refuses
+control codes otherwise. Density is judged over a window, so a shifted annexure inside a long bill is held even though it is a small
+share of the whole. Measured on NTER on 2026-11-07, read only: of 2,896 bills, 510 have control codes, and 508 of those have only
+page breaks (at most 143 in one bill). Two have other codes, at most 10. F281's two shifted-font bills, with 1,464 and 6,653 codes,
+were repaired on 2026-11-02 and are no longer in NTER as they were. `maxChunks` must be given; there is no default. Any claim in the pack that a text matches its bill is dropped, since
 only the runner's own check says so. Holds are written to the receipt, never dropped.
 
 **Plan (no database writes).** Slices prepared requests into batches of at most 10,000 documents, and calls of at most 100 documents
@@ -51,14 +54,15 @@ and 7 MB, counted on the whole request. Refuses to start when:
 
 - the load would take a feature with no partition past 100,000 chunks;
 - the batch would pass the collection's budget or chunk ceiling, with the estimate raised by `costHeadroom` (default 1.25);
-- a record's chunk count is unknown;
+- the count of chunks a feature already stores is missing, so the partition guard could not be applied;
 - projected disk use passes the stop line given to the run, at 13,970 bytes a chunk;
 - two records share a text, unless the pack's own dedupe list names the keeper.
 
 **Pre-check.** `ingest_text_holders`, then `ingest_register_batch` with `p_dry_run`. Each collection lists the refusals it expects, such
 as `no_desk_row`, which about 4% of live bills would get. Those are counted by reason and governed by the policy's refusal thresholds,
 and the dry run's verdict binds the real call. Any other refusal is a disagreement, and it stops the batch. Expected refusals over
-`maxAllowedRefusalShare` of the batch stop it before anything real is sent.
+`maxAllowedRefusalShare` of the batch stop it before anything real is sent. A resumed batch has no dry run, so the cap is held call by
+call on the ledger's count plus the refusals the resume gets.
 
 **Run.** `ingest_batch_open`, `ingest_batch_add_items`, `ingest_batch_seal`, then registration call by call.
 
@@ -97,8 +101,9 @@ bills, killed after one call of 100, then resumed from the ledger in two calls, 
 requeued. All 21 checks pass, including no document admitted twice, the patch loaded in place of its original, a control code
 removed, a corrigendum on its bill, an expected refusal written nowhere, and a rerun, with the workers still running, that sent and
 bought nothing. Eight deliberate breaks each fail the check meant to catch them: a resume that resends everything, a ledger that
-disagrees, a tampered record, a dropped text check, a refused requeue, a disk stop line, slow commits and a rerun that buys. 99 unit
-tests pass, and the requeue test was shown failing before its fix.
+disagrees, a tampered record, a dropped text check, a refused requeue, a disk stop line, slow commits and a rerun that buys. 101 unit
+tests pass. The tests for the refused requeue, the resume's refusal cap, page breaks and the windowed density check were each
+shown failing before their fix.
 
 ## Plan
 

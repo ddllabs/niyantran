@@ -201,6 +201,8 @@ async function runBatch(
     last: null as BatchStatus | null,
     dryRan: false,
     allowedSeen: 0,
+    /** Allowed refusals the real calls of a resumed batch got, with no dry run to give them first. */
+    allowedResumed: 0,
     ocr: new Map<string, { source_key: string | null; file_url: string | null }>(),
   };
   const marks: Record<string, number> = {};
@@ -279,7 +281,10 @@ async function runBatch(
         continue;
       }
       // Without a dry run in this run (a resumed batch) the ledger is the only earlier word; with one, it spoke.
-      if (real && !want && !st.dryRan && r?.outcome === 'refused' && r.reason && allowed.has(r.reason)) continue;
+      if (real && !want && !st.dryRan && r?.outcome === 'refused' && r.reason && allowed.has(r.reason)) {
+        st.allowedResumed += 1;
+        continue;
+      }
       if (!r) {
         st.disagreements.push({ source_key: d.source_key, expected: want ?? 'a result', got: 'no result' });
       } else if (want) {
@@ -500,9 +505,9 @@ async function runBatch(
         }
       }
     }
+    let allowedRecorded = 0;
     if (ledger) {
       // A resumed batch has no dry run, so everything it already refused is read back and judged the same way.
-      let allowedRecorded = 0;
       for (const row of ledger.refused) {
         const reason = row.reason ?? '';
         if (allowed.has(reason)) allowedRecorded += 1;
@@ -564,6 +569,8 @@ async function runBatch(
         if (compare(sent, answered, predicted, true)) {
           throw new Halt({ reason: 'registration_disagreement', detail: disagreementDetail() }, true);
         }
+        // Without a dry run the cap can only be held call by call, on the ledger's count plus this run's.
+        if (!st.dryRan) checkCap(allowedRecorded + st.allowedResumed, batch.items_planned);
       }
     }
     marks.register_to = deps.clock();

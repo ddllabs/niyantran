@@ -301,7 +301,10 @@ await ensurePolicy(
     refusal_share_by_reason: { no_desk_row: 0.1 },
     failure_rate: 0.2,
     uncertain_max: 3,
-    min_decided: 20,
+    // The marked document's failure takes its whole embedding call down, up to claim_batch (10) jobs, and the batch order
+    // follows hashed keys, so it can come early. Judged from 20 decided, 10 failures before 50 decided tripped the
+    // failure rate by chance; from 60 they never can, and the requeue under test still happens.
+    min_decided: 60,
   } as unknown as Record<string, number>,
   {
     desk_tier: FEATURES.bills.tier,

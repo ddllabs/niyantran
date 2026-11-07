@@ -685,6 +685,23 @@ Deno.test('allowed refusals are capped: over the share the run stops before any 
   assertEquals(resumed.stop?.reason, 'refusal_share_over_cap');
 });
 
+Deno.test('on resume the cap counts the refusals the resume itself gets, not only those already in the ledger', async () => {
+  const r = rig();
+  const opts = { allowedRefusals: ['no_desk_row'], maxAllowedRefusalShare: 0.05 };
+  await killedAfterFirstCall(r, opts);
+  for (let i = 150; i < 250; i++) r.db.refuseReal.set(`k${String(i).padStart(6, '0')}`, 'no_desk_row');
+  const resumed = await start(250, rig(r.db), opts);
+  assertEquals(resumed.stop?.reason, 'refusal_share_over_cap');
+  assertEquals(resumed.completed, false);
+  assertEquals([...r.db.batches.values()][0].state, 'stopped');
+
+  // Under the cap, the same resume finishes.
+  const ok = rig();
+  await killedAfterFirstCall(ok, opts);
+  for (let i = 240; i < 250; i++) ok.db.refuseReal.set(`k${String(i).padStart(6, '0')}`, 'no_desk_row');
+  assertEquals((await start(250, rig(ok.db), opts)).stop, null);
+});
+
 Deno.test('allowed refusals without a cap are refused before anything is sent', async () => {
   for (const cap of [undefined, Number.NaN, -0.1, 1.1]) {
     const r = rig();

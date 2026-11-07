@@ -66,22 +66,32 @@ export type Prepared = { kind: 'request' } & PreparedRequest | { kind: 'hold'; h
 const CONTROL_CODES = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/;
 // deno-lint-ignore no-control-regex
 const CONTROL_CODES_G = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
+// Vertical tab and form feed are page and layout breaks from PDF extraction: 508 of the 510 live bills with control codes
+// have only these. They become line breaks, so the words either side stay apart, and they never count as a shifted font.
+const LAYOUT_BREAKS = new Set(['\x0b', '\x0c']);
 
 const isRec = (v: unknown): v is Rec => !!v && typeof v === 'object' && !Array.isArray(v);
 const keyOf = (r: unknown): string | null => isRec(r) && typeof r.source_key === 'string' ? r.source_key : null;
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 
-/** Removes control codes from the text and moves every code-point span to where its words now are. */
+/**
+ * Removes control codes from the text, turning layout breaks into line breaks, and moves every code-point span to where
+ * its words now are. `removed` counts both kinds of change.
+ */
 function strip(record: Rec, text: string): { record: Rec; removed: number } {
   const cps = [...text];
   const at: number[] = new Array(cps.length + 1);
   const kept: string[] = [];
+  let removed = 0;
   for (let i = 0; i < cps.length; i++) {
     at[i] = kept.length;
     if (!CONTROL_CODES.test(cps[i])) kept.push(cps[i]);
+    else {
+      removed += 1;
+      if (LAYOUT_BREAKS.has(cps[i])) kept.push('\n');
+    }
   }
   at[cps.length] = kept.length;
-  const removed = cps.length - kept.length;
   if (!removed) return { record, removed: 0 };
   const clean = kept.join('');
   const respan = (raw: unknown) =>
@@ -102,9 +112,28 @@ function strip(record: Rec, text: string): { record: Rec; removed: number } {
   return { record: out, removed };
 }
 
-/** Control codes may be at most this share of a text for the runner to strip them; F281's shifted-font text was 13%. */
-const MAX_CONTROL_SHARE_DENOMINATOR = 200; // 1 in 200 = 0.5%
-const CONTROL_CODES_ALWAYS_REMOVED = 10; // A short text with a few stray codes is not a shifted font.
+/**
+ * A shifted font shows as a dense run of control codes, so density is judged over a window, not the whole text: a shifted
+ * annexure in a long bill is a small share of the whole. More than 10 codes other than layout breaks in any 2,000
+ * characters (0.5%) is held. F281's shifted-font text was 13%; no live bill has more than 10 in all.
+ */
+const SHIFTED_FONT_WINDOW = 2_000;
+const SHIFTED_FONT_MAX_IN_WINDOW = 10;
+
+/** The first run of more than the allowed codes within one window, or null. */
+function denseRun(text: string): { at: number; span: number; count: number } | null {
+  const at: number[] = [];
+  let i = 0;
+  for (const c of text) {
+    if (CONTROL_CODES.test(c) && !LAYOUT_BREAKS.has(c)) at.push(i);
+    i += 1;
+  }
+  for (let k = 0; k + SHIFTED_FONT_MAX_IN_WINDOW < at.length; k++) {
+    const span = at[k + SHIFTED_FONT_MAX_IN_WINDOW] - at[k] + 1;
+    if (span <= SHIFTED_FONT_WINDOW) return { at: at[k], span, count: SHIFTED_FONT_MAX_IN_WINDOW + 1 };
+  }
+  return null;
+}
 
 const isInt = (v: unknown): v is number => Number.isSafeInteger(v);
 
@@ -166,11 +195,13 @@ export async function prepareRecord(value: unknown, options: PrepareOptions, isP
   // The pack's record must bind its own text before the runner changes a character of it.
   const unbound = await verify(value, original);
   if (unbound) return hold('prepare_failed', { detail: unbound });
-  let { record, removed } = strip(value, original);
-  const total = [...original].length;
-  if (removed > CONTROL_CODES_ALWAYS_REMOVED && removed * MAX_CONTROL_SHARE_DENOMINATOR > total) {
-    return hold('control_codes_excess', { detail: `${removed} of ${total} characters` });
+  const dense = denseRun(original);
+  if (dense) {
+    return hold('control_codes_excess', {
+      detail: `${dense.count} control codes within ${dense.span} characters at character ${dense.at}`,
+    });
   }
+  let { record, removed } = strip(value, original);
   const isBill = record.desk_tier === NATIONAL_BILLS.tier && record.desk_feature === NATIONAL_BILLS.feature;
   if (removed) {
     // The hashes bind the text, so they move with it; for a bill the pack's own hash travels as well.
