@@ -96,7 +96,7 @@
 - [ ] **R7 continuation — 2026-10-23, owner authorized.** Resume pending National bill ingestion targeting 1,000 distinct bill identities per review cohort, using existing bounded sequential stages (at most 500 documents each). Fresh baseline: 3,379 documents / 3,376 indexed / 99,225 chunks / 2,134 of 9,415 bill keys covered. First 1,000-bill cohort screened; 395 documents / 7,368 expected chunks frozen; all 395 no-write endpoint checks passed and the supervised run started, with 605 held or awaiting review. Latest checkpoint audited: 80 documents / 1,491 chunks / 80 new covered bills; current totals 3,459 documents / 3,456 indexed / 100,716 chunks / 2,214 covered keys. 315 staged sources remain. Execution is held after a recurring pre-write fetch failure; exactly 80 paid attempts, 80 verified sources and no in-flight entry. All 395 source hashes and pricing passed subsequent read-only checks, but the transient cause remains unconfirmed. Resolve request-specific transport diagnostics before another recovery; preserve the frozen manifest and receipts. [Current evidence](../research/2026-10-23-national-corpus-continuation.md). Preserve all prior completed manifests and holds; Law, existing-source replacements and deployment remain excluded. [Spec](../specs/2026-10-23-national-corpus-continuation.md), [plan](2026-10-23-national-corpus-continuation.md). This supersedes the parked status only for this National continuation.
 
 > **Status: Living.** Created 2026-09-29 from the earlier trackers. The current state and milestones below were
-> re-checked on 2026-11-06; the rest was rewritten as a clean slate after the local cleanup
+> re-checked on 2026-11-08; the rest was rewritten as a clean slate after the local cleanup
 
 > session (`main` at `3a51724` and the docs commit after it). Every item is
 > either Done (with its commit or its operations record), waiting on one
@@ -159,16 +159,34 @@
 
 - [ ] **F234 — Dependency advisories.** Read-only npm audit on 2026-10-19 reports existing Vite/Vitest dependency advisories (2 moderate, 2 high, 2 critical; esbuild, source-map-js, @vitest/mocker, tinypool and dependents). Production dependency audit reported zero then. The 2026-10-25 news preview audit now reports one existing high-severity zod advisory (GHSA-mrhx-c7xc-m3w5); no advisory for pinned fast-xml-parser 5.11.2 or cheerio 1.2.0. Review compatible upgrades separately; no dependency changes in the scoped BBC/form fix.
 
-## Current state — 2026-11-06 (milestone check)
+## Current state — 2026-11-08 (milestone check)
 
-Checked against `main`, the code, and read-only SQL on NTER. Milestone status is judged from the items, not the headings.
+Checked 2026-11-08 against `main`, the code, NTER's migration list and Edge Function versions, and read-only aggregate SQL
+on NTER. Milestone status is judged from the items, not the headings. In this section, as in the F278 records, "the owner" is
+the client and "the developer" is DDL Labs ([START-HERE](../START-HERE.md), "Owner conventions").
 
-- **Git:** `main` at `5538314d`. 89 migrations in the repository. NTER's history differs (F283), so migrations go by `psql`.
-- **Corpus on NTER:** 17,609 documents, 17,605 indexed, 395,375 chunks. Database 12.47 GB, including the 5.56 GB Phase B backup.
-  All 14,152 worker jobs are finished. Nothing has been bulk-ingested.
-- **On NTER:** partitions, since 2026-11-03. **Merged, not on NTER:** batch registration (PR #98) and hybrid (PR #99).
+- **Git:** `main` at `b9fedd18` (PR #108). 91 migrations in the repository. NTER's history differs (F283), so migrations
+  go by `psql`, never `supabase db push`.
+- **Corpus on NTER:** 17,609 documents, 17,605 indexed, 395,375 chunks, no worker job queued or running. Database 12 GiB,
+  of which the Phase B backup `document_chunks_unpartitioned` is 5.2 GiB, kept by the developer's decision until an agreed
+  drop. Nothing has been bulk-ingested.
+- **On NTER:** the newest applied migrations are Phase B's two, `20261101120000_document_chunks_partitioned` and
+  `20261101130000_law_documents_serving_set` (2026-11-03). Edge Functions: `research-chat` v111 (F296 retry, PR #102,
+  2026-11-06; v110 is the rollback point), `ingest-worker` v8, `admin-ingest` v11.
+- **Merged, not on NTER,** in the order they are to be applied, each with its own approval and by `psql` (F283):
+  1. `20261102130000_batch_registration.sql` (PR #98);
+  2. `20261106120000_admission_scans.sql` (F290, PR #103), straight after (1);
+  3. deploy `ingest-worker` and `admin-ingest` from `main`;
+  4. `20261107120000_bills_adapter.sql` (F275, PR #104), with the worker paused.
+
+  `20261102120000_chunk_hybrid_search.sql` (PR #99) is separate (T9): it waits for F288 and a cold-latency check on NTER.
+- **Bulk runner (F285):** its stages merged in PR #105, proved on the full-size local copy; the command line, the production
+  database connection and the pack reader are not built ([spec](../specs/2026-11-07-bulk-runner.md)).
 - **Live use:** the last traced chat turn is 2026-11-03 10:09 UTC, before the partition swap, so no user search on partitions
   has been traced ([timing note](../research/2026-11-06-nter-search-timing.md)).
+- **Waiting on the developer:** create the read-only Google service account for the owner's `Data Handover` folder and send
+  the owner its address; in the same message, ask the owner to agree the relaxed bill text check (F275); decide the disk
+  plan (F294); authorize each NTER apply above.
 - **Site and payments:** public since 2026-10-18; Live checkout public since 2026-10-22.
 - **M1:** closed with leftovers: T15, the daily-source observation, stopped being tracked on 2026-10-18.
 - **M2:** closed (`e5f45c2`).
@@ -176,7 +194,8 @@ Checked against `main`, the code, and read-only SQL on NTER. Milestone status is
 - **M4:** in progress, and the live milestone. See the [bulk ingestion spec](../specs/2026-11-01-bulk-ingestion.md) §10.
 - **M5:** live, checkpoint not evidenced: the release record says no real Live purchase was performed. F107 is open.
 - **M6:** smoke test passed on 2026-10-18; O11, P11, P12 majors, O1, O9 and P1 remain.
-- **Blocking the first validation batch:** F290, F275, F294.
+- **Blocking the first validation batch:** the four NTER applies above, F294, pack access (the service account), and the
+  runner's command line, production connection and pack reader; then acceptance (spec §10 step 10).
 - **Tracker debt:** F299 lists items that look done, duplicated or stale.
 
 ## Milestones: what is left, in order
@@ -213,9 +232,15 @@ section orders it.
   then the homepage source count (F191).
 - *Checkpoint:* each module live from the store with a probe; F191 shows the true count.
 
-**M4. Corpus and retrieval** (in progress; resumed by the owner 2026-10-23; section 3).
-- R5 pilot, R7 acquisition (5,327 linked PDFs), L1, L2; F170 rules 4–9 with F37 and F38; F40, P8, P9;
-  then P6, F34, F42, F33.
+**M4. Corpus and retrieval** (in progress; resumed by the owner 2026-10-23; National first and all legal on hold since
+2026-11-03, [decision record](../decisions/0014-national-v1.1-ingestion-scope.md); section 3).
+- Ordered by the [bulk ingestion spec](../specs/2026-11-01-bulk-ingestion.md) §10 (F278). As of 2026-11-08: steps 1
+  (inventory), 2 (eval baseline) and 3 (partitions, live on NTER) are done; 4 (hybrid), 6 (Bills adapter) and 8
+  (batch registration) are merged and not on NTER; 5 (headers) is held under F289; 7 (capacity) waits on F279 and F294;
+  9 (runner, F285) has its stages merged; 10 (acceptance) and 11 (the 10k, 100k, 1M ramp) are not started.
+- Search follow-ups before or alongside the ramp: F288, F292, F284, F286, F293, F300, F301; F296 until a live retry is seen.
+- Older M4 items (R5 pilot, R7 acquisition, L1, L2, F170 rules 4–9 with F37 and F38, F40, P8, P9, P6, F34, F42, F33) stay in
+  section 3; F299 is sorting which are done or superseded.
 - *Checkpoint:* the frozen retrieval eval no worse after each load; cost recorded per batch.
 
 **M5. Payments** (Live checkout public since 2026-10-22; checkpoint not evidenced; section 4).

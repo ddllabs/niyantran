@@ -750,6 +750,10 @@ or changed.
   `user_preferences`, `analytics_events`, `app_flags`, `invoices`,
   `nter_news_articles` and the public `marketing` bucket.)
 
+> **Historical method below (warning added 2026-11-08).** The Operations entries that follow applied migrations with
+> `supabase db push` or the Supabase MCP. Since 2026-11-03 neither is used on NTER (F283): migrations go by `psql`, as in
+> [the runbook](rollback-runbook.md) §4. Read these entries as history, not as a procedure.
+
 ### Operations — 2026-09-28 (later the same day)
 
 Observed through the Supabase and Vercel tools at about 17:05 UTC unless
@@ -2393,3 +2397,20 @@ three times with two intervening logout/home/re-login cycles, no verification
 error. Credentials remained in the browser; no password read/export or settings
 change. Public home/API200, bounded runtime scan no errors. [Release evidence](../plans/2026-10-18-login-logout-race.md#production-verification--2026-10-18).
 No Supabase/data/timer/corpus/payment change. M1/M2 T15 open, hourly checks ACTIVE.
+
+### Operations after 2026-10-18: where they are recorded
+
+*Added 2026-11-08.* Day-by-day entries stopped here. Later production changes are recorded in the open-work item that
+made them, and NTER itself is the authority: its migration list (read with F283, which explains why 18 versions differ
+from the repository's files) and its Edge Function versions. Known changes and their records:
+
+| Date | Change | Record |
+|---|---|---|
+| 2026-10-21 | manual-grace migration and `research-chat` v70 | open-work, the "2026-10-21 local verification" note on manual grace |
+| 2026-10-22 | Live checkout public | open-work "Current state", M5 |
+| 2026-10-23 | supplied-text connector migration and three Edge Functions (PR #11, `ff13a953`) | open-work, Law bulk ingestion follow-up |
+| 2026-10-31 | `AI_REPAIR_MODEL` secret changed | open-work F273 |
+| 2026-11-03 | NTER moved to the 8 GB instance; Phase B partitions applied by `psql` | [Phase B apply record](../operations/2026-11-03-phase-b-apply.md) |
+| 2026-11-06 | `research-chat` v111, the embedding retry (PR #102; v110 is the rollback point) | open-work F296 |
+
+Migrations applied between these dates are on NTER's list; F283 names the 18 files concerned.
