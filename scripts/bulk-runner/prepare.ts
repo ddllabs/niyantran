@@ -15,6 +15,10 @@ export type HoldReason =
   | 'text_identity_failed'
   | 'corrigendum_unmapped'
   | 'superseded_by_patch'
+  | 'patch_not_in_pack'
+  | 'patch_key_mismatch'
+  | 'control_codes_excess'
+  | 'corrigendum_conflict'
   /** Set by plan.ts, not here: a text another record of the pack keeps (the pack's dedupe list). */
   | 'duplicate_of_keeper';
 
@@ -35,8 +39,8 @@ export interface BillIdentity {
 }
 
 export interface PrepareOptions {
-  /** Policy limit on chunks per document (700 for Bills). Default: the adapter's own 800. */
-  maxChunks?: number;
+  /** Policy limit on chunks per document (700 for Bills). Required: a run says what its collection allows. */
+  maxChunks: number;
   /** The collection's policy requires review check bill_identity. */
   requireTextIdentity?: boolean;
   /** source_key to the record that replaces it. */
@@ -60,6 +64,8 @@ export type Prepared = { kind: 'request' } & PreparedRequest | { kind: 'hold'; h
 // Registration refuses control codes other than tab, LF and CR (control_codes), so they go before hashing.
 // deno-lint-ignore no-control-regex
 const CONTROL_CODES = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/;
+// deno-lint-ignore no-control-regex
+const CONTROL_CODES_G = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
 
 const isRec = (v: unknown): v is Rec => !!v && typeof v === 'object' && !Array.isArray(v);
 const keyOf = (r: unknown): string | null => isRec(r) && typeof r.source_key === 'string' ? r.source_key : null;
@@ -96,7 +102,51 @@ function strip(record: Rec, text: string): { record: Rec; removed: number } {
   return { record: out, removed };
 }
 
-export async function prepareRecord(value: unknown, options: PrepareOptions = {}, isPatch = false): Promise<Prepared> {
+/** Control codes may be at most this share of a text for the runner to strip them; F281's shifted-font text was 13%. */
+const MAX_CONTROL_SHARE_DENOMINATOR = 200; // 1 in 200 = 0.5%
+const CONTROL_CODES_ALWAYS_REMOVED = 10; // A short text with a few stray codes is not a shifted font.
+
+const isInt = (v: unknown): v is number => Number.isSafeInteger(v);
+
+/** Does the record, as the pack delivered it, bind its own text? Null when it does, else why not. */
+async function verify(record: Rec, text: string): Promise<string | null> {
+  const hash = await sha256Hex(text);
+  if (record.text_sha256 !== hash) return 'text_sha256 does not match the text';
+  if (record.content_sha256 !== undefined && record.content_sha256 !== hash) {
+    return 'content_sha256 does not match the text';
+  }
+  const review = record.review;
+  if (!isRec(review)) return 'review is missing';
+  if (review.text_sha256 !== hash) return 'review.text_sha256 does not bind the text';
+  if (review.source_key !== record.source_key) return 'review.source_key does not bind the record';
+  const length = [...text].length;
+  if (record.n_chars != null && record.n_chars !== length) return 'n_chars does not match the text';
+  const cps = [...text];
+  for (const kind of ['pages', 'sections'] as const) {
+    const raw = record[kind];
+    if (raw === undefined) continue;
+    if (!Array.isArray(raw)) return `${kind} must be an array`;
+    let end = 0;
+    const numbers = new Set<number>();
+    for (const sp of raw) {
+      if (!isRec(sp)) return `a ${kind} entry is not an object`;
+      const a = sp.char_from, b = sp.char_to;
+      if (!isInt(a) || !isInt(b) || a < 0 || b < a || b > length) return `a ${kind} span is out of range`;
+      if (kind === 'pages') {
+        if (a < end || !isInt(sp.page_number) || sp.page_number < 1 || numbers.has(sp.page_number)) {
+          return 'pages overlap or repeat a number';
+        }
+        numbers.add(sp.page_number);
+        end = b;
+        if (sp.text !== undefined && sp.text !== cps.slice(a, b).join('')) return 'page text does not match the text';
+      }
+    }
+  }
+  return null;
+}
+
+export async function prepareRecord(value: unknown, options: PrepareOptions, isPatch = false): Promise<Prepared> {
+  if (!Number.isInteger(options?.maxChunks) || options.maxChunks < 1) throw new Error('maxChunks is required');
   const hold = (reason: HoldReason, extra: Partial<Hold> = {}): Prepared => ({
     kind: 'hold',
     hold: { source_key: keyOf(value), reason, ...extra },
@@ -106,32 +156,58 @@ export async function prepareRecord(value: unknown, options: PrepareOptions = {}
   if (!isPatch && key !== null && options.patches && Object.hasOwn(options.patches, key)) {
     return hold('superseded_by_patch');
   }
-  if (typeof value.text !== 'string') return hold('no_text');
-  let { record, removed } = strip(value, value.text);
-  if (typeof record.text !== 'string' || !record.text.trim()) return hold('no_text');
+  const original = value.text;
+  // Nothing but control codes and space is no text.
+  if (typeof original !== 'string' || !original.replace(CONTROL_CODES_G, '').trim()) return hold('no_text');
   // Longer than the adapter takes at all: at about 760 characters a chunk, that is past any chunk limit too.
-  if (record.text.length > SUPPLIED_TEXT.maxChars) {
+  if (original.length > SUPPLIED_TEXT.maxChars) {
     return hold('over_chunk_limit', { detail: `text over ${SUPPLIED_TEXT.maxChars} characters` });
   }
+  // The pack's record must bind its own text before the runner changes a character of it.
+  const unbound = await verify(value, original);
+  if (unbound) return hold('prepare_failed', { detail: unbound });
+  let { record, removed } = strip(value, original);
+  const total = [...original].length;
+  if (removed > CONTROL_CODES_ALWAYS_REMOVED && removed * MAX_CONTROL_SHARE_DENOMINATOR > total) {
+    return hold('control_codes_excess', { detail: `${removed} of ${total} characters` });
+  }
+  const isBill = record.desk_tier === NATIONAL_BILLS.tier && record.desk_feature === NATIONAL_BILLS.feature;
   if (removed) {
-    // The hashes bind the text, so they move with it.
+    // The hashes bind the text, so they move with it; for a bill the pack's own hash travels as well.
     const sha = await sha256Hex(record.text as string);
+    const was = record.text_sha256;
     record = { ...record, text_sha256: sha };
     if (record.content_sha256 !== undefined) record.content_sha256 = sha;
     if (isRec(record.review)) record.review = { ...record.review, text_sha256: sha };
+    if (isBill) record.original_text_sha256 = was;
+  }
+  // Only this runner says a text matches its bill: whatever the pack claims is dropped.
+  if (isRec(record.review) && isRec(record.review.checks) && 'bill_identity' in record.review.checks) {
+    const { bill_identity: _claimed, ...checks } = record.review.checks;
+    record = { ...record, review: { ...record.review, checks } };
   }
 
-  const isBill = record.desk_tier === NATIONAL_BILLS.tier && record.desk_feature === NATIONAL_BILLS.feature;
   if (isBill && record.document_role === 'errata') {
     const id = key !== null && options.corrigenda && Object.hasOwn(options.corrigenda, key)
       ? options.corrigenda[key]
       : null;
     if (!id) return hold('corrigendum_unmapped');
+    const own = isRec(record.citation) ? record.citation : {};
+    const documentKey = `bill:${id.bill_year}:${id.bill_number}`;
+    const conflicts = (['bill_number', 'bill_year', 'bill_name', 'house'] as const)
+      .filter((f) => own[f] != null && String(own[f]) !== id[f])
+      .map((f) => `citation.${f} is ${String(own[f])}, the mapping says ${id[f]}`);
+    if (record.document_key != null && record.document_key !== documentKey) {
+      conflicts.push(`document_key is ${String(record.document_key)}, the mapping says ${documentKey}`);
+    }
+    if (conflicts.length) return hold('corrigendum_conflict', { detail: conflicts.join('; ') });
+    // The pack's introduced_on belongs to whatever bill it thought this was; the mapping does not know it.
+    const { introduced_on: _stale, ...rest } = own;
     record = {
       ...record,
-      document_key: `bill:${id.bill_year}:${id.bill_number}`,
+      document_key: documentKey,
       citation: {
-        ...(isRec(record.citation) ? record.citation : {}),
+        ...rest,
         bill_number: id.bill_number,
         bill_year: id.bill_year,
         bill_name: id.bill_name,
@@ -148,7 +224,7 @@ export async function prepareRecord(value: unknown, options: PrepareOptions = {}
       { number: String(c.bill_number ?? ''), name: String(c.bill_name ?? '') },
       String(record.document_role),
     );
-    // Recorded for admission to enforce, only when the check passed (or did not apply to the role).
+    // The one place bill_identity is set: this runner made the check and it passed (or did not apply to the role).
     if (identity.pass && isRec(record.review) && isRec(record.review.checks)) {
       record = { ...record, review: { ...record.review, checks: { ...record.review.checks, bill_identity: true } } };
     }
@@ -164,7 +240,7 @@ export async function prepareRecord(value: unknown, options: PrepareOptions = {}
     return hold('prepare_failed', { detail });
   }
   const n = prepared.chunks.length;
-  if (n > (options.maxChunks ?? SUPPLIED_TEXT.maxChunks)) return hold('over_chunk_limit', { chunks: n });
+  if (n > options.maxChunks) return hold('over_chunk_limit', { chunks: n });
   if (identity && !identity.pass) {
     return hold('text_identity_failed', { detail: `title ${identity.title}, number ${identity.number}` });
   }
@@ -194,8 +270,9 @@ export async function prepareRecord(value: unknown, options: PrepareOptions = {}
 /** A whole pack: each record once, then each patch in place of the record it replaces. Nothing is dropped. */
 export async function prepareAll(
   records: unknown[],
-  options: PrepareOptions = {},
+  options: PrepareOptions,
 ): Promise<{ requests: PreparedRequest[]; holds: Hold[]; controlCodesRemoved: number }> {
+  if (!Number.isInteger(options?.maxChunks) || options.maxChunks < 1) throw new Error('maxChunks is required');
   const requests: PreparedRequest[] = [];
   const holds: Hold[] = [];
   let controlCodesRemoved = 0;
@@ -206,7 +283,14 @@ export async function prepareAll(
       controlCodesRemoved += p.controlCodesRemoved;
     }
   };
+  const inPack = new Set(records.map(keyOf));
   for (const r of records) add(await prepareRecord(r, options));
-  for (const patch of Object.values(options.patches ?? {})) add(await prepareRecord(patch, options, true));
+  for (const [key, patch] of Object.entries(options.patches ?? {})) {
+    // A patch replaces a record of this pack under the same key; anything else is a mistake, not a load.
+    if (!inPack.has(key)) holds.push({ source_key: key, reason: 'patch_not_in_pack' });
+    else if (keyOf(patch) !== key) {
+      holds.push({ source_key: key, reason: 'patch_key_mismatch', detail: `the patch is for ${String(keyOf(patch))}` });
+    } else add(await prepareRecord(patch, options, true));
+  }
   return { requests, holds, controlCodesRemoved };
 }

@@ -1,6 +1,6 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { FakeDb } from './fake_db.ts';
-import type { Db, RegisterDocument } from './db.ts';
+import type { BatchStatus, Db, RegisterDocument } from './db.ts';
 import { fake, hex, LIMITS, many } from './fixtures.ts';
 import { plan } from './plan.ts';
 import type { Hold } from './prepare.ts';
@@ -19,8 +19,14 @@ interface Rig {
   worker: { perSleep: number };
 }
 
+let runs = 0;
+/** Receipts already written, across rigs sharing a directory: a run may never overwrite one. */
+const written = new Map<FakeDb, Set<string>>();
+
 function rig(db: FakeDb = new FakeDb(), extra: Partial<RunDeps> = {}): Rig {
   let now = 1_000;
+  const names = written.get(db) ?? new Set<string>();
+  written.set(db, names);
   const sleeps: number[] = [];
   const receipts = new Map<string, string>();
   const worker = { perSleep: Infinity };
@@ -39,7 +45,11 @@ function rig(db: FakeDb = new FakeDb(), extra: Partial<RunDeps> = {}): Rig {
         db.tick(worker.perSleep);
         return Promise.resolve();
       },
+      runId: `run-${++runs}`,
+      accept: () => Promise.resolve(true),
       writeReceipt: (name: string, body: string) => {
+        if (names.has(name)) return Promise.reject(new Error(`receipt ${name} already exists`));
+        names.add(name);
         receipts.set(name, body);
         return Promise.resolve();
       },
@@ -57,11 +67,15 @@ async function start(
     options?: Partial<RunOptions>;
     requests?: ReturnType<typeof many>;
     allowedRefusals?: string[];
+    maxAllowedRefusalShare?: number;
   } = {},
 ) {
   const p = await plan(over.requests ?? many(n), LIMITS);
   const input = { collection: 'bills', plan: p, holds: over.holds ?? [], runnerCommit: 'abcdef1' };
-  return run({ ...input, allowedRefusals: over.allowedRefusals }, r.deps, {
+  const allowed = over.allowedRefusals
+    ? { allowedRefusals: over.allowedRefusals, maxAllowedRefusalShare: over.maxAllowedRefusalShare ?? 0.5 }
+    : {};
+  return run({ ...input, ...allowed }, r.deps, {
     ...OPTIONS,
     ...over.options,
   });
@@ -253,7 +267,7 @@ Deno.test('a resumed batch accepts an expected refusal without a dry run', async
   const b = [...r.db.batches.values()][0];
   b.state = 'registering';
   r.db.script.register = [];
-  const res = await start(250, r, { allowedRefusals: ['no_desk_row'] });
+  const res = await start(250, rig(r.db), { allowedRefusals: ['no_desk_row'] });
   assertEquals(res.stop, null);
 });
 
@@ -443,6 +457,25 @@ Deno.test('pacing: slow commits hold the next step back until they recover, and 
   assertEquals([...stuck.db.batches.values()][0].state, 'stopped');
 });
 
+Deno.test('watch: a refused requeue stops at once, by name, instead of asking again until the watch limit', async () => {
+  const r = rig();
+  r.db.failJobs.set('k000003', { times: 1, code: 'embed_error' });
+  let asked = 0;
+  r.db.requeue = (_b: string, jobs: string[]) => {
+    asked += 1;
+    return Promise.resolve({
+      results: jobs.map((job_id) => ({ job_id, outcome: 'refused' as const, reason: 'not_in_batch' })),
+      state: 'indexing',
+      stop_reason: null,
+    });
+  };
+  const res = await start(10, r);
+  assertEquals(res.stop?.reason, 'requeue_refused');
+  assert(res.stop?.detail?.includes('not_in_batch'), res.stop?.detail);
+  assertEquals(asked, 1, 'the runner asked once');
+  assertEquals([...r.db.batches.values()][0].state, 'stopped', 'and the batch is stopped in the database');
+});
+
 Deno.test('watch: a failed job is requeued once; a second failure is a failure in the receipt, not a requeue', async () => {
   const once = rig();
   once.db.failJobs.set('k000003', { times: 1, code: 'embed_error' });
@@ -455,11 +488,14 @@ Deno.test('watch: a failed job is requeued once; a second failure is a failure i
   const twice = rig();
   twice.db.failJobs.set('k000003', { times: 2, code: 'text_outcome_uncertain' });
   const res2 = await start(10, twice);
-  assertEquals(res2.stop, null);
+  // The database never marks the batch indexed, so the run is not complete however quiet the queue is.
+  assertEquals(res2.stop?.reason, 'batch_incomplete');
+  assertEquals(res2.completed, false);
   assertEquals(twice.db.count('requeue'), 1, 'the rules allow one requeue');
   assertEquals(receipt(twice).counts.failed_jobs, 1);
+  assertEquals(receipt(twice).counts.uncertain_jobs, 1);
   assertEquals(receipt(twice).counts.indexed, 9);
-  assertEquals([...twice.db.batches.values()][0].state, 'indexing', 'the database never marks it indexed');
+  assertEquals([...twice.db.batches.values()][0].state, 'stopped', 'and the batch is stopped in the database');
 });
 
 Deno.test('watch: a batch the database stopped ends the run with its reason', async () => {
@@ -525,6 +561,269 @@ Deno.test('more than one batch: each gets its own receipt, and a stop ends the p
   assertEquals(res2.stop?.reason, 'two_failures');
   assertEquals(s.receipts.size, 1);
   assertEquals(s.db.batches.size, 0);
+});
+
+Deno.test('completion needs the database to agree: not indexed, or existing items not indexed, is batch_incomplete', async () => {
+  const a = rig();
+  a.db.existing.add('k000002');
+  const ra = await start(10, a);
+  assertEquals(ra.stop?.reason, 'batch_incomplete');
+  assertEquals(ra.completed, false);
+  assertEquals(receipt(a).counts.existing_not_indexed, 1);
+  assertEquals([...a.db.batches.values()][0].state, 'stopped');
+  assertEquals(receipt(a).db_stopped, true);
+
+  const b = rig();
+  b.db.existing.add('k000002');
+  b.db.indexedExisting.add('k000002');
+  assertEquals((await start(10, b)).stop, null, 'an existing item whose document is indexed is complete');
+
+  const c = rig();
+  assertEquals((await start(10, c)).stop, null);
+  [...c.db.batches.values()][0].state = 'accepted';
+  const before = c.db.calls.length;
+  const again = rig(c.db);
+  const rc = await start(10, again);
+  assertEquals(rc.stop, null, 'a rerun of an accepted batch is finished');
+  for (const m of methods(c.db, before)) assert(['session', 'open', 'status'].includes(m), `a rerun called ${m}`);
+});
+
+Deno.test('completion checks each thing on its own: the state, and a failed job, even when the rest looks finished', async () => {
+  const tampered = async (change: (s: BatchStatus) => BatchStatus) => {
+    const r = rig();
+    const real = r.db.status.bind(r.db);
+    r.db.status = async (b, k) => {
+      const s = await real(b, k);
+      return s.state === 'indexed' ? change(s) : s;
+    };
+    return { r, res: await start(10, r) };
+  };
+  const state = await tampered((s) => ({ ...s, state: 'indexing' }));
+  assertEquals(state.res.stop?.reason, 'batch_incomplete');
+  assert(state.res.stop?.detail?.includes('state indexing'), state.res.stop?.detail);
+  const failed = await tampered((s) => ({ ...s, jobs: { ...s.jobs, failed: 1 } }));
+  assertEquals(failed.res.stop?.reason, 'batch_incomplete');
+  assert(failed.res.stop?.detail?.includes('failed'), failed.res.stop?.detail);
+  const clean = await tampered((s) => s);
+  assertEquals(clean.res.stop, null);
+});
+
+Deno.test('an allowed refusal in a real call counts only if the dry run gave it', async () => {
+  const r = rig();
+  r.db.refuseReal.set('k000005', 'no_desk_row');
+  const res = await start(20, r, { allowedRefusals: ['no_desk_row'] });
+  assertEquals(res.stop?.reason, 'registration_disagreement', 'would_admit, then no_desk_row');
+  assertEquals([...r.db.batches.values()][0].state, 'stopped');
+});
+
+async function killedAfterFirstCall(r: Rig, over: Parameters<typeof start>[2] = {}) {
+  r.db.script.register = ['ok', 'ok', 'ok', 'ok', 'error', 'error'];
+  const first = await start(250, r, over);
+  assertEquals(first.stop?.reason, 'two_failures');
+  const b = [...r.db.batches.values()][0];
+  r.db.resume(b.id);
+  r.db.script.register = [];
+  return b;
+}
+
+Deno.test('on resume every item is read: a recorded refusal that is neither allowed nor predicted is a disagreement', async () => {
+  const r = rig();
+  const b = await killedAfterFirstCall(r);
+  const item = b.items.get('k000005') as { outcome: string; reason: string | null };
+  item.outcome = 'refused';
+  item.reason = 'house_conflict';
+  const res = await start(250, rig(r.db));
+  assertEquals(res.stop?.reason, 'registration_disagreement');
+  assert(res.stop?.detail?.includes('k000005'), res.stop?.detail);
+  assertEquals(b.state, 'stopped');
+
+  // The same record, allowed by the run: not a disagreement.
+  const ok = rig();
+  const b2 = await killedAfterFirstCall(ok, { allowedRefusals: ['house_conflict'] });
+  const i2 = b2.items.get('k000005') as { outcome: string; reason: string | null };
+  i2.outcome = 'refused';
+  i2.reason = 'house_conflict';
+  assertEquals((await start(250, rig(ok.db), { allowedRefusals: ['house_conflict'] })).stop, null);
+
+  // Or predicted: another document holds its text.
+  const dup = rig();
+  const reqs = many(250);
+  const b3 = await killedAfterFirstCall(dup, { requests: reqs });
+  const i3 = b3.items.get('k000005') as { outcome: string; reason: string | null };
+  i3.outcome = 'refused';
+  i3.reason = 'duplicate_text';
+  dup.db.holders.set(reqs[5].item.content_sha256, [
+    { content_sha256: reqs[5].item.content_sha256, source_key: 'other', document_id: 'd' },
+  ]);
+  assertEquals((await start(250, rig(dup.db), { requests: reqs })).stop, null);
+});
+
+Deno.test('allowed refusals are capped: over the share the run stops before any real send, at it the run goes on', async () => {
+  const mk = () => {
+    const r = rig();
+    for (const k of ['k000001', 'k000002', 'k000003', 'k000004', 'k000005']) r.db.refuse.set(k, 'no_desk_row');
+    return r;
+  };
+  const over = mk();
+  const res = await start(20, over, { allowedRefusals: ['no_desk_row'], maxAllowedRefusalShare: 0.2 });
+  assertEquals(res.stop?.reason, 'refusal_share_over_cap');
+  assertEquals(realRegisters(over.db).length, 0);
+  assertEquals([...over.db.batches.values()][0].state, 'stopped');
+
+  const at = mk();
+  assertEquals((await start(20, at, { allowedRefusals: ['no_desk_row'], maxAllowedRefusalShare: 0.25 })).stop, null);
+
+  // A resumed batch is held to the same cap by what its ledger already records.
+  const r = rig();
+  const b = await killedAfterFirstCall(r, { allowedRefusals: ['no_desk_row'], maxAllowedRefusalShare: 0.5 });
+  for (let i = 0; i < 20; i++) {
+    const it = b.items.get(`k${String(i).padStart(6, '0')}`) as { outcome: string; reason: string | null };
+    it.outcome = 'refused';
+    it.reason = 'no_desk_row';
+  }
+  const resumed = await start(250, rig(r.db), { allowedRefusals: ['no_desk_row'], maxAllowedRefusalShare: 0.05 });
+  assertEquals(resumed.stop?.reason, 'refusal_share_over_cap');
+});
+
+Deno.test('allowed refusals without a cap are refused before anything is sent', async () => {
+  for (const cap of [undefined, Number.NaN, -0.1, 1.1]) {
+    const r = rig();
+    const p = await plan(many(5), LIMITS);
+    const res = await run(
+      {
+        collection: 'bills',
+        plan: p,
+        holds: [],
+        runnerCommit: 'abcdef1',
+        allowedRefusals: ['no_desk_row'],
+        maxAllowedRefusalShare: cap,
+      },
+      r.deps,
+      {},
+    );
+    assertEquals(res.stop?.reason, 'bad_input', String(cap));
+    assertEquals(r.db.calls.length, 0);
+    assertEquals(receipt(r).stop.reason, 'bad_input');
+  }
+});
+
+Deno.test('seal_refused leaves the batch open: stopping it would turn it into a reservation', async () => {
+  const a = rig();
+  a.db.sealRefusal = true;
+  const ra = await start(5, a);
+  assertEquals(ra.stop?.reason, 'seal_refused');
+  assertEquals(a.db.count('stop'), 0);
+  assertEquals([...a.db.batches.values()][0].state, 'open');
+  assertEquals(receipt(a).db_stopped, false);
+
+  const b = rig();
+  b.db.policy.chunk_ceiling = 1;
+  const rb = await start(5, b);
+  assertEquals(rb.stop?.reason, 'seal_refused');
+  assertEquals(rb.stop?.detail, 'over_policy_ceiling');
+  assertEquals([...b.db.batches.values()][0].state, 'open');
+});
+
+Deno.test('a bug in the runner with a batch open stops the batch in the database, like every other stop', async () => {
+  const r = rig();
+  // deno-lint-ignore no-explicit-any
+  const dry = r.db.register.bind(r.db) as any;
+  // deno-lint-ignore no-explicit-any
+  r.db.register = (async (...a: any[]) => {
+    const res = await dry(...a);
+    return { ...res, results: undefined };
+  }) as never;
+  const res = await start(5, r);
+  assertEquals(res.stop?.reason, 'runner_error');
+  assertEquals([...r.db.batches.values()][0].state, 'stopped');
+  assertEquals(receipt(r).db_stopped, true);
+});
+
+Deno.test('batches do not chain without acceptance', async () => {
+  const p = await plan(many(10_001), LIMITS);
+  const go = async (accept: RunDeps['accept'] | undefined) => {
+    const r = rig(new FakeDb(), { accept: accept as RunDeps['accept'] });
+    if (accept === undefined) delete (r.deps as Partial<RunDeps>).accept;
+    const res = await run({ collection: 'bills', plan: p, holds: [], runnerCommit: 'abcdef1' }, r.deps, {});
+    return { r, res };
+  };
+  for (const accept of [() => Promise.resolve(false), () => Promise.reject(new Error('no')), undefined]) {
+    const { r, res } = await go(accept);
+    assertEquals(res.stop?.reason, 'awaiting_acceptance');
+    assertEquals(r.db.batches.size, 1, 'the second batch was never opened');
+    assertEquals(r.receipts.size, 1);
+  }
+  const seen: string[] = [];
+  const { res } = await go((info) => {
+    seen.push(info.manifest_sha256);
+    return Promise.resolve(true);
+  });
+  assertEquals(res.stop, null);
+  assertEquals(seen.length, 2);
+  assertEquals(res.accepted, seen);
+});
+
+Deno.test('a receipt is a new file for every run, never overwritten', async () => {
+  const db = new FakeDb();
+  const first = rig(db);
+  await start(5, first);
+  const second = rig(db);
+  await start(5, second);
+  const a = [...first.receipts.keys()][0], b = [...second.receipts.keys()][0];
+  assert(a !== b, 'a second run of the same batch writes under another name');
+  assert(a.includes(first.deps.runId), a);
+
+  // The same run id twice would overwrite: the writer refuses and the run says so.
+  const dup = rig(db, { runId: first.deps.runId });
+  const res = await start(5, dup);
+  assertEquals(res.stop?.reason, 'receipt_write_failed');
+
+  const refused = rig(db);
+  const p = await plan(many(3, { chunks: 5 }), { ...LIMITS, chunkCeiling: 4 });
+  await run({ collection: 'bills', plan: p, holds: [], runnerCommit: 'abcdef1' }, refused.deps, {});
+  assert([...refused.receipts.keys()][0].includes(refused.deps.runId));
+});
+
+Deno.test('the receipt carries the OCR route of thin_text refusals once, the policy hash and the run id', async () => {
+  const r = rig();
+  r.db.refuse.set('k000003', 'thin_text');
+  const res = await start(10, r, { allowedRefusals: ['thin_text'] });
+  assertEquals(res.stop, null);
+  const rc = receipt(r);
+  assertEquals(rc.ocr_route, [{ source_key: 'k000003', file_url: 'https://sansad.in/getFile/k000003.pdf' }]);
+  assertEquals(rc.policy_sha256, 'policy-sha-1');
+  assertEquals(rc.run_id, r.deps.runId);
+});
+
+Deno.test('the database stopping a batch mid-run is followed, whatever stopped it', async () => {
+  // Refusal share, set by the policy: the call that pushes a reason past it stops the batch.
+  const share = rig();
+  share.db.policy.stop_thresholds.refusal_share = 0.1;
+  for (const k of ['k000001', 'k000002', 'k000003']) share.db.refuse.set(k, 'no_desk_row');
+  const rs = await start(20, share, { allowedRefusals: ['no_desk_row'], maxAllowedRefusalShare: 1 });
+  assertEquals(rs.stop?.reason, 'batch_stopped');
+  assertEquals(rs.stop?.detail, 'refusal_share:no_desk_row');
+  // A per-reason share overrides the general one.
+  const by = rig();
+  by.db.policy.stop_thresholds.refusal_share = 0.1;
+  by.db.policy.stop_thresholds.refusal_share_by_reason = { no_desk_row: 0.5 };
+  for (const k of ['k000001', 'k000002', 'k000003']) by.db.refuse.set(k, 'no_desk_row');
+  assertEquals((await start(20, by, { allowedRefusals: ['no_desk_row'], maxAllowedRefusalShare: 1 })).stop, null);
+
+  // Spend reaching est_cost_usd stops the worker.
+  const spend = rig();
+  spend.db.jobCost = 1;
+  const rp = await start(10, spend);
+  assertEquals(rp.stop?.reason, 'batch_stopped');
+  assertEquals(rp.stop?.detail, 'spend_ceiling');
+
+  // Uncertain jobs past uncertain_max stop the claim.
+  const unc = rig();
+  unc.db.policy.stop_thresholds.uncertain_max = 0;
+  unc.db.failJobs.set('k000003', { times: 1, code: 'text_outcome_uncertain' });
+  const ru = await start(10, unc);
+  assertEquals(ru.stop?.reason, 'batch_stopped');
+  assertEquals(ru.stop?.detail, 'uncertain_count');
 });
 
 // Satisfies the type-checker that the interface FakeDb implements is the one the runner takes.

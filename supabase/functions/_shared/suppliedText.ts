@@ -187,6 +187,11 @@ export async function prepareSuppliedText(value: unknown, options: { batch?: boo
   if (bill) {
     input.document_key = r.document_key;
     input.document_role = r.document_role;
+    // Bills only (F285): the pack's hash of a text the runner stripped control codes from, so the pack stays checkable.
+    if (r.original_text_sha256 !== undefined) {
+      if (!SHA.test(String(r.original_text_sha256))) throw new Error('invalid original text hash');
+      input.original_text_sha256 = r.original_text_sha256;
+    }
   }
   if (review.file_sha256 !== undefined) {
     if (!SHA.test(String(review.file_sha256))) throw new Error('review file hash required');

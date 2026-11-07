@@ -43,6 +43,8 @@ export interface RegisterResult {
 
 export interface RegisterResponse {
   results: RegisterResult[];
+  /** thin_text refusals, for the OCR route. */
+  ocr_route?: Array<{ source_key: string | null; file_url: string | null }>;
   batch: { state: string; stop_reason?: string | null };
 }
 
@@ -61,6 +63,8 @@ export interface BatchStatus {
   batch_id: string;
   state: string;
   stop_reason: string | null;
+  /** The policy snapshot the batch was opened under. */
+  policy_sha256?: string | null;
   counts: {
     items: number;
     planned: number;

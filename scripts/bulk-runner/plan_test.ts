@@ -27,7 +27,7 @@ Deno.test('a batch carries the manifest hash the database will recompute, and it
   assertEquals(b.items.length, 5);
   assertEquals(b.chunks_planned, 15);
   assertEquals(b.est_tokens, 5000);
-  assert(Math.abs(b.est_cost_usd - 0.0001) < 1e-12, String(b.est_cost_usd));
+  assert(Math.abs(b.est_cost_usd - 0.000125) < 1e-12, `${b.est_cost_usd}: 1.25 times the estimate by default`);
   const free = await run(many(1, { tokens: 0 }));
   assert(free.ok && free.batches[0].est_cost_usd > 0, 'ingest_batch_open refuses a cost of zero');
 });
@@ -60,9 +60,10 @@ Deno.test('a document over the byte limit travels alone, and still makes progres
 
 Deno.test('a feature with no partition past 100,000 chunks is refused to start; at the line it is not', async () => {
   const feature = 'Proof Feature Without A Partition';
-  const at = await run(many(125, { feature, chunks: 800 }));
+  const known = { chunksNow: { [feature]: 0 } };
+  const at = await run(many(125, { feature, chunks: 800 }), known);
   assertEquals(at.ok, true);
-  const over = await run(many(125, { feature, chunks: 800 }).concat(fake(999, { feature, chunks: 1 })));
+  const over = await run(many(125, { feature, chunks: 800 }).concat(fake(999, { feature, chunks: 1 })), known);
   assert(!over.ok);
   assertEquals(over.stop, 'unpartitioned_feature_over_100k');
   // Chunks already stored count toward the line.
@@ -77,12 +78,12 @@ Deno.test('the collection budget: cumulative over batches, refused past it and n
   // 10,001 documents of 1,000,000 tokens at $0.02 per million: $0.02 each.
   const reqs = many(10_001, { tokens: 1_000_000 });
   const first = 10_000 * 0.02;
-  const ok = await run(reqs, { budgetUsd: first + 0.02 + 1e-9 });
+  const ok = await run(reqs, { budgetUsd: first + 0.02 + 1e-9, costHeadroom: 1 });
   assertEquals(ok.ok, true);
-  const over = await run(reqs, { budgetUsd: first + 0.02 - 0.001 });
+  const over = await run(reqs, { budgetUsd: first + 0.02 - 0.001, costHeadroom: 1 });
   assert(!over.ok);
   assertEquals(over.stop, 'over_budget');
-  const one = await run(many(2, { tokens: 1_000_000 }), { budgetUsd: 0.039 });
+  const one = await run(many(2, { tokens: 1_000_000 }), { budgetUsd: 0.039, costHeadroom: 1 });
   assertEquals(!one.ok && one.stop, 'over_budget');
 });
 
@@ -131,4 +132,27 @@ Deno.test('one source_key twice, and nothing to load, are refused by name', asyn
 Deno.test('an item the database would refuse at add_items is a named stop, not a throw', async () => {
   const bad = await run([fake(1, { chunks: 801 })]);
   assertEquals(!bad.ok && bad.stop, 'bad_manifest_item');
+});
+
+Deno.test('a feature with no partition and no stored-chunk count is refused: chunks_unknown', async () => {
+  const feature = 'Proof Feature Without A Partition';
+  const unknown = await run(many(3, { feature }));
+  assertEquals(!unknown.ok && unknown.stop, 'chunks_unknown');
+  assertEquals((await run(many(3, { feature }), { chunksNow: { [feature]: 0 } })).ok, true);
+  // A partitioned feature does not need the count.
+  assertEquals((await run(many(3))).ok, true);
+});
+
+Deno.test('est_cost_usd carries headroom for estimate error and one requeue, and the budget guard uses that figure', async () => {
+  const reqs = many(10, { tokens: 1_000_000 }); // $0.20 raw
+  const raw = 10 * 0.02;
+  const dflt = await run(reqs, { budgetUsd: 1000 });
+  assert(dflt.ok);
+  assert(Math.abs(dflt.batches[0].est_cost_usd - raw * 1.25) < 1e-9, String(dflt.batches[0].est_cost_usd));
+  const two = await run(reqs, { budgetUsd: 1000, costHeadroom: 2 });
+  assert(two.ok && Math.abs(two.batches[0].est_cost_usd - raw * 2) < 1e-9);
+  // A budget that fits the raw estimate but not the headroom is refused.
+  const tight = await run(reqs, { budgetUsd: raw * 1.1 });
+  assertEquals(!tight.ok && tight.stop, 'over_budget');
+  assertEquals((await run(reqs, { budgetUsd: raw * 1.1, costHeadroom: 1 })).ok, true);
 });

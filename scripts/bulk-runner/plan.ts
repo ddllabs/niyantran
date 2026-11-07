@@ -15,6 +15,8 @@ export const BYTES_PER_CHUNK = 13_970;
 export interface PlanLimits {
   /** Embedding price, for est_cost_usd. */
   usdPerMTokens: number;
+  /** Room in est_cost_usd for estimate error and one requeue (the database stops a batch whose spend reaches it). Default 1.25. */
+  costHeadroom?: number;
   /** What the collection may still spend and still add. */
   budgetUsd: number;
   chunkCeiling: number;
@@ -34,6 +36,7 @@ export type PlanStop =
   | 'duplicate_source_key'
   | 'bad_manifest_item'
   | 'duplicate_text'
+  | 'chunks_unknown'
   | 'unpartitioned_feature_over_100k'
   | 'over_budget'
   | 'over_chunk_ceiling'
@@ -123,7 +126,10 @@ export async function plan(input: PreparedRequest[], limits: PlanLimits): Promis
   }
   for (const [feature, n] of byFeature) {
     if (limits.partitioned.includes(feature)) continue;
-    const total = n + (limits.chunksNow?.[feature] ?? 0);
+    const now = limits.chunksNow?.[feature];
+    // Without the count the line cannot be checked, and a guess would let a load through.
+    if (now === undefined) return refuse('chunks_unknown', `${feature} has no partition and no stored-chunk count`);
+    const total = n + now;
     if (total > UNPARTITIONED_CHUNK_LIMIT) {
       return refuse('unpartitioned_feature_over_100k', `${feature} would hold ${total} chunks with no partition`);
     }
@@ -137,7 +143,7 @@ export async function plan(input: PreparedRequest[], limits: PlanLimits): Promis
     const chunks_planned = items.reduce((s, x) => s + x.chunks, 0);
     const est_tokens = items.reduce((s, x) => s + x.est_tokens, 0);
     // ingest_batch_open refuses a cost of zero.
-    const est_cost_usd = Math.max(est_tokens * limits.usdPerMTokens / 1e6, 1e-6);
+    const est_cost_usd = Math.max(est_tokens * limits.usdPerMTokens / 1e6 * (limits.costHeadroom ?? 1.25), 1e-6);
     spend += est_cost_usd;
     added += chunks_planned;
     if (spend > limits.budgetUsd) {
