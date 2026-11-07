@@ -1230,7 +1230,14 @@ if [ ${#FIXTURES[@]} -eq 0 ]; then
 fi
 
 fail=0
-for f in "${FIXTURES[@]}"; do run_fixture "$f" || fail=1; done
+# Seconds per fixture, its extra checks and vacuity included, so the CI job's
+# time limit can be watched (F302).
+for f in "${FIXTURES[@]}"; do
+  t0=$SECONDS
+  run_fixture "$f" || fail=1
+  echo "  time $((SECONDS - t0)) s"
+done
 echo
+echo "total $((SECONDS / 60)) min $((SECONDS % 60)) s"
 [ $fail -eq 0 ] && echo "all fixtures passed" || echo "one or more fixtures FAILED"
 exit $fail
