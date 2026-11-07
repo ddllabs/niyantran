@@ -46,7 +46,9 @@ jobs:
   sql:
     name: SQL fixtures (disposable Postgres)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 17 to 19.5 minutes on 2026-11-07, and cancelled twice at the old 20 (F302).
+    # run.sh prints each fixture's seconds; split the job before this is reached.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       # The image first runs a socket-only init server; TCP readiness means the
