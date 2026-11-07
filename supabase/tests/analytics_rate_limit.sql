@@ -68,10 +68,15 @@ SELECT pg_temp.rejected($$SELECT public.analytics_rate_hit('ip:dddd', 0, 60)$$, 
 SELECT pg_temp.rejected($$SELECT public.analytics_rate_hit('ip:dddd', 60, 0)$$, '22023', 'zero window');
 SELECT pg_temp.rejected($$SELECT public.analytics_rate_hit('ip:dddd', 60, 3601)$$, '22023', 'window over an hour');
 
--- The purge removes windows older than an hour and keeps current ones.
-INSERT INTO public.analytics_rate_windows (bucket, window_start, hits) VALUES ('ip:old', clock_timestamp() - interval '2 hours', 5);
+-- The purge removes windows older than an hour and keeps current ones. The
+-- windows made above start on the hour, so in the first seconds after an hour
+-- they are stale too (F304); clear them and age two windows by hand.
+DELETE FROM public.analytics_rate_windows;
+INSERT INTO public.analytics_rate_windows (bucket, window_start, hits) VALUES
+  ('ip:old', clock_timestamp() - interval '2 hours', 5),
+  ('ip:current', clock_timestamp() - interval '30 minutes', 5);
 SELECT pg_temp.assert_true(public.purge_analytics_rate_windows() = 1, 'purge removes one stale window');
 SELECT pg_temp.assert_true(NOT EXISTS (SELECT FROM public.analytics_rate_windows WHERE bucket = 'ip:old'), 'the stale window is gone');
-SELECT pg_temp.assert_true(EXISTS (SELECT FROM public.analytics_rate_windows WHERE bucket = 'ip:aaaa'), 'current windows are kept');
+SELECT pg_temp.assert_true(EXISTS (SELECT FROM public.analytics_rate_windows WHERE bucket = 'ip:current'), 'current windows are kept');
 RESET ROLE;
 ROLLBACK;
