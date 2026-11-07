@@ -135,3 +135,24 @@ Deno.test('a question record is unchanged by the Bills adapter', async () => {
   assertEquals(p.input.document_role, undefined);
   assertEquals(p.payload_sha256, (await prepareSuppliedText(r)).payload_sha256);
 });
+Deno.test('a bill carries the hash of the pack text it was stripped from; a question or Law payload does not, byte for byte', async () => {
+  const orig = 'a'.repeat(64);
+  const b = await nationalBill();
+  const p = await prepareSuppliedText({ ...b, original_text_sha256: orig }, { batch: true });
+  assertEquals(p.input.original_text_sha256, orig);
+  assertEquals(JSON.parse(p.payload).original_text_sha256, orig);
+  // The worker re-plans the stored payload and must get the same bytes back.
+  const again = await prepareSuppliedText(JSON.parse(p.payload), { batch: true });
+  assertEquals(again.payload_sha256, p.payload_sha256);
+  assertEquals((await prepareSuppliedText(b, { batch: true })).input.original_text_sha256, undefined);
+  await assertRejects(
+    () => prepareSuppliedText({ ...b, original_text_sha256: 'nope' }, { batch: true }),
+    Error,
+    'original text hash',
+  );
+  for (const r of [await nationalQuestion(), await input()]) {
+    const withHash = await prepareSuppliedText({ ...r, original_text_sha256: orig }, { batch: true });
+    assertEquals(withHash.payload, (await prepareSuppliedText(r, { batch: true })).payload);
+    assertEquals(withHash.payload_sha256, (await prepareSuppliedText(r, { batch: true })).payload_sha256);
+  }
+});
