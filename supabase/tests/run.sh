@@ -1172,7 +1172,13 @@ fixture_sql() {
 
 run_fixture() {
   local name="$1" db="niyantran_${1}_test" rc=0
-  chain "$name"
+  # set -e is off inside "run_fixture || fail=1", so an unknown fixture must be
+  # failed here; unchecked, the unset CONTAINER below ended the run with exit 0 (F303).
+  if ! chain "$name"; then
+    echo "=== $name"
+    echo "  FAIL  (no chain() entry)"
+    return 1
+  fi
   echo "=== $name  [${CONTAINER#niyantran-}]"
 
   docker exec "$CONTAINER" psql -U postgres -q -c "drop database if exists $db" >/dev/null
