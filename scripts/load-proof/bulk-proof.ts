@@ -14,7 +14,8 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { drain, makeHarness } from './driver.ts';
 import { makeFakeEmbedder } from './fake-embed.ts';
-import { psql, sha256Hex, sleep } from './lib.ts';
+import { CONTAINER, DB, psql, sha256Hex, sleep } from './lib.ts';
+import { PsqlDb, psqlExec } from '../bulk-runner/psql_db.ts';
 import { ensurePolicy, FEATURES } from './synth.ts';
 import type { BatchStatus, Db, OpenResult, RegisterResponse, RequeueResponse, TextHolder } from '../bulk-runner/db.ts';
 import { plan } from '../bulk-runner/plan.ts';
@@ -403,8 +404,15 @@ const input = {
   maxAllowedRefusalShare: 0.05,
 };
 
+// --db psql: the production Db (psql as corpus_ingest; here a local superuser sets the role, as no login exists).
+const viaPsql = arg('--db') === 'psql';
 const runner = await h.rest.client('corpus_ingest');
-const real = new PostgrestDb(runner);
+const real: Db = viaPsql
+  ? new PsqlDb(
+    psqlExec(['docker', 'exec', '-i', CONTAINER, 'psql', '-U', 'postgres', '-d', DB], 'set role corpus_ingest;'),
+  )
+  : new PostgrestDb(runner);
+console.log(`runner Db: ${viaPsql ? 'psql as corpus_ingest' : 'PostgREST as corpus_ingest'}`);
 const batchId = async () =>
   await psql(
     `select id from public.ingest_batches where collection = ${q(collection)} order by created_at desc limit 1`,
