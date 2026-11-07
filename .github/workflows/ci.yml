@@ -64,4 +64,10 @@ jobs:
             done
             docker exec "$c" pg_isready -h 127.0.0.1 -U postgres
           done
+      # A fixture with no chain() entry must fail the run, not end it with exit 0 (F303).
+      - name: An unknown fixture fails
+        run: |
+          if ./supabase/tests/run.sh no_such_fixture; then
+            echo "run.sh passed an unknown fixture"; exit 1
+          fi
       - run: npm run test:sql
