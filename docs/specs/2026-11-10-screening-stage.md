@@ -144,3 +144,38 @@ S1, S2 and S3 run at the same time in their own worktrees: their files do not ov
 - Form feeds: `prepare.ts` may change a text's characters before storing it. S1 checks whether the stored text hash
   then differs from the pack's and whether acceptance's "text hash" check compares the right pair, and reports.
 - F300 (bill readers join by key alone) can affect acceptance's link check on keys shared by several bills.
+
+## Review round 1 (2026-11-10): decisions
+
+An independent review accepted the stage with changes; a 20-record pilot on real v1.1 Bills (live reads and the page
+check on) held all 20 and showed three more. All are fixed in one round, each test shown failing first:
+
+1. **Same bill, house and role.** Records in the set sharing `document_key`, house and role (other than `errata`) are
+   all held `bill_role_collision` (none is picked); a record whose key, house and role a live Bills document already
+   holds is held `bill_role_held_live`; records in the set sharing a `file_url` are all held `file_url_collision`.
+2. **Patches.** Every main record whose `source_key` is in the `--patches` input is held `superseded_by_patch_input`,
+   whatever the patch's outcome; whole-set checks run over records and patches together.
+3. **Unsplit text.** `page_split: 'none'` passes only if it meets what prepare and admission require
+   (`page_count` equals the page spans); otherwise `page_count_unsplittable`.
+4. **Partly scanned PDFs.** Pack pages with fewer than 20 letters and digits on PDF pages that have no text layer
+   count as unverified; at least 2 such pages and at least 10% of the pages hold `unverified_empty_pages`.
+5. **Scripts.** Letters, digits and combining marks (`\p{M}`) are counted, so Devanagari is not undercounted.
+6. **What is fetched.** Only URLs matching the Bills URL rule; redirects only to https on the same host; the page check
+   runs only on records still clean (`onlyIfClean`).
+7. **Which database.** The receipt records the database, server and Bills document and listing-row counts; a zero
+   count stops the run.
+8. **A long run.** Per-record errors in the page check become findings for that record only; a failed robots.txt is
+   retried later; pdfjs has a timeout; per-page counts are cached by PDF hash; progress is logged; outputs are written
+   as they are produced, not built in memory.
+9. **Links.** A link's `role` must equal `citation.version`, and its `row_key` must be among the listing rows matched by
+   key, house and name; otherwise `link_disagrees`.
+10. **Provenance.** `rules_sha256` hashes, in a fixed order, each rule file as path, length and sha256 (adding
+    `live.ts`, `screen_types.ts`, `screens/index.ts`) and the canonical collection settings; the receipt records the
+    collection file's sha256.
+11. **Mirror admission, not stricter.** An `introduced_on` that is not a date is ignored, as the SQL ignores it; page
+    spans without `text` are cut from the record's text; `file_name` is compared with the decoded URL segment; name
+    normalisation follows Postgres `bill_norm`. A missing `servable` counts as servable (v1.1 has no such field; only an
+    explicit `false` holds; a non-boolean holds).
+12. **Duplicate text** compares the hash prepare will store (after its layout-break normalisation), within the set and
+    against live documents (`duplicate_text_live`).
+13. **Errors.** A `check_error` logs its message to stderr (never to holds); the screen takes `--psql <path>`.

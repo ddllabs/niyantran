@@ -24,6 +24,10 @@ export interface LiveDocument {
   file_name: string | null;
   desk_feature: string | null;
   document_key: string | null;
+  /** metadata->>'house' and metadata->>'document_role' (Bills), and documents.content_sha256. */
+  house: string | null;
+  document_role: string | null;
+  content_sha256: string | null;
 }
 
 /** A listing row, as the screen may read it (read-only). `row` is desk_rows.row. */
@@ -37,8 +41,23 @@ export interface LiveDeskRow {
 
 /** Read-only access to NTER. The real one runs every statement in a read-only transaction that is rolled back. */
 export interface LiveReader {
-  /** Live documents holding any of these source keys or file URLs (either list may be empty). */
-  documents(q: { sourceKeys: string[]; fileUrls: string[] }): Promise<LiveDocument[]>;
+  /**
+   * Live documents matching any of the given lists (each may be empty or absent): source keys, file URLs, stored text
+   * hashes (documents.content_sha256), or document keys (metadata->>'document_key'; only with `tier` and `feature`, which
+   * then also restrict that list's matches to documents of that tier and feature).
+   */
+  documents(q: {
+    sourceKeys: string[];
+    fileUrls: string[];
+    contentHashes?: string[];
+    documentKeys?: string[];
+    tier?: string;
+    feature?: string;
+  }): Promise<LiveDocument[]>;
+  /** Which database the reader is on, and how much it holds, for the receipt; the screen refuses zero counts. */
+  identity(
+    q: { tier: string; feature: string },
+  ): Promise<{ database: string; server: string; documents: number; deskRows: number }>;
   /** Listing rows of one tier and feature with any of these document keys. */
   deskRows(q: { tier: string; feature: string; documentKeys: string[] }): Promise<LiveDeskRow[]>;
 }
@@ -62,6 +81,11 @@ export interface Check {
   all?(records: Rec[], ctx: ScreenContext): Promise<Map<string, Finding[]>>;
   /** True when the check reads NTER or the network (skipped, and the record held, under --no-live / --no-pages). */
   needs?: 'live' | 'pages';
+  /**
+   * Run only on records that no earlier check (in screen order) has found anything on. A record skipped this way is
+   * already held, so skipping never lets a record pass; it saves expensive work (the page check) on held records.
+   */
+  onlyIfClean?: boolean;
 }
 
 /** A collection screen. Invalid unless every ReviewCheck is covered by at least one check. */
