@@ -4,8 +4,14 @@
  *   npx vite-node --config vitest.config.js scripts/eval-retrieval.mjs -- \
  *     --set eval/retrieval/questions.v1.jsonl [--modes broad,focused,focused-multi] \
  *     [--out eval/retrieval/results] [--compare <baseline.json>] [--required broad] [--limit 5] [--label baseline] \
- *     [--target live|replica] [--rpc match_documents] [--modes …,feature] \
- *     [--database niyantran_rehearsal_<suffix>]
+ *     [--target live|replica|nter] [--rpc match_documents] [--modes …,feature] \
+ *     [--database niyantran_rehearsal_<suffix>] [--psql <path>] [--no-warmup]
+ *
+ * --target nter (the T8 measurement on production): psql from the developer's own terminal, connected by libpq's
+ * environment (PGHOST, PGPORT, PGDATABASE, PGUSER, PGSSLMODE, and PGPASSWORD or a password file; nothing about the
+ * connection is an argument or printed). Every statement runs in a read-only transaction that is rolled back, and every
+ * search as `authenticated` under row access and the 8 s limit. --no-warmup skips the 5 unscored warm-ups, so the first
+ * calls are measured cold.
  *
  * --target replica runs against the local replica (scripts/eval-replica/load.mjs) through psql in
  * its container, as `authenticated` under RLS and the 8 s timeout; --rpc names a candidate
@@ -41,7 +47,7 @@ import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { createClient } from '@supabase/supabase-js';
 import { REPLICA_DATABASE, assertEvalDatabase } from '../src/lib/rehearsal.js';
-import { exitCodeFor, fingerprintCheck, isCallTimeout, judgeNoWorse, outcome, renderReport, replicaCallSql, rpcParams } from '../src/lib/retrievalEval.js';
+import { exitCodeFor, fingerprintCheck, isCallTimeout, judgeNoWorse, nterReadSql, outcome, renderReport, replicaCallSql, rpcParams } from '../src/lib/retrievalEval.js';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 const MATCH_COUNT = 40;
@@ -72,10 +78,13 @@ function parseArgs(argv) {
     else if (a === '--target') out.target = argv[++i];
     else if (a === '--rpc') out.rpc = argv[++i];
     else if (a === '--database') out.database = argv[++i] ?? '';
+    else if (a === '--psql') out.psql = argv[++i];
+    else if (a === '--no-warmup') out.warmup = false;
   }
   if (!out.set) throw new Error('--set is required');
   for (const m of out.modes) if (!['broad', 'focused', 'focused-multi', 'feature'].includes(m)) throw new Error(`unknown mode ${m}`);
-  if (!['live', 'replica'].includes(out.target)) throw new Error('--target must be live or replica');
+  if (!['live', 'replica', 'nter'].includes(out.target)) throw new Error('--target must be live, replica or nter');
+  if (out.psql && out.target !== 'nter') throw new Error('--psql applies only to --target nter');
   if (out.database !== null) {
     if (out.target !== 'replica') throw new Error('--database applies only to --target replica');
     assertEvalDatabase(out.database);
@@ -183,6 +192,56 @@ function liveBackend(url, secret) {
   };
 }
 
+/**
+ * NTER itself, for the T8 measurement: psql from the developer's terminal, connected by libpq's own environment (nothing
+ * about the connection is an argument or printed), every statement inside a read-only transaction that is rolled back,
+ * and searches as `authenticated` under row access and the 8 s limit, as a signed-in user meets them.
+ */
+function nterBackend(psqlPath = 'psql') {
+  const psql = (sql) => {
+    const res = spawnSync(psqlPath, ['-X', '-v', 'ON_ERROR_STOP=1', '-q', '-At'], { input: sql, encoding: 'utf8', maxBuffer: 1 << 28 });
+    if (res.status !== 0) throw new Error(`nter psql failed: ${res.stderr || res.stdout}`);
+    return res.stdout.trim();
+  };
+  const json = (sql, asUser = true) => JSON.parse(psql(nterReadSql(`select coalesce(json_agg(t), '[]'::json) from (${sql}) t;`, { asUser })) || '[]');
+  const lit = (s) => `'${String(s).replace(/'/g, "''")}'`;
+  const uuidArray = (ids) => `array[${ids.map(lit).join(',')}]::uuid[]`;
+  const [who] = json("select current_user as login, current_setting('transaction_read_only') as read_only", false);
+  if (who?.read_only !== 'on') throw new Error('the NTER session is not read only; refusing');
+  console.log(`NTER: connected read only as ${who.login}; searches run as authenticated`);
+  return {
+    name: 'nter',
+    async counts() {
+      const [c] = json(`select (select count(*) from public.documents where indexed_at is not null) as documents,
+        (select count(*) from public.document_chunks) as chunks,
+        (select max(indexed_at) from public.documents) as latest`, false);
+      let version = 'unknown';
+      try {
+        version = json('select max(version) as v from supabase_migrations.schema_migrations', false)[0]?.v ?? 'unknown';
+      } catch { /* a copy without the history table */ }
+      return { documents: Number(c.documents), chunks: Number(c.chunks), latestIndexedAt: c.latest, migrationVersion: `${version} (NTER history)` };
+    },
+    async goldChunks(ids) {
+      const rows = json(`select id, chunk_hash, document_id from public.document_chunks where id = any(${uuidArray(ids)})`);
+      return new Map(rows.map((r) => [r.id, { chunk_hash: r.chunk_hash, document_id: r.document_id }]));
+    },
+    async documents() {
+      return json(`select id, desk_feature, metadata->>'document_key' as document_key from public.documents`);
+    },
+    async featureChunkCounts() {
+      const rows = json(`select d.desk_feature, count(*) as n from public.document_chunks c join public.documents d on d.id = c.document_id
+        where d.indexed_at is not null and c.embedding is not null group by 1`);
+      return new Map(rows.map((r) => [r.desk_feature, Number(r.n)]));
+    },
+    async rpc(fn, params) {
+      return JSON.parse(psql(nterReadSql(replicaCallSql(fn, params, { limited: true }))) || '[]');
+    },
+    async ping() {
+      psql(nterReadSql('select 1;'));
+    },
+  };
+}
+
 /** The local replica (scripts/eval-replica), through psql in the container, as `authenticated`. */
 function replicaBackend(database = REPLICA_DATABASE) {
   const CONTAINER = 'niyantran-corpus-test-db';
@@ -232,6 +291,7 @@ async function main(argv) {
   const args = parseArgs(argv);
   let backend;
   if (args.target === 'replica') backend = replicaBackend(args.database ?? REPLICA_DATABASE);
+  else if (args.target === 'nter') backend = nterBackend(args.psql ?? 'psql');
   else {
     const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
     const secret = process.env.SUPABASE_SECRET_KEY;
@@ -281,7 +341,8 @@ async function main(argv) {
         return null;
       }
     };
-    for (const l of active.slice(0, WARMUPS)) await call(l);
+    // --no-warmup: the first calls are measured cold, as after a restart or an idle spell (T8).
+    if (args.warmup !== false) for (const l of active.slice(0, WARMUPS)) await call(l);
     let timeouts = 0;
     const outcomes = new Map();
     const ranked = {};

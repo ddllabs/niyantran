@@ -9,6 +9,7 @@ import {
   percentile,
   renderReport,
   isCallTimeout,
+  nterReadSql,
   replicaCallSql,
   rpcParams,
   summarise,
@@ -858,5 +859,31 @@ describe('replicaCallSql (the replica backend\'s call)', () => {
   it('refuses a hybrid call without text and a function name that is not an identifier', () => {
     expect(() => replicaCallSql('match_documents_hybrid', { query_embedding: vector, match_count: 40 })).toThrow(/query_text/);
     expect(() => replicaCallSql('match_documents; drop table x', { query_embedding: vector, match_count: 40 })).toThrow(/bad function name/);
+  });
+});
+
+describe('nterReadSql (production reads for the T8 measurement)', () => {
+  const body = "select 1;";
+  it('wraps every statement in a read-only transaction that is rolled back', () => {
+    const sql = nterReadSql(body);
+    const lines = sql.trim().split('\n');
+    expect(lines[0]).toBe('begin transaction read only;');
+    expect(lines.at(-1)).toBe('rollback;');
+    expect(sql).not.toMatch(/\bcommit\b/i);
+  });
+  it('runs as authenticated by default, under row access, and as the login only when asked', () => {
+    expect(nterReadSql(body)).toContain('set local role authenticated;');
+    expect(nterReadSql(body, { asUser: false })).not.toContain('set role');
+  });
+  it('keeps the 8 s limit of a limited call inside the transaction', () => {
+    const vector = Array.from({ length: 3 }, () => 0.1);
+    const sql = nterReadSql(replicaCallSql('match_documents', { query_embedding: vector, match_count: 40 }, { limited: true }));
+    expect(sql.indexOf("set statement_timeout = '8s'")).toBeGreaterThan(sql.indexOf('set local role authenticated;'));
+    expect(sql.indexOf("set statement_timeout = '8s'")).toBeLessThan(sql.indexOf('rollback;'));
+  });
+  it('refuses a body that would end the transaction early or change data', () => {
+    for (const bad of ['commit;', 'end;', 'rollback; delete from documents;', 'select 1; COMMIT', 'abort;']) {
+      expect(() => nterReadSql(bad)).toThrow(/transaction/);
+    }
   });
 });
