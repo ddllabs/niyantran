@@ -9,7 +9,9 @@ import {
   rulesSha256,
   type RunOptions,
   runScreen,
+  runScreenSets,
   type ScreenDeps,
+  screenSets,
   validateScreen,
 } from './screen.ts';
 import { SCREENS } from './screens/index.ts';
@@ -55,6 +57,7 @@ const screenOf = (checks?: Check[]): Screen => ({
 });
 const noLive: LiveReader = {
   documents: () => Promise.reject(new Error('unexpected live read')),
+  identity: () => Promise.reject(new Error('unexpected live read')),
   deskRows: () => Promise.reject(new Error('unexpected live read')),
 };
 const ctx = (settings: Rec = {}) => ({ live: noLive, settings });
@@ -392,16 +395,40 @@ Deno.test('project: must be a function when given', async () => {
 
 // ---- rules hash, arguments, collection block ----
 
-Deno.test("rulesSha256: the sha256 of the files' bytes in order; order and content change it; a missing file is an error", async () => {
+/** The rules hash as the spec defines it, written out by hand for the stand-in repository's one rule file. */
+const expectedRules = (settings: Rec) =>
+  sha(
+    JSON.stringify([{ length: 9, path: 'rules/a.ts', sha256: sha('rule file') }, { settings }]),
+  );
+
+Deno.test("rulesSha256: canonical JSON of each file's path, length and sha256, then the settings", async () => {
   const files: Record<string, string> = { 'a.ts': 'AAA', 'b.ts': 'BBB' };
   const read = (p: string) => {
     const name = p.split('/').pop()!;
     return name in files ? Promise.resolve(new TextEncoder().encode(files[name])) : Promise.reject(new Error('nope'));
   };
-  assertEquals(await rulesSha256(['a.ts', 'b.ts'], '/r', read), sha('AAABBB'));
-  assert(await rulesSha256(['b.ts', 'a.ts'], '/r', read) !== sha('AAABBB'));
+  const entry = (path: string, text: string) => ({ length: text.length, path, sha256: sha(text) });
+  assertEquals(
+    await rulesSha256(['a.ts', 'b.ts'], '/r', read, { z: 1, a: { y: 2, b: [3] } }),
+    sha(JSON.stringify([entry('a.ts', 'AAA'), entry('b.ts', 'BBB'), { settings: { a: { b: [3], y: 2 }, z: 1 } }])),
+  );
+  const base = await rulesSha256(['a.ts', 'b.ts'], '/r', read, {});
+  assert(await rulesSha256(['b.ts', 'a.ts'], '/r', read, {}) !== base, 'order');
+  assert(await rulesSha256(['a.ts', 'b.ts'], '/r', read, { x: 1 }) !== base, 'settings');
+  assertEquals(
+    await rulesSha256(['a.ts', 'b.ts'], '/r', read, { b: 1, a: 2 }),
+    await rulesSha256(['a.ts', 'b.ts'], '/r', read, { a: 2, b: 1 }),
+  );
   files['a.ts'] = 'AAX';
-  assert(await rulesSha256(['a.ts', 'b.ts'], '/r', read) !== sha('AAABBB'));
+  assert(await rulesSha256(['a.ts', 'b.ts'], '/r', read, {}) !== base, 'content');
+  // The same bytes cut at a different place are not the same rules.
+  files['a.ts'] = 'AAB';
+  files['b.ts'] = 'BB';
+  assert(await rulesSha256(['a.ts', 'b.ts'], '/r', read, {}) !== await rulesSha256(['b.ts', 'a.ts'], '/r', read, {}));
+  const cut = await rulesSha256(['a.ts', 'b.ts'], '/r', read, {});
+  files['a.ts'] = 'AA';
+  files['b.ts'] = 'BBB';
+  assert(await rulesSha256(['a.ts', 'b.ts'], '/r', read, {}) !== cut, 'file boundary');
   await assertRejects(() => rulesSha256(['a.ts', 'gone.ts'], '/r', read), Error, 'gone.ts');
   for (const bad of ['/etc/passwd', '../x.ts', 'a/../../x.ts', '']) {
     await assertRejects(() => rulesSha256([bad], '/r', read), Error, 'inside the repository');
@@ -418,9 +445,12 @@ Deno.test('parseArgs: required options, switches, and no repeats or unknowns', (
     patches: null,
     noLive: false,
     noPages: false,
+    psql: 'psql',
   });
   const all = parseArgs([...base, '--patches', 'p.jsonl', '--no-live', '--no-pages']);
   assertEquals([all.patches, all.noLive, all.noPages], ['p.jsonl', true, true]);
+  assertEquals(parseArgs([...base, '--psql', '/opt/pg/psql']).psql, '/opt/pg/psql');
+  assertThrows(() => parseArgs([...base, '--psql', 'a', '--psql', 'b']), Error, 'twice');
   for (const missing of ['--screen', '--collection', '--records', '--out']) {
     const i = base.indexOf(missing);
     assertThrows(() => parseArgs(base.filter((_, j) => j !== i && j !== i + 1)), Error, missing);
@@ -529,17 +559,20 @@ const listing = async (d: string) => (await exists(d)) ? [...Deno.readDirSync(d)
 function depsFor(a: Area, screen: Screen = screenOf(), over: Partial<ScreenDeps> = {}) {
   const logs: string[] = [];
   const services: string[] = [];
+  const psqls: string[] = [];
+  const errs: string[] = [];
   let t = Date.parse('2026-11-10T10:00:00Z');
   const deps: ScreenDeps = {
     screens: { test: () => Promise.resolve(screen) },
-    live: (svc) => (services.push(svc), noLive),
+    live: (svc, psql) => (services.push(svc), psqls.push(psql), noLive),
     git: () => Promise.resolve({ commit: 'c0ffee'.repeat(6) + 'c0ff', dirty: false }),
     repoRoot: a.repo,
     log: (l) => logs.push(l),
+    err: (l) => errs.push(l),
     now: () => (t += 1000),
     ...over,
   };
-  return { deps, logs, services };
+  return { deps, logs, services, psqls, errs };
 }
 const argv = (a: Area, records: string, ...more: string[]) => [
   '--screen',
@@ -575,7 +608,7 @@ areaTest(
     assertEquals(review.package_id, `National/v9/documents/bills.jsonl.gz#${sha('manifest-bills.jsonl')}`);
     assertEquals(review.file_sha256, f.receipt.output_sha256);
     assertEquals(review.decision_id, 'decision-7');
-    assertEquals(review.rules_sha256, sha('rule file'));
+    assertEquals(review.rules_sha256, await expectedRules({ licences: ['x'] }));
     assertEquals(review.mapping_version, 'test-screen-v1');
     assertEquals(screened[0].text_sha256, sha(String(r1.text)));
     const holds = await readJsonl(join(a.out, 'holds.jsonl'));
@@ -587,7 +620,7 @@ areaTest(
     }]);
     const receipt = JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json')));
     assertEquals(receipt.collection, 'test');
-    assertEquals(receipt.rules_sha256, sha('rule file'));
+    assertEquals(receipt.rules_sha256, await expectedRules({ licences: ['x'] }));
     assertEquals(receipt.records.receipt_sha256, sha(await Deno.readFile(`${f.path}.receipt.json`)));
     assertEquals(receipt.records.output_sha256, f.receipt.output_sha256);
     assertEquals(receipt.records.records_in, 2);
@@ -873,10 +906,433 @@ areaTest('main: a failure while checking leaves nothing behind', async (a) => {
 });
 
 areaTest('main: patches are projected like records', async (a) => {
-  const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k1'))]);
+  const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k0'))]);
   const p = await reader(a, 'p.jsonl', [JSON.stringify(rec('k1', 'patched'))]);
   const { deps } = depsFor(a, withProject((r) => ({ ...r, document_role: 'as_introduced' })));
   await main(argv(a, f.path, '--patches', p.path), deps);
   assertEquals((await readJsonl(join(a.out, 'screened.jsonl')))[0].document_role, 'as_introduced');
   assertEquals((await readJsonl(join(a.out, 'screened-patches.jsonl')))[0].document_role, 'as_introduced');
 });
+
+// ---- review round 1: patches, onlyIfClean, identity, provenance, logging, streaming ----
+
+const setOf = (records: Rec[], tag = 'a') => ({
+  records,
+  packageId: `National/v9/documents/${tag}.jsonl.gz#` + HEX_A,
+  fileSha256: (tag === 'a' ? 'b' : 'd').repeat(64),
+});
+const shared = (over: Partial<RunOptions> = {}) => {
+  const { packageId: _p, fileSha256: _f, ...rest } = opts(over);
+  return rest;
+};
+
+Deno.test("patches: every main record whose key is in the patches input is held, whatever the patch's outcome", async () => {
+  const checks = screenOf().checks.map((c) =>
+    c.name === 'c_rights'
+      ? { ...c, one: (r: Rec) => Promise.resolve(r.title === 'bad patch' ? [finding('licence_not_admitted')] : []) }
+      : c
+  );
+  const out = await runScreenSets(
+    screenOf(checks),
+    {
+      records: setOf([rec('k1'), rec('k2'), rec('k3')]),
+      patches: setOf([rec('k1', 'new text'), rec('k2', 'other', { title: 'bad patch' })], 'p'),
+    },
+    ctx(),
+    shared(),
+  );
+  assertEquals(out.records.screened.map((r) => r.source_key), ['k3']);
+  assertEquals(out.records.holds.map((h) => [h.source_key, h.reasons]), [
+    ['k1', ['superseded_by_patch_input']],
+    ['k2', ['superseded_by_patch_input']],
+  ]);
+  assertEquals(out.records.holds[0].findings, [{
+    check: 'patches',
+    covers: ['dedupe'],
+    reason: 'superseded_by_patch_input',
+  }]);
+  assertEquals(out.patches!.screened.map((r) => r.source_key), ['k1']);
+  assertEquals(out.patches!.holds.map((h) => [h.source_key, h.reasons]), [['k2', ['licence_not_admitted']]]);
+  // Each set's reviews carry that set's own package and file.
+  assertEquals((out.records.screened[0].review as Rec).file_sha256, 'b'.repeat(64));
+  assertEquals((out.patches!.screened[0].review as Rec).file_sha256, 'd'.repeat(64));
+  assertEquals(((out.patches!.screened[0].review as Rec).package_id as string).includes('/p.jsonl.gz#'), true);
+});
+
+Deno.test('patches: a main record is never held for this when no patch has its key', async () => {
+  const out = await runScreenSets(
+    screenOf(),
+    { records: setOf([rec('k1')]), patches: setOf([rec('k2')], 'p') },
+    ctx(),
+    shared(),
+  );
+  assertEquals(out.records.holds, []);
+  assertEquals(out.records.screened.length, 1);
+});
+
+Deno.test('patches: a whole-set check runs once over records and patches together, split back per set', async () => {
+  const seen: string[][] = [];
+  const dup = passing('dups', ['dedupe'], {
+    one: undefined,
+    all: (records: Rec[]) => {
+      seen.push(records.map((r) => String(r.source_key)));
+      // k2 (a main record) and k9 (a patch) have the same text.
+      return Promise.resolve(new Map([['k9', [finding('duplicate_text', 'same as k2')]]]));
+    },
+  });
+  const others = REVIEW_CHECKS.filter((c) => c !== 'dedupe').map((c) => passing(`c_${c}`, [c]));
+  const out = await runScreenSets(
+    screenOf([...others, dup]),
+    { records: setOf([rec('k1'), rec('k2')]), patches: setOf([rec('k1', 'fixed'), rec('k9')], 'p') },
+    ctx(),
+    shared(),
+  );
+  // k1 of the main set is superseded and is not offered; its patch stands for the key.
+  assertEquals(seen, [['k2', 'k1', 'k9']]);
+  assertEquals(out.records.screened.map((r) => r.source_key), ['k2']);
+  assertEquals(out.patches!.screened.map((r) => r.source_key), ['k1']);
+  assertEquals(out.patches!.holds.map((h) => [h.source_key, h.reasons]), [['k9', ['duplicate_text']]]);
+});
+
+Deno.test('patches: a repeated key inside one set is still a duplicate, but one key in both sets is not', async () => {
+  const out = await runScreenSets(
+    screenOf(),
+    { records: setOf([rec('x'), rec('a')]), patches: setOf([rec('x', 'fixed'), rec('b'), rec('b')], 'p') },
+    ctx(),
+    shared(),
+  );
+  assertEquals(out.patches!.holds.map((h) => h.reasons), [['duplicate_source_key'], ['duplicate_source_key']]);
+  assertEquals(out.patches!.screened.map((r) => r.source_key), ['x']);
+  assertEquals(out.records.holds.map((h) => h.reasons), [['superseded_by_patch_input']]);
+  assertEquals(out.records.screened.map((r) => r.source_key), ['a']);
+});
+
+const onlyIf = (calls: string[], find: (r: Rec) => Finding[] = () => []) =>
+  passing('expensive', ['completeness'], {
+    onlyIfClean: true,
+    one: (r: Rec) => (calls.push(String(r.source_key)), Promise.resolve(find(r))),
+  });
+const without = (cover: Check['covers'][number]) =>
+  REVIEW_CHECKS.filter((c) => c !== cover).map((c) => passing(`c_${c}`, [c]));
+
+Deno.test('onlyIfClean: runs only on records with no earlier finding, and held records stay held', async () => {
+  const calls: string[] = [];
+  const early = passing('early', ['identity'], {
+    one: (r: Rec) => Promise.resolve(r.source_key === 'bad' ? [finding('bad_shape')] : []),
+  });
+  const rest = REVIEW_CHECKS.filter((c) => c !== 'identity' && c !== 'completeness').map((c) => passing(`c_${c}`, [c]));
+  const out = await runScreen(
+    screenOf([early, ...rest, onlyIf(calls)]),
+    [rec('good'), rec('bad'), rec('nt', '')],
+    ctx(),
+    opts(),
+  );
+  assertEquals(calls, ['good']);
+  assertEquals(out.screened.map((r) => r.source_key), ['good']);
+  assertEquals(out.holds.map((h) => [h.source_key, h.reasons]), [['bad', ['bad_shape']], ['nt', ['no_text']]]);
+});
+
+Deno.test("onlyIfClean: a whole-set check gets only the clean records, and a later check's finding does not skip it", async () => {
+  const offered: string[][] = [];
+  const dup = passing('dups', ['dedupe'], {
+    one: undefined,
+    onlyIfClean: true,
+    all: (records: Rec[]) => (offered.push(records.map((r) => String(r.source_key))), Promise.resolve(new Map())),
+  });
+  const first = passing('first', ['identity'], {
+    one: (r: Rec) => Promise.resolve(r.source_key === 'x' ? [finding('f')] : []),
+  });
+  const mid = REVIEW_CHECKS.filter((c) => c !== 'identity' && c !== 'dedupe').map((c) => passing(`c_${c}`, [c]));
+  // A check after the onlyIfClean one that finds something does not make the earlier run wrong.
+  const last = passing('last', ['rights'], {
+    one: (r: Rec) => Promise.resolve(r.source_key === 'y' ? [finding('late')] : []),
+  });
+  const out = await runScreen(screenOf([first, ...mid, dup, last]), [rec('x'), rec('y'), rec('z')], ctx(), opts());
+  assertEquals(offered, [['y', 'z']]);
+  assertEquals(out.screened.map((r) => r.source_key), ['z']);
+});
+
+Deno.test('onlyIfClean: it can never let a record pass; a skipped record has no clean mark and stays held', async () => {
+  // The onlyIfClean check is the only cover of `completeness`. A record held by an earlier check is skipped by it, and
+  // must not come out screened even though the skipped check reported nothing.
+  const early = passing('early', ['identity', 'rights'], { one: () => Promise.resolve([finding('f')]) });
+  const rest = REVIEW_CHECKS.filter((c) => !['identity', 'rights', 'completeness'].includes(c)).map((c) =>
+    passing(`c_${c}`, [c])
+  );
+  const calls: string[] = [];
+  const out = await runScreen(screenOf([early, ...rest, onlyIf(calls)]), [rec('a'), rec('b')], ctx(), opts());
+  assertEquals(calls, []);
+  assertEquals(out.screened, []);
+  assertEquals(out.holds.length, 2);
+  // And when nothing was found, it does run and the record passes with completeness true.
+  const clean = await runScreen(
+    screenOf([...rest, passing('ok1', ['identity', 'rights']), onlyIf(calls)]),
+    [rec('a')],
+    ctx(),
+    opts(),
+  );
+  assertEquals(calls, ['a']);
+  assertEquals(((clean.screened[0].review as Rec).checks as Rec).completeness, true);
+});
+
+Deno.test('onlyIfClean: skipped under --no-pages like any pages check, and must be a boolean', async () => {
+  const calls: string[] = [];
+  const pages = { ...onlyIf(calls), needs: 'pages' as const };
+  const out = await runScreen(
+    screenOf([...without('completeness'), pages]),
+    [rec('a')],
+    ctx(),
+    opts({ noPages: true }),
+  );
+  assertEquals(calls, []);
+  assertEquals(out.holds[0].reasons, ['screen_incomplete']);
+  assertThrows(
+    () => validateScreen(screenOf([...without('completeness'), { ...onlyIf([]), onlyIfClean: 'yes' as never }])),
+    Error,
+    'onlyIfClean',
+  );
+});
+
+Deno.test('check_error: the message goes to the log sink, never into the hold, and the check is named', async () => {
+  const lines: string[] = [];
+  const checks = screenOf().checks.map((c) =>
+    c.name === 'c_rights'
+      ? { ...c, one: (r: Rec) => Promise.reject(new RangeError(`cannot read ${String(r.text)}`)) }
+      : c
+  );
+  const out = await runScreen(screenOf(checks), [rec('a')], ctx(), opts({ log: (l) => lines.push(l) }));
+  assert(lines.some((l) => l.startsWith('check c_rights: cannot read ')), lines.join('|'));
+  assert(!JSON.stringify(out.holds).includes(SECRET));
+  assertEquals(out.holds[0].findings[0].detail, 'RangeError');
+  // A whole-set check that throws is logged the same way.
+  const all = passing('dups', ['dedupe'], { one: undefined, all: () => Promise.reject(new Error('whole set failed')) });
+  const lines2: string[] = [];
+  await runScreen(screenOf([...without('dedupe'), all]), [rec('a')], ctx(), opts({ log: (l) => lines2.push(l) }));
+  assert(lines2.includes('check dups: whole set failed'), lines2.join('|'));
+});
+
+Deno.test('progress: each check is logged, and every 250 records inside a check and among the outcomes', async () => {
+  const lines: string[] = [];
+  const records = Array.from({ length: 600 }, (_, i) => rec(`k${i}`));
+  await runScreen(screenOf(), records, ctx(), opts({ log: (l) => lines.push(l) }));
+  for (const c of REVIEW_CHECKS) {
+    assert(lines.includes(`check c_${c}: start`) && lines.includes(`check c_${c}: done, 0 findings`));
+  }
+  assert(lines.includes('check c_identity: 250 records') && lines.includes('check c_identity: 500 records'));
+  assert(!lines.includes('check c_identity: 600 records') && !lines.includes('check c_identity: 100 records'));
+  assert(lines.includes('outcomes: 250 of 600 records') && lines.includes('outcomes: 500 of 600 records'));
+});
+
+Deno.test('streaming: outcomes are handed over one at a time, in input order, records then patches, each awaited', async () => {
+  const order: string[] = [];
+  let busy = false;
+  const tick = async (label: string) => {
+    assert(!busy, 'an outcome was handed over before the previous one finished');
+    busy = true;
+    await new Promise((r) => setTimeout(r, 1));
+    order.push(label);
+    busy = false;
+  };
+  const checks = screenOf().checks.map((c) =>
+    c.name === 'c_rights' ? { ...c, one: (r: Rec) => Promise.resolve(r.source_key === 'h' ? [finding('x')] : []) } : c
+  );
+  await screenSets(
+    screenOf(checks),
+    { records: setOf([rec('a'), rec('h'), rec('b')]), patches: setOf([rec('p1'), rec('h')], 'p') },
+    ctx(),
+    shared(),
+    {
+      screened: (set, r) => tick(`${set}:ok:${String(r.source_key)}`),
+      hold: (set, h) => tick(`${set}:hold:${String(h.source_key)}`),
+    },
+  );
+  assertEquals(order, ['records:ok:a', 'records:hold:h', 'records:ok:b', 'patches:ok:p1', 'patches:hold:h']);
+});
+
+// ---- the command: identity, provenance, psql, streaming ----
+
+const BILLS_REC = (key: string, text?: string, extra: Rec = {}) =>
+  rec(key, text, { desk_tier: 'national', desk_feature: 'Bills', ...extra });
+const liveCheck = (): Check => passing('listing', ['identity'], { needs: 'live' });
+const liveScreen = () => screenOf([liveCheck(), ...without('identity')]);
+const identityReader = (
+  id: { database: string; server: string; documents: number; deskRows: number },
+  asked: Array<{ tier: string; feature: string }> = [],
+): LiveReader => ({
+  ...noLive,
+  identity: (q) => (asked.push(q), Promise.resolve(id)),
+});
+const GOOD_ID = { database: 'nter', server: '10.1.2.3', documents: 40, deskRows: 50 };
+
+areaTest("identity: asked once with the records' tier and feature, recorded in the receipt", async (a) => {
+  const f = await reader(a, 'b.jsonl', [JSON.stringify(BILLS_REC('k1')), JSON.stringify(BILLS_REC('k2'))]);
+  const asked: Array<{ tier: string; feature: string }> = [];
+  const { deps } = depsFor(a, liveScreen(), { live: () => identityReader(GOOD_ID, asked) });
+  assertEquals(await main(argv(a, f.path), deps), 0);
+  assertEquals(asked, [{ tier: 'national', feature: 'Bills' }]);
+  const receipt = JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json')));
+  assertEquals(receipt.live_identity, {
+    database: 'nter',
+    server: '10.1.2.3',
+    tier: 'national',
+    feature: 'Bills',
+    documents: 40,
+    desk_rows: 50,
+  });
+});
+
+areaTest('identity: a zero count stops the run with no outputs, naming the database', async (a) => {
+  const f = await reader(a, 'b.jsonl', [JSON.stringify(BILLS_REC('k1'))]);
+  for (const id of [{ ...GOOD_ID, documents: 0 }, { ...GOOD_ID, deskRows: 0 }]) {
+    const { deps } = depsFor(a, liveScreen(), { live: () => identityReader(id) });
+    await assertRejects(() => main(argv(a, f.path), deps), Error, 'nter');
+    assertEquals(await listing(a.out), []);
+  }
+});
+
+areaTest('identity: a reader that gives no usable identity, or fails, stops the run with no outputs', async (a) => {
+  const f = await reader(a, 'b.jsonl', [JSON.stringify(BILLS_REC('k1'))]);
+  for (const id of [{ ...GOOD_ID, database: '' }, { ...GOOD_ID, documents: -1 }, { ...GOOD_ID, deskRows: 1.5 }]) {
+    const { deps } = depsFor(a, liveScreen(), { live: () => identityReader(id) });
+    await assertRejects(() => main(argv(a, f.path), deps), Error, 'identity');
+    assertEquals(await listing(a.out), []);
+  }
+  const failing: LiveReader = { ...noLive, identity: () => Promise.reject(new Error('psql exited 2')) };
+  await assertRejects(
+    () => main(argv(a, f.path), depsFor(a, liveScreen(), { live: () => failing }).deps),
+    Error,
+    'psql exited 2',
+  );
+  assertEquals(await listing(a.out), []);
+});
+
+areaTest(
+  'identity: not asked under --no-live, or when no check reads live data; the receipt then says null',
+  async (a) => {
+    const f = await reader(a, 'b.jsonl', [JSON.stringify(BILLS_REC('k1'))]);
+    const asked: Array<{ tier: string; feature: string }> = [];
+    await main(
+      argv(a, f.path, '--no-live'),
+      depsFor(a, liveScreen(), { live: () => identityReader(GOOD_ID, asked) }).deps,
+    );
+    assertEquals(asked, []);
+    assertEquals(JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json'))).live_identity, null);
+    await Deno.remove(a.out, { recursive: true });
+    await main(argv(a, f.path), depsFor(a, screenOf(), { live: () => identityReader(GOOD_ID, asked) }).deps);
+    assertEquals(asked, []);
+  },
+);
+
+areaTest('identity: records that name no single tier and feature are refused before anything is judged', async (a) => {
+  const mixed = await reader(a, 'm.jsonl', [
+    JSON.stringify(BILLS_REC('k1')),
+    JSON.stringify(BILLS_REC('k2', undefined, { desk_feature: 'Other' })),
+  ]);
+  await assertRejects(
+    () => main(argv(a, mixed.path), depsFor(a, liveScreen(), { live: () => identityReader(GOOD_ID) }).deps),
+    Error,
+    'desk_feature',
+  );
+  const none = await reader(a, 'n.jsonl', [JSON.stringify(rec('k1'))]);
+  await assertRejects(
+    () => main(argv(a, none.path), depsFor(a, liveScreen(), { live: () => identityReader(GOOD_ID) }).deps),
+    Error,
+    'desk_feature',
+  );
+  assertEquals(await listing(a.out), []);
+});
+
+areaTest("identity: the patches' tier and feature must be the same as the records'", async (a) => {
+  const f = await reader(a, 'b.jsonl', [JSON.stringify(BILLS_REC('k1'))]);
+  const p = await reader(a, 'p.jsonl', [JSON.stringify(BILLS_REC('k2', undefined, { desk_tier: 'law' }))]);
+  await assertRejects(
+    () =>
+      main(
+        argv(a, f.path, '--patches', p.path),
+        depsFor(a, liveScreen(), { live: () => identityReader(GOOD_ID) }).deps,
+      ),
+    Error,
+    'desk_feature',
+  );
+});
+
+areaTest(
+  "main: the receipt records the collection file's sha256, and the rules hash includes the screen settings",
+  async (a) => {
+    const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k1'))]);
+    await main(argv(a, f.path), depsFor(a).deps);
+    const receipt = JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json')));
+    assertEquals(receipt.collection_file_sha256, sha(await Deno.readFile(join(a.work, 'collection.json'))));
+    assertEquals(receipt.rules_sha256, await expectedRules({ licences: ['x'] }));
+    // Other settings, other hash.
+    await Deno.remove(a.out, { recursive: true });
+    await collectionFile(a, { screen: { decisionId: 'decision-7', settings: { licences: ['y'] } } });
+    await main(argv(a, f.path), depsFor(a).deps);
+    const other = JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json')));
+    assertEquals(other.rules_sha256, await expectedRules({ licences: ['y'] }));
+    assert(other.collection_file_sha256 !== receipt.collection_file_sha256);
+  },
+);
+
+areaTest('main: --psql is passed to the live reader factory, default psql', async (a) => {
+  const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k1'))]);
+  const d1 = depsFor(a);
+  await main(argv(a, f.path), d1.deps);
+  assertEquals(d1.psqls, ['psql']);
+  await Deno.remove(a.out, { recursive: true });
+  const d2 = depsFor(a);
+  await main(argv(a, f.path, '--psql', '/opt/pg/bin/psql'), d2.deps);
+  assertEquals(d2.psqls, ['/opt/pg/bin/psql']);
+});
+
+areaTest(
+  'main: a check_error is logged to stderr with its message, and appears in no output, receipt or stdout line',
+  async (a) => {
+    const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k1'))]);
+    const checks = screenOf().checks.map((c) =>
+      c.name === 'c_rights' ? { ...c, one: (r: Rec) => Promise.reject(new Error(`cannot read ${String(r.text)}`)) } : c
+    );
+    const { deps, errs, logs } = depsFor(a, screenOf(checks));
+    await main(argv(a, f.path), deps);
+    assert(errs.some((l) => l.startsWith('check c_rights: cannot read ')));
+    assert(!logs.join('\n').includes(SECRET));
+    for (const name of await listing(a.out)) {
+      assert(
+        !(await Deno.readTextFile(join(a.out, name))).includes(SECRET),
+        name,
+      );
+    }
+  },
+);
+
+areaTest(
+  'main: with patches, a superseded main record is held and counted, and the receipt counts both sets',
+  async (a) => {
+    const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k1')), JSON.stringify(rec('k2'))]);
+    const p = await reader(a, 'p.jsonl', [JSON.stringify(rec('k1', 'fixed'))]);
+    await main(argv(a, f.path, '--patches', p.path), depsFor(a).deps);
+    const receipt = JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json')));
+    assertEquals(receipt.records.held_by_reason, { superseded_by_patch_input: 1 });
+    assertEquals([receipt.records.records_out, receipt.records.held, receipt.patches.records_out], [1, 1, 1]);
+    const holds = await readJsonl(join(a.out, 'holds.jsonl'));
+    assertEquals(holds.map((h) => [h.source_key, h.set]), [['k1', 'records']]);
+    assertEquals((await readJsonl(join(a.out, 'screened.jsonl'))).map((r) => r.source_key), ['k2']);
+    assertEquals((await readJsonl(join(a.out, 'screened-patches.jsonl'))).map((r) => r.source_key), ['k1']);
+  },
+);
+
+areaTest(
+  "main: outputs are real files of the receipt's sizes, hashes and line counts (streamed writers close correctly)",
+  async (a) => {
+    const lines = Array.from({ length: 700 }, (_, i) => JSON.stringify(rec(`k${i}`, `text ${i} é`)));
+    const f = await reader(a, 'b.jsonl', lines);
+    const { deps, errs } = depsFor(a);
+    await main(argv(a, f.path), deps);
+    const receipt = JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json')));
+    const bytes = await Deno.readFile(join(a.out, 'screened.jsonl'));
+    assertEquals(receipt.outputs.screened, { sha256: sha(bytes), bytes: bytes.length, lines: 700 });
+    assertEquals(receipt.outputs.holds.lines, 0);
+    assert(errs.includes('outcomes: 500 of 700 records'));
+    assertEquals(await listing(a.out), ['holds.jsonl', 'screen.receipt.json', 'screened.jsonl']);
+  },
+);

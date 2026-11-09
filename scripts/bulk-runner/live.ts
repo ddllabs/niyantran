@@ -68,22 +68,79 @@ export class PsqlLiveReader implements LiveReader {
     return parsed as T[];
   }
 
-  async documents(q: { sourceKeys: string[]; fileUrls: string[] }): Promise<LiveDocument[]> {
+  async documents(q: {
+    sourceKeys: string[];
+    fileUrls: string[];
+    contentHashes?: string[];
+    documentKeys?: string[];
+    tier?: string;
+    feature?: string;
+  }): Promise<LiveDocument[]> {
     const sourceKeys = batches(checkKeys(q.sourceKeys, 'documents.sourceKeys'));
     const fileUrls = batches(checkKeys(q.fileUrls, 'documents.fileUrls'));
+    const contentHashes = batches(checkKeys(q.contentHashes ?? [], 'documents.contentHashes'));
+    const documentKeys = batches(checkKeys(q.documentKeys ?? [], 'documents.documentKeys'));
+    if (documentKeys.length > 0) {
+      // A document key is only meaningful within one tier and feature; they also let the partial index be used.
+      if (typeof q.tier !== 'string' || q.tier === '' || q.tier.includes('\0')) {
+        throw new Error('documents: documentKeys need a tier');
+      }
+      if (typeof q.feature !== 'string' || q.feature === '' || q.feature.includes('\0')) {
+        throw new Error('documents: documentKeys need a feature');
+      }
+    }
     const seen = new Map<string, LiveDocument>();
-    for (let i = 0; i < Math.max(sourceKeys.length, fileUrls.length); i++) {
-      const sk = sourceKeys[i] ?? [];
-      const fu = fileUrls[i] ?? [];
+    const rounds = Math.max(sourceKeys.length, fileUrls.length, contentHashes.length, documentKeys.length);
+    // Any failed batch throws out of the loop: the caller never sees a partial result.
+    for (let i = 0; i < rounds; i++) {
+      const terms: string[] = [];
+      if (sourceKeys[i]) terms.push(`source_key = any(${asTextArray(sourceKeys[i])})`);
+      if (fileUrls[i]) terms.push(`file_url = any(${asTextArray(fileUrls[i])})`);
+      if (contentHashes[i]) terms.push(`content_sha256 = any(${asTextArray(contentHashes[i])})`);
+      if (documentKeys[i]) {
+        terms.push(
+          `(desk_tier = ${dollarQuote(q.tier!)} and desk_feature = ${dollarQuote(q.feature!)} ` +
+            `and metadata->>'document_key' = any(${asTextArray(documentKeys[i])}))`,
+        );
+      }
       const rows = await this.read<LiveDocument>(
         `select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb)::text from (
-           select id, source_key, file_url, file_name, desk_feature, metadata->>'document_key' as document_key
+           select id, source_key, file_url, file_name, desk_feature, metadata->>'document_key' as document_key,
+                  metadata->>'house' as house, metadata->>'document_role' as document_role, content_sha256
              from public.documents
-            where source_key = any(${asTextArray(sk)}) or file_url = any(${asTextArray(fu)})) t;`,
+            where ${terms.join(' or ')}) t;`,
       );
       for (const d of rows) if (!seen.has(d.id)) seen.set(d.id, d);
     }
     return [...seen.values()];
+  }
+
+  async identity(
+    q: { tier: string; feature: string },
+  ): Promise<{ database: string; server: string; documents: number; deskRows: number }> {
+    for (const v of [q?.tier, q?.feature]) {
+      if (typeof v !== 'string' || v === '' || v.includes('\0')) {
+        throw new Error('identity: tier and feature must be non-empty strings without NUL');
+      }
+    }
+    const tier = dollarQuote(q.tier);
+    const feature = dollarQuote(q.feature);
+    const rows = await this.read<Record<string, unknown>>(
+      `select jsonb_build_array(jsonb_build_object(
+         'database', current_database(),
+         'server', coalesce(host(inet_server_addr()), 'local'),
+         'documents', (select count(*) from public.documents where desk_tier = ${tier} and desk_feature = ${feature}),
+         'deskRows', (select count(*) from public.desk_rows where tier = ${tier} and feature = ${feature})))::text;`,
+    );
+    const [r] = rows;
+    const count = (v: unknown) => Number.isSafeInteger(v) && (v as number) >= 0;
+    if (
+      rows.length !== 1 || typeof r?.database !== 'string' || !r.database || typeof r.server !== 'string' ||
+      !r.server || !count(r.documents) || !count(r.deskRows)
+    ) {
+      throw new Error('identity: the answer is not one database, one server and two counts');
+    }
+    return { database: r.database, server: r.server, documents: r.documents as number, deskRows: r.deskRows as number };
   }
 
   async deskRows(q: { tier: string; feature: string; documentKeys: string[] }): Promise<LiveDeskRow[]> {

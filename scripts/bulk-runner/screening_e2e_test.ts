@@ -6,7 +6,7 @@ import { join } from 'jsr:@std/path@1';
 import { sha256Hex } from '../../supabase/functions/_shared/textNormalise.ts';
 import { makePageCheck } from './page_check.ts';
 import { prepareRecord, type Rec } from './prepare.ts';
-import { runScreen } from './screen.ts';
+import { runScreen, runScreenSets } from './screen.ts';
 import { makeBillsScreen } from './screens/bills.ts';
 import type { LiveDeskRow, LiveReader } from './screen_types.ts';
 
@@ -90,6 +90,7 @@ const deskRow = (n: number, over: Rec = {}): LiveDeskRow => ({
 /** A listing with these rows and no live documents. */
 const listing = (rows: LiveDeskRow[]): LiveReader => ({
   documents: () => Promise.resolve([]),
+  identity: () => Promise.resolve({ database: 'fake', server: 'local', documents: 1, deskRows: rows.length }),
   deskRows: (q) => Promise.resolve(rows.filter((r) => q.documentKeys.includes(r.document_key ?? ''))),
 });
 
@@ -107,7 +108,12 @@ const RUN = {
   noPages: false,
 };
 
-async function screenAll(records: Rec[], rows: LiveDeskRow[], served: Record<string, string[]>) {
+async function screenAll(
+  records: Rec[],
+  rows: LiveDeskRow[],
+  served: Record<string, string[]>,
+  patches: Rec[] | null = null,
+) {
   const cacheDir = await Deno.makeTempDir({ prefix: 'screening-e2e-' });
   const requested: string[] = [];
   try {
@@ -126,13 +132,22 @@ async function screenAll(records: Rec[], rows: LiveDeskRow[], served: Record<str
       commonDir: () => Promise.resolve(null),
     });
     const screen = makeBillsScreen([pageCheck]);
-    const result = await runScreen(
-      screen,
-      records,
-      { live: listing(rows), settings: { licenceClasses: [LICENCE] } },
-      RUN,
-    );
-    return { ...result, pageCheck, requested };
+    const ctx = { live: listing(rows), settings: { licenceClasses: [LICENCE] } };
+    if (patches) {
+      const { packageId: _p, fileSha256: _f, ...shared } = RUN;
+      const both = await runScreenSets(
+        screen,
+        {
+          records: { records, packageId: RUN.packageId, fileSha256: RUN.fileSha256 },
+          patches: { records: patches, packageId: RUN.packageId.replace('bills', 'fixed'), fileSha256: 'd'.repeat(64) },
+        },
+        ctx,
+        shared,
+      );
+      return { ...both.records, patches: both.patches!, pageCheck, requested };
+    }
+    const result = await runScreen(screen, records, ctx, RUN);
+    return { ...result, patches: null, pageCheck, requested };
   } finally {
     await Deno.remove(cacheDir, { recursive: true });
   }
@@ -194,4 +209,29 @@ Deno.test('a PDF that disagrees with the pack is held by the page check, and the
   assertEquals(screened.map((r) => r.source_key), [key(1)]);
   assertEquals(holds[0].reasons, ['page_count_mismatch']);
   assert(!JSON.stringify(pageCheck.stats).includes('sansad'));
+});
+
+Deno.test('a patch for a record in the pack: the original is held, the patch is screened alone, and prepareRecord takes it', async () => {
+  // The same bill, same file and same document key and role in both: if the original were offered to the whole-set
+  // checks they would collide. The original is superseded by the patch input and left out, so the patch stands.
+  const original = await bill(1);
+  const fixed = await bill(1, { title: 'The River Navigation (Amendment) Bill, 2025 (links fixed)' });
+  const other = await bill(2);
+  const rows = [deskRow(1), deskRow(2)];
+  const { screened, holds, patches: maybe } = await screenAll(
+    [original, other],
+    rows,
+    served([original, other]),
+    [fixed],
+  );
+  assertEquals(screened.map((r) => r.source_key), [key(2)]);
+  assertEquals(holds.map((h) => [h.source_key, h.reasons]), [[key(1), ['superseded_by_patch_input']]]);
+  const patches = maybe!;
+  assertEquals(patches.holds, []);
+  assertEquals(patches.screened.map((r) => r.source_key), [key(1)]);
+  const out = await prepareRecord(patches.screened[0], { maxChunks: 700, requireTextIdentity: true }, true);
+  assertEquals(out.kind, 'request', out.kind === 'hold' ? `${out.hold.reason}: ${out.hold.detail}` : '');
+  const review = patches.screened[0].review as Rec;
+  assertEquals(review.file_sha256, 'd'.repeat(64));
+  assert(String(review.package_id).includes('/documents/fixed.jsonl.gz#'));
 });
