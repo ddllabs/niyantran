@@ -143,6 +143,40 @@ S1, S2 and S3 run at the same time in their own worktrees: their files do not ov
    `['bill_identity']`, licence `gazette_s52_1_q_i_unconfirmed`, budget and chunk ceiling from the plan), then a
    100-document validation batch with automated acceptance, then batches of 1,000.
 
+### Proof result (2026-11-10, steps 1 to 3; no database writes)
+
+Screen at `1823b8cb` (records and links-fixed patches) and `e611749b` (recovered), live reads read-only on NTER
+(2,896 Bills documents, 9,817 listing rows), page check on 5,515 official PDFs. Raw output stays outside the
+repository.
+
+| Input | Read | Screened | Held by the screen | In the plan's batch | Held by the plan |
+|---|---|---|---|---|---|
+| v1.1 `bills` (after 2,895 live keys skipped) | 6,814 | 5,502 | 1,312 | 5,085 (235,419 chunks, about US$1.18) | 417 |
+| v1.2 `bills_links_fixed` (patches) | 100 | 0 | 100 | 0 | 0 |
+| v1.2 `bills_recovered` | 55 | 25 | 30 | 22 (914 chunks) | 3 |
+
+Largest hold groups, and what each needs:
+
+- `no_live_row` (660 alone): the pack's key year is the title year where the listing's is the introduction year,
+  or the reverse. 291 match a listing row of the same house by introduction year; 332 more have a row of the same house
+  and number within 3 days under another year. Recovering them needs a key rule from the listing (a decision).
+- `not_official_url` (142 alone): sansad file names hold `....` (`591LS As Int....pdf`). The live adapter refuses any
+  URL containing `..` (migration `20261107120000`, line 61), so the screen mirrors it. Recovering them needs a
+  segment-based rule in the adapter, the screen and the page check (an NTER change).
+- `text_identity_failed` (400, in the plan): the owner's bill identity rule; 384 are 1950s to 1980s scans. A sample shows
+  noisy text layers, corrigenda and other bills' texts filed under these bills on sansad.
+- Links-fixed patches: 35 of the new URLs return HTTP 500 on sansad; 27 are already live; the rest link other bills.
+- `too_long` (41) and `over_chunk_limit` (17): above the proof's 700-chunk ceiling (a policy decision).
+- Also held: `page_split` not `exact` or `none` (128), `corrigendum_unmapped` (64), links to a second bill (58),
+  a listing row of another bill under the same key (44), unavailable or unreadable PDFs (21).
+
+Spot check by hand, PDF fetched fresh: five screened records (two Houses, 1 to 40 pages, a key shared by two listing
+rows) match the listing row, the PDF's page count and its first page. Five held records (`listing_name_mismatch`,
+`link_disagrees`, `thin_page`, `unverified_empty_pages`, `too_long`) are held for the reason given.
+
+Change made during the proof (`e611749b`): a link's `bill_number` or `bill_year` that is null or absent is not compared,
+because the link's `document_key` binds both and the adapter reads neither; all 55 recovered records were held for it.
+
 ## Open points
 
 - Form feeds: `prepare.ts` may change a text's characters before storing it. S1 checks whether the stored text hash
