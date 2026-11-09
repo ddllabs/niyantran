@@ -94,6 +94,8 @@ The page check is a `Check` like any other, built by `page_check.ts`.
 | Already live (live): `source_key` or `file_url` held by a live document | dedupe | `already_live` |
 | Same text twice in the set: the lowest `source_key` stays, the rest are held | dedupe | `duplicate_text` |
 
+The adapter reads two fields at the top level that the pack keeps elsewhere (`bill_admission_key` in `20261107120000_bills_adapter.sql`): `document_key` and `document_role`. The screen's `project` step adds them to passing records only, from fields its checks verified: `document_key` from the record's agreeing links (`bill:<year>:<number>`), `document_role` from `citation.version` (one of the seven roles). It adds, never changes or removes. The listing-row check also pre-checks what `ingest_bill_rows` checks at admission (the whole name with its year removed, and the introduction date within 3 days when the record gives one), holding `listing_name_mismatch` or `listing_date_far`, so these show as screen holds instead of admission refusals that count against the refusal cap.
+
 Corrigenda (`doc_type` corrigendum) are held `corrigendum_unmapped` until a mapping file exists (the 43 of 365 without
 one; the 322 with one need that file, which is not yet located). The v1.2 `bills_links_fixed` records (100) are screened
 as patches and given to `prepare.patches` by `source_key`. The v1.2 `bills_recovered` records (55) are new records,
