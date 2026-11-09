@@ -1,0 +1,678 @@
+// Screening stage (F307, S1): turns a pack reader's records file into screened records (a top-level text_sha256 and a
+// review built only from checks that ran and passed) and a list of holds, with a receipt that proves what was screened
+// (docs/specs/2026-11-10-screening-stage.md). The checks come from a collection screen (scripts/bulk-runner/screens/).
+//
+//   deno run -A --config supabase/functions/deno.json scripts/bulk-runner/screen.ts --screen <name>
+//     --collection <collection.json> --records <reader output .jsonl> --out <dir outside the repository>
+//     [--patches <reader output .jsonl>] [--no-live] [--no-pages]
+//
+// Holds, logs and the receipt hold names, counts and hashes, never record text.
+import { createHash } from 'node:crypto';
+import { isAbsolute, join, normalize, resolve } from 'jsr:@std/path@1';
+import { checkCollection, type CollectionFile } from './cli.ts';
+import { exists, gitCommonDir, gitState, refuseInCheckout, REPO_ROOT, writeAll } from './pack.ts';
+import { psqlLiveReader } from './live.ts';
+import type { Rec } from './prepare.ts';
+import { SCREENS } from './screens/index.ts';
+import {
+  type Finding,
+  type LiveReader,
+  REVIEW_CHECKS,
+  type ReviewCheck,
+  type Screen,
+  type ScreenContext,
+} from './screen_types.ts';
+
+const USAGE = 'usage: screen.ts --screen <name> --collection <file> --records <file> --out <dir> [--patches <file>] ' +
+  '[--no-live] [--no-pages] (see the header of scripts/bulk-runner/screen.ts)';
+const HEX64 = /^[0-9a-f]{64}$/;
+const MAX_FIELD = 1_000;
+const OUT = {
+  receipt: 'screen.receipt.json',
+  screened: 'screened.jsonl',
+  patches: 'screened-patches.jsonl',
+  holds: 'holds.jsonl',
+};
+
+// ---- arguments and the collection's screen block ----
+
+export interface Command {
+  screen: string;
+  collection: string;
+  records: string;
+  out: string;
+  patches: string | null;
+  noLive: boolean;
+  noPages: boolean;
+}
+
+export function parseArgs(argv: string[]): Command {
+  const values = new Map<string, string>();
+  const switches = new Set<string>();
+  for (let i = 0; i < argv.length; i++) {
+    const k = argv[i];
+    if (k === '--no-live' || k === '--no-pages') {
+      if (switches.has(k)) throw new Error(`${k} given twice`);
+      switches.add(k);
+      continue;
+    }
+    const v = argv[i + 1];
+    if (!['--screen', '--collection', '--records', '--out', '--patches'].includes(k ?? '')) {
+      throw new Error(`unknown or malformed option ${JSON.stringify(String(k).slice(0, 40))}. ${USAGE}`);
+    }
+    if (v === undefined || v.startsWith('--')) throw new Error(`${k} needs a value. ${USAGE}`);
+    if (values.has(k)) throw new Error(`${k} given twice`);
+    values.set(k, v);
+    i++;
+  }
+  const need = (k: string) => {
+    const v = values.get(k);
+    if (!v) throw new Error(`${k} is required. ${USAGE}`);
+    return v;
+  };
+  return {
+    screen: need('--screen'),
+    collection: need('--collection'),
+    records: need('--records'),
+    out: need('--out'),
+    patches: values.get('--patches') ?? null,
+    noLive: switches.has('--no-live'),
+    noPages: switches.has('--no-pages'),
+  };
+}
+
+const isRec = (v: unknown): v is Rec => !!v && typeof v === 'object' && !Array.isArray(v);
+const text1000 = (v: unknown): v is string => typeof v === 'string' && v.trim() !== '' && v.length <= MAX_FIELD;
+
+export interface ScreenBlock {
+  decisionId: string;
+  settings: Rec;
+}
+
+/** The collection file's `screen` block: `{ decisionId, settings }`, nothing else. */
+export function checkScreenBlock(value: unknown): ScreenBlock {
+  const fail = (m: string) => {
+    throw new Error(`collection file: screen.${m}`);
+  };
+  if (!isRec(value)) throw new Error('collection file: screen block is required (an object)');
+  for (const k of Object.keys(value)) if (k !== 'decisionId' && k !== 'settings') fail(`${k} is not a known field`);
+  if (!text1000(value.decisionId)) fail('decisionId is required (a non-empty string of at most 1,000 characters)');
+  if (!isRec(value.settings)) fail('settings is required (an object)');
+  return { decisionId: value.decisionId as string, settings: value.settings as Rec };
+}
+
+// ---- the screen definition ----
+
+export function validateScreen(screen: Screen): void {
+  const fail = (m: string) => {
+    throw new Error(`invalid screen: ${m}`);
+  };
+  if (!screen || typeof screen !== 'object') fail('not an object');
+  if (!text1000(screen.collection)) fail('collection is required');
+  if (!text1000(screen.mappingVersion)) fail('mappingVersion is required (at most 1,000 characters)');
+  if (!Array.isArray(screen.rulesFiles) || screen.rulesFiles.length === 0) fail('rulesFiles is required');
+  if (!Array.isArray(screen.checks) || screen.checks.length === 0) fail('checks is required');
+  const names = new Set<string>();
+  const covered = new Set<string>();
+  for (const c of screen.checks) {
+    if (!c || typeof c.name !== 'string' || !c.name || c.name === 'screen') {
+      fail('a check needs a name other than "screen"');
+    }
+    if (names.has(c.name)) fail(`check name ${c.name} is used twice`);
+    names.add(c.name);
+    if (!Array.isArray(c.covers) || c.covers.length === 0 || c.covers.some((x) => !REVIEW_CHECKS.includes(x))) {
+      fail(`check ${c.name} must cover one or more of ${REVIEW_CHECKS.join(', ')}`);
+    }
+    for (const x of c.covers) covered.add(x);
+    if ((typeof c.one === 'function') === (typeof c.all === 'function')) {
+      fail(`check ${c.name} must implement exactly one of one and all`);
+    }
+    if (c.needs !== undefined && c.needs !== 'live' && c.needs !== 'pages') fail(`check ${c.name} has a bad needs`);
+  }
+  if (screen.project !== undefined && typeof screen.project !== 'function') fail('project must be a function');
+  const missing = REVIEW_CHECKS.filter((c) => !covered.has(c));
+  if (missing.length) fail(`no check covers ${missing.join(', ')}`);
+}
+
+/** sha256 over the bytes of the screen's rule files, in order, read from under `root`; a missing file is an error. */
+export async function rulesSha256(
+  files: string[],
+  root: string,
+  read: (path: string) => Promise<Uint8Array> = (p) => Deno.readFile(p),
+): Promise<string> {
+  const hash = createHash('sha256');
+  for (const f of files) {
+    const rel = normalize(f);
+    if (!f || isAbsolute(f) || rel === '..' || rel.startsWith('../')) {
+      throw new Error(`rules file ${f} is not a path inside the repository`);
+    }
+    let bytes: Uint8Array;
+    try {
+      bytes = await read(resolve(root, rel));
+    } catch {
+      throw new Error(`rules file ${f} cannot be read`);
+    }
+    hash.update(bytes);
+  }
+  return hash.digest('hex');
+}
+
+// ---- running the checks ----
+
+export interface RunOptions {
+  /** review.package_id, review.file_sha256, review.decision_id and review.rules_sha256 for every record screened. */
+  packageId: string;
+  fileSha256: string;
+  decisionId: string;
+  rulesSha256: string;
+  noLive: boolean;
+  noPages: boolean;
+}
+
+export interface ScreenHold {
+  source_key: string | null;
+  reasons: string[];
+  findings: Finding[];
+}
+
+export interface ScreenResult {
+  screened: Rec[];
+  holds: ScreenHold[];
+}
+
+const sha256 = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');
+/** Only the error's class: a message could quote the record. */
+const errorName = (e: unknown) => (e instanceof Error ? e.name : typeof e);
+const own = (check: string, covers: ReviewCheck[], reason: string, detail?: string): Finding => ({
+  check,
+  covers,
+  reason,
+  ...(detail ? { detail } : {}),
+});
+
+const deepEqual = (a: unknown, b: unknown): boolean => {
+  if (a === b) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x, i) => deepEqual(x, b[i]));
+  }
+  if (isRec(a) && isRec(b)) {
+    const ka = Object.keys(a);
+    return ka.length === Object.keys(b).length && ka.every((k) => Object.hasOwn(b, k) && deepEqual(a[k], b[k]));
+  }
+  return false;
+};
+
+/**
+ * The screen's projection of a passing record: fields added, none changed or removed (checked against a copy taken
+ * before the call, so a projection that edits its argument is caught), and none of the two fields the screen sets.
+ */
+function applyProject(screen: Screen, rec: Rec): { record: Rec } | { error: string } {
+  const before = structuredClone(rec);
+  let out: unknown;
+  try {
+    out = screen.project!(rec);
+  } catch (e) {
+    return { error: errorName(e) };
+  }
+  if (!isRec(out)) return { error: 'project did not return an object' };
+  for (const k of Object.keys(before)) {
+    if (!Object.hasOwn(out, k)) return { error: `project removed ${k}` };
+    if (!deepEqual(before[k], out[k])) return { error: `project changed ${k}` };
+  }
+  if (Object.hasOwn(out, 'review') || Object.hasOwn(out, 'text_sha256')) {
+    // `before` never has these (a record that carried them was held), so they would be added by the projection.
+    return { error: 'project set review or text_sha256' };
+  }
+  return { record: out };
+}
+
+/**
+ * Runs every check on every record. A record passes only when nothing was found and every check that covers each of
+ * the five review checks ran for it; only then is a review built, from those results. A check that throws, or returns
+ * something that is not a list of findings, is a finding (`check_error`), never a pass.
+ */
+export async function runScreen(
+  screen: Screen,
+  records: Rec[],
+  ctx: ScreenContext,
+  opts: RunOptions,
+): Promise<ScreenResult> {
+  validateScreen(screen);
+  if (!text1000(opts.packageId) || !text1000(opts.decisionId)) throw new Error('packageId and decisionId are required');
+  if (!HEX64.test(opts.fileSha256) || !HEX64.test(opts.rulesSha256)) {
+    throw new Error('fileSha256 and rulesSha256 must be sha256 hex');
+  }
+  const n = records.length;
+  const found: Finding[][] = records.map(() => []);
+  const clean: Array<Set<string>> = records.map(() => new Set());
+
+  // The record itself: an object with a key, a well-formed text, hashes that agree, and no review of its own.
+  const keyCount = new Map<string, number>();
+  for (const r of records) {
+    if (isRec(r) && typeof r.source_key === 'string' && r.source_key) {
+      keyCount.set(r.source_key, (keyCount.get(r.source_key) ?? 0) + 1);
+    }
+  }
+  const hashes: Array<string | null> = records.map(() => null);
+  records.forEach((r, i) => {
+    if (!isRec(r)) {
+      found[i].push(own('screen', [...REVIEW_CHECKS], 'not_an_object'));
+      return;
+    }
+    if (typeof r.source_key !== 'string' || !r.source_key) {
+      found[i].push(own('screen', ['identity'], 'no_source_key'));
+    } else if ((keyCount.get(r.source_key) ?? 0) > 1) {
+      found[i].push(own('screen', ['identity'], 'duplicate_source_key'));
+    }
+    if (typeof r.text !== 'string' || r.text === '') {
+      found[i].push(own('screen', ['completeness'], 'no_text'));
+    } else if (!r.text.isWellFormed()) {
+      found[i].push(own('screen', ['completeness'], 'text_not_well_formed'));
+    } else {
+      hashes[i] = sha256(r.text);
+      if (r.content_sha256 !== undefined && r.content_sha256 !== hashes[i]) {
+        found[i].push(own('screen', ['completeness'], 'content_sha256_mismatch'));
+      }
+      if (r.text_sha256 !== undefined && r.text_sha256 !== hashes[i]) {
+        found[i].push(own('screen', ['completeness'], 'text_sha256_mismatch'));
+      }
+    }
+    if (r.review !== undefined) found[i].push(own('screen', [...REVIEW_CHECKS], 'record_has_review'));
+    if (found[i].length === 0) clean[i].add('screen');
+  });
+
+  // Switched-off checks: the run is incomplete, so nothing is screened.
+  const skipped = (c: Screen['checks'][number]) =>
+    (c.needs === 'live' && opts.noLive) || (c.needs === 'pages' && opts.noPages);
+  records.forEach((_, i) => {
+    if (opts.noLive) {
+      found[i].push(own('screen', [...REVIEW_CHECKS], 'screen_incomplete', 'live reads were switched off'));
+    }
+    if (opts.noPages) {
+      found[i].push(own('screen', [...REVIEW_CHECKS], 'screen_incomplete', 'the page check was switched off'));
+    }
+  });
+
+  const valid = records.map((r) => isRec(r));
+  const objects = records.filter((_r, i) => valid[i]);
+  const add = (i: number, c: Screen['checks'][number], out: unknown) => {
+    if (!Array.isArray(out) || out.some((f) => !isRec(f) || typeof f.reason !== 'string' || !f.reason)) {
+      found[i].push(
+        own(c.name, c.covers, 'check_error', 'the check returned something that is not a list of findings'),
+      );
+      return;
+    }
+    if (out.length === 0) clean[i].add(c.name);
+    for (const f of out as Finding[]) {
+      found[i].push({
+        check: c.name,
+        covers: c.covers,
+        reason: f.reason,
+        ...(typeof f.detail === 'string' && f.detail ? { detail: f.detail } : {}),
+      });
+    }
+  };
+  for (const c of screen.checks) {
+    if (skipped(c)) continue;
+    if (c.one) {
+      for (let i = 0; i < n; i++) {
+        if (!valid[i]) continue;
+        try {
+          add(i, c, await c.one(records[i], ctx));
+        } catch (e) {
+          found[i].push(own(c.name, c.covers, 'check_error', errorName(e)));
+        }
+      }
+    } else {
+      let map: Map<string, Finding[]> | null = null;
+      try {
+        map = await c.all!(objects, ctx);
+        if (!(map instanceof Map)) throw new TypeError('not a map');
+      } catch (e) {
+        for (let i = 0; i < n; i++) if (valid[i]) found[i].push(own(c.name, c.covers, 'check_error', errorName(e)));
+        continue;
+      }
+      const known = new Set(objects.map((r) => r.source_key));
+      for (const k of map.keys()) {
+        if (!known.has(k)) throw new Error(`check ${c.name} returned findings for a source_key that is not in the set`);
+      }
+      for (let i = 0; i < n; i++) {
+        if (!valid[i]) continue;
+        const k = records[i].source_key;
+        add(i, c, typeof k === 'string' && map.has(k) ? map.get(k) : []);
+      }
+    }
+  }
+
+  const screened: Rec[] = [];
+  const holds: ScreenHold[] = [];
+  records.forEach((r, i) => {
+    const checks = Object.fromEntries(
+      REVIEW_CHECKS.map((rc) => [
+        rc,
+        found[i].length === 0 && clean[i].has('screen') &&
+        screen.checks.filter((c) => c.covers.includes(rc)).every((c) => clean[i].has(c.name)),
+      ]),
+    ) as Record<ReviewCheck, boolean>;
+    let rec = r as Rec;
+    if (found[i].length === 0 && REVIEW_CHECKS.every((rc) => checks[rc]) && screen.project) {
+      const done = applyProject(screen, rec);
+      if ('record' in done) rec = done.record;
+      else found[i].push(own('project', ['identity'], 'project_failed', done.error));
+    }
+    if (found[i].length === 0 && REVIEW_CHECKS.every((rc) => checks[rc])) {
+      screened.push({
+        ...rec,
+        text_sha256: hashes[i],
+        review: {
+          status: 'eligible',
+          text_sha256: hashes[i],
+          source_key: rec.source_key,
+          rules_sha256: opts.rulesSha256,
+          package_id: opts.packageId,
+          mapping_version: screen.mappingVersion,
+          decision_id: opts.decisionId,
+          file_sha256: opts.fileSha256,
+          checks,
+        },
+      });
+    } else {
+      holds.push({
+        source_key: isRec(r) && typeof r.source_key === 'string' ? r.source_key : null,
+        reasons: [...new Set(found[i].map((f) => f.reason))],
+        findings: found[i],
+      });
+    }
+  });
+  return { screened, holds };
+}
+
+// ---- reading the reader's output ----
+
+export interface Input {
+  records: Rec[];
+  sha256: string;
+  receiptSha256: string;
+  packageId: string;
+  lines: number;
+}
+
+/** Streams a JSON-lines file once, hashing the bytes and parsing each line; never holds the file as one string. */
+async function* jsonLines(path: string, hash: ReturnType<typeof createHash>): AsyncGenerator<Rec> {
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  const file = await Deno.open(path, { read: true });
+  let pending = '';
+  let line = 0;
+  const parse = (s: string): Rec => {
+    line++;
+    let v: unknown;
+    try {
+      v = JSON.parse(s);
+    } catch {
+      throw new Error(`line ${line}: not JSON`);
+    }
+    if (!isRec(v)) throw new Error(`line ${line}: not a JSON object`);
+    return v;
+  };
+  try {
+    for await (const chunk of file.readable) {
+      hash.update(chunk);
+      pending += decoder.decode(chunk, { stream: true });
+      let at = pending.indexOf('\n');
+      while (at >= 0) {
+        yield parse(pending.slice(0, at));
+        pending = pending.slice(at + 1);
+        at = pending.indexOf('\n');
+      }
+    }
+    pending += decoder.decode();
+  } catch (e) {
+    if (e instanceof TypeError) throw new Error('the file is not valid UTF-8');
+    throw e;
+  }
+  if (pending !== '') yield parse(pending);
+}
+
+/** The records file, checked against the reader's receipt: its hash and its line count must be the receipt's. */
+export async function readInput(path: string, label: string): Promise<Input> {
+  const receiptPath = `${path}.receipt.json`;
+  let receiptBytes: Uint8Array;
+  try {
+    receiptBytes = await Deno.readFile(receiptPath);
+  } catch {
+    throw new Error(`${label}: ${receiptPath} is missing; the screen reads only the reader's output with its receipt`);
+  }
+  let receipt: unknown;
+  try {
+    receipt = JSON.parse(new TextDecoder().decode(receiptBytes));
+  } catch {
+    throw new Error(`${label}: the receipt is not valid JSON`);
+  }
+  if (!isRec(receipt)) throw new Error(`${label}: the receipt is not an object`);
+  if (!HEX64.test(String(receipt.output_sha256))) throw new Error(`${label}: the receipt has no output_sha256`);
+  if (!HEX64.test(String(receipt.manifest_sha256)) || !text1000(receipt.pack) || !text1000(receipt.entry)) {
+    throw new Error(`${label}: the receipt lacks pack, entry or manifest_sha256`);
+  }
+  if (!Number.isInteger(receipt.lines_written) || (receipt.lines_written as number) < 1) {
+    throw new Error(`${label}: the receipt says no lines were written (an empty run)`);
+  }
+  const packageId = `${receipt.pack}/${receipt.entry}#${receipt.manifest_sha256}`;
+  if (packageId.length > MAX_FIELD) throw new Error(`${label}: the package id is longer than ${MAX_FIELD} characters`);
+  const hash = createHash('sha256');
+  const records: Rec[] = [];
+  try {
+    for await (const r of jsonLines(path, hash)) records.push(r);
+  } catch (e) {
+    throw new Error(`${label}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  const actual = hash.digest('hex');
+  if (actual !== receipt.output_sha256) {
+    throw new Error(`${label}: the file's sha256 is not the receipt's output_sha256; it is not the reader's output`);
+  }
+  if (records.length !== receipt.lines_written) {
+    throw new Error(`${label}: ${records.length} records, the receipt says ${receipt.lines_written}`);
+  }
+  return {
+    records,
+    sha256: actual,
+    receiptSha256: createHash('sha256').update(receiptBytes).digest('hex'),
+    packageId,
+    lines: records.length,
+  };
+}
+
+// ---- the command ----
+
+export interface ScreenDeps {
+  screens: Record<string, () => Promise<Screen>>;
+  /** The read-only NTER reader for this libpq service. */
+  live: (service: string) => LiveReader;
+  git: () => Promise<{ commit: string; dirty: boolean }>;
+  repoRoot: string;
+  commonDir?: () => Promise<string | null>;
+  /** Reads a rule file (default: from disk). A seam for tests. */
+  readRules?: (path: string) => Promise<Uint8Array>;
+  /** Creates a hard link, failing if the target exists (default `Deno.link`). A seam so tests can fail a step. */
+  link?: (from: string, to: string) => Promise<void>;
+  log: (line: string) => void;
+  now: () => number;
+}
+
+const LIVE_SERVICE = 'nter-accept';
+const switchedOff: LiveReader = {
+  documents: () => Promise.reject(new Error('live reads are switched off (--no-live)')),
+  deskRows: () => Promise.reject(new Error('live reads are switched off (--no-live)')),
+};
+
+const countBy = (holds: ScreenHold[]) => {
+  const out: Record<string, number> = {};
+  for (const h of holds) for (const r of h.reasons) out[r] = (out[r] ?? 0) + 1;
+  return out;
+};
+
+interface Written {
+  path: string;
+  sha256: string;
+  bytes: number;
+  lines: number;
+}
+
+async function writeLines(path: string, lines: Iterable<string>): Promise<Written> {
+  const file = await Deno.open(path, { write: true, createNew: true });
+  const hash = createHash('sha256');
+  const enc = new TextEncoder();
+  let bytes = 0;
+  let count = 0;
+  try {
+    for (const l of lines) {
+      const b = enc.encode(l + '\n');
+      hash.update(b);
+      bytes += b.length;
+      count++;
+      await writeAll(file, b);
+    }
+  } finally {
+    file.close();
+  }
+  return { path, sha256: hash.digest('hex'), bytes, lines: count };
+}
+
+export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
+  const c = parseArgs(argv);
+  const startedAt = new Date(deps.now()).toISOString();
+  const coll: CollectionFile & { screen?: unknown } = checkCollection(
+    JSON.parse(await Deno.readTextFile(c.collection)),
+  );
+  const block = checkScreenBlock((coll as { screen?: unknown }).screen);
+  if (!Object.hasOwn(deps.screens, c.screen)) {
+    throw new Error(
+      `unknown screen ${JSON.stringify(c.screen.slice(0, 60))}; known: ${
+        Object.keys(deps.screens).join(', ') || '(none)'
+      }`,
+    );
+  }
+  const screen = await deps.screens[c.screen]();
+  validateScreen(screen);
+  if (screen.collection !== coll.collection) {
+    throw new Error(`the screen is for ${screen.collection}, the collection file is ${coll.collection}`);
+  }
+  const outDir = await refuseInCheckout(c.out, '--out', deps);
+  for (const name of Object.values(OUT)) {
+    if (await exists(join(outDir, name))) throw new Error(`${join(outDir, name)} already exists; choose a new --out`);
+  }
+  const rules = await rulesSha256(screen.rulesFiles, deps.repoRoot, deps.readRules);
+  const { commit, dirty } = await deps.git();
+
+  const inputs = { records: await readInput(c.records, 'records') };
+  const patchInput = c.patches ? await readInput(c.patches, 'patches') : null;
+  deps.log(`read ${inputs.records.lines} records${patchInput ? ` and ${patchInput.lines} patches` : ''}`);
+
+  const ctx: ScreenContext = { live: c.noLive ? switchedOff : deps.live(LIVE_SERVICE), settings: block.settings };
+  const run = (input: Input) =>
+    runScreen(screen, input.records, ctx, {
+      packageId: input.packageId,
+      fileSha256: input.sha256,
+      decisionId: block.decisionId,
+      rulesSha256: rules,
+      noLive: c.noLive,
+      noPages: c.noPages,
+    });
+  const first = await run(inputs.records);
+  const patches = patchInput ? await run(patchInput) : null;
+
+  // Publication: outputs to temporary files, then the receipt, then each output, all created exclusively by hard link.
+  // The receipt goes first: a stop between steps leaves an orphan receipt, never an output without one.
+  const tag = crypto.randomUUID().slice(0, 8);
+  const tmp = (name: string) => join(outDir, `${name}.part-${tag}`);
+  const link = deps.link ?? ((from: string, to: string) => Deno.link(from, to));
+  const temps: string[] = [];
+  const created: string[] = [];
+  try {
+    await Deno.mkdir(outDir, { recursive: true });
+    const held = (set: 'records' | 'patches', h: ScreenHold[]) =>
+      h.map((x) => JSON.stringify({ source_key: x.source_key, set, reasons: x.reasons, findings: x.findings }));
+    const plan: Array<{ name: string; lines: string[] }> = [
+      { name: OUT.screened, lines: first.screened.map((r) => JSON.stringify(r)) },
+      ...(patches ? [{ name: OUT.patches, lines: patches.screened.map((r) => JSON.stringify(r)) }] : []),
+      { name: OUT.holds, lines: [...held('records', first.holds), ...(patches ? held('patches', patches.holds) : [])] },
+    ];
+    const written = new Map<string, Written>();
+    for (const p of plan) {
+      temps.push(tmp(p.name));
+      written.set(p.name, await writeLines(tmp(p.name), p.lines));
+    }
+    const out = (name: string) => {
+      const w = written.get(name);
+      return w ? { sha256: w.sha256, bytes: w.bytes, lines: w.lines } : null;
+    };
+    const part = (input: Input, r: ScreenResult) => ({
+      receipt_sha256: input.receiptSha256,
+      output_sha256: input.sha256,
+      package_id: input.packageId,
+      records_in: input.lines,
+      records_out: r.screened.length,
+      held: r.holds.length,
+      held_by_reason: countBy(r.holds),
+    });
+    const hasNeeds = (n: 'live' | 'pages') => screen.checks.some((x) => x.needs === n);
+    const receipt = {
+      collection: coll.collection,
+      screen: c.screen,
+      mapping_version: screen.mappingVersion,
+      decision_id: block.decisionId,
+      rules_sha256: rules,
+      rules_files: screen.rulesFiles,
+      records: part(inputs.records, first),
+      patches: patchInput && patches ? part(patchInput, patches) : null,
+      live_reads_ran: !c.noLive && hasNeeds('live'),
+      page_check_ran: !c.noPages && hasNeeds('pages'),
+      complete: !c.noLive && !c.noPages,
+      outputs: {
+        screened: out(OUT.screened),
+        screened_patches: out(OUT.patches),
+        holds: out(OUT.holds),
+      },
+      screen_commit: commit,
+      screen_dirty: dirty,
+      started_at: startedAt,
+      finished_at: new Date(deps.now()).toISOString(),
+    };
+    temps.push(tmp(OUT.receipt));
+    await Deno.writeTextFile(tmp(OUT.receipt), JSON.stringify(receipt, null, 2) + '\n', { createNew: true });
+    for (const name of [OUT.receipt, ...plan.map((p) => p.name)]) {
+      await link(tmp(name), join(outDir, name));
+      created.push(join(outDir, name));
+      await Deno.remove(tmp(name));
+    }
+    deps.log(
+      `records ${inputs.records.lines}: screened ${first.screened.length}, held ${first.holds.length}` +
+        (patches
+          ? `; patches ${patchInput!.lines}: screened ${patches.screened.length}, held ${patches.holds.length}`
+          : ''),
+    );
+    deps.log(`wrote ${created.join(', ')}`);
+    return 0;
+  } catch (e) {
+    for (const p of [...temps, ...created]) await Deno.remove(p).catch(() => {});
+    throw e;
+  }
+}
+
+if (import.meta.main) {
+  try {
+    Deno.exit(
+      await main(Deno.args, {
+        screens: SCREENS,
+        live: (service) => psqlLiveReader(service),
+        git: gitState,
+        repoRoot: REPO_ROOT,
+        commonDir: gitCommonDir,
+        log: (l) => console.log(l),
+        now: () => Date.now(),
+      }),
+    );
+  } catch (e) {
+    console.error(`error: ${e instanceof Error ? e.message : String(e)}`);
+    Deno.exit(1);
+  }
+}

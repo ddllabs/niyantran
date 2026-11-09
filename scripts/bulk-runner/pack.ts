@@ -21,6 +21,7 @@ const SUBFOLDER = 'file to ingest';
 const ZIP_NAME = /^NTER_citation_pack_.*\.zip$/;
 const SCHEMA_PREFIX = 'nter.citation_pack/1.';
 const SAFE_SEGMENT = /^[A-Za-z0-9._ -]+$/;
+const MANIFEST_NAMES = ['manifest.json', 'manifest_delta.json'];
 const MAX_MANIFEST_BYTES = 64 * 1024 * 1024;
 
 export type Command =
@@ -149,7 +150,11 @@ const within = (root: string, target: string) => {
  * git common directory, which differs when running from a worktree), or any directory with a `.git` entry among its
  * ancestors. Symlinks are resolved first; a path that does not exist yet is judged by its nearest existing ancestor.
  */
-async function refuseInCheckout(path: string, what: string, deps: PackDeps): Promise<string> {
+export async function refuseInCheckout(
+  path: string,
+  what: string,
+  deps: Pick<PackDeps, 'repoRoot' | 'commonDir'>,
+): Promise<string> {
   const target = await realish(path);
   const roots = [await realish(deps.repoRoot)];
   const common = deps.commonDir ? await deps.commonDir() : null;
@@ -169,7 +174,7 @@ async function refuseInCheckout(path: string, what: string, deps: PackDeps): Pro
   return resolve(path);
 }
 
-const exists = (p: string) => Deno.lstat(p).then(() => true, () => false);
+export const exists = (p: string) => Deno.lstat(p).then(() => true, () => false);
 
 // ---- pack on Drive ----
 
@@ -212,9 +217,15 @@ async function openPack(drive: DriveClient, pack: string): Promise<OpenPack> {
   if (zip.size === undefined || !Number.isSafeInteger(zip.size)) throw new Error(`Drive gave no size for ${zip.name}`);
   const read: ReadRange = (s, e) => drive.readRange(zip.id, s, e);
   const entries = await readDirectory(zip.size, read);
-  const m = entries.find((e) => e.name === `${PREFIX}manifest.json`);
-  if (!m) throw new Error(`${zip.name} has no ${PREFIX}manifest.json`);
-  if (m.size > MAX_MANIFEST_BYTES) throw new Error('manifest.json is implausibly large');
+  // v1.1 to v1.6 carry manifest.json; the v1.2 delta carries manifest_delta.json (same files table). Exactly one.
+  const found = MANIFEST_NAMES.map((n) => entries.find((e) => e.name === PREFIX + n)).filter((e) => e !== undefined);
+  if (found.length !== 1) {
+    throw new Error(
+      `${zip.name} must hold exactly one of ${MANIFEST_NAMES.join(', ')} under ${PREFIX}, not ${found.length}`,
+    );
+  }
+  const m = found[0];
+  if (m.size > MAX_MANIFEST_BYTES) throw new Error('the manifest is implausibly large');
   let manifest: Manifest;
   const manifestBytes = await collect(entryStream(m, read));
   try {
@@ -240,7 +251,7 @@ async function openPack(drive: DriveClient, pack: string): Promise<OpenPack> {
 
 // ---- files: writing and hashing without holding whole entries ----
 
-async function writeAll(file: Deno.FsFile, chunk: Uint8Array): Promise<void> {
+export async function writeAll(file: Deno.FsFile, chunk: Uint8Array): Promise<void> {
   for (let o = 0; o < chunk.length;) o += await file.write(chunk.subarray(o));
 }
 
@@ -520,7 +531,7 @@ export function main(argv: string[], deps: PackDeps): Promise<number> {
   return c.cmd === 'list' ? list(c, deps) : select(c, deps);
 }
 
-async function gitState(): Promise<{ commit: string; dirty: boolean }> {
+export async function gitState(): Promise<{ commit: string; dirty: boolean }> {
   const git = async (...args: string[]) => {
     const out = await new Deno.Command('git', { args: ['-C', REPO_ROOT, ...args], stdout: 'piped' }).output();
     if (out.code !== 0) throw new Error(`git ${args[0]} failed`);
@@ -533,7 +544,7 @@ async function gitState(): Promise<{ commit: string; dirty: boolean }> {
 }
 
 /** The main checkout's `.git` as an absolute path, or null when git cannot say. */
-async function gitCommonDir(): Promise<string | null> {
+export async function gitCommonDir(): Promise<string | null> {
   const out = await new Deno.Command('git', {
     args: ['-C', REPO_ROOT, 'rev-parse', '--path-format=absolute', '--git-common-dir'],
     stdout: 'piped',
