@@ -172,8 +172,9 @@ const linksAgree = oneCheck('links_agree', ['identity'], (r) => {
       if (!str(c.version) || l.role !== c.version) bad.push('role');
       if (key === null || l.document_key !== key) bad.push('document_key');
       if (!str(c.house) || l.house !== c.house) bad.push('house');
-      if (n === null || scalar(l.bill_number) !== n) bad.push('bill_number');
-      if (y === null || scalar(l.bill_year) !== y) bad.push('bill_year');
+      // An absent link number or year is not compared: the document_key above binds both (v1.2 links omit them).
+      if (n === null || (l.bill_number != null && scalar(l.bill_number) !== n)) bad.push('bill_number');
+      if (y === null || (l.bill_year != null && scalar(l.bill_year) !== y)) bad.push('bill_year');
     }
     if (bad.length) out.push(['link_disagrees', `link ${i}: ${bad.join(',')}`]);
   });

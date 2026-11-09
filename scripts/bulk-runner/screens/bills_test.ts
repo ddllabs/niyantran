@@ -365,6 +365,16 @@ Deno.test('links agree: none, wrong tier, feature, key, house, number, year, and
     assertEquals(f.map((x) => x.reason), ['link_disagrees'], field);
     assert(f[0].detail?.includes(field), `${field}: ${f[0].detail}`);
   }
+  // v1.2 recovered Bills links carry bill_number and bill_year null: the document_key (checked above) already binds
+  // both, and the adapter reads neither, so an absent one is not compared; a present one must still agree.
+  for (const over of [{ bill_number: null }, { bill_year: null }, { bill_number: undefined, bill_year: undefined }]) {
+    const f = await checkNamed('links_agree').one!(withLink(await bill(1), over), ctxOf());
+    assertEquals(f, [], JSON.stringify(over));
+  }
+  for (const [field, over] of [['bill_number', { bill_number: '' }], ['bill_year', { bill_year: {} }]] as const) {
+    const f = await checkNamed('links_agree').one!(withLink(await bill(1), over), ctxOf());
+    assertEquals(f.map((x) => x.reason), ['link_disagrees'], field);
+  }
   const f = await checkNamed('links_agree').one!(await bill(1, { links: [null] }), ctxOf());
   assertEquals(f.map((x) => x.reason), ['link_disagrees']);
   // One good link and one bad link: the bad one is found.
