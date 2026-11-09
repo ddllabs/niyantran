@@ -78,7 +78,7 @@ const message = (e: unknown) => e instanceof Error ? e.message : String(e);
  * Removes control codes from the text, turning layout breaks into line breaks, and moves every code-point span to where
  * its words now are. `removed` counts both kinds of change.
  */
-function strip(record: Rec, text: string): { record: Rec; removed: number } {
+export function strip(record: Rec, text: string): { record: Rec; removed: number } {
   const cps = [...text];
   const at: number[] = new Array(cps.length + 1);
   const kept: string[] = [];
