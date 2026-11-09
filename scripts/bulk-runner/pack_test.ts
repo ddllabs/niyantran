@@ -17,7 +17,12 @@ interface PackFile {
   manifestBytes?: number; // override of the manifest's byte count
   notInZip?: boolean; // listed in the manifest, absent from the zip
 }
-async function makePack(files: PackFile[], opt: ZipOptions = {}) {
+/** `manifests`: which manifest files the zip holds (default the v1.1 name only). */
+async function makePack(
+  files: PackFile[],
+  opt: ZipOptions = {},
+  manifests: string[] = ['manifest.json'],
+) {
   const manifest = enc.encode(JSON.stringify({
     pack: 'test',
     built: '2026-01-01',
@@ -30,7 +35,7 @@ async function makePack(files: PackFile[], opt: ZipOptions = {}) {
     ),
   }));
   const specs: Spec[] = [
-    { name: `${P}manifest.json`, data: manifest, method: 8 },
+    ...manifests.map((m) => ({ name: P + m, data: manifest, method: 8 as const })),
     { name: `${P}README.md`, data: enc.encode('readme'), method: 8 },
     ...files.filter((f) => !f.notInZip).map((f) => ({ name: P + f.name, data: f.data, method: f.method ?? 0 })),
   ];
@@ -398,6 +403,35 @@ areaTest('select: a cached file that no longer matches the manifest is fetched a
   await main(sel(a, ENTRY, '--cache', cache), depsFor(a, fakeDrive(zip).client).deps);
   assertEquals(await Deno.readFile(join(cache, ENTRY)), data);
   assertEquals(await exists(join(a.work, 'out.jsonl')), true);
+});
+
+// ---- select: which manifest ----
+areaTest(
+  'select: a pack with manifest_delta.json and no manifest.json is read through the delta manifest',
+  async (a) => {
+    const data = await gzip(LINES.join(NL) + NL);
+    const { zip, manifest } = await makePack([{ name: ENTRY, data }], {}, ['manifest_delta.json']);
+    const { deps } = depsFor(a, fakeDrive(zip).client);
+    assertEquals(await main(sel(a, ENTRY), deps), 0);
+    const r = await receiptOf(a);
+    assertEquals(r.manifest_sha256, await hex(data));
+    assertEquals(r.manifest_json_sha256, await hex(manifest));
+  },
+);
+
+areaTest('select: a pack holding both manifest.json and manifest_delta.json is refused', async (a) => {
+  const { zip } = await makePack([{ name: ENTRY, data: await gzip(rec('k1') + NL) }], {}, [
+    'manifest.json',
+    'manifest_delta.json',
+  ]);
+  await assertRejects(() => main(sel(a, ENTRY), depsFor(a, fakeDrive(zip).client).deps), Error, 'exactly one');
+  assertEquals(await listing(a.work), []);
+});
+
+areaTest('select: a pack holding neither manifest is refused', async (a) => {
+  const { zip } = await makePack([{ name: ENTRY, data: await gzip(rec('k1') + NL) }], {}, []);
+  await assertRejects(() => main(sel(a, ENTRY), depsFor(a, fakeDrive(zip).client).deps), Error, 'exactly one');
+  assertEquals(await listing(a.work), []);
 });
 
 // ---- select: refusals leave no output ----
