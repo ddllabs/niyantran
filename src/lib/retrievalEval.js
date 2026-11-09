@@ -415,6 +415,19 @@ export function replicaCallSql(fn, params, { limited = false } = {}) {
   return limited ? `set statement_timeout = '${CALL_LIMIT}';\nselect coalesce(json_agg(t), '[]'::json) from (${call}) t;` : call;
 }
 
+/**
+ * A read against NTER for the T8 measurement (docs/plans/2026-11-04-hybrid-and-contextual-retrieval.md): the body runs
+ * inside a read-only transaction that is always rolled back, as `authenticated` under row access unless the caller asks
+ * for the login itself (for totals). A body that would end the transaction itself is refused, so nothing it holds can
+ * run outside the read-only transaction.
+ */
+export function nterReadSql(body, { asUser = true } = {}) {
+  if (/\b(commit|rollback|end|abort)\b\s*;?/i.test(String(body).replace(/'(?:[^']|'')*'/g, "''"))) {
+    throw new Error('the body may not end the read-only transaction');
+  }
+  return ['begin transaction read only;', ...(asUser ? ['set local role authenticated;'] : []), body, 'rollback;'].join('\n');
+}
+
 /** Whether a failed call is the statement timeout: production would have returned an error to the user. */
 export const isCallTimeout = (err) => err instanceof Error && /canceling statement due to statement timeout/.test(err.message);
 
