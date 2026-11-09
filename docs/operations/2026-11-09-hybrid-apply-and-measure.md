@@ -131,6 +131,10 @@ delete from supabase_migrations.schema_migrations where version = '2026110212000
 
 ## Decisions for the developer
 
+**Decided 2026-11-09:** both as recommended. Apply and measure now, before the bulk load; privacy on NTER rests on the
+fixture and the policy match. The apply itself still waits for the preconditions below to be checked in the window.
+
+
 1. **When to apply.** Before the bulk load, the index is updated for every new chunk (the disk plan estimates a third or
    more extra WAL for the load); after it, hybrid waits and the index builds once on the larger corpus
    ([disk plan](2026-11-06-nter-disk-plan.md), option F). **Recommended: apply and measure now**, since the numbers
