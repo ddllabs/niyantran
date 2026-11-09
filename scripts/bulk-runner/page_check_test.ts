@@ -534,6 +534,15 @@ Deno.test('the cache directory is refused inside this checkout, the main checkou
   assertEquals(n.calls.length, 0, 'refused before any request');
 });
 
+Deno.test("the cache guard is pack.ts's refuseInCheckout, not a copy of it", async () => {
+  const src = await Deno.readTextFile(join(REPO, 'scripts/bulk-runner/page_check.ts'));
+  assert(!/function\s+refuseInCheckout/.test(src), 'page_check.ts defines its own refuseInCheckout');
+  assert(
+    /import[^;]*refuseInCheckout[^;]*from\s+'\.\/pack\.ts'/.test(src),
+    'page_check.ts must import it from pack.ts',
+  );
+});
+
 Deno.test('the default cache is ~/niyantran-pdf-cache under the given home', async () => {
   const home = await tmpCache();
   const n = net({ [url(1)]: fakePdf(['a']) });

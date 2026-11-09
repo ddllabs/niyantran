@@ -9,7 +9,8 @@
 // offline. Findings hold reasons, counts and page numbers only: never record text, PDF text or the URL.
 
 import { createHash } from 'node:crypto';
-import { basename, dirname, fromFileUrl, isAbsolute, join, relative, resolve, SEPARATOR } from 'jsr:@std/path@1';
+import { dirname, fromFileUrl, join, resolve } from 'jsr:@std/path@1';
+import { refuseInCheckout } from './pack.ts';
 import type { Rec } from './prepare.ts';
 import type { Check, Finding } from './screen_types.ts';
 
@@ -116,53 +117,7 @@ export function robotsAllows(robotsText: string, pathAndQuery: string): boolean 
   return best ? best.allow : true;
 }
 
-// ---- the cache directory: outside every checkout of this repository ----
-// pack.ts's guard (refuseInCheckout) is not exported, so its rule is copied here: the same three tests.
-
-async function realish(p: string): Promise<string> {
-  let cur = resolve(p);
-  const rest: string[] = [];
-  for (;;) {
-    try {
-      return join(await Deno.realPath(cur), ...rest.reverse());
-    } catch (e) {
-      if (!(e instanceof Deno.errors.NotFound)) throw e;
-      const parent = dirname(cur);
-      if (parent === cur) return resolve(p);
-      rest.push(basename(cur));
-      cur = parent;
-    }
-  }
-}
-
-const within = (root: string, target: string) => {
-  const rel = relative(root, target);
-  return rel === '' || (rel !== '..' && !rel.startsWith(`..${SEPARATOR}`) && !isAbsolute(rel));
-};
-
-const exists = (p: string) => Deno.lstat(p).then(() => true, () => false);
-
-/**
- * Refuses a cache directory inside any checkout of this repository: this module's own root, the main checkout (the
- * parent of the git common directory), or any directory with a `.git` entry among its ancestors. Symlinks are resolved
- * first; a path that does not exist yet is judged by its nearest existing ancestor.
- */
-async function refuseInCheckout(path: string, repoRoot: string, commonDir: string | null): Promise<string> {
-  const target = await realish(path);
-  const roots = [await realish(repoRoot)];
-  if (commonDir) roots.push(await realish(dirname(commonDir)));
-  const fail = (why: string) => {
-    throw new Error(`the PDF cache must be outside the repository and every checkout of it, not ${path} (${why})`);
-  };
-  if (roots.some((r) => within(r, target))) fail('inside a checkout of this repository');
-  for (let cur = target;;) {
-    if (await exists(join(cur, '.git'))) fail(`${cur} holds a .git entry`);
-    const parent = dirname(cur);
-    if (parent === cur) break;
-    cur = parent;
-  }
-  return resolve(path);
-}
+// ---- the cache directory: outside every checkout of this repository (pack.ts's refuseInCheckout) ----
 
 async function gitCommonDir(repoRoot: string): Promise<string | null> {
   try {
@@ -504,7 +459,10 @@ export function makePageCheck(deps: PageCheckDeps): PageCheck {
         dir = join(home, 'niyantran-pdf-cache');
       }
       const commonDir = deps.commonDir ? await deps.commonDir() : await gitCommonDir(repoRoot);
-      const cacheDir = await refuseInCheckout(dir, repoRoot, commonDir);
+      const cacheDir = await refuseInCheckout(dir, 'the PDF cache', {
+        repoRoot,
+        commonDir: () => Promise.resolve(commonDir),
+      });
       await Deno.mkdir(cacheDir, { recursive: true });
       const out = new Map<string, Finding[]>();
       for (const r of records) {

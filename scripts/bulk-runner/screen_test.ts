@@ -451,8 +451,23 @@ Deno.test('checkScreenBlock: decisionId and settings are required, nothing else 
   }
 });
 
-Deno.test('the registry starts empty: no screen module is registered by the core', () => {
-  assertEquals(Object.keys(SCREENS), []);
+Deno.test('the registry holds the Bills screen under national-bills, with the page check, built without the network', async () => {
+  assertEquals(Object.keys(SCREENS), ['national-bills']);
+  const real = globalThis.fetch;
+  let touched = 0;
+  globalThis.fetch = (() => (touched++, Promise.reject(new Error('network touched')))) as typeof fetch;
+  try {
+    const screen = await SCREENS['national-bills']();
+    validateScreen(screen);
+    assertEquals(screen.collection, 'national-bills');
+    const pages = screen.checks.filter((c) => c.name === 'text_per_page');
+    assertEquals(pages.length, 1);
+    assertEquals(pages[0].needs, 'pages');
+    assertEquals(typeof screen.project, 'function');
+    assertEquals(touched, 0, 'building the screen must not fetch anything');
+  } finally {
+    globalThis.fetch = real;
+  }
 });
 
 // ---- the command, on real files in a scratch area ----
@@ -607,6 +622,24 @@ areaTest(
     assertEquals(settings, { licences: ['x'] });
   },
 );
+
+areaTest('main: a check that carries stats has them recorded in the receipt, counts and keys only', async (a) => {
+  const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k1'))]);
+  const stats = { fetched: 2, cached: 1, scans: ['k1'], url: 'https://example.test/secret.pdf', text: SECRET };
+  const checks = [...screenOf().checks, passing('with_stats', ['rights'], { stats } as Partial<Check>)];
+  const { deps } = depsFor(a, screenOf(checks));
+  assertEquals(await main(argv(a, f.path), deps), 0);
+  const raw = await Deno.readTextFile(join(a.out, 'screen.receipt.json'));
+  assertEquals(JSON.parse(raw).checks_stats, { with_stats: { fetched: 2, cached: 1, scans: ['k1'] } });
+  assert(!raw.includes(SECRET) && !raw.includes('example.test'), 'stats leaked more than counts and keys');
+});
+
+areaTest('main: a receipt has an empty checks_stats when no check carries stats', async (a) => {
+  const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k1'))]);
+  assertEquals(await main(argv(a, f.path), depsFor(a).deps), 0);
+  const receipt = JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json')));
+  assertEquals(receipt.checks_stats, {});
+});
 
 areaTest('main: patches are screened with their own receipt into screened-patches.jsonl', async (a) => {
   const f = await reader(a, 'bills.jsonl', [JSON.stringify(rec('k1'))]);

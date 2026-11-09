@@ -614,6 +614,17 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
       held: r.holds.length,
       held_by_reason: countBy(r.holds),
     });
+    // Counts and source keys a check kept while it ran (the page check's fetched, cached and scans); nothing else.
+    const checksStats: Record<string, { fetched: number; cached: number; scans: string[] }> = {};
+    for (const x of screen.checks) {
+      const st = (x as { stats?: Partial<Record<'fetched' | 'cached' | 'scans', unknown>> }).stats;
+      if (!isRec(st)) continue;
+      checksStats[x.name] = {
+        fetched: Number(st.fetched) || 0,
+        cached: Number(st.cached) || 0,
+        scans: Array.isArray(st.scans) ? st.scans.map(String) : [],
+      };
+    }
     const hasNeeds = (n: 'live' | 'pages') => screen.checks.some((x) => x.needs === n);
     const receipt = {
       collection: coll.collection,
@@ -627,6 +638,7 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
       live_reads_ran: !c.noLive && hasNeeds('live'),
       page_check_ran: !c.noPages && hasNeeds('pages'),
       complete: !c.noLive && !c.noPages,
+      checks_stats: checksStats,
       outputs: {
         screened: out(OUT.screened),
         screened_patches: out(OUT.patches),
