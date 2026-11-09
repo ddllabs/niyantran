@@ -313,7 +313,9 @@ const listingRow: Check = {
       if (Array.isArray(r.links)) {
         const rowKeys = new Set(named.map((x) => x.row_key));
         r.links.forEach((l, i) => {
-          if (isRec(l) && !(str(l.row_key) && rowKeys.has(l.row_key))) add(k, 'link_disagrees', `link ${i}: row_key`);
+          // Real v1.1 Bills links carry row_key null (admission picks the rows itself): null, absent or '' is not compared.
+          if (!isRec(l) || l.row_key === null || l.row_key === undefined || l.row_key === '') return;
+          if (!(str(l.row_key) && rowKeys.has(l.row_key))) add(k, 'link_disagrees', `link ${i}: row_key`);
         });
       }
     }

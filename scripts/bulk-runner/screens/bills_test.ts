@@ -956,7 +956,18 @@ Deno.test('links: each link row_key must be among the listing rows matched by ke
   assertEquals(await run([link]), []);
   assertEquals(await run([{ ...link, row_key: 'row-other' }]), [['link_disagrees', 'link 0: row_key']]); // another bill's row
   assertEquals(await run([{ ...link, row_key: 'row-zzz' }]), [['link_disagrees', 'link 0: row_key']]); // no such row
-  assertEquals(await run([{ ...link, row_key: undefined }]), [['link_disagrees', 'link 0: row_key']]);
+  // Real v1.1 Bills links carry row_key null (they link by document_key; admission picks the rows): not compared.
+  assertEquals(await run([{ ...link, row_key: null }]), []);
+  assertEquals(await run([{ ...link, row_key: undefined }]), []);
+  const { row_key: _absent, ...noKey } = link as Rec;
+  assertEquals(await run([noKey]), []);
+  assertEquals(await run([{ ...link, row_key: '' }]), []);
+  assertEquals(await run([{ ...link, row_key: 7 }]), [['link_disagrees', 'link 0: row_key']]); // wrong type
+  assertEquals(await run([{ ...link, row_key: {} }]), [['link_disagrees', 'link 0: row_key']]);
+  assertEquals(await run([{ ...link, row_key: null }, { ...link, row_key: 'row-zzz' }]), [[
+    'link_disagrees',
+    'link 1: row_key',
+  ]]);
   assertEquals(await run([link, { ...link, row_key: 'row-zzz' }]), [['link_disagrees', 'link 1: row_key']]);
   // A record already held for its name does not also report link rows.
   const wrongName = new FakeLive([liveRow('bill:2025:1', 'Lok Sabha', { bill_name: 'Another Bill, 2025' })]);
