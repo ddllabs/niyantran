@@ -1,7 +1,10 @@
 // Text per page (F307, S3; docs/specs/2026-11-10-screening-stage.md, "Text per page"). A check, not a repair: for each
 // record it fetches the official PDF, reads its page count and the text layer of each page, and compares them with the
 // pack: page by page for a record whose page_split is 'exact', as a whole document otherwise (supervisor, 2026-11-10).
-// What disagrees is held with a named reason; nothing is changed.
+// What disagrees is held with a named reason; nothing is changed. Review round 1 (same spec, decisions 4, 5, 6 and 8):
+// pack pages left (nearly) empty on PDF pages without a text layer are held when there are enough of them; marks count
+// with letters and digits; only official URLs are fetched; one record's error holds that record only; a failed
+// robots.txt is tried once more; the reader has a time limit; page counts are cached by PDF hash; progress is logged.
 //
 // Fetching is polite and serial: at most one request per second per host, robots.txt obeyed (RFC 9309, the `*` group),
 // a fixed User-Agent naming the project, retries with growing waits as drive.ts does, and every PDF cached by the
@@ -24,9 +27,26 @@ const RETRIES = 3;
 const BACKOFF_MS = 500;
 const MAX_REDIRECTS = 5;
 const MAX_DETAIL_PAGES = 20;
+/** A pack page with fewer letters, digits and marks than this, on a PDF page with no text layer, is unverified. */
+const UNVERIFIED_BELOW = 20;
+/** Held when at least this many pages are unverified ... */
+const UNVERIFIED_MIN_PAGES = 2;
+/** ... and they are at least this share of the PDF's pages. */
+const UNVERIFIED_MIN_SHARE = 0.1;
+/** A host whose robots.txt failed is tried once more after this much other work (and at the end). */
+const ROBOTS_RETRY_AFTER_MS = 10 * 60 * 1000;
+const PROGRESS_EVERY = 100;
+/** Names the counting rule in the page-count cache, so a change of rule is never served old counts. */
+const COUNT_RULE = 'letters-digits-marks/1';
 
-/** The text of each page of a PDF, in order; a page without a text layer gives ''. Throws when it cannot be read. */
-export type PdfReader = (bytes: Uint8Array) => Promise<string[]>;
+/** The Bills adapter's URL rule (supabase/functions/_shared/suppliedText.ts): the default of `urlRule`. */
+export const BILLS_URL_RULE = /^https:\/\/sansad\.in\/getFile\/(BillsTexts|BillsPDFFiles)\//;
+
+/**
+ * The text of each page of a PDF, in order; a page without a text layer gives ''. Throws when it cannot be read. When
+ * `signal` aborts (the time limit), the reader should stop and throw.
+ */
+export type PdfReader = (bytes: Uint8Array, signal?: AbortSignal) => Promise<string[]>;
 
 export interface PageCheckDeps {
   fetch: typeof fetch;
@@ -46,6 +66,12 @@ export interface PageCheckDeps {
   timeoutMs?: number;
   /** The largest PDF accepted (default 256 MiB). */
   maxBytes?: number;
+  /** Only URLs matching this (and holding no `..`) are fetched (default: BILLS_URL_RULE). */
+  urlRule?: RegExp;
+  /** The reader's limit for one PDF (default 60 s); past it the PDF is pdf_unreadable. */
+  readTimeoutMs?: number;
+  /** Progress lines, counts only (default: stderr). */
+  log?: (line: string) => void;
 }
 
 export interface PageCheckStats {
@@ -53,8 +79,12 @@ export interface PageCheckStats {
   fetched: number;
   /** PDFs served from the cache. */
   cached: number;
-  /** Source keys whose PDF has no text layer on any page (compared by page count only, not held). */
+  /** Source keys whose PDF has no text layer on any page and whose pack pages were verified (not held). */
   scans: string[];
+  /** Pack pages, over all records, with fewer than 20 letters, digits and marks on a PDF page without a text layer. */
+  unverifiedPages: number;
+  /** Records held unverified_empty_pages. */
+  unverifiedRecords: number;
 }
 
 /** The page check: a `Check`, plus counts for the screen's receipt. */
@@ -62,10 +92,13 @@ export interface PageCheck extends Check {
   stats: PageCheckStats;
 }
 
-/** Letters and decimal digits, any script. Spaces, punctuation and marks are not counted. */
+/**
+ * Letters, decimal digits and combining marks (vowel signs, viramas), any script; spaces and punctuation are not
+ * counted. Marks count so that a Devanagari page is not undercounted against a PDF that extracts a glyph per mark.
+ */
 export function lettersAndDigits(s: string): number {
   let n = 0;
-  for (const _ of s.matchAll(/[\p{L}\p{Nd}]/gu)) n++;
+  for (const _ of s.matchAll(/[\p{L}\p{Nd}\p{M}]/gu)) n++;
   return n;
 }
 
@@ -141,21 +174,26 @@ interface PdfJs {
       getPage(n: number): Promise<{ getTextContent(): Promise<{ items: Rec[] }>; cleanup(): void }>;
       destroy(): Promise<void>;
     }>;
+    destroy(): Promise<void>;
   };
 }
 
 /** The text of each page through pdfjs-dist (as scripts/f281-repair/pdfRuns.mjs opens PDFs). */
-export const defaultPdfReader: PdfReader = async (bytes) => {
+export const defaultPdfReader: PdfReader = async (bytes, signal) => {
   const pdfjs: PdfJs = await import(PDFJS_SPECIFIER);
-  const doc = await pdfjs.getDocument({
+  const task = pdfjs.getDocument({
     data: bytes.slice(),
     isEvalSupported: false,
     verbosity: 0,
     useSystemFonts: false,
-  }).promise;
+  });
+  const stop = () => void task.destroy().catch(() => {});
+  signal?.addEventListener('abort', stop, { once: true });
+  const doc = await task.promise;
   try {
     const pages: string[] = [];
     for (let n = 1; n <= doc.numPages; n++) {
+      if (signal?.aborted) throw new Error('stopped');
       const page = await doc.getPage(n);
       const content = await page.getTextContent();
       pages.push(content.items.map((i) => (typeof i.str === 'string' ? i.str : '')).join(''));
@@ -163,6 +201,7 @@ export const defaultPdfReader: PdfReader = async (bytes) => {
     }
     return pages;
   } finally {
+    signal?.removeEventListener('abort', stop);
     await doc.destroy();
   }
 };
@@ -182,7 +221,20 @@ class Refuse extends Error {
   }
 }
 
+/** The reader failed; carries only the error's class name. */
+class ReaderFailed extends Error {}
+/** The reader ran past its time limit. */
+class ReaderTimeout extends Error {}
+/** A record whose host's robots.txt failed once: judged again after the retry. */
+const DEFER = Symbol('defer');
+
 type Failure = { reason: 'pdf_unavailable' | 'pdf_unreadable'; detail: string };
+
+/** An error's class name, which never holds record or PDF text (unlike its message). */
+const errorClass = (e: unknown) => {
+  const name = e instanceof Error ? e.constructor.name : '';
+  return /^[A-Za-z][A-Za-z0-9_]{0,59}$/.test(name) ? name : 'Error';
+};
 type Got<T> = { ok: true; value: T } | { ok: false; status: number | null; detail: string };
 
 /** The pack's page texts by page number, or why there are none. */
@@ -212,11 +264,12 @@ function packPages(r: Rec): Map<number, string> | string {
   return out;
 }
 
-function officialUrl(v: unknown): URL | null {
-  if (typeof v !== 'string') return null;
+/** The URL when it is official: it matches the rule as given and as parsed, is https, and holds no `..`. */
+function officialUrl(v: string, rule: RegExp): URL | null {
+  if (!rule.test(v) || v.includes('..')) return null;
   try {
     const u = new URL(v);
-    return u.protocol === 'https:' || u.protocol === 'http:' ? u : null;
+    return u.protocol === 'https:' && rule.test(u.href) && !u.href.includes('..') ? u : null;
   } catch {
     return null;
   }
@@ -231,9 +284,13 @@ export function makePageCheck(deps: PageCheckDeps): PageCheck {
   const readPdf = deps.readPdf ?? defaultPdfReader;
   const timeoutMs = deps.timeoutMs ?? 60_000;
   const maxBytes = deps.maxBytes ?? 256 * 1024 * 1024;
-  const stats: PageCheckStats = { fetched: 0, cached: 0, scans: [] };
+  const urlRule = deps.urlRule ?? BILLS_URL_RULE;
+  const readTimeoutMs = deps.readTimeoutMs ?? 60_000;
+  const log = deps.log ?? ((line: string) => console.error(line));
+  const stats: PageCheckStats = { fetched: 0, cached: 0, scans: [], unverifiedPages: 0, unverifiedRecords: 0 };
   const lastRequest = new Map<string, number>();
-  const robots = new Map<string, { text: string | null } | { failed: string }>();
+  /** robots.txt by origin: its text (null: none, all allowed) or why it failed, when, and whether that was final. */
+  const robots = new Map<string, { text: string | null } | { failed: string; at: number; final: boolean }>();
 
   /** At most one request per second to each host. */
   async function gate(host: string): Promise<void> {
@@ -247,8 +304,8 @@ export function makePageCheck(deps: PageCheckDeps): PageCheck {
 
   /**
    * One GET, retried up to RETRIES times with growing waits for a transfer failure: a network error, a timeout, a 5xx,
-   * 408 or 429, or a body shorter than its Content-Length. Other statuses are final. Redirects are followed by hand
-   * (each hop rate-limited and, for PDFs, checked against its host's robots.txt).
+   * 408 or 429, or a body shorter than its Content-Length. Other statuses are final. Redirects are followed by hand,
+   * only to https on the same host (each hop rate-limited and, for PDFs, checked against robots.txt).
    */
   async function get<T>(
     start: URL,
@@ -295,8 +352,8 @@ export function makePageCheck(deps: PageCheckDeps): PageCheck {
       }
       if (done) return done;
       if (!next) return { ok: false, status: null, detail: `${last} after ${RETRIES + 1} attempts` };
-      if (next.protocol !== 'https:' && next.protocol !== 'http:') {
-        return { ok: false, status: null, detail: 'redirected away from http' };
+      if (next.protocol !== 'https:' || next.host !== start.host) {
+        return { ok: false, status: null, detail: 'redirected off https on the same host' };
       }
       const blocked = hop ? await hop(next) : null;
       if (blocked) return { ok: false, status: null, detail: blocked };
@@ -336,29 +393,44 @@ export function makePageCheck(deps: PageCheckDeps): PageCheck {
     return out;
   }
 
-  /** null when the URL may be fetched, otherwise why not. robots.txt is fetched once per host and run. */
-  async function robotsBlock(u: URL): Promise<string | null> {
-    if (!robots.has(u.origin)) {
-      let got: Got<string>;
-      try {
-        got = await get(new URL('/robots.txt', u.origin), async (res, signal) => {
-          return new TextDecoder().decode(await body(res, signal, false));
-        });
-      } catch (e) {
-        if (!(e instanceof Refuse)) throw e;
-        got = { ok: false, status: null, detail: e.message };
-      }
-      if (got.ok) robots.set(u.origin, { text: got.value });
-      else if (got.status !== null && got.status >= 400 && got.status < 500) robots.set(u.origin, { text: null });
-      else robots.set(u.origin, { failed: `robots.txt unavailable: ${got.detail}` });
+  /** Fetches an origin's robots.txt: a 4xx allows everything (RFC 9309); a 5xx or no answer is a failure. */
+  async function fetchRobots(origin: string, final: boolean): Promise<void> {
+    let got: Got<string>;
+    try {
+      got = await get(new URL('/robots.txt', origin), async (res, signal) => {
+        return new TextDecoder().decode(await body(res, signal, false));
+      });
+    } catch (e) {
+      if (!(e instanceof Refuse)) throw e;
+      got = { ok: false, status: null, detail: e.message };
     }
+    if (got.ok) robots.set(origin, { text: got.value });
+    else if (got.status !== null && got.status >= 400 && got.status < 500) robots.set(origin, { text: null });
+    else robots.set(origin, { failed: `robots.txt unavailable: ${got.detail}`, at: deps.now(), final });
+  }
+
+  /**
+   * null when the URL may be fetched, otherwise why not, or DEFER while its host's robots.txt has failed only once.
+   * robots.txt is fetched once per host and run, and once more after a failure (see `retryRobots`).
+   */
+  async function robotsBlock(u: URL): Promise<string | null | typeof DEFER> {
+    if (!robots.has(u.origin)) await fetchRobots(u.origin, false);
     const r = robots.get(u.origin)!;
-    if ('failed' in r) return r.failed;
+    if ('failed' in r) return r.final ? r.failed : DEFER;
     if (r.text !== null && !robotsAllows(r.text, u.pathname + u.search)) return 'disallowed by robots.txt';
     return null;
   }
 
-  async function obtain(u: URL, cacheDir: string): Promise<Uint8Array | Failure> {
+  /** Tries each failed robots.txt once more: those failed ten minutes ago, or all of them at the end. */
+  async function retryRobots(atEnd: boolean): Promise<void> {
+    for (const [origin, r] of [...robots]) {
+      if ('failed' in r && !r.final && (atEnd || deps.now() - r.at >= ROBOTS_RETRY_AFTER_MS)) {
+        await fetchRobots(origin, true);
+      }
+    }
+  }
+
+  async function obtain(u: URL, cacheDir: string): Promise<Uint8Array | Failure | typeof DEFER> {
     const path = join(cacheDir, `${sha256(u.href)}.pdf`);
     try {
       const cached = await Deno.readFile(path);
@@ -370,10 +442,16 @@ export function makePageCheck(deps: PageCheckDeps): PageCheck {
       if (!(e instanceof Deno.errors.NotFound)) throw e;
     }
     const blocked = await robotsBlock(u);
+    if (blocked === DEFER) return DEFER;
     if (blocked) return { reason: 'pdf_unavailable', detail: blocked };
+    // A hop is on the same host, whose robots.txt was read just now.
+    const hop = async (next: URL) => {
+      const b = await robotsBlock(next);
+      return b === DEFER ? 'robots.txt unavailable' : b;
+    };
     let got: Got<Uint8Array>;
     try {
-      got = await get(u, (res, signal) => body(res, signal, true), robotsBlock);
+      got = await get(u, (res, signal) => body(res, signal, true), hop);
     } catch (e) {
       if (e instanceof Refuse) return { reason: e.reason, detail: e.message };
       throw e;
@@ -391,14 +469,64 @@ export function makePageCheck(deps: PageCheckDeps): PageCheck {
     return got.value;
   }
 
-  async function judge(r: Rec, cacheDir: string): Promise<Finding[]> {
+  /** The reader, stopped and refused past readTimeoutMs; any failure becomes ReaderFailed (its class name only). */
+  async function readWithLimit(bytes: Uint8Array): Promise<string[]> {
+    const ctl = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const reading = readPdf(bytes, ctl.signal);
+    reading.catch(() => {}); // a reader stopped by the limit may reject later; that is expected
+    const limit = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new ReaderTimeout()); // settles the race before the stopped reader's own rejection can
+        ctl.abort();
+      }, readTimeoutMs);
+    });
+    try {
+      return await Promise.race([reading, limit]);
+    } catch (e) {
+      if (e instanceof ReaderTimeout) throw e;
+      throw new ReaderFailed(errorClass(e));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Letters, digits and marks on each PDF page, cached in `<pdf sha256>.pages.json` next to the PDFs, so a rerun does
+   * not parse again. A cache file for other bytes, another counting rule, or one that does not parse is ignored.
+   */
+  async function pageCounts(bytes: Uint8Array, cacheDir: string): Promise<number[]> {
+    const pdfSha = createHash('sha256').update(bytes).digest('hex');
+    const path = join(cacheDir, `${pdfSha}.pages.json`);
+    try {
+      const c = JSON.parse(await Deno.readTextFile(path));
+      if (
+        c?.rule === COUNT_RULE && c.pdf_sha256 === pdfSha && Array.isArray(c.counts) &&
+        c.counts.every((n: unknown) => Number.isSafeInteger(n) && (n as number) >= 0)
+      ) {
+        return c.counts;
+      }
+    } catch { /* absent or damaged: read the PDF */ }
+    const counts = (await readWithLimit(bytes)).map(lettersAndDigits);
+    const part = `${path}.part-${crypto.randomUUID().slice(0, 8)}`;
+    const entry = { rule: COUNT_RULE, pdf_sha256: pdfSha, counts, text_layer: counts.map((c) => c > 0) };
+    try {
+      await Deno.writeTextFile(part, JSON.stringify(entry) + '\n', { createNew: true });
+      await Deno.rename(part, path);
+    } catch (e) {
+      await Deno.remove(part).catch(() => {});
+      throw e;
+    }
+    return counts;
+  }
+
+  async function judge(r: Rec, cacheDir: string): Promise<Finding[] | typeof DEFER> {
     const finding = (reason: string, detail?: string): Finding => ({
       check: NAME,
       covers: ['completeness'],
       reason,
       ...(detail === undefined ? {} : { detail }),
     });
-    const u = officialUrl(r.file_url);
     const pages = packPages(r);
     // Page by page only for a record split exactly into pages; any other is compared as a whole document: its text,
     // or failing that its pages together.
@@ -411,44 +539,69 @@ export function makePageCheck(deps: PageCheckDeps): PageCheck {
       ? [...pages.values()].join('\f')
       : null;
     const early: Finding[] = [];
-    if (!u) early.push(finding('no_pdf_url'));
+    const raw = r.file_url;
+    const u = typeof raw === 'string' && raw !== '' ? officialUrl(raw, urlRule) : null;
+    if (typeof raw !== 'string' || raw === '') early.push(finding('no_pdf_url'));
+    else if (!u) early.push(finding('pdf_unavailable', 'not an official url'));
     if (!perPage && whole === null) early.push(finding('no_pages', typeof pages === 'string' ? pages : 'no text'));
     if (early.length || !u) return early;
 
-    const bytes = await obtain(u, cacheDir);
-    if (!(bytes instanceof Uint8Array)) return [finding(bytes.reason, bytes.detail)];
-    let pdfPages: string[];
+    let bytes: Uint8Array | Failure | typeof DEFER;
     try {
-      pdfPages = await readPdf(bytes);
-    } catch {
-      return [finding('pdf_unreadable', 'the PDF reader failed')];
+      bytes = await obtain(u, cacheDir);
+    } catch (e) {
+      return [finding('pdf_unavailable', `error: ${errorClass(e)}`)];
+    }
+    if (bytes === DEFER) return DEFER;
+    if (!(bytes instanceof Uint8Array)) return [finding(bytes.reason, bytes.detail)];
+    let counts: number[];
+    try {
+      counts = await pageCounts(bytes, cacheDir);
+    } catch (e) {
+      if (e instanceof ReaderTimeout) return [finding('pdf_unreadable', 'the PDF reader timed out')];
+      if (e instanceof ReaderFailed) return [finding('pdf_unreadable', `the PDF reader failed (${e.message})`)];
+      return [finding('pdf_unreadable', `error: ${errorClass(e)}`)];
     }
     const given = Number.isSafeInteger(r.page_count) ? r.page_count as number : null;
     const packCount = given ?? perPage?.size ?? null;
-    if (packCount !== null && pdfPages.length !== packCount) {
-      return [finding('page_count_mismatch', `pdf ${pdfPages.length}, pack ${packCount}`)];
+    if (packCount !== null && counts.length !== packCount) {
+      return [finding('page_count_mismatch', `pdf ${counts.length}, pack ${packCount}`)];
     }
-    const pdfCounts = pdfPages.map(lettersAndDigits);
-    if (pdfCounts.every((c) => c === 0)) {
-      stats.scans.push(String(r.source_key));
-      return [];
+    const found: Finding[] = [];
+    // Pack pages (nearly) empty where the PDF page has no text layer cannot be verified against it.
+    const packPage = (n: number) => (typeof pages === 'string' ? '' : pages.get(n) ?? '');
+    let unverified = 0;
+    counts.forEach((c, i) => {
+      if (c === 0 && lettersAndDigits(packPage(i + 1)) < UNVERIFIED_BELOW) unverified++;
+    });
+    stats.unverifiedPages += unverified;
+    if (unverified >= UNVERIFIED_MIN_PAGES && unverified >= UNVERIFIED_MIN_SHARE * counts.length) {
+      stats.unverifiedRecords++;
+      found.push(finding('unverified_empty_pages', `${unverified} of ${counts.length} pages`));
+    }
+    if (counts.every((c) => c === 0)) {
+      if (!found.length) stats.scans.push(String(r.source_key));
+      return found;
     }
     if (!perPage) {
-      const pdf = pdfCounts.reduce((a, b) => a + b, 0);
+      const pdf = counts.reduce((a, b) => a + b, 0);
       const pack = lettersAndDigits(whole ?? '');
-      return pack * 2 < pdf ? [finding('thin_text', `pack ${pack}, pdf ${pdf}`)] : [];
+      if (pack * 2 < pdf) found.push(finding('thin_text', `pack ${pack}, pdf ${pdf}`));
+      return found;
     }
     const thin: number[] = [];
-    pdfCounts.forEach((c, i) => {
+    counts.forEach((c, i) => {
       if (c > 0 && lettersAndDigits(perPage.get(i + 1) ?? '') * 2 < c) thin.push(i + 1);
     });
-    return thin.length ? [finding('thin_page', listPages(thin))] : [];
+    if (thin.length) found.push(finding('thin_page', listPages(thin)));
+    return found;
   }
 
   return {
     name: NAME,
     covers: ['completeness'],
     needs: 'pages',
+    onlyIfClean: true,
     stats,
     async all(records) {
       const repoRoot = deps.repoRoot ?? resolve(dirname(fromFileUrl(import.meta.url)), '../..');
@@ -465,10 +618,38 @@ export function makePageCheck(deps: PageCheckDeps): PageCheck {
       });
       await Deno.mkdir(cacheDir, { recursive: true });
       const out = new Map<string, Finding[]>();
+      let done = 0;
+      const record = (r: Rec, found: Finding[]) => {
+        if (found.length) out.set(String(r.source_key), found);
+        done++;
+        if (done % PROGRESS_EVERY === 0) {
+          log(
+            `page check: ${done} of ${records.length} records, ${out.size} held, ${stats.fetched} fetched, ` +
+              `${stats.cached} cached, ${waiting.length} waiting for robots.txt`,
+          );
+        }
+      };
+      // Records whose host's robots.txt failed once wait for it to be tried again (after ten minutes, or at the end).
+      const waiting: Rec[] = [];
+      const judgeWaiting = async () => {
+        for (const r of waiting.splice(0)) {
+          const found = await judge(r, cacheDir);
+          if (found === DEFER) waiting.push(r);
+          else record(r, found);
+        }
+      };
       for (const r of records) {
         const found = await judge(r, cacheDir);
-        if (found.length) out.set(String(r.source_key), found);
+        if (found === DEFER) waiting.push(r);
+        else record(r, found);
+        if (waiting.length) {
+          await retryRobots(false);
+          await judgeWaiting();
+        }
       }
+      await retryRobots(true);
+      await judgeWaiting();
+      if (waiting.length) throw new Error('page check: records still wait for robots.txt after its last try');
       return out;
     },
   };

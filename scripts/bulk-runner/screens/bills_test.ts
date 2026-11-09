@@ -10,18 +10,29 @@ const BILLS = 'Bill Passage Probability Index';
 const LICENCE = 'gazette_s52_1_q_i_unconfirmed';
 const key = (n: number) => n.toString(16).padStart(40, '0');
 
+type DocQuery = Parameters<LiveReader['documents']>[0];
 class FakeLive implements LiveReader {
   rowCalls: { tier: string; feature: string; documentKeys: string[] }[] = [];
-  docCalls: { sourceKeys: string[]; fileUrls: string[] }[] = [];
+  docCalls: DocQuery[] = [];
+  /** A reader that ignores the tier and feature of a query, as a faulty one might: the check must not trust it. */
+  leaky = false;
   constructor(public rows: LiveDeskRow[] = [], public docs: LiveDocument[] = []) {}
+  identity() {
+    return Promise.resolve({ database: 'fake', server: 'fake', documents: 1, deskRows: 1 });
+  }
   deskRows(q: { tier: string; feature: string; documentKeys: string[] }) {
     this.rowCalls.push(q);
     return Promise.resolve(this.rows.filter((r) => q.documentKeys.includes(r.document_key ?? '')));
   }
-  documents(q: { sourceKeys: string[]; fileUrls: string[] }) {
+  documents(q: DocQuery) {
     this.docCalls.push(q);
     return Promise.resolve(
-      this.docs.filter((d) => q.sourceKeys.includes(d.source_key ?? '') || q.fileUrls.includes(d.file_url ?? '')),
+      this.docs.filter((d) =>
+        q.sourceKeys.includes(d.source_key ?? '') || q.fileUrls.includes(d.file_url ?? '') ||
+        (q.contentHashes ?? []).includes(d.content_sha256 ?? '\0') ||
+        ((q.documentKeys ?? []).includes(d.document_key ?? '\0') &&
+          (this.leaky || q.feature === undefined || q.feature === d.desk_feature))
+      ),
     );
   }
 }
@@ -30,7 +41,7 @@ const NAME = 'The River Navigation (Amendment) Bill, 2025';
 const liveRow = (documentKey: string, house = 'Lok Sabha', row: Rec = {}): LiveDeskRow => ({
   tier: 'national',
   feature: BILLS,
-  row_key: `row-${documentKey}`,
+  row_key: `row-${documentKey.split(':').pop()}`,
   document_key: documentKey,
   row: { house, bill_name: NAME, date_introduced: '2025-03-04', ...row },
 });
@@ -41,6 +52,9 @@ const liveDoc = (o: Partial<LiveDocument>): LiveDocument => ({
   file_name: null,
   desk_feature: BILLS,
   document_key: null,
+  house: null,
+  document_role: null,
+  content_sha256: null,
   ...o,
 });
 
@@ -165,12 +179,20 @@ Deno.test('screen definition: collection, version, rules files, all five review 
   assertEquals(s.rulesFiles, [
     'scripts/bulk-runner/screens/bills.ts',
     'scripts/bulk-runner/screen.ts',
+    'scripts/bulk-runner/screen_types.ts',
+    'scripts/bulk-runner/screens/index.ts',
+    'scripts/bulk-runner/live.ts',
     'scripts/bulk-runner/page_check.ts',
   ]);
   const covered = new Set(s.checks.flatMap((c) => c.covers));
   for (const c of REVIEW_CHECKS) assert(covered.has(c), `${c} not covered`);
   for (const c of s.checks) assert(!!c.one !== !!c.all, `${c.name} must have exactly one of one/all`);
-  assertEquals(s.checks.filter((c) => c.needs === 'live').map((c) => c.name).sort(), ['already_live', 'listing_row']);
+  assertEquals(s.checks.filter((c) => c.needs === 'live').map((c) => c.name).sort(), [
+    'already_live',
+    'duplicate_text_live',
+    'listing_row',
+    'role_held_live',
+  ]);
 });
 
 Deno.test("extra checks follow the screen's own, in order", () => {
@@ -221,6 +243,26 @@ Deno.test('official source: the URL rule, no parent segment, and file_name is th
   assertEquals(await oneReasons('official_source', await bill(1, { file_url: 5 })), ['not_official_url']);
   assertEquals(await oneReasons('official_source', await bill(1, { file_name: 'other.pdf' })), ['file_name_mismatch']);
   assertEquals(await oneReasons('official_source', await bill(1, { file_name: undefined })), ['file_name_mismatch']);
+  // File names with spaces: the URL path is percent-encoded, the file name is not.
+  const spaced = 'https://sansad.in/getFile/BillsTexts/x/nationl%20food%20LXI%20of%2008.pdf?source=legislation';
+  assertEquals(
+    await oneReasons('official_source', await bill(1, { file_url: spaced, file_name: 'nationl food LXI of 08.pdf' })),
+    [],
+  );
+  assertEquals(
+    await oneReasons(
+      'official_source',
+      await bill(1, { file_url: spaced, file_name: 'nationl%20food%20LXI%20of%2008.pdf' }),
+    ),
+    ['file_name_mismatch'],
+  );
+  const raw = 'https://sansad.in/getFile/BillsTexts/x/a b.pdf';
+  assertEquals(await oneReasons('official_source', await bill(1, { file_url: raw, file_name: 'a b.pdf' })), []);
+  // A malformed percent-encoding cannot be decoded: held, not guessed.
+  const broken = 'https://sansad.in/getFile/BillsTexts/x/bad%E0%A4%A.pdf';
+  assertEquals(await oneReasons('official_source', await bill(1, { file_url: broken, file_name: 'bad%E0%A4%A.pdf' })), [
+    'file_name_mismatch',
+  ]);
   const pdfs = 'https://sansad.in/getFile/BillsPDFFiles/a/b/9LS.pdf';
   assertEquals(await oneReasons('official_source', await bill(1, { file_url: pdfs, file_name: '9LS.pdf' })), []);
 });
@@ -280,6 +322,30 @@ Deno.test('billNorm mirrors the SQL: closing year removed, letters and digits on
   assertEquals(billNorm(undefined), '');
 });
 
+// Ground truth: public.bill_norm evaluated on the production database (read-only). There `\s` matches the Unicode
+// White_Space characters (NBSP, figure space, narrow no-break space, em space, ideographic space) but not U+FEFF.
+Deno.test('billNorm equals public.bill_norm on the production database (14 vectors)', () => {
+  const vectors: [string, string][] = [
+    ['A Bill, 2025', 'abill'],
+    ['A Bill, 2025\u00a0', 'abill'],
+    ['A Bill, 2025\u2007', 'abill'],
+    ['A Bill, 2025\u202f', 'abill'],
+    ['A Bill, 2025\ufeff', 'abill2025'],
+    ['A Bill, 2025\u2003', 'abill'],
+    ['A Bill, 2025\u3000', 'abill'],
+    ['The \u00c1nti-Bill (No. 2), 2019', 'thentibillno2'],
+    ['THE   Code \u00a0of Bill , 2011  ', 'thecodeofbill'],
+    ['Bill 2011 Amendment, 2012', 'bill2011amendment'],
+    ['R\u0101\u1e63\u1e6dra Bill, 2020', 'rrabill'],
+    ['Bill,2020.', 'bill'],
+    ['  ', ''],
+    ['\u092c\u093f\u0932, 2020', ''],
+  ];
+  vectors.forEach(([input, want], i) => assertEquals(billNorm(input), want, `vector ${i + 1}`));
+  assertEquals(billNorm(undefined), '');
+  assertEquals(billNorm(null), '');
+});
+
 Deno.test('links agree: none, wrong tier, feature, key, house, number, year, and a non-object link', async () => {
   assertEquals(await oneReasons('links_agree', await bill(1, { links: [] })), ['no_link']);
   assertEquals(await oneReasons('links_agree', await bill(1, { links: undefined })), ['no_link']);
@@ -291,6 +357,8 @@ Deno.test('links agree: none, wrong tier, feature, key, house, number, year, and
     ['house', { house: 'Rajya Sabha' }],
     ['bill_number', { bill_number: '2' }],
     ['bill_year', { bill_year: '2024' }],
+    ['role', { role: 'synopsis' }],
+    ['role', { role: undefined }],
   ];
   for (const [field, over] of cases) {
     const f = await checkNamed('links_agree').one!(withLink(await bill(1), over), ctxOf());
@@ -390,15 +458,42 @@ Deno.test('text binds: hash, n_chars, page_split, each page-span break', async (
   assertEquals(await oneReasons('text_binds', r), []);
 });
 
-Deno.test('text binds: counts code points, and page_split none with no pages needs only a page_count', async () => {
+Deno.test('text binds: counts code points', async () => {
   const astral = await withText(await bill(1), ['𝔅ill text 😀 here', 'second 😀 page']);
   assertEquals(await oneReasons('text_binds', astral), []);
+});
+
+Deno.test('text binds: page_split none passes only if page_count equals the page spans (prepare and admission)', async () => {
   const base = await bill(1);
-  const none = { ...base, page_split: 'none', pages: [], page_count: 1 };
-  assertEquals(await oneReasons('text_binds', none), []);
-  assertEquals(await oneReasons('text_binds', { ...none, pages: undefined }), []);
-  assertEquals(await oneReasons('text_binds', { ...none, page_count: 0 }), ['page_spans']);
-  assertEquals(await oneReasons('text_binds', { ...none, page_count: undefined }), ['page_spans']);
+  const pages = base.pages as Rec[];
+  const none = { ...base, page_split: 'none' };
+  const run = async (o: Rec) => {
+    const f = await checkNamed('text_binds').one!({ ...none, ...o }, ctxOf());
+    return f.map((x) => [x.reason, x.detail]);
+  };
+  // No spans and a page_count of 1 would make the worker refuse (page count mismatch).
+  assertEquals(await run({ pages: [], page_count: 1 }), [['page_count_unsplittable', '1 declared, 0 spans']]);
+  assertEquals(await run({ pages: undefined, page_count: 5 }), [['page_count_unsplittable', '5 declared, 0 spans']]);
+  assertEquals(await run({ pages: [], page_count: undefined }), [['page_count_unsplittable', 'page_count missing']]);
+  assertEquals(await run({ pages: [], page_count: 0 }), []);
+  assertEquals(await run({ pages: undefined, page_count: 0 }), []);
+  // Spans present: page_count must equal them, and the spans are checked as for exact.
+  assertEquals(await run({}), []);
+  assertEquals(await run({ page_count: 3 }), [['page_count_unsplittable', '3 declared, 2 spans']]);
+  assertEquals(await run({ pages: [pages[0], { ...pages[1], page_number: 5 }] }), [[
+    'page_spans',
+    'page 2: numbered 5',
+  ]]);
+});
+
+Deno.test('text binds: page spans without text are cut from the record text and need no text field', async () => {
+  const r = await bill(1);
+  const bare = (r.pages as Rec[]).map(({ text: _t, ...span }) => span);
+  assertEquals(await oneReasons('text_binds', { ...r, pages: bare }), []);
+  // Still contiguous and numbered.
+  assertEquals(await oneReasons('text_binds', { ...r, pages: [bare[0], { ...bare[1], char_from: 1 }] }), [
+    'page_spans',
+  ]);
 });
 
 Deno.test('length: under 200 and over 600,000 characters, and no text', async () => {
@@ -418,8 +513,12 @@ Deno.test('length: under 200 and over 600,000 characters, and no text', async ()
 Deno.test('servable and licence: not servable, barred, personal data, and fields that cannot be judged', async () => {
   const name = 'servable_licence';
   assertEquals(await oneReasons(name, await bill(1, { servable: false })), ['not_servable']);
-  assertEquals(await oneReasons(name, await bill(1, { servable: undefined })), ['not_servable']);
-  assertEquals(await oneReasons(name, await bill(1, { servable: 'yes' })), ['not_servable']);
+  // v1.1 records have no servable field: absent counts as servable. Only an explicit false holds; anything else is malformed.
+  assertEquals(await oneReasons(name, await bill(1, { servable: undefined })), []);
+  assertEquals(await oneReasons(name, await bill(1, { servable: true })), []);
+  assertEquals(await oneReasons(name, await bill(1, { servable: 'yes' })), ['servable_malformed']);
+  assertEquals(await oneReasons(name, await bill(1, { servable: null })), ['servable_malformed']);
+  assertEquals(await oneReasons(name, await bill(1, { servable: 0 })), ['servable_malformed']);
   assertEquals(await oneReasons(name, await bill(1, { licence_class: 'BARRED_PRIVATE' })), ['licence_barred']);
   assertEquals(await oneReasons(name, await bill(1, { licence_class: undefined })), ['licence_barred']);
   assertEquals(await oneReasons(name, await bill(1, { licence_class: 'eci_govt_PERSONAL_DATA_G02' })), [
@@ -485,29 +584,184 @@ Deno.test('already live: a record with no file_url cannot be judged and is held'
   assertEquals(found.get(key(1))?.map((f) => f.reason), ['already_live']);
 });
 
+/** Another record with exactly this record's text (pages, hash and counts follow it). */
+const sameText = async (n: number, of: Rec, over: Rec = {}): Promise<Rec> => ({
+  ...(await bill(n, over)),
+  text: of.text,
+  pages: of.pages,
+  content_sha256: of.content_sha256,
+  n_chars: of.n_chars,
+});
+
 Deno.test('duplicate text: the lowest source_key stays, the rest are held, others untouched', async () => {
-  const a = await bill(1), b = await bill(2), c = await bill(3), d = await bill(4);
-  const same = { content_sha256: a.content_sha256 };
-  const records = [{ ...c, ...same }, { ...a }, { ...b, ...same }, d];
+  const a = await bill(1), c = await bill(3), d = await bill(4);
+  const records = [await sameText(3, a), a, await sameText(2, a), d];
+  void c;
   const found = await checkNamed('duplicate_text').all!(records, ctxOf());
   assertEquals([...found.keys()].sort(), [key(2), key(3)]);
   assertEquals(found.get(key(3))![0].reason, 'duplicate_text');
   assertEquals(found.get(key(3))![0].detail, `same text as ${key(1)}`);
   assertEquals(found.get(key(3))![0].covers, ['dedupe']);
   // Two groups at once.
-  const g = await checkNamed('duplicate_text').all!([
-    { ...a },
-    { ...b, content_sha256: a.content_sha256 },
-    { ...c },
-    { ...d, content_sha256: c.content_sha256 },
-  ], ctxOf());
+  const g = await checkNamed('duplicate_text').all!([a, await sameText(2, a), c, await sameText(4, c)], ctxOf());
   assertEquals([...g.keys()].sort(), [key(2), key(4)]);
-  // No hash cannot be judged.
-  const bad = await checkNamed('duplicate_text').all!([{ ...a, content_sha256: undefined }, {
-    ...b,
-    content_sha256: 'short',
-  }], ctxOf());
-  assertEquals([...bad.keys()].sort(), [key(1), key(2)]);
+  // A text that cannot be read cannot be judged.
+  const bad = await checkNamed('duplicate_text').all!([{ ...a, text: undefined }, { ...d, text: 5 }], ctxOf());
+  assertEquals([...bad.keys()].sort(), [key(1), key(4)]);
+});
+
+Deno.test('duplicate text compares the hash prepare will store: texts equal after layout-break normalisation', async () => {
+  // prepare turns vertical tabs and form feeds into line breaks and drops other control codes before it hashes.
+  const base = 'Clause one of the bill, in full. '.repeat(10);
+  const a = await withText(await bill(1), [`${base}\n${base}`]);
+  const b = await withText(await bill(2), [`${base}\x0b${base}`]); // a layout break, stored as a line break
+  const c = await withText(await bill(3), [`${base}\x01\n${base}`]); // a control code, removed
+  assert(a.content_sha256 !== b.content_sha256 && a.content_sha256 !== c.content_sha256, 'the pack hashes differ');
+  const found = await checkNamed('duplicate_text').all!([c, b, a], ctxOf());
+  assertEquals([...found.keys()].sort(), [key(2), key(3)]);
+  assertEquals(found.get(key(2))![0].detail, `same text as ${key(1)}`);
+});
+
+Deno.test('duplicate text live: a live document with the stored hash holds the record, by one read of the hashes', async () => {
+  const records = [await bill(1), await bill(2), await bill(3)];
+  const base = 'Clause one of the bill, in full. '.repeat(10);
+  const vt = await withText(await bill(4), [`${base}\x0b${base}`]);
+  const stored = await sha256Hex(`${base}\n${base}`);
+  // prepare stores form feeds as line breaks too, so a record's stored hash is not its pack hash.
+  const storedOf = (r: Rec) => sha256Hex((r.text as string).replaceAll('\f', '\n'));
+  const live = new FakeLive([], [
+    liveDoc({ id: 'h1', source_key: key(90), content_sha256: await storedOf(records[1]) }),
+    liveDoc({ id: 'h2', source_key: key(91), content_sha256: stored }),
+    liveDoc({ id: 'h3', source_key: key(3), content_sha256: await storedOf(records[2]) }), // the record itself
+  ]);
+  const found = await checkNamed('duplicate_text_live').all!([...records, vt], ctxOf(live));
+  assertEquals(live.docCalls.length, 1);
+  assertEquals(live.docCalls[0].contentHashes?.length, 4);
+  assertEquals([...found.keys()].sort(), [key(2), key(4)]);
+  assertEquals(found.get(key(2))![0].reason, 'duplicate_text_live');
+  assertEquals(found.get(key(2))![0].covers, ['dedupe']);
+  assertEquals(found.get(key(2))![0].detail, `held by ${key(90)}`);
+  // The empty-text hash is never a duplicate (SQL: content_sha256 <> e3b0c442...).
+  const empty = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+  const none = await checkNamed('duplicate_text_live').all!(
+    [await bill(1, { text: '' })],
+    ctxOf(new FakeLive([], [liveDoc({ source_key: key(90), content_sha256: empty })])),
+  );
+  assertEquals(none.size, 0); // the length check holds an empty text; it is never a duplicate of the empty hash
+});
+
+Deno.test('bill_role_collision: records sharing key, house and role (not errata) are all held, none picked', async () => {
+  const mk = (n: number, over: Rec = {}) => bill(n, over);
+  const a = await mk(1), b = await mk(2, { source_key: key(50) });
+  const sameBill = (r: Rec, k: string) => ({
+    ...r,
+    source_key: k,
+    citation: { ...(r.citation as Rec) },
+    links: r.links,
+  });
+  const x = sameBill(a, key(10)), y = sameBill(a, key(11));
+  const otherRole = withCitation(sameBill(a, key(12)), { version: 'synopsis' });
+  const otherHouse = withCitation(sameBill(a, key(13)), { house: 'Rajya Sabha' });
+  const errata1 = withCitation(sameBill(a, key(14)), { version: 'errata' });
+  const errata2 = withCitation(sameBill(a, key(15)), { version: 'errata' });
+  const lone = withCitation(sameBill(a, key(16)), { bill_number: '9' });
+  const found = await checkNamed('role_collision').all!(
+    [x, y, otherRole, otherHouse, errata1, errata2, lone, b],
+    ctxOf(),
+  );
+  assertEquals([...found.keys()].sort(), [key(10), key(11)]);
+  for (const k of [key(10), key(11)]) {
+    assertEquals(found.get(k)!.map((f) => f.reason), ['bill_role_collision']);
+    assertEquals(found.get(k)![0].covers, ['dedupe']);
+  }
+  assertEquals(found.get(key(10))![0].detail, `shared with ${key(11)}`);
+  // Three records: each names the others.
+  const z = sameBill(a, key(17));
+  const three = await checkNamed('role_collision').all!([x, y, z], ctxOf());
+  assertEquals([...three.keys()].sort(), [key(10), key(11), key(17)]);
+  assertEquals(three.get(key(10))![0].detail, `shared with ${key(11)}, ${key(17)}`);
+  // A record whose key, house or role cannot be read cannot collide on it (citation_complete holds it).
+  const unreadable = withCitation(sameBill(a, key(18)), { version: undefined });
+  assertEquals((await checkNamed('role_collision').all!([x, unreadable], ctxOf())).size, 0);
+});
+
+Deno.test('role_held_live: a live Bills document of the key, house (or none) and role holds the record; errata never', async () => {
+  const live = new FakeLive([], [
+    liveDoc({
+      id: 'a',
+      source_key: key(80),
+      document_key: 'bill:2025:1',
+      house: 'Lok Sabha',
+      document_role: 'as_introduced',
+    }),
+    liveDoc({ id: 'b', source_key: key(81), document_key: 'bill:2025:2', house: null, document_role: 'as_introduced' }), // no house: counts
+    liveDoc({
+      id: 'c',
+      source_key: key(82),
+      document_key: 'bill:2025:3',
+      house: 'Rajya Sabha',
+      document_role: 'as_introduced',
+    }),
+    liveDoc({
+      id: 'd',
+      source_key: key(83),
+      document_key: 'bill:2025:4',
+      house: 'Lok Sabha',
+      document_role: 'synopsis',
+    }),
+    liveDoc({ id: 'e', source_key: key(84), document_key: 'bill:2025:5', house: 'Lok Sabha', document_role: 'errata' }),
+    liveDoc({
+      id: 'f',
+      source_key: key(85),
+      document_key: 'bill:2025:6',
+      house: 'Lok Sabha',
+      document_role: 'as_introduced',
+      desk_feature: 'Other',
+    }),
+  ]);
+  const records = [
+    await bill(1),
+    await bill(2),
+    await bill(3),
+    await bill(4),
+    withCitation(await bill(5), { version: 'errata' }),
+    await bill(6),
+    await bill(7),
+  ];
+  const found = await checkNamed('role_held_live').all!(records, ctxOf(live));
+  assertEquals(live.docCalls.length, 1);
+  assertEquals(live.docCalls[0].tier, 'national');
+  assertEquals(live.docCalls[0].feature, BILLS);
+  assertEquals([...(live.docCalls[0].documentKeys ?? [])].sort().length, 6); // the errata record asks nothing
+  assertEquals([...found.keys()].sort(), [key(1), key(2)]);
+  assertEquals(found.get(key(1))![0].reason, 'bill_role_held_live');
+  assertEquals(found.get(key(1))![0].covers, ['dedupe']);
+  assertEquals(found.get(key(1))![0].detail, `held by ${key(80)}`);
+  // A reader that returns documents of other features anyway does not make the record held.
+  live.leaky = true;
+  const leaked = await checkNamed('role_held_live').all!([await bill(6)], ctxOf(live));
+  assertEquals(leaked.size, 0);
+  // Nothing readable to look up: no read.
+  const none = new FakeLive();
+  await checkNamed('role_held_live').all!([withCitation(await bill(1), { bill_year: undefined })], ctxOf(none));
+  assertEquals(none.docCalls.length, 0);
+});
+
+Deno.test('file_url_collision: records sharing a file_url are all held', async () => {
+  const a = await bill(1), b = await bill(2, { file_url: a.file_url, file_name: a.file_name }), c = await bill(3);
+  const found = await checkNamed('file_url_collision').all!([b, a, c], ctxOf());
+  assertEquals([...found.keys()].sort(), [key(1), key(2)]);
+  assertEquals(found.get(key(1))![0].reason, 'file_url_collision');
+  assertEquals(found.get(key(1))![0].covers, ['dedupe']);
+  assertEquals(found.get(key(1))![0].detail, `shared with ${key(2)}`);
+  // No file_url: nothing to collide on (official_source holds it).
+  assertEquals(
+    (await checkNamed('file_url_collision').all!(
+      [{ ...a, file_url: undefined }, { ...b, file_url: undefined }],
+      ctxOf(),
+    )).size,
+    0,
+  );
 });
 
 Deno.test('corrigenda are held corrigendum_unmapped, by doc_type or by the errata role', async () => {
@@ -537,7 +791,7 @@ Deno.test('findings never carry record text, only keys, numbers and reason names
 
 Deno.test('the whole screen holds each failing record with its named reasons, and passes the clean one', async () => {
   const clean = await bill(1);
-  const dup = await bill(2, { content_sha256: clean.content_sha256 });
+  const dup = await sameText(2, clean);
   const rowless = await bill(7);
   const live = new FakeLive([liveRow('bill:2025:1'), liveRow('bill:2025:2'), liveRow('bill:2025:3')], [
     liveDoc({ source_key: key(3) }),
@@ -549,7 +803,7 @@ Deno.test('the whole screen holds each failing record with its named reasons, an
   assertEquals(reasons(found, key(3)), ['already_live']);
   assertEquals(reasons(found, key(7)), ['no_live_row']);
   assertEquals(live.rowCalls.length, 1);
-  assertEquals(live.docCalls.length, 1);
+  assertEquals(live.docCalls.length, 3, 'one read per live check: source keys and URLs, role, text hash');
 });
 
 Deno.test('every finding names its check and the review checks it covers', async () => {
@@ -606,9 +860,10 @@ Deno.test('listing row: introduced_on must be within 3 days of the matching row,
   // No introduced_on: the date is not checked.
   assertEquals(await run('2020-01-01', null), []);
   assertEquals(await run(undefined, null), []);
-  // A date the record gives but that is not a date cannot be judged.
-  assertEquals(await run('2025-03-04', '4 March 2025'), ['listing_date_far']);
-  assertEquals(await run('2025-03-04', 20250304), ['listing_date_far']);
+  // A date the record gives but that is not a date is ignored, as the SQL ignores it.
+  assertEquals(await run('2020-01-01', '4 March 2025'), []);
+  assertEquals(await run('2020-01-01', 20250304), []);
+  assertEquals(await run('2020-01-01', '2025-02-30'), []);
 });
 
 Deno.test('listing row: the date is judged on the row whose name matches, and one matching row in range is enough', async () => {
@@ -684,4 +939,27 @@ Deno.test('project: throws, never guesses, on a missing value, disagreeing links
     }
     assert(threw, `${name} must throw`);
   }
+});
+
+Deno.test('links: each link row_key must be among the listing rows matched by key, house and name', async () => {
+  const r = await bill(1);
+  const link = (r.links as Rec[])[0];
+  const live = new FakeLive([
+    liveRow('bill:2025:1'), // row-1: matches
+    liveRow('bill:2025:1', 'Lok Sabha', { bill_name: 'The Coastal Shipping Bill, 2025' }), // same key, other bill
+  ]);
+  live.rows[1] = { ...live.rows[1], row_key: 'row-other' };
+  const run = async (links: Rec[]) => {
+    const found = await checkNamed('listing_row').all!([{ ...r, links }], ctxOf(live));
+    return (found.get(key(1)) ?? []).map((f) => [f.reason, f.detail]);
+  };
+  assertEquals(await run([link]), []);
+  assertEquals(await run([{ ...link, row_key: 'row-other' }]), [['link_disagrees', 'link 0: row_key']]); // another bill's row
+  assertEquals(await run([{ ...link, row_key: 'row-zzz' }]), [['link_disagrees', 'link 0: row_key']]); // no such row
+  assertEquals(await run([{ ...link, row_key: undefined }]), [['link_disagrees', 'link 0: row_key']]);
+  assertEquals(await run([link, { ...link, row_key: 'row-zzz' }]), [['link_disagrees', 'link 1: row_key']]);
+  // A record already held for its name does not also report link rows.
+  const wrongName = new FakeLive([liveRow('bill:2025:1', 'Lok Sabha', { bill_name: 'Another Bill, 2025' })]);
+  const f = await checkNamed('listing_row').all!([r], ctxOf(wrongName));
+  assertEquals(f.get(key(1))!.map((x) => x.reason), ['listing_name_mismatch']);
 });

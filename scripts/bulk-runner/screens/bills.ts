@@ -2,8 +2,8 @@
 // supplies through `extra`. Spec: docs/specs/2026-11-10-screening-stage.md. The SQL rules are mirrored from
 // supabase/migrations/20261107120000_bills_adapter.sql; where this file says "SQL line", that is the line mirrored.
 // A check never passes a record it cannot judge, and a finding holds keys, numbers and reason names, never record text.
-import type { Check, Finding, ReviewCheck, Screen, ScreenContext } from '../screen_types.ts';
-import type { Rec } from '../prepare.ts';
+import type { Check, Finding, LiveDeskRow, ReviewCheck, Screen, ScreenContext } from '../screen_types.ts';
+import { type Rec, strip } from '../prepare.ts';
 import { sha256Hex } from '../../../supabase/functions/_shared/textNormalise.ts';
 
 const BILLS = 'Bill Passage Probability Index';
@@ -39,10 +39,38 @@ const isRec = (v: unknown): v is Rec => !!v && typeof v === 'object' && !Array.i
 const str = (v: unknown): v is string => typeof v === 'string' && v !== '';
 const isInt = (v: unknown): v is number => Number.isSafeInteger(v);
 const keyOf = (r: Rec): string | null => str(r.source_key) ? r.source_key : null;
+const EMPTY_TEXT_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
-/** SQL lines 52-55 (bill_norm): the closing year removed, then letters and digits only. */
+// The hash prepare.ts will store: its text after layout breaks become line breaks and control codes go. Computed once
+// per record, by every check that needs it.
+const storedHashes = new WeakMap<Rec, Promise<string | null>>();
+function storedHash(r: Rec): Promise<string | null> {
+  let h = storedHashes.get(r);
+  if (!h) {
+    h = typeof r.text === 'string' ? sha256Hex(strip(r, r.text).record.text as string) : Promise.resolve(null);
+    storedHashes.set(r, h);
+  }
+  return h;
+}
+
+/** Up to five other keys, for a finding's detail (keys only, never text). */
+const others = (keys: string[], self: string) => {
+  const rest = keys.filter((k) => k !== self).sort();
+  return rest.slice(0, 5).join(', ') + (rest.length > 5 ? ` and ${rest.length - 5} more` : '');
+};
+
+// On the production database `\s` in bill_norm matches the Unicode White_Space characters (NBSP, figure space, narrow
+// no-break space, em space, ideographic space and the rest) and not U+FEFF, which JavaScript's `\s` would match
+// (ground truth: public.bill_norm evaluated read-only on production, 14 vectors in the tests).
+const NAME_YEAR = /,?\p{White_Space}*[0-9]{4}\p{White_Space}*\.?\p{White_Space}*$/u;
+
+/**
+ * SQL lines 52-55 (bill_norm): the closing year removed, lower case, then letters and digits (a-z, 0-9) only.
+ * Postgres lower-cases by locale; after the strip only ASCII letters survive, and the characters whose lower case is
+ * ASCII (K sign, dotted capital I) lower-case to a letter in both.
+ */
 export function billNorm(v: unknown): string {
-  return String(v ?? '').replace(/,?\s*[0-9]{4}\s*\.?\s*$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return String(v ?? '').replace(NAME_YEAR, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
 /** SQL lines 76-77: a real calendar date written YYYY-MM-DD, as a day number; else null. */
@@ -100,11 +128,18 @@ const recordShape = oneCheck('record_shape', ['identity'], (r) => {
 const officialSource = oneCheck('official_source', ['identity'], (r) => {
   const url = r.file_url;
   if (!str(url) || !FILE_URL.test(url) || url.includes('..')) return [['not_official_url']];
-  let last: string;
+  let segment: string;
   try {
-    last = new URL(url).pathname.split('/').pop() ?? '';
+    segment = new URL(url).pathname.split('/').pop() ?? '';
   } catch {
     return [['not_official_url']];
+  }
+  // The URL path is percent-encoded once parsed, and file names hold spaces: compare with the decoded segment.
+  let last: string;
+  try {
+    last = decodeURIComponent(segment);
+  } catch {
+    return [['file_name_mismatch', 'the URL file name is not validly percent-encoded']];
   }
   return r.file_name === last && last !== '' ? [] : [['file_name_mismatch']];
 });
@@ -134,6 +169,7 @@ const linksAgree = oneCheck('links_agree', ['identity'], (r) => {
     else {
       if (l.tier !== r.desk_tier) bad.push('tier');
       if (l.feature !== r.desk_rows_feature) bad.push('feature');
+      if (!str(c.version) || l.role !== c.version) bad.push('role');
       if (key === null || l.document_key !== key) bad.push('document_key');
       if (!str(c.house) || l.house !== c.house) bad.push('house');
       if (n === null || scalar(l.bill_number) !== n) bad.push('bill_number');
@@ -158,12 +194,18 @@ const textBinds = oneCheck('text_binds', ['completeness'], async (r) => {
   if (split !== 'exact' && split !== 'none') out.push(['page_split', 'page_split is not exact or none']);
 
   const pages = r.pages;
-  const noPages = pages === undefined || (Array.isArray(pages) && pages.length === 0);
-  if (split === 'none' && noPages) {
-    if (!isInt(r.page_count) || r.page_count < 1) out.push(['page_spans', 'page_count']);
-    return out;
-  }
-  if (!Array.isArray(pages) || noPages) return [...out, ['page_spans', 'pages missing']];
+  if (pages !== undefined && !Array.isArray(pages)) return [...out, ['page_spans', 'pages is not a list']];
+  const spanCount = pages === undefined ? 0 : pages.length;
+  if (split === 'none') {
+    // suppliedText.ts lines 166-168 and the migration's page_count_mismatch: a declared page_count must equal the spans,
+    // and unsplit text has none, so it passes only with a page_count equal to the spans it does carry.
+    if (!isInt(r.page_count)) out.push(['page_count_unsplittable', 'page_count missing']);
+    else if (r.page_count !== spanCount) {
+      out.push(['page_count_unsplittable', `${r.page_count} declared, ${spanCount} spans`]);
+    }
+    if (spanCount === 0) return out;
+  } else if (spanCount === 0) return [...out, ['page_spans', 'pages missing']];
+  if (!Array.isArray(pages)) return out;
   let end = -1; // the last character of the previous page; a form feed follows it
   let bad: string | null = null;
   for (let i = 0; i < pages.length && bad === null; i++) {
@@ -173,11 +215,12 @@ const textBinds = oneCheck('text_binds', ['completeness'], async (r) => {
     else if (p.page_number !== i + 1) bad = `page ${i + 1}: numbered ${String(p.page_number)}`;
     else if (from !== end + 1 || to < from || to > cps.length) bad = `page ${i + 1}: span not contiguous`;
     else if (i > 0 && cps[end] !== '\f') bad = `page ${i + 1}: no form feed before it`;
-    else if (p.text !== cps.slice(from, to).join('')) bad = `page ${i + 1}: text differs from its span`;
-    else end = to;
+    else if (p.text !== undefined && p.text !== cps.slice(from, to).join('')) {
+      bad = `page ${i + 1}: text differs from its span`;
+    } else end = to;
   }
   if (bad === null && end !== cps.length) bad = 'pages do not reach the end of the text';
-  if (bad === null && r.page_count !== pages.length) bad = 'page_count differs from the pages';
+  if (bad === null && split !== 'none' && r.page_count !== pages.length) bad = 'page_count differs from the pages';
   if (bad !== null) out.push(['page_spans', bad]);
   return out;
 });
@@ -192,7 +235,9 @@ const length = oneCheck('length', ['completeness'], (r) => {
 
 const servableCheck = oneCheck('servable_licence', ['sensitivity'], (r) => {
   const out: Verdict[] = [];
-  if (r.servable !== true) out.push(['not_servable', typeof r.servable === 'boolean' ? undefined : 'servable missing']);
+  // v1.1 records carry no servable field, so absent counts as servable; only an explicit false holds.
+  if (r.servable === false) out.push(['not_servable']);
+  else if (r.servable !== undefined && r.servable !== true) out.push(['servable_malformed']);
   const lc = r.licence_class;
   if (!str(lc)) out.push(['licence_barred', 'licence_class missing']);
   else {
@@ -217,8 +262,8 @@ const listingRow: Check = {
   needs: 'live',
   async all(records, ctx) {
     const out = new Map<string, Finding[]>();
-    const add = (k: string, detail?: string) =>
-      out.set(k, [finding('listing_row', ['identity'], 'no_live_row', detail)]);
+    const add = (k: string, reason: string, detail?: string) =>
+      out.set(k, [...(out.get(k) ?? []), finding('listing_row', ['identity'], reason, detail)]);
     const keys = new Set<string>();
     for (const r of records) {
       const k = keyOf(r), dk = billKey(r);
@@ -228,53 +273,48 @@ const listingRow: Check = {
       ? await ctx.live.deskRows({ tier: 'national', feature: BILLS, documentKeys: [...keys] })
       : [];
     // SQL lines 82-84 (ingest_bill_rows): the candidates are the rows of this key in this house.
-    const candidates = new Map<string, Rec[]>();
+    const candidates = new Map<string, LiveDeskRow[]>();
     for (const x of rows) {
       if (!isRec(x.row) || !str(x.row.house)) continue;
       const at = `${x.document_key}\u0000${x.row.house}`;
-      candidates.set(at, [...(candidates.get(at) ?? []), x.row]);
+      candidates.set(at, [...(candidates.get(at) ?? []), x]);
     }
     for (const r of records) {
       const k = keyOf(r);
       if (k === null) continue; // record_shape holds a record with no key
       const dk = billKey(r), house = citationOf(r).house;
       if (dk === null || !str(house)) {
-        add(k, 'key or house cannot be read');
+        add(k, 'no_live_row', 'key or house cannot be read');
         continue;
       }
       const rowsOf = candidates.get(`${dk}\u0000${house}`) ?? [];
       if (rowsOf.length === 0) {
-        add(k);
+        add(k, 'no_live_row');
         continue;
       }
       // SQL line 87: of the candidates, those whose whole normalised name equals the record's.
       const c = citationOf(r);
       const name = billNorm(c.bill_name);
-      const named = name === '' ? [] : rowsOf.filter((row) => billNorm(row.bill_name) === name);
+      const named = name === '' ? [] : rowsOf.filter((x) => billNorm(x.row.bill_name) === name);
       if (named.length === 0) {
-        out.set(k, [
-          finding('listing_row', ['identity'], 'listing_name_mismatch', `${rowsOf.length} row(s) of the key`),
-        ]);
+        add(k, 'listing_name_mismatch', `${rowsOf.length} row(s) of the key`);
         continue;
       }
       // SQL lines 76-79 and 87-89: when the record gives a date, a matching row's date must be valid and within 3 days.
-      if (c.introduced_on === undefined || c.introduced_on === null) continue;
+      // A given date that is not a date is ignored, as the SQL ignores it.
       const given = isoDay(c.introduced_on);
-      // Mirrored differently from the SQL, which ignores a malformed date: a date the record gives but that cannot be
-      // read is held, since nothing then checks it.
-      const near = given !== null && named.some((row) => {
-        const d = isoDay(row.date_introduced);
-        return d !== null && Math.abs(d - given) <= DATE_WINDOW_DAYS;
-      });
-      if (!near) {
-        out.set(k, [
-          finding(
-            'listing_row',
-            ['identity'],
-            'listing_date_far',
-            given === null ? 'introduced_on is not a date' : undefined,
-          ),
-        ]);
+      if (
+        given !== null && !named.some((x) => {
+          const d = isoDay(x.row.date_introduced);
+          return d !== null && Math.abs(d - given) <= DATE_WINDOW_DAYS;
+        })
+      ) add(k, 'listing_date_far');
+      // Every link names a listing row of this very bill (key, house and name), not another bill's under the same key.
+      if (Array.isArray(r.links)) {
+        const rowKeys = new Set(named.map((x) => x.row_key));
+        r.links.forEach((l, i) => {
+          if (isRec(l) && !(str(l.row_key) && rowKeys.has(l.row_key))) add(k, 'link_disagrees', `link ${i}: row_key`);
+        });
       }
     }
     return out;
@@ -307,20 +347,96 @@ const alreadyLive: Check = {
   },
 };
 
-// Spec: the lowest source_key of a text stays, the rest are held.
+// Live: a document of the same key, house (or none) and role (never errata) already holds the role, mirroring
+// bills_adapter.sql lines 255-266 (bill_role_held). One read for the whole set.
+const roleHeldLive: Check = {
+  name: 'role_held_live',
+  covers: ['dedupe'],
+  needs: 'live',
+  async all(records, ctx) {
+    const out = new Map<string, Finding[]>();
+    const asked = records.flatMap((r) => {
+      const k = keyOf(r), dk = billKey(r), c = citationOf(r);
+      return k !== null && dk !== null && str(c.house) && str(c.version) && c.version !== 'errata'
+        ? [{ k, dk, house: c.house, role: c.version }]
+        : [];
+    });
+    if (!asked.length) return out;
+    const docs = await ctx.live.documents({
+      sourceKeys: [],
+      fileUrls: [],
+      documentKeys: [...new Set(asked.map((a) => a.dk))],
+      tier: 'national',
+      feature: BILLS,
+    });
+    for (const a of asked) {
+      // coalesce(x.house, record house) = record house: a document with no house counts.
+      const held = docs.filter((d) =>
+        d.desk_feature === BILLS && d.document_key === a.dk && (d.house ?? a.house) === a.house &&
+        d.document_role === a.role
+      ).map((d) => d.source_key ?? `document ${d.id}`).sort();
+      if (held.length) {
+        out.set(a.k, [finding('role_held_live', ['dedupe'], 'bill_role_held_live', `held by ${held[0]}`)]);
+      }
+    }
+    return out;
+  },
+};
+
+/** Whole-set: groups of two or more records sharing a value; every member is held, none picked. */
+function collisionCheck(
+  name: string,
+  reason: string,
+  groupOf: (r: Rec) => string | null,
+): Check {
+  return {
+    name,
+    covers: ['dedupe'],
+    all(records) {
+      const out = new Map<string, Finding[]>();
+      const groups = new Map<string, string[]>();
+      for (const r of records) {
+        const k = keyOf(r), g = groupOf(r);
+        if (k !== null && g !== null) groups.set(g, [...(groups.get(g) ?? []), k]);
+      }
+      for (const keys of groups.values()) {
+        if (keys.length < 2) continue;
+        for (const k of keys) out.set(k, [finding(name, ['dedupe'], reason, `shared with ${others(keys, k)}`)]);
+      }
+      return Promise.resolve(out);
+    },
+  };
+}
+
+// Records of one bill in one house with one role (other than errata) cannot both load: admission would take the first
+// and refuse the second (bill_role_held), so which one is not the screen's to pick. Both are held.
+const roleCollision = collisionCheck('role_collision', 'bill_role_collision', (r) => {
+  const c = citationOf(r), dk = billKey(r);
+  return dk !== null && str(c.house) && str(c.version) && c.version !== 'errata'
+    ? `${dk}\u0000${c.house}\u0000${c.version}`
+    : null;
+});
+
+// One file, one document (bills_adapter.sql lines 247-253, file_url_held, within the set).
+const fileUrlCollision = collisionCheck(
+  'file_url_collision',
+  'file_url_collision',
+  (r) => str(r.file_url) ? r.file_url : null,
+);
+
+// Spec: the lowest source_key of a text stays, the rest are held. The text is compared as prepare.ts will store it.
 const duplicateText: Check = {
   name: 'duplicate_text',
   covers: ['dedupe'],
-  all(records) {
+  async all(records) {
     const out = new Map<string, Finding[]>();
     const byHash = new Map<string, string[]>();
     for (const r of records) {
       const k = keyOf(r);
       if (k === null) continue;
-      const h = r.content_sha256;
-      if (!str(h) || !SHA256.test(h)) {
-        out.set(k, [finding('duplicate_text', ['dedupe'], 'duplicate_text', 'content_sha256 missing or malformed')]);
-      } else byHash.set(h, [...(byHash.get(h) ?? []), k]);
+      const h = await storedHash(r);
+      if (h === null) out.set(k, [finding('duplicate_text', ['dedupe'], 'duplicate_text', 'text missing')]);
+      else byHash.set(h, [...(byHash.get(h) ?? []), k]);
     }
     for (const keys of byHash.values()) {
       if (keys.length < 2) continue;
@@ -329,7 +445,40 @@ const duplicateText: Check = {
         if (k !== keep) out.set(k, [finding('duplicate_text', ['dedupe'], 'duplicate_text', `same text as ${keep}`)]);
       }
     }
-    return Promise.resolve(out);
+    return out;
+  },
+};
+
+// Live: another document already holds this stored text (admission's duplicate_text, bills_adapter.sql: a stored
+// content_sha256 equal to the record's, from another source_key, never the empty text). One read for the whole set.
+const duplicateTextLive: Check = {
+  name: 'duplicate_text_live',
+  covers: ['dedupe'],
+  needs: 'live',
+  async all(records, ctx) {
+    const out = new Map<string, Finding[]>();
+    const asked: { k: string; h: string }[] = [];
+    for (const r of records) {
+      const k = keyOf(r);
+      if (k === null) continue;
+      const h = await storedHash(r);
+      if (h === null) out.set(k, [finding('duplicate_text_live', ['dedupe'], 'duplicate_text_live', 'text missing')]);
+      else if (h !== EMPTY_TEXT_SHA256) asked.push({ k, h });
+    }
+    if (!asked.length) return out;
+    const docs = await ctx.live.documents({
+      sourceKeys: [],
+      fileUrls: [],
+      contentHashes: [...new Set(asked.map((a) => a.h))],
+    });
+    for (const a of asked) {
+      const held = docs.filter((d) => d.content_sha256 === a.h && d.source_key !== a.k)
+        .map((d) => d.source_key ?? `document ${d.id}`).sort();
+      if (held.length) {
+        out.set(a.k, [finding('duplicate_text_live', ['dedupe'], 'duplicate_text_live', `held by ${held[0]}`)]);
+      }
+    }
+    return out;
   },
 };
 
@@ -369,6 +518,9 @@ export function makeBillsScreen(extra: Check[] = []): Screen {
     rulesFiles: [
       'scripts/bulk-runner/screens/bills.ts',
       'scripts/bulk-runner/screen.ts',
+      'scripts/bulk-runner/screen_types.ts',
+      'scripts/bulk-runner/screens/index.ts',
+      'scripts/bulk-runner/live.ts',
       'scripts/bulk-runner/page_check.ts',
     ],
     checks: [
@@ -382,7 +534,11 @@ export function makeBillsScreen(extra: Check[] = []): Screen {
       servableCheck,
       licenceAdmitted,
       alreadyLive,
+      roleHeldLive,
+      roleCollision,
+      fileUrlCollision,
       duplicateText,
+      duplicateTextLive,
       corrigendum,
       ...extra,
     ],
