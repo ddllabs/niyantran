@@ -110,9 +110,22 @@ Applied migrations are never edited or deleted.
    file).
 2. Prove it on the disposable local databases: add or adjust the fixture in
    `supabase/tests/` and run `npm run test:sql`.
-3. Apply it to NTER with the owner's go-ahead, then pin its version to the
-   file name (the tool stamps the apply time):
-   `update supabase_migrations.schema_migrations set version = '<file-version>' where version = '<stamped>';`
+3. Apply it to NTER with the go-ahead for that apply, **by `psql`, from the
+   developer's own terminal**, then record it under the file's version.
+   *Since 2026-11-03 (F283):* NTER's migration history differs from the
+   repository, because migrations applied through the Supabase MCP were recorded
+   under the apply time. `supabase db push` would re-run 18 old files, billing
+   among them, so it must not be used, and the MCP's `apply_migration` is not
+   used either. The procedure, as used for Phase B
+   ([record](../operations/2026-11-03-phase-b-apply.md)):
+   - check the file's sha256 on `main` and that no history row exists:
+     `select version from supabase_migrations.schema_migrations where version = '<file-version>';`
+   - run the file: `psql "$PGURL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/<file>.sql`
+     (the connection string and password stay in that terminal; never in chat,
+     the repository or a log);
+   - insert the history row by hand under the file's version:
+     `insert into supabase_migrations.schema_migrations (version, name) values ('<file-version>', '<name>');`
+   - record the apply in the open-work item that made the change.
 4. After any restart or bulk load, run the `analyze` statements in AGENTS.md.
 
 A data-destroying revert (dropping a table with rows) needs an exact

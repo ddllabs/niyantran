@@ -1,6 +1,6 @@
 # Start here
 
-Status: **Living.** Rewritten 2026-09-29 (current-state pointer 2026-10-17) as the entry point for any new agent
+Status: **Living.** Rewritten 2026-09-29 (current-state pointer 2026-10-17; setup facts corrected 2026-11-08) as the entry point for any new agent
 or session, cloud or local. Update it when a listed document changes status
 or when the setup below changes.
 
@@ -13,7 +13,7 @@ accepted risks and a Done log with commit hashes.
 | # | Document | What it gives you |
 |---|---|---|
 | 1 | `../AGENTS.md` | The binding rules: authority, git, verification, safety |
-| 2 | `agents/coordination.md` | Roles, the work lifecycle, "Branches and deployments", and the production record by day (dated deployment and verification records) |
+| 2 | `agents/coordination.md` | Roles, the work lifecycle, "Branches and deployments", and the production record by day up to 2026-10-18 (later production changes: see "Where things stand") |
 | 3 | `plans/open-work.md` | What is open, what is blocked and on whom, the current baseline, and what landed |
 | 4 | `agents/rollback-runbook.md` | How Edge Functions and migrations are deployed, verified and rolled back |
 | 5 | `plans/2026-09-29-corpus-ingestion.md` | Historical: the old L1/L2 measurements; current R4–R8 work is in open-work |
@@ -32,11 +32,15 @@ These are the facts new sessions most often get wrong.
   development. Which git branch is checked out never changes which database
   is used, and a write from anywhere is a real write.
 - **Supabase changes are explicit.** A push deploys nothing to Supabase.
-  Migrations are applied one by one (Supabase MCP `apply_migration` or the
-  CLI) and their version pinned to the file name; Edge Functions are
+  Migrations are applied one by one, each with its own go-ahead, **by `psql`
+  from the developer's terminal, with the history row inserted by hand under
+  the file's version. Never `supabase db push`, and not the MCP's
+  `apply_migration`:** NTER's history differs from the repository (F283), and
+  a push would re-run 18 old files, billing among them. Edge Functions are
   deployed from a pinned commit. Both procedures are in
-  `agents/rollback-runbook.md`, and each production change is recorded in
-  an "Operations" entry in `agents/coordination.md`.
+  `agents/rollback-runbook.md`. A production change is recorded in the
+  open-work item that made it (and, up to 2026-10-18, in an "Operations"
+  entry in `agents/coordination.md`).
 - **Vercel follows git.** A push to `main` deploys production
   (`niyantran-six.vercel.app`); any other pushed branch gets a preview. The preview
   origin pattern was enabled under O5; previews share the live NTER database.
@@ -48,13 +52,35 @@ These are the facts new sessions most often get wrong.
   refuse `*.supabase.co`, so scripts and the dev server's Supabase calls fail
   there while the Supabase MCP tools still work. A local session has no such
   limit.
-- **The corpus is only on the owner's laptop**, at
-  `~/Downloads/NTER-Complete-Processed-Data` (open-work L1, L2).
+- **Corpus packs come from the owner's `Data Handover` Drive folder**, read
+  through a read-only service account ([ADR 0014](decisions/0014-national-v1.1-ingestion-scope.md)).
+  The local copy at `~/Downloads/NTER-Complete-Processed-Data` (open-work L1,
+  L2) is incomplete; do not plan from it.
 - **SQL fixtures need Docker** with the two containers named in the header
-  of `supabase/tests/run.sh`. They never run against NTER.
+  of `supabase/tests/run.sh`. They never run against NTER. The full run takes
+  about 18 minutes and prints each fixture's seconds (F302).
+- **Agent sandboxes.** A sandboxed shell may be refused the Docker socket,
+  the Supabase CLI's network or GitHub's TLS. Retry that command outside the
+  sandbox before concluding a tool is missing.
+- **PostgreSQL is PID 1 in the test containers.** A process left behind by a
+  `docker exec` shell that dies on a signal makes the postmaster crash and
+  restart every database in the container. Never leave background processes
+  inside an exec.
+- **Raw measurement output stays out of the repository.**
+  `eval/ingestion/results/` is ignored by git; keep raw files in a local cache
+  outside the checkout and put summaries in the spec or research note.
+- **Worktrees.** A shell's working directory can reset between commands, so
+  `cd` into the worktree in the same command as every edit or commit. Never
+  remove another tool's worktrees without asking: its sessions may depend on
+  them.
 
 ## Owner conventions
 
+- **Who "the owner" is.** In the corpus and retrieval records since
+  2026-11-01 (F278 onward), "the owner" is the client, who owns the data and
+  its policy, and "the developer" is DDL Labs. Elsewhere, including this
+  section, "owner" means DDL Labs. Either way, every push, merge, deploy,
+  migration apply and ingestion run is authorized by DDL Labs in chat.
 - Commits are authored as `Vighnesh Shukla <hello@ddllabs.ai>`, with no AI
   or tool attribution in the message or trailers.
 - Branches are `task/<slug>` or `feature/<slug>`, never a tool or agent name.
@@ -71,6 +97,12 @@ Not repeated here, so it cannot go stale: `plans/open-work.md` opens with **"Cur
 last dated milestone check: git, CI, site, database, functions, modules) and **"Milestones: what is
 left, in order"** (M1–M6, each with a checkpoint). The last module-by-module check of production is
 in `research/` (newest `*-live-module-status.md`). Re-run the checks before relying on them.
+
+Production changes after 2026-10-18 are recorded in the open-work item that made them, and Phase B in
+`operations/2026-11-03-phase-b-apply.md`; "Current state" lists what is on NTER and what is merged but not applied.
+NTER itself is the authority: its migration list (`supabase_migrations.schema_migrations`, read with F283 in mind) and
+its Edge Function versions. The live corpus work is F278: its [spec](specs/2026-11-01-bulk-ingestion.md) §10 orders the
+steps, and [ADR 0014](decisions/0014-national-v1.1-ingestion-scope.md) holds the owner's scope.
 
 ## A new session's first steps
 

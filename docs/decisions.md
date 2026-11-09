@@ -5,7 +5,7 @@
 
 ## Registry of Decisions
 
-The summaries describe each decision together with its amendments as of 2026-10-03. The ADR file is the authority.
+The summaries describe each decision together with its amendments as of 2026-10-03; ADRs 0011 to 0014 were added to this index on 2026-11-08. The ADR file is the authority.
 
 | ADR | Title | Status | Date | Core Decision |
 |---|---|---|---|---|
@@ -20,6 +20,10 @@ The summaries describe each decision together with its amendments as of 2026-10-
 | [ADR 0008](decisions/0008-supabase-secret-openrouter-gateway.md) | Universal Supabase Secret OpenRouter Gateway | Normative | 2026-09-27 | `OPENROUTER_API_KEY` is held only in Supabase Secrets, and the Supabase Edge runtime is the only AI gateway. The legacy Node chat path was retired on 2026-09-28. |
 | [ADR 0009](decisions/0009-live-tv-youtube-source-and-api-integration.md) | Live TV Backend-Driven YouTube Source and API Integration for Vercel | Normative | 2026-09-28 | 13 curated YouTube sources in 6 categories. The YouTube Data API v3 is called server-side, behind a 10-minute in-memory cache, with curated fallback and no fabricated transcripts. Since F4 (47fa681) the live check uses `playlistItems.list` plus `videos.list` and never `search.list` (2 quota units a refresh). Amended 2026-09-29: invented archive entries, transcripts and placeholder schedules are still in the code (F7 in `plans/open-work.md`, parked). |
 | [ADR 0010](decisions/0010-vercel-serverless-gateway-reconciliation-and-edge-ai-routing.md) | Vercel Serverless Gateway Routing Reconciliation and Edge AI Routing | Normative | 2026-09-28 | All production `/api/*` routes go through `api/router.js`, including marketing media, analytics, user preferences, billing, transit, diplomacy and assets, with defensive body parsing. The `proxyResearchChat` fix it recorded is moot: the chat proxy and `/api/ai/chat` were retired on 2026-09-28 (14b2344), and the browser calls `research-chat` directly. Amended 2026-09-29 with the routes served today. |
+| [ADR 0011](decisions/0011-per-user-credit-ledger.md) | One credit wallet per user, on an append-only ledger | Normative | 2026-10-14 | Credits belong to a user, held in an append-only ledger (F111). |
+| [ADR 0012](decisions/0012-scheduled-feeds-records-first.md) | Module data is fetched on a schedule and kept as records | Normative | 2026-10-15 | A `pg_cron` job in NTER refreshes module feeds, which are kept as records (F160, F169, F170). |
+| [ADR 0013](decisions/0013-one-paisa-credit-redenomination.md) | Preserve value and history when changing the credit unit | Normative | 2026-10-18 | One credit became INR 0.01; balances convert at 10 to 1 and the ledger history is kept. |
+| [ADR 0014](decisions/0014-national-v1.1-ingestion-scope.md) | National first, and what the bulk ingestion loads | Normative | 2026-11-03 | National first and legal on hold; read-only Drive access; US$100 for v1.1; one policy per collection; MP profiles and all licence classes in; tenders and affidavits out. |
 
 ---
 

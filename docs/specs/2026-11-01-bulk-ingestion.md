@@ -273,7 +273,7 @@ decision, and the inventory.
 
 **Out of scope:**
 - **Billing and accounts:** payments, credits and user accounts.
-- **Policy-gated collections:** personal-data collections (affidavits, MP profiles) until the owner sets a policy.
+- **Policy-gated collections:** personal-data collections (affidavits, MP profiles) until the owner sets a policy. *Set 2026-11-03: MP profiles in, affidavits and the tender archive out ([ADR 0014](../decisions/0014-national-v1.1-ingestion-scope.md)).*
 - **Destructive changes:** the v1.2 text replacements (1,819), which stay a separately reviewed developer step.
 - **Other search behaviour:** retrieval changes beyond §4 (for example answer generation, re-rankers, or the research
   chat's prompts) need their own spec.
