@@ -72,4 +72,11 @@ export interface Screen {
   /** Repository paths whose bytes, in this order, make review.rules_sha256. */
   rulesFiles: string[];
   checks: Check[];
+  /**
+   * Top-level fields the collection's adapter reads, derived only from fields of the record that this screen's checks
+   * verified (for Bills: `document_key` from the agreeing links, `document_role` from `citation.version`). Applied to
+   * passing records only, after every check passed and before the review is built; it may add fields, never change or
+   * remove one. Absent: nothing is added.
+   */
+  project?(record: Rec): Rec;
 }
