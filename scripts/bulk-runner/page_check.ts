@@ -13,6 +13,7 @@
 
 import { createHash } from 'node:crypto';
 import { dirname, fromFileUrl, join, resolve } from 'jsr:@std/path@1';
+import { billUrlSegmentsOk } from '../../supabase/functions/_shared/suppliedText.ts';
 import { refuseInCheckout } from './pack.ts';
 import type { Rec } from './prepare.ts';
 import type { Check, Finding } from './screen_types.ts';
@@ -66,7 +67,7 @@ export interface PageCheckDeps {
   timeoutMs?: number;
   /** The largest PDF accepted (default 256 MiB). */
   maxBytes?: number;
-  /** Only URLs matching this (and holding no `..`) are fetched (default: BILLS_URL_RULE). */
+  /** Only URLs matching this (and holding no `.` or `..` path segment) are fetched (default: BILLS_URL_RULE). */
   urlRule?: RegExp;
   /** The reader's limit for one PDF (default 60 s); past it the PDF is pdf_unreadable. */
   readTimeoutMs?: number;
@@ -264,12 +265,15 @@ function packPages(r: Rec): Map<number, string> | string {
   return out;
 }
 
-/** The URL when it is official: it matches the rule as given and as parsed, is https, and holds no `..`. */
+/**
+ * The URL when it is official: it matches the rule as given and as parsed, is https, and (as given and as parsed) holds
+ * no `.` or `..` path segment, plain or percent-encoded, and no backslash. A run of dots in a file name is allowed.
+ */
 function officialUrl(v: string, rule: RegExp): URL | null {
-  if (!rule.test(v) || v.includes('..')) return null;
+  if (!rule.test(v) || !billUrlSegmentsOk(v)) return null;
   try {
     const u = new URL(v);
-    return u.protocol === 'https:' && rule.test(u.href) && !u.href.includes('..') ? u : null;
+    return u.protocol === 'https:' && rule.test(u.href) && billUrlSegmentsOk(u.href) ? u : null;
   } catch {
     return null;
   }

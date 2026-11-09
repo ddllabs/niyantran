@@ -122,6 +122,63 @@ Deno.test('a National bill must say what it is', async () => {
   await assertRejects(() => prepareSuppliedText({ ...r, document_role: 'memo' }), Error, 'document_role');
   await assertRejects(() => prepareSuppliedText({ ...r, document_key: 'bill:2024:12' }), Error, 'document_key');
 });
+Deno.test('a National bill may carry the citation key or the listing key, and no other', async () => {
+  const r = await nationalBill();
+  const cite = (over: Record<string, unknown>) => ({ ...r.citation, ...over });
+  const key = async (rec: Record<string, unknown>, document_key: string) =>
+    (await prepareSuppliedText({ ...rec, document_key })).input.document_key;
+  // The name closes with 2025; the citation says 2024. Both keys are the bill's own.
+  const split = { ...r, citation: cite({ bill_year: '2024' }) };
+  assertEquals(await key(split, 'bill:2025:12'), 'bill:2025:12');
+  assertEquals(await key(split, 'bill:2024:12'), 'bill:2024:12');
+  await assertRejects(() => key(split, 'bill:2023:12'), Error, 'document_key');
+  await assertRejects(() => key(split, 'bill:2025:13'), Error, 'document_key');
+  // No year in the name: the year of introduced_on is the listing's.
+  const named = { bill_name: 'The River Navigation Bill', bill_year: '2025' };
+  const bare = { ...r, citation: cite({ ...named, introduced_on: '2024-12-30' }) };
+  assertEquals(await key(bare, 'bill:2024:12'), 'bill:2024:12');
+  // A date that is not a date gives no listing key.
+  for (const introduced_on of ['2024-02-31', '2024-13-01', '24-12-30', undefined]) {
+    const bad = { ...r, citation: cite({ ...named, introduced_on }) };
+    await assertRejects(() => key(bad, 'bill:2024:12'), Error, 'document_key');
+  }
+  // The name's year wins over the date's.
+  const both = { ...r, citation: cite({ bill_year: '2024', introduced_on: '2023-01-01' }) };
+  await assertRejects(() => key(both, 'bill:2023:12'), Error, 'document_key');
+});
+Deno.test('a National bill file_url: dots in a file name pass; parent and current segments and backslashes do not', async () => {
+  const r = await nationalBill();
+  const base = 'https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/';
+  const allowed = [
+    `${base}591LS%20As%20Int....pdf`,
+    `${base}12.pdf?next=/../a`,
+    `${base}12.pdf#/../a`,
+    `${base}...pdf`,
+    `${base}x/591LS As Int....pdf`,
+  ];
+  for (const u of allowed) {
+    assertEquals((await prepareSuppliedText({ ...r, file_url: u })).input.file_url, u, u);
+  }
+  const refused = [
+    'https://sansad.in/getFile/BillsTexts/../a.pdf',
+    'https://sansad.in/getFile/BillsTexts/./a.pdf',
+    'https://sansad.in/getFile/BillsTexts/%2e%2e/a.pdf',
+    'https://sansad.in/getFile/BillsTexts/%2E./a.pdf',
+    'https://sansad.in/getFile/BillsTexts/.%2e/a.pdf',
+    'https://sansad.in/getFile/BillsTexts/x/..',
+    'https://sansad.in/getFile/BillsTexts/x/..?a=1',
+    'https://sansad.in/getFile/BillsTexts/x\\a.pdf',
+    'https://sansad.in/getFile/BillsTexts/x/..\r/a.pdf',
+    'https://sansad.in/getFile/BillsTexts/x/..\n/a.pdf',
+    'https://sansad.in/getFile/BillsTexts/x/.\t./a.pdf',
+    'https://sansad.in/getFile/BillsTexts/x/..;/a.pdf',
+    'https://sansad.in/getFile/BillsTexts/x/%2e%2e%3b/a.pdf',
+    'https://sansad.in/getFile/BillsTexts/x/..%2fa.pdf',
+    'https://sansad.in/getFile/BillsTexts/x/..%2F..%2Fa.pdf',
+    'https://sansad.in/getFile/BillsTexts/x/%2e%2e%5ca.pdf',
+  ];
+  for (const u of refused) await assertRejects(() => prepareSuppliedText({ ...r, file_url: u }), Error, 'sansad.in');
+});
 Deno.test('a question record is unchanged by the Bills adapter', async () => {
   const r = await nationalQuestion();
   const checks = { ...r.review.checks, bill_identity: true };
