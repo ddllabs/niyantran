@@ -90,9 +90,61 @@ export interface RetrievalTrace {
 
 export type RetrievalPhase = 'embeddingMs' | 'retrievalMs';
 
+/** The one feature keyword search applies to (match_documents_hybrid, migration 20261102120000). */
+export const HYBRID_FEATURE = 'NCLT / NCLAT (Insolvency)';
+/** Time budgets of the hybrid path (F288), in ms. */
+export const HYBRID_DEFAULTS = { hybridMs: 2_500, fallbackMs: 4_000 } as const;
+/** A thrown failure this close to its budget (timers fire a little early against a wall clock) is reported as a timeout. */
+const HYBRID_TIMER_SLACK_MS = 50;
+export interface HybridConfig { enabled: boolean; hybridMs: number; fallbackMs: number }
+/** Safe bounds for the two budgets, in ms. The maximum is NETWORK_TIMEOUT_MS: no setting waits longer than today's single step. */
+export const HYBRID_BOUNDS = { hybridMs: [500, 4_000], fallbackMs: [1_000, 4_000] } as const;
+const budget = (v: unknown, [lo, hi]: readonly [number, number], fallback: number): number =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : fallback;
+/**
+ * The `hybrid_search` app_flags value. Only the boolean `true` in `enabled` turns hybrid on; anything else, whatever its
+ * shape, is off. Budgets that are absent or not finite numbers take the defaults; the rest are clamped.
+ */
+export function parseHybridFlag(value: unknown): HybridConfig {
+  const v = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  return {
+    enabled: v.enabled === true,
+    hybridMs: budget(v.hybrid_ms, HYBRID_BOUNDS.hybridMs, HYBRID_DEFAULTS.hybridMs),
+    fallbackMs: budget(v.fallback_ms, HYBRID_BOUNDS.fallbackMs, HYBRID_DEFAULTS.fallbackMs),
+  };
+}
+/** How a search that consulted the hybrid switch was served. Never carries query text or an error message. */
+export interface RetrievalPathInfo {
+  path: 'hybrid' | 'hybrid_fallback';
+  hybridMs?: number;
+  fallbackMs?: number;
+  fallbackReason?: 'timeout' | 'error';
+  errorCode?: string;
+}
+
+const afterRpc = new WeakSet<object>();
+/**
+ * For `deps.rpc`: rethrow a failure that happened after the RPC itself succeeded (role hydration of its rows). The error is
+ * passed on unchanged, but the hybrid path will not treat it as a hybrid failure: a second search would repeat the work
+ * that just failed.
+ */
+export function afterRpcFailure(e: unknown): never {
+  if (e && typeof e === 'object') afterRpc.add(e);
+  throw e;
+}
+
 export interface RetrievalDeps {
   embed(query: string): Promise<{ vector: number[]; model: string }>;
-  rpc(fn: 'match_documents', args: Record<string, unknown>): Promise<{ data: unknown[] | null; error: { message: string } | null }>;
+  rpc(
+    fn: 'match_documents' | 'match_documents_hybrid',
+    args: Record<string, unknown>,
+    budgetMs?: number,
+  ): Promise<{ data: unknown[] | null; error: { message: string; code?: string } | null }>;
+  /** Present only where the hybrid path may run. A rejecting `config` means vector-only. */
+  hybrid?: { config(): Promise<HybridConfig> };
+  /** The turn's signal: an aborted turn starts no fallback. */
+  signal?: AbortSignal;
+  onPath?(info: RetrievalPathInfo): void;
   onTrace?(trace: RetrievalTrace): void;
   onTiming?(phase: RetrievalPhase, ms: number): void;
   now?: () => number;
@@ -172,7 +224,7 @@ export async function search(deps: RetrievalDeps, input: SearchInput): Promise<C
   const { vector, model } = await measure('embeddingMs', () => deps.embed(query));
   if (!servedModelMatches(model)) throw new Error(`search: query embedded by ${model}, expected the corpus model`);
   if (vector.length !== EMBED_DIMS) throw new Error(`search: query embedding width ${vector.length}, expected ${EMBED_DIMS}`);
-  const { data, error } = await measure('retrievalMs', () => deps.rpc('match_documents', {
+  const args: Record<string, unknown> = {
     query_embedding: vector,
     match_count: input.topK ?? DEFAULT_TOP_K,
     p_document_ids: input.documentIds ?? null,
@@ -182,10 +234,55 @@ export async function search(deps: RetrievalDeps, input: SearchInput): Promise<C
     // does not know. Omitting it keeps this function deployable either side
     // of that migration.
     ...(input.deskFeature ? { p_desk_feature: input.deskFeature } : {}),
-  }));
-  if (error) throw new Error(`match_documents: ${error.message}`);
+  };
+  const vectorRows = async (budgetMs?: number): Promise<unknown[]> => {
+    const { data, error } = budgetMs === undefined
+      ? await deps.rpc('match_documents', args)
+      : await deps.rpc('match_documents', args, budgetMs);
+    if (error) throw new Error(`match_documents: ${error.message}`);
+    return data ?? [];
+  };
+  // F288: only an NCLT feature search with no document ids can differ in hybrid (the SQL makes every other scope
+  // identical), so only that search reads the switch. A switch that cannot be read is off.
+  let hybrid: HybridConfig | null = null;
+  if (deps.hybrid && input.deskFeature === HYBRID_FEATURE && !input.documentIds?.length) {
+    try { hybrid = await deps.hybrid.config(); } catch { hybrid = null; }
+  }
+  const hybridRows = async (config: HybridConfig): Promise<unknown[]> => {
+    const hybridStart = now();
+    let failed: { threw: boolean; code?: string };
+    try {
+      const result = await deps.rpc('match_documents_hybrid', { ...args, query_text: query }, config.hybridMs);
+      if (!result.error && Array.isArray(result.data)) {
+        deps.onPath?.({ path: 'hybrid' });
+        return result.data;
+      }
+      failed = { threw: false, code: result.error?.code };
+    } catch (e) {
+      // The RPC answered and what failed was the work on its rows: not a hybrid failure, so no repeat of the search.
+      if (e && typeof e === 'object' && afterRpc.has(e)) throw e;
+      failed = { threw: true };
+    }
+    // Stop or the turn deadline is not a hybrid failure: no second call, no wasted spend.
+    deps.signal?.throwIfAborted();
+    const hybridMs = Math.max(0, Math.round(now() - hybridStart));
+    const fallbackReason = failed.threw && hybridMs >= config.hybridMs - HYBRID_TIMER_SLACK_MS ? 'timeout' : 'error';
+    const fallbackStart = now();
+    try {
+      return await vectorRows(config.fallbackMs);
+    } finally {
+      deps.onPath?.({
+        path: 'hybrid_fallback',
+        hybridMs,
+        fallbackMs: Math.max(0, Math.round(now() - fallbackStart)),
+        fallbackReason,
+        ...(failed.code ? { errorCode: failed.code } : {}),
+      });
+    }
+  };
+  const data = await measure('retrievalMs', () => hybrid?.enabled ? hybridRows(hybrid) : vectorRows());
   const chunks: Chunk[] = [];
-  for (const row of data ?? []) chunks.push(await rowToChunk(row));
+  for (const row of data) chunks.push(await rowToChunk(row));
   deps.onTrace?.({
     subQuery: query,
     chunkIds: chunks.map((c) => c.id),

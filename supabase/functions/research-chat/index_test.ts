@@ -1,8 +1,9 @@
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
+import { FakeTime } from 'jsr:@std/testing@1.0.21/time';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 // Dynamic import makes absence/import side effects an executable regression.
 const module = await import(new URL('./index.ts', import.meta.url).href);
-const { createDependencies, createResearchHandler } = module;
+const { createDependencies, createResearchHandler, resetHybridFlagCache } = module;
 const request = () =>
   new Request('https://fake.invalid', {
     method: 'POST',
@@ -1133,4 +1134,250 @@ Deno.test('F264 in-flight scope cancellation propagates and stops waiting for ad
   const pending = d.db.resolveDocumentScope({ keys: ['desk-record:["national","Questions","1"]'], ids: [], signal: controller.signal });
   await Promise.resolve(); controller.abort();
   await assertRejects(() => pending);
+});
+
+// F288: the hybrid switch, the budgets and the fallback, as wired in index.ts.
+const NCLT_FEATURE = 'NCLT / NCLAT (Insolvency)';
+const nclt = { query: 'secret insolvency question', desk_tier: 'national', desk_feature: NCLT_FEATURE };
+const chunkRow = (id: string) => ({ id, document_id: 'doc-a', title: 'Order', content: 'Evidence', char_from: 0, char_to: 8 });
+
+function hybridRig(flag: unknown, over: { hybrid?: () => unknown; vector?: () => unknown } = {}) {
+  resetHybridFlagCache();
+  const f = fixture(), c = embeddingContext();
+  let embeds = 0;
+  f.runtime.fetch = () => {
+    embeds++;
+    return Promise.resolve(new Response(JSON.stringify(vector())));
+  };
+  f.setReply((_side, table) => {
+    if (table === 'app_flags') return { data: flag === undefined ? null : { value: flag }, error: null };
+    if (table === 'match_documents_hybrid') return over.hybrid ? over.hybrid() : { data: [chunkRow('h1')], error: null };
+    if (table === 'match_documents') return over.vector ? over.vector() : { data: [chunkRow('v1')], error: null };
+    if (table === 'documents') return { data: [{ id: 'doc-a', metadata: { document_role: 'as_introduced' } }], error: null };
+    return { data: [], error: null };
+  });
+  const paths: unknown[] = [];
+  const context = { ...c.context, onPath: (info: unknown) => paths.push(info) };
+  const names = () => f.calls.map((x) => x.table).filter((t) => t === 'match_documents' || t === 'match_documents_hybrid');
+  return { f, c, context, paths, names, embeds: () => embeds };
+}
+/** Lets the promise chain behind a fired timer (abort, rejection, the next call) run under FakeTime. */
+async function flush() {
+  for (let i = 0; i < 30; i++) await Promise.resolve();
+}
+async function captureLogs<T>(run: () => Promise<T>): Promise<{ result: T; lines: string[] }> {
+  const original = console.log, lines: string[] = [];
+  console.log = (line: unknown) => void lines.push(String(line));
+  try {
+    return { result: await run(), lines };
+  } finally {
+    console.log = original;
+  }
+}
+
+Deno.test('F288 wiring: switch absent: the plain match_documents call, the flag read on the caller client with its own bound', async () => {
+  const r = hybridRig(undefined);
+  const d = createDependencies(request(), r.f.runtime);
+  await d.requireUser(request());
+  const chunks = await d.searchDocuments(nclt, undefined, r.context);
+  assertEquals(r.names(), ['match_documents']);
+  assertEquals(chunks.map((x: { id: string }) => x.id), ['v1']);
+  const sent = r.f.calls.find((x) => x.table === 'match_documents')!.value as Record<string, unknown>;
+  assertEquals('query_text' in sent, false);
+  const read = r.f.calls.find((x) => x.table === 'app_flags')!;
+  assertEquals(read.side, 'caller');
+  assertEquals(read.columns, 'value');
+  assertEquals(read.filters, [['eq', 'key', 'hybrid_search']]);
+  assert(read.signal, 'bounded');
+  assertEquals(r.paths, []);
+});
+
+Deno.test('F288 wiring: switch on and healthy: hybrid only, role hydration applied, query_text sent', async () => {
+  const r = hybridRig({ enabled: true });
+  const d = createDependencies(request(), r.f.runtime);
+  await d.requireUser(request());
+  const chunks = await d.searchDocuments(nclt, undefined, r.context);
+  assertEquals(r.names(), ['match_documents_hybrid']);
+  assertEquals(chunks[0].document_role, 'as_introduced');
+  const sent = r.f.calls.find((x) => x.table === 'match_documents_hybrid')!.value as Record<string, unknown>;
+  assertEquals(sent.query_text, 'secret insolvency question');
+  assertEquals(sent.p_desk_feature, NCLT_FEATURE);
+  assertEquals(r.paths, [{ path: 'hybrid' }]);
+});
+
+Deno.test('F288 wiring: hybrid errors: vector rows come back hydrated, the query is embedded once, the log has no query text', async () => {
+  const r = hybridRig({ enabled: true }, { hybrid: () => ({ data: null, error: { message: 'secret insolvency question failed', code: '57014' } }) });
+  const d = createDependencies(request(), r.f.runtime);
+  await d.requireUser(request());
+  const { result: chunks, lines } = await captureLogs<{ id: string; document_role?: string }[]>(() => d.searchDocuments(nclt, undefined, r.context));
+  assertEquals(r.names(), ['match_documents_hybrid', 'match_documents']);
+  assertEquals(chunks.map((x) => x.id), ['v1']);
+  assertEquals(chunks[0].document_role, 'as_introduced', 'fallback rows pass the same hydration');
+  assertEquals(r.embeds(), 1);
+  const fallbackLog = lines.map((l) => JSON.parse(l)).find((l) => l.event === 'research.hybrid_fallback');
+  assert(fallbackLog, 'a fallback is logged');
+  assertEquals(fallbackLog.reason, 'error');
+  assertEquals(fallbackLog.code, '57014');
+  assert(typeof fallbackLog.hybrid_ms === 'number' && typeof fallbackLog.fallback_ms === 'number');
+  assertEquals(lines.join('\n').includes('secret insolvency'), false, 'no query text in any log line');
+  assertEquals(JSON.stringify(r.paths).includes('secret'), false);
+  assertEquals((r.paths[0] as { path: string }).path, 'hybrid_fallback');
+});
+
+Deno.test('F288 wiring: the hybrid call gets 2,500 ms and the fallback its own 4,000 ms, not what is left', async () => {
+  using time = new FakeTime();
+  const never = () => new Promise(() => {});
+  const r = hybridRig({ enabled: true }, { hybrid: never, vector: never });
+  const d = createDependencies(request(), r.f.runtime);
+  await d.requireUser(request());
+  const pending = d.searchDocuments(nclt, undefined, r.context).then(() => 'resolved', (e: unknown) => e);
+  await time.tickAsync(2_499);
+  await flush();
+  assertEquals(r.names(), ['match_documents_hybrid'], 'hybrid still running');
+  await time.tickAsync(1);
+  await flush();
+  assertEquals(r.names(), ['match_documents_hybrid', 'match_documents'], 'fallback starts when hybrid is cut off');
+  assert(r.f.calls.find((x) => x.table === 'match_documents_hybrid')!.signal!.aborted, 'the hybrid fetch is cancelled');
+  await time.tickAsync(3_999);
+  await flush();
+  assertEquals(r.f.calls.filter((x) => x.table === 'match_documents')[0].signal!.aborted, false, 'fallback has its full budget');
+  await time.tickAsync(1);
+  await flush();
+  assertEquals((await pending as { status: number }).status, 503, 'a failed fallback fails the search as today');
+});
+
+Deno.test('F288 wiring: budgets come from the flag row, clamped', async () => {
+  using time = new FakeTime();
+  const never = () => new Promise(() => {});
+  const r = hybridRig({ enabled: true, hybrid_ms: 100, fallback_ms: 1_500 }, { hybrid: never, vector: never });
+  const d = createDependencies(request(), r.f.runtime);
+  await d.requireUser(request());
+  const pending = d.searchDocuments(nclt, undefined, r.context).then(() => 'resolved', (e: unknown) => e);
+  await time.tickAsync(499);
+  await flush();
+  assertEquals(r.names(), ['match_documents_hybrid'], '100 is clamped up to 500');
+  await time.tickAsync(1);
+  await flush();
+  assertEquals(r.names().length, 2);
+  await time.tickAsync(1_499);
+  await flush();
+  assertEquals(r.f.calls.filter((x) => x.table === 'match_documents')[0].signal!.aborted, false);
+  await time.tickAsync(1);
+  await flush();
+  assertEquals((await pending as { status: number }).status, 503);
+});
+
+Deno.test('F288 wiring: an unreadable switch is off: plain search succeeds, the failure kind is logged without detail', async () => {
+  const r = hybridRig(undefined);
+  r.f.setReply((_side, table) =>
+    table === 'app_flags' ? { data: null, error: { message: 'PRIVATE flag failure' } } :
+    table === 'match_documents' ? { data: [chunkRow('v1')], error: null } :
+    table === 'documents' ? { data: [{ id: 'doc-a', metadata: {} }], error: null } : { data: [], error: null }
+  );
+  const d = createDependencies(request(), r.f.runtime);
+  await d.requireUser(request());
+  const { result: chunks, lines } = await captureLogs<{ id: string; document_role?: string }[]>(() => d.searchDocuments(nclt, undefined, r.context));
+  assertEquals(r.names(), ['match_documents']);
+  assertEquals(chunks.length, 1);
+  const failure = lines.map((l) => JSON.parse(l)).find((l) => l.event === 'research.hybrid_flag_read_failed');
+  assert(failure);
+  assertEquals(Object.keys(failure).filter((k) => k !== 't' && k !== 'event'), ['kind']);
+  assertEquals(lines.join('\n').includes('PRIVATE'), false);
+});
+
+Deno.test('F288 wiring: the switch is read once across searches within the cache window', async () => {
+  const r = hybridRig({ enabled: true });
+  const d = createDependencies(request(), r.f.runtime);
+  await d.requireUser(request());
+  await d.searchDocuments(nclt, undefined, r.context);
+  await d.searchDocuments(nclt, undefined, r.context);
+  assertEquals(r.f.calls.filter((x) => x.table === 'app_flags').length, 1);
+  assertEquals(r.names(), ['match_documents_hybrid', 'match_documents_hybrid']);
+});
+
+Deno.test('F288 wiring: other scopes never read the switch', async () => {
+  const r = hybridRig({ enabled: true });
+  const d = createDependencies(request(), r.f.runtime);
+  await d.requireUser(request());
+  await d.searchDocuments({ query: 'Q' }, undefined, r.context);
+  await d.searchDocuments({ ...nclt, desk_feature: 'Parliamentary Questions' }, undefined, r.context);
+  await d.searchDocuments(nclt, ['doc-a'], r.context);
+  assertEquals(r.f.calls.some((x) => x.table === 'app_flags'), false);
+  assertEquals(r.names(), ['match_documents', 'match_documents', 'match_documents']);
+});
+
+Deno.test('F288 wiring: Stop during the hybrid call starts no fallback', async () => {
+  const r = hybridRig({ enabled: true }, { hybrid: () => new Promise(() => {}) });
+  const d = createDependencies(request(), r.f.runtime);
+  await d.requireUser(request());
+  const pending = d.searchDocuments(nclt, undefined, r.context);
+  while (!r.names().includes('match_documents_hybrid')) await new Promise((resolve) => setTimeout(resolve, 1));
+  r.c.controller.abort(new Error('stopped'));
+  await assertRejects(() => pending, Error, 'stopped');
+  assertEquals(r.names(), ['match_documents_hybrid']);
+});
+
+Deno.test('F288 wiring: hybrid answers but role hydration fails: no second search, the search fails as hydration does today', async () => {
+  const r = hybridRig({ enabled: true });
+  r.f.setReply((_side, table) =>
+    table === 'app_flags' ? { data: { value: { enabled: true } }, error: null } :
+    table === 'match_documents_hybrid' ? { data: [chunkRow('h1')], error: null } :
+    table === 'match_documents' ? { data: [chunkRow('v1')], error: null } :
+    table === 'documents' ? { data: null, error: { message: 'documents unavailable' } } : { data: [], error: null }
+  );
+  const d = createDependencies(request(), r.f.runtime);
+  await d.requireUser(request());
+  const err = await d.searchDocuments(nclt, undefined, r.context).then(() => null, (e: unknown) => e) as { status?: number } | null;
+  assertEquals(err?.status, 503, 'the generic service error, as a hydration failure gives today');
+  assertEquals(r.names(), ['match_documents_hybrid'], 'no match_documents call');
+  assertEquals(r.paths, []);
+});
+
+Deno.test('F288 wiring: a Stop during the flag read is not cached as unreadable: the next search still sees the switch on', async () => {
+  const r = hybridRig({ enabled: true });
+  let release!: () => void;
+  const slow = new Promise((resolve) => (release = () => resolve({ data: { value: { enabled: true } }, error: null })));
+  r.f.setReply((_side, table) =>
+    table === 'app_flags' ? slow :
+    table === 'match_documents_hybrid' ? { data: [chunkRow('h1')], error: null } :
+    table === 'documents' ? { data: [{ id: 'doc-a', metadata: {} }], error: null } : { data: [], error: null }
+  );
+  const d = createDependencies(request(), r.f.runtime);
+  await d.requireUser(request());
+  const first = d.searchDocuments(nclt, undefined, r.context);
+  const firstOutcome = first.then(() => 'resolved', (e: unknown) => e);
+  while (!r.f.calls.some((x) => x.table === 'app_flags')) await new Promise((resolve) => setTimeout(resolve, 1));
+  r.c.controller.abort(new Error('stopped'));
+  release();
+  assertEquals(((await firstOutcome) as Error).message, 'stopped');
+  assertEquals(r.names(), [], 'the stopped turn starts no search call');
+  const second = await d.searchDocuments(nclt, undefined, embeddingContext().context);
+  assertEquals(second.map((x: { id: string }) => x.id), ['h1']);
+  assertEquals(r.names(), ['match_documents_hybrid'], 'hybrid, so the switch was read as on');
+  assertEquals(r.f.calls.filter((x) => x.table === 'app_flags').length, 1, 'one read served both searches');
+});
+
+Deno.test('F288 wiring: a flag read that never answers is cut off at 500 ms, not the search bound; the search then runs vector-only', async () => {
+  using time = new FakeTime();
+  const r = hybridRig(undefined);
+  r.f.runtime.timeoutMs = 4_000; // production's network bound; the fixture's default is 15 ms
+  r.f.setReply((_side, table) =>
+    table === 'app_flags' ? new Promise(() => {}) :
+    table === 'match_documents' ? { data: [chunkRow('v1')], error: null } :
+    table === 'documents' ? { data: [{ id: 'doc-a', metadata: {} }], error: null } : { data: [], error: null }
+  );
+  const d = createDependencies(request(), r.f.runtime);
+  await d.requireUser(request());
+  const { result, lines } = await captureLogs(async () => {
+    const pending = d.searchDocuments(nclt, undefined, r.context);
+    await time.tickAsync(499);
+    await flush();
+    assertEquals(r.names(), [], 'still waiting on the flag at 499 ms');
+    await time.tickAsync(1);
+    await flush();
+    assertEquals(r.names(), ['match_documents'], 'the search starts at 500 ms');
+    return await pending;
+  });
+  assertEquals(result.map((x: { id: string }) => x.id), ['v1']);
+  assert(lines.map((l) => JSON.parse(l)).some((l) => l.event === 'research.hybrid_flag_read_failed'), 'the failure is logged');
 });

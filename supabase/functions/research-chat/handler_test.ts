@@ -4238,3 +4238,56 @@ Deno.test('F264 resolver errors fail the turn before any provider or widened sea
   assertEquals(rec.messages[0].status, 'error');
   assertEquals(webFrame(got), undefined);
 });
+
+Deno.test('F288: the retrieval path reaches the streamed step-end frame and the saved activity, with no query text', async () => {
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    const handle = /ref:[a-z0-9]{6}-\d+/.exec(JSON.stringify(req.messages))?.[0] ?? '';
+    if (!handle) {
+      yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee stage"}' };
+      yield finish('tool_calls');
+    } else {
+      yield text(envelope('It reached committee [1].', [{ id: 1, source: handle }]));
+      yield finish();
+    }
+  };
+  const { deps, rec } = fakeDeps({ stream }, { searchDocuments: (_args, _ids, context) => {
+    context?.onPath?.({ path: 'hybrid_fallback', hybridMs: 2_500, fallbackMs: 700, fallbackReason: 'timeout', errorCode: '57014' });
+    return Promise.resolve([chunk('c-1')]);
+  } });
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  const end = got.find((f) => 'tool' in f && f.tool.phase === 'end');
+  assert(end && 'tool' in end);
+  const tool = end.tool as Record<string, unknown>; // chatStream.ts's frame type lists no F288 fields (outside this task's scope)
+  assertEquals(tool.retrievalPath, 'hybrid_fallback');
+  assertEquals(tool.hybridMs, 2_500);
+  assertEquals(tool.fallbackReason, 'timeout');
+  const saved = rec.messages[0].activity.find((a) => typeof a === 'object' && a !== null && 'type' in a && a.type === 'tool') as Record<string, unknown>;
+  assertEquals(saved.retrievalPath, 'hybrid_fallback');
+  assertEquals(saved.hybridMs, 2_500);
+  assertEquals(saved.fallbackReason, 'timeout');
+  assertEquals('fallbackMs' in saved || 'errorCode' in saved, false);
+  const added = [tool, saved].map((m) => JSON.stringify([m.retrievalPath, m.hybridMs, m.fallbackReason]));
+  assertEquals(added.join().includes('committee'), false, 'the added measurements carry no query text');
+});
+
+Deno.test('F288: a plain vector search saves and streams the same step-end measurements as before', async () => {
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    const handle = /ref:[a-z0-9]{6}-\d+/.exec(JSON.stringify(req.messages))?.[0] ?? '';
+    if (!handle) {
+      yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee stage"}' };
+      yield finish('tool_calls');
+    } else {
+      yield text(envelope('It reached committee [1].', [{ id: 1, source: handle }]));
+      yield finish();
+    }
+  };
+  const { deps, rec } = fakeDeps({ stream }, { searchDocuments: () => Promise.resolve([chunk('c-1')]) });
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  const end = got.find((f) => 'tool' in f && f.tool.phase === 'end');
+  assert(end && 'tool' in end);
+  const saved = rec.messages[0].activity.find((a) => typeof a === 'object' && a !== null && 'type' in a && a.type === 'tool') as Record<string, unknown>;
+  for (const key of ['retrievalPath', 'hybridMs', 'fallbackReason']) {
+    assertEquals(key in end.tool, false, key);
+    assertEquals(key in saved, false, key);
+  }
+});

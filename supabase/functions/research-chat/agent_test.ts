@@ -2532,3 +2532,35 @@ Deno.test('F259: capacity and timeout failures never become empty-scope widening
     assert(f.requests.some(req => req.messages.some(m => m.role === 'tool' && m.content?.includes('TOOL_EXECUTION_FAILED'))));
   }
 });
+
+Deno.test('F288: a hybrid search carries its path on the step-end event; a fallback adds its time and reason, never the error', async () => {
+  const fallback = fake([], { searchDocuments: (_args, _ids, _topK, _onTiming, onPath) => {
+    onPath?.({ path: 'hybrid_fallback', hybridMs: 2_500, fallbackMs: 800, fallbackReason: 'timeout', errorCode: '57014' });
+    return Promise.resolve([chunk('a')]);
+  } });
+  await assertRejects(() => runAgent(fallback.deps, { ...input, presearch: 'q' }));
+  const end = fallback.events.find((e) => 'tool' in e && e.tool.phase === 'end');
+  assert(end && 'tool' in end && end.tool.phase === 'end');
+  assertEquals(end.tool.retrievalPath, 'hybrid_fallback');
+  assertEquals(end.tool.hybridMs, 2_500);
+  assertEquals(end.tool.fallbackReason, 'timeout');
+  assertEquals('fallbackMs' in end.tool || 'errorCode' in end.tool, false);
+
+  const healthy = fake([], { searchDocuments: (_args, _ids, _topK, _onTiming, onPath) => {
+    onPath?.({ path: 'hybrid' });
+    return Promise.resolve([chunk('a')]);
+  } });
+  await assertRejects(() => runAgent(healthy.deps, { ...input, presearch: 'q' }));
+  const ok = healthy.events.find((e) => 'tool' in e && e.tool.phase === 'end');
+  assert(ok && 'tool' in ok && ok.tool.phase === 'end');
+  assertEquals(ok.tool.retrievalPath, 'hybrid');
+  assertEquals('hybridMs' in ok.tool || 'fallbackReason' in ok.tool, false);
+});
+
+Deno.test('F288: a plain vector search leaves the step-end event exactly as it was', async () => {
+  const plain = fake([], { searchDocuments: () => Promise.resolve([chunk('a')]) });
+  await assertRejects(() => runAgent(plain.deps, { ...input, presearch: 'q' }));
+  const end = plain.events.find((e) => 'tool' in e && e.tool.phase === 'end');
+  assert(end && 'tool' in end && end.tool.phase === 'end');
+  for (const key of ['retrievalPath', 'hybridMs', 'fallbackReason']) assertEquals(key in end.tool, false, key);
+});
