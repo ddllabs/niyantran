@@ -15,7 +15,7 @@ import {
   webSearchCount,
   webSearchTool,
 } from '../_shared/webSearch.ts';
-import { accumulate, DEFAULT_TOP_K, documentRole, DOCUMENT_ROLE_LABELS, type RetrievalPhase, type Chunk } from '../_shared/retrieval.ts';
+import { accumulate, DEFAULT_TOP_K, documentRole, DOCUMENT_ROLE_LABELS, type RetrievalPathInfo, type RetrievalPhase, type Chunk } from '../_shared/retrieval.ts';
 import { SEARCH_DOCUMENTS_TOOL } from '../_shared/tools/searchDocuments.ts';
 import {
   type DeskRow,
@@ -97,6 +97,10 @@ export interface TraceStep {
   requestedTopK?: number;
   embeddingMs?: number;
   retrievalMs?: number;
+  /** F288: set only when the hybrid switch was consulted (absent: a plain vector search). */
+  retrievalPath?: RetrievalPathInfo['path'];
+  hybridMs?: number;
+  fallbackReason?: RetrievalPathInfo['fallbackReason'];
   /** A document search's finds, for the reader to watch (thinking-display spec §3). */
   found?: Found[];
 }
@@ -179,7 +183,7 @@ export interface AgentDeps {
   request: Omit<StreamRequest, 'messages' | 'tools' | 'serverTools' | 'tool_choice'>;
   model(req: StreamRequest): AsyncGenerator<ModelEvent>;
   /** `topK` is set only for a widened search when widenedTopK asks for it; otherwise retrieval's default. */
-  searchDocuments(args: DocumentSearchArgs, documentIds?: string[], topK?: number, onTiming?: (phase: RetrievalPhase, ms: number) => void): Promise<Chunk[]>;
+  searchDocuments(args: DocumentSearchArgs, documentIds?: string[], topK?: number, onTiming?: (phase: RetrievalPhase, ms: number) => void, onPath?: (info: RetrievalPathInfo) => void): Promise<Chunk[]>;
   /** research-coverage fix B: send the model back once when its draft stops short (dig.ts). Off by
    * default until the measurement shows it helps (docs/specs/2026-10-02-research-coverage.md). */
   digNudge?: boolean;
@@ -602,11 +606,18 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     };
     state.steps.push(trace);
     deps.onEvent({ tool: { name, phase: 'start', input: args, step: trace.step, ...(trace.requestedTopK === undefined ? {} : { requestedTopK: trace.requestedTopK }) } });
+    // Path, time lost to a failed hybrid call and a reason code: the measurements a fallback leaves. Nothing else of the
+    // report (the fallback's own time, the database error code) reaches the event or the saved activity.
+    const recordPath = (info: RetrievalPathInfo) => {
+      trace.retrievalPath = info.path;
+      if (info.hybridMs !== undefined) trace.hybridMs = info.hybridMs;
+      if (info.fallbackReason) trace.fallbackReason = info.fallbackReason;
+    };
     try {
       // Retrieval deps have no signal parameter. The handler may bind the same
       // signal in their closures; we also check it before and after each await.
       const result = name === 'search_documents'
-        ? await deps.searchDocuments(args as DocumentSearchArgs, scope, topK, (phase, ms) => { trace[phase] = (trace[phase] ?? 0) + ms; })
+        ? await deps.searchDocuments(args as DocumentSearchArgs, scope, topK, (phase, ms) => { trace[phase] = (trace[phase] ?? 0) + ms; }, recordPath)
         : localRows ?? await deps.searchDeskRows(args as SearchDeskRowsArgs);
       checkAbort();
       if (Array.isArray(result)) {

@@ -13,7 +13,7 @@ import { errorResponse, HttpError } from '../_shared/http.ts';
 import { log } from '../_shared/logging.ts';
 import { personaPrompt } from '../_shared/personas.ts';
 import { type AttemptMetadata, streamChat } from '../_shared/openrouterStream.ts';
-import { hydrateDocumentRoles, search } from '../_shared/retrieval.ts';
+import { afterRpcFailure, hydrateDocumentRoles, search } from '../_shared/retrieval.ts';
 import { hydrateLawContext, LAW_CONTEXT_CHUNKS, type LawContextRow } from '../_shared/lawContext.ts';
 import { serviceClient, userClient } from '../_shared/supabase.ts';
 import { type DeskRow, executeSearchDeskRows } from '../_shared/tools/searchDeskRows.ts';
@@ -24,6 +24,7 @@ import {
   handleResearchChat,
   type RetrievalContext,
 } from './handler.ts';
+import { createHybridFlagCache, HYBRID_FLAG_KEY, HYBRID_FLAG_READ_TIMEOUT_MS } from './hybridFlag.ts';
 import { rpcTurnStore } from './persistence.ts';
 import { resolvePersona } from './persona.ts';
 
@@ -45,6 +46,12 @@ const BLOCK_COLUMNS = 'id,document_id,extract_hash,page_number,x0,y0,x1,y1';
 const IMAGE_COLUMNS = 'id,document_id,extract_hash,page_number,sha256,mime';
 /** Which desk modules have indexed documents. Per-isolate; only an ingest moves it. */
 let documentModulesCache: DocumentModule[] | null = null;
+/** The `hybrid_search` switch (F288), per isolate: 15 s when read, 5 s when unreadable. */
+const hybridFlagCache = createHybridFlagCache({
+  now: () => Date.now(),
+  onFailure: (kind) => log('research.hybrid_flag_read_failed', { kind }),
+});
+export const resetHybridFlagCache = (): void => hybridFlagCache.reset();
 export interface Runtime {
   userClient: typeof userClient;
   serviceClient: typeof serviceClient;
@@ -584,13 +591,39 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
       const chunks = await search({
         onTiming: context.onTiming,
         embed: (q) => embedQuery(q, context, r, r.env('OPENROUTER_API_KEY') ?? ''),
-        rpc: async (fn, a) => {
-          const result = await bounded((signal) => caller().rpc(fn, a).abortSignal(signal), r.timeoutMs, context.signal);
+        signal: context.signal,
+        hybrid: {
+          // Read with the caller's own client (app_flags is readable by authenticated users) under its own short
+          // bound, and not under the turn's signal: a Stop must not be cached as "unreadable".
+          config: () => hybridFlagCache.get(async () => {
+            const flag = await bounded(
+              (signal) => caller().from('app_flags').select('value').eq('key', HYBRID_FLAG_KEY).abortSignal(signal).maybeSingle(),
+              HYBRID_FLAG_READ_TIMEOUT_MS,
+            );
+            if (flag.error) throw new Error('app_flags read failed');
+            return (flag.data as { value?: unknown } | null)?.value;
+          }),
+        },
+        onPath: (info) => {
+          if (info.path === 'hybrid_fallback') {
+            // Counts and a reason only: never the query, the user, or an error message.
+            log('research.hybrid_fallback', {
+              reason: info.fallbackReason,
+              hybrid_ms: info.hybridMs,
+              fallback_ms: info.fallbackMs,
+              code: info.errorCode ?? null,
+            });
+          }
+          context.onPath?.(info);
+        },
+        rpc: async (fn, a, budgetMs) => {
+          const result = await bounded((signal) => caller().rpc(fn, a).abortSignal(signal), budgetMs ?? r.timeoutMs, context.signal);
           if (result.error) return result;
+          // The RPC has answered; a failure of the role lookup is not the RPC's, so search() must not repeat the search.
           const data = await hydrateDocumentRoles(result.data ?? [], async ids =>
             await query<{ id: string; metadata?: unknown }[] | null>((signal) =>
               caller().from('documents').select('id,metadata').in('id', ids).not('indexed_at', 'is', null)
-                .abortSignal(signal), context.signal) ?? []);
+                .abortSignal(signal), context.signal) ?? []).catch(afterRpcFailure);
           return { data, error: null };
         },
       }, { query: args.query, deskTier: args.desk_tier, deskFeature: args.desk_feature, documentIds: ids, topK: context.topK });

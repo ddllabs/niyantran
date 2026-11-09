@@ -1,7 +1,21 @@
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
 import { EMBED_DIMS } from './embed.ts';
 import { sha256Hex } from './textNormalise.ts';
-import { accumulate, type Chunk, DEFAULT_TOP_K, type RetrievalDeps, type RetrievalTrace, rowToChunk, search } from './retrieval.ts';
+import {
+  accumulate,
+  afterRpcFailure,
+  type Chunk,
+  DEFAULT_TOP_K,
+  HYBRID_DEFAULTS,
+  HYBRID_FEATURE,
+  type HybridConfig,
+  parseHybridFlag,
+  type RetrievalDeps,
+  type RetrievalPathInfo,
+  type RetrievalTrace,
+  rowToChunk,
+  search,
+} from './retrieval.ts';
 
 const vec = (n = EMBED_DIMS) => new Array(n).fill(0.01);
 
@@ -156,4 +170,228 @@ Deno.test('role hydration deduplicates and pages IDs, preserves order, and fails
  for(const response of [[],[{id:'foreign',metadata:{}}],[{id:'d0',metadata:{}},{id:'d0',metadata:{}}]])await assertRejects(()=>hydrateDocumentRoles([rows[0]],()=>Promise.resolve(response)));
  let reads=0;assertEquals(await hydrateDocumentRoles([],()=>{reads++;return Promise.resolve([]);}),[]);assertEquals(reads,0);
  await assertRejects(()=>hydrateDocumentRoles([rows[0]],()=>Promise.reject(Error('timeout'))),Error,'timeout');
+});
+
+// F288: hybrid search with a vector-only fallback.
+const ON: HybridConfig = { enabled: true, hybridMs: 2_500, fallbackMs: 4_000 };
+const OFF: HybridConfig = { enabled: false, hybridMs: 2_500, fallbackMs: 4_000 };
+const NCLT = { query: 'insolvency of a shipping company', deskTier: 'national', deskFeature: HYBRID_FEATURE };
+type Call = { fn: string; args: Record<string, unknown>; budgetMs?: number };
+type Reply = { data: unknown[] | null; error: { message: string; code?: string } | null };
+
+function rig(config: HybridConfig | Error, replies: Record<string, () => Promise<Reply>> = {}) {
+  const calls: Call[] = [];
+  const embeds: string[] = [];
+  const paths: RetrievalPathInfo[] = [];
+  let configReads = 0;
+  const controller = new AbortController();
+  const d: RetrievalDeps = {
+    embed: (q) => {
+      embeds.push(q);
+      return Promise.resolve({ vector: vec(), model: 'openai/text-embedding-3-small' });
+    },
+    rpc: (fn, args, budgetMs) => {
+      calls.push({ fn, args, budgetMs });
+      return (replies[fn] ?? (() => Promise.resolve({ data: [row(`${fn}-row`, 0.5)], error: null })))();
+    },
+    hybrid: {
+      config: () => {
+        configReads++;
+        return config instanceof Error ? Promise.reject(config) : Promise.resolve(config);
+      },
+    },
+    signal: controller.signal,
+    onPath: (info) => paths.push(info),
+  };
+  return { d, calls, embeds, paths, controller, reads: () => configReads };
+}
+
+const withoutQueryText = (args: Record<string, unknown>) => {
+  const { query_text: _drop, ...rest } = args;
+  return rest;
+};
+
+Deno.test('F288: hybrid on, healthy: one hybrid call with the same arguments plus query_text; vector is not called', async () => {
+  const r = rig(ON);
+  const chunks = await search(r.d, NCLT);
+  assertEquals(r.calls.map((c) => c.fn), ['match_documents_hybrid']);
+  assertEquals(chunks.map((c) => c.id), ['match_documents_hybrid-row']);
+  assertEquals(r.calls[0].budgetMs, 2_500);
+  assertEquals(r.calls[0].args.query_text, 'insolvency of a shipping company');
+  assertEquals(r.paths, [{ path: 'hybrid' }]);
+});
+
+Deno.test('F288: switch off: one match_documents call with arguments identical to the unflagged call, no query_text', async () => {
+  const plain = rig(OFF);
+  delete (plain.d as { hybrid?: unknown }).hybrid;
+  await search(plain.d, NCLT);
+  const off = rig(OFF);
+  await search(off.d, NCLT);
+  assertEquals(off.calls.map((c) => c.fn), ['match_documents']);
+  assertEquals(off.calls[0].args, plain.calls[0].args);
+  assertEquals('query_text' in off.calls[0].args, false);
+  assertEquals(off.calls[0].budgetMs, undefined, "the call keeps today's default budget");
+  assertEquals(off.paths, []);
+});
+
+Deno.test('F288: a flag reader that rejects means vector-only and the search succeeds', async () => {
+  const r = rig(new Error('flag read exploded'));
+  const chunks = await search(r.d, NCLT);
+  assertEquals(r.calls.map((c) => c.fn), ['match_documents']);
+  assertEquals(chunks.length, 1);
+  assertEquals(r.paths, []);
+});
+
+Deno.test('F288: hybrid times out: the same vector goes to match_documents under its own budget; embedded once', async () => {
+  let t = 0;
+  const r = rig(ON, {
+    match_documents_hybrid: () => {
+      t += 2_500;
+      return Promise.reject(new Error('Research service unavailable'));
+    },
+  });
+  r.d.now = () => t;
+  const chunks = await search(r.d, NCLT);
+  assertEquals(r.calls.map((c) => c.fn), ['match_documents_hybrid', 'match_documents']);
+  assertEquals(r.calls[1].args, withoutQueryText(r.calls[0].args));
+  assertEquals(r.calls[0].budgetMs, 2_500);
+  assertEquals(r.calls[1].budgetMs, 4_000, 'its own budget, not what hybrid left over');
+  assertEquals(chunks.map((c) => c.id), ['match_documents-row']);
+  assertEquals(r.embeds.length, 1, 'the paid embedding is reused');
+  assertEquals(r.paths.length, 1);
+  assertEquals(r.paths[0].path, 'hybrid_fallback');
+  assertEquals(r.paths[0].fallbackReason, 'timeout');
+  assertEquals(r.paths[0].hybridMs, 2_500);
+});
+
+Deno.test('F288: hybrid returns an error, a missing function, or a malformed result: fallback with reason error', async () => {
+  const failures: Record<string, () => Promise<Reply>> = {
+    'error value': () => Promise.resolve({ data: null, error: { message: 'canceling statement', code: '57014' } }),
+    'missing function': () => Promise.resolve({ data: null, error: { message: 'Could not find the function', code: 'PGRST202' } }),
+    'not an array': () => Promise.resolve({ data: { oops: true } as unknown as unknown[], error: null }),
+    'null data': () => Promise.resolve({ data: null, error: null }),
+    'throws at once': () => Promise.reject(new Error('network')),
+  };
+  for (const [name, fail] of Object.entries(failures)) {
+    const r = rig(ON, { match_documents_hybrid: fail });
+    const chunks = await search(r.d, NCLT);
+    assertEquals(r.calls.map((c) => c.fn), ['match_documents_hybrid', 'match_documents'], name);
+    assertEquals(chunks.map((c) => c.id), ['match_documents-row'], name);
+    assertEquals(r.paths[0].path, 'hybrid_fallback', name);
+    assertEquals(r.paths[0].fallbackReason, 'error', name);
+  }
+  const coded = rig(ON, { match_documents_hybrid: failures['error value'] });
+  await search(coded.d, NCLT);
+  assertEquals(coded.paths[0].errorCode, '57014');
+});
+
+Deno.test('F288: a failure after a successful hybrid RPC (role hydration) is not a hybrid failure: no second search, the error surfaces as it does today', async () => {
+  const hydrationError = new Error('Research service unavailable');
+  const r = rig(ON, {
+    match_documents_hybrid: () => Promise.resolve().then(() => afterRpcFailure(hydrationError)),
+  });
+  const err = await assertRejects(() => search(r.d, NCLT));
+  assertEquals(err, hydrationError, 'the same error, unwrapped');
+  assertEquals(r.calls.map((c) => c.fn), ['match_documents_hybrid'], 'no match_documents call');
+  assertEquals(r.paths, []);
+  // The same failure in the fallback's own call is not special: it fails the search as it does today.
+  const both = rig(ON, {
+    match_documents_hybrid: () => Promise.resolve({ data: null, error: { message: 'hybrid broke' } }),
+    match_documents: () => Promise.resolve().then(() => afterRpcFailure(hydrationError)),
+  });
+  assertEquals(await assertRejects(() => search(both.d, NCLT)), hydrationError);
+  assertEquals(both.calls.map((c) => c.fn), ['match_documents_hybrid', 'match_documents']);
+});
+
+Deno.test('F288: the timeout label means "failed at or after the hybrid budget", within 50 ms of slack', async () => {
+  const after = async (elapsed: number) => {
+    let t = 0;
+    const r = rig(ON, {
+      match_documents_hybrid: () => {
+        t += elapsed;
+        return Promise.reject(new Error('Research service unavailable'));
+      },
+    });
+    r.d.now = () => t;
+    await search(r.d, NCLT);
+    return r.paths[0];
+  };
+  assertEquals((await after(2_500)).fallbackReason, 'timeout');
+  assertEquals((await after(2_460)).fallbackReason, 'timeout', 'budget - 40 ms: timers fire a little early');
+  assertEquals((await after(2_400)).fallbackReason, 'error', 'budget - 100 ms is a failure of its own');
+});
+
+Deno.test('F288: an empty but successful hybrid result is a result, not a failure', async () => {
+  const r = rig(ON, { match_documents_hybrid: () => Promise.resolve({ data: [], error: null }) });
+  assertEquals(await search(r.d, NCLT), []);
+  assertEquals(r.calls.map((c) => c.fn), ['match_documents_hybrid']);
+});
+
+Deno.test('F288: Stop or the turn deadline during the hybrid call starts no fallback', async () => {
+  const r = rig(ON, {
+    match_documents_hybrid: () => {
+      r.controller.abort(new Error('stopped'));
+      return Promise.reject(new Error('stopped'));
+    },
+  });
+  await assertRejects(() => search(r.d, NCLT), Error, 'stopped');
+  assertEquals(r.calls.map((c) => c.fn), ['match_documents_hybrid']);
+  assertEquals(r.paths, []);
+});
+
+Deno.test('F288: hybrid and fallback both fail: the fallback error surfaces once, as match_documents failing does today', async () => {
+  const r = rig(ON, {
+    match_documents_hybrid: () => Promise.resolve({ data: null, error: { message: 'hybrid broke' } }),
+    match_documents: () => Promise.resolve({ data: null, error: { message: 'vector broke' } }),
+  });
+  await assertRejects(() => search(r.d, NCLT), Error, 'match_documents: vector broke');
+  assertEquals(r.calls.map((c) => c.fn), ['match_documents_hybrid', 'match_documents']);
+  assertEquals(r.paths.map((p) => p.path), ['hybrid_fallback'], 'the fallback is still visible');
+});
+
+Deno.test('F288: other scopes never read the switch or call hybrid', async () => {
+  const scopes = [
+    { query: 'q' },
+    { query: 'q', deskTier: 'national' },
+    { query: 'q', deskTier: 'national', deskFeature: 'Parliamentary Questions' },
+    { ...NCLT, documentIds: ['doc-1'] },
+  ];
+  for (const scope of scopes) {
+    const r = rig(ON);
+    await search(r.d, scope);
+    assertEquals(r.calls.map((c) => c.fn), ['match_documents'], JSON.stringify(scope));
+    assertEquals(r.reads(), 0, 'no flag read');
+    assertEquals(r.paths, []);
+  }
+  const empty = rig(ON);
+  await search(empty.d, { ...NCLT, documentIds: [] });
+  assertEquals(empty.calls.map((c) => c.fn), ['match_documents_hybrid'], 'an empty id list is no id list, as in the SQL');
+});
+
+Deno.test('F288: the path report carries no query text and no error message', async () => {
+  const r = rig(ON, {
+    match_documents_hybrid: () => Promise.resolve({ data: null, error: { message: 'insolvency of a shipping company', code: 'X' } }),
+  });
+  await search(r.d, NCLT);
+  assertEquals(JSON.stringify(r.paths).includes('shipping'), false);
+  assertEquals(Object.keys(r.paths[0]).sort(), ['errorCode', 'fallbackMs', 'fallbackReason', 'hybridMs', 'path']);
+});
+
+Deno.test('F288: parseHybridFlag: only boolean true enables; budgets default and clamp', () => {
+  for (const v of [undefined, null, true, 'true', 1, [], {}, { enabled: false }, { enabled: 'true' }, { enabled: 1 }, { enabled: null }]) {
+    assertEquals(parseHybridFlag(v).enabled, false, JSON.stringify(v));
+  }
+  assertEquals(parseHybridFlag({ enabled: true }), { enabled: true, hybridMs: 2_500, fallbackMs: 4_000 });
+  assertEquals(HYBRID_DEFAULTS, { hybridMs: 2_500, fallbackMs: 4_000 });
+  assertEquals(parseHybridFlag({ enabled: true, extra: 1 }).enabled, true);
+  assertEquals(parseHybridFlag({ enabled: true, hybrid_ms: 3_000, fallback_ms: 2_000 }), { enabled: true, hybridMs: 3_000, fallbackMs: 2_000 });
+  const low = parseHybridFlag({ enabled: true, hybrid_ms: 10, fallback_ms: 99_999 });
+  assertEquals([low.hybridMs, low.fallbackMs], [500, 4_000]);
+  const high = parseHybridFlag({ enabled: true, hybrid_ms: 60_000, fallback_ms: 1 });
+  assertEquals([high.hybridMs, high.fallbackMs], [4_000, 1_000]);
+  for (const bad of ['2500', NaN, Infinity, null, {}, true]) {
+    const f = parseHybridFlag({ enabled: true, hybrid_ms: bad, fallback_ms: bad });
+    assertEquals([f.hybridMs, f.fallbackMs], [2_500, 4_000], `malformed ${String(bad)} takes the default`);
+  }
+  assertEquals(parseHybridFlag({ enabled: true, hybrid_ms: 1_234.7 }).hybridMs, 1_235, 'rounded');
 });

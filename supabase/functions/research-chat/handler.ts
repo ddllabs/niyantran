@@ -28,7 +28,7 @@ import { checkLinks, decideWebSearch, webModelAllowed, type WebScope, webSources
 import { normaliseUrl, WEB_PAGES_PER_TURN, WEB_SEARCHES_PER_TURN, webDomain, type WebSource } from '../_shared/webSearch.ts';
 import { log } from '../_shared/logging.ts';
 import { type Message, type ModelEvent, ProviderError, type StreamRequest } from '../_shared/openrouterStream.ts';
-import type { Chunk } from '../_shared/retrieval.ts';
+import type { Chunk, RetrievalPathInfo } from '../_shared/retrieval.ts';
 import type { DeskRow, DeskRowsResult, SearchDeskRowsArgs } from '../_shared/tools/searchDeskRows.ts';
 import {
   type AgentCheckpoint,
@@ -216,6 +216,8 @@ export interface RetrievalContext {
   /** Passages to ask for; set on a widened search only (agent WIDENED_TOP_K), else retrieval's default. */
   topK?: number;
   onTiming?: (phase: 'embeddingMs' | 'retrievalMs', ms: number) => void;
+  /** F288: how a search that consulted the hybrid switch was served. Not called for a plain vector search. */
+  onPath?: (info: RetrievalPathInfo) => void;
   beginEmbeddingAttempt(model: string): ReturnType<AttemptRecorder['beginEmbeddingAttempt']>;
 }
 
@@ -1200,6 +1202,9 @@ async function runTurnBody(
           ...(f.requestedTopK === undefined ? {} : { requestedTopK: f.requestedTopK }),
           ...(f.embeddingMs === undefined ? {} : { embeddingMs: f.embeddingMs }),
           ...(f.retrievalMs === undefined ? {} : { retrievalMs: f.retrievalMs }),
+          ...(f.retrievalPath === undefined ? {} : { retrievalPath: f.retrievalPath }),
+          ...(f.hybridMs === undefined ? {} : { hybridMs: f.hybridMs }),
+          ...(f.fallbackReason === undefined ? {} : { fallbackReason: f.fallbackReason }),
         };
         sender.send({ tool: { name: f.name, phase: 'end', step: f.step, resultCount: f.resultCount, ...measurements, ...found } });
         activity.push({
@@ -1318,10 +1323,11 @@ async function runTurnBody(
           // Document chips need not carry a desk hint. The agent verifies actual
           // scoped Law chunks before handing evidence back, and emits lawEvidence.
           lawEvidenceOnly: request.focus === 'attached' && !web.offered,
-          searchDocuments: (args, ids, topK, onTiming) =>
+          searchDocuments: (args, ids, topK, onTiming, onPath) =>
             deps.searchDocuments(args, ids, {
               signal,
               onTiming,
+              onPath,
               ...(topK === undefined ? {} : { topK }),
               beginEmbeddingAttempt: (model) => attempts.beginEmbeddingAttempt(model, signal),
             }),
