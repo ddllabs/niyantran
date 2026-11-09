@@ -1,6 +1,6 @@
 # Bulk runner: command line, production connection and acceptance (F285, step 10)
 
-> **Status: Living (2026-11-08).** Follows the [bulk runner spec](2026-11-07-bulk-runner.md), whose "Not in this work"
+> **Status: Living (2026-11-08; slice B 2026-11-09).** Follows the [bulk runner spec](2026-11-07-bulk-runner.md), whose "Not in this work"
 > named these pieces, and step 10 of the [bulk ingestion spec](2026-11-01-bulk-ingestion.md) §10 (acceptance, §5.3).
 > Writing nothing to NTER is a rule of this work. In this spec "the developer" is DDL Labs.
 
@@ -42,7 +42,7 @@ The first validation batch needs a command the developer runs from their own ter
 - **Proof:** the existing full-size proof (`scripts/load-proof/bulk-proof.ts`) run with `PsqlDb` as `corpus_ingest` on the
   load copy, all checks passing and its breaks still caught.
 
-**Slice B (next, after these decisions).** An `accept` that runs §5.3 on a random sample of each batch, read only, from the
+**Slice B (built 2026-11-09).** An `accept` that runs §5.3 on a random sample of each batch, read only, from the
 developer's terminal:
 
 - In one read-only transaction, rolled back, as the developer's database login: the stored text hash equals the pack, and
@@ -51,7 +51,7 @@ developer's terminal:
   resolve `full` through `record_resolve_document_keys`, and a retrieval probe returns the document first.
 - No migration is needed: the resolver runs with the caller's rights, and the checks read only.
 
-## Decisions for the developer (slice B)
+## Decisions for the developer (slice B): decided 2026-11-09, all as recommended
 
 1. **Retrieval probe.** (a) Search with one of the document's own stored chunk vectors: no spend, deterministic, and it
    tests the index and the access path, but not the embedding model. (b) Embed a passage again: a fraction of a cent a
@@ -87,6 +87,32 @@ developer's terminal:
 - Two earlier runs that day failed and are not explained (F305): one whose queue did not drain in 5 minutes, during
   unrelated test runs on the same machine, and one stopped by `precheck_disagreement` when started one second after the
   previous run ended.
+
+**Result (slice B), 2026-11-09.**
+
+- **What it is.** `scripts/bulk-runner/acceptance.ts` holds `acceptBatch` and `PsqlAcceptDb`.
+  - Checks per sampled document: stored, indexed, text hash, chunk count, every vector present, and a listing link
+    that resolves `full` (required when the collection says so).
+  - The probe: one of the document's own stored vectors, searched in its feature, must return the document first. A tie
+    at the top similarity counts, since the pack's dedupe list keeps a text in one place.
+  - The sample is the same on every run of a batch.
+- **How it runs.** The CLI's `--accept-service <name>` connects through a libpq service, with none of `corpus_ingest`'s
+  `PG*` variables inherited. The collection file's `acceptance` block (`sample`, `requireLinks`) is required with it.
+  Each batch's report is written beside its receipts. If any batch is not accepted, the run exits non-zero, including
+  the last batch. `--accepted` stays for acceptance by hand, and the two options cannot be combined.
+- **Unit tests.**
+  - 10 for acceptance: one step per check, each shown failing by removing it; the tie, the 24-key resolver limit, the
+    sample bounds, and "nothing to check".
+  - 17 for the CLI, 7 of them new; each new guard was shown failing by mutation, and a gap a mutation found (a batch
+    with no id) got its own test.
+- **On the full-size load copy, through psql.**
+  - A real proof batch passed: 50 of 226 sampled, every check passed, in 139 s. The time is a psql process for each
+    check (about 2.8 s a document), once a batch.
+  - With one vector of one sampled document removed, acceptance failed on exactly that document with `vectors`
+    ("0 of 1 chunks have a vector"). The vector was then restored and checked byte for byte.
+- **Not run end to end.** The CLI driving a run with automated acceptance, because the load copy has no `corpus_ingest`
+  login (it is `NOLOGIN` until the developer enables it). The parts are each proved: the run through `PsqlDb` (slice A)
+  and acceptance through `PsqlAcceptDb` (above).
 
 ## Plan
 

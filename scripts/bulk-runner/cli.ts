@@ -3,17 +3,23 @@
 //
 //   deno run -A scripts/bulk-runner/cli.ts plan   --collection <file.json> --records <file.jsonl>
 //   deno run -A scripts/bulk-runner/cli.ts run    --collection <file.json> --records <file.jsonl> --receipts <dir>
-//                                                 [--accepted <manifest sha256,...>] [--psql <path>]
+//                                                 [--accept-service <name> | --accepted <manifest sha256,...>]
+//                                                 [--psql <path>]
 //   deno run -A scripts/bulk-runner/cli.ts status --batch <uuid> [--psql <path>]
 //
 // `plan` touches no database. `run` and `status` connect through psql as corpus_ingest, from libpq's environment
 // (PGHOST, PGPORT, PGDATABASE, PGUSER, PGSSLMODE, and PGPASSWORD or a password file); nothing about the connection is
-// an argument or printed. A batch chains to the next only when its manifest hash is in --accepted: with none listed, a
-// run stops after its first batch with awaiting_acceptance, which is the intended start.
+// an argument or printed. A batch chains to the next only when it is accepted:
+//   --accept-service <name>  automated acceptance (bulk spec §5.3) on a sample of each batch, read only, through the
+//                            libpq service <name> (pg_service.conf, with its password in a password file): the
+//                            developer's own login, not corpus_ingest. Its report is written beside the receipts.
+//   --accepted <hashes>      batches the developer accepted by hand.
+// With neither, a run stops after its first batch with awaiting_acceptance.
 import { dirname, fromFileUrl, isAbsolute, relative, resolve } from 'jsr:@std/path@1';
 import type { Db } from './db.ts';
 import { plan, type PlanLimits, type PlanResult } from './plan.ts';
 import { prepareAll, type PrepareOptions } from './prepare.ts';
+import { acceptBatch, type AcceptDb, type AcceptOptions, PsqlAcceptDb } from './acceptance.ts';
 import { PsqlDb, psqlExec } from './psql_db.ts';
 import { run, type RunInput, type RunResult } from './run.ts';
 
@@ -26,11 +32,21 @@ export interface CollectionFile {
   limits: PlanLimits;
   allowedRefusals?: string[];
   maxAllowedRefusalShare?: number;
+  /** Automated acceptance settings (decided 2026-11-09: sample 50; links required for Bills). */
+  acceptance?: AcceptOptions;
 }
 
 export type Command =
   | { cmd: 'plan'; collection: string; records: string }
-  | { cmd: 'run'; collection: string; records: string; receipts: string; accepted: string[]; psql: string }
+  | {
+    cmd: 'run';
+    collection: string;
+    records: string;
+    receipts: string;
+    accepted: string[];
+    acceptService: string | null;
+    psql: string;
+  }
   | { cmd: 'status'; batch: string; psql: string };
 
 const USAGE = 'usage: cli.ts plan|run|status (see the header of scripts/bulk-runner/cli.ts)';
@@ -59,7 +75,14 @@ export function parseArgs(argv: string[]): Command {
       allowed(['--collection', '--records']);
       return { cmd, collection: need('--collection'), records: need('--records') };
     case 'run': {
-      allowed(['--collection', '--records', '--receipts', '--accepted', '--psql']);
+      allowed(['--collection', '--records', '--receipts', '--accepted', '--accept-service', '--psql']);
+      const acceptService = flags.get('--accept-service') ?? null;
+      if (acceptService !== null && flags.has('--accepted')) {
+        throw new Error('give --accept-service or --accepted, not both');
+      }
+      if (acceptService !== null && !/^[A-Za-z0-9_.-]{1,64}$/.test(acceptService)) {
+        throw new Error('bad --accept-service name');
+      }
       const accepted = (flags.get('--accepted') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
       for (const h of accepted) if (!/^[0-9a-f]{64}$/.test(h)) throw new Error(`not a manifest sha256: ${h}`);
       return {
@@ -68,6 +91,7 @@ export function parseArgs(argv: string[]): Command {
         records: need('--records'),
         receipts: need('--receipts'),
         accepted,
+        acceptService,
         psql,
       };
     }
@@ -97,6 +121,11 @@ export function checkCollection(value: unknown): CollectionFile {
   }
   if (!Array.isArray(l.partitioned)) fail('limits.partitioned is required');
   if (!l.chunksNow || typeof l.chunksNow !== 'object') fail('limits.chunksNow is required');
+  if (c.acceptance !== undefined) {
+    const a = c.acceptance;
+    if (!Number.isInteger(a.sample) || a.sample < 1 || a.sample > 1000) fail('acceptance.sample must be 1 to 1000');
+    if (typeof a.requireLinks !== 'boolean') fail('acceptance.requireLinks is required');
+  }
   if (c.allowedRefusals !== undefined && typeof c.maxAllowedRefusalShare !== 'number') {
     fail('maxAllowedRefusalShare is required with allowedRefusals');
   }
@@ -133,6 +162,8 @@ export interface CliDeps {
   /** The commit, and whether the runner's code has uncommitted changes. */
   git: () => Promise<{ commit: string; dirty: boolean }>;
   db: (psql: string) => Db;
+  /** The read-only acceptance connection, through a libpq service. */
+  acceptDb: (psql: string, service: string) => AcceptDb;
   log: (line: string) => void;
   now: () => number;
   sleep: (ms: number) => Promise<void>;
@@ -162,6 +193,24 @@ function describePlan(p: PlanResult, holds: number, records: number): string[] {
 export const acceptFrom = (accepted: readonly string[]) => ({ manifest_sha256 }: { manifest_sha256: string }) =>
   Promise.resolve(accepted.includes(manifest_sha256));
 
+/**
+ * Automated acceptance (step 10): the batch passes only when every sampled check does. Its report is written beside the
+ * receipts before the answer is given; a report that cannot be written is no acceptance.
+ */
+export const automated =
+  (db: AcceptDb, opt: AcceptOptions, dir: string, deps: Pick<CliDeps, 'writeText' | 'log'>) =>
+  async ({ batch_id, manifest_sha256 }: { batch_id: string | null; manifest_sha256: string }): Promise<boolean> => {
+    if (!batch_id) return false;
+    const report = await acceptBatch(db, batch_id, opt);
+    await deps.writeText(`${dir}/acceptance-${manifest_sha256.slice(0, 16)}.json`, JSON.stringify(report, null, 2));
+    deps.log(
+      `  acceptance ${manifest_sha256.slice(0, 16)}: ${
+        report.ok ? 'passed' : `failed, ${report.failures.length} of ${report.sampled}`
+      }`,
+    );
+    return report.ok;
+  };
+
 /** Runs one command; returns the process exit code. */
 export async function main(argv: string[], deps: CliDeps): Promise<number> {
   const c = parseArgs(argv);
@@ -176,6 +225,9 @@ export async function main(argv: string[], deps: CliDeps): Promise<number> {
   if (c.cmd === 'plan') return p.ok ? 0 : 1;
 
   const dir = checkReceiptsDir(c.receipts);
+  if (c.acceptService && !coll.acceptance) {
+    throw new Error('--accept-service needs an acceptance block in the collection file');
+  }
   const { commit, dirty } = await deps.git();
   if (dirty) throw new Error('the runner has uncommitted changes; a receipt must name the code that ran');
   const input: RunInput = {
@@ -194,12 +246,35 @@ export async function main(argv: string[], deps: CliDeps): Promise<number> {
     sleep: deps.sleep,
     writeReceipt: (name, body) => deps.writeText(`${dir}/${name}`, body),
     runId,
-    accept: acceptFrom(c.accepted),
+    accept: c.acceptService
+      ? automated(deps.acceptDb(c.psql, c.acceptService), coll.acceptance!, dir, deps)
+      : acceptFrom(c.accepted),
   });
   deps.log(`run ${runId}: ${result.completed ? 'completed' : `stopped: ${result.stop?.reason}`}`);
   if (result.stop?.detail) deps.log(`  ${result.stop.detail}`);
   for (const r of result.receipts) deps.log(`  receipt ${dir}/${r}`);
+  const all = p.ok ? p.batches.length : 0;
+  if (result.completed && result.accepted.length < all) {
+    deps.log(`  ${all - result.accepted.length} of ${all} batches not accepted`);
+    if (c.acceptService) return 1; // automated acceptance said no: that is a failure, not a pause
+  }
   return result.completed || result.stop?.reason === 'awaiting_acceptance' ? 0 : 1;
+}
+
+/**
+ * The environment for the acceptance connection: the caller's, without libpq's connection variables (they name the
+ * corpus_ingest login), plus PGSERVICE, so only the named service decides where and as whom it connects.
+ */
+export function serviceEnv(
+  service: string,
+  base: Record<string, string> = Deno.env.toObject(),
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(base)) {
+    if (!/^PG[A-Z_]*$/.test(k) || k === 'PGSERVICEFILE' || k === 'PGPASSFILE') env[k] = v;
+  }
+  env.PGSERVICE = service;
+  return env;
 }
 
 const RUNNER_PATHS = ['scripts/bulk-runner', 'supabase/functions/_shared'];
@@ -224,6 +299,7 @@ if (import.meta.main) {
         writeText: (p, b) => Deno.writeTextFile(p, b, { createNew: true }),
         git: gitState,
         db: (psql) => new PsqlDb(psqlExec([psql])),
+        acceptDb: (psql, service) => new PsqlAcceptDb(psqlExec([psql], '', serviceEnv(service))),
         log: (l) => console.log(l),
         now: () => Date.now(),
         sleep: (ms) => new Promise((r) => setTimeout(r, ms)),

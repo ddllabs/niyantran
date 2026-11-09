@@ -136,7 +136,7 @@ export class PsqlDb implements Db {
  * prefix). The script goes in on stdin; `preamble`, for the load copy only, runs first (there: `set role corpus_ingest`,
  * since a local superuser stands in for the login). Production passes neither connection arguments nor a preamble.
  */
-export function psqlExec(command: string[] = ['psql'], preamble = ''): PsqlExec {
+export function psqlExec(command: string[] = ['psql'], preamble = '', env?: Record<string, string>): PsqlExec {
   return async (sql, timeoutMs) => {
     const [cmd, ...pre] = command;
     const child = new Deno.Command(cmd, {
@@ -144,6 +144,8 @@ export function psqlExec(command: string[] = ['psql'], preamble = ''): PsqlExec 
       stdin: 'piped',
       stdout: 'piped',
       stderr: 'piped',
+      // With env, exactly that environment: the acceptance connection must not inherit corpus_ingest's PG* variables.
+      ...(env ? { env, clearEnv: true } : {}),
     }).spawn();
     let timedOut = false;
     const timer = setTimeout(() => {
