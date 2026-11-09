@@ -1,8 +1,10 @@
 import { assert, assertEquals, assertRejects, assertStringIncludes, assertThrows } from 'jsr:@std/assert@1';
 import { nationalQuestion } from '../../supabase/functions/_shared/suppliedText_fixture.ts';
 import { sha256Hex } from '../../supabase/functions/_shared/textNormalise.ts';
+import type { AcceptDb } from './acceptance.ts';
 import {
   acceptFrom,
+  automated,
   checkCollection,
   checkReceiptsDir,
   type CliDeps,
@@ -10,6 +12,7 @@ import {
   parseArgs,
   parseRecords,
   REPO_ROOT,
+  serviceEnv,
 } from './cli.ts';
 import { FakeDb } from './fake_db.ts';
 
@@ -62,6 +65,9 @@ function deps(files: Record<string, string>, over: Partial<CliDeps> = {}) {
     },
     git: () => Promise.resolve({ commit: 'abcdef1', dirty: false }),
     db: () => db,
+    acceptDb: () => {
+      throw new Error('no acceptance connection in this test');
+    },
     log: (l) => lines.push(l),
     now: () => now,
     sleep: (ms) => {
@@ -193,4 +199,102 @@ Deno.test('run: one batch end to end on a fake database, receipts in the given d
     assertStringIncludes(body, '"runner_commit": "abcdef1"');
   }
   assert(lines.some((l) => l.includes('completed')), lines.join('\n'));
+});
+
+/** An acceptance database whose one sampled document passes every check, or fails the stored-document check. */
+function acceptStub(pass: boolean): AcceptDb {
+  const doc = '00000000-0000-4000-8000-000000000001';
+  return {
+    sample: () => Promise.resolve([{ source_key: 'k', document_id: doc, content_sha256: H, chunks: 1 }]),
+    stored: () =>
+      Promise.resolve(
+        pass
+          ? [{
+            id: doc,
+            content_sha256: H,
+            indexed: true,
+            chunks: 1,
+            vectors: 1,
+            desk_tier: 'national',
+            desk_feature: QUESTIONS,
+          }]
+          : [],
+      ),
+    linkKeys: () => Promise.resolve({ [doc]: [] }),
+    resolve: () => Promise.resolve([]),
+    probe: () => Promise.resolve([{ document_id: doc, similarity: 1 }]),
+  };
+}
+const AUTO = { ...COLLECTION, acceptance: { sample: 50, requireLinks: false } };
+const runArgs = ['run', '--collection', 'c.json', '--records', 'r.jsonl', '--receipts', '/var/receipts'];
+
+Deno.test('parseArgs: automated and manual acceptance are exclusive, and the service name is plain', () => {
+  const c = parseArgs([...runArgs, '--accept-service', 'nter-admin']);
+  assertEquals(c.cmd === 'run' && c.acceptService, 'nter-admin');
+  assertThrows(() => parseArgs([...runArgs, '--accept-service', 'a', '--accepted', H]), Error, 'not both');
+  assertThrows(() => parseArgs([...runArgs, '--accept-service', 'host=x user=y']), Error, 'bad --accept-service');
+});
+
+Deno.test('serviceEnv: the acceptance connection keeps none of the corpus_ingest PG variables', () => {
+  const env = serviceEnv('nter-admin', {
+    PATH: '/bin',
+    PGUSER: 'corpus_ingest',
+    PGHOST: 'h',
+    PGPASSWORD: 'p',
+    PGDATABASE: 'd',
+    PGSSLMODE: 'require',
+    PGPASSFILE: '/x/pgpass',
+  });
+  assertEquals(env, { PATH: '/bin', PGPASSFILE: '/x/pgpass', PGSERVICE: 'nter-admin' });
+});
+
+Deno.test('collection file: an acceptance block must say its sample and whether links are required', () => {
+  checkCollection(AUTO);
+  assertThrows(
+    () => checkCollection({ ...COLLECTION, acceptance: { sample: 0, requireLinks: true } }),
+    Error,
+    'sample',
+  );
+  assertThrows(() => checkCollection({ ...COLLECTION, acceptance: { sample: 50 } }), Error, 'requireLinks');
+});
+
+Deno.test('run: automated acceptance needs the collection’s acceptance block, checked before any database call', async () => {
+  const records = JSON.stringify(await question(1));
+  const { d, db } = deps({ 'c.json': JSON.stringify(COLLECTION), 'r.jsonl': records });
+  await assertRejects(() => main([...runArgs, '--accept-service', 'nter-admin'], d), Error, 'acceptance block');
+  assertEquals(db.calls.length, 0);
+});
+
+Deno.test('run: a batch that passes automated acceptance is accepted, with its report written', async () => {
+  const records = [await question(1), await question(2)].map((r) => JSON.stringify(r)).join('\n');
+  const { d, lines, written } = deps({ 'c.json': JSON.stringify(AUTO), 'r.jsonl': records }, {
+    acceptDb: () => acceptStub(true),
+  });
+  assertEquals(await main([...runArgs, '--accept-service', 'nter-admin'], d), 0, lines.join('\n'));
+  const report = [...written].find(([p]) => p.includes('/acceptance-'));
+  assert(report, 'no acceptance report');
+  assertStringIncludes(report[1], '"ok": true');
+  assert(lines.some((l) => l.includes('acceptance') && l.includes('passed')), lines.join('\n'));
+});
+
+Deno.test('run: a batch that fails automated acceptance makes the run fail, with the failure in its report', async () => {
+  const records = [await question(1), await question(2)].map((r) => JSON.stringify(r)).join('\n');
+  const { d, lines, written } = deps({ 'c.json': JSON.stringify(AUTO), 'r.jsonl': records }, {
+    acceptDb: () => acceptStub(false),
+  });
+  assertEquals(await main([...runArgs, '--accept-service', 'nter-admin'], d), 1, lines.join('\n'));
+  const report = [...written].find(([p]) => p.includes('/acceptance-'));
+  assert(report, 'no acceptance report');
+  assertStringIncludes(report[1], '"missing_document"');
+  assert(lines.some((l) => l.includes('not accepted')), lines.join('\n'));
+});
+
+Deno.test('automated acceptance: a batch with no id is never accepted, and no report is claimed for it', async () => {
+  const written: string[] = [];
+  const accept = automated(acceptStub(true), { sample: 50, requireLinks: false }, '/var/receipts', {
+    writeText: (p) => (written.push(p), Promise.resolve()),
+    log: () => {},
+  });
+  assertEquals(await accept({ batch_id: null, manifest_sha256: H }), false);
+  assertEquals(written, []);
 });
