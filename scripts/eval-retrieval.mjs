@@ -214,9 +214,12 @@ function nterBackend(psqlPath = 'psql') {
     async counts() {
       const [c] = json(`select (select count(*) from public.documents where indexed_at is not null) as documents,
         (select count(*) from public.document_chunks) as chunks,
-        (select max(indexed_at) from public.documents) as latest,
-        (select max(version) from supabase_migrations.schema_migrations) as version`, false);
-      return { documents: Number(c.documents), chunks: Number(c.chunks), latestIndexedAt: c.latest, migrationVersion: `${c.version} (NTER history)` };
+        (select max(indexed_at) from public.documents) as latest`, false);
+      let version = 'unknown';
+      try {
+        version = json('select max(version) as v from supabase_migrations.schema_migrations', false)[0]?.v ?? 'unknown';
+      } catch { /* a copy without the history table */ }
+      return { documents: Number(c.documents), chunks: Number(c.chunks), latestIndexedAt: c.latest, migrationVersion: `${version} (NTER history)` };
     },
     async goldChunks(ids) {
       const rows = json(`select id, chunk_hash, document_id from public.document_chunks where id = any(${uuidArray(ids)})`);
