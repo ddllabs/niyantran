@@ -658,12 +658,26 @@ areaTest(
 
 areaTest('main: a check that carries stats has them recorded in the receipt, counts and keys only', async (a) => {
   const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k1'))]);
-  const stats = { fetched: 2, cached: 1, scans: ['k1'], url: 'https://example.test/secret.pdf', text: SECRET };
+  const stats = {
+    fetched: 2,
+    cached: 1,
+    unverifiedPages: 7,
+    unverifiedRecords: 3,
+    scans: ['k1'],
+    url: 'https://example.test/secret.pdf',
+    text: SECRET,
+    label: SECRET,
+    nested: { n: 1 },
+    nan: NaN,
+    list: [1, 2],
+  };
   const checks = [...screenOf().checks, passing('with_stats', ['rights'], { stats } as Partial<Check>)];
   const { deps } = depsFor(a, screenOf(checks));
   assertEquals(await main(argv(a, f.path), deps), 0);
   const raw = await Deno.readTextFile(join(a.out, 'screen.receipt.json'));
-  assertEquals(JSON.parse(raw).checks_stats, { with_stats: { fetched: 2, cached: 1, scans: ['k1'] } });
+  assertEquals(JSON.parse(raw).checks_stats, {
+    with_stats: { fetched: 2, cached: 1, unverifiedPages: 7, unverifiedRecords: 3, scans: ['k1'] },
+  });
   assert(!raw.includes(SECRET) && !raw.includes('example.test'), 'stats leaked more than counts and keys');
 });
 
@@ -674,26 +688,70 @@ areaTest('main: a receipt has an empty checks_stats when no check carries stats'
   assertEquals(receipt.checks_stats, {});
 });
 
-areaTest('main: patches are screened with their own receipt into screened-patches.jsonl', async (a) => {
-  const f = await reader(a, 'bills.jsonl', [JSON.stringify(rec('k1'))]);
-  const p = await reader(a, 'fixed.jsonl', [JSON.stringify(rec('k1', 'patched text'))]);
-  const { deps } = depsFor(a);
-  assertEquals(await main(argv(a, f.path, '--patches', p.path), deps), 0);
-  assertEquals(await listing(a.out), [
-    'holds.jsonl',
-    'screen.receipt.json',
-    'screened-patches.jsonl',
-    'screened.jsonl',
+areaTest(
+  'main: a screened patch is written into screened.jsonl after the main records, with its own review',
+  async (a) => {
+    const f = await reader(a, 'bills.jsonl', [JSON.stringify(rec('k1')), JSON.stringify(rec('k2'))]);
+    const p = await reader(a, 'fixed.jsonl', [JSON.stringify(rec('k1', 'patched text'))]);
+    const { deps } = depsFor(a);
+    assertEquals(await main(argv(a, f.path, '--patches', p.path), deps), 0);
+    assertEquals(await listing(a.out), ['holds.jsonl', 'screen.receipt.json', 'screened.jsonl']);
+    const screened = await readJsonl(join(a.out, 'screened.jsonl'));
+    assertEquals(screened.map((r) => r.source_key), ['k2', 'k1']);
+    const patch = screened[1];
+    assertEquals(patch.text, 'patched text');
+    const review = patch.review as Rec;
+    assertEquals(review.package_id, `National/v9/documents/fixed.jsonl.gz#${sha('manifest-fixed.jsonl')}`);
+    assertEquals(review.file_sha256, p.receipt.output_sha256);
+    assertEquals((screened[0].review as Rec).file_sha256, f.receipt.output_sha256);
+    // The original is held, not screened.
+    const holds = await readJsonl(join(a.out, 'holds.jsonl'));
+    assertEquals(holds.map((h) => [h.source_key, h.set, h.reasons]), [['k1', 'records', [
+      'superseded_by_patch_input',
+    ]]]);
+    const receipt = JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json')));
+    assertEquals(receipt.patches.output_sha256, p.receipt.output_sha256);
+    assertEquals(receipt.screened_from_patches, 1);
+    assertEquals(receipt.screened_from_patches_keys_sha256, sha('k1'));
+    assertEquals(receipt.outputs.screened.lines, 2);
+    assertEquals('screened_patches' in receipt.outputs, false);
+  },
+);
+
+areaTest('main: a patch that is held leaves neither it nor its original in screened.jsonl', async (a) => {
+  const f = await reader(a, 'bills.jsonl', [JSON.stringify(rec('k1')), JSON.stringify(rec('k2'))]);
+  const p = await reader(a, 'fixed.jsonl', [JSON.stringify(rec('k1', 'patched text', { title: 'bad patch' }))]);
+  const checks = screenOf().checks.map((c) =>
+    c.name === 'c_rights'
+      ? { ...c, one: (r: Rec) => Promise.resolve(r.title === 'bad patch' ? [finding('licence_not_admitted')] : []) }
+      : c
+  );
+  await main(argv(a, f.path, '--patches', p.path), depsFor(a, screenOf(checks)).deps);
+  assertEquals((await readJsonl(join(a.out, 'screened.jsonl'))).map((r) => r.source_key), ['k2']);
+  const holds = await readJsonl(join(a.out, 'holds.jsonl'));
+  assertEquals(holds.map((h) => [h.source_key, h.set, h.reasons]), [
+    ['k1', 'records', ['superseded_by_patch_input']],
+    ['k1', 'patches', ['licence_not_admitted']],
   ]);
-  const [patch] = await readJsonl(join(a.out, 'screened-patches.jsonl'));
-  assertEquals(patch.text, 'patched text');
-  const review = patch.review as Rec;
-  assertEquals(review.package_id, `National/v9/documents/fixed.jsonl.gz#${sha('manifest-fixed.jsonl')}`);
-  assertEquals(review.file_sha256, p.receipt.output_sha256);
   const receipt = JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json')));
-  assertEquals(receipt.patches.output_sha256, p.receipt.output_sha256);
-  assertEquals(receipt.outputs.screened_patches.lines, 1);
+  assertEquals(receipt.screened_from_patches, 0);
+  assertEquals(receipt.screened_from_patches_keys_sha256, sha(''));
+  assertEquals(await listing(a.out), ['holds.jsonl', 'screen.receipt.json', 'screened.jsonl']);
 });
+
+areaTest(
+  'main: screened_from_patches names the screened patches by a hash of their sorted keys, never by text',
+  async (a) => {
+    const f = await reader(a, 'bills.jsonl', [JSON.stringify(rec('k9'))]);
+    const p = await reader(a, 'fixed.jsonl', [JSON.stringify(rec('b', 'two')), JSON.stringify(rec('a', 'one'))]);
+    await main(argv(a, f.path, '--patches', p.path), depsFor(a).deps);
+    const raw = await Deno.readTextFile(join(a.out, 'screen.receipt.json'));
+    const receipt = JSON.parse(raw);
+    assertEquals(receipt.screened_from_patches, 2);
+    assertEquals(receipt.screened_from_patches_keys_sha256, sha('a\nb'));
+    assert(!raw.includes(SECRET));
+  },
+);
 
 areaTest('main: a records file without its receipt is refused and nothing is written', async (a) => {
   const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k1'))]);
@@ -911,7 +969,10 @@ areaTest('main: patches are projected like records', async (a) => {
   const { deps } = depsFor(a, withProject((r) => ({ ...r, document_role: 'as_introduced' })));
   await main(argv(a, f.path, '--patches', p.path), deps);
   assertEquals((await readJsonl(join(a.out, 'screened.jsonl')))[0].document_role, 'as_introduced');
-  assertEquals((await readJsonl(join(a.out, 'screened-patches.jsonl')))[0].document_role, 'as_introduced');
+  assertEquals((await readJsonl(join(a.out, 'screened.jsonl'))).map((r) => r.document_role), [
+    'as_introduced',
+    'as_introduced',
+  ]);
 });
 
 // ---- review round 1: patches, onlyIfClean, identity, provenance, logging, streaming ----
@@ -1316,8 +1377,7 @@ areaTest(
     assertEquals([receipt.records.records_out, receipt.records.held, receipt.patches.records_out], [1, 1, 1]);
     const holds = await readJsonl(join(a.out, 'holds.jsonl'));
     assertEquals(holds.map((h) => [h.source_key, h.set]), [['k1', 'records']]);
-    assertEquals((await readJsonl(join(a.out, 'screened.jsonl'))).map((r) => r.source_key), ['k2']);
-    assertEquals((await readJsonl(join(a.out, 'screened-patches.jsonl'))).map((r) => r.source_key), ['k1']);
+    assertEquals((await readJsonl(join(a.out, 'screened.jsonl'))).map((r) => r.source_key), ['k2', 'k1']);
   },
 );
 

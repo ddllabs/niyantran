@@ -49,11 +49,16 @@ deno run -A --config supabase/functions/deno.json scripts/bulk-runner/screen.ts 
   for the screen; the runner's own check stays F309). The same for `--patches`.
 - Writes, exclusively and receipt first (as the pack reader does), into `--out`:
   - `screened.jsonl`: each passing record, its original fields unchanged, plus top-level `text_sha256` and `review`;
-  - `screened-patches.jsonl` when `--patches` is given (same rules);
+    the screened main records first, then the screened patches. A patch is the complete corrected record under its
+    original's `source_key` and the original is held `superseded_by_patch_input`, so a patch is an ordinary record to the
+    runner and nothing goes through `prepare.patches`;
   - `holds.jsonl`: one line per held record: `source_key`, `reasons` (names), `findings` (check, reason, detail),
     never record text;
   - `screen.receipt.json`: input receipts' sha256, the collection, `rules_sha256`, counts by reason, records in and
-    out, whether live reads and the page check ran, the git commit and dirty flag, times.
+    out, whether live reads and the page check ran, the git commit and dirty flag, times. It also records how many
+    screened records came from the patches input (`screened_from_patches`) and the sha256 of their sorted
+    `source_key`s (`screened_from_patches_keys_sha256`), and, per check that keeps counters, its numeric fields and the
+    source keys it set aside as scans (`checks_stats`), never text or URLs.
 - `--no-live` and `--no-pages` exist for offline use. A run with either one writes **no review**: every record is held
   `screen_incomplete`. Only a full run can produce screened records.
 
@@ -98,9 +103,8 @@ The adapter reads two fields at the top level that the pack keeps elsewhere (`bi
 
 Corrigenda (`doc_type` corrigendum) are held `corrigendum_unmapped` until a mapping file exists (the 43 of 365 without
 one; the 322 with one need that file, which is not yet located). The v1.2 `bills_links_fixed` records (100) are screened
-as patches and given to `prepare.patches` by `source_key`. The v1.2 `bills_recovered` records (55) are new records,
-selected from their own entry and screened like any other (not patches: given as patches they would be held
-`patch_not_in_pack`). Text identity stays in `prepare.ts` (the collection sets `requireTextIdentity`).
+as patches: each takes its original's place in `screened.jsonl` (the original is held), see "What the screen produces". The v1.2 `bills_recovered` records (55) are new records,
+selected from their own entry and screened like any other (not patches: they replace no record). Text identity stays in `prepare.ts` (the collection sets `requireTextIdentity`).
 
 ## Text per page (`scripts/bulk-runner/page_check.ts`)
 
@@ -154,7 +158,9 @@ check on) held all 20 and showed three more. All are fixed in one round, each te
    all held `bill_role_collision` (none is picked); a record whose key, house and role a live Bills document already
    holds is held `bill_role_held_live`; records in the set sharing a `file_url` are all held `file_url_collision`.
 2. **Patches.** Every main record whose `source_key` is in the `--patches` input is held `superseded_by_patch_input`,
-   whatever the patch's outcome; whole-set checks run over records and patches together.
+   whatever the patch's outcome; whole-set checks run over records and patches together. A screened patch is written
+   into `screened.jsonl` as an ordinary record (supervisor decision, final integration): it is the complete corrected
+   record under its original's key, so there is no `screened-patches.jsonl` and no `prepare.patches`.
 3. **Unsplit text.** `page_split: 'none'` passes only if it meets what prepare and admission require
    (`page_count` equals the page spans); otherwise `page_count_unsplittable`.
 4. **Partly scanned PDFs.** Pack pages with fewer than 20 letters and digits on PDF pages that have no text layer

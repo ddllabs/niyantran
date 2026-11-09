@@ -31,7 +31,6 @@ const MAX_FIELD = 1_000;
 const OUT = {
   receipt: 'screen.receipt.json',
   screened: 'screened.jsonl',
-  patches: 'screened-patches.jsonl',
   holds: 'holds.jsonl',
 };
 
@@ -757,10 +756,10 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
       writers.push(w);
       return w;
     };
-    const screenedOut: Record<SetName, LineWriter | null> = {
-      records: await open(OUT.screened),
-      patches: patchInput ? await open(OUT.patches) : null,
-    };
+    // One screened file: the screened main records, then the screened patches. A patch is the complete corrected
+    // record under its original's source_key (the original is held), so it is an ordinary record to the runner.
+    const screenedOut = await open(OUT.screened);
+    const patchKeys: string[] = [];
     const holdsOut = await open(OUT.holds);
     const counts: Record<SetName, Counts> = {
       records: { out: 0, held: 0, byReason: {} },
@@ -783,7 +782,8 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
       {
         screened: async (set, r) => {
           counts[set].out++;
-          await screenedOut[set]!.write(JSON.stringify(r));
+          if (set === 'patches') patchKeys.push(String(r.source_key));
+          await screenedOut.write(JSON.stringify(r));
         },
         hold: async (set, h) => {
           counts[set].held++;
@@ -795,8 +795,7 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
       },
     );
     const written = new Map<string, Written>();
-    written.set(OUT.screened, screenedOut.records!.close());
-    if (screenedOut.patches) written.set(OUT.patches, screenedOut.patches.close());
+    written.set(OUT.screened, screenedOut.close());
     written.set(OUT.holds, holdsOut.close());
     const out = (name: string) => written.get(name) ?? null;
     const part = (input: Input, k: Counts) => ({
@@ -808,16 +807,17 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
       held: k.held,
       held_by_reason: k.byReason,
     });
-    // Counts and source keys a check kept while it ran (the page check's fetched, cached and scans); nothing else.
-    const checksStats: Record<string, { fetched: number; cached: number; scans: string[] }> = {};
+    // What a check kept while it ran: its numeric counters and, as `scans`, source keys; nothing else (no text, no URL).
+    const checksStats: Record<string, Record<string, number | string[]>> = {};
     for (const x of screen.checks) {
-      const st = (x as { stats?: Partial<Record<'fetched' | 'cached' | 'scans', unknown>> }).stats;
+      const st = (x as { stats?: unknown }).stats;
       if (!isRec(st)) continue;
-      checksStats[x.name] = {
-        fetched: Number(st.fetched) || 0,
-        cached: Number(st.cached) || 0,
-        scans: Array.isArray(st.scans) ? st.scans.map(String) : [],
-      };
+      const kept: Record<string, number | string[]> = {};
+      for (const [k, v] of Object.entries(st)) {
+        if (typeof v === 'number' && Number.isFinite(v)) kept[k] = v;
+        else if (k === 'scans' && Array.isArray(v)) kept[k] = v.map(String);
+      }
+      checksStats[x.name] = kept;
     }
     const receipt = {
       collection: coll.collection,
@@ -829,6 +829,10 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
       rules_files: screen.rulesFiles,
       records: part(inputs.records, counts.records),
       patches: patchInput ? part(patchInput, counts.patches) : null,
+      // Screened records that came from the patches input (they are in screened.jsonl after the main ones): the count
+      // and the sha256 of their source_keys, sorted and newline-joined. No text.
+      screened_from_patches: counts.patches.out,
+      screened_from_patches_keys_sha256: sha256([...patchKeys].sort().join('\n')),
       live_identity: liveIdentity,
       live_reads_ran: !c.noLive && hasNeeds('live'),
       page_check_ran: !c.noPages && hasNeeds('pages'),
@@ -836,7 +840,6 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
       checks_stats: checksStats,
       outputs: {
         screened: out(OUT.screened),
-        screened_patches: out(OUT.patches),
         holds: out(OUT.holds),
       },
       screen_commit: commit,
@@ -846,7 +849,7 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
     };
     temps.push(tmp(OUT.receipt));
     await Deno.writeTextFile(tmp(OUT.receipt), JSON.stringify(receipt, null, 2) + '\n', { createNew: true });
-    const names = [OUT.receipt, OUT.screened, ...(patchInput ? [OUT.patches] : []), OUT.holds];
+    const names = [OUT.receipt, OUT.screened, OUT.holds];
     for (const name of names) {
       await link(tmp(name), join(outDir, name));
       created.push(join(outDir, name));

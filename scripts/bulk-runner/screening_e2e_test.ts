@@ -5,7 +5,7 @@ import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { join } from 'jsr:@std/path@1';
 import { sha256Hex } from '../../supabase/functions/_shared/textNormalise.ts';
 import { makePageCheck } from './page_check.ts';
-import { prepareRecord, type Rec } from './prepare.ts';
+import { prepareAll, prepareRecord, type Rec } from './prepare.ts';
 import { runScreen, runScreenSets } from './screen.ts';
 import { makeBillsScreen } from './screens/bills.ts';
 import type { LiveDeskRow, LiveReader } from './screen_types.ts';
@@ -211,7 +211,7 @@ Deno.test('a PDF that disagrees with the pack is held by the page check, and the
   assert(!JSON.stringify(pageCheck.stats).includes('sansad'));
 });
 
-Deno.test('a patch for a record in the pack: the original is held, the patch is screened alone, and prepareRecord takes it', async () => {
+Deno.test('a patch for a record in the pack: the original is held, the patch is screened in its place, and prepare takes both as ordinary records', async () => {
   // The same bill, same file and same document key and role in both: if the original were offered to the whole-set
   // checks they would collide. The original is superseded by the patch input and left out, so the patch stands.
   const original = await bill(1);
@@ -229,8 +229,13 @@ Deno.test('a patch for a record in the pack: the original is held, the patch is 
   const patches = maybe!;
   assertEquals(patches.holds, []);
   assertEquals(patches.screened.map((r) => r.source_key), [key(1)]);
-  const out = await prepareRecord(patches.screened[0], { maxChunks: 700, requireTextIdentity: true }, true);
+  // The patch is a complete record under the original's key: no `patches` option, no patch handling in prepare.
+  const options = { maxChunks: 700, requireTextIdentity: true };
+  const out = await prepareRecord(patches.screened[0], options);
   assertEquals(out.kind, 'request', out.kind === 'hold' ? `${out.hold.reason}: ${out.hold.detail}` : '');
+  const all = await prepareAll([...screened, ...patches.screened], options);
+  assertEquals(all.holds, []);
+  assertEquals(all.requests.map((r) => r.source_key), [key(2), key(1)]);
   const review = patches.screened[0].review as Rec;
   assertEquals(review.file_sha256, 'd'.repeat(64));
   assert(String(review.package_id).includes('/documents/fixed.jsonl.gz#'));
