@@ -129,6 +129,76 @@ drop index public.document_chunks_content_tsv;
 delete from supabase_migrations.schema_migrations where version = '20261102120000';
 ```
 
+## Result, 2026-11-09
+
+**Applied** at 17:50 IST (12:20 UTC), in 55 s, exit 0. How it differed from the steps above:
+
+- **No psql or password.** The file went through `supabase db query --linked -f` (the logged-in CLI, Management API,
+  as `postgres`), byte for byte the reviewed file (sha256 `2978589e…181c223`, unchanged since the PR #99 merge). It had a
+  three-line header in front: `statement_timeout` 30 min (the API session's default is 2 min), `lock_timeout` 10 s, and
+  `application_name`. The history row was then inserted by hand, as in Phase B.
+- **Exposed schemas** were read from the Data API itself, since the dashboard was not reachable from the session. A
+  request for an unknown schema answers "Only the following schemas are exposed: public, graphql_public". **Disk** came
+  from the disk plan (20 GB provisioned) against the live database size (12 GB).
+
+**Preconditions, 12:19 UTC:** policy text identical to the helper's copy (4 policies); history had no row (latest
+`20261101130000`); `ingest_jobs` queued or running 0; no other active session; Postgres 17.6.
+
+**Checks after:** both functions exist; `document_chunks_content_tsv` is valid on all 4 partitions, 124 MB; `anon`
+cannot execute `match_documents_hybrid` or use `retrieval_internal`; `authenticated` can execute it. From outside, with
+no key, the Data API refuses `retrieval_internal` (PGRST106). History row `20261102120000 chunk_hybrid_search` written.
+Hidden list: 3 of 7,549 NCLT documents are not readable by `authenticated`.
+
+**How it was measured.** `--target nter` could not be used, since it needs a database password in the developer's
+terminal, and through the CLI every call would include about 3 s of connection. Instead, a runner outside the
+repository sent the same calls as the eval:
+- the same parameters (`rpcParams`, `replicaCallSql`), feature mode, the 72 NCLT questions of `questions.v2`;
+- the same seeded order, and the same 5 unscored warm-ups for the warm runs;
+- scored with the same `outcome` and `summarise`.
+
+How each call ran:
+- In a read-only transaction that was rolled back, as `authenticated`.
+- Six calls per request.
+- Timed by the database's own clock (`clock_timestamp()` around each call). Times exclude network and connection,
+  which the app adds.
+- A call over 8 s would have counted as a timeout; none came close.
+
+About one request in twelve got no answer from the Management API and never reached the database. Each was killed
+after 120 s and sent again, which changes nothing, since every request is read-only.
+
+**Not cold.** The index build had read the NCLT partition minutes before, and an aborted first attempt ran 18 hybrid
+calls (34.8 s in all), so the first pair is labelled "after build". The true cold run, after at least 6 hours with no
+hybrid use, is still to do.
+
+| NTER, 72 NCLT questions | p50 | p95 | max | over 2.5 s | doc@10 | chunk@10 | chunk@40 | chunk MRR |
+|---|---|---|---|---|---|---|---|---|
+| hybrid, after build | 460 ms | 1,211 ms | 1,585 ms | 0 | 58/72 | 28/58 | 32/58 | 0.337 |
+| vector-only, after build | 127 ms | 181 ms | 192 ms | 0 | 40/72 | 25/58 | 29/58 | 0.299 |
+| hybrid, warm | 371 ms | 483 ms | 521 ms | 0 | 58/72 | 28/58 | 32/58 | 0.337 |
+| vector-only, warm | 123 ms | 170 ms | 191 ms | 0 | 40/72 | 25/58 | 29/58 | 0.299 |
+| *replica, 2026-11-05 (`t7lim-*-p2`): hybrid / vector-only* | | | | | *58 / 40* | *28 / 25* | *33 / 30* | *0.349 / 0.314* |
+
+No `55000`, no timeout. NTER answers as the replica did at 10; at 40 each function has one fewer chunk hit than the
+replica. Raw output: `~/niyantran-eval-cache/hybrid-nter/`.
+
+**Stop rule fired.** Warm hybrid p95 is 483 ms against the plan's bar of 1.2 × 170 ms + 20 ms = 224 ms. The
+measurement stopped there: the cold-again run was not taken, and the app was not switched.
+
+**Exception, the developer, 2026-11-09:** hybrid ships despite the bar, as Phase B's broad-search latency did on
+2026-11-03. The bar is the eval's "no worse" rule for versions of the same search. Hybrid adds a keyword stage and
+costs about 310 ms at p95 for 58 against 40 of 72 NCLT questions with the right document in the top 10.
+
+Vector-only search stays in two places:
+- inside the function, for every non-NCLT scope and whenever there is no keyword or month candidate;
+- in the app, as F288's fallback when hybrid fails or passes its budget.
+
+Still before T9, in order:
+1. the cold run after at least 6 hours with no hybrid use, with no call over 2.5 s;
+2. F288's two read-only rollout checks: whether NTER's logs record RPC arguments, and whether a cancelled hybrid call
+   keeps running on the database;
+3. F288 merged and `research-chat` deployed, each with approval;
+4. the `hybrid_search` flag row, with approval.
+
 ## Decisions for the developer
 
 **Decided 2026-11-09:** both as recommended. Apply and measure now, before the bulk load; privacy on NTER rests on the
