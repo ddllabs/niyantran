@@ -96,3 +96,24 @@ standard library and Web APIs only (WebCrypto for RS256, `DecompressionStream` f
 - A large entry (v1.5 and v1.6 have entries up to 520 MB) is streamed to disk and hashed while writing, not held in
   memory.
 - The key file is read only to sign a token; the token lives in memory for one run.
+
+## Result, 2026-11-09 (night)
+
+Built test-first by a task agent in its own worktree; reviewed independently twice (first "accept with changes": four
+required fixes and twelve optional ones, all applied; second "accept"). Supervisor reproduced: 214 runner tests pass
+(125 before), `deno lint` and `deno check` clean, `deno fmt --check` clean with the repository config, `npm run lint` and
+`npm run build` pass. Decisions taken in review: an empty selection is refused; a key seen on any earlier line, even a
+dropped one, makes later lines `duplicate_key`; `node:crypto` is used for incremental sha256 (WebCrypto has none).
+
+Proof on the real pack, read-only, no database: `list --pack National/v1.1` printed the zip (252,355,253 bytes, Drive
+sha256 `459b354c…`) and every entry with its manifest hash. `select --entry documents/parliamentary_questions.jsonl.gz`
+fetched 22,612,008 bytes in 14 s, verified them against the manifest (`474bb46e…`), read 6,840 lines, dropped none and
+wrote 6,840 (128,206,309 bytes, sha256 `007c51fe…`) with its receipt. A separate `gunzip` of the cached file gives the
+same bytes, and 6,840 equals the pack README's count.
+
+**Acceptance step 3 is not met, and cannot be by the reader.** `cli.ts plan` on that file refused `nothing_to_load`:
+every record was held `prepare_failed: text_sha256 does not match the text`. The runner, like admission
+(`ingest_admit_shape`), takes a screened record: a top-level `text_sha256`, and a `review` with `status: 'eligible'`,
+the same `text_sha256` and `source_key`, and `checks` holding each check the collection's policy requires. Pack records
+carry `content_sha256` (checked: it is the sha256 of `text`, and the pages joined by form feeds equal `text`) and no
+review. The reader must not invent a review; a screening stage per collection makes it (F307).
