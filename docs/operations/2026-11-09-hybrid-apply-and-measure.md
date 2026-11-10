@@ -299,6 +299,47 @@ The cold rule failed, by four calls in the first six of the run, during a bulk l
 **Decided 2026-11-10: (b).** The Bills loads finished at 05:20 UTC on 2026-11-10; the cold pair is re-run after 6 quiet
 hours, read-only, with the same pass rule. T9 stays held until then.
 
+## Result, 2026-11-10: cold re-run, window 1 of 2 (quiet, hybrid first)
+
+All read-only, no spend, 11:38 to 11:41 UTC. Same runner, settings and question set as before.
+
+**Quiet, checked at 11:38 UTC.**
+- No runner process on the measuring machine, and no ingest job queued or running.
+- No ingest batch after 04:50 UTC; the last job was created at 05:01 UTC.
+- No other active query.
+- `document_chunks_nclt`'s keyword index and vector index were last scanned at 02:23 UTC, the end of the previous cold
+  run: 9 h 15 min. The last `match_documents_hybrid` statement in `pg_stat_statements` was first seen at 02:23 UTC.
+- The partition's document-id index was touched at 10:59 UTC by a read-only resolver check (F314) whose chunk counts
+  name no feature, so they probe that index on every partition. Search does not use that index; the vector index, the
+  keyword index and the table were not read.
+
+| NTER, 72 NCLT questions | p50 | p95 | max | over 2.5 s | over 4 s | doc@10 | chunk@10 | chunk@40 | chunk MRR |
+|---|---|---|---|---|---|---|---|---|---|
+| hybrid, cold (9 h), quiet | 696 ms | 2,634 ms | 5,535 ms | 4 | 1 | 58/72 | 28/58 | 32/58 | 0.337 |
+| vector-only, straight after | 134 ms | 165 ms | 240 ms | 0 | 0 | 40/72 | 25/58 | 29/58 | 0.299 |
+
+No timeout at 8 s, no `55000`, and answers identical to 2026-11-09. **It fails the pass rule again** (no hybrid call
+over 2.5 s), by the same four calls.
+
+**The load does not explain the earlier failure.**
+
+| Run | Call 1 | Call 2 | Call 3 | Call 4 | Call 5 | Call 6 |
+|---|---|---|---|---|---|---|
+| During the load, 02:20 UTC | 5,498 ms | 3,321 ms | 3,155 ms | 1,854 ms | 2,715 ms | 2,123 ms |
+| Quiet, 11:40 UTC | 5,535 ms | 3,397 ms | 3,314 ms | 1,976 ms | 2,634 ms | 2,020 ms |
+
+The slow calls are the same ones, within 7% of each other. What they pay for is the cold cache. Blocks the NCLT
+partition read from outside Postgres's buffer cache:
+
+| | hybrid run | vector-only run after it |
+|---|---|---|
+| vector index | 103,664 (about 810 MB) | 18,506 |
+| table | 25,606 | 62 |
+| keyword index | 1,988 | 0 |
+
+The vector index dominates, and hybrid reads it too. Window 2 runs vector-only first. That shows whether a cold
+vector-only search pays the same first-call cost, since that is what the app does today.
+
 ## Decisions for the developer
 
 **Decided 2026-11-09:** both as recommended. Apply and measure now, before the bulk load; privacy on NTER rests on the
