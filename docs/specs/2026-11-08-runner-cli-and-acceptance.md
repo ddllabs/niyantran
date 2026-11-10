@@ -95,6 +95,9 @@ developer's terminal:
     that resolves `full` (required when the collection says so).
   - The probe: one of the document's own stored vectors, searched in its feature, must return the document first. A tie
     at the top similarity counts, since the pack's dedupe list keeps a text in one place.
+    Amended 2026-11-10 (F313): when every chunk ranked above the document holds the probe chunk's own text word for
+    word (spacing aside), the probe cannot tell the documents apart, so the next chunk is tried, up to three; any other
+    text ranked above the document fails at once, and three shared chunks fail.
   - The sample is the same on every run of a batch.
 - **How it runs.** The CLI's `--accept-service <name>` connects through a libpq service, with none of `corpus_ingest`'s
   `PG*` variables inherited. The collection file's `acceptance` block (`sample`, `requireLinks`) is required with it.

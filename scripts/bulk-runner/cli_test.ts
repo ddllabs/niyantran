@@ -222,7 +222,7 @@ function acceptStub(pass: boolean): AcceptDb {
       ),
     linkKeys: () => Promise.resolve({ [doc]: [] }),
     resolve: () => Promise.resolve([]),
-    probe: () => Promise.resolve([{ document_id: doc, similarity: 1 }]),
+    probe: () => Promise.resolve({ content: 't', rows: [{ document_id: doc, similarity: 1, content: 't' }] }),
   };
 }
 const AUTO = { ...COLLECTION, acceptance: { sample: 50, requireLinks: false } };

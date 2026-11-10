@@ -2,7 +2,8 @@
 // docs/specs/2026-11-01-bulk-ingestion.md, as decided on 2026-11-09 (docs/specs/2026-11-08-runner-cli-and-acceptance.md):
 // a sample of 50 loaded documents, or all of them below 50, each passing every check; read only, from the developer's
 // own login, in transactions that are rolled back; the retrieval probe searches with one of the document's own stored
-// vectors, so it costs nothing.
+// vectors, so it costs nothing. A probe chunk whose text other documents hold word for word cannot pick the document out
+// (F313: gazette headings), so it is set aside and the next chunk is tried, up to PROBE_ATTEMPTS.
 import { dollarQuote, type PsqlExec } from './psql_db.ts';
 
 export interface SampleItem {
@@ -23,6 +24,12 @@ export interface StoredDoc {
   desk_feature: string;
 }
 
+/** One probe: the stored text of the chunk whose vector was searched, and the chunks the search returned. */
+export interface ProbeResult {
+  content: string;
+  rows: Array<{ document_id: string; similarity: number; content: string }>;
+}
+
 /** The database as acceptance sees it. Every method only reads. */
 export interface AcceptDb {
   /** A sample of the batch's loaded items (admitted or existing, with a document), the same on every run of a batch. */
@@ -32,10 +39,11 @@ export interface AcceptDb {
   linkKeys(documentIds: string[]): Promise<Record<string, string[]>>;
   /** record_resolve_document_keys, as a signed-in user; at most 24 keys a call. */
   resolve(keys: string[]): Promise<Array<{ document_key: string; document_id: string | null; coverage: string }>>;
-  /** match_documents with one of the document's own stored vectors, in its feature, as a signed-in user. */
-  probe(
-    doc: { id: string; desk_tier: string; desk_feature: string },
-  ): Promise<Array<{ document_id: string; similarity: number }>>;
+  /**
+   * match_documents with the document's own stored vector at position `attempt` (0 is its first chunk with a vector),
+   * in its feature, as a signed-in user; null when the document has no vector at that position.
+   */
+  probe(doc: { id: string; desk_tier: string; desk_feature: string }, attempt: number): Promise<ProbeResult | null>;
 }
 
 export type AcceptCheck =
@@ -73,6 +81,41 @@ export interface AcceptOptions {
 const RESOLVE_LIMIT = 24;
 /** Similarities this close to the best count as tied: a text kept twice by the pack's dedupe list ranks equal. */
 const TIE = 1e-6;
+/** Chunks tried before a probe whose every chunk is shared word for word fails. */
+const PROBE_ATTEMPTS = 3;
+const sameText = (a: string, b: string) => a.replace(/\s+/g, ' ').trim() === b.replace(/\s+/g, ' ').trim();
+
+type ProbeVerdict = { ok: true } | { ok: false; check: 'probe_empty' | 'probe_not_first'; detail?: string };
+
+/**
+ * The document must come first (a tie at the top counts). When every chunk ranked above it holds the probe's own text
+ * word for word, the probe could not tell the documents apart, and the next chunk is tried; any other text above it is
+ * a failure at once.
+ */
+async function probeDocument(db: AcceptDb, d: StoredDoc): Promise<ProbeVerdict> {
+  for (let attempt = 0; attempt < PROBE_ATTEMPTS; attempt++) {
+    const p = await db.probe(d, attempt);
+    if (!p) {
+      return attempt === 0
+        ? { ok: false, check: 'probe_empty' }
+        : { ok: false, check: 'probe_not_first', detail: `every chunk tried (${attempt}) is shared word for word` };
+    }
+    if (p.rows.length === 0) return { ok: false, check: 'probe_empty' };
+    const best = p.rows[0].similarity;
+    if (p.rows.some((r) => r.document_id === d.id && r.similarity >= best - TIE)) return { ok: true };
+    const rank = p.rows.findIndex((r) => r.document_id === d.id);
+    const own = rank < 0 ? -Infinity : p.rows[rank].similarity;
+    const ahead = p.rows.filter((r) => r.document_id !== d.id && r.similarity > own + TIE);
+    if (!ahead.every((r) => sameText(r.content, p.content))) {
+      return { ok: false, check: 'probe_not_first', detail: rank < 0 ? 'not in the top results' : `rank ${rank + 1}` };
+    }
+  }
+  return {
+    ok: false,
+    check: 'probe_not_first',
+    detail: `every chunk tried (${PROBE_ATTEMPTS}) is shared word for word`,
+  };
+}
 
 /** Runs every check on the sample. Throws when the database cannot answer: an acceptance that cannot be made is none. */
 export async function acceptBatch(db: AcceptDb, batchId: string, opt: AcceptOptions): Promise<AcceptReport> {
@@ -131,16 +174,8 @@ export async function acceptBatch(db: AcceptDb, batchId: string, opt: AcceptOpti
       );
       continue;
     }
-    const rows = await db.probe(d);
-    if (rows.length === 0) {
-      fail(it, 'probe_empty');
-      continue;
-    }
-    const best = rows[0].similarity;
-    if (!rows.some((r) => r.document_id === d.id && r.similarity >= best - TIE)) {
-      const rank = rows.findIndex((r) => r.document_id === d.id);
-      fail(it, 'probe_not_first', rank < 0 ? 'not in the top results' : `rank ${rank + 1}`);
-    }
+    const v = await probeDocument(db, d);
+    if (!v.ok) fail(it, v.check, v.detail);
   }
   return { batch_id: batchId, sampled: items.length, ok: failures.length === 0, failures };
 }
@@ -226,19 +261,25 @@ export class PsqlAcceptDb implements AcceptDb {
     );
   }
 
-  async probe(doc: { id: string; desk_tier: string; desk_feature: string }) {
-    const vector = await this.read<string | null>(
-      `select to_jsonb((select embedding::text from public.document_chunks where document_id = ${uuid(doc.id)}
-         and embedding is not null order by chunk_index limit 1))::text;`,
+  async probe(
+    doc: { id: string; desk_tier: string; desk_feature: string },
+    attempt: number,
+  ): Promise<ProbeResult | null> {
+    if (!Number.isInteger(attempt) || attempt < 0) throw new Error(`bad probe attempt ${attempt}`);
+    const chunk = await this.read<{ embedding: string; content: string } | null>(
+      `select to_jsonb((select jsonb_build_object('embedding', embedding::text, 'content', content)
+         from public.document_chunks where document_id = ${uuid(doc.id)} and embedding is not null
+         order by chunk_index offset ${attempt} limit 1))::text;`,
       false,
     );
-    if (!vector) return [];
-    return await this.read<Array<{ document_id: string; similarity: number }>>(
-      `select coalesce(jsonb_agg(jsonb_build_object('document_id', m.document_id, 'similarity', m.similarity)
-                order by m.similarity desc), '[]'::jsonb)::text
-         from public.match_documents(${text(vector)}::extensions.vector, 10, null::uuid[], ${text(doc.desk_tier)},
-                                     ${text(doc.desk_feature)}) m;`,
+    if (!chunk) return null;
+    const rows = await this.read<ProbeResult['rows']>(
+      `select coalesce(jsonb_agg(jsonb_build_object('document_id', m.document_id, 'similarity', m.similarity,
+                'content', m.content) order by m.similarity desc), '[]'::jsonb)::text
+         from public.match_documents(${text(chunk.embedding)}::extensions.vector, 10, null::uuid[],
+                                     ${text(doc.desk_tier)}, ${text(doc.desk_feature)}) m;`,
       true,
     );
+    return { content: chunk.content, rows };
   }
 }
