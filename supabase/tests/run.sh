@@ -135,6 +135,15 @@ chain() {
     chunk_hybrid_search)
       chain law_documents_serving_set
       FILES+=("$(as_non_superuser 20261102120000_chunk_hybrid_search.sql)") ;;
+    # Keeping NCLT search warm. The function only looks relations up by name, so the fixture makes stand-ins with
+    # those names and the chain is the bare roles-and-extensions-schema bootstrap (a full corpus chain cost ~290 s of
+    # the CI job's budget, F302). The container's migrator is not a superuser and so cannot create the extension
+    # (Supabase's postgres can), so a superuser step creates it first; the migration's create-if-not-exists then does
+    # nothing and its revokes still run. The vacuity check drops the last.
+    search_keep_warm)
+      CONTAINER=$VECTOR
+      echo 'create extension if not exists pg_prewarm with schema extensions;' > "$WORK/pg_prewarm_extension.sql"
+      FILES=("$TESTS/bootstrap_auth.sql" "$WORK/pg_prewarm_extension.sql" "$(as_non_superuser 20261111090000_search_keep_warm.sql)") ;;
     # The law publication policy on documents evaluated once per query (same rows), the second of
     # the pair: document_chunks_partitions' chain (which ends with the partitions), then the
     # migration, as a non-superuser. The vacuity check drops the last.
@@ -1168,6 +1177,11 @@ fixture_sql() {
   while IFS= read -r line; do
     if [ "$line" = '\i backend/sql/operations/reset_test_billing.sql' ]; then
       cat backend/sql/operations/reset_test_billing.sql
+    elif [ "$line" = '\i supabase/migrations/20261111090000_search_keep_warm.sql' ]; then
+      # Only the migration's self-check DO block, turned into pg_temp.selfcheck(), so the fixture can run the very
+      # same text again after a deliberate grant.
+      sed -n '/^-- self-check begin$/,/^-- self-check end$/p' supabase/migrations/20261111090000_search_keep_warm.sql \
+        | sed -e 's/^do \$\$$/create function pg_temp.selfcheck() returns void language plpgsql as $sc$/' -e 's/^end \$\$;$/end $sc$;/'
     elif [ "$line" = '\i scripts/pq-row-refresh.sql' ]; then
       cat scripts/pq-row-refresh.sql
     elif [ "$line" = '\i supabase/tests/ingest_register_batch.sql' ]; then
