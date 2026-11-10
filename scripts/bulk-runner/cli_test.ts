@@ -51,6 +51,15 @@ async function question(n: number): Promise<Rec> {
   };
 }
 
+/** The collection and records files, with the pack reader's receipt for the records (F309). */
+async function files(collection: unknown, records: string): Promise<Record<string, string>> {
+  return {
+    'c.json': JSON.stringify(collection),
+    'r.jsonl': records,
+    'r.jsonl.receipt.json': JSON.stringify({ output_sha256: await sha256Hex(records), lines_written: 1 }),
+  };
+}
+
 function deps(files: Record<string, string>, over: Partial<CliDeps> = {}) {
   const lines: string[] = [];
   const written = new Map<string, string>();
@@ -68,6 +77,8 @@ function deps(files: Record<string, string>, over: Partial<CliDeps> = {}) {
     acceptDb: () => {
       throw new Error('no acceptance connection in this test');
     },
+    listDir: () => Promise.resolve([]),
+    makeDir: () => Promise.resolve(),
     log: (l) => lines.push(l),
     now: () => now,
     sleep: (ms) => {
@@ -122,12 +133,47 @@ Deno.test('acceptance for now: only a listed manifest is accepted', async () => 
   assertEquals(await acceptFrom([])({ manifest_sha256: H }), false);
 });
 
-Deno.test('receipts must go outside the repository', () => {
-  assertThrows(() => checkReceiptsDir(REPO_ROOT), Error, 'outside the repository');
-  assertThrows(() => checkReceiptsDir(`${REPO_ROOT}/eval/ingestion/results`), Error, 'outside the repository');
-  assertThrows(() => checkReceiptsDir(`${REPO_ROOT}/scripts/../receipts`), Error, 'outside the repository');
-  assertEquals(checkReceiptsDir('/var/receipts', REPO_ROOT), '/var/receipts');
-  assertEquals(checkReceiptsDir(`${REPO_ROOT}-receipts`, REPO_ROOT), `${REPO_ROOT}-receipts`);
+Deno.test('receipts must go outside the repository', async () => {
+  const none = { repoRoot: REPO_ROOT, commonDir: () => Promise.resolve(null) };
+  await assertRejects(() => checkReceiptsDir(REPO_ROOT, none), Error, 'outside the repository');
+  await assertRejects(
+    () => checkReceiptsDir(`${REPO_ROOT}/eval/ingestion/results`, none),
+    Error,
+    'outside the repository',
+  );
+  await assertRejects(
+    () => checkReceiptsDir(`${REPO_ROOT}/scripts/../receipts`, none),
+    Error,
+    'outside the repository',
+  );
+  assertEquals(await checkReceiptsDir('/var/receipts', none), '/var/receipts');
+});
+
+Deno.test('receipts: from a worktree, the main checkout, the worktree and any directory with a .git are all refused (F310)', async () => {
+  const t = await Deno.realPath(await Deno.makeTempDir());
+  try {
+    // The main checkout has no .git entry of its own here, so only the git common directory can reveal it.
+    const main1 = `${t}/main`;
+    const wt = `${t}/wt`;
+    const anc = `${t}/anc`;
+    await Deno.mkdir(`${anc}/.git`, { recursive: true });
+    await Deno.mkdir(`${t}/out`, { recursive: true });
+    await Deno.mkdir(main1, { recursive: true });
+    await Deno.mkdir(wt, { recursive: true });
+    const worktree = { repoRoot: wt, commonDir: () => Promise.resolve(`${main1}/.git`) };
+    await assertRejects(() => checkReceiptsDir(`${main1}/receipts`, worktree), Error, 'outside the repository');
+    await assertRejects(() => checkReceiptsDir(`${wt}/receipts`, worktree), Error, 'outside the repository');
+    await assertRejects(() => checkReceiptsDir(`${anc}/sub/receipts`, worktree), Error, '.git');
+    assertEquals(await checkReceiptsDir(`${t}/out/receipts`, worktree), `${t}/out/receipts`);
+  } finally {
+    await Deno.remove(t, { recursive: true });
+  }
+});
+
+Deno.test('receipts: the guard is pack.ts’s refuseInCheckout, not a copy of it', async () => {
+  const src = await Deno.readTextFile(new URL('./cli.ts', import.meta.url));
+  assert(!/function\s+refuseInCheckout/.test(src), 'cli.ts defines its own refuseInCheckout');
+  assert(/refuseInCheckout[^;]*from\s+'\.\/pack\.ts'/.test(src), 'cli.ts does not import it from pack.ts');
 });
 
 Deno.test('collection file: every limit the plan needs is required, with no default guessed', () => {
@@ -156,16 +202,194 @@ Deno.test('records file: JSON lines, blank lines skipped, a bad line named', () 
 
 Deno.test('plan: prints the batch and touches no database', async () => {
   const records = [await question(1), await question(2)].map((r) => JSON.stringify(r)).join('\n');
-  const { d, lines, db } = deps({ 'c.json': JSON.stringify(COLLECTION), 'r.jsonl': records });
+  const { d, lines, db } = deps(await files(COLLECTION, records));
   assertEquals(await main(['plan', '--collection', 'c.json', '--records', 'r.jsonl'], d), 0);
   assertStringIncludes(lines[0], 'records 2, held 0, batches 1');
   assertStringIncludes(lines[1], '2 documents');
   assertEquals(db.calls.length, 0);
 });
 
+const plan1 = ['plan', '--collection', 'c.json', '--records', 'r.jsonl'];
+
+Deno.test('receipt: plan and run read the reader’s receipt and refuse a records file edited after selection (F309)', async () => {
+  const records = JSON.stringify(await question(1));
+  const f = await files(COLLECTION, records);
+  for (const argv of [plan1, runArgs]) {
+    const edited = deps({ ...f, 'r.jsonl': records + '\n' + JSON.stringify(await question(2)) });
+    const e = await assertRejects(() => main(argv, edited.d), Error, 'receipt_mismatch');
+    assertStringIncludes(e.message, 'r.jsonl');
+    assertEquals(edited.db.calls.length, 0);
+    assertEquals(edited.written.size, 0);
+  }
+  const ok = deps(f);
+  assertEquals(await main(plan1, ok.d), 0);
+});
+
+Deno.test('receipt: a missing or unreadable receipt is refused, with its own code', async () => {
+  const records = JSON.stringify(await question(1));
+  const f = await files(COLLECTION, records);
+  const { 'r.jsonl.receipt.json': _, ...noReceipt } = f;
+  await assertRejects(() => main(plan1, deps(noReceipt).d), Error, 'receipt_missing');
+  for (const bad of ['not json', '[]', '{}', JSON.stringify({ output_sha256: 'xyz' })]) {
+    await assertRejects(
+      () => main(plan1, deps({ ...f, 'r.jsonl.receipt.json': bad }).d),
+      Error,
+      'receipt_unreadable',
+    );
+  }
+});
+
+Deno.test('receipt: another file’s receipt does not do', async () => {
+  const records = JSON.stringify(await question(1));
+  const f = await files(COLLECTION, records);
+  const other = JSON.stringify({ output_sha256: await sha256Hex(JSON.stringify(await question(2))) });
+  await assertRejects(() => main(plan1, deps({ ...f, 'r.jsonl.receipt.json': other }).d), Error, 'receipt_mismatch');
+});
+
+Deno.test('receipt: a screened file is bound to the screen’s receipt beside it, not to a reader receipt', async () => {
+  const records = JSON.stringify(await question(1));
+  const f = await files(COLLECTION, records);
+  const screened: Record<string, string> = {
+    'c.json': f['c.json'],
+    'out/screened.jsonl': records,
+    'out/screen.receipt.json': JSON.stringify({ outputs: { screened: { sha256: await sha256Hex(records) } } }),
+  };
+  const argv = ['plan', '--collection', 'c.json', '--records', 'out/screened.jsonl'];
+  assertEquals(await main(argv, deps(screened).d), 0);
+  const edited = { ...screened, 'out/screened.jsonl': records + '\n' + JSON.stringify(await question(2)) };
+  await assertRejects(() => main(argv, deps(edited).d), Error, 'receipt_mismatch');
+  const { 'out/screen.receipt.json': _, ...none } = screened;
+  await assertRejects(() => main(argv, deps(none).d), Error, 'receipt_missing');
+  // A reader receipt beside a screened file does not stand in for the screen's.
+  const reader = { ...none, 'out/screened.jsonl.receipt.json': f['r.jsonl.receipt.json'] };
+  await assertRejects(() => main(argv, deps(reader).d), Error, 'receipt_missing');
+  // The screen's receipt for another screened file is refused.
+  const wrong = { ...screened, 'out/screen.receipt.json': JSON.stringify({ outputs: { screened: { sha256: H } } }) };
+  await assertRejects(() => main(argv, deps(wrong).d), Error, 'receipt_mismatch');
+});
+
+const splitArgs = (out = '/var/parts', n = '2') => ['split', '--records', 'r.jsonl', '--lines', n, '--out', out];
+
+/** Five records with a blank line among them, and the files a reader would have left beside them. */
+async function fiveRecords() {
+  const recs = await Promise.all([1, 2, 3, 4, 5].map(async (n) => JSON.stringify(await question(n))));
+  const text = recs.slice(0, 2).join('\n') + '\n\n' + recs.slice(2).join('\n') + '\n';
+  return { recs, f: await files(COLLECTION, text), text };
+}
+
+Deno.test('parseArgs: split takes --records, --lines (a positive integer) and --out', () => {
+  assertEquals(parseArgs(splitArgs()), { cmd: 'split', records: 'r.jsonl', lines: 2, out: '/var/parts' });
+  assertThrows(() => parseArgs(['split', '--records', 'r', '--lines', '2']), Error, '--out is required');
+  assertThrows(() => parseArgs(splitArgs('/o', '0')), Error, '--lines');
+  assertThrows(() => parseArgs(splitArgs('/o', '1.5')), Error, '--lines');
+  assertThrows(() => parseArgs([...splitArgs(), '--collection', 'c']), Error, 'unknown');
+});
+
+Deno.test('split: parts of at most n records, bytes and order kept, each with a receipt that lets it into plan (F309)', async () => {
+  const { recs, f } = await fiveRecords();
+  const { d, written } = deps(f);
+  assertEquals(await main(splitArgs(), d), 0);
+  assertEquals([...written.keys()].sort(), [
+    '/var/parts/part-000.jsonl',
+    '/var/parts/part-000.jsonl.receipt.json',
+    '/var/parts/part-001.jsonl',
+    '/var/parts/part-001.jsonl.receipt.json',
+    '/var/parts/part-002.jsonl',
+    '/var/parts/part-002.jsonl.receipt.json',
+  ]);
+  const parts = ['000', '001', '002'].map((k) => written.get(`/var/parts/part-${k}.jsonl`)!);
+  assertEquals(parts.join(''), recs.map((r) => r + '\n').join(''));
+  assertEquals(parts.map((p) => p.split('\n').length - 1), [2, 2, 1]);
+  const inputSha = await sha256Hex(f['r.jsonl']);
+  const r1 = JSON.parse(written.get('/var/parts/part-001.jsonl.receipt.json')!);
+  assertEquals(r1, {
+    output_sha256: await sha256Hex(parts[1]),
+    lines_written: 2,
+    source: { records: 'r.jsonl', sha256: inputSha, from_line: 4, to_line: 5 },
+  });
+  // Every part is accepted by plan through its own receipt.
+  for (const k of ['000', '001', '002']) {
+    const p = deps({
+      'c.json': f['c.json'],
+      [`part-${k}.jsonl`]: written.get(`/var/parts/part-${k}.jsonl`)!,
+      [`part-${k}.jsonl.receipt.json`]: written.get(`/var/parts/part-${k}.jsonl.receipt.json`)!,
+    });
+    assertEquals(await main(['plan', '--collection', 'c.json', '--records', `part-${k}.jsonl`], p.d), 0);
+  }
+  // An edited part is refused.
+  const bad = deps({
+    'c.json': f['c.json'],
+    'part-000.jsonl': parts[0] + parts[1],
+    'part-000.jsonl.receipt.json': written.get('/var/parts/part-000.jsonl.receipt.json')!,
+  });
+  await assertRejects(
+    () => main(['plan', '--collection', 'c.json', '--records', 'part-000.jsonl'], bad.d),
+    Error,
+    'receipt_mismatch',
+  );
+});
+
+Deno.test('split: the same input and n give byte-identical parts and receipts', async () => {
+  const { f } = await fiveRecords();
+  const a = deps(f);
+  const b = deps(f);
+  await main(splitArgs(), a.d);
+  await main(splitArgs(), b.d);
+  assertEquals([...a.written], [...b.written]);
+});
+
+Deno.test('split: an input whose receipt is missing, unreadable or does not match is refused, and nothing is written', async () => {
+  const { f } = await fiveRecords();
+  const { 'r.jsonl.receipt.json': _, ...none } = f;
+  for (
+    const [files_, code] of [
+      [none, 'receipt_missing'],
+      [{ ...f, 'r.jsonl.receipt.json': 'nope' }, 'receipt_unreadable'],
+      [{ ...f, 'r.jsonl': f['r.jsonl'] + '\n' }, 'receipt_mismatch'],
+    ] as const
+  ) {
+    const x = deps(files_);
+    await assertRejects(() => main(splitArgs(), x.d), Error, code);
+    assertEquals(x.written.size, 0);
+  }
+});
+
+Deno.test('split: refuses an --out inside a checkout, or one that already holds part files', async () => {
+  const { f } = await fiveRecords();
+  const inside = deps(f, { commonDir: () => Promise.resolve(null) });
+  await assertRejects(() => main(splitArgs(`${REPO_ROOT}/parts`), inside.d), Error, 'outside the repository');
+  assertEquals(inside.written.size, 0);
+  for (const existing of ['part-000.jsonl', 'part-007.jsonl.receipt.json']) {
+    const x = deps(f, { listDir: () => Promise.resolve([existing]) });
+    await assertRejects(() => main(splitArgs(), x.d), Error, 'already holds');
+    assertEquals(x.written.size, 0);
+  }
+});
+
+Deno.test('split: a screened file is split under the screen’s receipt', async () => {
+  const { text, f } = await fiveRecords();
+  const g = {
+    'c.json': f['c.json'],
+    'out/screened.jsonl': text,
+    'out/screen.receipt.json': JSON.stringify({ outputs: { screened: { sha256: await sha256Hex(text) } } }),
+  };
+  const x = deps(g);
+  assertEquals(await main(['split', '--records', 'out/screened.jsonl', '--lines', '3', '--out', '/var/parts'], x.d), 0);
+  assertEquals(x.written.size, 4);
+  await assertRejects(
+    () =>
+      main(
+        ['split', '--records', 'out/screened.jsonl', '--lines', '3', '--out', '/var/parts'],
+        deps({ ...g, 'out/screened.jsonl': text + text }).d,
+      ),
+    Error,
+    'receipt_mismatch',
+  );
+});
+
 Deno.test('run: refuses a runner with uncommitted changes before any database call', async () => {
   const records = JSON.stringify(await question(1));
-  const { d, db } = deps({ 'c.json': JSON.stringify(COLLECTION), 'r.jsonl': records }, {
+  const { d, db } = deps(await files(COLLECTION, records), {
     git: () => Promise.resolve({ commit: 'abcdef1', dirty: true }),
   });
   await assertRejects(
@@ -178,7 +402,7 @@ Deno.test('run: refuses a runner with uncommitted changes before any database ca
 
 Deno.test('run: refuses receipts inside the repository before any database call', async () => {
   const records = JSON.stringify(await question(1));
-  const { d, db } = deps({ 'c.json': JSON.stringify(COLLECTION), 'r.jsonl': records });
+  const { d, db } = deps(await files(COLLECTION, records));
   await assertRejects(
     () => main(['run', '--collection', 'c.json', '--records', 'r.jsonl', '--receipts', REPO_ROOT], d),
     Error,
@@ -189,7 +413,7 @@ Deno.test('run: refuses receipts inside the repository before any database call'
 
 Deno.test('run: one batch end to end on a fake database, receipts in the given directory, with the commit', async () => {
   const records = [await question(1), await question(2)].map((r) => JSON.stringify(r)).join('\n');
-  const { d, lines, written, db } = deps({ 'c.json': JSON.stringify(COLLECTION), 'r.jsonl': records });
+  const { d, lines, written, db } = deps(await files(COLLECTION, records));
   const code = await main(['run', '--collection', 'c.json', '--records', 'r.jsonl', '--receipts', '/var/receipts'], d);
   assertEquals(code, 0, lines.join('\n'));
   assert(db.calls.some((c) => c.method === 'register'), 'nothing was registered');
@@ -260,14 +484,14 @@ Deno.test('collection file: an acceptance block must say its sample and whether 
 
 Deno.test('run: automated acceptance needs the collection’s acceptance block, checked before any database call', async () => {
   const records = JSON.stringify(await question(1));
-  const { d, db } = deps({ 'c.json': JSON.stringify(COLLECTION), 'r.jsonl': records });
+  const { d, db } = deps(await files(COLLECTION, records));
   await assertRejects(() => main([...runArgs, '--accept-service', 'nter-admin'], d), Error, 'acceptance block');
   assertEquals(db.calls.length, 0);
 });
 
 Deno.test('run: a batch that passes automated acceptance is accepted, with its report written', async () => {
   const records = [await question(1), await question(2)].map((r) => JSON.stringify(r)).join('\n');
-  const { d, lines, written } = deps({ 'c.json': JSON.stringify(AUTO), 'r.jsonl': records }, {
+  const { d, lines, written } = deps(await files(AUTO, records), {
     acceptDb: () => acceptStub(true),
   });
   assertEquals(await main([...runArgs, '--accept-service', 'nter-admin'], d), 0, lines.join('\n'));
@@ -279,7 +503,7 @@ Deno.test('run: a batch that passes automated acceptance is accepted, with its r
 
 Deno.test('run: a batch that fails automated acceptance makes the run fail, with the failure in its report', async () => {
   const records = [await question(1), await question(2)].map((r) => JSON.stringify(r)).join('\n');
-  const { d, lines, written } = deps({ 'c.json': JSON.stringify(AUTO), 'r.jsonl': records }, {
+  const { d, lines, written } = deps(await files(AUTO, records), {
     acceptDb: () => acceptStub(false),
   });
   assertEquals(await main([...runArgs, '--accept-service', 'nter-admin'], d), 1, lines.join('\n'));

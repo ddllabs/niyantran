@@ -5,8 +5,11 @@
 //   deno run -A scripts/bulk-runner/cli.ts run    --collection <file.json> --records <file.jsonl> --receipts <dir>
 //                                                 [--accept-service <name> | --accepted <manifest sha256,...>]
 //                                                 [--psql <path>]
+//   deno run -A scripts/bulk-runner/cli.ts split  --records <file.jsonl> --lines <n> --out <dir>
 //   deno run -A scripts/bulk-runner/cli.ts status --batch <uuid> [--psql <path>]
 //
+// `split` verifies the records file against its receipt, then writes part-NNN.jsonl files of at most n records, each
+// with a receipt (`<part>.receipt.json`) that `plan` and `run` accept; --out must be outside every checkout.
 // `plan` touches no database. `run` and `status` connect through psql as corpus_ingest, from libpq's environment
 // (PGHOST, PGPORT, PGDATABASE, PGUSER, PGSSLMODE, and PGPASSWORD or a password file); nothing about the connection is
 // an argument or printed. A batch chains to the next only when it is accepted:
@@ -15,12 +18,14 @@
 //                            developer's own login, not corpus_ingest. Its report is written beside the receipts.
 //   --accepted <hashes>      batches the developer accepted by hand.
 // With neither, a run stops after its first batch with awaiting_acceptance.
-import { dirname, fromFileUrl, isAbsolute, relative, resolve } from 'jsr:@std/path@1';
+import { basename, dirname, fromFileUrl, join, resolve } from 'jsr:@std/path@1';
+import { sha256Hex } from '../../supabase/functions/_shared/textNormalise.ts';
 import type { Db } from './db.ts';
 import { plan, type PlanLimits, type PlanResult } from './plan.ts';
 import { prepareAll, type PrepareOptions } from './prepare.ts';
 import { acceptBatch, type AcceptDb, type AcceptOptions, PsqlAcceptDb } from './acceptance.ts';
 import { PsqlDb, psqlExec } from './psql_db.ts';
+import { gitCommonDir, refuseInCheckout } from './pack.ts';
 import { run, type RunInput, type RunResult } from './run.ts';
 
 export const REPO_ROOT = resolve(dirname(fromFileUrl(import.meta.url)), '../..');
@@ -47,9 +52,10 @@ export type Command =
     acceptService: string | null;
     psql: string;
   }
+  | { cmd: 'split'; records: string; lines: number; out: string }
   | { cmd: 'status'; batch: string; psql: string };
 
-const USAGE = 'usage: cli.ts plan|run|status (see the header of scripts/bulk-runner/cli.ts)';
+const USAGE = 'usage: cli.ts plan|run|split|status (see the header of scripts/bulk-runner/cli.ts)';
 
 export function parseArgs(argv: string[]): Command {
   const [cmd, ...rest] = argv;
@@ -95,6 +101,12 @@ export function parseArgs(argv: string[]): Command {
         psql,
       };
     }
+    case 'split': {
+      allowed(['--records', '--lines', '--out']);
+      const n = need('--lines');
+      if (!/^[1-9]\d{0,8}$/.test(n)) throw new Error('--lines must be a positive integer');
+      return { cmd, records: need('--records'), lines: Number(n), out: need('--out') };
+    }
     case 'status':
       allowed(['--batch', '--psql']);
       return { cmd, batch: need('--batch'), psql };
@@ -132,14 +144,18 @@ export function checkCollection(value: unknown): CollectionFile {
   return c;
 }
 
-/** Receipts never land inside the repository (they name documents and spend). */
-export function checkReceiptsDir(dir: string, repoRoot = REPO_ROOT): string {
-  const abs = resolve(dir);
-  const rel = relative(repoRoot, abs);
-  if (rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))) {
-    throw new Error(`receipts must go outside the repository, not ${abs}`);
-  }
-  return abs;
+/**
+ * Receipts never land inside any checkout of the repository (they name documents and spend): this checkout, the main
+ * one when run from a worktree, or any directory with a `.git` entry. The same guard as the pack reader's.
+ */
+export function checkReceiptsDir(
+  dir: string,
+  deps: { repoRoot: string; commonDir?: () => Promise<string | null> } = {
+    repoRoot: REPO_ROOT,
+    commonDir: gitCommonDir,
+  },
+): Promise<string> {
+  return refuseInCheckout(dir, 'receipts', deps);
 }
 
 export function parseRecords(text: string): unknown[] {
@@ -158,6 +174,11 @@ export function parseRecords(text: string): unknown[] {
 
 export interface CliDeps {
   readText: (path: string) => Promise<string>;
+  /** The names in a directory; empty when it does not exist. */
+  listDir: (dir: string) => Promise<string[]>;
+  makeDir: (dir: string) => Promise<void>;
+  /** The repository's git common directory (default: asked of git). */
+  commonDir?: () => Promise<string | null>;
   writeText: (path: string, body: string) => Promise<void>;
   /** The commit, and whether the runner's code has uncommitted changes. */
   git: () => Promise<{ commit: string; dirty: boolean }>;
@@ -169,9 +190,73 @@ export interface CliDeps {
   sleep: (ms: number) => Promise<void>;
 }
 
+/** A records file that its receipt does not vouch for. `code` is one of the ReceiptCode values; it leads the message. */
+export type ReceiptCode = 'receipt_missing' | 'receipt_unreadable' | 'receipt_mismatch';
+export class ReceiptError extends Error {
+  constructor(readonly code: ReceiptCode, message: string) {
+    super(`${code}: ${message}`);
+    this.name = 'ReceiptError';
+  }
+}
+
+/** The screen's output name (screen.ts OUT): a file with this name is the screen's, and only its receipt vouches for it. */
+const SCREENED = 'screened.jsonl';
+const SCREEN_RECEIPT = 'screen.receipt.json';
+const HEX64 = /^[0-9a-f]{64}$/;
+
+/**
+ * Reads the receipt that belongs to a records file and returns the sha256 it attests for that file (F309).
+ * A file named screened.jsonl is the screen's output, vouched for by `screen.receipt.json` beside it
+ * (`outputs.screened.sha256`); any other file is the pack reader's, vouched for by `<records>.receipt.json`
+ * (`output_sha256`). The two never stand in for each other: the rule is by name, so it is the stricter one.
+ */
+async function receiptHash(records: string, readText: CliDeps['readText']): Promise<{ path: string; sha256: string }> {
+  const screened = basename(records) === SCREENED;
+  const path = screened ? join(dirname(records), SCREEN_RECEIPT) : `${records}.receipt.json`;
+  let text: string;
+  try {
+    text = await readText(path);
+  } catch {
+    throw new ReceiptError(
+      'receipt_missing',
+      `${path} is missing; the runner loads only ${
+        screened ? "the screen's output with its receipt" : "the pack reader's output with its receipt"
+      }`,
+    );
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    throw new ReceiptError('receipt_unreadable', `${path} is not valid JSON`);
+  }
+  const o = value as { output_sha256?: unknown; outputs?: { screened?: { sha256?: unknown } } } | null;
+  const sha = screened ? o?.outputs?.screened?.sha256 : o?.output_sha256;
+  if (typeof sha !== 'string' || !HEX64.test(sha)) {
+    throw new ReceiptError(
+      'receipt_unreadable',
+      `${path} has no ${screened ? 'outputs.screened.sha256' : 'output_sha256'}`,
+    );
+  }
+  return { path, sha256: sha };
+}
+
+/** The records file's text, read once and checked against its receipt: the bytes hashed are the bytes parsed. */
+export async function readRecordsText(records: string, readText: CliDeps['readText']): Promise<string> {
+  const text = await readText(records);
+  const receipt = await receiptHash(records, readText);
+  if ((await sha256Hex(text)) !== receipt.sha256) {
+    throw new ReceiptError(
+      'receipt_mismatch',
+      `${records} is not the file ${receipt.path} describes (its sha256 differs from the receipt's)`,
+    );
+  }
+  return text;
+}
+
 async function prepared(c: { collection: string; records: string }, deps: CliDeps) {
   const coll = checkCollection(JSON.parse(await deps.readText(c.collection)));
-  const records = parseRecords(await deps.readText(c.records));
+  const records = parseRecords(await readRecordsText(c.records, deps.readText));
   const prep = await prepareAll(records, coll.prepare);
   const p: PlanResult = await plan(prep.requests, coll.limits);
   return { coll, records, prep, p };
@@ -211,9 +296,49 @@ export const automated =
     return report.ok;
   };
 
+/**
+ * Splits a verified records file into part-NNN.jsonl files of at most `lines` records (blank lines dropped, each record
+ * line kept byte for byte), each with a receipt the runner accepts. No timestamps: the same input and size give the
+ * same bytes. from_line and to_line are the input's own line numbers (1-based).
+ */
+async function split(c: Extract<Command, { cmd: 'split' }>, deps: CliDeps): Promise<number> {
+  const text = await readRecordsText(c.records, deps.readText);
+  const sha256 = await sha256Hex(text);
+  const out = await refuseInCheckout(c.out, '--out', {
+    repoRoot: REPO_ROOT,
+    commonDir: deps.commonDir ?? gitCommonDir,
+  });
+  parseRecords(text); // every record line is JSON, and there is at least one
+  const held = (await deps.listDir(out)).filter((n) => /^part-\d+\.jsonl(\.receipt\.json)?$/.test(n));
+  if (held.length > 0) throw new Error(`${out} already holds part files (${held[0]}); choose a new --out`);
+  const records: { line: string; no: number }[] = [];
+  text.split('\n').forEach((line, i) => {
+    if (line.trim()) records.push({ line, no: i + 1 });
+  });
+  const parts = Math.ceil(records.length / c.lines);
+  if (parts > 999) throw new Error(`${parts} parts; use a larger --lines (at most 999 parts)`);
+  await deps.makeDir(out);
+  for (let k = 0; k < parts; k++) {
+    const slice = records.slice(k * c.lines, (k + 1) * c.lines);
+    const body = slice.map((r) => r.line + '\n').join('');
+    const path = `${out}/part-${String(k).padStart(3, '0')}.jsonl`;
+    const receipt = {
+      output_sha256: await sha256Hex(body),
+      lines_written: slice.length,
+      source: { records: c.records, sha256, from_line: slice[0].no, to_line: slice[slice.length - 1].no },
+    };
+    // The receipt first: a stop between the two leaves an orphan receipt, never a part without one.
+    await deps.writeText(`${path}.receipt.json`, JSON.stringify(receipt, null, 2) + '\n');
+    await deps.writeText(path, body);
+  }
+  deps.log(`${records.length} records in ${parts} parts under ${out}`);
+  return 0;
+}
+
 /** Runs one command; returns the process exit code. */
 export async function main(argv: string[], deps: CliDeps): Promise<number> {
   const c = parseArgs(argv);
+  if (c.cmd === 'split') return split(c, deps);
   if (c.cmd === 'status') {
     const db = deps.db(c.psql);
     await db.session({ lock_timeout_ms: 5_000, statement_timeout_ms: 60_000 });
@@ -224,7 +349,7 @@ export async function main(argv: string[], deps: CliDeps): Promise<number> {
   for (const l of describePlan(p, prep.holds.length, records.length)) deps.log(l);
   if (c.cmd === 'plan') return p.ok ? 0 : 1;
 
-  const dir = checkReceiptsDir(c.receipts);
+  const dir = await checkReceiptsDir(c.receipts, { repoRoot: REPO_ROOT, commonDir: deps.commonDir ?? gitCommonDir });
   if (c.acceptService && !coll.acceptance) {
     throw new Error('--accept-service needs an acceptance block in the collection file');
   }
@@ -300,6 +425,15 @@ if (import.meta.main) {
         git: gitState,
         db: (psql) => new PsqlDb(psqlExec([psql])),
         acceptDb: (psql, service) => new PsqlAcceptDb(psqlExec([psql], '', serviceEnv(service))),
+        listDir: async (dir) => {
+          try {
+            return (await Array.fromAsync(Deno.readDir(dir))).map((e) => e.name);
+          } catch (e) {
+            if (e instanceof Deno.errors.NotFound) return [];
+            throw e;
+          }
+        },
+        makeDir: (dir) => Deno.mkdir(dir, { recursive: true }),
         log: (l) => console.log(l),
         now: () => Date.now(),
         sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
