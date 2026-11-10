@@ -20,6 +20,21 @@
   (2 GB) but within `effective_cache_size` (6 GB) and the OS page cache; the cost accepted is that Bills and the other
   desks are evicted more often.
 
+## Dry runs on NTER, 2026-11-11 (all rolled back), and the developer's two decisions
+
+- **Ownership.** `supabase_admin` owns `pg_prewarm` and its two autoprewarm functions and has granted PUBLIC execute;
+  `postgres` is not a superuser and can only re-grant, so the migration's revokes cannot remove PUBLIC. The self-check
+  stopped the first dry run on this. The Data API serves only `public` and `graphql_public` (checked with a request for
+  another schema), so app users cannot reach `extensions`, as for the 203 other PUBLIC-executable functions there.
+  **Decision 1 (2026-11-11): accept and document.** The self-check stays strict for whatever the migrating role owns
+  (`search_keep_warm()`), and records a PUBLIC grant by another owner with a notice instead of failing.
+- **The warm set.** Prefetch works on NTER. Timed one relation at a time: vector index 2.2 s then 3.3 s, keyword index
+  1.6 s, table 4.0 s, TOAST relation 54.6 s; a full call 58 s and, six minutes later, 62.5 s again: the TOAST
+  relation (1.76 GB) does not stay cached in 8 GB, so every run re-reads it from disk. **Decision 2 (2026-11-11): warm
+  the vector index, keyword index and table only (1.23 GB, about 8 s a run), not TOAST.** Hybrid's cold TOAST reads
+  remain; the measurement after the next eviction shows whether they still break 2.5 s. If they do, the next step is
+  more memory or holding hybrid.
+
 ## Change
 
 1. Migration `20261111090000_search_keep_warm.sql`:
