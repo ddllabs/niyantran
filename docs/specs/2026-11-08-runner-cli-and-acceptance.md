@@ -98,6 +98,9 @@ developer's terminal:
     Amended 2026-11-10 (F313): when every chunk ranked above the document holds the probe chunk's own text word for
     word (spacing aside), the probe cannot tell the documents apart, so the next chunk is tried, up to three; any other
     text ranked above the document fails at once, and three shared chunks fail.
+  - Amended 2026-11-10 (F316): a listing row found through the document's `document_key` is one of its links only when
+    `record_resolve_document_keys` gives that row the document (on a shared bill key, F314, the other bill's row does
+    not); a row with an approved link always is.
   - The sample is the same on every run of a batch.
 - **How it runs.** The CLI's `--accept-service <name>` connects through a libpq service, with none of `corpus_ingest`'s
   `PG*` variables inherited. The collection file's `acceptance` block (`sample`, `requireLinks`) is required with it.
