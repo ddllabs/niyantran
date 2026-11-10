@@ -379,6 +379,14 @@ No timeout, no `55000`, answers identical to 2026-11-09. In this window hybrid m
 - **The rule as written passes in one window and fails in the other.** Production will see evictions (bulk loads,
   restarts), so the first searches after one will be slow for hybrid and probably for vector-only.
 
+**Correction, 2026-11-11: TOAST reads were not counted.** The block counts above come from
+`pg_statio_user_tables.heap_blks_read` and `pg_statio_user_indexes`, which leave out TOAST. Embeddings are stored out of
+line (`attstorage` `e`, about 6 KB each), and hybrid computes distances from the table's embeddings for every keyword
+candidate, so it reads TOAST heavily. On NTER (read 2026-11-11) `document_chunks_nclt`'s TOAST relation is 1.76 GB
+(index 19 MB), and since the last restart the partition has read 926,990 TOAST blocks from disk against 532,108 index
+blocks. NCLT's full search set is therefore about 3.0 GB, not 1.23 GB (Bills': vector index 1.31 GB plus TOAST 2.78 GB).
+Both windows understate the cold cost; a later measurement adds `toast_blks_read` and `tidx_blks_read`.
+
 ### Decision for the developer
 
 - **(a) Ship hybrid with F288's fallback** (vector-only after the 2.5 s budget) as a recorded exception, and add a
