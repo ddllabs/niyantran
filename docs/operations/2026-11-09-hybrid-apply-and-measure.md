@@ -296,6 +296,9 @@ The cold rule failed, by four calls in the first six of the run, during a bulk l
 - **(b)** Hold T9, and run the cold pair again after the Bills loads finish and the database has had 6 quiet hours,
   hybrid and vector-only in alternating order so neither warms the other.
 
+**Decided 2026-11-10: (b).** The Bills loads finished at 05:20 UTC on 2026-11-10; the cold pair is re-run after 6 quiet
+hours, read-only, with the same pass rule. T9 stays held until then.
+
 ## Decisions for the developer
 
 **Decided 2026-11-09:** both as recommended. Apply and measure now, before the bulk load; privacy on NTER rests on the
