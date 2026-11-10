@@ -340,6 +340,56 @@ partition read from outside Postgres's buffer cache:
 The vector index dominates, and hybrid reads it too. Window 2 runs vector-only first. That shows whether a cold
 vector-only search pays the same first-call cost, since that is what the app does today.
 
+## Result, 2026-11-10: cold re-run, window 2 of 2 (quiet, vector-only first)
+
+All read-only, no spend, 18:49 to 18:52 UTC. Same question set, settings and runner as window 1. The runner script was
+lost from the scratchpad in a session restart and restored from its last full copy in the session record; offline it
+selects the same 72 questions in the same order as window 1 for both arms.
+
+**Quiet, checked at 18:49 UTC.** No runner process; no ingest job queued or running; no ingest batch after 04:50 UTC; no
+other active query. `document_chunks_nclt`'s vector index was last scanned at 11:41 UTC and its keyword index and table
+at 11:40 UTC (window 1): 7 h 8 min. The partition's document-id index was touched at 12:34 UTC by the F314 apply and its
+acceptance re-runs (chunk counts by document id); search does not use that index.
+
+| NTER, 72 NCLT questions | first call | p50 | p95 | max | over 2.5 s | doc@10 | chunk@10 | chunk@40 | chunk MRR |
+|---|---|---|---|---|---|---|---|---|---|
+| vector-only, cold (7 h), first | 321 ms | 144 ms | 240 ms | 363 ms | 0 | 40/72 | 25/58 | 29/58 | 0.299 |
+| hybrid, straight after | 760 ms | 591 ms | 875 ms | 1,030 ms | 0 | 58/72 | 28/58 | 32/58 | 0.337 |
+
+No timeout, no `55000`, answers identical to 2026-11-09. In this window hybrid meets the pass rule.
+
+**Blocks the NCLT partition read from outside Postgres's buffer cache:**
+
+| | vector-only run (first) | hybrid run (second) | window 1, hybrid run (first) |
+|---|---|---|---|
+| vector index | 14,986 | 4,845 | 103,664 |
+| table | 60 | 14,328 | 25,606 |
+| keyword index | 0 | 1,715 | 1,988 |
+
+## The two windows together
+
+- **Idle time is not what makes a search cold; eviction is.** After 9 h quiet that followed a day of bulk loading
+  (window 1) the vector index was mostly out of memory: hybrid's first call took 5.5 s and read 103,664 index blocks
+  (about 810 MB). After 7 h quiet with nothing else running (window 2) it was mostly still cached: vector-only read 14,986
+  blocks and no call passed 363 ms, and hybrid after it peaked at 1.03 s.
+- **The cold cost is the vector index's, which hybrid shares, plus hybrid's own keyword index and table reads.** In both
+  windows the vector index dominates the reads. A truly cold vector-only search was not measured on NTER (window 2's
+  index was warm), so whether today's vector-only search also passes 2.5 s on a first call after eviction is not shown;
+  window 1 suggests it pays most of the same reads.
+- **The rule as written passes in one window and fails in the other.** Production will see evictions (bulk loads,
+  restarts), so the first searches after one will be slow for hybrid and probably for vector-only.
+
+### Decision for the developer
+
+- **(a) Ship hybrid with F288's fallback** (vector-only after the 2.5 s budget) as a recorded exception, and add a
+  keep-warm step for the NCLT indexes (`pg_prewarm` after a restart or bulk load, and a small scheduled warm-up query);
+  the memory checks first (NTER: 8 GB RAM, 2 GB shared buffers; the NCLT vector index is about 1 GB).
+- **(b) Hold T9** until the keep-warm step is in place, then measure once straight after an eviction (for example right
+  after the next bulk load), vector-only first, with the same rule.
+
+Recommended: (b). The fix for the slow first calls is the keep-warm step either way, and one measurement after an
+eviction would show whether it works before users see hybrid.
+
 ## Decisions for the developer
 
 **Decided 2026-11-09:** both as recommended. Apply and measure now, before the bulk load; privacy on NTER rests on the
