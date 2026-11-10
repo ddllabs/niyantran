@@ -42,6 +42,12 @@ jobs:
           deno-version: v2.x
       - name: Edge Function tests
         run: deno test -A --config supabase/functions/deno.json supabase/functions
+      - name: Bulk runner tests
+        run: deno test -A --config supabase/functions/deno.json scripts/bulk-runner
+      - name: Bulk runner lint and format
+        run: |
+          deno lint --config supabase/functions/deno.json scripts/bulk-runner
+          deno fmt --check --config supabase/functions/deno.json scripts/bulk-runner
 
   sql:
     name: SQL fixtures (disposable Postgres)
