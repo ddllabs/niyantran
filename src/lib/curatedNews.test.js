@@ -116,7 +116,8 @@ describe('curated news in the source data and the loader (F196)', () => {
     }));
     const { serveFeatureFeed, newsRssUrlForFeature } = await import('../../server/featureFeed.mjs');
     const out = await serveFeatureFeed(new URLSearchParams({ tier, feature }));
-    expect(asked).toEqual([newsRssUrlForFeature(feature)]);
+    // With its tier, as the loader asks: a module's own search window (`when`) applies (F317).
+    expect(asked).toEqual([newsRssUrlForFeature(feature, tier)]);
     expect(out.source.adapter).toBe(CURATED_NEWS[id].adapter);
     expect(out.source.note).toBe(`${SAMPLES[id].on.length} on-topic stories in the last 30 days. ${CURATED_NEWS[id].note}`);
     expect(out.rows.map((r) => r.title).sort()).toEqual([...SAMPLES[id].on].sort());
