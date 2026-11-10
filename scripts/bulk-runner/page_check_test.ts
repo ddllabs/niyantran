@@ -872,6 +872,41 @@ Deno.test('a rule that admits http still fetches https only', async () => {
   assertEquals(n.calls.length, 0);
 });
 
+Deno.test('official url: dots in a file name are fetched; parent and current segments and backslashes are not', async () => {
+  const dotted = `${HOST}/getFile/BillsTexts/Int....pdf`;
+  const ok = net({ [dotted]: fakePdf(['a']), [`${HOST}/getFile/BillsTexts/x.pdf?next=/../a`]: fakePdf(['a']) });
+  const good = await run([
+    rec('k1', ['a'], dotted),
+    rec('k2', ['a'], `${HOST}/getFile/BillsTexts/x.pdf?next=/../a`),
+  ], ok);
+  assertEquals(reasons(good.out.get('k1')), []);
+  assertEquals(reasons(good.out.get('k2')), []);
+  assertEquals(ok.calls.filter((c) => !c.url.endsWith('robots.txt')).length, 2);
+  const refused = [
+    `${HOST}/getFile/BillsTexts/../a.pdf`,
+    `${HOST}/getFile/BillsTexts/./a.pdf`,
+    `${HOST}/getFile/BillsTexts/%2e%2e/a.pdf`,
+    `${HOST}/getFile/BillsTexts/%2E./a.pdf`,
+    `${HOST}/getFile/BillsTexts/.%2e/a.pdf`,
+    `${HOST}/getFile/BillsTexts/x/..?a=1`,
+    `${HOST}/getFile/BillsTexts/x\\a.pdf`,
+    `${HOST}/getFile/BillsTexts/x/..\r/a.pdf`,
+    `${HOST}/getFile/BillsTexts/x/..\n/a.pdf`,
+    `${HOST}/getFile/BillsTexts/x/.\t./a.pdf`,
+    `${HOST}/getFile/BillsTexts/x/..;/a.pdf`,
+    `${HOST}/getFile/BillsTexts/x/%2e%2e%3b/a.pdf`,
+    `${HOST}/getFile/BillsTexts/x/..%2fa.pdf`,
+    `${HOST}/getFile/BillsTexts/x/..%2F..%2Fa.pdf`,
+    `${HOST}/getFile/BillsTexts/x/%2e%2e%5ca.pdf`,
+  ];
+  for (const u of refused) {
+    const n = net({});
+    const { out } = await run([rec('k1', ['a'], u)], n);
+    assertEquals(out.get('k1')?.map((f) => [f.reason, f.detail]), [['pdf_unavailable', 'not an official url']], u);
+    assertEquals(n.calls.length, 0, u);
+  }
+});
+
 Deno.test('page counts that cannot be cached hold that record only', async () => {
   const cacheDir = await tmpCache();
   const pdf = fakePdf(['a']);

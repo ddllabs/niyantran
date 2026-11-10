@@ -18,6 +18,33 @@ export const NATIONAL_QUESTIONS = Object.freeze({ tier: 'national', feature: 'Pa
  */
 export const NATIONAL_BILLS = Object.freeze({ tier: 'national', feature: 'Bill Passage Probability Index' });
 const BILL_URL = /^https:\/\/sansad\.in\/getFile\/(BillsTexts|BillsPDFFiles)\//;
+
+/**
+ * A bill's file_url is safe to read as stored. On the whole URL: no control character (a URL parser strips tab and line
+ * breaks, so `x/..\r/a.pdf` would read another path) and no backslash. On the part before any ? or #: no encoded
+ * separator (%2f, %5c) and no `.` or `..` path segment, plain or percent-encoded, with or without a path parameter
+ * (`..;x`, `%2e%2e%3b`), any case. A run of dots inside a file name is not a segment. Mirrors public.bill_admission_key.
+ */
+export function billUrlSegmentsOk(url: string): boolean {
+  // deno-lint-ignore no-control-regex
+  if (/[\u0000-\u001f\u007f\\]/.test(url)) return false;
+  const path = url.split(/[?#]/, 1)[0];
+  return !/%2f|%5c/i.test(path) && !/(^|\/)(\.|%2e){1,2}((;|%3b)[^/]*)?(\/|$)/i.test(path);
+}
+
+/**
+ * The year the listing gives a bill (billDocumentKey in src/lib/deskRows.js): the one closing the bill name, else the
+ * year of introduced_on when that is a real YYYY-MM-DD date. Null when neither gives one.
+ */
+export function billListingYear(c: Record<string, unknown>): string | null {
+  const fromName = /,\s*([0-9]{4})\s*\.?\s*$/.exec(String(c.bill_name ?? ''));
+  if (fromName) return fromName[1];
+  const on = c.introduced_on;
+  if (typeof on !== 'string' || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(on)) return null;
+  const t = Date.parse(`${on}T00:00:00Z`);
+  return Number.isNaN(t) || new Date(t).toISOString().slice(0, 10) !== on ? null : on.slice(0, 4);
+}
+
 const BILL_ROLES = new Set([
   'as_introduced',
   'as_passed_lok_sabha',
@@ -80,9 +107,14 @@ export async function prepareSuppliedText(value: unknown, options: { batch?: boo
   if (bill) {
     const c = object(r.citation, 'citation');
     const url = String(r.file_url ?? '');
-    if (!BILL_URL.test(url) || url.includes('..')) throw new Error('a bill needs its official sansad.in file_url');
+    if (!BILL_URL.test(url) || !billUrlSegmentsOk(url)) throw new Error('a bill needs its official sansad.in file_url');
     if (!BILL_ROLES.has(String(r.document_role))) throw new Error('a bill needs a known document_role');
-    if (r.document_key !== `bill:${c.bill_year}:${c.bill_number}`) {
+    // The citation key, or the listing key (the listing's own year); the database finds the listing rows by it.
+    const listingYear = billListingYear(c);
+    if (
+      r.document_key !== `bill:${c.bill_year}:${c.bill_number}` &&
+      (listingYear === null || r.document_key !== `bill:${listingYear}:${c.bill_number}`)
+    ) {
       throw new Error('document_key does not match the citation');
     }
   } else if (!law) {
