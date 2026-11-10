@@ -116,6 +116,11 @@ chain() {
     ingest_bills_admission_rules)
       chain ingest_bills_adapter
       FILES+=("$(as_non_superuser 20261110120000_bills_admission_rules.sql)") ;;
+    # F314: a Bills row on a shared bill key resolves only to its own bill's documents. ingest_bills_admission_rules'
+    # chain, then the migration, as a non-superuser. The vacuity check drops the last.
+    record_resolver_shared_bill_keys)
+      chain ingest_bills_admission_rules
+      FILES+=("$(as_non_superuser 20261110180000_record_resolver_shared_bill_keys.sql)") ;;
     # F278 step 3 (B1): document_chunks partitioned by feature. pq_admission_links' chain plus the
     # other migrations whose functions read chunks (the readiness helper, the unscoped ef_search, the
     # feature search recovery), then the migration, all as a non-superuser. The vacuity check drops
