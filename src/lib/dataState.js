@@ -10,6 +10,8 @@ export const DATA_STATE = {
   archived: { id: 'archived', label: '', tone: 'muted', hideBadge: true },
   curated: { id: 'curated', label: '', tone: 'muted', hideBadge: true },
   cached: { id: 'cached', label: '', tone: 'warn', hideBadge: true },
+  // F320: the source answered and nothing in it is on topic in the window. Not an outage.
+  empty: { id: 'empty', label: 'NOTHING NEW', tone: 'muted' },
   offline: { id: 'offline', label: 'OFFLINE', tone: 'warn' },
   planned: { id: 'planned', label: 'PLANNED', tone: 'muted' },
   error: { id: 'error', label: 'ERROR', tone: 'bad' },
@@ -67,6 +69,16 @@ export function resolveDataState(feed, { loading = false, error = '' } = {}) {
   const count = feed?.paged ? Math.max(0, Number(feed.totalAll) || 0) : rows.length;
 
   if (sr || count === 0) {
+    // F320: a status row the loader marked verified-empty (readiness 'empty') is decided by that flag,
+    // never by its wording, so no word in it can make it read as offline or planned.
+    if (sr?.readiness === 'empty') {
+      return {
+        ...DATA_STATE.empty,
+        detail: sr.detail || sr.title || 'No on-topic stories in the window.',
+        host: sr.host || '',
+        sourceNote: feed?.source?.note || '',
+      };
+    }
     if (PLANNED_RE.test(blob) || /scrape|licensed|credential/i.test(adapter)) {
       return {
         ...DATA_STATE.planned,

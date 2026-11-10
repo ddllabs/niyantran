@@ -438,10 +438,12 @@ export const NEWS_TOPIC_ROUTE = 'news-topic';
 
 /**
  * The module's Google News search. With its tier, a tier-qualified search (State Cabinet Decisions)
- * and a curated module's own window (`when`, e.g. 30d for Governor Assent) apply; 7 days otherwise.
+ * and a curated module's own window apply: its explicit `when`, else the window its rows and note
+ * use (`newsDays`, F319). 7 days for a feature with no curated spec.
  */
 export function newsRssUrlForFeature(featureName, tier = '') {
-  const when = (tier && curatedNewsFor(resolveTier(tier), featureName)?.when) || '7d';
+  const spec = tier ? curatedNewsFor(resolveTier(tier), featureName) : null;
+  const when = spec ? spec.when || `${newsDays(spec)}d` : '7d';
   const q = `${topicQueryForFeature(featureName, tier)} when:${when}`;
   return (
     'https://news.google.com/rss/search?q=' +
@@ -1134,9 +1136,30 @@ function shortFail(error) {
   return raw;
 }
 
-function statusRow({ adapter, url, reason, featureName }) {
+/**
+ * `verifiedEmpty` (F320, a source that answered and has nothing in the window, as opposed to one that
+ * did not answer) is `{ days }`: the row says so (readiness 'empty', which resolveDataState reads) and
+ * is not worded as an outage.
+ */
+function statusRow({ adapter, url, reason, featureName, verifiedEmpty = null }) {
   const scrape = STATUS_ADAPTERS.has(adapter || '');
   const host = scrape ? '' : hostOf(url);
+  if (verifiedEmpty && !scrape) {
+    return [
+      flattenRow({
+        date: new Date().toISOString().slice(0, 10),
+        title: 'No on-topic stories',
+        source_url: '',
+        status: 'source_status',
+        adapter: adapter || '',
+        feature: featureName || '',
+        host: host || '',
+        detail: `No on-topic stories in the last ${verifiedEmpty.days} days. The source answered; nothing in it matched this module. No records were invented.`,
+        fail_reason: shortFail(reason),
+        readiness: 'empty',
+      }),
+    ];
+  }
   const title = scrape ? 'Module planned' : 'Source offline or empty';
   const detail = scrape
     ? 'This adapter is listed in the source map, but table extraction is not scheduled. Intended coverage ships when the family adapter is ready. No records were invented to fill this table.'
@@ -1364,6 +1387,7 @@ async function serveCuratedNews(tier, feat, spec) {
       note: `The news search failed (${shortFail(got.error) || 'empty'}). Showing the stored pack. ${spec.note}`,
     });
   }
+  const verifiedEmpty = got.rows.some((r) => String(r?.title ?? '').trim());
   return envelope({
     tier,
     feature: feat,
@@ -1372,6 +1396,7 @@ async function serveCuratedNews(tier, feat, spec) {
       url,
       reason: got.rows.length ? `no on-topic headlines in the last ${days} days` : got.error,
       featureName: feat.htmlFeature,
+      verifiedEmpty: verifiedEmpty ? { days } : null,
     }),
     adapter: spec.adapter,
     links: [url],
@@ -1382,7 +1407,7 @@ async function serveCuratedNews(tier, feat, spec) {
     // empty, not an outage (the refresh records it ok, server/feedStore.mjs:555). A search that returned
     // nothing, could not be read, or returned rows with no title (a parser fault) carries no flag and stays
     // a failure. Only the flag is set: the refresh keeps the stored meta for a nothing-new answer.
-    ...(got.rows.some((r) => String(r?.title ?? '').trim()) ? { meta: { nothing_new: true } } : {}),
+    ...(verifiedEmpty ? { meta: { nothing_new: true } } : {}),
   });
 }
 
