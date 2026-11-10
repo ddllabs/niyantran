@@ -5,12 +5,14 @@
 import type { Check, Finding, LiveDeskRow, ReviewCheck, Screen, ScreenContext } from '../screen_types.ts';
 import { type Rec, strip } from '../prepare.ts';
 import { sha256Hex } from '../../../supabase/functions/_shared/textNormalise.ts';
+import { billListingYear, billUrlSegmentsOk } from '../../../supabase/functions/_shared/suppliedText.ts';
 
 const BILLS = 'Bill Passage Probability Index';
 const SCHEMA_PREFIX = 'nter.citation_pack/1.';
 // What the pack calls a bill and a corrigendum in `doc_type` (assumed from the spec; no pack sample was read).
 const BILL_DOC_TYPES = new Set(['bill', 'corrigendum']);
-// SQL line 61: the official file URL rule, and no parent-directory segment.
+// The official file URL rule of bill_admission_key (20261110120000); billUrlSegmentsOk adds the rest of the URL rule:
+// no control character or backslash, no encoded separator, and no . or .. path segment (also encoded, or with parameters).
 const FILE_URL = /^https:\/\/sansad\.in\/getFile\/(BillsTexts|BillsPDFFiles)\//;
 // SQL line 62: a bill number is arabic (Lok Sabha) or roman (Rajya Sabha); a year is four digits.
 const NUMBER = /^([0-9]+|[IVXLCDM]+)$/;
@@ -91,6 +93,19 @@ function billKey(r: Rec): string | null {
   return n !== null && y !== null && NUMBER.test(n) && YEAR.test(y) ? `bill:${y}:${n}` : null;
 }
 
+/**
+ * The keys a record may carry (20261110120000): the citation key, and the listing key, which is how the listing builds
+ * its own (the year closing the bill name, else the year of introduced_on, then the number). Empty when the citation's
+ * number or year is not well formed, as the database then admits nothing. One key when the two are the same.
+ */
+function billKeys(r: Rec): string[] {
+  const ck = billKey(r);
+  if (ck === null) return [];
+  const ly = billListingYear(citationOf(r));
+  const lk = ly === null ? null : `bill:${ly}:${scalar(citationOf(r).bill_number)}`;
+  return lk === null || lk === ck ? [ck] : [ck, lk];
+}
+
 function finding(check: string, covers: ReviewCheck[], reason: string, detail?: string): Finding {
   return detail === undefined ? { check, covers, reason } : { check, covers, reason, detail };
 }
@@ -127,7 +142,7 @@ const recordShape = oneCheck('record_shape', ['identity'], (r) => {
 
 const officialSource = oneCheck('official_source', ['identity'], (r) => {
   const url = r.file_url;
-  if (!str(url) || !FILE_URL.test(url) || url.includes('..')) return [['not_official_url']];
+  if (!str(url) || !FILE_URL.test(url) || !billUrlSegmentsOk(url)) return [['not_official_url']];
   let segment: string;
   try {
     segment = new URL(url).pathname.split('/').pop() ?? '';
@@ -160,8 +175,10 @@ const linksAgree = oneCheck('links_agree', ['identity'], (r) => {
   const links = r.links;
   if (!Array.isArray(links) || links.length === 0) return [['no_link']];
   const c = citationOf(r);
-  const key = billKey(r);
+  const keys = billKeys(r);
   const n = scalar(c.bill_number), y = scalar(c.bill_year);
+  // A link's year is the citation's or the listing's, the two years the document_key may carry.
+  const years = new Set<string | null>([y, billListingYear(c)].filter((v) => v !== null));
   const out: Verdict[] = [];
   links.forEach((l, i) => {
     const bad: string[] = [];
@@ -170,11 +187,11 @@ const linksAgree = oneCheck('links_agree', ['identity'], (r) => {
       if (l.tier !== r.desk_tier) bad.push('tier');
       if (l.feature !== r.desk_rows_feature) bad.push('feature');
       if (!str(c.version) || l.role !== c.version) bad.push('role');
-      if (key === null || l.document_key !== key) bad.push('document_key');
+      if (typeof l.document_key !== 'string' || !keys.includes(l.document_key)) bad.push('document_key');
       if (!str(c.house) || l.house !== c.house) bad.push('house');
       // An absent link number or year is not compared: the document_key above binds both (v1.2 links omit them).
       if (n === null || (l.bill_number != null && scalar(l.bill_number) !== n)) bad.push('bill_number');
-      if (y === null || (l.bill_year != null && scalar(l.bill_year) !== y)) bad.push('bill_year');
+      if (y === null || (l.bill_year != null && !years.has(scalar(l.bill_year)))) bad.push('bill_year');
     }
     if (bad.length) out.push(['link_disagrees', `link ${i}: ${bad.join(',')}`]);
   });
@@ -256,8 +273,11 @@ const licenceAdmitted = oneCheck('licence_admitted', ['rights'], (r, ctx) => {
   return str(r.licence_class) && admitted.includes(r.licence_class) ? [] : [['licence_not_admitted']];
 });
 
-// Live, one read for the whole set (never one per record).
-const listingRow: Check = {
+// Live, one read for the whole set (never one per record). Of the two keys a record may carry, the one whose rows match
+// house, name and date is the record's key and is written to `matched` for the checks after this one (and `project`).
+// Both matching is ambiguous and held; neither is held with the worse of the two findings. A record not in `matched`
+// is undecided, never passed.
+const listingRow = (matched: Map<string, string>): Check => ({
   name: 'listing_row',
   covers: ['identity'],
   needs: 'live',
@@ -267,8 +287,8 @@ const listingRow: Check = {
       out.set(k, [...(out.get(k) ?? []), finding('listing_row', ['identity'], reason, detail)]);
     const keys = new Set<string>();
     for (const r of records) {
-      const k = keyOf(r), dk = billKey(r);
-      if (k !== null && dk !== null) keys.add(dk);
+      matched.delete(String(r.source_key));
+      if (keyOf(r) !== null) { for (const dk of billKeys(r)) keys.add(dk); }
     }
     const rows = keys.size
       ? await ctx.live.deskRows({ tier: 'national', feature: BILLS, documentKeys: [...keys] })
@@ -283,36 +303,46 @@ const listingRow: Check = {
     for (const r of records) {
       const k = keyOf(r);
       if (k === null) continue; // record_shape holds a record with no key
-      const dk = billKey(r), house = citationOf(r).house;
-      if (dk === null || !str(house)) {
+      const dks = billKeys(r), house = citationOf(r).house;
+      if (dks.length === 0 || !str(house)) {
         add(k, 'no_live_row', 'key or house cannot be read');
-        continue;
-      }
-      const rowsOf = candidates.get(`${dk}\u0000${house}`) ?? [];
-      if (rowsOf.length === 0) {
-        add(k, 'no_live_row');
         continue;
       }
       // SQL line 87: of the candidates, those whose whole normalised name equals the record's.
       const c = citationOf(r);
       const name = billNorm(c.bill_name);
-      const named = name === '' ? [] : rowsOf.filter((x) => billNorm(x.row.bill_name) === name);
-      if (named.length === 0) {
-        add(k, 'listing_name_mismatch', `${rowsOf.length} row(s) of the key`);
-        continue;
-      }
       // SQL lines 76-79 and 87-89: when the record gives a date, a matching row's date must be valid and within 3 days.
       // A given date that is not a date is ignored, as the SQL ignores it.
       const given = isoDay(c.introduced_on);
-      if (
-        given !== null && !named.some((x) => {
+      const judged = dks.map((dk) => {
+        const rowsOf = candidates.get(`${dk}\u0000${house}`) ?? [];
+        const named = name === '' ? [] : rowsOf.filter((x) => billNorm(x.row.bill_name) === name);
+        const dated = given === null || named.some((x) => {
           const d = isoDay(x.row.date_introduced);
           return d !== null && Math.abs(d - given) <= DATE_WINDOW_DAYS;
-        })
-      ) add(k, 'listing_date_far');
+        });
+        return {
+          dk,
+          count: rowsOf.length,
+          named,
+          state: rowsOf.length === 0 ? 0 : named.length === 0 ? 1 : !dated ? 2 : 3,
+        };
+      });
+      const good = judged.filter((j) => j.state === 3);
+      if (good.length > 1) {
+        add(k, 'bill_key_ambiguous', good.map((j) => j.dk).sort().join(', '));
+        continue;
+      }
+      if (good.length === 0) {
+        const worst = judged.reduce((a, j) => j.state > a.state ? j : a);
+        if (worst.state === 0) add(k, 'no_live_row');
+        else if (worst.state === 1) add(k, 'listing_name_mismatch', `${worst.count} row(s) of the key`);
+        else add(k, 'listing_date_far');
+      } else matched.set(k, good[0].dk);
       // Every link names a listing row of this very bill (key, house and name), not another bill's under the same key.
-      if (Array.isArray(r.links)) {
-        const rowKeys = new Set(named.map((x) => x.row_key));
+      const withRows = good.length ? good : judged.filter((j) => j.named.length > 0);
+      if (withRows.length === 1 && Array.isArray(r.links)) {
+        const rowKeys = new Set(withRows[0].named.map((x) => x.row_key));
         r.links.forEach((l, i) => {
           // Real v1.1 Bills links carry row_key null (admission picks the rows itself): null, absent or '' is not compared.
           if (!isRec(l) || l.row_key === null || l.row_key === undefined || l.row_key === '') return;
@@ -322,7 +352,7 @@ const listingRow: Check = {
     }
     return out;
   },
-};
+});
 
 const alreadyLive: Check = {
   name: 'already_live',
@@ -352,14 +382,15 @@ const alreadyLive: Check = {
 
 // Live: a document of the same key, house (or none) and role (never errata) already holds the role, mirroring
 // bills_adapter.sql lines 255-266 (bill_role_held). One read for the whole set.
-const roleHeldLive: Check = {
+const roleHeldLive = (matched: Map<string, string>): Check => ({
   name: 'role_held_live',
   covers: ['dedupe'],
   needs: 'live',
   async all(records, ctx) {
     const out = new Map<string, Finding[]>();
     const asked = records.flatMap((r) => {
-      const k = keyOf(r), dk = billKey(r), c = citationOf(r);
+      // The key listing_row matched; else the citation key (a record with no matched key is held by listing_row).
+      const k = keyOf(r), dk = k === null ? null : matched.get(k) ?? billKey(r), c = citationOf(r);
       return k !== null && dk !== null && str(c.house) && str(c.version) && c.version !== 'errata'
         ? [{ k, dk, house: c.house, role: c.version }]
         : [];
@@ -384,7 +415,7 @@ const roleHeldLive: Check = {
     }
     return out;
   },
-};
+});
 
 /** Whole-set: groups of two or more records sharing a value; every member is held, none picked. */
 function collisionCheck(
@@ -413,12 +444,13 @@ function collisionCheck(
 
 // Records of one bill in one house with one role (other than errata) cannot both load: admission would take the first
 // and refuse the second (bill_role_held), so which one is not the screen's to pick. Both are held.
-const roleCollision = collisionCheck('role_collision', 'bill_role_collision', (r) => {
-  const c = citationOf(r), dk = billKey(r);
-  return dk !== null && str(c.house) && str(c.version) && c.version !== 'errata'
-    ? `${dk}\u0000${c.house}\u0000${c.version}`
-    : null;
-});
+const roleCollision = (matched: Map<string, string>) =>
+  collisionCheck('role_collision', 'bill_role_collision', (r) => {
+    const c = citationOf(r), dk = matched.get(String(r.source_key)) ?? billKey(r);
+    return dk !== null && str(c.house) && str(c.version) && c.version !== 'errata'
+      ? `${dk}\u0000${c.house}\u0000${c.version}`
+      : null;
+  });
 
 // One file, one document (bills_adapter.sql lines 247-253, file_url_held, within the set).
 const fileUrlCollision = collisionCheck(
@@ -496,12 +528,17 @@ const corrigendum = oneCheck(
  * The fields the adapter reads at the top of a bill (`document_key`, `document_role`), from fields the checks verified.
  * Throws rather than guess, and never overwrites a different value already there.
  */
-function project(record: Rec): Rec {
-  const key = billKey(record);
+const projectWith = (matched: Map<string, string>) => (record: Rec): Rec => {
+  const keys = billKeys(record);
+  // The key listing_row matched; without it, only a citation key that is also the listing key is certain.
+  const key = matched.get(String(record.source_key)) ?? (keys.length === 1 ? keys[0] : null);
   const links = record.links;
-  if (key === null) throw new Error('bills project: the citation gives no document key');
-  if (!Array.isArray(links) || links.length === 0 || !links.every((l) => isRec(l) && l.document_key === key)) {
-    throw new Error("bills project: the links do not all carry the citation's document key");
+  if (key === null || !keys.includes(key)) throw new Error('bills project: the listing gave no document key');
+  if (
+    !Array.isArray(links) || links.length === 0 ||
+    !links.every((l) => isRec(l) && keys.includes(String(l.document_key)))
+  ) {
+    throw new Error("bills project: the links do not all carry the citation's or the listing's document key");
   }
   const role = citationOf(record).version;
   if (!str(role) || !ROLES.has(role)) throw new Error('bills project: citation.version is not a known role');
@@ -511,10 +548,12 @@ function project(record: Rec): Rec {
     }
   }
   return { ...record, document_key: key, document_role: role };
-}
+};
 
 /** The Bills screen. `extra` (the page check) is appended to this screen's own checks. */
 export function makeBillsScreen(extra: Check[] = []): Screen {
+  // The key each record's listing row matched, by source_key: written by listing_row, read by the checks after it.
+  const matched = new Map<string, string>();
   return {
     collection: 'national-bills',
     mappingVersion: 'bills-screen-v1',
@@ -531,20 +570,20 @@ export function makeBillsScreen(extra: Check[] = []): Screen {
       officialSource,
       citationComplete,
       linksAgree,
-      listingRow,
+      listingRow(matched),
       textBinds,
       length,
       servableCheck,
       licenceAdmitted,
       alreadyLive,
-      roleHeldLive,
-      roleCollision,
+      roleHeldLive(matched),
+      roleCollision(matched),
       fileUrlCollision,
       duplicateText,
       duplicateTextLive,
       corrigendum,
       ...extra,
     ],
-    project,
+    project: projectWith(matched),
   };
 }

@@ -984,3 +984,203 @@ Deno.test('links: each link row_key must be among the listing rows matched by ke
   const f = await checkNamed('listing_row').all!([r], ctxOf(wrongName));
   assertEquals(f.get(key(1))!.map((x) => x.reason), ['listing_name_mismatch']);
 });
+
+// ---- F307 follow-up: the listing's key, and file names with dots ----
+
+/** A bill whose citation year (2024) differs from the year closing its name (2025): the listing key is bill:2025:n. */
+const split = async (n = 1, over: Rec = {}) => withCitation(await bill(n, over), { bill_year: '2024' });
+/** The listing row of the citation key (the bill's links name row-n whichever key the row is under). */
+const citationRow = (n: number, row: Rec = {}) => liveRow(`bill:2024:${n}`, 'Lok Sabha', row);
+
+Deno.test('official source: dots in a file name pass; parent and current segments, encoded or not, and backslashes do not', async () => {
+  const base = 'https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/';
+  for (
+    const [file_url, file_name] of [
+      [`${base}591LS%20As%20Int....pdf`, '591LS As Int....pdf'],
+      [`${base}...pdf`, '...pdf'],
+      [`${base}a.pdf?next=/../x`, 'a.pdf'],
+      [`${base}a.pdf#/../x`, 'a.pdf'],
+    ]
+  ) {
+    assertEquals(await oneReasons('official_source', await bill(1, { file_url, file_name })), [], file_url);
+  }
+  for (
+    const file_url of [
+      `${base}../a.pdf`,
+      `${base}./a.pdf`,
+      `${base}%2e%2e/a.pdf`,
+      `${base}%2E./a.pdf`,
+      `${base}.%2e/a.pdf`,
+      'https://sansad.in/getFile/BillsTexts/x/..',
+      'https://sansad.in/getFile/BillsTexts/x/..?a=1',
+      `${base}x\\a.pdf`,
+      `${base}x/..\r/a.pdf`,
+      `${base}x/..\n/a.pdf`,
+      `${base}x/.\t./a.pdf`,
+      `${base}x/..;/a.pdf`,
+      `${base}x/%2e%2e%3b/a.pdf`,
+      `${base}x/..%2fa.pdf`,
+      `${base}x/..%2F..%2Fa.pdf`,
+      `${base}x/%2e%2e%5ca.pdf`,
+    ]
+  ) {
+    assertEquals(
+      await oneReasons('official_source', await bill(1, { file_url, file_name: 'a.pdf' })),
+      ['not_official_url'],
+      file_url,
+    );
+  }
+});
+
+Deno.test('links agree: a link document_key may be the citation key or the listing key, and no other', async () => {
+  const r = await split(1);
+  for (const document_key of ['bill:2025:1', 'bill:2024:1']) {
+    assertEquals(await checkNamed('links_agree').one!(withLink(r, { document_key }), ctxOf()), [], document_key);
+  }
+  const f = await checkNamed('links_agree').one!(withLink(r, { document_key: 'bill:2023:1' }), ctxOf());
+  assertEquals(f.map((x) => [x.reason, x.detail]), [['link_disagrees', 'link 0: document_key']]);
+  // A link's year is the citation's or the listing's.
+  for (const bill_year of ['2024', '2025']) {
+    assertEquals(await checkNamed('links_agree').one!(withLink(r, { bill_year }), ctxOf()), [], bill_year);
+  }
+  const g = await checkNamed('links_agree').one!(withLink(r, { bill_year: '2023' }), ctxOf());
+  assertEquals(g.map((x) => x.detail), ['link 0: bill_year']);
+  // With no listing year, a link year that is not a year is not accepted for the missing one.
+  const noListing = withCitation(await bill(1), {
+    bill_name: 'The River Navigation Amendment Bill',
+    introduced_on: undefined,
+  });
+  for (const bill_year of ['', true, {}]) {
+    const h = await checkNamed('links_agree').one!(withLink(noListing, { bill_year }), ctxOf());
+    assertEquals(h.map((x) => x.detail), ['link 0: bill_year'], String(bill_year));
+  }
+  // The listing key needs a well-formed number and year of the citation, as the database requires.
+  const noYear = withCitation(await bill(1), { bill_year: undefined });
+  assertEquals((await checkNamed('links_agree').one!(noYear, ctxOf())).map((x) => x.reason), ['link_disagrees']);
+});
+
+Deno.test('listing row: a bill found under the listing key passes, reading both keys in one call', async () => {
+  const live = new FakeLive([liveRow('bill:2025:1')]);
+  const found = await checkNamed('listing_row').all!([await split(1)], ctxOf(live));
+  assertEquals(found.size, 0);
+  assertEquals(live.rowCalls.length, 1);
+  assertEquals([...live.rowCalls[0].documentKeys].sort(), ['bill:2024:1', 'bill:2025:1']);
+  // A row under the citation key alone still passes.
+  const cit = await checkNamed('listing_row').all!([await split(1)], ctxOf(new FakeLive([citationRow(1)])));
+  assertEquals(cit.size, 0);
+  // Neither key has a row.
+  const none = await checkNamed('listing_row').all!([await split(1)], ctxOf(new FakeLive([liveRow('bill:2023:1')])));
+  assertEquals(none.get(key(1))?.map((f) => f.reason), ['no_live_row']);
+  // The key a name or date cannot reach: the listing key has no year to give.
+  const bare = withCitation(await split(1), {
+    bill_name: 'The River Navigation Amendment Bill',
+    introduced_on: undefined,
+  });
+  const calls = new FakeLive([citationRow(1, { bill_name: 'The River Navigation Amendment Bill' })]);
+  assertEquals((await checkNamed('listing_row').all!([bare], ctxOf(calls))).size, 0);
+  assertEquals(calls.rowCalls[0].documentKeys, ['bill:2024:1']);
+});
+
+Deno.test('listing row: the name and the date decide on the listing key as on the citation key', async () => {
+  const run = async (rows: LiveDeskRow[], r?: Rec) =>
+    (await checkNamed('listing_row').all!([r ?? await split(1)], ctxOf(new FakeLive(rows)))).get(key(1))?.map((f) =>
+      f.reason
+    ) ?? [];
+  assertEquals(await run([liveRow('bill:2025:1', 'Lok Sabha', { bill_name: 'Another Bill, 2025' })]), [
+    'listing_name_mismatch',
+  ]);
+  assertEquals(await run([liveRow('bill:2025:1', 'Lok Sabha', { date_introduced: '2025-04-04' })]), [
+    'listing_date_far',
+  ]);
+  assertEquals(await run([liveRow('bill:2025:1', 'Rajya Sabha')]), ['no_live_row']);
+  // A far date under one key does not hide a good row under the other.
+  assertEquals(
+    await run([liveRow('bill:2025:1', 'Lok Sabha', { date_introduced: '2025-04-04' }), citationRow(1)]),
+    [],
+  );
+  // The worse finding of the two keys is the one reported.
+  assertEquals(
+    await run([
+      liveRow('bill:2025:1', 'Lok Sabha', { bill_name: 'Another Bill, 2025' }),
+      citationRow(1, {
+        date_introduced: '2025-04-04',
+      }),
+    ]),
+    ['listing_date_far'],
+  );
+});
+
+Deno.test('listing row: rows matching under both keys hold the record bill_key_ambiguous, never picking one', async () => {
+  const live = new FakeLive([liveRow('bill:2025:1'), citationRow(1)]);
+  const found = await checkNamed('listing_row').all!([await split(1)], ctxOf(live));
+  assertEquals(found.get(key(1))?.map((f) => [f.reason, f.covers]), [['bill_key_ambiguous', ['identity']]]);
+  assertEquals(found.get(key(1))![0].detail, 'bill:2024:1, bill:2025:1');
+  // A name that matches under only one key is not ambiguous.
+  const one = new FakeLive([liveRow('bill:2025:1'), citationRow(1, { bill_name: 'Another Bill, 2025' })]);
+  assertEquals((await checkNamed('listing_row').all!([await split(1)], ctxOf(one))).size, 0);
+  // Two keys of one bill that are the same key are one key.
+  const same = new FakeLive([liveRow('bill:2025:1')]);
+  assertEquals((await checkNamed('listing_row').all!([await bill(1)], ctxOf(same))).size, 0);
+});
+
+/** Runs the screen's own checks in order, as screen.ts does, on one screen, so the checks share what they decide. */
+async function screenRun(s: ReturnType<typeof makeBillsScreen>, records: Rec[], ctx: ScreenContext) {
+  const out = new Map<string, Finding[]>();
+  const put = (k: string, fs: Finding[]) => out.set(k, [...(out.get(k) ?? []), ...fs]);
+  for (const c of s.checks) {
+    if (c.one) { for (const r of records) put(String(r.source_key), await c.one(r, ctx)); }
+    if (c.all) { for (const [k, fs] of await c.all(records, ctx)) put(k, fs); }
+  }
+  return out;
+}
+
+Deno.test('a bill under the listing key passes the whole screen and projects the key that matched', async () => {
+  const s = makeBillsScreen();
+  const r = await split(1);
+  const out = await screenRun(s, [r], ctxOf(new FakeLive([liveRow('bill:2025:1')])));
+  assertEquals(reasons(out, key(1)), []);
+  assertEquals(s.project!(r).document_key, 'bill:2025:1');
+  // The same bill listed under its citation key projects that one.
+  const t = makeBillsScreen();
+  const out2 = await screenRun(t, [r], ctxOf(new FakeLive([citationRow(1)])));
+  assertEquals(reasons(out2, key(1)), []);
+  assertEquals(t.project!(r).document_key, 'bill:2024:1');
+  // A link that carries the key that did not match is still the bill's own: the document_key set is the matched one.
+  const u = makeBillsScreen();
+  const linked = withLink(r, { document_key: 'bill:2024:1' });
+  await screenRun(u, [linked], ctxOf(new FakeLive([liveRow('bill:2025:1')])));
+  assertEquals(u.project!(linked).document_key, 'bill:2025:1');
+  // A record the listing could not decide is not projected: its key is not guessed.
+  const v = makeBillsScreen();
+  let threw = false;
+  try {
+    v.project!(r);
+  } catch {
+    threw = true;
+  }
+  assert(threw, 'no matched key, two keys: project throws');
+});
+
+Deno.test('role_held_live and role_collision use the key that matched', async () => {
+  // A live document of the bill under the matched (listing) key holds the record; one under the other key does not.
+  const held = (dk: string) =>
+    new FakeLive([liveRow('bill:2025:1')], [
+      liveDoc({ id: 'a', source_key: key(80), document_key: dk, house: 'Lok Sabha', document_role: 'as_introduced' }),
+    ]);
+  const s = makeBillsScreen();
+  const a = await screenRun(s, [await split(1)], ctxOf(held('bill:2025:1')));
+  assertEquals(reasons(a, key(1)), ['bill_role_held_live']);
+  const live = held('bill:2024:1');
+  const b = await screenRun(makeBillsScreen(), [await split(1)], ctxOf(live));
+  assertEquals(reasons(b, key(1)), []);
+  assertEquals(live.docCalls.flatMap((c) => c.documentKeys ?? []), ['bill:2025:1']);
+  // Two documents of one bill in one role collide when they reach the same listing key by different years. (They share
+  // a file and a text here, so other findings appear too; only the role collision is asserted.)
+  const collides = (m: Map<string, Finding[]>, k: string) => reasons(m, k).includes('bill_role_collision');
+  const x = await bill(1, { source_key: key(10) }), y = await split(1, { source_key: key(11) });
+  const c = await screenRun(makeBillsScreen(), [x, y], ctxOf(new FakeLive([liveRow('bill:2025:1')])));
+  assert(collides(c, key(10)) && collides(c, key(11)));
+  // And do not collide when they matched different keys.
+  const d = await screenRun(makeBillsScreen(), [x, y], ctxOf(new FakeLive([citationRow(1)])));
+  assert(!collides(d, key(10)) && !collides(d, key(11)));
+});

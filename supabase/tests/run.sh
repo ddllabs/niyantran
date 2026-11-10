@@ -110,6 +110,12 @@ chain() {
     ingest_bills_adapter)
       chain ingest_admission_scans
       FILES+=("$(as_non_superuser 20261107120000_bills_adapter.sql)") ;;
+    # F307: the Bills admission rules (the listing's key, file names with dots, the database-side ambiguity
+    # rule). ingest_bills_adapter's chain, then the migration, as a non-superuser. The vacuity check drops
+    # the last, so ingest_bills_adapter keeps its own proof for 20261107120000.
+    ingest_bills_admission_rules)
+      chain ingest_bills_adapter
+      FILES+=("$(as_non_superuser 20261110120000_bills_admission_rules.sql)") ;;
     # F278 step 3 (B1): document_chunks partitioned by feature. pq_admission_links' chain plus the
     # other migrations whose functions read chunks (the readiness helper, the unscoped ef_search, the
     # feature search recovery), then the migration, all as a non-superuser. The vacuity check drops
@@ -1162,6 +1168,15 @@ fixture_sql() {
     elif [ "$line" = '\i supabase/tests/ingest_register_batch.sql' ]; then
       # Every case, without the closing rollback: the including fixture closes the transaction.
       sed '/^rollback;$/d' supabase/tests/ingest_register_batch.sql
+    elif [ "$line" = '\i supabase/tests/ingest_bills_adapter.sql' ]; then
+      # Every Bills case, without its closing rollback and with its own include expanded.
+      while IFS= read -r inner; do
+        if [ "$inner" = '\i supabase/tests/ingest_register_batch.sql' ]; then
+          sed '/^rollback;$/d' supabase/tests/ingest_register_batch.sql
+        elif [ "$inner" != 'rollback;' ]; then
+          printf '%s\n' "$inner"
+        fi
+      done < supabase/tests/ingest_bills_adapter.sql
     elif [ "$line" = '\i supabase/migrations/20261101120000_document_chunks_partitioned.sql' ]; then
       cat supabase/migrations/20261101120000_document_chunks_partitioned.sql
     else
