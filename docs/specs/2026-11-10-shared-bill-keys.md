@@ -9,8 +9,8 @@
 - A Bills row's key is `bill:<title year>:<number>` (`billDocumentKey`, `src/lib/deskRows.js`). It has no house and no
   introduction date, so two bills can share it.
 - `record_resolve_document_keys` gives a `bill:` row every document whose `metadata.document_key` is the row's key.
-  The record panel and research chat's selected record (a `desk-record:` key) read it. A bill dropped into the chat
-  as an attachment carries its `bill:` key instead, which research-chat looks up in `documents` directly (F315).
+  The record panel and research chat read it: the selected record and attached rows both reach it as `desk-record:`
+  keys (research-chat rebuilds an attachment's key from the stored row; F315 was closed as not a defect).
 - Read on NTER on 2026-11-10:
   - 396 of 9,415 keys name two or three different bills (796 rows).
   - 374 rows resolve to a document titled as the other bill on their key.
@@ -61,9 +61,6 @@ Re-create the previous definition, saved before the apply (it is the body of
 ## Not in this change
 
 - **A key with house and introduction date** (option 2): that re-keys the app, the rows and the documents.
-- **Chat attachments (F315).** A bill dropped into the chat carries `bill:<year>:<number>` (`documentKey` in
-  `src/lib/deskRows.js`), and research-chat finds documents by that key without this function, so its scope still
-  takes in both bills on a shared key.
 - **Admin pages and functions that read `document_key` themselves**, for example `admin_desk_records` and
   `admin_corpus_readiness`. They may still group a shared key's documents together; recorded under F314.
 - **Why the screen and admission let documents onto shared keys.** Not yet read in code.
