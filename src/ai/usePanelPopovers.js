@@ -51,7 +51,8 @@ export function wirePopoverEscape({ doc, layers }) {
 
 export default function usePanelPopovers({ focusOpen, focusRef, focus, setFocusOpen,
   historyOpen, historyRef, pendingDelete, setHistoryOpen, modelOpen, modelRef, setModelOpen }) {
-  const previousDelete = useRef('');
+  // null means no delete is pending; '' is a real id (the unsent new chat, F262).
+  const previousDelete = useRef(null);
   useEffect(() => {
     if (!focusOpen) return undefined;
     const root = focusRef.current;
@@ -76,11 +77,11 @@ export default function usePanelPopovers({ focusOpen, focusRef, focus, setFocusO
   useEffect(() => {
     const previous = previousDelete.current;
     previousDelete.current = pendingDelete;
-    if (!historyOpen || (!pendingDelete && !previous)) return;
+    if (!historyOpen || (pendingDelete == null && previous == null)) return;
     const dialog = historyRef.current?.querySelector('[role="dialog"]');
     const row = [...(dialog?.querySelectorAll('[data-chat-id]') || [])]
-      .find(el => el.dataset.chatId === (pendingDelete || previous));
-    const target = pendingDelete ? row?.querySelector('button:not(.danger)')
+      .find(el => el.dataset.chatId === (pendingDelete ?? previous));
+    const target = pendingDelete != null ? row?.querySelector('button:not(.danger)')
       : row?.querySelector('.ai-v2-history-del');
     (target || dialog?.querySelector('button:not([disabled])') || dialog)?.focus();
   }, [pendingDelete, historyOpen, historyRef]);
