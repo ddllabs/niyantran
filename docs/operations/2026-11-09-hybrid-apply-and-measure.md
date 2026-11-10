@@ -199,6 +199,103 @@ Still before T9, in order:
 3. F288 merged and `research-chat` deployed, each with approval;
 4. the `hybrid_search` flag row, with approval.
 
+## Result, 2026-11-10: cold run and F288's rollout checks
+
+All read-only, no spend, 02:18 to 02:24 UTC. Same runner, settings and question set as on 2026-11-09.
+
+**Cold, 11 h 12 min without hybrid.**
+- `document_chunks_nclt`'s keyword index was last scanned at 15:06:46 UTC on 2026-11-09, the end of the warm run. The
+  other three partitions' keyword indexes have never been scanned.
+- In `pg_stat_statements`, no statement naming `match_documents_hybrid` or `hybrid_candidate_ids` was first seen after
+  15:06:12 UTC.
+- The Data API's only request for the function in 24 h was the no-key check at 12:27 UTC (404).
+
+**Not quiet.** The Bills load (F307) ran throughout, with 8 ingest jobs running, writing to `document_chunks_bills`.
+These questions search only the NCLT partition, so the load cannot change their answers. It does compete for CPU, disk
+and the buffer cache.
+
+| NTER, 72 NCLT questions | p50 | p95 | max | over 2.5 s | over 4 s | doc@10 | chunk@10 | chunk@40 | chunk MRR |
+|---|---|---|---|---|---|---|---|---|---|
+| hybrid, cold (11 h), during the Bills load | 718 ms | 2,715 ms | 5,498 ms | 4 | 1 | 58/72 | 28/58 | 32/58 | 0.337 |
+| vector-only, straight after | 159 ms | 275 ms | 596 ms | 0 | 0 | 40/72 | 25/58 | 29/58 | 0.299 |
+
+No timeout at 8 s, no `55000`, and answers identical to 2026-11-09. **It fails the pass rule** (no hybrid call over
+2.5 s).
+
+**Where the slow calls are.** All are at the start of the run. The first six calls took 5,498, 3,321, 3,155, 1,854,
+2,715 and 2,123 ms. After that every call was under 1.4 s, and from the thirteenth on under 800 ms.
+
+**Cache reads across the pair.** Blocks the NCLT partition read from outside Postgres's buffer cache:
+
+| | blocks |
+|---|---|
+| table | 27,173 |
+| vector index | 132,340 (about 1 GB) |
+| keyword index | 2,185 |
+
+Hybrid ran first, so it paid most of these. That makes the vector-only run warm, not cold: its slowest call, at
+596 ms, is its first. This run cannot separate the cold cache from the load's competition.
+
+**Under F288 option A,** each of the four calls would have reached the 2.5 s hybrid budget and fallen back to vector-only
+search. The search would still answer, as vector-only, after about 2.5 s plus the fallback call. Without F288, the
+5.5 s call would have hit the app's 4 s abort and returned no results.
+
+### F288 check A: do NTER's logs record the search text?
+
+**No, for the app's path, on the current settings.** Counts only; no user text was read.
+
+- **Data API (`edge_logs`):** each request's method, path, URL, status, timings and content length, but not the body. An
+  RPC call is a POST with its arguments in the body. In 24 h the only request naming an RPC search was the 404 above,
+  which had no body.
+- **Postgres (`postgres_logs`):**
+  - The settings are `log_statement = ddl`, `log_min_duration_statement = -1`, `log_min_error_statement = error`,
+    `log_parameter_max_length_on_error = 0`. A successful search is never logged.
+  - A failing statement, a 57014 timeout included, is logged with its text. The Data API sends the request body as a
+    bound parameter, and parameters are not logged on error. The one Data API error on 2026-11-03 shows this: its logged
+    text is PostgREST's statement with `$1`, and no parameter values.
+  - In 24 h, two Postgres log lines name the function:
+    - the apply, which is DDL and so logged in full;
+    - one failed eval batch from the Management API, whose text held the eval's own questions as literals.
+
+    User question text: 0.
+  - `auto_explain` logs statements over 10 s, and the 8 s limit on `authenticated` stops an app search first.
+- **Functions (`function_logs`):** no line names either RPC. F288's `research.hybrid_fallback` line carries no query
+  text, which is a tested property.
+
+**What would change this:** raising `log_parameter_max_length_on_error`, `log_statement = all`, a duration log, or a
+direct SQL client that puts the search text in the statement, as the eval runner does. Those would log errors with
+their literals.
+
+### F288 check B: does a cancelled hybrid fetch stop its statement?
+
+**No, on the path that could be tested. Assume the same for the app.**
+
+- **Settings:** `authenticated` and `authenticator` have an 8 s `statement_timeout`, and
+  `client_connection_check_interval` is 0, so Postgres does not notice mid-statement that a client has gone.
+- **Probe, through the CLI (Management API):**
+  - one read-only call as `authenticated`: `pg_sleep(15)`, then one hybrid search;
+  - the client was killed 1.8 s after the statement started;
+  - `pg_stat_activity` still showed it active at 4.4, 7.5, 10.2, 12.6 and 15.0 s, and it ended on its own after about
+    15 s.
+
+  Here the role's 8 s limit did not apply, because `set local role` does not load role settings. Through the Data API it
+  does.
+- **The app's path** (`research-chat` to the Data API) cannot be tested without a deploy or a user's token. The one real
+  app search aborted at 4 s on NTER (2026-10-26, 10:58 UTC) left no Data API log line for `match_documents` and no
+  Postgres cancel or timeout error. That fits a statement that ran to the end after the app gave up, but it is not proof.
+- **For F288:** when hybrid passes its budget and the fallback starts, the abandoned hybrid statement keeps running
+  beside it for up to 8 s. In the cold run the slowest finished in 5.5 s. The cost is database work, not user-visible
+  time, and the abandoned call still warms the cache.
+
+### Decision for the developer
+
+The cold rule failed, by four calls in the first six of the run, during a bulk load. Two ways on:
+
+- **(a)** Ship anyway, with F288's fallback covering the cold start, as the 2026-11-09 exception did for warm p95. Then
+  merge F288, deploy `research-chat` from `main`, and create the flag row, each with approval.
+- **(b)** Hold T9, and run the cold pair again after the Bills loads finish and the database has had 6 quiet hours,
+  hybrid and vector-only in alternating order so neither warms the other.
+
 ## Decisions for the developer
 
 **Decided 2026-11-09:** both as recommended. Apply and measure now, before the bulk load; privacy on NTER rests on the
