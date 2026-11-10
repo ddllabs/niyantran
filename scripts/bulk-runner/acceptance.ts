@@ -30,13 +30,19 @@ export interface ProbeResult {
   rows: Array<{ document_id: string; similarity: number; content: string }>;
 }
 
+/** A listing row that may hold a document: found through the document's own document_key, or an approved link. */
+export interface LinkKey {
+  key: string;
+  via: 'document_key' | 'link';
+}
+
 /** The database as acceptance sees it. Every method only reads. */
 export interface AcceptDb {
   /** A sample of the batch's loaded items (admitted or existing, with a document), the same on every run of a batch. */
   sample(batchId: string, n: number): Promise<SampleItem[]>;
   stored(documentIds: string[]): Promise<StoredDoc[]>;
-  /** Document id to the desk-record keys of the listing rows that point at it. */
-  linkKeys(documentIds: string[]): Promise<Record<string, string[]>>;
+  /** Document id to the listing rows that may hold it, and how each was found. */
+  linkKeys(documentIds: string[]): Promise<Record<string, LinkKey[]>>;
   /** record_resolve_document_keys, as a signed-in user; at most 24 keys a call. */
   resolve(keys: string[]): Promise<Array<{ document_key: string; document_id: string | null; coverage: string }>>;
   /**
@@ -133,10 +139,16 @@ export async function acceptBatch(db: AcceptDb, batchId: string, opt: AcceptOpti
   const ids = items.map((it) => it.document_id);
   const stored = new Map((await db.stored(ids)).map((d) => [d.id, d]));
   const keys = await db.linkKeys(ids);
-  const allKeys = [...new Set(Object.values(keys).flat())];
+  const allKeys = [...new Set(Object.values(keys).flat().map((l) => l.key))];
   const coverage = new Map<string, string>();
+  /** The documents the resolver gives each row: what a reader of that record is shown. */
+  const shown = new Map<string, Set<string>>();
   for (let i = 0; i < allKeys.length; i += RESOLVE_LIMIT) {
-    for (const r of await db.resolve(allKeys.slice(i, i + RESOLVE_LIMIT))) coverage.set(r.document_key, r.coverage);
+    for (const r of await db.resolve(allKeys.slice(i, i + RESOLVE_LIMIT))) {
+      coverage.set(r.document_key, r.coverage);
+      if (!shown.has(r.document_key)) shown.set(r.document_key, new Set());
+      if (r.document_id) shown.get(r.document_key)!.add(r.document_id);
+    }
   }
   for (const it of items) {
     const d = stored.get(it.document_id);
@@ -160,7 +172,13 @@ export async function acceptBatch(db: AcceptDb, batchId: string, opt: AcceptOpti
       fail(it, 'vectors', `${d.vectors} of ${d.chunks} chunks have a vector`);
       continue;
     }
-    const own = keys[it.document_id] ?? [];
+    // F316: a row found only through the shared document_key is this document's when the resolver gives it this
+    // document; on a shared bill key (F314) the other bill's row does not. An approved link always counts.
+    const own = [
+      ...new Set(
+        (keys[it.document_id] ?? []).filter((l) => l.via === 'link' || shown.get(l.key)?.has(d.id)).map((l) => l.key),
+      ),
+    ];
     if (own.length === 0 && opt.requireLinks) {
       fail(it, 'no_listing_link');
       continue;
@@ -236,16 +254,17 @@ export class PsqlAcceptDb implements AcceptDb {
     );
   }
 
-  linkKeys(ids: string[]): Promise<Record<string, string[]>> {
+  linkKeys(ids: string[]): Promise<Record<string, LinkKey[]>> {
     return this.read(
       `select coalesce(jsonb_object_agg(id, keys), '{}'::jsonb)::text from (
-         select id, jsonb_agg(distinct key) as keys from (
-           select d.id, 'desk-record:' || jsonb_build_array(r.tier, r.feature, r.row_key)::text as key
+         select id, jsonb_agg(distinct jsonb_build_object('key', key, 'via', via)) as keys from (
+           select d.id, 'desk-record:' || jsonb_build_array(r.tier, r.feature, r.row_key)::text as key,
+                  'document_key' as via
              from public.documents d join public.desk_rows r
                on r.tier = d.desk_tier and r.feature = d.desk_feature and r.document_key = d.metadata->>'document_key'
             where d.id = any(${uuids(ids)})
            union
-           select l.document_id, 'desk-record:' || jsonb_build_array(l.tier, l.feature, l.row_key)::text
+           select l.document_id, 'desk-record:' || jsonb_build_array(l.tier, l.feature, l.row_key)::text, 'link'
              from public.record_document_links l where l.document_id = any(${uuids(ids)})
          ) k group by id) t;`,
       false,

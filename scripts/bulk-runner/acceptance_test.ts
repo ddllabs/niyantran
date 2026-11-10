@@ -1,5 +1,12 @@
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
-import { acceptBatch, type AcceptDb, type ProbeResult, type SampleItem, type StoredDoc } from './acceptance.ts';
+import {
+  acceptBatch,
+  type AcceptDb,
+  type LinkKey,
+  type ProbeResult,
+  type SampleItem,
+  type StoredDoc,
+} from './acceptance.ts';
 
 const BATCH = '0b6c2a52-6d7e-4b0e-9a55-3f2f8f0c1d11';
 const BILLS = 'Bill Passage Probability Index';
@@ -23,10 +30,14 @@ function healthy(count: number) {
     desk_tier: 'national',
     desk_feature: BILLS,
   }]));
-  const keys = new Map<string, string[]>(
-    items.map((it) => [it.document_id, [`desk-record:["national","${BILLS}","${it.source_key}"]`]]),
+  const rowKey = (sourceKey: string) => `desk-record:["national","${BILLS}","${sourceKey}"]`;
+  /** Each document's listing rows, found through its document_key (as for Bills) unless a test says otherwise. */
+  const keys = new Map<string, LinkKey[]>(
+    items.map((it) => [it.document_id, [{ key: rowKey(it.source_key), via: 'document_key' }]]),
   );
   const coverage = new Map<string, string>();
+  /** What the resolver gives a row: by default, the document keyed to it, at that row's coverage. */
+  const resolved = new Map<string, Array<{ document_id: string | null; coverage: string }>>();
   /** Per document, what each probe attempt finds (attempt 0 is the first chunk); null means no vector there. */
   const probes = new Map<string, Array<ProbeResult | null>>();
   const calls: string[] = [];
@@ -40,9 +51,14 @@ function healthy(count: number) {
     linkKeys: (ids) => Promise.resolve(Object.fromEntries(ids.map((i) => [i, keys.get(i) ?? []]))),
     resolve: (ks) => {
       calls.push(`resolve ${ks.length}`);
-      return Promise.resolve(
-        ks.map((k) => ({ document_key: k, document_id: null, coverage: coverage.get(k) ?? 'full' })),
-      );
+      return Promise.resolve(ks.flatMap((k) => {
+        const own = resolved.get(k) ??
+          [{
+            document_id: [...keys].find(([, ls]) => ls.some((l) => l.key === k))?.[0] ?? null,
+            coverage: coverage.get(k) ?? 'full',
+          }];
+        return own.map((r) => ({ document_key: k, ...r }));
+      }));
     },
     probe: (doc, attempt) => {
       calls.push(`probe ${doc.id} ${attempt}`);
@@ -57,7 +73,7 @@ function healthy(count: number) {
       });
     },
   };
-  return { db, items, stored, keys, coverage, probes, calls };
+  return { db, items, stored, keys, coverage, resolved, probes, calls, rowKey };
 }
 
 const OPT = { sample: 50, requireLinks: true };
@@ -89,7 +105,7 @@ Deno.test('each check fails by name for the document it catches, and only that o
     ['chunk_count', (x) => (x.stored.get(id(3))!.chunks = 2)],
     ['vectors', (x) => (x.stored.get(id(3))!.vectors = 2)],
     ['no_listing_link', (x) => x.keys.set(id(3), [])],
-    ['link_not_full', (x) => x.coverage.set(x.keys.get(id(3))![0], 'partial')],
+    ['link_not_full', (x) => x.coverage.set(x.keys.get(id(3))![0].key, 'partial')],
     ['probe_empty', (x) => x.probes.set(id(3), [{ content: 'a', rows: [] }])],
     ['probe_empty', (x) => x.probes.set(id(3), [null])],
     [
@@ -179,6 +195,49 @@ Deno.test('F313: a document whose only chunks are shared fails when it runs out 
   x.probes.set(id(2), [shared('a'), null]);
   const r = await acceptBatch(x.db, BATCH, OPT);
   assertEquals(r.failures.map((f) => [f.source_key, f.check]), [['k2', 'probe_not_first']]);
+});
+
+Deno.test("F316: another bill's row on a shared key is not one of the document's links", async () => {
+  // The Bills of Lading document's key is also the Constitution (130th Amendment) row's; the resolver gives that row
+  // only its own held document, so it is not this document's link and its coverage does not count.
+  const x = healthy(5);
+  const other = x.rowKey('constitution-130');
+  x.keys.get(id(2))!.push({ key: other, via: 'document_key' });
+  x.resolved.set(other, [{ document_id: null, coverage: 'registered' }]);
+  const r = await acceptBatch(x.db, BATCH, OPT);
+  assertEquals(r.ok, true, JSON.stringify(r.failures));
+});
+
+Deno.test("F316: the document's own row still fails when another document of its bill is missing", async () => {
+  // As The Indian Institutes of Management (Amendment) Bill, 2025: the row resolves to this document and to a held one.
+  const x = healthy(5);
+  const own = x.keys.get(id(2))![0].key;
+  x.resolved.set(own, [{ document_id: id(2), coverage: 'partial' }, { document_id: null, coverage: 'partial' }]);
+  const r = await acceptBatch(x.db, BATCH, OPT);
+  assertEquals(r.failures.map((f) => [f.source_key, f.check]), [['k2', 'link_not_full']]);
+});
+
+Deno.test('F316: an approved link counts even when the resolver holds the document back', async () => {
+  // A link the reviewer approved whose identity no longer matches: the resolver returns no document, state "held".
+  const x = healthy(5);
+  const linked = x.rowKey('pq-row');
+  x.keys.set(id(2), [{ key: linked, via: 'link' }]);
+  x.resolved.set(linked, [{ document_id: null, coverage: 'held' }]);
+  const r = await acceptBatch(x.db, BATCH, OPT);
+  assertEquals(r.failures.map((f) => [f.source_key, f.check, f.detail]), [[
+    'k2',
+    'link_not_full',
+    '1 of 1 listing links: held',
+  ]]);
+});
+
+Deno.test('F316: a document no row of its key resolves to has no listing link', async () => {
+  // On a shared key, a document titled as neither bill: the record would not show it.
+  const x = healthy(5);
+  const own = x.keys.get(id(2))![0].key;
+  x.resolved.set(own, [{ document_id: id(4000), coverage: 'full' }]);
+  const r = await acceptBatch(x.db, BATCH, OPT);
+  assertEquals(r.failures.map((f) => [f.source_key, f.check]), [['k2', 'no_listing_link']]);
 });
 
 Deno.test('links are optional only when the collection says so', async () => {
