@@ -280,6 +280,8 @@ export const CURATED_NEWS = Object.freeze({
   'state:Legislative Productivity Comparison': Object.freeze({
     adapter: 'news-search',
     section: 'STATE ASSEMBLY SESSIONS (NEWS)',
+    // F317: search the same 30 days the rows and the note use; the default search window is 7 days.
+    when: '30d',
     title: /assembly|vidhan sabha|vidhan parishad|legislat|\bhouse\b|sittings?\b|session/i,
     exclude: /national assembly|parliament|lok sabha|rajya sabha|general assembly|pakistan|nepal/i,
     note: 'Google News search for state assembly sessions: sittings, sessions cut short or adjourned sine die, bills passed, walkouts. News coverage only: sittings, hours and bills-passed counts are not measured or compared.',
@@ -287,6 +289,8 @@ export const CURATED_NEWS = Object.freeze({
   'state:MLA Defection & Anti-defection Case Tracker': Object.freeze({
     adapter: 'news-search',
     section: 'DEFECTION & ANTI-DEFECTION (NEWS)',
+    // F317: search the same 30 days the rows and the note use; the default search window is 7 days.
+    when: '30d',
     title: /defect|tenth schedule|disqualif|switch(?:ed|es|ing)? (?:sides|parties|party|over)|chang(?:ed|es|ing) parties|\bjoin(?:s|ed|ing)?\b|crossed over|jump(?:ed|s)? ship|turncoat|poach|horse-?trading|merge/i,
     note: 'Google News search for MLA defections, anti-defection (Tenth Schedule) cases, disqualification petitions and Speakers\' decisions. Reporting only: not a register of defections or of pending petitions.',
   }),

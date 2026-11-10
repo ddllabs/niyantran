@@ -1378,6 +1378,11 @@ async function serveCuratedNews(tier, feat, spec) {
     coverage: { from: '', through: window, exhaustive: false },
     fallback: false,
     note: `No on-topic stories in the last ${days} days${got.rows.length ? ` (${got.rows.length} search results were off topic or older)` : ''}. ${spec.note} No records were invented.`,
+    // F317: the search answered with real headlines but none is on topic within the window: verified
+    // empty, not an outage (the refresh records it ok, server/feedStore.mjs:555). A search that returned
+    // nothing, could not be read, or returned rows with no title (a parser fault) carries no flag and stays
+    // a failure. Only the flag is set: the refresh keeps the stored meta for a nothing-new answer.
+    ...(got.rows.some((r) => String(r?.title ?? '').trim()) ? { meta: { nothing_new: true } } : {}),
   });
 }
 

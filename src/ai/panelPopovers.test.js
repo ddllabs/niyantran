@@ -13,7 +13,20 @@ it('confirmation focuses Cancel and cancellation restores the same row delete co
  const props={historyOpen:true,historyRef:{current:{querySelector:()=>dialog}},pendingDelete:'c'};
  usePanelPopovers(props); hooks.effects[2](); expect(cancel.focus).toHaveBeenCalledOnce();
  hooks.index=0; hooks.effects=[];
- usePanelPopovers({...props,pendingDelete:''}); hooks.effects[2](); expect(remove.focus).toHaveBeenCalledOnce();
+ usePanelPopovers({...props,pendingDelete:null}); hooks.effects[2](); expect(remove.focus).toHaveBeenCalledOnce();
+});
+
+it('F262: the unsent chat (id \'\') is a real pending delete: Cancel takes focus, cancelling restores it',()=>{
+ hooks.refs=[]; hooks.index=0; hooks.effects=[];
+ const cancel={focus:vi.fn()},remove={focus:vi.fn()};
+ const row={dataset:{chatId:''},querySelector:selector=>selector.includes('danger')?cancel:remove};
+ const dialog={querySelectorAll:()=>[row]};
+ const props={historyOpen:true,historyRef:{current:{querySelector:()=>dialog}},pendingDelete:null};
+ usePanelPopovers(props); hooks.effects[2](); expect(cancel.focus).not.toHaveBeenCalled(); expect(remove.focus).not.toHaveBeenCalled();
+ hooks.index=0; hooks.effects=[];
+ usePanelPopovers({...props,pendingDelete:''}); hooks.effects[2](); expect(cancel.focus).toHaveBeenCalledOnce();
+ hooks.index=0; hooks.effects=[];
+ usePanelPopovers({...props,pendingDelete:null}); hooks.effects[2](); expect(remove.focus).toHaveBeenCalledOnce();
 });
 
 it.each([false,true])('an empty history dismisses on Tab (shift=%s)',shiftKey=>{

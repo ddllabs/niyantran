@@ -431,10 +431,12 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const [focusOpen, setFocusOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  // The chat whose delete is waiting to be confirmed, '' for none. Deleting a
-  // conversation removes its messages with it (chat_messages cascades on the
-  // conversation) and cannot be undone, so it does not happen on one click.
-  const [pendingDelete, setPendingDelete] = useState('');
+  // The chat whose delete is waiting to be confirmed, null for none. Never '':
+  // a new unsent chat has id '', so an empty sentinel reads as that chat being
+  // pending (F262). Deleting a conversation removes its messages with it
+  // (chat_messages cascades on the conversation) and cannot be undone, so it
+  // does not happen on one click.
+  const [pendingDelete, setPendingDelete] = useState(null);
   // What the last "Ask about this document" did to the search scope, '' for none.
   const [scopeNotice, setScopeNotice] = useState('');
   const [focus, setFocus] = useState(() => {
@@ -569,7 +571,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
 
   // Closing the list abandons a pending delete: reopening it should not still
   // be holding a loaded question from last time.
-  useEffect(() => { if (!historyOpen) setPendingDelete(''); }, [historyOpen]);
+  useEffect(() => { if (!historyOpen) setPendingDelete(null); }, [historyOpen]);
 
   useEffect(() => {
     try {
@@ -845,7 +847,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                           minute: '2-digit',
                         })
                       : '';
-                    if (c.id === pendingDelete) {
+                    if (pendingDelete !== null && c.id === pendingDelete) {
                       return (
                         <li key={c.id} data-chat-id={c.id} className="ai-v2-history-confirm">
                           <p>
@@ -861,12 +863,12 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                               onClick={(e) => {
                                 e.stopPropagation();
                                 research.actions.deleteChat(c.id);
-                                setPendingDelete('');
+                                setPendingDelete(null);
                               }}
                             >
                               {hi ? 'हटाएँ' : 'Delete'}
                             </button>
-                            <button type="button" onClick={(e) => { e.stopPropagation(); setPendingDelete(''); }}>
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setPendingDelete(null); }}>
                               {hi ? 'रहने दें' : 'Cancel'}
                             </button>
                           </div>
