@@ -17,20 +17,19 @@ create index document_chunks_nclt_embedding_halfvec_hnsw on public.document_chun
 create index document_chunks_nclt_to_tsvector_idx on public.document_chunks_nclt(content);
 insert into public.document_chunks_nclt values (1,'insolvency resolution');
 
--- Run as postgres (the cron job's role): five relations, in order, blocks never negative.
-select pg_temp.ok((select jsonb_array_length(public.search_keep_warm())=5
+-- Run as postgres (the cron job's role): the three named relations, in order, blocks never negative; not the TOAST
+-- relation (on NTER it does not stay cached in 8 GB: every prefetch re-read it, 2026-11-11).
+select pg_temp.ok((select jsonb_array_length(public.search_keep_warm())=3
   and (select array_agg(e->>'relation' order by ord) from jsonb_array_elements(public.search_keep_warm()) with ordinality t(e,ord))
-      =array['public.document_chunks_nclt_embedding_halfvec_hnsw','public.document_chunks_nclt_to_tsvector_idx','public.document_chunks_nclt',
-             ((select reltoastrelid from pg_class where oid='public.document_chunks_nclt'::regclass)::regclass)::text,
-             ((select indexrelid from pg_index where indrelid=(select reltoastrelid from pg_class where oid='public.document_chunks_nclt'::regclass))::regclass)::text]
+      =array['public.document_chunks_nclt_embedding_halfvec_hnsw','public.document_chunks_nclt_to_tsvector_idx','public.document_chunks_nclt']
   and (select bool_and((e->>'blocks')::bigint>=0) from jsonb_array_elements(public.search_keep_warm()) e)),
-  'postgres gets the three named relations, the TOAST relation and its index, blocks >= 0');
+  'postgres gets the three named relations and not the TOAST relation, blocks >= 0');
 select pg_temp.ok((select (e->>'blocks')::bigint>=1 from jsonb_array_elements(public.search_keep_warm()) e
    where e->>'relation'='public.document_chunks_nclt'),'the table reports blocks once it holds a row');
 
 -- A missing relation is skipped (with a WARNING naming it), not an error.
 alter index public.document_chunks_nclt_to_tsvector_idx rename to kw_renamed;
-select pg_temp.ok((select jsonb_array_length(public.search_keep_warm())=4
+select pg_temp.ok((select jsonb_array_length(public.search_keep_warm())=2
   and not exists(select 1 from jsonb_array_elements(public.search_keep_warm()) e where e->>'relation' like '%tsvector_idx')),
   'a missing relation is skipped');
 alter index public.kw_renamed rename to document_chunks_nclt_to_tsvector_idx;
@@ -86,4 +85,18 @@ grant execute on function extensions.autoprewarm_dump_now() to public;
 select pg_temp.ok(pg_temp.selfcheck_raises(),'the self-check raises when PUBLIC is granted an autoprewarm function');
 revoke execute on function extensions.autoprewarm_dump_now() from public;
 select pg_temp.ok(not pg_temp.selfcheck_raises(),'the self-check passes again once the grants are removed');
+
+-- As on Supabase: an extension function owned by another role (there supabase_admin), which granted PUBLIC execute
+-- that the migrating role cannot revoke. The self-check, run as the migrating role, records it and does not raise;
+-- it still raises for the function the migration owns.
+create role sim_platform_admin;
+alter function extensions.autoprewarm_dump_now() owner to sim_platform_admin;
+grant execute on function extensions.autoprewarm_dump_now() to public;
+set role nter_migrator;
+select pg_temp.ok(not pg_temp.selfcheck_raises(),'a PUBLIC grant by another owner is recorded, not raised');
+reset role;
+grant execute on function public.search_keep_warm() to anon;
+set role nter_migrator;
+select pg_temp.ok(pg_temp.selfcheck_raises(),'the self-check still raises for the function the migration owns');
+reset role;
 rollback;
