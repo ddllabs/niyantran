@@ -37,6 +37,15 @@ The first validation batch needs a command the developer runs from their own ter
     touches no database;
   - `run`: the same, then the run through `PsqlDb`; receipts go to a directory outside the repository;
   - `status --batch <id>`: the ledger's status for one batch.
+  - Amended 2026-11-10 (F309, F310): `plan`, `run` and `split` read a records file only with its receipt, and refuse it
+    (`receipt_missing`, `receipt_unreadable`, `receipt_mismatch`) unless the receipt's hash equals the text they parse:
+    for a file named `screened.jsonl`, the screen's `screen.receipt.json` beside it (`outputs.screened.sha256`);
+    otherwise `<records>.receipt.json` (`output_sha256`), which the pack reader and `split` write.
+  - `split --records <file> --lines <n> --out <dir>`: after that check, writes `part-NNN.jsonl` files of at most n
+    records, in order and byte for byte, each with a receipt (`output_sha256`, `lines_written`, and `source`: the input's
+    path and sha256 and the line range). It refuses an `--out` that already holds parts. Parts replace a hand split.
+  - Receipts and `split`'s output go outside every checkout: the module root, the git common directory (so the main
+    checkout from a worktree), and any ancestor with `.git` are refused (the pack reader's guard).
 - **Acceptance for now:** `--accepted <manifest hashes>`, listing the batches the developer has accepted by hand. With none
   listed, a run stops after its first batch with `awaiting_acceptance`. One batch per run is the intended start.
 - **Proof:** the existing full-size proof (`scripts/load-proof/bulk-proof.ts`) run with `PsqlDb` as `corpus_ingest` on the
