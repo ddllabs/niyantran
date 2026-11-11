@@ -5,7 +5,7 @@
 > stage ([spec](2026-11-10-screening-stage.md)) to the Regulatory entry of National v1.1 and specifies the admission
 > path, policy and load. Plan: [national ingestion, next](../plans/2026-11-11-national-ingestion-next.md), Phase 1
 > tasks 2 to 7. Scope: [ADR 0014](../decisions/0014-national-v1.1-ingestion-scope.md). Related: [PQ screen](2026-11-11-pq-screen.md),
-> [runner and acceptance](2026-11-08-runner-cli-and-acceptance.md), [Bills load](../operations/2026-11-10-bills-load.md).
+> [runner and acceptance](2026-11-08-runner-cli-and-acceptance.md), [Bills load](../operations/2026-11-10-bills-load.md). T1 to T3 built 2026-11-12; see Build notes.
 > Open work: F307, F275, F278, F285, F311, F272, F326, F327.
 
 Evidence labels: **read** = read in the code or document cited, at `origin/main` `c8c03eb9`; **inferred** = concluded
@@ -202,7 +202,7 @@ Stored, chunked into the Regulatory partition, found by search in its feature; n
 
 `screens/search_only.ts` exports `makeSearchOnlyScreen(config, pageCheck)`. Regulatory's specifics live in
 `screens/regulatory.json`, validated strictly by the factory and listed in `rules_sha256`: desk tier, both spellings,
-`doc_type`, the suggested-key prefix (`reg`), the required citation fields, allowed `extraction` values (`pdf_text`),
+`doc_type`, the suggested-key prefix (`reg:`), the required citation fields, allowed `extraction` values (`pdf_text`),
 `source_host` values, the URL host list, the PDF URL rule (`^https://rbidocs\.rbi\.org\.in/.+\.pdf$`, case-insensitive),
 the character limits (300 to 600,000), the replacement fields, and whether the density-only basis is allowed (D1).
 `screens/index.ts` registers `national-regulatory`. The collection file's `screen.settings` keeps the licence classes
@@ -374,9 +374,9 @@ during the load; back to 1 and 2 after it (approval A8).
 | # | Task | Size | Write scope | Verify | Needs | Stronger builder |
 |---|---|---|---|---|---|---|
 | T0 | Counts on the v1.1 entry | S | this spec | done 2026-11-12 (above); the open counts move to T5 and T6 | — | — |
-| T1 | Core: `listingRows`, `--service`, `reports`, `suggestedKeys` | S | `screen_types.ts`, `screen.ts`, `screen_test.ts`, `live.ts`, `live_test.ts` | runner CI; a zero-row identity passes only under `none`; a report never adds a hold | — | no |
-| T2 | Admission: migration, fixture, shared adapter | M | one new migration; `supabase/tests/national_search_only.sql`; `supabase/tests/run.sh` (its `chain()` entry and include); `supabase/functions/_shared/suppliedText.ts`, `suppliedText_test.ts` | `deno test … supabase/functions`; `npm run test:sql` (vacuity ok); `npm test`; `npm run lint`; `npm run build`; byte-identical existing payloads | interface fixed here (adapter name, reasons, `completeness_basis` values, host list) | **yes** |
-| T3 | Screen, configuration, date drop | M | `screens/search_only.ts`, `screens/search_only_test.ts`, `screens/regulatory.json`, `screens/index.ts`, `screens/bills.ts` (exports and `makeLength` only), `prepare.ts`, `prepare_test.ts`, `cli.ts`, `run.ts` (the date count only) | runner CI; Bills tests unchanged; each hold shown failing first | T1 | no |
+| T1 | Core: `listingRows`, `--service`, `reports`, `suggestedKeys` built 2026-11-12 | S | `screen_types.ts`, `screen.ts`, `screen_test.ts`, `live.ts`, `live_test.ts` | runner CI; a zero-row identity passes only under `none`; a report never adds a hold | — | no |
+| T2 | Admission: migration, fixture, shared adapter built 2026-11-12 | M | one new migration; `supabase/tests/national_search_only.sql`; `supabase/tests/run.sh` (its `chain()` entry and include); `supabase/functions/_shared/suppliedText.ts`, `suppliedText_test.ts` | `deno test … supabase/functions`; `npm run test:sql` (vacuity ok); `npm test`; `npm run lint`; `npm run build`; byte-identical existing payloads | interface fixed here (adapter name, reasons, `completeness_basis` values, host list) | **yes** |
+| T3 | Screen, configuration, date drop built 2026-11-12 | M | `screens/search_only.ts`, `screens/search_only_test.ts`, `screens/regulatory.json`, `screens/index.ts`, `screens/bills.ts` (exports and `makeLength` only), `prepare.ts`, `prepare_test.ts`, `cli.ts`, `run.ts` (the date count only) | runner CI; Bills tests unchanged; each hold shown failing first | T1 | no |
 | TA | Attribution in citations (owner gate O2): carry the document's regulator and source into text citations and show them | M | its own spec first (citations, the answer path and `src/ai`) | its own | O2 | no |
 | R | Independent review of T1-T3 | — | none | notes | T1-T3 | — |
 | T5 | Screen v1.1 offline, then live read-only with the page check; plan; count the open items (live holds, title-date matches with the 474, page separator) | S | this spec | screen receipt; plan output | R, A1 | no |
@@ -467,6 +467,39 @@ and its setup script, one new migration, `supabase/tests/national_search_only.sq
 9. **Corrected from revision 1:** F308 is on `main` (`cli.ts:181`); CI runs the runner's tests, lint and fmt
    (`ci.yml:46-50`); the 22 long records hold at least 36.1 million characters (21 × 600,000 + 23,523,519), not 13.2
    million; the host rule is a configured list, since `file_url`'s host equals `source_host` on 43 of 121.
+
+## Build notes (2026-11-12)
+
+T1, T2 and T3 are built and independently reviewed (each: accept with changes, applied). Where the build or a review corrects this spec, this section wins.
+
+### Admission (T2)
+
+- Migration `20261113090000_national_search_only`, `_shared/suppliedText.ts`. The five functions are their current bodies (all from `20261107120000_bills_adapter.sql`) plus insertions only.
+- New refusal reason `suggested_key_invalid`: a present `document_key_suggested` must be a JSON string, non-blank after trimming, and at most 500 UTF-8 bytes. An absent or null key is allowed.
+- A `file_url` longer than 2,000 UTF-8 bytes is refused `file_url_invalid`. Without these limits one over-long value failed at insert and aborted the whole batch call.
+- Order of the search-only refusals: completeness basis, URL rule, suggested-key shape, URL held, key held, then duplicate text.
+- Both partial indexes are unique (`documents_search_only_file_url`, `documents_search_only_key_suggested`); they are the backstop behind the lookups and the advisory locks. None of the 474 live documents carries a suggested key.
+- The URL rule is `bill_admission_key`'s full rule (https, a listed host, no control character or backslash, no encoded slash or backslash, no `.` or `..` segment), the same in SQL and in the adapter.
+- The fixture includes `ingest_bills_admission_rules.sql` (which includes the Bills adapter and batch fixtures), with the one expectation at `ingest_register_batch.sql:304` rewritten on purpose. It adds 8 seconds to the SQL job.
+- Not automated: a Down check in `run.sh` and a two-session race test. Both were run once by hand (the schema after the Down block equals the schema before the migration; a second session admitting the same key or URL waits and is refused).
+- Known and not closed here: a re-extracted copy of one of the 474 first-pass documents, under a new source key and with different text, is admitted; they have no suggested key and almost no URL. T5 counts regulator, title and date matches against them before any load.
+
+### Screen (T3, with the T1 core)
+
+- New hold codes: `suggested_key_invalid` (as admission); `official_pdf_no_text` (an official PDF with no text layer never earns `page_check`; the record is held); `page_check_error` (a failure of the whole page check holds only the records that needed it); `field_invalid` also for text that is not well-formed UTF-16.
+- Completeness basis: `page_check` only for a record whose `file_url` matches the PDF rule and whose official file has a text layer and passes; `density_only` only when the text-binding, length, density and extraction checks each ran and passed on that record; otherwise the record is held. Nothing is granted by default.
+- The suggested-key prefix is `reg:`.
+- The PDF rule is `^https://rbidocs\.rbi\.org\.in/[^?#]+\.pdf$`. A configuration must anchor its rule at both ends, name a host that is in `url_hosts`, and keep `max_chars` at or under 600,000.
+- `citation_required` is kind, regulator, regulator_name, title and source. The date is not required (1,035 of 3,319 records have one).
+- Replacement hold: `delta_patch` or `replaces_text` present, or `v16_replaces` with any value other than false, null or absent.
+- `link_shape`: at most one link, its feature in the listing spelling, its `row_key` a string.
+- Collection file settings (`screen.settings`): `minCharsPerPage`, `minPagesForDensity`, `requirePageCount`; a missing one holds every record. The collection file also sets `prepare.dropInvalidCitationDates: true`.
+- `rulesFiles` for this screen has 11 entries, adding `prepare.ts`, `_shared/suppliedText.ts` and `_shared/textNormalise.ts`. The Bills screen's list has the same gap and is unchanged (recorded in open work).
+- Core additions beyond T1's list: `Screen.holdKeys` (this screen prints a hold's `source_key` only when it is 40 hex characters); a report receives the record's outcome and may carry a fixed note, and the receipt gains `report_notes` and `reports_cover`; an exception while projecting a record holds that record (`project_failed`) and no longer stops the run.
+- The identifier scan reports counts only, per source host, separately for screened and held records. A 12-digit match counts as Aadhaar-shaped only when it passes the Verhoeff checksum and is not three year-like groups; the excluded matches are counted apart. On v1.1 the unfiltered pattern matched 181 strings in 52 records, of which 111 were runs of years and 18 passed the checksum (about what chance gives); PAN-shaped matches: 0. The receipt carries the note "strings shaped like identifiers; unverified upper bound; not evidence of personal data".
+- Page separator, counted on v1.1: all 82,024 page gaps in the 2,356 multi-page records are one form feed, so the Bills text-binding check is reused unchanged.
+- Offline run on v1.1 (live reads and page fetches off; counts only): 2,693 records with no offline finding (76 with an official PDF URL, 2,617 for the density-only basis); holds: OCR 506, duplicate text 96, page split 31, too long 22, below density 4, too short 1. The 2,697 in the funnel above did not apply the density floor.
+- Still to add: the screen must hold a record whose publisher cannot be resolved (`publisher_unresolved`), using the resolver of the citation-attribution work (F332), once that is merged.
 
 ## Open questions (developer)
 
