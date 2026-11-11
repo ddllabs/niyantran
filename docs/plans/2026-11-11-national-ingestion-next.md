@@ -17,7 +17,7 @@ next collections load the same way with no hand steps. Each phase names what it 
 - No remaining National collection is ready to load:
   - library bills (1,046) and library questions (144,694) are `servable=false`;
   - the 49,330 v1.4 answers have no listing rows on NTER, and there is no Rajya Sabha key;
-  - Regulatory and the other v1.1 collections have no screen.
+  - Regulatory and the other v1.1 collections have no screen. They also have no admission path (F330, found 2026-11-12).
 - Hybrid search is on NTER and unused. It waits for one cold measurement after an eviction.
 - The developer expanded the NTER disk to 40 GB. This is reported by the developer on 2026-11-11. The supervisor has not
   read it back from the dashboard.
@@ -56,6 +56,8 @@ servable. So Phase 1 loads v1.1 only, and v1.4 is a second Regulatory load. The 
 over the per-document limit (22 in v1.1; F311), very short records, duplicate suggested keys in SEBI, and the RBI text
 fixes, which replace existing text and have no path in the runner.
 
+Correction (2026-11-12): Regulatory is not "search-only, as today". Nothing admits it today (F330). Phase 1 therefore also needs a search-only admission branch (one migration), a change to the worker's shared text code with deploys of `ingest-worker` and `admin-ingest`, and a fix for the desk name's two spellings, before the screen can run. The tasks and approvals are in the Regulatory spec, `docs/specs/2026-11-12-regulatory-screen.md` (a draft on branch `task/regulatory-screen-spec`, under review); the table above stays as the outline.
+
 ## Phase 2: hardening
 
 Phase 2 runs in parallel with Phase 1, on its own branches.
@@ -63,8 +65,8 @@ Phase 2 runs in parallel with Phase 1, on its own branches.
 - F308: large records files. `split` streams, and `plan` and `run` refuse an oversized file. Done 2026-11-11.
 - The two findings from the F321 review: receipt read errors in `screen.ts`, and `pack.ts` with a byte-order mark.
   Done 2026-11-11.
-- F301 and F291: designed 2026-11-11 (see their lines in open work); the build waits on the developer's choice, and
-  F291's fixture needs room in the SQL job (F302).
+- F301 and F291: built and reviewed 2026-11-12 (see their lines in open work). F291's fixture adds 6 s to the SQL job, so
+  it does not need F302 first. Applying the migration and deploying the worker each wait on the developer's yes.
 - The shared-key refusal for Bills (the open part of F314). Trace first. Build after Phase 1 task 3, because both touch
   the Bills screen file.
 
