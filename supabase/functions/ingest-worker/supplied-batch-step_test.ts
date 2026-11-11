@@ -15,9 +15,13 @@ const FAR = 1e15;
 const BOUNDS = { maxCount: 96, maxTokens: 200_000, maxInputTokens: 7_000 };
 
 /** A distinct Law record per n, valid for prepareSuppliedText. */
-async function record(n: number) {
+async function record(n: number, long = false) {
   const base = await input();
-  const text = `# Order ${n}\n\nThe appeal number ${n} is dismissed with costs.`;
+  // A long document is cut into several chunks; a short one is a single chunk.
+  const paragraph = (k: number) => `Paragraph ${k} of order ${n}. ${'The appeal number '.concat(String(n), ' is dismissed with costs. ').repeat(40)}`;
+  const text = long
+    ? `# Order ${n}\n\n${[1, 2, 3].map(paragraph).join('\n\n')}`
+    : `# Order ${n}\n\nThe appeal number ${n} is dismissed with costs.`;
   const sha = await sha256Hex(text);
   const key = `law:hc:test/order-${n}`;
   return {
@@ -37,6 +41,9 @@ function job(n: number, over: Partial<IngestJob> = {}): IngestJob {
   };
 }
 
+/** A number that depends on the whole input, so a vector stored on the wrong chunk shows. */
+const vectorOf = (input: string) => [...input].reduce((h, c, k) => (h + c.charCodeAt(0) * (k + 1)) % 1_000_003, 7);
+
 interface Recorder {
   commits: Array<{ jobId: string; token: string; hashes: string[] }>;
   activations: Array<{ jobId: string; token: string; tokens: number; cost: number }>;
@@ -49,12 +56,16 @@ interface Recorder {
 async function world(n: number, opts: {
   staleToken?: string;
   failEmbedFor?: string;
+  /** Tokens a failed call had already spent. */
+  failTokens?: number;
+  /** Documents that are cut into several chunks. */
+  long?: number[];
   stored?: string[];
   badPlanFor?: string;
   now?: () => number;
 } = {}) {
   const plans = new Map<string, Awaited<ReturnType<typeof prepareSuppliedText>>>();
-  for (let k = 1; k <= n; k++) plans.set(`doc-${k}`, await prepareSuppliedText(await record(k)));
+  for (let k = 1; k <= n; k++) plans.set(`doc-${k}`, await prepareSuppliedText(await record(k, opts.long?.includes(k))));
   const rec: Recorder = { commits: [], activations: [], logs: [], embedCalls: [], stored: new Map() };
   for (const doc of opts.stored ?? []) {
     rec.stored.set(doc, new Map(suppliedCommitRows(plans.get(doc)!.chunks).map((r) => [r.chunk_hash, { ...r, embedding: [1] }])));
@@ -94,10 +105,11 @@ async function world(n: number, opts: {
   const embed = async (inputs: string[]): Promise<EmbedResult> => {
     rec.embedCalls.push(inputs);
     if (opts.failEmbedFor && inputs.some((i) => i.includes(opts.failEmbedFor!))) {
-      throw new EmbeddingError('embeddings HTTP 400: bad input', { costUsd: 0, promptTokens: 0 }, 400);
+      const spent = opts.failTokens ?? 0;
+      throw new EmbeddingError('embeddings HTTP 400: bad input', { costUsd: spent * 2e-8, promptTokens: spent }, 400);
     }
     const tokens = inputs.reduce((t, i) => t + Math.ceil(i.length / 4), 0) + 1;
-    return { vectors: inputs.map(() => [0.5]), model: EMBED_MODEL, promptTokens: tokens, costUsd: tokens * 2e-8, requests: 1 };
+    return { vectors: inputs.map((i) => [vectorOf(i)]), model: EMBED_MODEL, promptTokens: tokens, costUsd: tokens * 2e-8, requests: 1 };
   };
   const deps = {
     db, embed, storage: { signedUrl: unused, exists: unused, upload: unused }, ocr: unused,
@@ -156,6 +168,144 @@ Deno.test('batch: one job\'s embedding failure leaves the others\' committed sli
   assertFalse(rec.stored.has('doc-2'));
   assertEquals(rec.logs.map((l) => l.status), ['success', 'error'], 'the failed call is logged too');
   assertEquals(rec.logs[1].raw_usage.job_ids, ['job-2']);
+});
+
+Deno.test('batch: when a shared call fails, each job is embedded alone; only the job whose own call fails is failed', async () => {
+  const { deps, rec, chunksOf } = await world(3, { failEmbedFor: 'appeal number 2', failTokens: 6 });
+  const out = await runSuppliedBatch(deps, [job(1), job(2), job(3)], FAR, BOUNDS);
+  assertEquals(rec.embedCalls.length, 4, 'the shared call, then one call per job');
+  assertEquals(rec.logs.map((l) => l.status), ['error', 'success', 'error', 'success']);
+  assertEquals(rec.logs.map((l) => l.raw_usage.job_ids), [['job-1', 'job-2', 'job-3'], ['job-1'], ['job-2'], ['job-3']]);
+  assert(rec.logs.every((l) => l.raw_usage.batch_id === 'batch-1'), 'every call, failed or solo, carries the batch');
+  assertEquals(out.map((o) => !!o.activated), [true, false, true]);
+  assertEquals(out[1].patch.error?.code, 'embed_failed');
+  assertEquals(out[1].patch.error?.permanent, true);
+  assertEquals(out[0].patch.error, undefined);
+  assertEquals(out[2].patch.error, undefined);
+  assertEquals(rec.commits.map((c) => c.jobId), ['job-1', 'job-3']);
+  assertEquals(rec.commits[0].hashes, chunksOf('doc-1'));
+  assertEquals(rec.commits[1].hashes, chunksOf('doc-3'));
+  assertFalse(rec.stored.has('doc-2'));
+  // Every token and unit of cost the four calls spent reaches exactly one job.
+  const reported = [out[1].patch.embed_tokens!, ...rec.activations.map((a) => a.tokens)];
+  assertEquals(reported.reduce((a, b) => a + b, 0), rec.logs.reduce((t, l) => t + (l.prompt_tokens ?? 0), 0));
+  const cost = out[1].patch.embed_cost_usd! + rec.activations.reduce((t, a) => t + a.cost, 0);
+  assert(Math.abs(cost - rec.logs.reduce((t, l) => t + l.cost_usd, 0)) < 1e-15, 'cost adds up to the calls');
+  // The three documents are the same size, so the failed call's 6 tokens split 2/2/2; a solo call's tokens
+  // go to its job alone, on top of that share.
+  assertEquals(rec.activations[0].tokens, 2 + rec.logs[1].prompt_tokens!, 'job 1: its share of the failed call plus its own call');
+  assertEquals(out[1].patch.embed_tokens, 2 + 6, 'job 2: its share of the failed call plus its own failed call');
+  assertEquals(rec.activations[1].tokens, 2 + rec.logs[3].prompt_tokens!);
+});
+
+Deno.test('batch: when every call fails, every job fails, and the calls are the shared one plus one per job', async () => {
+  const { deps, rec } = await world(3, { failEmbedFor: 'appeal number' });
+  const out = await runSuppliedBatch(deps, [job(1), job(2), job(3)], FAR, BOUNDS);
+  assertEquals(rec.embedCalls.length, 4);
+  assertEquals(rec.logs.map((l) => l.status), ['error', 'error', 'error', 'error']);
+  for (const o of out) {
+    assertEquals(o.patch.error?.code, 'embed_failed');
+    assertEquals(o.patch.error?.permanent, true);
+    assertFalse(o.activated);
+  }
+  assertEquals(rec.commits, []);
+});
+
+Deno.test('batch: a failed shared call whose carried jobs cannot be retried inside the deadline reserve releases them with no error', async () => {
+  const deadline = 1_000_000;
+  let failed = false;
+  const w = await world(3, { failEmbedFor: 'appeal number 2', failTokens: 6, now: () => (failed ? deadline - INDEX_STEP.deadlineReserveMs : 0) });
+  const embed = w.deps.embed;
+  w.deps.embed = async (inputs: string[]) => {
+    try {
+      return await embed(inputs);
+    } catch (e) {
+      failed = true;
+      throw e;
+    }
+  };
+  const out = await runSuppliedBatch(w.deps, [job(1), job(2), job(3)], deadline, BOUNDS);
+  assertEquals(w.rec.embedCalls.length, 1, 'no solo call starts inside the reserve');
+  assertEquals(w.rec.logs.map((l) => l.status), ['error']);
+  for (const o of out) {
+    assertEquals(o.patch.error, undefined, 'no job is failed for a call it did not get to retry');
+    assertFalse(o.activated);
+    assertEquals(o.patch.progressed, false, 'nothing of it was committed, so the next claim embeds it');
+  }
+  assertEquals(out.reduce((t, o) => t + o.patch.embed_tokens!, 0), 6, 'the failed call\'s spend is still reported, once');
+  assertEquals(w.rec.commits, []);
+  assertEquals(w.rec.activations, []);
+});
+
+Deno.test('batch: a job whose chunks span two windows recovers in the first by its solo call and finishes in the second, each chunk embedded once', async () => {
+  // doc-2 has several chunks; two inputs per call: window 1 is doc-1's chunk and doc-2's first.
+  const { deps, rec, chunksOf } = await world(2, { failEmbedFor: 'appeal number 1', long: [2] });
+  const mine = chunksOf('doc-2');
+  assert(mine.length >= 3, 'doc-2 needs a chunk beyond the first window');
+  const later = mine.length - 1;
+  const laterWindows = Array.from({ length: Math.ceil(later / 2) }, (_, k) => Math.min(2, later - 2 * k));
+  const out = await runSuppliedBatch(deps, [job(1), job(2)], FAR, { ...BOUNDS, maxCount: 2 });
+  assertEquals(out[0].patch.error?.code, 'embed_failed');
+  assert(out[1].activated);
+  assertEquals(out[1].patch.error, undefined);
+  assertEquals(rec.commits.filter((c) => c.jobId === 'job-2').map((c) => c.hashes.length), [1, ...laterWindows], 'first window\'s share, then the later windows');
+  assertEquals(rec.commits.filter((c) => c.jobId === 'job-2').flatMap((c) => c.hashes), mine, 'every chunk committed exactly once, in order');
+  assertEquals([...rec.stored.get('doc-2')!.keys()], mine);
+  const embedded = rec.embedCalls.filter((c) => !c.some((i) => i.includes('appeal number 1'))).flat();
+  assertEquals(embedded.length, mine.length, 'a chunk is embedded once in any call that succeeded');
+  assertEquals(rec.embedCalls.length, 1 + 2 + laterWindows.length);
+});
+
+Deno.test('batch: after a failed shared call, each chunk is stored with the vector of its own input', async () => {
+  // Three inputs per call: window 1 is doc-1's chunk and doc-2's first two, so doc-2's solo call carries two inputs.
+  const { deps, rec, chunksOf } = await world(2, { failEmbedFor: 'appeal number 1', long: [2] });
+  const mine = chunksOf('doc-2');
+  assert(mine.length >= 3, 'doc-2 needs chunks in the solo call and in a later window');
+  const out = await runSuppliedBatch(deps, [job(1), job(2)], FAR, { ...BOUNDS, maxCount: 3 });
+  assert(out[1].activated);
+  // doc-1's calls fail, so the calls that succeeded carried doc-2's inputs only, in chunk order.
+  const inputs = rec.embedCalls.filter((c) => !c.some((i) => i.includes('appeal number 1'))).flat();
+  assertEquals(inputs.length, mine.length);
+  assertEquals(new Set(inputs.map(vectorOf)).size, mine.length, 'the test needs a different vector for every chunk');
+  assertEquals(rec.embedCalls[2].length, 2, 'the solo call for doc-2 carries its two chunks of the failed window');
+  const stored = rec.stored.get('doc-2')!;
+  assertEquals(mine.map((h) => stored.get(h)!.embedding), inputs.map((i) => [vectorOf(i)]));
+});
+
+Deno.test('batch: a call that was paid for and then could not be logged is not bought again', async () => {
+  const w = await world(3);
+  w.deps.db.logCall = () => Promise.reject(new Error('log insert failed'));
+  const out = await runSuppliedBatch(w.deps, [job(1), job(2), job(3)], FAR, BOUNDS);
+  assertEquals(w.rec.embedCalls.length, 1, 'only an embedding failure is retried job by job');
+  for (const o of out) {
+    assertEquals(o.patch.error?.code, 'internal');
+    assertEquals(o.patch.error?.permanent, true);
+    assertFalse(o.activated);
+  }
+});
+
+Deno.test('batch: the deadline reserve reached between solo calls releases the jobs not yet retried, with no error', async () => {
+  const deadline = 1_000_000;
+  let late = false;
+  // doc-3's input fails the shared call and would fail its own; the reserve is reached once doc-1's solo call returns.
+  const w = await world(3, { failEmbedFor: 'appeal number 3', now: () => (late ? deadline - INDEX_STEP.deadlineReserveMs : 0) });
+  const embed = w.deps.embed;
+  w.deps.embed = async (inputs: string[]) => {
+    const r = await embed(inputs);
+    if (w.rec.embedCalls.length === 2) late = true;
+    return r;
+  };
+  const out = await runSuppliedBatch(w.deps, [job(1), job(2), job(3)], deadline, BOUNDS);
+  assertEquals(w.rec.embedCalls.length, 2, 'the shared call and doc-1 alone; no call starts inside the reserve');
+  assertEquals(out[0].patch.error, undefined);
+  assertEquals(out[0].patch.progressed, true, 'doc-1 keeps what its solo call committed');
+  for (const o of [out[1], out[2]]) {
+    assertEquals(o.patch.error, undefined);
+    assertEquals(o.patch.progressed, false);
+    assertFalse(o.activated);
+  }
+  const reported = out.reduce((t, o) => t + (o.patch.embed_tokens ?? 0), 0);
+  assertEquals(reported, w.rec.logs.reduce((t, l) => t + (l.prompt_tokens ?? 0), 0), 'reported tokens equal the logged calls');
 });
 
 Deno.test('batch: the deadline reserve holds across jobs: no call starts inside it, unfinished jobs are released', async () => {
