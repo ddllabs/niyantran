@@ -418,7 +418,8 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen 
 
   // 3. Identity: the fields the adapter copies and the official source.
   const officialFileUrl = (u: string): boolean => {
-    const m = /^https:\/\/([^/?#]*)/.exec(u);
+    // The host is what stands before the first slash, and a slash must follow it (as admission reads it).
+    const m = /^https:\/\/([^/]*)\//.exec(u);
     if (!m || !cfg.url_hosts.includes(m[1]) || !billUrlSegmentsOk(u)) return false;
     try {
       const p = new URL(u);
