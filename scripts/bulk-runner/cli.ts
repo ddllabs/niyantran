@@ -18,6 +18,7 @@
 //                            developer's own login, not corpus_ingest. Its report is written beside the receipts.
 //   --accepted <hashes>      batches the developer accepted by hand.
 // With neither, a run stops after its first batch with awaiting_acceptance.
+import { createHash } from 'node:crypto';
 import { basename, dirname, fromFileUrl, join, resolve } from 'jsr:@std/path@1';
 import { sha256Hex } from '../../supabase/functions/_shared/textNormalise.ts';
 import type { Db } from './db.ts';
@@ -172,10 +173,23 @@ export function parseRecords(text: string): unknown[] {
   return out;
 }
 
+/**
+ * The largest records file `plan` and `run` read: they hold the bytes, the decoded string and every parsed record at
+ * once, roughly three times the file. 256 MiB is far below V8's string limit (about 512 MiB of characters) and keeps
+ * that near 1 GiB; a bigger file is cut with `split` and its parts planned and run one by one (F308).
+ */
+export const MAX_RECORDS_BYTES = 256 * 1024 * 1024;
+
 export interface CliDeps {
   readText: (path: string) => Promise<string>;
   /** A file's raw bytes: the records file is hashed as it is on disk, then decoded strictly (F321). */
   readBytes: (path: string) => Promise<Uint8Array>;
+  /** A file's size in bytes (the check before `plan` and `run` read a records file whole). */
+  fileSize: (path: string) => Promise<number>;
+  /** A file's raw bytes in chunks of any size, in order: `split` reads the records file this way, never whole (F308). */
+  readChunks: (path: string) => AsyncIterable<Uint8Array>;
+  /** The largest part `split` writes, in bytes; MAX_RECORDS_BYTES unless a test sets a smaller one. */
+  maxPartBytes?: number;
   /** The names in a directory; empty when it does not exist. */
   listDir: (dir: string) => Promise<string[]>;
   makeDir: (dir: string) => Promise<void>;
@@ -319,8 +333,121 @@ export async function readRecordsText(
   return { text, records: parsed };
 }
 
+/** What one pass over a records file found. `fault` is the first thing wrong with the bytes, in the order readRecordsText checks. */
+interface Scan {
+  sha256: string;
+  records: number;
+  fault: Error | null;
+}
+
+/**
+ * One pass over a records file in chunks, holding no more than a chunk and one line (F308). It hashes the raw bytes,
+ * decodes them as UTF-8 with a fatal decoder (a chunk may end inside a character) and finds the lines `parseRecords`
+ * finds: split on "\n", blank lines dropped, the rest handed to `onRecord` with their 1-based line numbers. With
+ * `validate` each record line must be JSON. A problem stops the decoding but not the hashing, so the hash is still
+ * known and the faults can be reported in readRecordsText's order: byte-order mark, UTF-8, JSON. The byte-order mark
+ * is looked for in the first three bytes themselves, before any decoding. Only a decoding error is a UTF-8 fault: an
+ * error from `onRecord` is the caller's and is thrown as it is.
+ */
+async function scanRecords(
+  records: string,
+  readChunks: CliDeps['readChunks'],
+  validate: boolean,
+  onRecord?: (line: string, no: number) => Promise<void>,
+): Promise<Scan> {
+  const hash = createHash('sha256');
+  const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+  let fault: Error | null = null;
+  let jsonFault: Error | null = null;
+  let broken = false;
+  const head: number[] = [];
+  // The text since the last newline, in pieces: joined only when its line ends, so a long line is not copied per chunk.
+  const pending: string[] = [];
+  let lineNo = 0;
+  let count = 0;
+  const line = async (text: string) => {
+    lineNo++;
+    if (!text.trim()) return;
+    count++;
+    if (validate && !jsonFault) {
+      try {
+        JSON.parse(text);
+      } catch {
+        jsonFault = new Error(`records line ${lineNo} is not JSON`);
+      }
+    }
+    await onRecord?.(text, lineNo);
+  };
+  const feed = async (decoded: string) => {
+    const pieces = decoded.split('\n');
+    for (let i = 0; i < pieces.length - 1; i++) {
+      pending.push(pieces[i]);
+      const text = pending.join('');
+      pending.length = 0;
+      await line(text);
+    }
+    pending.push(pieces[pieces.length - 1]);
+  };
+  const decode = (chunk?: Uint8Array): string | null => {
+    try {
+      return chunk ? decoder.decode(chunk, { stream: true }) : decoder.decode();
+    } catch {
+      fault = new Error(`${records} is not valid UTF-8`);
+      broken = true;
+      return null;
+    }
+  };
+  for await (const chunk of readChunks(records)) {
+    hash.update(chunk);
+    if (broken) continue;
+    if (head.length < 3) {
+      for (let i = 0; i < chunk.length && head.length < 3; i++) head.push(chunk[i]);
+      if (head.length === 3 && head[0] === 0xef && head[1] === 0xbb && head[2] === 0xbf) {
+        fault = new Error(`${records} starts with a byte-order mark; the records file must be plain UTF-8`);
+        broken = true;
+        continue;
+      }
+    }
+    const decoded = decode(chunk);
+    if (decoded !== null) await feed(decoded);
+  }
+  if (!broken) {
+    const decoded = decode();
+    if (decoded !== null) await feed(decoded);
+  }
+  if (!broken) await line(pending.join(''));
+  if (!fault && validate) {
+    fault = jsonFault ?? (count === 0 ? new Error('the records file holds no records') : null);
+  }
+  return { sha256: hash.digest('hex'), records: count, fault };
+}
+
+/** The receipt's verdict on a scan, with the errors and their order that readRecordsText gives. */
+function checkScan(records: string, receipt: { path: string; sha256: string; lines: number }, scan: Scan): void {
+  if (scan.sha256 !== receipt.sha256) {
+    throw new ReceiptError(
+      'receipt_mismatch',
+      `${records} is not the file ${receipt.path} describes (its sha256 differs from the receipt's)`,
+    );
+  }
+  if (scan.fault) throw scan.fault;
+  if (scan.records !== receipt.lines) {
+    throw new ReceiptError(
+      'receipt_mismatch',
+      `${records} holds ${scan.records} records, the receipt in ${receipt.path} says ${receipt.lines}`,
+    );
+  }
+}
+
 async function prepared(c: { collection: string; records: string }, deps: CliDeps) {
   const coll = checkCollection(JSON.parse(await deps.readText(c.collection)));
+  const size = await deps.fileSize(c.records);
+  if (size > MAX_RECORDS_BYTES) {
+    throw new Error(
+      `${c.records} is ${size} bytes, over the ${MAX_RECORDS_BYTES}-byte limit plan and run read whole; ` +
+        'cut it into parts with split and plan or run each part',
+    );
+  }
   const { records } = await readRecordsText(c.records, deps);
   const prep = await prepareAll(records, coll.prepare);
   const p: PlanResult = await plan(prep.requests, coll.limits);
@@ -367,35 +494,83 @@ export const automated =
  * same bytes. from_line and to_line are the input's own line numbers (1-based).
  */
 async function split(c: Extract<Command, { cmd: 'split' }>, deps: CliDeps): Promise<number> {
-  const { text } = await readRecordsText(c.records, deps);
-  const sha256 = await sha256Hex(text);
+  // Two passes over the file, each in chunks: the first checks it against its receipt and counts the records, so no
+  // part or receipt exists unless the file is vouched for; the second cuts the parts. A second read costs time, not
+  // memory, and buffering the parts instead would hold the file in memory, which is what this avoids (F308).
+  await deps.fileSize(c.records); // a records file that is missing is reported before its receipt
+  const receipt = await receiptFor(c.records, deps.readText);
+  // A part is held in memory while it is cut, and plan and run read it whole: none may pass their limit.
+  const maxPart = deps.maxPartBytes ?? MAX_RECORDS_BYTES;
+  const encoder = new TextEncoder();
+  let partNo = 0;
+  let inPart = 0;
+  let partBytes = 0;
+  let tooBig: Error | null = null;
+  const checked = await scanRecords(c.records, deps.readChunks, true, (line) => {
+    if (inPart === c.lines) {
+      partNo++;
+      inPart = 0;
+      partBytes = 0;
+    }
+    inPart++;
+    partBytes += encoder.encode(line).length + 1;
+    if (partBytes > maxPart) {
+      tooBig ??= new Error(
+        `part-${String(partNo).padStart(3, '0')}.jsonl would be over ${maxPart} bytes, the most plan and run read; ` +
+          'use a smaller --lines',
+      );
+    }
+    return Promise.resolve();
+  });
+  checkScan(c.records, receipt, checked);
+  if (tooBig) throw tooBig;
   const out = await refuseInCheckout(c.out, '--out', {
     repoRoot: REPO_ROOT,
     commonDir: deps.commonDir ?? gitCommonDir,
   });
   const held = (await deps.listDir(out)).filter((n) => /^part-\d+\.jsonl(\.receipt\.json)?$/.test(n));
   if (held.length > 0) throw new Error(`${out} already holds part files (${held[0]}); choose a new --out`);
-  const records: { line: string; no: number }[] = [];
-  text.split('\n').forEach((line, i) => {
-    if (line.trim()) records.push({ line, no: i + 1 });
-  });
-  const parts = Math.ceil(records.length / c.lines);
+  const parts = Math.ceil(checked.records / c.lines);
   if (parts > 999) throw new Error(`${parts} parts; use a larger --lines (at most 999 parts)`);
   await deps.makeDir(out);
-  for (let k = 0; k < parts; k++) {
-    const slice = records.slice(k * c.lines, (k + 1) * c.lines);
+  let slice: { line: string; no: number }[] = [];
+  let k = 0;
+  const receipts: { path: string; body: string }[] = [];
+  const flush = async () => {
     const body = slice.map((r) => r.line + '\n').join('');
-    const path = `${out}/part-${String(k).padStart(3, '0')}.jsonl`;
-    const receipt = {
+    const path = `${out}/part-${String(k++).padStart(3, '0')}.jsonl`;
+    const part = {
       output_sha256: await sha256Hex(body),
       lines_written: slice.length,
-      source: { records: c.records, sha256, from_line: slice[0].no, to_line: slice[slice.length - 1].no },
+      source: {
+        records: c.records,
+        sha256: checked.sha256,
+        from_line: slice[0].no,
+        to_line: slice[slice.length - 1].no,
+      },
     };
-    // The receipt first: a stop between the two leaves an orphan receipt, never a part without one.
-    await deps.writeText(`${path}.receipt.json`, JSON.stringify(receipt, null, 2) + '\n');
+    slice = [];
+    // The part now, its receipt only after the whole file has been read again and is still the one checked: a stop,
+    // or a file that changed, leaves parts with no receipt, which plan and run refuse.
+    receipts.push({ path: `${path}.receipt.json`, body: JSON.stringify(part, null, 2) + '\n' });
     await deps.writeText(path, body);
+  };
+  const cut = await scanRecords(c.records, deps.readChunks, false, async (line, no) => {
+    slice.push({ line, no });
+    if (slice.length === c.lines) await flush();
+  });
+  if (slice.length > 0) await flush();
+  // The file was the one checked, or the parts just written are not from it.
+  if (cut.sha256 !== checked.sha256) {
+    throw new ReceiptError(
+      'receipt_mismatch',
+      `${c.records} changed while it was being split; the parts under ${out} have no receipt and cannot be ` +
+        'loaded; split again into a new --out',
+    );
   }
-  deps.log(`${records.length} records in ${parts} parts under ${out}`);
+  if (cut.fault) throw cut.fault;
+  for (const r of receipts) await deps.writeText(r.path, r.body);
+  deps.log(`${checked.records} records in ${parts} parts under ${out}`);
   return 0;
 }
 
@@ -480,12 +655,19 @@ async function gitState(): Promise<{ commit: string; dirty: boolean }> {
   };
 }
 
+async function* readFileChunks(path: string): AsyncGenerator<Uint8Array> {
+  // The stream closes the file when it ends or when the reader stops early.
+  yield* (await Deno.open(path, { read: true })).readable;
+}
+
 if (import.meta.main) {
   try {
     Deno.exit(
       await main(Deno.args, {
         readText: (p) => Deno.readTextFile(p),
         readBytes: (p) => Deno.readFile(p),
+        fileSize: async (p) => (await Deno.stat(p)).size,
+        readChunks: readFileChunks,
         writeText: (p, b) => Deno.writeTextFile(p, b, { createNew: true }),
         git: gitState,
         db: (psql) => new PsqlDb(psqlExec([psql])),
