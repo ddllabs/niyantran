@@ -58,6 +58,11 @@ fixes, which replace existing text and have no path in the runner.
 
 Correction (2026-11-12): Regulatory is not "search-only, as today". Nothing admits it today (F330). Phase 1 therefore also needs a search-only admission branch (one migration), a change to the worker's shared text code with deploys of `ingest-worker` and `admin-ingest`, and a fix for the desk name's two spellings, before the screen can run. The tasks and approvals are in the Regulatory spec, `docs/specs/2026-11-12-regulatory-screen.md` (a draft on branch `task/regulatory-screen-spec`, under review); the table above stays as the outline.
 
+Built 2026-11-12 (F330 in [open work](open-work.md)): the search-only admission migration, the worker's shared text
+change and the generic screen, each independently reviewed, none applied or deployed. Phase 1's next steps are the
+publisher check (F332), the rehearsal, the hand check of 40 documents, then the NTER steps, each on the developer's yes
+and the owner's three gates.
+
 ## Phase 2: hardening
 
 Phase 2 runs in parallel with Phase 1, on its own branches.
