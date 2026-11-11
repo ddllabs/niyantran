@@ -4468,3 +4468,68 @@ Deno.test('F331: no saved source, frame, activity entry or repair prompt carries
     assert(!serialized.includes('Catalogue fields') && !serialized.includes(FACTS) && !serialized.includes('introduced 2025-03-04'), name);
   }
 });
+
+// ---- F332: the publisher in a citation -----------------------------------------------------------------------------
+
+const REG_DESK_FEATURE = 'Regulatory Body Watch (RBI SEBI TRAI CCI)';
+const PUBLISHER_NAME = 'Reserve Bank of India';
+
+Deno.test('F332: a Regulatory turn streams and saves its citation with the publisher, last; a Bills turn\'s citation is what it was', async () => {
+  const regulatory = { ...chunk('c-reg'), title: 'Master Direction on KYC', desk_feature: REG_DESK_FEATURE, publisher: PUBLISHER_NAME };
+  const reg = fakeDeps({ stream: citesFirstHandle() }, { searchDocuments: () => Promise.resolve([regulatory]) });
+  const regGot = await frames(await handleResearchChat(post({ ...BODY, turn_key: 'f332-reg' }), reg.deps));
+  const streamed = (regGot.find((f) => 'sources' in f) as unknown as { sources: Record<string, unknown>[] }).sources;
+  const saved = reg.rec.messages[0].sources as unknown as Record<string, unknown>[];
+  for (const s of [streamed[0], saved[0]]) {
+    assertEquals(s.publisher, PUBLISHER_NAME);
+    assertEquals(Object.keys(s).filter((k) => s[k] !== undefined).at(-1), 'publisher');
+  }
+  assertEquals(JSON.stringify(streamed), JSON.stringify(JSON.parse(JSON.stringify(saved))));
+
+  // A Bills chunk has no publisher (retrieval gives none), and its citation is exactly the pre-change shape.
+  const bills = fakeDeps({ stream: citesFirstHandle() }, { searchDocuments: () => Promise.resolve([chunk('c-1')]) });
+  const billsGot = await frames(await handleResearchChat(post({ ...BODY, turn_key: 'f332-bills' }), bills.deps));
+  const billsStreamed = (billsGot.find((f) => 'sources' in f) as unknown as { sources: unknown[] }).sources;
+  const golden = '[{"id":1,"kind":"text","chunk_id":"c-1","document_id":"doc-c-1","title":"The Delimitation Bill, 2026","desk_tier":"national","desk_feature":"Bill Passage Probability Index","char_from":0,"char_to":47,"text_hash":"hash-c-1","source_kind":"document"}]';
+  assertEquals(JSON.stringify(billsStreamed), golden);
+  assertEquals(JSON.stringify(bills.rec.messages[0].sources), golden);
+});
+
+Deno.test('F332: no tool frame, activity entry, trace or repair prompt carries a publisher header field', async () => {
+  const answerText = 'The Reserve Bank has issued the Master Direction on KYC for regulated entities. '.repeat(4);
+  let researchCalls = 0;
+  let toolReply = '';
+  let repairPrompt = '';
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    if (req.messages[0].content?.startsWith('You insert citation markers')) {
+      repairPrompt = JSON.stringify(req.messages);
+      yield text(answerText + '[1]');
+      yield finish();
+    } else if (researching(req)) {
+      if (researchCalls++ === 0) {
+        yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"KYC direction"}' };
+        yield finish('tool_calls');
+      } else yield finish();
+    } else {
+      toolReply = String(req.messages.find((m) => m.role === 'tool')?.content ?? '');
+      const token = toolReply.match(/ref:[a-z0-9]{6}-\d+/)?.[0];
+      yield text(envelope(answerText, token ? [{ id: 1, source: token }] : []));
+      yield finish();
+    }
+  };
+  const found = { ...chunk('c1'), title: 'Master Direction on KYC', desk_feature: REG_DESK_FEATURE, publisher: PUBLISHER_NAME };
+  const { deps, rec } = fakeDeps({ stream }, { searchDocuments: () => Promise.resolve([found]) });
+  const got = await frames(await handleResearchChat(post({ ...BODY, message: 'What is the KYC direction?', turn_key: 'f332-leak' }), deps));
+  // The model did see the field, so the guard below is not vacuous.
+  assertStringIncludes(toolReply, `| publisher: ${PUBLISHER_NAME}\n`);
+  assert(repairPrompt.length > 0, 'the repair pass ran');
+  const saved = rec.messages[0];
+  assert(saved.sources.length > 0 && (saved.sources[0] as unknown as Record<string, unknown>).publisher === PUBLISHER_NAME, 'the source carries it');
+  const toolFrames = got.filter((f) => 'tool' in f);
+  assert(toolFrames.length > 0);
+  for (const [name, value] of Object.entries({
+    toolFrames, activity: saved.activity, traces: rec.traces, repair: repairPrompt, content: saved.content,
+  })) {
+    assert(!JSON.stringify(value).includes('publisher:'), name);
+  }
+});

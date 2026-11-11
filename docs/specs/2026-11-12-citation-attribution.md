@@ -350,6 +350,33 @@ Also out: licence notes (OQ2); backfilling old messages; `chunkHeader.ts` and an
 | A malformed value breaks the reader | Closed set on the server; client sanitiser; readability ignores the field |
 | Deploy overlaps F331's watch | A5 after the watch; A7 only by explicit choice |
 
+## Build notes (2026-11-12)
+
+T1 to T5 are built and independently reviewed (accept with changes, applied). Where the build or the review corrects
+this spec, this section wins.
+
+- **Escape (D5).** In a printed title or feature, `\` is escaped first and `|` second, and the eight pipe lookalikes
+  the catalogue-fields cleaner removes become a space (`PIPE_LOOKALIKES` in `agent.ts`, pinned equal to the list in
+  `documentFacts.ts` by a test). Section labels keep their old escaping: 544 live chunks carry a backslash or a
+  lookalike there, so that is a separate tracker item.
+- **The rule sentence (D5).** Its last clause is "Publishing alone does not establish that a statement in it is that
+  body's finding; the passage text decides."
+- **Where the name is checked (D4, D5).** A publisher is kept only when it is one of the four table names and the row's
+  own desk is national Regulatory, at three points: when the chunk is built (`rowToChunk`), when the citation is built
+  (`textCitation`) and when the header is rendered.
+- **Resolver (D1).** A regulator code that is present but not a string blocks, as an unknown code does. Absent, null or
+  empty means no code.
+- **Source-list bubbles (D3).** The publisher is in the tooltip only, not in the `aria-label`: the chip already
+  announces it once.
+- **Known limitation.** The browser displays a saved citation's publisher as stored when it is a clean short string;
+  it does not hold its own list of names.
+- **Counts (read-only, 2026-11-12).** No live title or feature (23,289 documents) and no title in the v1.1 Regulatory
+  pack contains a pipe, a backslash or a lookalike bar, so no existing header changes.
+- **Tests.** 1,625 pass in `supabase/functions`; 7,244 in the client suite; lint clean. The build was not run locally.
+- **Not proven until a browser check:** that the reader's close control stays visible at a 375 px width. The tests
+  assert the stylesheet rules and the markup order only. The reviewer notes the three fixed-width controls of the bar
+  take about 270 px today, so a split pane at that width may already overflow without this change.
+
 ## Open questions
 
 **Owner**

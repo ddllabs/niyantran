@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { safeSourceUrl } from './SourceReader.jsx';
+import { publisherLine } from '../types/citation.js';
 
 /** Keep reference numbers meaningful when the answer leaves the workbench. */
 export function answerForCopy(m, hi = false) {
@@ -9,7 +10,8 @@ export function answerForCopy(m, hi = false) {
   const lines = sources.map(s => {
     const url = safeSourceUrl(s.file_url);
     const page = s.page_number ? ` · ${hi ? 'पृ.' : 'p.'} ${s.page_number}` : '';
-    return `[${s.id}] ${s.title}${page}${url ? ` — ${url}` : ''}`;
+    const publisher = publisherLine(s, hi ? 'hi' : 'en');
+    return `[${s.id}] ${s.title}${page}${publisher ? ` · ${publisher}` : ''}${url ? ` — ${url}` : ''}`;
   });
   return String(m.content || '') + (lines.length ? `\n\n${hi ? 'स्रोत' : 'Sources'}\n${lines.join('\n')}` : '');
 }

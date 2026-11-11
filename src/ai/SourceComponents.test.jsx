@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import CitationBubble from './CitationBubble.jsx';
 import SourceList, { documentChips, sourceGroups } from './SourceList.jsx';
 import SourceReader, * as reader from './SourceReader.jsx';
 
@@ -195,4 +196,91 @@ it('offers Open citations and independent exact passage buttons outside the docu
   expect(html).toContain('aria-label="Source 2: Evidence"');
   expect(html).toContain('aria-pressed="true"');
   expect(html).not.toMatch(/<button[^>]*class="ai-source-chip"[^>]*>(?:(?!<\/button>)[\s\S])*<button/);
+});
+
+// ---- F332: the publisher on the chip and the source-list bubble ----------------------------------------------------
+
+describe('the publisher in the source list (F332)', () => {
+  const RBI = 'Reserve Bank of India';
+  const SEBI = 'Securities and Exchange Board of India';
+  const REG = 'Regulatory Body Watch (RBI SEBI TRAI CCI)';
+  const reg = (id, document_id, extra = {}) => text(id, document_id, 'Master Direction on KYC', { desk_feature: REG, ...extra });
+
+  // Recorded on the code before the field existed (main 4535abab): a saved message without the key renders as it did.
+  const OLD_SOURCES = [
+    text(1, 'd1', 'THE ANTI-DOPING BILL, 2025', { desk_feature: 'Bill Passage Probability Index', document_role: 'as_introduced', file_name: 'a.pdf' }),
+    text(2, 'd2', 'THE ANTI-DOPING BILL, 2025', { desk_feature: 'Bill Passage Probability Index', document_role: 'as_passed_lok_sabha', source_kind: 'pdf_page', page_number: 3 }),
+    text(3, 'd3', 'Circular on KYC', { desk_feature: REG, source_kind: 'pdf_page', page_number: 9, file_url: 'https://rbidocs.rbi.org.in/x.pdf' }),
+    text(4, 'd4', 'Plain'),
+  ];
+  const OLD_HTML = "<section class=\"ai-sources-block\"><p class=\"ai-sources-label\">Sources \u00b7 3 documents</p><ul class=\"ai-sources\" aria-label=\"Sources\"><li><button type=\"button\" class=\"ai-source-chip\" title=\"THE ANTI-DOPING BILL, 2025\"><svg class=\"ai-source-icon\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z\"></path><path d=\"M14 3v5h5M9 13h6M9 17h4\"></path></svg><span class=\"ai-source-main\"><span class=\"ai-source-title\">THE ANTI-DOPING BILL, 2025</span><span class=\"ai-source-meta\"><span>Bill Passage Probability Index</span><span>p. 3</span></span></span><span class=\"ai-source-action\">Open citations<svg class=\"ai-source-go\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 6l6 6-6 6\"></path></svg></span></button><div class=\"ai-source-citations\" role=\"group\" aria-label=\"Citations\"><span>Cited passages</span><button type=\"button\" class=\"cite-bubble\" aria-pressed=\"false\" title=\"THE ANTI-DOPING BILL, 2025 \u2014 Bill Passage Probability Index \u00b7 As introduced\" aria-label=\"Source 1: THE ANTI-DOPING BILL, 2025 \u2014 Bill Passage Probability Index\">1</button><button type=\"button\" class=\"cite-bubble\" aria-pressed=\"false\" title=\"THE ANTI-DOPING BILL, 2025 \u2014 Bill Passage Probability Index \u00b7 As passed by Lok Sabha \u00b7 Page 3\" aria-label=\"Source 2: THE ANTI-DOPING BILL, 2025 \u2014 Bill Passage Probability Index\">2</button></div><div class=\"ai-source-versions\" role=\"group\" aria-label=\"Versions\"><button type=\"button\" class=\"ai-source-version-tag\" title=\"a.pdf\" aria-label=\"Open As introduced\">As introduced</button><button type=\"button\" class=\"ai-source-version-tag\" title=\"THE ANTI-DOPING BILL, 2025\" aria-label=\"Open As passed by Lok Sabha \u00b7 PDF\">As passed by Lok Sabha \u00b7 PDF</button></div></li><li><button type=\"button\" class=\"ai-source-chip\" title=\"Circular on KYC\"><svg class=\"ai-source-icon\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z\"></path><path d=\"M14 3v5h5M9 13h6M9 17h4\"></path></svg><span class=\"ai-source-main\"><span class=\"ai-source-title\">Circular on KYC</span><span class=\"ai-source-meta\"><span>Regulatory Body Watch (RBI SEBI TRAI CCI)</span><span>p. 9</span></span></span><span class=\"ai-source-action\">Open citations<svg class=\"ai-source-go\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 6l6 6-6 6\"></path></svg></span></button><div class=\"ai-source-citations\" role=\"group\" aria-label=\"Citations\"><span>Cited passages</span><button type=\"button\" class=\"cite-bubble\" aria-pressed=\"false\" title=\"Circular on KYC \u2014 Regulatory Body Watch (RBI SEBI TRAI CCI) \u00b7 Page 9\" aria-label=\"Source 3: Circular on KYC \u2014 Regulatory Body Watch (RBI SEBI TRAI CCI)\">3</button></div></li><li><button type=\"button\" class=\"ai-source-chip\" title=\"Plain\"><svg class=\"ai-source-icon\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z\"></path><path d=\"M14 3v5h5M9 13h6M9 17h4\"></path></svg><span class=\"ai-source-main\"><span class=\"ai-source-title\">Plain</span><span class=\"ai-source-meta\"></span></span><span class=\"ai-source-action\">Open citations<svg class=\"ai-source-go\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 6l6 6-6 6\"></path></svg></span></button><div class=\"ai-source-citations\" role=\"group\" aria-label=\"Citations\"><span>Cited passages</span><button type=\"button\" class=\"cite-bubble\" aria-pressed=\"false\" title=\"Plain\" aria-label=\"Source 4: Plain\">4</button></div></li></ul></section>";
+
+  it('a saved message without the key renders the markup it rendered before', () => {
+    expect(renderToStaticMarkup(<SourceList sources={OLD_SOURCES} />)).toBe(OLD_HTML);
+    expect(renderToStaticMarkup(<SourceList lang="hi" sources={OLD_SOURCES} />)).not.toContain('ai-source-publisher');
+  });
+
+  it('the chip shows "Published by <name>" before the feature; Hindi uses the Hindi label', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[reg(1, 'd1', { publisher: RBI, source_kind: 'pdf_page', page_number: 4 })]} />);
+    expect(html).toContain(`<span class="ai-source-publisher">Published by ${RBI}</span>`);
+    expect(html.indexOf('ai-source-publisher')).toBeLessThan(html.indexOf(REG));
+    expect(html.indexOf(REG)).toBeLessThan(html.indexOf('p. 4'));
+    const hi = renderToStaticMarkup(<SourceList lang="hi" sources={[reg(1, 'd1', { publisher: RBI })]} />);
+    expect(hi).toContain(`<span class="ai-source-publisher">प्रकाशक: ${RBI}</span>`);
+    expect(hi).not.toContain('class="ai-source-publisher">Published by');
+    // The bubble's label is English in v1 (it is not passed a language).
+    expect(hi).toContain(`· Published by ${RBI}"`);
+  });
+
+  it('a card of two versions with one publisher shows it; with two publishers, or one missing, it shows none', () => {
+    const f = { desk_feature: 'Bill Passage Probability Index' };
+    const v = (id, document_id, extra) => text(id, document_id, 'THE SPORTS BILL, 2025', { ...f, ...extra });
+    const same = [v(1, 'a', { document_role: 'as_introduced', publisher: RBI }), v(2, 'b', { document_role: 'as_passed_lok_sabha', publisher: RBI })];
+    expect(sourceGroups(same)).toHaveLength(1);
+    expect(sourceGroups(same)[0].publisher).toBe(RBI);
+    expect(renderToStaticMarkup(<SourceList sources={same} />)).toContain(`Published by ${RBI}`);
+    const differ = [v(1, 'a', { document_role: 'as_introduced', publisher: RBI }), v(2, 'b', { document_role: 'as_passed_lok_sabha', publisher: SEBI })];
+    expect(sourceGroups(differ)[0].publisher).toBe('');
+    expect(renderToStaticMarkup(<SourceList sources={differ} />)).not.toContain('ai-source-publisher');
+    const oneMissing = [v(1, 'a', { document_role: 'as_introduced', publisher: RBI }), v(2, 'b', { document_role: 'as_passed_lok_sabha' })];
+    expect(sourceGroups(oneMissing)[0].publisher).toBe('');
+    expect(renderToStaticMarkup(<SourceList sources={oneMissing} />)).not.toContain('ai-source-publisher');
+    // Grouping is unchanged by the publisher: the two documents still share one card.
+    expect(sourceGroups(differ)).toHaveLength(1);
+  });
+
+  it('an invalid publisher is not shown on the chip', () => {
+    for (const bad of ['', 7, {}, 'x'.repeat(81), 'A\nB', 'ref:abc123-1']) {
+      expect(renderToStaticMarkup(<SourceList sources={[reg(1, 'd1', { publisher: bad })]} />), JSON.stringify(bad)).not.toContain('ai-source-publisher');
+    }
+  });
+
+  it('the source-list bubble names the publisher in its tooltip only; an inline marker does not', () => {
+    const source = reg(1, 'd1', { publisher: RBI });
+    const listed = renderToStaticMarkup(<SourceList sources={[source]} />);
+    // The chip announces the publisher once; the bubble keeps it in its tooltip only.
+    expect(listed).toContain(`aria-label="Source 1: Master Direction on KYC — ${REG}"`);
+    expect(listed).not.toContain(`aria-label="Source 1: Master Direction on KYC — ${REG} · Published by`);
+    expect(listed).toContain(`title="Master Direction on KYC — ${REG} · Published by ${RBI}"`);
+    const inline = renderToStaticMarkup(<CitationBubble n={1} source={source} />);
+    expect(inline).toContain(`aria-label="Source 1: Master Direction on KYC — ${REG}"`);
+    expect(inline).toContain(`title="Master Direction on KYC — ${REG}"`);
+    expect(inline).not.toContain('Published by');
+    // A citation without a publisher keeps its label.
+    const plain = renderToStaticMarkup(<CitationBubble showContext n={1} source={reg(1, 'd1')} />);
+    expect(plain).toContain(`aria-label="Source 1: Master Direction on KYC — ${REG}"`);
+    expect(plain).not.toContain('Published by');
+    // A row citation never carries one.
+    expect(renderToStaticMarkup(<CitationBubble showContext n={9} source={{ ...row, publisher: RBI }} />)).not.toContain('Published by');
+  });
+});
+
+describe('a Hindi chip beside an English tooltip (F332, FU5)', () => {
+  it('localises the chip only: the bubble tooltip in the same card stays English', () => {
+    const source = text(1, 'd1', 'Master Direction on KYC', { desk_feature: 'Regulatory Body Watch (RBI SEBI TRAI CCI)', publisher: 'Reserve Bank of India' });
+    const html = renderToStaticMarkup(<SourceList lang="hi" sources={[source]} />);
+    expect(html).toContain('<span class="ai-source-publisher">प्रकाशक: Reserve Bank of India</span>');
+    expect(html).toContain('title="Master Direction on KYC — Regulatory Body Watch (RBI SEBI TRAI CCI) · Published by Reserve Bank of India"');
+    expect(html).not.toContain('प्रकाशक: Reserve Bank of India"');
+  });
 });

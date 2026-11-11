@@ -49,6 +49,8 @@ export interface TextCitation {
   section?: CitationSection;
   /** F116: the bill version retrieval verified from the document's metadata; absent when unknown. */
   document_role?: string;
+  /** F332: who published the document, one of a closed set of names (publisher.ts); absent when unknown. Always the last key. */
+  publisher?: string;
 }
 
 export interface RowCitation {

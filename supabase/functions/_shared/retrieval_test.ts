@@ -220,6 +220,74 @@ Deno.test('rowToChunk keeps document_facts only as a short single-line string', 
   assertEquals(kept.text_hash, await sha256Hex('content a'));
 });
 
+const REG = 'Regulatory Body Watch (RBI SEBI TRAI CCI)';
+const REG_SLASHES = 'Regulatory Body Watch (RBI/SEBI/TRAI/CCI)';
+const RBI = 'Reserve Bank of India';
+
+Deno.test('hydration attaches publisher to Regulatory documents only, in both spellings, and discards a supplied value', async () => {
+  const { hydrateDocumentRoles } = await import('./retrieval.ts');
+  const regulatory = { ...row('r1', 0.9), document_id: 'rbi', desk_feature: REG, file_url: null };
+  const rows = [
+    regulatory,
+    { ...regulatory, id: 'r2', similarity: 0.85, document_id: 'sebi', desk_feature: REG_SLASHES },
+    { ...regulatory, id: 'r3', similarity: 0.8, document_id: 'forged', publisher: 'forged from the RPC' },
+    { ...row('b1', 0.7), document_id: 'bill', publisher: 'Reserve Bank of India' },
+    { ...row('l1', 0.6), document_id: 'law', desk_tier: 'law', desk_feature: REG, publisher: RBI },
+    { ...regulatory, id: 'r4', similarity: 0.5, document_id: 'nometa', publisher: RBI },
+    { ...regulatory, id: 'r5', similarity: 0.4, document_id: 'hosted', file_url: 'https://rbidocs.rbi.org.in/x.pdf' },
+  ];
+  const metadata: Record<string, unknown> = {
+    rbi: { citation: { regulator: 'RBI' } },
+    sebi: { citation: { regulator: 'SEBI' } },
+    forged: {},
+    bill: BILL_META,
+    law: { citation: { regulator: 'RBI' } },
+    nometa: {},
+    hosted: {},
+  };
+  const out = await hydrateDocumentRoles(rows, ids => Promise.resolve(ids.map(id => ({ id, metadata: metadata[id] }))));
+  assertEquals(out.map(r => r.id), ['r1', 'r2', 'r3', 'b1', 'l1', 'r4', 'r5']);
+  assertEquals(out.map(r => r.similarity), [0.9, 0.85, 0.8, 0.7, 0.6, 0.5, 0.4]);
+  assertEquals(out[0].publisher, RBI);
+  assertEquals(out[1].publisher, 'Securities and Exchange Board of India');
+  assertEquals(out[6].publisher, RBI, 'the row file_url is a host candidate');
+  for (const i of [2, 3, 4, 5]) assertEquals(Object.hasOwn(out[i], 'publisher'), false, `row ${i}`);
+  // Bills catalogue data is untouched by the new field.
+  assertEquals(out[3].document_facts, FACTS);
+  // Without a metadata read there is no value to keep: the RPC's is still dropped.
+  const none = await hydrateDocumentRoles([rows[5]], ids => Promise.resolve(ids.map(id => ({ id }))));
+  assertEquals(Object.hasOwn(none[0], 'publisher'), false);
+});
+
+Deno.test('a publisher resolver that throws still returns the rows with their other fields', async () => {
+  const { hydrateDocumentRoles } = await import('./retrieval.ts');
+  const rows = [
+    { ...row('b1', 0.9), document_id: 'bill', publisher: 'forged' },
+    { ...row('r1', 0.8), document_id: 'rbi', desk_feature: REG, publisher: 'forged' },
+  ];
+  const out = await hydrateDocumentRoles(rows,
+    ids => Promise.resolve(ids.map(id => ({ id, metadata: id === 'bill' ? BILL_META : { citation: { regulator: 'RBI' } } }))),
+    undefined, () => { throw new Error('resolver fault'); });
+  assertEquals(out.map(r => r.id), ['b1', 'r1']);
+  assertEquals(out.map(r => r.similarity), [0.9, 0.8]);
+  assertEquals(out[0].document_role, 'as_introduced');
+  assertEquals(out[0].document_facts, FACTS);
+  assertEquals(out.map(r => Object.hasOwn(r, 'publisher')), [false, false]);
+});
+
+Deno.test('rowToChunk keeps publisher only as a short single-line string without control or format characters', async () => {
+  const regRow = (id: string, over: Record<string, unknown> = {}) => ({ ...row(id, 0.9), desk_feature: REG, ...over });
+  const kept = await rowToChunk(regRow('a', { publisher: RBI }));
+  assertEquals(kept.publisher, RBI);
+  assertEquals((await rowToChunk(regRow('a', { publisher: 'Telecom Regulatory Authority of India', desk_feature: REG_SLASHES }))).publisher, 'Telecom Regulatory Authority of India');
+  const old = await rowToChunk(regRow('a'));
+  assertEquals(Object.hasOwn(old, 'publisher'), false);
+  for (const bad of ['x'.repeat(81), 'a\nb', 'a\rb', 'a\u2028b', 'a\u2029b', 'a\u202eb', 'a\u200bb', 'a\u0000b', 'a\u007Fb', 'a\u0085b', '', 12, null, { a: 1 }, ['x'], true]) {
+    assertEquals(Object.hasOwn(await rowToChunk(regRow('a', { publisher: bad })), 'publisher'), false, JSON.stringify(bad));
+  }
+  assertEquals(kept.text_hash, await sha256Hex('content a'));
+});
+
 // F288: hybrid search with a vector-only fallback.
 const ON: HybridConfig = { enabled: true, hybridMs: 2_500, fallbackMs: 4_000 };
 const OFF: HybridConfig = { enabled: false, hybridMs: 2_500, fallbackMs: 4_000 };
@@ -442,4 +510,17 @@ Deno.test('F288: parseHybridFlag: only boolean true enables; budgets default and
     assertEquals([f.hybridMs, f.fallbackMs], [2_500, 4_000], `malformed ${String(bad)} takes the default`);
   }
   assertEquals(parseHybridFlag({ enabled: true, hybrid_ms: 1_234.7 }).hybridMs, 1_235, 'rounded');
+});
+
+Deno.test('rowToChunk keeps a publisher only if it is one of the four names and the row is a national Regulatory one', async () => {
+  const names = ['Reserve Bank of India', 'Securities and Exchange Board of India', 'Telecom Regulatory Authority of India', 'Competition Commission of India'];
+  for (const publisher of names) assertEquals((await rowToChunk({ ...row('a', 0.9), desk_feature: REG, publisher })).publisher, publisher);
+  // Another desk carrying a table name gets none.
+  assertEquals(Object.hasOwn(await rowToChunk({ ...row('a', 0.9), publisher: RBI }), 'publisher'), false);
+  assertEquals(Object.hasOwn(await rowToChunk({ ...row('a', 0.9), desk_tier: 'law', desk_feature: REG, publisher: RBI }), 'publisher'), false);
+  assertEquals(Object.hasOwn(await rowToChunk({ ...row('a', 0.9), desk_tier: undefined, desk_feature: undefined, publisher: RBI }), 'publisher'), false);
+  // A Regulatory row carrying a clean string outside the table gets none.
+  for (const publisher of ['Parliament of India', 'reserve bank of india', 'Reserve Bank of India ', 'Some Body', 'x'.repeat(80)]) {
+    assertEquals(Object.hasOwn(await rowToChunk({ ...row('a', 0.9), desk_feature: REG, publisher }), 'publisher'), false, publisher);
+  }
 });

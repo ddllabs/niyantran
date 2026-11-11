@@ -6,6 +6,7 @@
 import type { CitationSection } from './citation.types.ts';
 import { documentFacts, FACTS_MAX_CHARS } from './documentFacts.ts';
 import { EMBED_DIMS, servedModelMatches } from './embed.ts';
+import { documentPublisher, isPublisherName, isRegulatoryFeature } from './publisher.ts';
 import { normalise, sha256Hex } from './textNormalise.ts';
 
 export const DOCUMENT_ROLE_LABELS = {
@@ -26,10 +27,13 @@ export function documentRole(value: unknown): DocumentRole | undefined {
  * Metadata stays caller-authorized and bounded; no source text or filename inference. Each row also gets
  * `document_facts`, the catalogue line built from the metadata read here and the row's own tier and feature; a value the
  * RPC supplied is discarded, as `document_role` is. Building the line is total: a failure leaves the row without it.
+ * Each row also gets `publisher` (publisher.ts), from the same metadata, the row's tier and feature and its `file_url`,
+ * under the same rules.
  */
 export async function hydrateDocumentRoles(
   rows: unknown[], read: (ids: string[]) => Promise<{ id: string; metadata?: unknown }[]>,
   format: typeof documentFacts = documentFacts,
+  resolvePublisher: typeof documentPublisher = documentPublisher,
 ): Promise<Record<string, unknown>[]> {
   const records = rows.map(row => row as Record<string, unknown>);
   const ids = [...new Set(records.map(row => String(row.document_id ?? '')))];
@@ -48,7 +52,7 @@ export async function hydrateDocumentRoles(
     if (page.some(id => !roles.has(id))) throw new Error('retrieved document metadata unavailable');
   }
   return records.map(row => {
-    const { document_role: _unverifiedRole, document_facts: _unverifiedFacts, ...rest } = row;
+    const { document_role: _unverifiedRole, document_facts: _unverifiedFacts, publisher: _unverifiedPublisher, ...rest } = row;
     const id = String(row.document_id);
     const role = roles.get(id);
     let facts = '';
@@ -57,7 +61,18 @@ export async function hydrateDocumentRoles(
     } catch {
       facts = '';
     }
-    return { ...rest, ...(role ? { document_role: role } : {}), ...(facts ? { document_facts: facts } : {}) };
+    let publisher = '';
+    try {
+      publisher = resolvePublisher(row.desk_tier, row.desk_feature, metadatas.get(id), row.file_url);
+    } catch {
+      publisher = '';
+    }
+    return {
+      ...rest,
+      ...(role ? { document_role: role } : {}),
+      ...(facts ? { document_facts: facts } : {}),
+      ...(publisher ? { publisher } : {}),
+    };
   });
 }
 
@@ -79,6 +94,8 @@ export interface Chunk {
   document_role?: DocumentRole;
   /** The document's catalogue line (documentFacts): never embedded, never cited, one line of at most 160 characters. */
   document_facts?: string;
+  /** Who published the document (publisher.ts): one of a closed set of names, Regulatory only; never embedded. */
+  publisher?: string;
   /** sha256(normalise(content)) — what a citation carries and the reader recomputes. */
   text_hash: string;
   // Page chunks only (chunk-contract spec). Absent - never null or empty - on
@@ -218,6 +235,9 @@ export async function rowToChunk(raw: unknown): Promise<Chunk> {
   if (role) chunk.document_role = role;
   const facts = r.document_facts;
   if (typeof facts === 'string' && facts && facts.length <= FACTS_MAX_CHARS && !/[\r\n\u2028\u2029]/.test(facts)) chunk.document_facts = facts;
+  const publisher = r.publisher;
+  // Only one of the four names, and only on the row's own national Regulatory desk.
+  if (isPublisherName(publisher) && isRegulatoryFeature(chunk.desk_tier, chunk.desk_feature)) chunk.publisher = publisher as string;
   return chunk;
 }
 

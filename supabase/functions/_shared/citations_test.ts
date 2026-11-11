@@ -281,3 +281,53 @@ Deno.test('a text citation carries the verified document role, and none when the
   assertEquals(introduced.document_role, 'as_introduced');
   assert(!('document_role' in plain));
 });
+
+// F332: a citation says who published the document. The key is written last and only when the chunk has one, so a citation
+// without it is byte-for-byte what it was before the field existed.
+const GOLDEN_PAGE = '[{"id":1,"kind":"text","chunk_id":"c1","document_id":"d1","title":"Circular on KYC","file_name":"kyc.pdf","file_url":"https://rbidocs.rbi.org.in/x.pdf","desk_tier":"national","desk_feature":"Regulatory Body Watch (RBI SEBI TRAI CCI)","char_from":10,"char_to":99,"text_hash":"h1","source_kind":"pdf_page","page_number":4,"section":{"heading":"Part A","note":"n"},"document_role":"as_introduced"}]';
+const GOLDEN_PLAIN = '[{"id":1,"kind":"text","chunk_id":"c2","document_id":"d1","title":"Circular on KYC","char_from":10,"char_to":99,"text_hash":"h1","source_kind":"document"}]';
+
+Deno.test('a citation without a publisher serialises exactly as it did before the field existed', () => {
+  const full = chunk('c1', {
+    document_id: 'd1', title: 'Circular on KYC', source_kind: 'pdf_page', page_number: 4, char_from: 10, char_to: 99, text_hash: 'h1',
+    file_name: 'kyc.pdf', file_url: 'https://rbidocs.rbi.org.in/x.pdf', desk_tier: 'national',
+    desk_feature: 'Regulatory Body Watch (RBI SEBI TRAI CCI)', document_role: 'as_introduced', section: { heading: 'Part A', note: 'n' },
+  });
+  assertEquals(JSON.stringify(buildSources({ 1: full }, [1])), GOLDEN_PAGE);
+  const plain = chunk('c2', { document_id: 'd1', title: 'Circular on KYC', char_from: 10, char_to: 99, text_hash: 'h1' });
+  assertEquals(JSON.stringify(buildSources({ 1: plain }, [1])), GOLDEN_PLAIN);
+  // An empty value is no value.
+  assertEquals(JSON.stringify(buildSources({ 1: { ...plain, publisher: '' } }, [1])), GOLDEN_PLAIN);
+});
+
+Deno.test('a citation with a publisher differs only by a last publisher key', () => {
+  const full = chunk('c1', {
+    document_id: 'd1', title: 'Circular on KYC', source_kind: 'pdf_page', page_number: 4, char_from: 10, char_to: 99, text_hash: 'h1',
+    file_name: 'kyc.pdf', file_url: 'https://rbidocs.rbi.org.in/x.pdf', desk_tier: 'national',
+    desk_feature: 'Regulatory Body Watch (RBI SEBI TRAI CCI)', document_role: 'as_introduced', section: { heading: 'Part A', note: 'n' },
+    publisher: 'Reserve Bank of India',
+  });
+  const withKey = '"publisher":"Reserve Bank of India"}]';
+  assertEquals(JSON.stringify(buildSources({ 1: full }, [1])), GOLDEN_PAGE.replace(/}]$/, `,${withKey}`));
+  const plain = chunk('c2', {
+    document_id: 'd1', title: 'Circular on KYC', char_from: 10, char_to: 99, text_hash: 'h1', publisher: 'Reserve Bank of India',
+    desk_tier: 'national', desk_feature: 'Regulatory Body Watch (RBI/SEBI/TRAI/CCI)',
+  });
+  assertEquals(JSON.stringify(buildSources({ 1: plain }, [1])), GOLDEN_PLAIN.replace('"char_from"', '"desk_tier":"national","desk_feature":"Regulatory Body Watch (RBI/SEBI/TRAI/CCI)","char_from"').replace(/}]$/, `,${withKey}`));
+  const keys = Object.keys(buildSources({ 1: full }, [1])[0]);
+  assertEquals(keys[keys.length - 1], 'publisher');
+});
+
+Deno.test('a citation copies a publisher only when it is a table name on a national Regulatory chunk', () => {
+  const base = { document_id: 'd1', title: 'Circular on KYC', char_from: 10, char_to: 99, text_hash: 'h1' };
+  const reg = { desk_tier: 'national', desk_feature: 'Regulatory Body Watch (RBI SEBI TRAI CCI)' };
+  const cite = (over: Partial<Chunk>) => buildSources({ 1: chunk('c', { ...base, ...over }) }, [1])[0] as TextCitation;
+  assertEquals(cite({ ...reg, publisher: 'Reserve Bank of India' }).publisher, 'Reserve Bank of India');
+  // Another desk, a Law chunk, or a chunk with no desk: none, even with a table name.
+  for (const other of [{ desk_tier: 'national', desk_feature: 'Bill Passage Probability Index' }, { ...reg, desk_tier: 'law' }, {}]) {
+    assert(!('publisher' in cite({ ...other, publisher: 'Reserve Bank of India' })));
+  }
+  // A Regulatory chunk with a clean string outside the table: none.
+  assert(!('publisher' in cite({ ...reg, publisher: 'Parliament of India' })));
+  assert(!('publisher' in cite({ ...reg, publisher: 'reserve bank of india' })));
+});

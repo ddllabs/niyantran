@@ -1,6 +1,7 @@
 import { observationInstructions, OBSERVATION_SCHEMA, renderObservationSelection as renderObservation, type ObservationContext } from './observationAnswer.ts';
 import { lawAttributionContext } from '../_shared/lawContext.ts';
 import { FACTS_MAX_CHARS, isBillsFeature } from '../_shared/documentFacts.ts';
+import { isPublisherName, isRegulatoryFeature } from '../_shared/publisher.ts';
 import { placeholderAnswer } from './answerValidation.ts';
 // One dependency-injected research loop. The handler owns authentication,
 // failover, persistence and the public stream; this module never retries a
@@ -401,6 +402,22 @@ function oneLine(v: string): string {
   return v.replace(/[\p{Cc}\u2028\u2029]|(?![\u200C\u200D])\p{Cf}/gu, ' ');
 }
 
+/**
+ * The bars that look like `|` (U+FF5C, U+2502, U+2223, U+01C0, U+01C1, U+00A6, U+04C0 and the combining U+20D2). These are
+ * the lookalikes `cleanFreeText` removes (documentFacts.ts); a test pins the two lists equal.
+ */
+export const PIPE_LOOKALIKES = '\uFF5C\u2502\u2223\u01C0\u01C1\u00A6\u04C0\u20D2';
+const LOOKALIKE_BARS = new RegExp(`[${PIPE_LOOKALIKES}]`, 'gu');
+
+/**
+ * A title or feature as one header field: on one line, lookalike bars turned into spaces, then `\` escaped as `\\` and
+ * `|` as `\|` (the backslash first, so an escape cannot be undone by a backslash the text already holds). Text with none of
+ * these characters is unchanged.
+ */
+function headerText(v: string): string {
+  return oneLine(v).replace(LOOKALIKE_BARS, ' ').replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
+}
+
 const CATALOGUE_LABEL = 'Catalogue fields (not passage text; cite no passage for them): ';
 
 /**
@@ -412,6 +429,15 @@ function catalogueLine(c: Chunk): string {
   const facts = c.document_facts;
   if (typeof facts !== 'string' || !facts || facts.length > FACTS_MAX_CHARS || /[\r\n\u2028\u2029]/.test(facts)) return '';
   return isBillsFeature(c.desk_tier, c.desk_feature) ? `${CATALOGUE_LABEL}${facts}\n` : '';
+}
+
+/**
+ * The publisher field of a national Regulatory passage header (`publisher: <name>`), or ''. It is printed only when the
+ * chunk's own desk is Regulatory at render time and the value is exactly one of the fixed names, so a chunk of any other
+ * desk, or with any other value, prints nothing. It is a header field, so a length measurement can leave it out.
+ */
+function publisherField(c: Chunk): string {
+  return isRegulatoryFeature(c.desk_tier, c.desk_feature) && isPublisherName(c.publisher) ? `publisher: ${c.publisher}` : '';
 }
 
 /** The passages of one search reply, each with its handle; a document's catalogue line goes under its first passage. */
@@ -432,13 +458,17 @@ function renderReply(kept: Chunk[], handles: HandleAssigner): string {
  * `handle | title | desk_feature | page <n> | <heading › note>`. The section
  * is document text, so it is flattened to one line and every `|` in it is
  * escaped as `\|` (escaped rather than replaced, so the heading still reads as
- * printed): it cannot add a field or a line. Title and feature are left as
- * they always were. No storage path or other location is ever included.
+ * printed): it cannot add a field or a line. Title and feature are put on one line and have `|` escaped the same way
+ * (F332), so neither can add a field, the publisher's among them. A Regulatory passage adds `publisher: <name>` after the
+ * version and before the page (`publisherField`), unless `opts.publisher` is false (length measurements). No storage
+ * path or other location is ever included.
  */
-export function renderChunk(handle: string, c: Chunk, opts: { facts?: boolean } = {}): string {
-  const fields = [handle, oneLine(c.title), oneLine(c.desk_feature ?? '')];
+export function renderChunk(handle: string, c: Chunk, opts: { facts?: boolean; publisher?: boolean } = {}): string {
+  const fields = [handle, headerText(c.title), headerText(c.desk_feature ?? '')];
   const role = documentRole(c.document_role);
   if (role) fields.push(`version: ${DOCUMENT_ROLE_LABELS[role]}`);
+  const publisher = opts.publisher === false ? '' : publisherField(c);
+  if (publisher) fields.push(publisher);
   if (c.source_kind === 'pdf_page' && typeof c.page_number === 'number') {
     fields.push(`page ${c.page_number}`);
   }
@@ -470,7 +500,7 @@ function withinReply(found: Chunk[], limit: number | null, prefix: string): Chun
   const kept: Chunk[] = [];
   let length = prefix.length;
   for (const c of found) {
-    const piece = renderChunk(HANDLE_ROOM, c, { facts: false }).length + (kept.length ? 2 : 0);
+    const piece = renderChunk(HANDLE_ROOM, c, { facts: false, publisher: false }).length + (kept.length ? 2 : 0);
     if (kept.length && length + piece > limit) break;
     kept.push(c);
     length += piece;
@@ -485,7 +515,7 @@ function retainLawReview(existing: Chunk[], found: Chunk[]): Chunk[] {
   const kept: Chunk[] = [];
   let size = 0;
   for (const c of accumulate(existing, found.filter(c => c.desk_tier === 'law'))) {
-    const cost = renderChunk(HANDLE_ROOM, c, { facts: false }).length;
+    const cost = renderChunk(HANDLE_ROOM, c, { facts: false, publisher: false }).length;
     if (kept.length >= 256 || size + cost > 300_000) continue;
     kept.push(c);
     size += cost;

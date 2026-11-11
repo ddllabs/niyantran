@@ -7,6 +7,7 @@
 // fixture src/lib/__fixtures__/citations.json is read by both test suites.
 
 import type { CitationBox, CitationImage, CitationSource, TextCitation } from './citation.types.ts';
+import { isPublisherName, isRegulatoryFeature } from './publisher.ts';
 import type { Chunk } from './retrieval.ts';
 
 export const MAX_CITATION_ID = 99;
@@ -251,6 +252,7 @@ export function textCitation(id: number, c: Chunk, page?: PageEvidence): TextCit
   if (images?.length) out.images = images.map((i) => ({ ...i }));
   if (c.section) out.section = { ...c.section };
   if (c.document_role) out.document_role = c.document_role;
+  if (isPublisherName(c.publisher) && isRegulatoryFeature(c.desk_tier, c.desk_feature)) out.publisher = c.publisher;
   return out;
 }
 
