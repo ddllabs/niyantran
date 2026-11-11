@@ -100,6 +100,11 @@ chain() {
     ingest_register_batch|ingest_register_text_parity|ingest_register_batch_attack)
       chain document_chunks_partitions
       FILES+=("$TESTS/bootstrap_corpus_ingest.sql" "$(as_non_superuser 20261102130000_batch_registration.sql)") ;;
+    # F291: ingest_batch_resume may requeue a stopped batch's failed jobs. ingest_register_batch's chain, then the
+    # migration, as a non-superuser. The vacuity check drops the last.
+    ingest_batch_resume_requeue)
+      chain ingest_register_batch
+      FILES+=("$(as_non_superuser 20261112090000_batch_resume_requeue.sql)") ;;
     # F290: the admission lookups no longer scan the corpus. ingest_register_batch's chain, then the
     # migration, as a non-superuser. The vacuity check drops the last.
     ingest_admission_scans)
