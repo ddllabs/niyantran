@@ -50,13 +50,21 @@ next collections load the same way with no hand steps. Each phase names what it 
 | 6. NTER: policy, a 100-document batch, then the load | supervisor, each step on the developer's yes | acceptance passes on every file |
 | 7. Cold measurement straight after the load | supervisor | hybrid (T9) decided: ship or hold |
 
+Task 1 result (2026-11-11, counts in [open work](open-work.md) F307): Regulatory is larger than this plan assumed. v1.1
+has 3,319 records and v1.4 about 46,000; v1.3, v1.5 and v1.6 are not read yet. Nothing read is barred or marked not
+servable. So Phase 1 loads v1.1 only, and v1.4 is a second Regulatory load. The spec (task 2) must also settle: records
+over the per-document limit (22 in v1.1; F311), very short records, duplicate suggested keys in SEBI, and the RBI text
+fixes, which replace existing text and have no path in the runner.
+
 ## Phase 2: hardening
 
 Phase 2 runs in parallel with Phase 1, on its own branches.
 
-- F308: large records files. `split` streams, and `plan` and `run` refuse an oversized file.
+- F308: large records files. `split` streams, and `plan` and `run` refuse an oversized file. Done 2026-11-11.
 - The two findings from the F321 review: receipt read errors in `screen.ts`, and `pack.ts` with a byte-order mark.
-- F301 and F291: design first, then the stronger builder.
+  Done 2026-11-11.
+- F301 and F291: designed 2026-11-11 (see their lines in open work); the build waits on the developer's choice, and
+  F291's fixture needs room in the SQL job (F302).
 - The shared-key refusal for Bills (the open part of F314). Trace first. Build after Phase 1 task 3, because both touch
   the Bills screen file.
 
