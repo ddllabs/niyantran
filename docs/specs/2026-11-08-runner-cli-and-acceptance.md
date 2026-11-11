@@ -48,6 +48,12 @@ The first validation batch needs a command the developer runs from their own ter
     `source` is well formed and covers at least `lines_written` lines), or it is `receipt_unreadable`.
     `receipt_missing` means the receipt file was not found; any other read error is `receipt_unreadable`. Receipts
     are not signed: the checks catch a wrong or careless receipt, not a forged one.
+  - Amended 2026-11-11 (F308): `split` no longer holds the file. It reads it in chunks twice: the first pass makes
+    every check above and counts the records; the second cuts the parts and hashes the file again. Part receipts are
+    written only after the second pass finds the same hash, so a stop, a failed write or a file that changed leaves
+    parts with no receipt, which `plan` and `run` refuse; split again into a new `--out`. A part that would pass
+    256 MiB is refused before anything is written (use a smaller `--lines`). `plan` and `run` refuse a records file
+    over 256 MiB before reading it and say to cut it with `split`.
   - `split --records <file> --lines <n> --out <dir>`: after that check, writes `part-NNN.jsonl` files of at most n
     records, in order and byte for byte, each with a receipt (`output_sha256`, `lines_written`, and `source`: the input's
     path and sha256 and the line range). It refuses an `--out` that already holds parts. Parts replace a hand split.
