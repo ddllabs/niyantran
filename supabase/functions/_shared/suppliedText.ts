@@ -18,6 +18,26 @@ export const NATIONAL_QUESTIONS = Object.freeze({ tier: 'national', feature: 'Pa
  */
 export const NATIONAL_BILLS = Object.freeze({ tier: 'national', feature: 'Bill Passage Probability Index' });
 const BILL_URL = /^https:\/\/sansad\.in\/getFile\/(BillsTexts|BillsPDFFiles)\//;
+/**
+ * National desks admitted search-only, batch only (F307): stored, chunked and found by search in their feature, with
+ * no listing link. Each is named as its documents and chunks spell it (the corpus spelling, not the catalogue's).
+ * Identity is the pack's source_key; ingest_admit_document re-checks the basis and the file_url, refuses a file_url or
+ * a document_key_suggested that a document of the feature already holds, and writes no link. ingest_register_text
+ * refuses them.
+ */
+export const NATIONAL_SEARCH_ONLY = Object.freeze([
+  Object.freeze({ tier: 'national', feature: 'Regulatory Body Watch (RBI SEBI TRAI CCI)' }),
+]);
+/** The hosts a search-only file_url may name, exactly (public.ingest_admit_document holds the same list). */
+export const SEARCH_ONLY_HOSTS = Object.freeze(['rbidocs.rbi.org.in', 'www.rbi.org.in', 'www.sebi.gov.in']);
+/** What showed a search-only text complete: the page check against the official PDF, or the density rule alone. */
+export const COMPLETENESS_BASES = Object.freeze(['page_check', 'density_only']);
+const utf8Bytes = (s: string) => new TextEncoder().encode(s).length;
+/** A search-only file_url: https, a configured host exactly (no user, no port), and the segment rule of a bill's URL. */
+export function searchOnlyUrlOk(url: string): boolean {
+  const host = /^https:\/\/([^/]*)\//.exec(url)?.[1];
+  return host !== undefined && SEARCH_ONLY_HOSTS.includes(host) && billUrlSegmentsOk(url);
+}
 
 /**
  * A bill's file_url is safe to read as stored. On the whole URL: no control character (a URL parser strips tab and line
@@ -98,13 +118,31 @@ export async function prepareSuppliedText(value: unknown, options: { batch?: boo
     throw new Error('text hash mismatch');
   }
   const bill = !law && r.desk_tier === NATIONAL_BILLS.tier && r.desk_feature === NATIONAL_BILLS.feature;
+  const searchOnly = !law && NATIONAL_SEARCH_ONLY.some((d) => d.tier === r.desk_tier && d.feature === r.desk_feature);
   const deskOk = law
     ? r.desk_tier === 'law'
-    : bill || (r.desk_tier === NATIONAL_QUESTIONS.tier && r.desk_feature === NATIONAL_QUESTIONS.feature);
-  if (!DESK_CATALOG.some((e) => e.tier === r.desk_tier && e.feature === r.desk_feature) || !deskOk) {
+    : bill || searchOnly || (r.desk_tier === NATIONAL_QUESTIONS.tier && r.desk_feature === NATIONAL_QUESTIONS.feature);
+  // A search-only desk is named as its documents spell it, which is not the catalogue's spelling.
+  if ((!searchOnly && !DESK_CATALOG.some((e) => e.tier === r.desk_tier && e.feature === r.desk_feature)) || !deskOk) {
     throw new Error('unsupported desk feature');
   }
-  if (bill) {
+  if (searchOnly) {
+    if (typeof r.completeness_basis !== 'string' || !COMPLETENESS_BASES.includes(r.completeness_basis)) {
+      throw new Error('a search-only record needs its completeness_basis (page_check or density_only)');
+    }
+    // At most 2,000 UTF-8 bytes (octet_length in admission), so the unique file_url index can always hold it.
+    if (
+      r.file_url != null &&
+      (typeof r.file_url !== 'string' || utf8Bytes(r.file_url) > 2000 || !searchOnlyUrlOk(r.file_url))
+    ) {
+      throw new Error('a search-only file_url must be an official https file on a configured host, at most 2,000 bytes');
+    }
+    // Absent or null is no key; else a string, non-blank after trim(), of at most 500 UTF-8 bytes (as admission).
+    const key = r.document_key_suggested;
+    if (key != null && (typeof key !== 'string' || !key.trim() || utf8Bytes(key) > 500)) {
+      throw new Error('a search-only document_key_suggested must be a non-blank string of at most 500 bytes');
+    }
+  } else if (bill) {
     const c = object(r.citation, 'citation');
     const url = String(r.file_url ?? '');
     if (!BILL_URL.test(url) || !billUrlSegmentsOk(url)) throw new Error('a bill needs its official sansad.in file_url');
@@ -216,6 +254,8 @@ export async function prepareSuppliedText(value: unknown, options: { batch?: boo
     if (r.servable !== undefined && r.servable !== null && typeof r.servable !== 'boolean') throw new Error('invalid servable');
     if (r.servable === false) input.servable = false;
   }
+  // Search-only desks only: other desks never carry it, so their payloads are unchanged.
+  if (searchOnly) input.completeness_basis = r.completeness_basis;
   if (bill) {
     input.document_key = r.document_key;
     input.document_role = r.document_role;

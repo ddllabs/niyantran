@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from 'jsr:@std/assert@1';
-import { pqAnswerKey, prepareSuppliedText } from './suppliedText.ts';
+import { COMPLETENESS_BASES, NATIONAL_SEARCH_ONLY, pqAnswerKey, prepareSuppliedText, SEARCH_ONLY_HOSTS } from './suppliedText.ts';
 import { sha256Hex } from './textNormalise.ts';
 import { chunkTextWithContext } from './textContext.ts';
 
@@ -211,5 +211,158 @@ Deno.test('a bill carries the hash of the pack text it was stripped from; a ques
     const withHash = await prepareSuppliedText({ ...r, original_text_sha256: orig }, { batch: true });
     assertEquals(withHash.payload, (await prepareSuppliedText(r, { batch: true })).payload);
     assertEquals(withHash.payload_sha256, (await prepareSuppliedText(r, { batch: true })).payload_sha256);
+  }
+});
+
+// ═══ National search-only desks (F307, docs/specs/2026-11-12-regulatory-screen.md, Admission) ═══
+
+// payload_sha256 of each record as the adapter prepared it before search-only desks existed (computed at 0e628f30).
+// The worker compares a stored payload with a fresh one (ingest-worker/supplied-step.ts), so these must never move.
+const BEFORE_SEARCH_ONLY: [string, () => Promise<unknown>, boolean, string][] = [
+  ['law', input, false, 'a0288fcad3eb0ac982340bef5bc33d56e18a490dc51ccf9c23bc3ee4e4999522'],
+  ['law, batch', input, true, 'a0288fcad3eb0ac982340bef5bc33d56e18a490dc51ccf9c23bc3ee4e4999522'],
+  ['question', nationalQuestion, false, 'f70f4cdadde3ea69e625dce3c7ad3012973d361571d34bb21e5dbc6d2ca25711'],
+  ['question, batch, not servable', async () => ({ ...(await nationalQuestion()), servable: false }), true,
+    'c9424ef4853652a7b9f768a5c41a72222c5bafc7487ba7fcf096583b1ed0640a'],
+  ['bill', nationalBill, false, '87203adff04a2ca03acdef306b2846ac56397022a0b9175d8a25633b1c825b72'],
+  ['bill, batch, original hash', async () => ({ ...(await nationalBill()), original_text_sha256: 'a'.repeat(64) }), true,
+    'c62609fddd0dfe11ad1a69bb508d33ca928055e928db3401d097a22d5560f364'],
+  ['bill, batch, identity checked', async () => {
+    const b = await nationalBill();
+    return { ...b, review: { ...b.review, checks: { ...b.review.checks, bill_identity: true } } };
+  }, true, 'a1f3cfba6952175460f8f57dc20ad9fe3655f883061227d44ea70c4581b0bbc4'],
+];
+Deno.test('Law, question and bill payloads are byte-identical to the adapter before search-only desks', async () => {
+  for (const [name, make, batch, sha] of BEFORE_SEARCH_ONLY) {
+    const r = await make() as Record<string, unknown>;
+    assertEquals((await prepareSuppliedText(r, { batch })).payload_sha256, sha, name);
+    // A basis on another desk is not theirs to carry: dropped, as the question desk drops a bill's key.
+    for (const completeness_basis of ['page_check', 'density_only', 'invented']) {
+      assertEquals((await prepareSuppliedText({ ...r, completeness_basis }, { batch })).payload_sha256, sha, `${name} + ${completeness_basis}`);
+    }
+  }
+});
+
+const REGULATORY = 'Regulatory Body Watch (RBI SEBI TRAI CCI)';
+/** A Regulatory pack record (synthetic): the corpus (space) spelling, a pack suggested key, an official RBI file. */
+async function regulatory(): Promise<Record<string, unknown>> {
+  const q = await nationalQuestion();
+  return {
+    ...q,
+    title: 'Master Direction on Fixture Accounts',
+    desk_feature: REGULATORY,
+    file_name: 'MD01FIXTURE.PDF',
+    file_url: 'https://rbidocs.rbi.org.in/rdocs/notification/PDFs/MD01FIXTURE.PDF',
+    document_key_suggested: 'reg:rbi:md01fixture',
+    doc_type: 'regulatory',
+    source_host: 'rbi.org.in',
+    licence_class: 'govt_material_confirm_counsel',
+    extraction: 'pdf_text',
+    citation: { kind: 'regulatory', regulator: 'RBI', regulator_name: 'Reserve Bank of India', title: 'Master Direction', date: '2025-04-01', source: 'rbi.org.in' },
+    completeness_basis: 'page_check',
+  };
+}
+Deno.test('NATIONAL_SEARCH_ONLY holds the Regulatory desk, under the spelling its documents use', () => {
+  assertEquals(NATIONAL_SEARCH_ONLY.map((d) => `${d.tier}|${d.feature}`), [`national|${REGULATORY}`]);
+  assertEquals([...SEARCH_ONLY_HOSTS], ['rbidocs.rbi.org.in', 'www.rbi.org.in', 'www.sebi.gov.in']);
+  assertEquals([...COMPLETENESS_BASES], ['page_check', 'density_only']);
+});
+Deno.test('a search-only record is prepared with its basis, with or without a file_url, and re-plans to the same bytes', async () => {
+  const r = await regulatory();
+  for (const rec of [r, { ...r, completeness_basis: 'density_only' }, { ...r, file_url: undefined, file_name: undefined },
+    { ...r, file_url: null }, { ...r, file_url: 'https://www.sebi.gov.in/legal/circulars/apr-2025/fixture_1.html' },
+    { ...r, file_url: 'https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=1&Mode=0' },
+    { ...r, file_url: 'https://rbidocs.rbi.org.in/rdocs/x/MD01 FIX....PDF' }]) {
+    const p = await prepareSuppliedText(rec, { batch: true });
+    assertEquals(p.input.desk_tier, 'national');
+    assertEquals(p.input.desk_feature, REGULATORY);
+    assertEquals(p.input.completeness_basis, rec.completeness_basis);
+    assertEquals(JSON.parse(p.payload).completeness_basis, rec.completeness_basis);
+    assertEquals(p.input.file_url, rec.file_url ?? undefined);
+    assertEquals(p.input.document_key_suggested, 'reg:rbi:md01fixture');
+    // The worker re-prepares the stored payload without the batch option and must get the same bytes.
+    assertEquals((await prepareSuppliedText(JSON.parse(p.payload))).payload_sha256, p.payload_sha256);
+  }
+});
+Deno.test('a search-only record without a valid completeness basis is refused', async () => {
+  const r = await regulatory();
+  for (const completeness_basis of [undefined, null, '', 'Page_check', 'density only', 'page_check ', true, 1, ['page_check'], { v: 'page_check' }]) {
+    await assertRejects(() => prepareSuppliedText({ ...r, completeness_basis }, { batch: true }), Error, 'completeness_basis', String(completeness_basis));
+  }
+});
+Deno.test('a search-only file_url must be https on a configured host with no dot or encoded-separator segment', async () => {
+  const r = await regulatory();
+  for (
+    const file_url of [
+      '',
+      'http://rbidocs.rbi.org.in/rdocs/a.pdf',
+      'HTTPS://rbidocs.rbi.org.in/rdocs/a.pdf',
+      'https://RBIDOCS.rbi.org.in/rdocs/a.pdf',
+      'https://rbi.org.in/rdocs/a.pdf',
+      'https://sebi.gov.in/legal/a.html',
+      'https://rbidocs.rbi.org.in.example.com/a.pdf',
+      'https://example.com/https://rbidocs.rbi.org.in/a.pdf',
+      'https://user@rbidocs.rbi.org.in/a.pdf',
+      'https://rbidocs.rbi.org.in:443/a.pdf',
+      'https://rbidocs.rbi.org.in',
+      'https://rbidocs.rbi.org.in/rdocs/../a.pdf',
+      'https://rbidocs.rbi.org.in/rdocs/./a.pdf',
+      'https://rbidocs.rbi.org.in/rdocs/%2e%2e/a.pdf',
+      'https://rbidocs.rbi.org.in/rdocs/..%2fa.pdf',
+      'https://rbidocs.rbi.org.in/rdocs/x%5ca.pdf',
+      'https://rbidocs.rbi.org.in/rdocs/x\\a.pdf',
+      'https://rbidocs.rbi.org.in/rdocs/..;/a.pdf',
+      'https://rbidocs.rbi.org.in/rdocs/x/..\r/a.pdf',
+      'https://rbidocs.rbi.org.in/rdocs/x/.\t./a.pdf',
+      'https://sansad.in/getFile/loksabhaquestions/annex/187/AU6302_KIQmzb.pdf?source=pqals',
+    ]
+  ) {
+    await assertRejects(() => prepareSuppliedText({ ...r, file_url }, { batch: true }), Error, 'file_url', JSON.stringify(file_url));
+  }
+});
+Deno.test('only the corpus spelling of a search-only desk, on the National tier, with a National key', async () => {
+  const r = await regulatory();
+  // The listing (slash) spelling is in the catalogue but is not a search-only desk.
+  await assertRejects(() => prepareSuppliedText({ ...r, desk_feature: 'Regulatory Body Watch (RBI/SEBI/TRAI/CCI)' }), Error, 'feature');
+  await assertRejects(() => prepareSuppliedText({ ...r, desk_feature: 'regulatory body watch (rbi sebi trai cci)' }), Error, 'feature');
+  await assertRejects(() => prepareSuppliedText({ ...r, desk_tier: 'law' }), Error, 'feature');
+  await assertRejects(() => prepareSuppliedText({ ...r, desk_tier: 'state' }), Error, 'feature');
+  const law = await input();
+  await assertRejects(() => prepareSuppliedText({ ...law, desk_tier: 'national', desk_feature: REGULATORY }), Error, 'feature');
+  await assertRejects(() => prepareSuppliedText({ ...r, source_key: 'B'.repeat(40), review: { ...r.review as object, source_key: 'B'.repeat(40) } }), Error, 'source_key');
+  // The question desk keeps its answer-URL rule, and a question cannot borrow the search-only path.
+  const q = await nationalQuestion();
+  await assertRejects(() => prepareSuppliedText({ ...q, file_url: r.file_url, completeness_basis: 'page_check' }), Error, 'sansad.in');
+});
+Deno.test('a search-only file_url is at most 2,000 UTF-8 bytes, as admission measures it', async () => {
+  const r = await regulatory();
+  const base = 'https://rbidocs.rbi.org.in/rdocs/';
+  const url = (bytes: number, tail = '') => base + 'a'.repeat(bytes - base.length - tail.length - 4) + tail + '.PDF';
+  assertEquals(new TextEncoder().encode(url(2000)).length, 2000);
+  assertEquals((await prepareSuppliedText({ ...r, file_url: url(2000) }, { batch: true })).input.file_url, url(2000));
+  await assertRejects(() => prepareSuppliedText({ ...r, file_url: url(2001) }, { batch: true }), Error, 'file_url');
+  await assertRejects(() => prepareSuppliedText({ ...r, file_url: url(2900) }, { batch: true }), Error, 'file_url');
+  // 1,000 two-byte characters: under 2,000 characters, over 2,000 bytes.
+  const wide = base + 'é'.repeat(1000) + '.PDF';
+  assertEquals(wide.length < 2000 && new TextEncoder().encode(wide).length > 2000, true);
+  await assertRejects(() => prepareSuppliedText({ ...r, file_url: wide }, { batch: true }), Error, 'file_url');
+});
+Deno.test('a search-only document_key_suggested is a non-blank string of at most 500 UTF-8 bytes', async () => {
+  const r = await regulatory();
+  const key = (bytes: number) => 'reg:' + 'k'.repeat(bytes - 4);
+  assertEquals((await prepareSuppliedText({ ...r, document_key_suggested: key(500) }, { batch: true })).input.document_key_suggested, key(500));
+  await assertRejects(() => prepareSuppliedText({ ...r, document_key_suggested: key(501) }, { batch: true }), Error, 'document_key_suggested');
+  await assertRejects(() => prepareSuppliedText({ ...r, document_key_suggested: key(2900) }, { batch: true }), Error, 'document_key_suggested');
+  const wide = 'reg:' + 'é'.repeat(249); // 253 characters, 502 bytes
+  assertEquals(wide.length < 500 && new TextEncoder().encode(wide).length === 502, true);
+  await assertRejects(() => prepareSuppliedText({ ...r, document_key_suggested: wide }, { batch: true }), Error, 'document_key_suggested');
+  // Shape: a string, non-blank after trimming (JavaScript's whitespace); absent or null means no key.
+  for (const document_key_suggested of [5, true, ['reg:x'], { k: 'reg:x' }, '', '   ', '\t\n', '　', '﻿ ']) {
+    await assertRejects(() => prepareSuppliedText({ ...r, document_key_suggested }, { batch: true }), Error, 'document_key_suggested',
+      JSON.stringify(document_key_suggested));
+  }
+  assertEquals((await prepareSuppliedText({ ...r, document_key_suggested: '5' }, { batch: true })).input.document_key_suggested, '5');
+  for (const document_key_suggested of [undefined, null]) {
+    assertEquals('document_key_suggested' in (await prepareSuppliedText({ ...r, document_key_suggested }, { batch: true })).input, false);
   }
 });
