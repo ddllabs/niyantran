@@ -594,3 +594,17 @@ Deno.test('the exact persona bytes survive the prompt sandwich, including outer 
 Deno.test('F261 synthesis is not labelled verbatim without an exact retrieved quotation',()=>{
  assertStringIncludes(SYSTEM_PROMPT_STATIC,'Do not label a synthesis, summary or reconstructed table as verbatim');
 });
+
+// F331: a catalogue line under a Bills passage is data about the document, not passage text. The rule is one bullet of
+// the citation rules in the static prompt; the persona files are not touched.
+Deno.test('F331: the citation rules say a catalogue line is not passage text and is not cited for', () => {
+  const start = SYSTEM_PROMPT_STATIC.indexOf('Citations:');
+  const rules = SYSTEM_PROMPT_STATIC.slice(start, SYSTEM_PROMPT_STATIC.indexOf('\n\n', start));
+  assert(start >= 0 && rules.startsWith('Citations:'));
+  assertStringIncludes(rules, "- A line that starts 'Catalogue fields' under a passage lists the document's catalogue data. It is not passage text: do not quote it as the passage, and do not cite a passage for a fact that only that line states.");
+  // The static block opens every prompt, with or without a persona.
+  assertStringIncludes(buildSystemPrompt({ persona: 'p', today: 'x', catalogue: 'c', focus: 'broad' }), rules);
+  // The existing citation rules are all still there.
+  assertStringIncludes(rules, 'copy the handle verbatim as "source"');
+  assertStringIncludes(rules, 'Never write a handle in the answer text.');
+});

@@ -71,7 +71,8 @@ Decomposition examples:
 const CITATIONS = `Citations:
 - Every passage and row you were shown carries a handle that starts with "ref:". In "sources", copy the handle verbatim as "source" and give it a small integer "id"; in the answer, cite with the plain number in square brackets, like [1] or [2].
 - One number per bracket. Number sources sequentially from 1 in the order you first cite them. Cite only handles you were given in this turn. Never write a handle in the answer text.
-- A claim taken from the record carries a citation. Reasoning of your own carries none and is marked as inference.`;
+- A claim taken from the record carries a citation. Reasoning of your own carries none and is marked as inference.
+- A line that starts 'Catalogue fields' under a passage lists the document's catalogue data. It is not passage text: do not quote it as the passage, and do not cite a passage for a fact that only that line states.`;
 
 const INTERNAL = `Internal information:
 - Never print a handle, id, UUID, row key, storage path or field name in prose. Name the module and the record the way the desk labels them.
