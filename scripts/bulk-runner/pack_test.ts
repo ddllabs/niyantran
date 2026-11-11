@@ -472,6 +472,27 @@ areaTest('select: a line that is not JSON is refused with its number, and nothin
   assert(!logs.join('\n').includes('"c"'));
 });
 
+areaTest(
+  'select: a line that starts with a byte-order mark is refused with its number, and nothing is written',
+  async (a) => {
+    const bom = new Uint8Array([0xef, 0xbb, 0xbf]);
+    const enc = new TextEncoder();
+    const raw = new Uint8Array([...enc.encode(rec('a') + NL), ...bom, ...enc.encode(rec('b') + NL)]);
+    const { zip } = await makePack([{ name: ENTRY, data: await gzip(raw) }]);
+    const e = await assertRejects(() => main(sel(a, ENTRY), depsFor(a, fakeDrive(zip).client).deps), Error, 'line 2');
+    assert(e.message.includes('byte-order mark'), e.message);
+    assertEquals(await listing(a.work), []);
+  },
+);
+
+areaTest('select: a line with invalid UTF-8 is refused with its number, and nothing is written', async (a) => {
+  const enc = new TextEncoder();
+  const raw = new Uint8Array([...enc.encode(rec('a') + NL), ...enc.encode('{"x":"'), 0xff, ...enc.encode('"}' + NL)]);
+  const { zip } = await makePack([{ name: ENTRY, data: await gzip(raw) }]);
+  await assertRejects(() => main(sel(a, ENTRY), depsFor(a, fakeDrive(zip).client).deps), Error, 'line 2');
+  assertEquals(await listing(a.work), []);
+});
+
 areaTest('select: a blank line in the middle is refused as a bad line', async (a) => {
   const { zip } = await makePack([{ name: ENTRY, data: await gzip([rec('a'), '', rec('b')].join(NL) + NL) }]);
   await assertRejects(() => main(sel(a, ENTRY), depsFor(a, fakeDrive(zip).client).deps), Error, 'line 2');
