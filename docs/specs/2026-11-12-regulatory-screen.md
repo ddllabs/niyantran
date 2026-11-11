@@ -470,6 +470,11 @@ and its setup script, one new migration, `supabase/tests/national_search_only.sq
 
 ## Open questions (developer)
 
+**Decided 2026-11-12 (developer, taking the recommendations):** D1 option (ii), the density-only basis with the hand
+check of 40 before any load; D2 search-only for the 121; D3 refuse a live suggested key; D4 hold the OCR records; D5
+hold the long and short records; D6 `maxChunks` 700; D7 the generic screen. D8 stays open until T5. The build of T1,
+T2 and T3 may start; the owner's gates (O1 to O3) and every NTER step keep their own approvals.
+
 - **D1 (the largest).** 2,583 of the 2,697 candidates have no `file_url`; 43 more have an HTML or ASPX one. Their text
   cannot be checked against an official file. (i) Hold them until the owner's pack supplies URLs: the first load is at
   most 114, of which only the 78 RBI PDFs can be page-checked. (ii) Approve the named density-only basis for text-layer
