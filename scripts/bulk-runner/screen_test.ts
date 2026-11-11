@@ -790,6 +790,17 @@ areaTest('main: a receipt that names no pack, entry or manifest is refused', asy
   }
 });
 
+areaTest('main: a receipt that cannot be read is reported as unreadable, not as missing', async (a) => {
+  const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k1'))]);
+  await Deno.remove(`${f.path}.receipt.json`);
+  await Deno.mkdir(`${f.path}.receipt.json`); // a directory in the receipt's place: present, but not readable as a file
+  const e = await assertRejects(() => readInput(f.path, 'records'), Error, 'could not be read');
+  assert(!e.message.includes('is missing'), e.message);
+  const g = await reader(a, 'c.jsonl', [JSON.stringify(rec('k1'))]);
+  await Deno.remove(`${g.path}.receipt.json`);
+  await assertRejects(() => readInput(g.path, 'records'), Error, 'is missing');
+});
+
 areaTest('main: an empty run (the receipt says no lines) is refused', async (a) => {
   const f = await reader(a, 'b.jsonl', [], { lines_written: 0 });
   await assertRejects(() => main(argv(a, f.path), depsFor(a).deps), Error, 'empty run');

@@ -9,6 +9,7 @@ import {
   checkReceiptsDir,
   type CliDeps,
   main,
+  MAX_RECORDS_BYTES,
   parseArgs,
   parseRecords,
   REPO_ROOT,
@@ -83,7 +84,13 @@ type Files = Record<string, string | Uint8Array>;
 const enc = (v: string | Uint8Array) => typeof v === 'string' ? new TextEncoder().encode(v) : v;
 const notFound = (p: string) => Promise.reject(new Deno.errors.NotFound(`no file ${p}`));
 
-function deps(files: Files, over: Partial<CliDeps> = {}) {
+/** The bytes cut into chunks of `size` (the last may be shorter); a size of 0 gives one chunk. */
+async function* chunksOf(bytes: Uint8Array, size: number): AsyncGenerator<Uint8Array> {
+  const step = size > 0 ? size : Math.max(bytes.length, 1);
+  for (let i = 0; i < bytes.length; i += step) yield bytes.slice(i, i + step);
+}
+
+function deps(files: Files, over: Partial<CliDeps> = {}, chunk = 0) {
   const lines: string[] = [];
   const written = new Map<string, string>();
   const db = new FakeDb();
@@ -91,6 +98,11 @@ function deps(files: Files, over: Partial<CliDeps> = {}) {
   const d: CliDeps = {
     readText: (p) => p in files ? Promise.resolve(new TextDecoder().decode(enc(files[p]))) : notFound(p),
     readBytes: (p) => (p in files ? Promise.resolve(enc(files[p])) : notFound(p)),
+    fileSize: (p) => (p in files ? Promise.resolve(enc(files[p]).length) : notFound(p)),
+    readChunks: (p) => {
+      if (!(p in files)) throw new Deno.errors.NotFound(`no file ${p}`);
+      return chunksOf(enc(files[p]), chunk);
+    },
     writeText: (p, b) => {
       if (written.has(p)) return Promise.reject(new Error(`exists: ${p}`));
       written.set(p, b);
@@ -590,6 +602,192 @@ Deno.test('split: a screened file is split under the screen’s receipt', async 
     Error,
     'receipt_mismatch',
   );
+});
+
+// F308: split reads the records file in chunks. The text below has multi-byte characters (2 and 3 bytes), and each
+// variant is a shape the line reader must get right whatever the chunk size.
+const STREAM_LINES = ['{"k":"é₹-1"}', '{"k":"plain-2"}', '{"k":"₹₹₹-3"}', '{"k":"é-4"}', '{"k":"end-5"}'];
+const STREAM_SHAPES: Record<string, string> = {
+  'LF with a trailing newline': STREAM_LINES.join('\n') + '\n',
+  'no trailing newline': STREAM_LINES.join('\n'),
+  'CRLF lines': STREAM_LINES.join('\r\n') + '\r\n',
+  'blank lines among the records': '\n' + STREAM_LINES.slice(0, 2).join('\n') + '\n\n  \n' +
+    STREAM_LINES.slice(2).join('\n') + '\n\n',
+};
+
+/** A records file as raw bytes with a reader receipt for them; `count` is the receipt's record count. */
+async function rawFiles(bytes: Uint8Array, count: number, over: Rec = {}): Promise<Files> {
+  const sha = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes.slice()))]
+    .map((x) => x.toString(16).padStart(2, '0')).join('');
+  return {
+    'r.jsonl': bytes,
+    'r.jsonl.receipt.json': JSON.stringify({
+      pack: 'national-v1.1',
+      entry: 'questions.jsonl',
+      manifest_sha256: H,
+      output_sha256: sha,
+      lines_written: count,
+      ...over,
+    }),
+  };
+}
+
+Deno.test('split (F308): never reads the whole file, and parts are the same bytes whatever the chunk size', async () => {
+  for (const [shape, text] of Object.entries(STREAM_SHAPES)) {
+    const bytes = new TextEncoder().encode(text);
+    const f = await rawFiles(bytes, STREAM_LINES.length);
+    const whole = deps(f);
+    assertEquals(await main(splitArgs(), whole.d), 0, shape);
+    // Parts hold each record byte for byte, "\r" kept, and a "\n" ended on each.
+    const body = [...whole.written].filter(([k]) => k.endsWith('.jsonl')).map(([, v]) => v).join('');
+    assertEquals(body, text.split('\n').filter((l) => l.trim()).map((l) => l + '\n').join(''), shape);
+    // Every chunk size, so every boundary falls inside a character, inside a line and on a newline.
+    for (let size = 1; size <= bytes.length; size++) {
+      const x = deps(f, {
+        readBytes: () => Promise.reject(new Error('the whole file was read')),
+        readText: (p) =>
+          p === 'r.jsonl' ? Promise.reject(new Error('the whole file was read as text')) : deps(f).d.readText(p),
+      }, size);
+      assertEquals(await main(splitArgs(), x.d), 0, `${shape}, chunk ${size}`);
+      assertEquals([...x.written], [...whole.written], `${shape}, chunk ${size}`);
+    }
+  }
+});
+
+Deno.test('split (F308): a chunk boundary inside a multi-byte character, a line, or on a newline, named', async () => {
+  const text = '{"k":"é"}\n{"k":"₹"}\n';
+  const bytes = new TextEncoder().encode(text);
+  const f = await rawFiles(bytes, 2);
+  const at = (needle: number[]) => {
+    for (let i = 0; i + needle.length <= bytes.length; i++) if (needle.every((b, j) => bytes[i + j] === b)) return i;
+    throw new Error('not found');
+  };
+  const euro = at([0xe2, 0x82, 0xb9]); // the three bytes of the rupee sign
+  const cuts = [euro + 1, euro + 2, at([0xc3, 0xa9]) + 1, 5, 10, /* just after the first newline */ bytes.length - 1];
+  assertEquals(bytes[10], 0x0a);
+  const whole = deps(f);
+  await main(splitArgs(), whole.d);
+  for (const cut of cuts) {
+    const x = deps(f, {
+      readChunks: () =>
+        (async function* () {
+          yield bytes.slice(0, cut);
+          yield bytes.slice(cut);
+        })(),
+    });
+    assertEquals(await main(splitArgs(), x.d), 0, `cut at ${cut}`);
+    assertEquals([...x.written], [...whole.written], `cut at ${cut}`);
+  }
+});
+
+Deno.test('split (F308): invalid UTF-8 in a later chunk, or a cut-off character at the end, is refused and nothing is written', async () => {
+  const good = new TextEncoder().encode('{"k":"a"}\n{"k":"b"}\n');
+  const cases: Record<string, Uint8Array> = {
+    'a stray byte in the second chunk': new Uint8Array([...good.slice(0, 12), 0xff, ...good.slice(12)]),
+    'a continuation byte with no lead': new Uint8Array([...good, 0x80]),
+    'a character cut off at the end': new Uint8Array([...good, 0xe2, 0x82]),
+  };
+  for (const [name, bytes] of Object.entries(cases)) {
+    for (const size of [1, 4, 0]) {
+      const x = deps(await rawFiles(bytes, 2), {}, size);
+      await assertRejects(() => main(splitArgs(), x.d), Error, 'not valid UTF-8', `${name}, chunk ${size}`);
+      assertEquals(x.written.size, 0, name);
+    }
+  }
+});
+
+Deno.test('split (F308): a byte-order mark is refused whichever chunk it arrives in, and nothing is written', async () => {
+  const bytes = new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode('{"k":"a"}\n')]);
+  for (const size of [1, 2, 3, 0]) {
+    const x = deps(await rawFiles(bytes, 1), {}, size);
+    await assertRejects(() => main(splitArgs(), x.d), Error, 'byte-order mark', `chunk ${size}`);
+    assertEquals(x.written.size, 0);
+  }
+});
+
+Deno.test('split (F308): a wrong hash or count is refused after reading in chunks, and nothing is written', async () => {
+  const bytes = new TextEncoder().encode(STREAM_SHAPES['LF with a trailing newline']);
+  const wrong = await rawFiles(bytes, STREAM_LINES.length, { output_sha256: H });
+  for (const [f, code] of [[wrong, 'receipt_mismatch'], [await rawFiles(bytes, 4), 'receipt_mismatch']] as const) {
+    const x = deps(f, {}, 3);
+    await assertRejects(() => main(splitArgs(), x.d), Error, code);
+    assertEquals(x.written.size, 0);
+  }
+  // A line that is not JSON, and a file with no records, are refused with the messages plan gives.
+  for (const [text, msg] of [['{"k":1}\nnope\n', 'records line 2 is not JSON'], ['\n  \n', 'holds no records']]) {
+    const x = deps(await rawFiles(new TextEncoder().encode(text), 1), {}, 2);
+    await assertRejects(() => main(splitArgs(), x.d), Error, msg);
+    assertEquals(x.written.size, 0);
+  }
+  // A missing records file is reported before a missing receipt, as it was.
+  await assertRejects(() => main(splitArgs(), deps({}).d), Deno.errors.NotFound);
+});
+
+Deno.test('split (F308): a file that changes between the check and the cut is stopped', async () => {
+  const a = new TextEncoder().encode('{"k":"a"}\n{"k":"b"}\n{"k":"c"}\n');
+  const b = new TextEncoder().encode('{"k":"a"}\n{"k":"b"}\n{"k":"X"}\n');
+  const f = await rawFiles(a, 3);
+  let reads = 0;
+  const x = deps(f, { readChunks: () => chunksOf(reads++ === 0 ? a : b, 5) });
+  const e = await assertRejects(() => main(splitArgs('/var/parts', '2'), x.d), Error, 'receipt_mismatch');
+  // The parts already cut carry no receipt, so plan and run refuse them: receipts are written only after the re-check.
+  assertStringIncludes(e.message, 'no receipt');
+  assertEquals([...x.written.keys()].filter((k) => k.endsWith('.receipt.json')), []);
+});
+
+Deno.test('split (F308): a write that fails stops the split, whatever the error’s type', async () => {
+  const f = await rawFiles(new TextEncoder().encode('{"k":1}\n{"k":2}\n{"k":3}\n{"k":4}\n{"k":5}\n{"k":6}\n'), 6);
+  for (const err of [new TypeError('bad path'), new Error('disk full')]) {
+    let writes = 0;
+    const x = deps(f, { writeText: () => (++writes === 2 ? Promise.reject(err) : Promise.resolve()) }, 7);
+    const e = await assertRejects(() => main(splitArgs('/var/parts', '2'), x.d));
+    assertEquals(e, err);
+    assertEquals(x.lines, []);
+  }
+});
+
+Deno.test('split (F308): a byte-order mark is named even when invalid UTF-8 follows it in the same chunk', async () => {
+  const bytes = new Uint8Array([0xef, 0xbb, 0xbf, 0xff, ...new TextEncoder().encode('{"k":1}\n')]);
+  for (const chunk of [0, 1, 2, 3, 4]) {
+    const x = deps(await rawFiles(bytes, 1), {}, chunk);
+    await assertRejects(() => main(splitArgs(), x.d), Error, 'byte-order mark');
+    assertEquals(x.written.size, 0);
+  }
+});
+
+Deno.test('split (F308): a part that plan and run would refuse as too large is refused before anything is written', async () => {
+  const text = '{"k":"aaaaaaaaaa"}\n{"k":"bbbbbbbbbb"}\n{"k":"cc"}\n';
+  const f = await rawFiles(new TextEncoder().encode(text), 3);
+  // Two 19-byte lines make a 38-byte part; one line a part fits.
+  const big = deps(f, { maxPartBytes: 30 }, 5);
+  const e = await assertRejects(() => main(splitArgs('/var/parts', '2'), big.d), Error, 'smaller --lines');
+  assertStringIncludes(e.message, 'part-000.jsonl');
+  assertEquals(big.written.size, 0);
+  const ok = deps(f, { maxPartBytes: 30 }, 5);
+  assertEquals(await main(splitArgs('/var/parts', '1'), ok.d), 0);
+  assertEquals(ok.written.size, 6);
+});
+
+Deno.test('plan and run (F308): a records file over the byte limit is refused before it is read, naming size, limit and split', async () => {
+  const records = JSON.stringify(await question(1));
+  const f = await files(COLLECTION, records);
+  const size = MAX_RECORDS_BYTES + 1;
+  for (
+    const argv of [plan1, ['run', '--collection', 'c.json', '--records', 'r.jsonl', '--receipts', '/var/receipts']]
+  ) {
+    const x = deps(f, {
+      fileSize: (p) => p === 'r.jsonl' ? Promise.resolve(size) : Promise.reject(new Error(`size of ${p}`)),
+      readBytes: () => Promise.reject(new Error('the file was read')),
+    });
+    const e = await assertRejects(() => main(argv, x.d), Error);
+    assertStringIncludes(e.message, String(size));
+    assertStringIncludes(e.message, String(MAX_RECORDS_BYTES));
+    assertStringIncludes(e.message, 'split');
+    assertEquals(x.db.calls.length, 0);
+  }
+  // At the limit the file is read as before.
+  const ok = deps(f, { fileSize: () => Promise.resolve(MAX_RECORDS_BYTES) });
+  assertEquals(await main(plan1, ok.d), 0);
 });
 
 Deno.test('run: refuses a runner with uncommitted changes before any database call', async () => {
