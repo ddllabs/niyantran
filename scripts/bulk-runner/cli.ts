@@ -174,6 +174,8 @@ export function parseRecords(text: string): unknown[] {
 
 export interface CliDeps {
   readText: (path: string) => Promise<string>;
+  /** A file's raw bytes: the records file is hashed as it is on disk, then decoded strictly (F321). */
+  readBytes: (path: string) => Promise<Uint8Array>;
   /** The names in a directory; empty when it does not exist. */
   listDir: (dir: string) => Promise<string[]>;
   makeDir: (dir: string) => Promise<void>;
@@ -204,24 +206,52 @@ const SCREENED = 'screened.jsonl';
 const SCREEN_RECEIPT = 'screen.receipt.json';
 const HEX64 = /^[0-9a-f]{64}$/;
 
+const isCount = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 1;
+const isText = (v: unknown): v is string => typeof v === 'string' && v !== '';
+const isRec = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** The only name `split` gives a part: a `source` makes a receipt a part's only beside a file with this name. */
+const PART_NAME = /^part-\d+\.jsonl$/;
+
 /**
- * Reads the receipt that belongs to a records file and returns the sha256 it attests for that file (F309).
- * A file named screened.jsonl is the screen's output, vouched for by `screen.receipt.json` beside it
- * (`outputs.screened.sha256`); any other file is the pack reader's, vouched for by `<records>.receipt.json`
- * (`output_sha256`). The two never stand in for each other: the rule is by name, so it is the stricter one.
+ * A split part's `source` (written by `split` below): the verified file it was cut from and the lines it covers,
+ * which cannot be fewer than the records the part holds.
  */
-async function receiptHash(records: string, readText: CliDeps['readText']): Promise<{ path: string; sha256: string }> {
+function wellFormedSource(v: unknown, lines: number): boolean {
+  return isRec(v) && isText(v.records) && HEX64.test(String(v.sha256)) && isCount(v.from_line) &&
+    isCount(v.to_line) && v.from_line <= v.to_line && lines <= v.to_line - v.from_line + 1;
+}
+
+/**
+ * Reads the receipt that belongs to a records file and returns the sha256 and record count it attests for that file
+ * (F309, F321). A file named screened.jsonl is the screen's output, vouched for by `screen.receipt.json` beside it
+ * (`outputs.screened.sha256` and `.lines`); any other file is vouched for by `<records>.receipt.json`
+ * (`output_sha256` and `lines_written`), which is either a split part's (the file is named part-NNN.jsonl and it has a well-formed `source`) or the pack
+ * reader's (it names `pack`, `entry` and `manifest_sha256`, as screen.ts readInput requires). The kinds never stand
+ * in for each other: the rule is by name, so it is the stricter one. Receipts are not signed: these checks catch
+ * a wrong or careless receipt, not a forged one.
+ */
+async function receiptFor(
+  records: string,
+  readText: CliDeps['readText'],
+): Promise<{ path: string; sha256: string; lines: number }> {
   const screened = basename(records) === SCREENED;
   const path = screened ? join(dirname(records), SCREEN_RECEIPT) : `${records}.receipt.json`;
   let text: string;
   try {
     text = await readText(path);
-  } catch {
+  } catch (e) {
+    if (e instanceof Deno.errors.NotFound) {
+      throw new ReceiptError(
+        'receipt_missing',
+        `${path} is missing; the runner loads only ${
+          screened ? "the screen's output with its receipt" : "the pack reader's output with its receipt"
+        }`,
+      );
+    }
     throw new ReceiptError(
-      'receipt_missing',
-      `${path} is missing; the runner loads only ${
-        screened ? "the screen's output with its receipt" : "the pack reader's output with its receipt"
-      }`,
+      'receipt_unreadable',
+      `${path} could not be read (${e instanceof Error ? e.name : typeof e})`,
     );
   }
   let value: unknown;
@@ -230,33 +260,68 @@ async function receiptHash(records: string, readText: CliDeps['readText']): Prom
   } catch {
     throw new ReceiptError('receipt_unreadable', `${path} is not valid JSON`);
   }
-  const o = value as { output_sha256?: unknown; outputs?: { screened?: { sha256?: unknown } } } | null;
-  const sha = screened ? o?.outputs?.screened?.sha256 : o?.output_sha256;
-  if (typeof sha !== 'string' || !HEX64.test(sha)) {
-    throw new ReceiptError(
-      'receipt_unreadable',
-      `${path} has no ${screened ? 'outputs.screened.sha256' : 'output_sha256'}`,
-    );
+  const unreadable = (what: string) => new ReceiptError('receipt_unreadable', `${path} has no ${what}`);
+  if (!isRec(value)) throw unreadable('fields');
+  if (screened) {
+    const s = isRec(value.outputs) && isRec(value.outputs.screened) ? value.outputs.screened : {};
+    if (typeof s.sha256 !== 'string' || !HEX64.test(s.sha256)) throw unreadable('outputs.screened.sha256');
+    // 0 is what the screen writes when it passed nothing; the empty file is then refused as holding no records.
+    if (s.lines !== 0 && !isCount(s.lines)) throw unreadable('outputs.screened.lines (a whole number)');
+    return { path, sha256: s.sha256, lines: s.lines };
   }
-  return { path, sha256: sha };
+  if (typeof value.output_sha256 !== 'string' || !HEX64.test(value.output_sha256)) throw unreadable('output_sha256');
+  if (!isCount(value.lines_written)) throw unreadable('lines_written (a positive integer)');
+  if (
+    !(PART_NAME.test(basename(records)) && wellFormedSource(value.source, value.lines_written)) &&
+    !(isText(value.pack) && isText(value.entry) && HEX64.test(String(value.manifest_sha256)))
+  ) {
+    throw unreadable('pack, entry and manifest_sha256 (a reader receipt), or the source of a part-NNN.jsonl file');
+  }
+  return { path, sha256: value.output_sha256, lines: value.lines_written };
 }
 
-/** The records file's text, read once and checked against its receipt: the bytes hashed are the bytes parsed. */
-export async function readRecordsText(records: string, readText: CliDeps['readText']): Promise<string> {
-  const text = await readText(records);
-  const receipt = await receiptHash(records, readText);
-  if ((await sha256Hex(text)) !== receipt.sha256) {
+const sha256Bytes = async (b: Uint8Array): Promise<string> =>
+  [...new Uint8Array(await crypto.subtle.digest('SHA-256', b.slice()))].map((x) => x.toString(16).padStart(2, '0'))
+    .join('');
+
+/**
+ * The records file, read once as bytes, hashed as it is on disk and checked against its receipt: the hash, then the
+ * count of records the runner parses. The bytes must be UTF-8 with no byte-order mark. Returns the text and its records.
+ */
+export async function readRecordsText(
+  records: string,
+  deps: Pick<CliDeps, 'readText' | 'readBytes'>,
+): Promise<{ text: string; records: unknown[] }> {
+  const bytes = await deps.readBytes(records);
+  const receipt = await receiptFor(records, deps.readText);
+  if ((await sha256Bytes(bytes)) !== receipt.sha256) {
     throw new ReceiptError(
       'receipt_mismatch',
       `${records} is not the file ${receipt.path} describes (its sha256 differs from the receipt's)`,
     );
   }
-  return text;
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    throw new Error(`${records} starts with a byte-order mark; the records file must be plain UTF-8`);
+  }
+  let text: string;
+  try {
+    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error(`${records} is not valid UTF-8`);
+  }
+  const parsed = parseRecords(text);
+  if (parsed.length !== receipt.lines) {
+    throw new ReceiptError(
+      'receipt_mismatch',
+      `${records} holds ${parsed.length} records, the receipt in ${receipt.path} says ${receipt.lines}`,
+    );
+  }
+  return { text, records: parsed };
 }
 
 async function prepared(c: { collection: string; records: string }, deps: CliDeps) {
   const coll = checkCollection(JSON.parse(await deps.readText(c.collection)));
-  const records = parseRecords(await readRecordsText(c.records, deps.readText));
+  const { records } = await readRecordsText(c.records, deps);
   const prep = await prepareAll(records, coll.prepare);
   const p: PlanResult = await plan(prep.requests, coll.limits);
   return { coll, records, prep, p };
@@ -302,13 +367,12 @@ export const automated =
  * same bytes. from_line and to_line are the input's own line numbers (1-based).
  */
 async function split(c: Extract<Command, { cmd: 'split' }>, deps: CliDeps): Promise<number> {
-  const text = await readRecordsText(c.records, deps.readText);
+  const { text } = await readRecordsText(c.records, deps);
   const sha256 = await sha256Hex(text);
   const out = await refuseInCheckout(c.out, '--out', {
     repoRoot: REPO_ROOT,
     commonDir: deps.commonDir ?? gitCommonDir,
   });
-  parseRecords(text); // every record line is JSON, and there is at least one
   const held = (await deps.listDir(out)).filter((n) => /^part-\d+\.jsonl(\.receipt\.json)?$/.test(n));
   if (held.length > 0) throw new Error(`${out} already holds part files (${held[0]}); choose a new --out`);
   const records: { line: string; no: number }[] = [];
@@ -421,6 +485,7 @@ if (import.meta.main) {
     Deno.exit(
       await main(Deno.args, {
         readText: (p) => Deno.readTextFile(p),
+        readBytes: (p) => Deno.readFile(p),
         writeText: (p, b) => Deno.writeTextFile(p, b, { createNew: true }),
         git: gitState,
         db: (psql) => new PsqlDb(psqlExec([psql])),

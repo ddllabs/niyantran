@@ -51,22 +51,46 @@ async function question(n: number): Promise<Rec> {
   };
 }
 
+const countLines = (text: string) => text.split('\n').filter((l) => l.trim()).length;
+
+/** The pack reader's receipt for a records text: the fields the runner reads, with the real hash and count. */
+async function readerReceipt(records: string, over: Rec = {}): Promise<string> {
+  return JSON.stringify({
+    pack: 'national-v1.1',
+    entry: 'questions.jsonl',
+    manifest_sha256: H,
+    output_sha256: await sha256Hex(records),
+    lines_written: countLines(records),
+    ...over,
+  });
+}
+
 /** The collection and records files, with the pack reader's receipt for the records (F309). */
 async function files(collection: unknown, records: string): Promise<Record<string, string>> {
   return {
     'c.json': JSON.stringify(collection),
     'r.jsonl': records,
-    'r.jsonl.receipt.json': JSON.stringify({ output_sha256: await sha256Hex(records), lines_written: 1 }),
+    'r.jsonl.receipt.json': await readerReceipt(records),
   };
 }
 
-function deps(files: Record<string, string>, over: Partial<CliDeps> = {}) {
+/** The screen's receipt for a screened text: outputs.screened carries the hash and the line count. */
+async function screenReceipt(text: string, over: Rec = {}): Promise<string> {
+  return JSON.stringify({ outputs: { screened: { sha256: await sha256Hex(text), lines: countLines(text), ...over } } });
+}
+
+type Files = Record<string, string | Uint8Array>;
+const enc = (v: string | Uint8Array) => typeof v === 'string' ? new TextEncoder().encode(v) : v;
+const notFound = (p: string) => Promise.reject(new Deno.errors.NotFound(`no file ${p}`));
+
+function deps(files: Files, over: Partial<CliDeps> = {}) {
   const lines: string[] = [];
   const written = new Map<string, string>();
   const db = new FakeDb();
   let now = 1_000;
   const d: CliDeps = {
-    readText: (p) => (p in files ? Promise.resolve(files[p]) : Promise.reject(new Error(`no file ${p}`))),
+    readText: (p) => p in files ? Promise.resolve(new TextDecoder().decode(enc(files[p]))) : notFound(p),
+    readBytes: (p) => (p in files ? Promise.resolve(enc(files[p])) : notFound(p)),
     writeText: (p, b) => {
       if (written.has(p)) return Promise.reject(new Error(`exists: ${p}`));
       written.set(p, b);
@@ -242,7 +266,7 @@ Deno.test('receipt: a missing or unreadable receipt is refused, with its own cod
 Deno.test('receipt: another file’s receipt does not do', async () => {
   const records = JSON.stringify(await question(1));
   const f = await files(COLLECTION, records);
-  const other = JSON.stringify({ output_sha256: await sha256Hex(JSON.stringify(await question(2))) });
+  const other = await readerReceipt(JSON.stringify(await question(2)));
   await assertRejects(() => main(plan1, deps({ ...f, 'r.jsonl.receipt.json': other }).d), Error, 'receipt_mismatch');
 });
 
@@ -252,7 +276,7 @@ Deno.test('receipt: a screened file is bound to the screen’s receipt beside it
   const screened: Record<string, string> = {
     'c.json': f['c.json'],
     'out/screened.jsonl': records,
-    'out/screen.receipt.json': JSON.stringify({ outputs: { screened: { sha256: await sha256Hex(records) } } }),
+    'out/screen.receipt.json': await screenReceipt(records),
   };
   const argv = ['plan', '--collection', 'c.json', '--records', 'out/screened.jsonl'];
   assertEquals(await main(argv, deps(screened).d), 0);
@@ -264,7 +288,7 @@ Deno.test('receipt: a screened file is bound to the screen’s receipt beside it
   const reader = { ...none, 'out/screened.jsonl.receipt.json': f['r.jsonl.receipt.json'] };
   await assertRejects(() => main(argv, deps(reader).d), Error, 'receipt_missing');
   // The screen's receipt for another screened file is refused.
-  const wrong = { ...screened, 'out/screen.receipt.json': JSON.stringify({ outputs: { screened: { sha256: H } } }) };
+  const wrong = { ...screened, 'out/screen.receipt.json': await screenReceipt(records, { sha256: H }) };
   await assertRejects(() => main(argv, deps(wrong).d), Error, 'receipt_mismatch');
 });
 
@@ -276,6 +300,187 @@ async function fiveRecords() {
   const text = recs.slice(0, 2).join('\n') + '\n\n' + recs.slice(2).join('\n') + '\n';
   return { recs, f: await files(COLLECTION, text), text };
 }
+
+Deno.test('receipt (F321): the count must be a positive integer equal to the records parsed', async () => {
+  const records = JSON.stringify(await question(1)) + '\n' + JSON.stringify(await question(2));
+  const f = await files(COLLECTION, records);
+  const withCount = async (over: Rec) => ({ ...f, 'r.jsonl.receipt.json': await readerReceipt(records, over) });
+  // Right hash, wrong count: refused by plan and by split.
+  for (const n of [1, 3]) {
+    await assertRejects(
+      async () => main(plan1, deps(await withCount({ lines_written: n })).d),
+      Error,
+      'receipt_mismatch',
+    );
+    await assertRejects(
+      async () => main(splitArgs(), deps(await withCount({ lines_written: n })).d),
+      Error,
+      'receipt_mismatch',
+    );
+  }
+  // No count, or one that is not a positive integer: unreadable.
+  for (const n of [undefined, 0, -2, 1.5, '2', null]) {
+    await assertRejects(
+      async () => main(plan1, deps(await withCount({ lines_written: n })).d),
+      Error,
+      'receipt_unreadable',
+    );
+  }
+  assertEquals(await main(plan1, deps(f).d), 0);
+  // The screen's receipt carries its count as outputs.screened.lines.
+  const screened = (receipt: string) => ({
+    'c.json': f['c.json'],
+    'out/screened.jsonl': records,
+    'out/screen.receipt.json': receipt,
+  });
+  const argv = ['plan', '--collection', 'c.json', '--records', 'out/screened.jsonl'];
+  assertEquals(await main(argv, deps(screened(await screenReceipt(records))).d), 0);
+  await assertRejects(
+    async () => main(argv, deps(screened(await screenReceipt(records, { lines: 1 }))).d),
+    Error,
+    'receipt_mismatch',
+  );
+  for (const n of [undefined, -1, 2.5, '2']) {
+    await assertRejects(
+      async () => main(argv, deps(screened(await screenReceipt(records, { lines: n }))).d),
+      Error,
+      'receipt_unreadable',
+    );
+  }
+  // A screen that passed nothing writes an empty file and lines 0: that is an empty input, not a broken receipt.
+  const empty = { ...screened(await screenReceipt('', { lines: 0 })), 'out/screened.jsonl': '' };
+  const e = await assertRejects(() => main(argv, deps(empty).d), Error, 'holds no records');
+  assertEquals(e.message.includes('receipt_'), false);
+  // lines 0 beside a file that holds records is still a mismatch.
+  await assertRejects(
+    async () => main(argv, deps(screened(await screenReceipt(records, { lines: 0 }))).d),
+    Error,
+    'receipt_mismatch',
+  );
+});
+
+Deno.test('receipt (F321): a reader receipt must name its pack, entry and manifest; a split part’s must carry its source', async () => {
+  const records = JSON.stringify(await question(1));
+  const f = await files(COLLECTION, records);
+  const bare = JSON.stringify({ output_sha256: await sha256Hex(records), lines_written: 1 });
+  const bad: Rec[] = [
+    { pack: undefined },
+    { entry: undefined },
+    { manifest_sha256: undefined },
+    { pack: '' },
+    { entry: 7 },
+    { manifest_sha256: 'abc' },
+    { manifest_sha256: 'A'.repeat(64) },
+  ];
+  for (const over of bad) {
+    await assertRejects(
+      async () => main(plan1, deps({ ...f, 'r.jsonl.receipt.json': await readerReceipt(records, over) }).d),
+      Error,
+      'receipt_unreadable',
+    );
+  }
+  await assertRejects(
+    () => main(plan1, deps({ ...f, 'r.jsonl.receipt.json': bare }).d),
+    Error,
+    'receipt_unreadable',
+  );
+  // A source that is not well formed does not make a receipt a split part's.
+  const source = { records: 'r.jsonl', sha256: H, from_line: 1, to_line: 1 };
+  const badSources = [
+    'x',
+    null,
+    { ...source, records: '' },
+    { ...source, sha256: 'nope' },
+    { ...source, from_line: 0 },
+    { ...source, to_line: 1.5 },
+    { ...source, from_line: 3, to_line: 2 },
+  ];
+  for (const src of badSources) {
+    const r = JSON.stringify({ output_sha256: await sha256Hex(records), lines_written: 1, source: src });
+    await assertRejects(
+      () => main(plan1, deps({ ...f, 'r.jsonl.receipt.json': r }).d),
+      Error,
+      'receipt_unreadable',
+    );
+  }
+  // A source makes a receipt a split part's only beside a file named as `split` names its parts.
+  const part = JSON.stringify({ output_sha256: await sha256Hex(records), lines_written: 1, source });
+  await assertRejects(
+    () => main(plan1, deps({ ...f, 'r.jsonl.receipt.json': part }).d),
+    Error,
+    'receipt_unreadable',
+  );
+  const asPart = (receipt: string) =>
+    deps({ 'c.json': f['c.json'], 'part-000.jsonl': records, 'part-000.jsonl.receipt.json': receipt }).d;
+  const planPart = ['plan', '--collection', 'c.json', '--records', 'part-000.jsonl'];
+  assertEquals(await main(planPart, asPart(part)), 0);
+  // A part cannot hold more records than the lines its source covers.
+  const two = records + '\n' + JSON.stringify(await question(2));
+  const over = JSON.stringify({ output_sha256: await sha256Hex(two), lines_written: 2, source });
+  await assertRejects(
+    () => main(planPart, deps({ 'c.json': f['c.json'], 'part-000.jsonl': two, 'part-000.jsonl.receipt.json': over }).d),
+    Error,
+    'receipt_unreadable',
+  );
+});
+
+Deno.test('receipt (F321): the hash is over the file’s bytes; invalid UTF-8 and a byte-order mark are refused', async () => {
+  const head = new TextEncoder().encode('{"a":"');
+  const tail = new TextEncoder().encode('"}');
+  const bytes = new Uint8Array([...head, 0xff, ...tail]);
+  const rawSha = async (b: Uint8Array) =>
+    [...new Uint8Array(await crypto.subtle.digest('SHA-256', b.slice()))].map((x) => x.toString(16).padStart(2, '0'))
+      .join('');
+  const receipt = (sha256: string) => readerReceipt('x', { output_sha256: sha256, lines_written: 1 });
+  const argvs = [plan1, splitArgs()];
+  for (const argv of argvs) {
+    // An honest receipt (hash of the bytes) for a file that is not UTF-8.
+    const honest = deps({
+      'c.json': JSON.stringify(COLLECTION),
+      'r.jsonl': bytes,
+      'r.jsonl.receipt.json': await receipt(await rawSha(bytes)),
+    });
+    await assertRejects(() => main(argv, honest.d), Error, 'UTF-8');
+    assertEquals(honest.written.size, 0);
+    // A receipt made over the decoded text (invalid bytes as U+FFFD) does not vouch for the bytes.
+    const decoded = await sha256Hex(new TextDecoder().decode(bytes));
+    const old = deps({
+      'c.json': JSON.stringify(COLLECTION),
+      'r.jsonl': bytes,
+      'r.jsonl.receipt.json': await receipt(decoded),
+    });
+    await assertRejects(() => main(argv, old.d), Error, 'receipt_mismatch');
+    // A leading byte-order mark, even with an honest receipt.
+    const bom = new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode(JSON.stringify(await question(1)))]);
+    const withBom = deps({
+      'c.json': JSON.stringify(COLLECTION),
+      'r.jsonl': bom,
+      'r.jsonl.receipt.json': await receipt(await rawSha(bom)),
+    });
+    await assertRejects(() => main(argv, withBom.d), Error, 'byte-order mark');
+    assertEquals(withBom.written.size, 0);
+  }
+});
+
+Deno.test('receipt (F321): missing only when the receipt is not found; any other read error is unreadable, with its name', async () => {
+  const records = JSON.stringify(await question(1));
+  const f = await files(COLLECTION, records);
+  const failing = (error: Error) =>
+    deps(f, {
+      readText: (p) => p === 'r.jsonl.receipt.json' ? Promise.reject(error) : Promise.resolve(f[p]),
+    });
+  for (const argv of [plan1, splitArgs()]) {
+    await assertRejects(() => main(argv, failing(new Deno.errors.NotFound('gone')).d), Error, 'receipt_missing');
+    const e = await assertRejects(
+      () => main(argv, failing(new Deno.errors.PermissionDenied('no')).d),
+      Error,
+      'receipt_unreadable',
+    );
+    assertStringIncludes(e.message, 'PermissionDenied');
+    assert(!e.message.includes('receipt_missing'));
+    await assertRejects(() => main(argv, failing(new Error('boom')).d), Error, 'receipt_unreadable');
+  }
+});
 
 Deno.test('parseArgs: split takes --records, --lines (a positive integer) and --out', () => {
   assertEquals(parseArgs(splitArgs()), { cmd: 'split', records: 'r.jsonl', lines: 2, out: '/var/parts' });
@@ -371,7 +576,7 @@ Deno.test('split: a screened file is split under the screen’s receipt', async 
   const g = {
     'c.json': f['c.json'],
     'out/screened.jsonl': text,
-    'out/screen.receipt.json': JSON.stringify({ outputs: { screened: { sha256: await sha256Hex(text) } } }),
+    'out/screen.receipt.json': await screenReceipt(text),
   };
   const x = deps(g);
   assertEquals(await main(['split', '--records', 'out/screened.jsonl', '--lines', '3', '--out', '/var/parts'], x.d), 0);
