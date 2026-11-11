@@ -41,6 +41,13 @@ The first validation batch needs a command the developer runs from their own ter
     (`receipt_missing`, `receipt_unreadable`, `receipt_mismatch`) unless the receipt's hash equals the text they parse:
     for a file named `screened.jsonl`, the screen's `screen.receipt.json` beside it (`outputs.screened.sha256`);
     otherwise `<records>.receipt.json` (`output_sha256`), which the pack reader and `split` write.
+  - Amended 2026-11-11 (F321): the hash is over the file's bytes as they are on disk; the file must be UTF-8 with no
+    byte-order mark. The receipt's count (`lines_written`, or the screen's `outputs.screened.lines`) must equal the
+    records parsed, or the file is refused as `receipt_mismatch`. A `<records>.receipt.json` must be the pack
+    reader's (`pack`, `entry` and a 64-hex `manifest_sha256`) or a part's (the file is named `part-NNN.jsonl` and
+    `source` is well formed and covers at least `lines_written` lines), or it is `receipt_unreadable`.
+    `receipt_missing` means the receipt file was not found; any other read error is `receipt_unreadable`. Receipts
+    are not signed: the checks catch a wrong or careless receipt, not a forged one.
   - `split --records <file> --lines <n> --out <dir>`: after that check, writes `part-NNN.jsonl` files of at most n
     records, in order and byte for byte, each with a receipt (`output_sha256`, `lines_written`, and `source`: the input's
     path and sha256 and the line range). It refuses an `--out` that already holds parts. Parts replace a hand split.
