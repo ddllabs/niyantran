@@ -172,6 +172,54 @@ Deno.test('role hydration deduplicates and pages IDs, preserves order, and fails
  await assertRejects(()=>hydrateDocumentRoles([rows[0]],()=>Promise.reject(Error('timeout'))),Error,'timeout');
 });
 
+const FACTS = 'Bill No. 12 of 2025 | Lok Sabha | introduced 2025-03-04';
+const BILL_META = { document_role: 'as_introduced', citation: { bill_number: '12', bill_year: '2025', house: 'Lok Sabha', introduced_on: '2025-03-04' } };
+
+Deno.test('hydration attaches document_facts for national Bills documents only and discards a supplied value', async () => {
+  const { hydrateDocumentRoles } = await import('./retrieval.ts');
+  const rows = [
+    { ...row('b1', 0.9), document_id: 'bill' },
+    { ...row('b2', 0.8), document_id: 'bill', document_facts: 'forged from the RPC' },
+    { ...row('q1', 0.7), document_id: 'question', desk_feature: 'Parliamentary Question Database', document_facts: 'forged from the RPC' },
+    { ...row('l1', 0.6), document_id: 'law', desk_tier: 'law', document_facts: 'forged from the RPC' },
+    { ...row('n1', 0.5), document_id: 'bare', document_facts: 'forged from the RPC' },
+  ];
+  const metadata: Record<string, unknown> = { bill: BILL_META, question: BILL_META, law: BILL_META, bare: {} };
+  const out = await hydrateDocumentRoles(rows, ids => Promise.resolve(ids.map(id => ({ id, metadata: metadata[id] }))));
+  assertEquals(out.map(r => r.id), ['b1', 'b2', 'q1', 'l1', 'n1']);
+  assertEquals(out.map(r => r.similarity), [0.9, 0.8, 0.7, 0.6, 0.5]);
+  assertEquals(out[0].document_facts, FACTS);
+  assertEquals(out[1].document_facts, FACTS);
+  assertEquals(out[0].document_role, 'as_introduced');
+  for (const i of [2, 3, 4]) assertEquals(Object.hasOwn(out[i], 'document_facts'), false);
+  // Without a metadata read there is no value to keep: the RPC's is still dropped.
+  const none = await hydrateDocumentRoles([rows[1]], ids => Promise.resolve(ids.map(id => ({ id }))));
+  assertEquals(Object.hasOwn(none[0], 'document_facts'), false);
+});
+
+Deno.test('a formatter that throws still returns the rows, unchanged but for the missing line', async () => {
+  const { hydrateDocumentRoles } = await import('./retrieval.ts');
+  const rows = [{ ...row('b1', 0.9), document_id: 'bill', document_facts: 'forged' }, { ...row('b2', 0.8), document_id: 'bill' }];
+  const out = await hydrateDocumentRoles(rows, ids => Promise.resolve(ids.map(id => ({ id, metadata: BILL_META }))),
+    () => { throw new Error('formatter fault'); });
+  assertEquals(out.map(r => r.id), ['b1', 'b2']);
+  assertEquals(out.map(r => r.similarity), [0.9, 0.8]);
+  assertEquals(out.map(r => r.document_role), ['as_introduced', 'as_introduced']);
+  assertEquals(out.map(r => Object.hasOwn(r, 'document_facts')), [false, false]);
+});
+
+Deno.test('rowToChunk keeps document_facts only as a short single-line string', async () => {
+  const kept = await rowToChunk({ ...row('a', 0.9), document_facts: FACTS });
+  assertEquals(kept.document_facts, FACTS);
+  assertEquals((await rowToChunk({ ...row('a', 0.9), document_facts: 'x'.repeat(160) })).document_facts, 'x'.repeat(160));
+  const old = await rowToChunk(row('a', 0.9));
+  assertEquals(Object.hasOwn(old, 'document_facts'), false);
+  for (const bad of ['x'.repeat(161), 'a\nb', 'a\rb', 'a\u2028b', 'a\u2029b', '', 12, null, { a: 1 }, ['x'], true]) {
+    assertEquals(Object.hasOwn(await rowToChunk({ ...row('a', 0.9), document_facts: bad }), 'document_facts'), false, String(bad));
+  }
+  assertEquals(kept.text_hash, await sha256Hex('content a'));
+});
+
 // F288: hybrid search with a vector-only fallback.
 const ON: HybridConfig = { enabled: true, hybridMs: 2_500, fallbackMs: 4_000 };
 const OFF: HybridConfig = { enabled: false, hybridMs: 2_500, fallbackMs: 4_000 };

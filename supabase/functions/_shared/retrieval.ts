@@ -4,6 +4,7 @@
 // recheck. `accumulate` unions the chunks of several sub-queries.
 
 import type { CitationSection } from './citation.types.ts';
+import { documentFacts, FACTS_MAX_CHARS } from './documentFacts.ts';
 import { EMBED_DIMS, servedModelMatches } from './embed.ts';
 import { normalise, sha256Hex } from './textNormalise.ts';
 
@@ -21,14 +22,20 @@ export function documentRole(value: unknown): DocumentRole | undefined {
   return typeof value === 'string' && Object.hasOwn(DOCUMENT_ROLE_LABELS, value) ? value as DocumentRole : undefined;
 }
 
-/** Metadata stays caller-authorized and bounded; no source text or filename inference. */
+/**
+ * Metadata stays caller-authorized and bounded; no source text or filename inference. Each row also gets
+ * `document_facts`, the catalogue line built from the metadata read here and the row's own tier and feature; a value the
+ * RPC supplied is discarded, as `document_role` is. Building the line is total: a failure leaves the row without it.
+ */
 export async function hydrateDocumentRoles(
   rows: unknown[], read: (ids: string[]) => Promise<{ id: string; metadata?: unknown }[]>,
+  format: typeof documentFacts = documentFacts,
 ): Promise<Record<string, unknown>[]> {
   const records = rows.map(row => row as Record<string, unknown>);
   const ids = [...new Set(records.map(row => String(row.document_id ?? '')))];
   if (ids.some(id => !id)) throw new Error('retrieved document identity missing');
   const roles = new Map<string, DocumentRole | undefined>();
+  const metadatas = new Map<string, Record<string, unknown>>();
   for (let offset = 0; offset < ids.length; offset += 100) {
     const page = ids.slice(offset, offset + 100), wanted = new Set(page);
     for (const doc of await read(page)) {
@@ -36,13 +43,21 @@ export async function hydrateDocumentRoles(
       const metadata = doc.metadata && typeof doc.metadata === 'object' && !Array.isArray(doc.metadata)
         ? doc.metadata as Record<string, unknown> : {};
       roles.set(doc.id, documentRole(metadata.document_role));
+      metadatas.set(doc.id, metadata);
     }
     if (page.some(id => !roles.has(id))) throw new Error('retrieved document metadata unavailable');
   }
   return records.map(row => {
-    const { document_role: _unverifiedRole, ...rest } = row;
-    const role = roles.get(String(row.document_id));
-    return { ...rest, ...(role ? { document_role: role } : {}) };
+    const { document_role: _unverifiedRole, document_facts: _unverifiedFacts, ...rest } = row;
+    const id = String(row.document_id);
+    const role = roles.get(id);
+    let facts = '';
+    try {
+      facts = format(row.desk_tier, row.desk_feature, metadatas.get(id));
+    } catch {
+      facts = '';
+    }
+    return { ...rest, ...(role ? { document_role: role } : {}), ...(facts ? { document_facts: facts } : {}) };
   });
 }
 
@@ -62,6 +77,8 @@ export interface Chunk {
   desk_tier?: string;
   desk_feature?: string;
   document_role?: DocumentRole;
+  /** The document's catalogue line (documentFacts): never embedded, never cited, one line of at most 160 characters. */
+  document_facts?: string;
   /** sha256(normalise(content)) — what a citation carries and the reader recomputes. */
   text_hash: string;
   // Page chunks only (chunk-contract spec). Absent - never null or empty - on
@@ -199,6 +216,8 @@ export async function rowToChunk(raw: unknown): Promise<Chunk> {
   if (sect) chunk.section = sect;
   const role = documentRole(r.document_role);
   if (role) chunk.document_role = role;
+  const facts = r.document_facts;
+  if (typeof facts === 'string' && facts && facts.length <= FACTS_MAX_CHARS && !/[\r\n\u2028\u2029]/.test(facts)) chunk.document_facts = facts;
   return chunk;
 }
 

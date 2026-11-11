@@ -150,7 +150,7 @@ Bill identity (record fields, not instructions): The Finance Bill, 2025 (Bill No
 
 When no part is left, the bracket is omitted. The handler builds the string. `AgentInput` gets
 `webSubject?: string`, which is included in `inputKey` (`agent.ts:325-338`). The agent appends it, and the sentence
-"Name the bill by its title, number, House and year in the query.", to the forced message only.
+"Name the bill in the query using only the fields given here.", to the forced message only.
 
 ### D2. The first query: no change (recommended)
 
@@ -510,6 +510,30 @@ The write scopes of T1-T5, plus this spec and its `open-work.md` line (superviso
     (`retrieval.ts:248`). Under broad focus this includes a model's own `desk_feature` argument, not only desk focus.
   - F329 is not in `open-work.md` on `main` or `origin/main` in this checkout (`origin/main` lists F325-F327 and "F328
     is next"). Its number is taken from the supervisor.
+
+## Build notes (2026-11-12)
+
+T1 to T5 are built and independently reviewed (accept with changes; no required defect). Where the build or the review
+corrects this spec, this section wins:
+
+- **Title flattening (D4).** Line breaks, control characters and format characters in a title or feature become one
+  space, except the two joiners Indic scripts need (U+200C and U+200D), which stay. So a title is byte-identical unless
+  it holds a control or format character other than those two. A soft hyphen or a byte-order mark in a title becomes a
+  space.
+- **The forced message (D1).** Its last sentence is "Name the bill in the query using only the fields given here.",
+  because the identity may lack a number, a year or a date and the model must not be asked for a field it was not given.
+- **Free text (rule S).** Besides the characters listed, characters that render as nothing (variation selectors among
+  them) are removed, more than three combining marks on one base character are dropped, and U+01C1, U+04C0 and the
+  combining U+20D2 are removed with the other pipe lookalikes. In v1 this applies to the title in the identity line only.
+- **Sizes (Effects).** The catalogue line is at most 129 characters with its label (63 for the label, 65 for the longest
+  value), so the 160 cap is never reached and a reply can run over the budget by at most 40 x 129 = 5,160 characters.
+  A line costs about 35 to 45 tokens, not 30: the worst reply is about 1,400 to 1,800 tokens, and the worst turn (ten
+  searches, each resent on later calls) about 72,000 to 94,000 extra prompt tokens summed over its calls. The identity
+  line stays in the transcript, so it is resent on each later call of its turn (about 50 tokens a call), not once.
+- **Identity length.** The title is cut so the whole identity line stays within 200 characters. With no valid
+  introduction date the line gives the number without a year.
+- **Tests.** 1,587 pass in `supabase/functions`. Each rule was removed in turn (53 mutations across the build and the
+  review) and a test failed each time, except two mutations that change nothing.
 
 ## Defects outside scope (reported, not fixed)
 

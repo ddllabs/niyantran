@@ -26,6 +26,7 @@ import { isConversational } from './conversational.ts';
 import { isContextQuestion, presearchFor, requiresWebContext } from './turnScope.ts';
 import { checkLinks, decideWebSearch, webModelAllowed, type WebScope, webSourcesOf } from './webPolicy.ts';
 import { normaliseUrl, WEB_PAGES_PER_TURN, WEB_SEARCHES_PER_TURN, webDomain, type WebSource } from '../_shared/webSearch.ts';
+import { billIdentity } from '../_shared/documentFacts.ts';
 import { log } from '../_shared/logging.ts';
 import { type Message, type ModelEvent, ProviderError, type StreamRequest } from '../_shared/openrouterStream.ts';
 import type { Chunk, RetrievalPathInfo } from '../_shared/retrieval.ts';
@@ -1000,7 +1001,7 @@ async function runTurnBody(
     // A failed read falls back to off, not automatic: "off" may be the reader's privacy choice.
     deps.db.webSearchOverride(conversation.id, request.web_search).catch(() => request.web_search ?? false),
   ]);
-  const webScope = webScopeOf(mappedRequest, verifiedSelection, attachmentRows, resolution, modules, modulesKnown);
+  const { scope: webScope, rows: webRows } = webScopeOf(mappedRequest, verifiedSelection, attachmentRows, resolution, modules, modulesKnown);
   const web = decideWebSearch({
     scope: webScope,
     override: webOverride,
@@ -1066,10 +1067,14 @@ async function runTurnBody(
   // F200: and it is told that it is small talk, so no answer style or persona format turns it into
   // a brief; the agent runs no search for it (agent.ts), so nothing can widen either.
   const userTurn = buildUserTurn(request.message, attachments, verifiedHandles, { smallTalk: conversational });
-  const targetRecords = request.focus === 'selection' && request.selection && isContextQuestion(request.message)
-    ? webScope.records.slice(-1) : webScope.records;
+  const lastOnly = request.focus === 'selection' && request.selection && isContextQuestion(request.message);
+  const targetRecords = lastOnly ? webScope.records.slice(-1) : webScope.records;
+  const targetRows = lastOnly ? webRows.slice(-1) : webRows;
   const requiredWeb = web.offered && targetRecords.some(r => r.indexed === false) &&
     !webScope.documentAttached && requiresWebContext(request.message);
+  // F331: the forced web-only call names the bill when exactly one target record lacks text and it is a Bills row.
+  const unindexedRows = requiredWeb ? targetRows.filter((_, i) => targetRecords[i].indexed === false) : [];
+  const webSubject = unindexedRows.length === 1 && unindexedRows[0] ? billIdentity(unindexedRows[0]) : '';
 
   signal.throwIfAborted();
 
@@ -1280,6 +1285,7 @@ async function runTurnBody(
     scopedRows: [...(verifiedSelection ? [verifiedSelection] : []), ...attachmentRows.filter((row): row is DeskRow => !!row)],
     ...(request.desk_context ? { rowFeatureScope: request.desk_context } : {}),
     documentSearchUnavailable,
+    ...(webSubject ? { webSubject } : {}),
     observationScope: observationTurn,
     observationContext: observationSelection,
     focus: request.focus,
@@ -1793,7 +1799,7 @@ function webScopeOf(
   resolution: DocumentScopeResolution,
   modules: DocumentModule[],
   modulesKnown: boolean,
-): WebScope {
+): { scope: WebScope; rows: (DeskRow | null)[] } {
   const record = (row: DeskRow | null | undefined) => {
     if (!row) return { key: null, indexed: null };
     const key = row.document_key;
@@ -1803,20 +1809,26 @@ function webScopeOf(
     if (result.ids.length) return { key, indexed: true };
     return { key, indexed: ['unmapped', 'registered', 'incomplete'].includes(result.coverage) ? false : null };
   };
-  const records = request.attachments.flatMap((a, i) =>
-    a.kind === 'row' || a.kind === 'record' ? [record(attachmentRows[i])] : []);
-  if (request.selection) records.push(record(selection));
+  // `rows` runs parallel to `records`: a document chip before a record shifts the attachment's index, not the record's.
+  const entries = request.attachments.flatMap((a, i) =>
+    a.kind === 'row' || a.kind === 'record' ? [{ record: record(attachmentRows[i]), row: attachmentRows[i] ?? null }] : []);
+  if (request.selection) entries.push({ record: record(selection), row: selection ?? null });
+  const records = entries.map(e => e.record);
+  const rows = entries.map(e => e.row);
   const direct = request.attachments.filter(a => a.kind === 'document');
   const directResults = direct.map(a => resolution.byKey[`document-id:${a.document_id}`]);
   const context = request.desk_context;
   return {
-    focus: request.focus,
-    records,
-    documentAttached: directResults.some(r => !!r?.ids.length),
-    documentUnknown: directResults.some(r => !r?.ids.length),
-    moduleHasDocuments: context?.feature && modulesKnown
-      ? Boolean(featureScopeOf({ focus: 'desk', desk_context: context }, modules))
-      : null,
+    scope: {
+      focus: request.focus,
+      records,
+      documentAttached: directResults.some(r => !!r?.ids.length),
+      documentUnknown: directResults.some(r => !r?.ids.length),
+      moduleHasDocuments: context?.feature && modulesKnown
+        ? Boolean(featureScopeOf({ focus: 'desk', desk_context: context }, modules))
+        : null,
+    },
+    rows,
   };
 }
 
