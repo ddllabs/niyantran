@@ -553,7 +553,12 @@ export async function readInput(path: string, label: string): Promise<Input> {
   let receiptBytes: Uint8Array;
   try {
     receiptBytes = await Deno.readFile(receiptPath);
-  } catch {
+  } catch (e) {
+    if (!(e instanceof Deno.errors.NotFound)) {
+      throw new Error(
+        `${label}: ${receiptPath} could not be read (${e instanceof Error ? e.name : typeof e})`,
+      );
+    }
     throw new Error(`${label}: ${receiptPath} is missing; the screen reads only the reader's output with its receipt`);
   }
   let receipt: unknown;

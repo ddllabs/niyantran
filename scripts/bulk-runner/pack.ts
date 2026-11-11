@@ -438,6 +438,10 @@ async function select(c: Extract<Command, { cmd: 'select' }>, deps: PackDeps): P
       for await (const bytes of lines(source, entryName)) {
         read++;
         let r: Record<string, unknown>;
+        // The decoder drops a leading byte-order mark, so the JSON check would pass a line the runner later refuses.
+        if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+          throw new Error(`line ${read}: starts with a byte-order mark`);
+        }
         try {
           r = JSON.parse(decoder.decode(bytes));
         } catch {
