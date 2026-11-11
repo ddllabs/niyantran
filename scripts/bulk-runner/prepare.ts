@@ -47,6 +47,12 @@ export interface PrepareOptions {
   patches?: Record<string, Rec>;
   /** source_key of a corrigendum to the bill it belongs to. */
   corrigenda?: Record<string, BillIdentity>;
+  /**
+   * Drop `citation.date` from a record whose date is given but is not a calendar date (YYYY-MM-DD), before the payload
+   * is built, and count it. The text and its hashes are untouched. Off unless the collection file asks (search-only
+   * desks: 160 of the Regulatory pack's dates are not dates).
+   */
+  dropInvalidCitationDates?: boolean;
 }
 
 export interface PreparedRequest {
@@ -57,6 +63,8 @@ export interface PreparedRequest {
   item: { source_key: string; payload_sha256: string; content_sha256: string; chunks: number; est_tokens: number };
   desk: { tier: string; feature: string };
   controlCodesRemoved: number;
+  /** 1 when this record's invalid citation date was dropped (see PrepareOptions); absent in fixtures built by hand. */
+  citationDatesDropped?: number;
 }
 
 export type Prepared = { kind: 'request' } & PreparedRequest | { kind: 'hold'; hold: Hold };
@@ -136,6 +144,13 @@ function denseRun(text: string): { at: number; span: number; count: number } | n
 }
 
 const isInt = (v: unknown): v is number => Number.isSafeInteger(v);
+
+/** A real calendar date written YYYY-MM-DD. */
+function isCalendarDate(v: unknown): boolean {
+  if (typeof v !== 'string' || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v)) return false;
+  const t = Date.parse(`${v}T00:00:00Z`);
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === v;
+}
 
 /** Does the record, as the pack delivered it, bind its own text? Null when it does, else why not. */
 async function verify(record: Rec, text: string): Promise<string | null> {
@@ -261,6 +276,17 @@ export async function prepareRecord(value: unknown, options: PrepareOptions, isP
     }
   }
 
+  // A date that is given but is not a date is metadata the database cannot use; the document does not depend on it.
+  let datesDropped = 0;
+  if (options.dropInvalidCitationDates && isRec(record.citation) && Object.hasOwn(record.citation, 'date')) {
+    const date = record.citation.date;
+    if (date !== undefined && date !== null && date !== '' && !isCalendarDate(date)) {
+      const { date: _dropped, ...kept } = record.citation;
+      record = { ...record, citation: kept };
+      datesDropped = 1;
+    }
+  }
+
   let prepared;
   try {
     prepared = await prepareSuppliedText(record, { batch: true });
@@ -295,6 +321,7 @@ export async function prepareRecord(value: unknown, options: PrepareOptions, isP
     },
     desk: { tier: String(record.desk_tier), feature: String(record.desk_feature) },
     controlCodesRemoved: removed,
+    citationDatesDropped: datesDropped,
   };
 }
 
@@ -302,16 +329,20 @@ export async function prepareRecord(value: unknown, options: PrepareOptions, isP
 export async function prepareAll(
   records: unknown[],
   options: PrepareOptions,
-): Promise<{ requests: PreparedRequest[]; holds: Hold[]; controlCodesRemoved: number }> {
+): Promise<
+  { requests: PreparedRequest[]; holds: Hold[]; controlCodesRemoved: number; citationDatesDropped: number }
+> {
   if (!Number.isInteger(options?.maxChunks) || options.maxChunks < 1) throw new Error('maxChunks is required');
   const requests: PreparedRequest[] = [];
   const holds: Hold[] = [];
   let controlCodesRemoved = 0;
+  let citationDatesDropped = 0;
   const add = (p: Prepared) => {
     if (p.kind === 'hold') holds.push(p.hold);
     else {
       requests.push(p);
       controlCodesRemoved += p.controlCodesRemoved;
+      citationDatesDropped += p.citationDatesDropped ?? 0;
     }
   };
   const inPack = new Set(records.map(keyOf));
@@ -323,5 +354,5 @@ export async function prepareAll(
       holds.push({ source_key: key, reason: 'patch_key_mismatch', detail: `the patch is for ${String(keyOf(patch))}` });
     } else add(await prepareRecord(patch, options, true));
   }
-  return { requests, holds, controlCodesRemoved };
+  return { requests, holds, controlCodesRemoved, citationDatesDropped };
 }

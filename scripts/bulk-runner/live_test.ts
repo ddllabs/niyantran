@@ -390,3 +390,81 @@ Deno.test('identity: refuses a session that is not read-only, and a failed psql'
   const bad = fakePsql(() => ({ code: 2, stderr: 'x' }));
   await assertRejects(() => new PsqlLiveReader(bad.exec).identity({ tier: 't', feature: 'f' }), Error, 'psql exited 2');
 });
+
+// ---- suggested keys (search-only desks) ----
+
+Deno.test('documents: suggested keys are matched on metadata->>document_key_suggested within the tier and feature, as data', async () => {
+  const f = fakePsql();
+  const sent = ['reg:abc', `x'$$y; drop table z; --`];
+  await new PsqlLiveReader(f.exec).documents({
+    sourceKeys: [],
+    fileUrls: [],
+    suggestedKeys: sent,
+    tier: 'national',
+    feature: 'Regulatory Body Watch (RBI SEBI TRAI CCI)',
+  });
+  assertEquals(f.scripts.length, 1);
+  const sql = f.scripts[0];
+  assertStringIncludes(sql, "metadata->>'document_key_suggested' = any(");
+  assert(literals(sql).some((l) => JSON.stringify(l) === JSON.stringify(sent)));
+  // The tier and feature restrict the suggested-key match, inside the same parenthesis.
+  const at = sql.indexOf("metadata->>'document_key_suggested' = any(");
+  assert(sql.lastIndexOf('desk_tier =', at) > sql.lastIndexOf(' or ', at), 'the restriction is not tied to the match');
+  assert(
+    sql.lastIndexOf('desk_feature =', at) > sql.lastIndexOf(' or ', at),
+    'the restriction is not tied to the match',
+  );
+});
+
+Deno.test('documents: suggested keys without a tier and feature are refused before psql runs', async () => {
+  const f = fakePsql();
+  const r = new PsqlLiveReader(f.exec);
+  await assertRejects(() => r.documents({ sourceKeys: [], fileUrls: [], suggestedKeys: ['k'] }), Error, 'tier');
+  await assertRejects(
+    () => r.documents({ sourceKeys: [], fileUrls: [], suggestedKeys: ['k'], tier: 't' }),
+    Error,
+    'feature',
+  );
+  assertEquals(f.scripts.length, 0);
+});
+
+Deno.test('documents: bad suggested keys are refused before psql runs', async () => {
+  const f = fakePsql();
+  const r = new PsqlLiveReader(f.exec);
+  for (const bad of [[''], ['a\0'], [1 as unknown as string], 'k' as unknown as string[]]) {
+    await assertRejects(
+      () => r.documents({ sourceKeys: [], fileUrls: [], suggestedKeys: bad, tier: 't', feature: 'f' }),
+      Error,
+      'key',
+    );
+  }
+  assertEquals(f.scripts.length, 0);
+});
+
+Deno.test('documents: suggested keys go in batches of at most 500, each asked once', async () => {
+  const f = fakePsql();
+  await new PsqlLiveReader(f.exec).documents({
+    sourceKeys: [],
+    fileUrls: [],
+    suggestedKeys: keys(1001, 's'),
+    tier: 't',
+    feature: 'f',
+  });
+  assertEquals(f.scripts.length, 3);
+  const asked: string[] = [];
+  for (const s of f.scripts) {
+    for (const l of literals(s)) {
+      assert((l as string[]).length <= 500);
+      asked.push(...(l as string[]));
+    }
+  }
+  assertEquals(asked.filter((k) => k.startsWith('s')).sort(), keys(1001, 's').sort());
+});
+
+Deno.test('documents: reads document_key_suggested as well, and returns it', async () => {
+  const row = { ...full('a'), document_key_suggested: 'reg:abc' };
+  const f = fakePsql(() => ({ stdout: `on\n${JSON.stringify([row])}\n` }));
+  const got = await new PsqlLiveReader(f.exec).documents({ sourceKeys: ['a'], fileUrls: [] });
+  assertEquals(got, [row]);
+  assertStringIncludes(f.scripts[0], "metadata->>'document_key_suggested' as document_key_suggested");
+});

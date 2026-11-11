@@ -4,14 +4,21 @@
 import type { Screen } from '../screen_types.ts';
 import { makePageCheck } from '../page_check.ts';
 import { makeBillsScreen } from './bills.ts';
+import { makeSearchOnlyScreen, pdfUrlRule } from './search_only.ts';
+import REGULATORY from './regulatory.json' with { type: 'json' };
+
+const pageCheckDeps = {
+  fetch: (input: URL | Request | string, init?: RequestInit) => fetch(input, init),
+  sleep: (ms: number) => new Promise<void>((done) => setTimeout(done, ms)),
+  now: () => Date.now(),
+};
 
 export const SCREENS: Record<string, () => Promise<Screen>> = {
-  'national-bills': () =>
-    Promise.resolve(makeBillsScreen([
-      makePageCheck({
-        fetch: (input, init) => fetch(input, init),
-        sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
-        now: () => Date.now(),
-      }),
-    ])),
+  'national-bills': () => Promise.resolve(makeBillsScreen([makePageCheck(pageCheckDeps)])),
+  // Regulatory is the one search-only desk so far: its official PDFs (RBI's) are page-checked, the rest rest on the
+  // density-only basis the configuration allows.
+  'national-regulatory': () =>
+    Promise.resolve(
+      makeSearchOnlyScreen(REGULATORY, makePageCheck({ ...pageCheckDeps, urlRule: pdfUrlRule(REGULATORY) })),
+    ),
 };

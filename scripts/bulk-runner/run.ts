@@ -83,6 +83,8 @@ export interface RunInput {
   /** The holds of prepare. The plan's own holds are added to them. */
   holds: Hold[];
   controlCodesRemoved?: number;
+  /** Invalid citation dates prepare dropped (a search-only collection's option); totalled in every receipt. */
+  citationDatesDropped?: number;
   runnerCommit: string;
   /**
    * Refusals this collection expects, such as no_desk_row: about 4% of live bills have no matching row. They are
@@ -122,6 +124,7 @@ export async function run(input: RunInput, deps: RunDeps, overrides: Partial<Run
     collection: input.collection,
     runner_commit: input.runnerCommit,
     control_codes_removed: input.controlCodesRemoved ?? 0,
+    citation_dates_dropped: input.citationDatesDropped ?? 0,
   };
   const planHolds = input.plan.ok ? input.plan.holds : [];
   const holds = [...input.holds, ...planHolds];

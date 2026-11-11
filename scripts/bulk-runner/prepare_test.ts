@@ -378,3 +378,78 @@ Deno.test('a short text with a few stray codes is cleaned, not held', async () =
   assertEquals(p.kind, 'request');
   assertEquals(p.kind === 'request' && p.controlCodesRemoved, 3);
 });
+
+// ---- invalid citation dates (search-only desks; the option is the collection's word) ----
+
+const DATES = { ...OPT, dropInvalidCitationDates: true };
+const dated = async (date: unknown): Promise<Rec> => {
+  const r: Rec = await nationalQuestion();
+  const citation: Rec = { ...r.citation };
+  if (date === undefined) delete citation.date;
+  else citation.date = date;
+  return { ...r, citation };
+};
+
+Deno.test('citation dates: an invalid one is dropped from the payload and counted; the text and its hashes do not move', async () => {
+  const invalid = [
+    '2020-13-45',
+    '2020-00-10',
+    '2021-02-29',
+    '2020-1-1',
+    '20200101',
+    '2020-02-30',
+    'yesterday',
+    '0000-00-00',
+    5,
+    {},
+  ];
+  for (const date of invalid) {
+    const r = await dated(date);
+    const out = await prepareRecord(r, DATES);
+    assertEquals(out.kind, 'request', String(date));
+    if (out.kind !== 'request') continue;
+    const payload = JSON.parse(out.request.payload);
+    assert(!('date' in payload.citation), `date ${String(date)} was kept`);
+    assertEquals(out.citationDatesDropped, 1, String(date));
+    // The rest of the citation, the text and every hash are the record's own.
+    const { date: _d, ...rest } = r.citation;
+    assertEquals(payload.citation, rest);
+    assertEquals(payload.text, r.text);
+    assertEquals(payload.text_sha256, r.text_sha256);
+    assertEquals(out.item.content_sha256, r.text_sha256);
+    assertEquals(r.citation.date, date, 'the input record is not changed');
+  }
+});
+
+Deno.test('citation dates: a calendar date, an empty or missing one is left alone and not counted', async () => {
+  for (const date of ['2020-02-29', '1904-01-01', '2062-12-31', '', null, undefined]) {
+    const r = await dated(date);
+    const out = await prepareRecord(r, DATES);
+    assertEquals(out.kind, 'request', String(date));
+    if (out.kind !== 'request') continue;
+    assertEquals(out.citationDatesDropped, 0, String(date));
+    assertEquals(JSON.parse(out.request.payload).citation.date, date === undefined ? undefined : date);
+  }
+});
+
+Deno.test('citation dates: without the option nothing is dropped or counted, so other collections are as they were', async () => {
+  for (const options of [OPT, { ...OPT, dropInvalidCitationDates: false }]) {
+    const out = await prepareRecord(await dated('2020-13-45'), options);
+    assertEquals(out.kind, 'request');
+    if (out.kind !== 'request') continue;
+    assertEquals(JSON.parse(out.request.payload).citation.date, '2020-13-45');
+    assertEquals(out.citationDatesDropped ?? 0, 0);
+  }
+});
+
+Deno.test('citation dates: a pack total is carried by prepareAll, and held records are not counted', async () => {
+  const good = await dated('2020-13-45');
+  const other = { ...(await dated('2021-02-30')), source_key: 'b'.repeat(40), text_sha256: 'x' };
+  const clean = await dated('2020-01-01');
+  const all = await prepareAll([good, other, { ...clean, source_key: 'c'.repeat(40), review: undefined }], DATES);
+  // The second record's text does not bind its hash and the third has no review: both are held, only the first counts.
+  assertEquals(all.requests.length, 1);
+  assertEquals(all.holds.length, 2);
+  assertEquals(all.citationDatesDropped, 1);
+  assertEquals((await prepareAll([clean], DATES)).citationDatesDropped, 0);
+});

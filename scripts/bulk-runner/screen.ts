@@ -4,7 +4,7 @@
 //
 //   deno run -A --config supabase/functions/deno.json scripts/bulk-runner/screen.ts --screen <name>
 //     --collection <collection.json> --records <reader output .jsonl> --out <dir outside the repository>
-//     [--patches <reader output .jsonl>] [--no-live] [--no-pages]
+//     [--patches <reader output .jsonl>] [--no-live] [--no-pages] [--service <libpq service>] [--psql <path>]
 //
 // Holds, logs and the receipt hold names, counts and hashes, never record text.
 import { createHash } from 'node:crypto';
@@ -18,6 +18,7 @@ import { SCREENS } from './screens/index.ts';
 import {
   type Finding,
   type LiveReader,
+  type Report,
   REVIEW_CHECKS,
   type ReviewCheck,
   type Screen,
@@ -25,9 +26,10 @@ import {
 } from './screen_types.ts';
 
 const USAGE = 'usage: screen.ts --screen <name> --collection <file> --records <file> --out <dir> [--patches <file>] ' +
-  '[--no-live] [--no-pages] [--psql <path>] (see the header of scripts/bulk-runner/screen.ts)';
+  '[--no-live] [--no-pages] [--service <name>] [--psql <path>] (see the header of scripts/bulk-runner/screen.ts)';
 const HEX64 = /^[0-9a-f]{64}$/;
 const MAX_FIELD = 1_000;
+const REPORT_NAME = /^[a-z][a-z0-9_]{0,59}$/;
 const OUT = {
   receipt: 'screen.receipt.json',
   screened: 'screened.jsonl',
@@ -45,7 +47,12 @@ export interface Command {
   noLive: boolean;
   noPages: boolean;
   psql: string;
+  /** The libpq service the live reader connects through (default nter-accept). */
+  service: string;
 }
+
+const DEFAULT_SERVICE = 'nter-accept';
+const SERVICE_NAME = /^[A-Za-z0-9_.-]{1,64}$/;
 
 export function parseArgs(argv: string[]): Command {
   const values = new Map<string, string>();
@@ -58,7 +65,7 @@ export function parseArgs(argv: string[]): Command {
       continue;
     }
     const v = argv[i + 1];
-    if (!['--screen', '--collection', '--records', '--out', '--patches', '--psql'].includes(k ?? '')) {
+    if (!['--screen', '--collection', '--records', '--out', '--patches', '--psql', '--service'].includes(k ?? '')) {
       throw new Error(`unknown or malformed option ${JSON.stringify(String(k).slice(0, 40))}. ${USAGE}`);
     }
     if (v === undefined || v.startsWith('--')) throw new Error(`${k} needs a value. ${USAGE}`);
@@ -71,6 +78,10 @@ export function parseArgs(argv: string[]): Command {
     if (!v) throw new Error(`${k} is required. ${USAGE}`);
     return v;
   };
+  const service = values.get('--service') ?? DEFAULT_SERVICE;
+  if (!SERVICE_NAME.test(service)) {
+    throw new Error('bad --service name: letters, digits, dot, dash, underscore, 64 at most');
+  }
   return {
     screen: need('--screen'),
     collection: need('--collection'),
@@ -80,6 +91,7 @@ export function parseArgs(argv: string[]): Command {
     noLive: switches.has('--no-live'),
     noPages: switches.has('--no-pages'),
     psql: values.get('--psql') ?? 'psql',
+    service,
   };
 }
 
@@ -135,6 +147,25 @@ export function validateScreen(screen: Screen): void {
     }
   }
   if (screen.project !== undefined && typeof screen.project !== 'function') fail('project must be a function');
+  if (screen.listingRows !== undefined && screen.listingRows !== 'required' && screen.listingRows !== 'none') {
+    fail('listingRows must be "required" or "none"');
+  }
+  if (screen.reports !== undefined) {
+    if (!Array.isArray(screen.reports)) fail('reports must be a list');
+    const reportNames = new Set<string>();
+    for (const r of screen.reports) {
+      if (!r || typeof r.name !== 'string' || !REPORT_NAME.test(r.name) || typeof r.one !== 'function') {
+        fail('a report needs a name (lower-case letters, digits and underscore) and a one function');
+      }
+      if (reportNames.has(r.name)) fail(`report name ${r.name} is used twice`);
+      if (names.has(r.name) || r.name === 'screen') fail(`report name ${r.name} is also a check name`);
+      if (r.note !== undefined && (typeof r.note !== 'string' || r.note === '' || r.note.length > 500)) {
+        fail(`report ${r.name} has a bad note (a non-empty string of at most 500 characters)`);
+      }
+      reportNames.add(r.name);
+    }
+  }
+  if (screen.holdKeys !== undefined && screen.holdKeys !== 'hex40') fail('holdKeys must be "hex40" or absent');
   const missing = REVIEW_CHECKS.filter((c) => !covered.has(c));
   if (missing.length) fail(`no check covers ${missing.join(', ')}`);
 }
@@ -200,6 +231,16 @@ export interface ScreenHold {
   findings: Finding[];
 }
 
+/**
+ * What the reports counted: report name, then group, then counter, to a count. And, per report name, in how many
+ * records it failed. Numbers and labels that passed the screen's own checks of them; never text from a record.
+ */
+export interface ReportSummary {
+  reportNotes: Record<string, string>;
+  reports: Record<string, Record<string, Record<string, number>>>;
+  reportErrors: Record<string, number>;
+}
+
 export interface ScreenResult {
   screened: Rec[];
   holds: ScreenHold[];
@@ -238,26 +279,37 @@ const deepEqual = (a: unknown, b: unknown): boolean => {
  * before the call, so a projection that edits its argument is caught), and none of the two fields the screen sets.
  */
 function applyProject(screen: Screen, rec: Rec): { record: Rec } | { error: string } {
-  const before = structuredClone(rec);
-  let out: unknown;
+  // Everything a projection or the comparison could throw on (a value that cannot be copied, a nesting too deep) is a
+  // held record, never a failed run.
   try {
-    out = screen.project!(rec);
+    const before = structuredClone(rec);
+    const out: unknown = screen.project!(rec);
+    if (!isRec(out)) return { error: 'project did not return an object' };
+    for (const k of Object.keys(before)) {
+      if (!Object.hasOwn(out, k)) return { error: `project removed ${k}` };
+      if (!deepEqual(before[k], out[k])) return { error: `project changed ${k}` };
+    }
+    if (Object.hasOwn(out, 'review') || Object.hasOwn(out, 'text_sha256')) {
+      // `before` never has these (a record that carried them was held), so they would be added by the projection.
+      return { error: 'project set review or text_sha256' };
+    }
+    return { record: out };
   } catch (e) {
     return { error: errorName(e) };
   }
-  if (!isRec(out)) return { error: 'project did not return an object' };
-  for (const k of Object.keys(before)) {
-    if (!Object.hasOwn(out, k)) return { error: `project removed ${k}` };
-    if (!deepEqual(before[k], out[k])) return { error: `project changed ${k}` };
-  }
-  if (Object.hasOwn(out, 'review') || Object.hasOwn(out, 'text_sha256')) {
-    // `before` never has these (a record that carried them was held), so they would be added by the projection.
-    return { error: 'project set review or text_sha256' };
-  }
-  return { record: out };
 }
 
 const PROGRESS_EVERY = 250;
+/** The longest source_key a hold repeats: a key is a name, and anything longer is the record's text, not a key. */
+const MAX_REPORTED_KEY = 200;
+const reportedKey = (k: unknown, mode?: 'hex40'): string | null =>
+  typeof k !== 'string'
+    ? null
+    : mode === 'hex40'
+    ? (/^[0-9a-f]{40}$/.test(k) ? k : null)
+    : k.length <= MAX_REPORTED_KEY
+    ? k
+    : null;
 const MAX_LOGGED_MESSAGE = 500;
 const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, MAX_LOGGED_MESSAGE);
 
@@ -283,7 +335,7 @@ export async function screenSets(
   ctx: ScreenContext,
   opts: SharedOptions,
   emit: Emit,
-): Promise<void> {
+): Promise<ReportSummary> {
   validateScreen(screen);
   const log = opts.log ?? (() => {});
   if (!text1000(opts.decisionId)) throw new Error('packageId and decisionId are required');
@@ -426,6 +478,7 @@ export async function screenSets(
     log(`check ${c.name}: done, ${found.reduce((t, f) => t + f.length, 0) - before} findings`);
   }
 
+  const wasScreened: boolean[] = items.map(() => false);
   for (let i = 0; i < n; i++) {
     const x = items[i];
     const checks = Object.fromEntries(
@@ -442,6 +495,7 @@ export async function screenSets(
       else found[i].push(own('project', ['identity'], 'project_failed', done.error));
     }
     if (found[i].length === 0 && REVIEW_CHECKS.every((rc) => checks[rc])) {
+      wasScreened[i] = true;
       await emit.screened(x.set, {
         ...rec,
         text_sha256: hashes[i],
@@ -459,13 +513,104 @@ export async function screenSets(
       });
     } else {
       await emit.hold(x.set, {
-        source_key: isRec(x.rec) && typeof x.rec.source_key === 'string' ? x.rec.source_key : null,
+        source_key: isRec(x.rec) ? reportedKey(x.rec.source_key, screen.holdKeys) : null,
         reasons: [...new Set(found[i].map((f) => f.reason))],
         findings: found[i],
       });
     }
     if ((i + 1) % PROGRESS_EVERY === 0) log(`outcomes: ${i + 1} of ${n} records`);
   }
+  // Reports come last, after every outcome has been handed over, and read a frozen shallow copy: nothing they do can
+  // change a hold or a screened record.
+  return await runReports(screen.reports ?? [], recs, wasScreened, ctx, log);
+}
+
+const COUNTER_NAME = /^[a-z][a-z0-9_]{0,39}$/;
+const GROUP_LABEL = /^[A-Za-z0-9._-]{1,100}$/;
+const MAX_GROUPS = 100;
+const MAX_OBSERVATIONS = 50;
+
+/**
+ * Adds up what each report counted. A report that throws, or returns anything but a short list of
+ * `{ group, counts }` with plain labels and non-negative safe-integer counts, adds one to its `reportErrors` for that
+ * record and contributes nothing from it. Groups that are not plain labels, and groups past the first 100 of a report,
+ * are counted under `other`. Reports see only records that are objects.
+ */
+async function runReports(
+  reports: Report[],
+  recs: Rec[],
+  wasScreened: boolean[],
+  ctx: ScreenContext,
+  log: (line: string) => void,
+): Promise<ReportSummary> {
+  const groups = new Map<string, Map<string, Map<string, number>>>();
+  const errors = new Map<string, number>();
+  for (const report of reports) {
+    const byGroup = new Map<string, Map<string, number>>();
+    groups.set(report.name, byGroup);
+    for (const [at, rec] of recs.entries()) {
+      if (!isRec(rec)) continue;
+      let out: unknown;
+      try {
+        out = await report.one(Object.freeze({ ...rec }), ctx, wasScreened[at] ? 'screened' : 'held');
+      } catch (e) {
+        log(`report ${report.name}: failed (${errorName(e)})`);
+        errors.set(report.name, (errors.get(report.name) ?? 0) + 1);
+        continue;
+      }
+      const planned: Array<[string, string, number]> = [];
+      let ok = Array.isArray(out) && out.length <= MAX_OBSERVATIONS;
+      if (ok) {
+        for (const o of out as unknown[]) {
+          if (!isRec(o) || typeof o.group !== 'string' || !isRec(o.counts)) {
+            ok = false;
+            break;
+          }
+          let group = GROUP_LABEL.test(o.group) ? o.group : 'other';
+          if (group !== 'other' && !byGroup.has(group) && byGroup.size >= MAX_GROUPS) group = 'other';
+          for (const [counter, value] of Object.entries(o.counts)) {
+            if (!COUNTER_NAME.test(counter) || !Number.isSafeInteger(value) || (value as number) < 0) ok = false;
+            else planned.push([group, counter, value as number]);
+          }
+        }
+      }
+      // Overflow is judged on the totals as they would stand, so a record either adds all of its counts or none.
+      if (ok) {
+        const next = new Map<string, number>();
+        for (const [g, c, v] of planned) {
+          const k = `${g}\0${c}`;
+          const base = next.get(k) ?? byGroup.get(g)?.get(c) ?? 0;
+          if (!Number.isSafeInteger(base + v)) ok = false;
+          next.set(k, base + v);
+        }
+        if (ok) {
+          for (const [k, v] of next) {
+            const [g, c] = k.split('\0');
+            if (!byGroup.has(g)) byGroup.set(g, new Map());
+            byGroup.get(g)!.set(c, v);
+          }
+        }
+      }
+      if (!ok) {
+        log(`report ${report.name}: returned something unusable`);
+        errors.set(report.name, (errors.get(report.name) ?? 0) + 1);
+      }
+    }
+  }
+  // Own properties only, so a label such as __proto__ is data, never a prototype.
+  const entries = <V>(m: Map<string, V>) => Object.fromEntries(m);
+  return {
+    reportNotes: Object.fromEntries(
+      reports.filter((r) => typeof r.note === 'string').map((r) => [r.name, r.note as string]),
+    ),
+    reports: Object.fromEntries(
+      [...groups].filter(([, g]) => g.size > 0).map(([name, g]) => [
+        name,
+        Object.fromEntries([...g].map(([group, c]) => [group, entries(c)])),
+      ]),
+    ),
+    reportErrors: entries(errors),
+  };
 }
 
 /** The same for one set, returning the outcomes. */
@@ -490,15 +635,15 @@ export async function runScreenSets(
   sets: { records: SetInput; patches?: SetInput | null },
   ctx: ScreenContext,
   opts: SharedOptions,
-): Promise<{ records: ScreenResult; patches: ScreenResult | null }> {
+): Promise<{ records: ScreenResult; patches: ScreenResult | null; summary: ReportSummary }> {
   const records: ScreenResult = { screened: [], holds: [] };
   const patches: ScreenResult | null = sets.patches ? { screened: [], holds: [] } : null;
   const to = (set: SetName) => set === 'records' ? records : patches!;
-  await screenSets(screen, sets, ctx, opts, {
+  const summary = await screenSets(screen, sets, ctx, opts, {
     screened: (set, r) => void to(set).screened.push(r),
     hold: (set, h) => void to(set).holds.push(h),
   });
-  return { records, patches };
+  return { records, patches, summary };
 }
 
 // ---- reading the reader's output ----
@@ -620,7 +765,6 @@ export interface ScreenDeps {
   now: () => number;
 }
 
-const LIVE_SERVICE = 'nter-accept';
 const off = () => Promise.reject(new Error('live reads are switched off (--no-live)'));
 const switchedOff: LiveReader = { documents: off, identity: off, deskRows: off };
 
@@ -715,8 +859,9 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
   const patchInput = c.patches ? await readInput(c.patches, 'patches') : null;
   deps.log(`read ${inputs.records.lines} records${patchInput ? ` and ${patchInput.lines} patches` : ''}`);
 
+  const listingRows = screen.listingRows ?? 'required';
   const hasNeeds = (n: 'live' | 'pages') => screen.checks.some((x) => x.needs === n);
-  const live = c.noLive ? switchedOff : deps.live(LIVE_SERVICE, c.psql);
+  const live = c.noLive ? switchedOff : deps.live(c.service, c.psql);
   // Which database this is, before anything is judged against it: an empty or wrong one would pass every "not live".
   let liveIdentity: Record<string, unknown> | null = null;
   if (!c.noLive && hasNeeds('live')) {
@@ -726,7 +871,8 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
     if (!text1000(id?.database) || !text1000(id?.server) || !count(id?.documents) || !count(id?.deskRows)) {
       throw new Error('the live reader gave no usable database identity');
     }
-    if (id.documents === 0 || id.deskRows === 0) {
+    // A desk whose listing rows sit under another spelling (listingRows 'none') needs documents, not rows.
+    if (id.documents === 0 || (listingRows === 'required' && id.deskRows === 0)) {
       throw new Error(
         `database ${id.database} (${id.server}) holds ${id.documents} documents and ${id.deskRows} listing rows for ` +
           `${desk.tier} / ${desk.feature}; this is not the database to screen against, so nothing was written`,
@@ -770,7 +916,7 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
       records: { out: 0, held: 0, byReason: {} },
       patches: { out: 0, held: 0, byReason: {} },
     };
-    await screenSets(
+    const summary = await screenSets(
       screen,
       {
         records: {
@@ -839,10 +985,17 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
       screened_from_patches: counts.patches.out,
       screened_from_patches_keys_sha256: sha256([...patchKeys].sort().join('\n')),
       live_identity: liveIdentity,
+      listing_rows: listingRows,
       live_reads_ran: !c.noLive && hasNeeds('live'),
       page_check_ran: !c.noPages && hasNeeds('pages'),
       complete: !c.noLive && !c.noPages,
       checks_stats: checksStats,
+      // Report-only scans (counts only, by label) and how many records each failed on; neither can hold a record.
+      reports: summary.reports,
+      report_errors: summary.reportErrors,
+      report_notes: summary.reportNotes,
+      // Every input record is scanned, whether it was screened or held; the groups say which.
+      reports_cover: 'every input record, screened and held',
       outputs: {
         screened: out(OUT.screened),
         holds: out(OUT.holds),
