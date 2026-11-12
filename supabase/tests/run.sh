@@ -121,6 +121,11 @@ chain() {
     ingest_bills_admission_rules)
       chain ingest_bills_adapter
       FILES+=("$(as_non_superuser 20261110120000_bills_admission_rules.sql)") ;;
+    # F307 (T2): National desks admitted search-only (Regulatory). ingest_bills_admission_rules' chain, then the
+    # migration, as a non-superuser. The vacuity check drops the last.
+    national_search_only)
+      chain ingest_bills_admission_rules
+      FILES+=("$(as_non_superuser 20261113090000_national_search_only.sql)") ;;
     # F314: a Bills row on a shared bill key resolves only to its own bill's documents. ingest_bills_admission_rules'
     # chain, then the migration, as a non-superuser. The vacuity check drops the last.
     record_resolver_shared_bill_keys)
@@ -1201,6 +1206,26 @@ fixture_sql() {
           printf '%s\n' "$inner"
         fi
       done < supabase/tests/ingest_bills_adapter.sql
+    elif [ "$1" = national_search_only ] && [ "$line" = '\i supabase/tests/ingest_bills_admission_rules.sql' ]; then
+      # Every case of the Bills rules, of Bills, and of questions and Law, without their closing rollbacks. One
+      # expected reason is rewritten on purpose: ingest_register_batch.sql sends a question claiming Regulatory's
+      # spelling to the question policy; with the search-only adapter that desk has an adapter, so the refusal is
+      # collection_not_admitted, not no_adapter. The older fixtures keep theirs: their chains lack the migration.
+      while IFS= read -r outer; do
+        if [ "$outer" = '\i supabase/tests/ingest_bills_adapter.sql' ]; then
+          while IFS= read -r inner; do
+            if [ "$inner" = '\i supabase/tests/ingest_register_batch.sql' ]; then
+              sed -e '/^rollback;$/d' \
+                -e "/\"desk_feature\":\"Regulatory Body Watch (RBI SEBI TRAI CCI)\"/s/'no_adapter');\$/'collection_not_admitted'); -- rewritten by run.sh for national_search_only/" \
+                supabase/tests/ingest_register_batch.sql
+            elif [ "$inner" != 'rollback;' ]; then
+              printf '%s\n' "$inner"
+            fi
+          done < supabase/tests/ingest_bills_adapter.sql
+        elif [ "$outer" != 'rollback;' ]; then
+          printf '%s\n' "$outer"
+        fi
+      done < supabase/tests/ingest_bills_admission_rules.sql
     elif [ "$line" = '\i supabase/migrations/20261101120000_document_chunks_partitioned.sql' ]; then
       cat supabase/migrations/20261101120000_document_chunks_partitioned.sql
     else

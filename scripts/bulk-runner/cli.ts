@@ -127,6 +127,8 @@ export function checkCollection(value: unknown): CollectionFile {
   if (!c.prepare || !Number.isInteger(c.prepare.maxChunks) || c.prepare.maxChunks < 1) {
     fail('prepare.maxChunks is required');
   }
+  const drop = (c.prepare as { dropInvalidCitationDates?: unknown }).dropInvalidCitationDates;
+  if (drop !== undefined && typeof drop !== 'boolean') fail('prepare.dropInvalidCitationDates must be true or false');
   const l = c.limits;
   if (!l) fail('limits is required');
   for (const k of ['usdPerMTokens', 'budgetUsd', 'chunkCeiling', 'diskUsedBytes', 'diskStopBytes'] as const) {
@@ -599,6 +601,7 @@ export async function main(argv: string[], deps: CliDeps): Promise<number> {
     plan: p,
     holds: prep.holds,
     controlCodesRemoved: prep.controlCodesRemoved,
+    citationDatesDropped: prep.citationDatesDropped,
     runnerCommit: commit,
     allowedRefusals: coll.allowedRefusals,
     maxAllowedRefusalShare: coll.maxAllowedRefusalShare,
