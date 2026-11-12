@@ -547,6 +547,16 @@ Deno.test('control codes removed in prepare are totalled in the receipt', async 
   assertEquals(receipt(r).control_codes_removed, 12);
 });
 
+Deno.test('citation dates dropped in prepare are totalled in the receipt, and are 0 when nothing was dropped', async () => {
+  const r = rig();
+  const p = await plan(many(3), LIMITS);
+  await run({ collection: 'reg', plan: p, holds: [], citationDatesDropped: 160, runnerCommit: 'abcdef1' }, r.deps, {});
+  assertEquals(receipt(r).citation_dates_dropped, 160);
+  const q = rig();
+  await run({ collection: 'bills', plan: p, holds: [], runnerCommit: 'abcdef1' }, q.deps, {});
+  assertEquals(receipt(q).citation_dates_dropped, 0);
+});
+
 Deno.test('more than one batch: each gets its own receipt, and a stop ends the pack', async () => {
   const r = rig();
   const p = await plan(many(10_001), LIMITS);

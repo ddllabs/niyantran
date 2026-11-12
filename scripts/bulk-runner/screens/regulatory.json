@@ -1,0 +1,41 @@
+{
+  "collection": "national-regulatory",
+  "mapping_version": "search-only-screen-v1",
+  "desk_tier": "national",
+  "desk_feature": "Regulatory Body Watch (RBI SEBI TRAI CCI)",
+  "desk_rows_feature": "Regulatory Body Watch (RBI/SEBI/TRAI/CCI)",
+  "doc_type": "regulatory",
+  "suggested_key_prefix": "reg:",
+  "citation_required": [
+    "kind",
+    "regulator",
+    "regulator_name",
+    "title",
+    "source"
+  ],
+  "extraction_allowed": [
+    "pdf_text"
+  ],
+  "source_hosts": [
+    "trai.gov.in",
+    "cci.gov.in",
+    "rbi.org.in",
+    "sebi.gov.in"
+  ],
+  "url_hosts": [
+    "rbidocs.rbi.org.in",
+    "www.rbi.org.in",
+    "www.sebi.gov.in"
+  ],
+  "pdf_url_rule": "^https://rbidocs\\.rbi\\.org\\.in/[^?#]+\\.pdf$",
+  "min_chars": 300,
+  "max_chars": 600000,
+  "replacement_fields": [
+    "delta_patch",
+    "replaces_text"
+  ],
+  "replacement_flags": [
+    "v16_replaces"
+  ],
+  "allow_density_only": true
+}

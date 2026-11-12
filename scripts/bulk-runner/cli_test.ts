@@ -37,9 +37,9 @@ const COLLECTION = {
 };
 
 /** A question record with its own key and text, and every hash that binds the text. */
-async function question(n: number): Promise<Rec> {
+async function question(n: number, tail = ''): Promise<Rec> {
   const r: Rec = await nationalQuestion();
-  const text = `Question ${n}. The Minister replied on the progress of scheme ${n} in the year under review.`;
+  const text = `Question ${n}. The Minister replied on the progress of scheme ${n} in the year under review.${tail}`;
   const sha = await sha256Hex(text);
   const source_key = (r.source_key as string).slice(0, -6) + n.toString(16).padStart(6, '0');
   return {
@@ -216,6 +216,15 @@ Deno.test('collection file: every limit the plan needs is required, with no defa
   checkCollection(COLLECTION);
   assertThrows(() => checkCollection({ ...COLLECTION, collection: '' }), Error, 'collection is required');
   assertThrows(() => checkCollection({ ...COLLECTION, prepare: {} }), Error, 'maxChunks');
+  checkCollection({ ...COLLECTION, prepare: { maxChunks: 700, dropInvalidCitationDates: true } });
+  checkCollection({ ...COLLECTION, prepare: { maxChunks: 700, dropInvalidCitationDates: false } });
+  for (const bad of ['yes', 1, null, {}]) {
+    assertThrows(
+      () => checkCollection({ ...COLLECTION, prepare: { maxChunks: 700, dropInvalidCitationDates: bad } }),
+      Error,
+      'dropInvalidCitationDates',
+    );
+  }
   for (const k of ['usdPerMTokens', 'budgetUsd', 'chunkCeiling', 'diskUsedBytes', 'diskStopBytes']) {
     const limits: Rec = { ...COLLECTION.limits };
     delete limits[k];
@@ -924,4 +933,26 @@ Deno.test('automated acceptance: a batch with no id is never accepted, and no re
   });
   assertEquals(await accept({ batch_id: null, manifest_sha256: H }), false);
   assertEquals(written, []);
+});
+
+Deno.test('run: the run receipt carries citation_dates_dropped and control_codes_removed from prepare', async () => {
+  const dated = async (n: number, date: string, tail = '') => {
+    const r = await question(n, tail);
+    return JSON.stringify({ ...r, citation: { ...r.citation, date } });
+  };
+  const records = [await dated(1, '2020-13-45', '\u0001'), await dated(2, '2021-02-30'), await dated(3, '2020-01-01')]
+    .join('\n');
+  const coll = { ...COLLECTION, prepare: { maxChunks: 800, dropInvalidCitationDates: true } };
+  const { d, lines, written } = deps(await files(coll, records));
+  assertEquals(
+    await main(['run', '--collection', 'c.json', '--records', 'r.jsonl', '--receipts', '/var/receipts'], d),
+    0,
+    lines.join('\n'),
+  );
+  const bodies = [...written.values()].map((b) => JSON.parse(b)).filter((b) => b.run_id !== undefined);
+  assert(bodies.length > 0, 'no receipt');
+  for (const b of bodies) {
+    assertEquals(b.citation_dates_dropped, 2);
+    assertEquals(b.control_codes_removed, 1);
+  }
 });

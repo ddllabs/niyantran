@@ -199,7 +199,7 @@ const linksAgree = oneCheck('links_agree', ['identity'], (r) => {
 });
 
 // Spec: Text binds. Offsets are in code points, as prepare.ts counts them.
-const textBinds = oneCheck('text_binds', ['completeness'], async (r) => {
+export const textBinds = oneCheck('text_binds', ['completeness'], async (r) => {
   const out: Verdict[] = [];
   const text = r.text;
   if (typeof text !== 'string') return [['text_hash_mismatch', 'text is not a string']];
@@ -243,15 +243,18 @@ const textBinds = oneCheck('text_binds', ['completeness'], async (r) => {
   return out;
 });
 
-const length = oneCheck('length', ['completeness'], (r) => {
-  if (typeof r.text !== 'string') return [['too_short', 'text is not a string']];
-  // prepare.ts counts the ceiling in UTF-16 units (text.length), so this does.
-  if (r.text.length < MIN_CHARS) return [['too_short']];
-  if (r.text.length > MAX_CHARS) return [['too_long']];
-  return [];
-});
+/** The length check for a collection that takes `min` to `max` UTF-16 units (Bills: 200 to 600,000). */
+export const makeLength = (min: number, max: number) =>
+  oneCheck('length', ['completeness'], (r) => {
+    if (typeof r.text !== 'string') return [['too_short', 'text is not a string']];
+    // prepare.ts counts the ceiling in UTF-16 units (text.length), so this does.
+    if (r.text.length < min) return [['too_short']];
+    if (r.text.length > max) return [['too_long']];
+    return [];
+  });
+const length = makeLength(MIN_CHARS, MAX_CHARS);
 
-const servableCheck = oneCheck('servable_licence', ['sensitivity'], (r) => {
+export const servableCheck = oneCheck('servable_licence', ['sensitivity'], (r) => {
   const out: Verdict[] = [];
   // v1.1 records carry no servable field, so absent counts as servable; only an explicit false holds.
   if (r.servable === false) out.push(['not_servable']);
@@ -265,13 +268,16 @@ const servableCheck = oneCheck('servable_licence', ['sensitivity'], (r) => {
   return out;
 });
 
-const licenceAdmitted = oneCheck('licence_admitted', ['rights'], (r, ctx) => {
-  const admitted = ctx?.settings?.licenceClasses;
-  if (!Array.isArray(admitted) || !admitted.every((c) => typeof c === 'string')) {
-    throw new Error('bills screen: settings.licenceClasses (an array of strings) is required');
-  }
-  return str(r.licence_class) && admitted.includes(r.licence_class) ? [] : [['licence_not_admitted']];
-});
+/** The licence check; `screenName` only prefixes the error raised when the settings lack the admitted classes. */
+export const makeLicenceAdmitted = (screenName: string) =>
+  oneCheck('licence_admitted', ['rights'], (r, ctx) => {
+    const admitted = ctx?.settings?.licenceClasses;
+    if (!Array.isArray(admitted) || !admitted.every((c) => typeof c === 'string')) {
+      throw new Error(`${screenName}: settings.licenceClasses (an array of strings) is required`);
+    }
+    return str(r.licence_class) && admitted.includes(r.licence_class) ? [] : [['licence_not_admitted']];
+  });
+export const licenceAdmitted = makeLicenceAdmitted('bills screen');
 
 // Live, one read for the whole set (never one per record). Of the two keys a record may carry, the one whose rows match
 // house, name and date is the record's key and is written to `matched` for the checks after this one (and `project`).
@@ -418,7 +424,7 @@ const roleHeldLive = (matched: Map<string, string>): Check => ({
 });
 
 /** Whole-set: groups of two or more records sharing a value; every member is held, none picked. */
-function collisionCheck(
+export function collisionCheck(
   name: string,
   reason: string,
   groupOf: (r: Rec) => string | null,
@@ -453,14 +459,14 @@ const roleCollision = (matched: Map<string, string>) =>
   });
 
 // One file, one document (bills_adapter.sql lines 247-253, file_url_held, within the set).
-const fileUrlCollision = collisionCheck(
+export const fileUrlCollision = collisionCheck(
   'file_url_collision',
   'file_url_collision',
   (r) => str(r.file_url) ? r.file_url : null,
 );
 
 // Spec: the lowest source_key of a text stays, the rest are held. The text is compared as prepare.ts will store it.
-const duplicateText: Check = {
+export const duplicateText: Check = {
   name: 'duplicate_text',
   covers: ['dedupe'],
   async all(records) {
@@ -486,7 +492,7 @@ const duplicateText: Check = {
 
 // Live: another document already holds this stored text (admission's duplicate_text, bills_adapter.sql: a stored
 // content_sha256 equal to the record's, from another source_key, never the empty text). One read for the whole set.
-const duplicateTextLive: Check = {
+export const duplicateTextLive: Check = {
   name: 'duplicate_text_live',
   covers: ['dedupe'],
   needs: 'live',

@@ -16,7 +16,7 @@ import {
 } from './screen.ts';
 import { SCREENS } from './screens/index.ts';
 import { LIMITS } from './fixtures.ts';
-import { type Check, type Finding, type LiveReader, REVIEW_CHECKS, type Screen } from './screen_types.ts';
+import { type Check, type Finding, type LiveReader, type Report, REVIEW_CHECKS, type Screen } from './screen_types.ts';
 import type { Rec } from './prepare.ts';
 
 const sha = (s: string | Uint8Array) => createHash('sha256').update(s).digest('hex');
@@ -446,6 +446,7 @@ Deno.test('parseArgs: required options, switches, and no repeats or unknowns', (
     noLive: false,
     noPages: false,
     psql: 'psql',
+    service: 'nter-accept',
   });
   const all = parseArgs([...base, '--patches', 'p.jsonl', '--no-live', '--no-pages']);
   assertEquals([all.patches, all.noLive, all.noPages], ['p.jsonl', true, true]);
@@ -482,7 +483,7 @@ Deno.test('checkScreenBlock: decisionId and settings are required, nothing else 
 });
 
 Deno.test('the registry holds the Bills screen under national-bills, with the page check, built without the network', async () => {
-  assertEquals(Object.keys(SCREENS), ['national-bills']);
+  assertEquals(Object.keys(SCREENS), ['national-bills', 'national-regulatory']);
   const real = globalThis.fetch;
   let touched = 0;
   globalThis.fetch = (() => (touched++, Promise.reject(new Error('network touched')))) as typeof fetch;
@@ -1407,3 +1408,356 @@ areaTest(
     assertEquals(await listing(a.out), ['holds.jsonl', 'screen.receipt.json', 'screened.jsonl']);
   },
 );
+
+// ---- T1: --service, listingRows, reports ----
+
+Deno.test('parseArgs: --service names the libpq service; default nter-accept; a plain name only; no repeat', () => {
+  const base = ['--screen', 's', '--collection', 'c.json', '--records', 'r.jsonl', '--out', '/o'];
+  assertEquals(parseArgs(base).service, 'nter-accept');
+  assertEquals(parseArgs([...base, '--service', 'nter-load-copy']).service, 'nter-load-copy');
+  assertThrows(() => parseArgs([...base, '--service', 'a', '--service', 'b']), Error, 'twice');
+  assertThrows(() => parseArgs([...base, '--service']), Error, 'needs a value');
+  for (const bad of ['has space', 'a/b', "x'y", 'x'.repeat(65), '$(id)', 'a;b']) {
+    assertThrows(() => parseArgs([...base, '--service', bad]), Error, 'service');
+  }
+});
+
+areaTest('main: --service reaches the live reader factory, and the default is still nter-accept', async (a) => {
+  const f = await reader(a, 'b.jsonl', [JSON.stringify(BILLS_REC('k1'))]);
+  const asked: string[] = [];
+  const { deps, services } = depsFor(a, liveScreen(), {
+    live: (svc) => (asked.push(svc), identityReader(GOOD_ID)),
+  });
+  assertEquals(await main(argv(a, f.path, '--service', 'nter-load-copy'), deps), 0);
+  assertEquals(asked, ['nter-load-copy']);
+  assertEquals(services, []);
+  await Deno.remove(a.out, { recursive: true });
+  asked.length = 0;
+  assertEquals(await main(argv(a, f.path), deps), 0);
+  assertEquals(asked, ['nter-accept']);
+});
+
+Deno.test('validateScreen: listingRows is required, none or absent; reports are well formed', () => {
+  validateScreen({ ...screenOf(), listingRows: 'required' });
+  validateScreen({ ...screenOf(), listingRows: 'none' });
+  validateScreen(screenOf());
+  for (const bad of ['optional', '', 1, null, true]) {
+    assertThrows(() => validateScreen({ ...screenOf(), listingRows: bad as never }), Error, 'listingRows');
+  }
+  const ok: Report = { name: 'scan_a', one: () => [] };
+  validateScreen({ ...screenOf(), reports: [ok] });
+  assertThrows(() => validateScreen({ ...screenOf(), reports: 'x' as never }), Error, 'reports');
+  assertThrows(() => validateScreen({ ...screenOf(), reports: [{ name: '', one: () => [] }] }), Error, 'report');
+  assertThrows(
+    () => validateScreen({ ...screenOf(), reports: [{ name: 'Bad Name', one: () => [] }] }),
+    Error,
+    'report',
+  );
+  assertThrows(() => validateScreen({ ...screenOf(), reports: [{ name: 'x' } as never] }), Error, 'report');
+  assertThrows(() => validateScreen({ ...screenOf(), reports: [ok, ok] }), Error, 'twice');
+  // A report shares no name with a check, so the receipt's two kinds of entry cannot be confused.
+  assertThrows(
+    () => validateScreen({ ...screenOf(), reports: [{ name: 'c_identity', one: () => [] }] }),
+    Error,
+    'c_identity',
+  );
+});
+
+const noneScreen = (): Screen => ({ ...liveScreen(), listingRows: 'none' });
+
+areaTest(
+  'listingRows none: zero listing rows is accepted, and the receipt says there were none required',
+  async (a) => {
+    const f = await reader(a, 'b.jsonl', [JSON.stringify(BILLS_REC('k1'))]);
+    const id = { ...GOOD_ID, deskRows: 0 };
+    const { deps } = depsFor(a, noneScreen(), { live: () => identityReader(id) });
+    assertEquals(await main(argv(a, f.path), deps), 0);
+    const receipt = JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json')));
+    assertEquals(receipt.listing_rows, 'none');
+    assertEquals(receipt.live_identity.desk_rows, 0);
+    assertEquals(receipt.live_identity.documents, 40);
+    assertEquals((await readJsonl(join(a.out, 'screened.jsonl'))).length, 1);
+  },
+);
+
+areaTest('listingRows none: zero documents still stops the run with no outputs', async (a) => {
+  const f = await reader(a, 'b.jsonl', [JSON.stringify(BILLS_REC('k1'))]);
+  const { deps } = depsFor(a, noneScreen(), { live: () => identityReader({ ...GOOD_ID, documents: 0, deskRows: 0 }) });
+  await assertRejects(() => main(argv(a, f.path), deps), Error, 'nter');
+  assertEquals(await listing(a.out), []);
+});
+
+areaTest('listingRows required (also when absent): zero listing rows still stops the run', async (a) => {
+  const f = await reader(a, 'b.jsonl', [JSON.stringify(BILLS_REC('k1'))]);
+  for (const screen of [liveScreen(), { ...liveScreen(), listingRows: 'required' as const }]) {
+    const { deps } = depsFor(a, screen, { live: () => identityReader({ ...GOOD_ID, deskRows: 0 }) });
+    await assertRejects(() => main(argv(a, f.path), deps), Error, '0 listing rows');
+    assertEquals(await listing(a.out), []);
+  }
+  // And the receipt of a required run says so.
+  const { deps } = depsFor(a, liveScreen(), { live: () => identityReader(GOOD_ID) });
+  await main(argv(a, f.path), deps);
+  assertEquals(JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json'))).listing_rows, 'required');
+});
+
+const obs = (group: string, counts: Record<string, number>) => ({ group, counts });
+const reportScreen = (reports: Report[], checks?: Check[]): Screen => ({ ...screenOf(checks), reports });
+
+Deno.test('reports: counters are added up by group and name, over every record, held ones too', async () => {
+  const checks = screenOf().checks.map((c) =>
+    c.name === 'c_rights'
+      ? { ...c, one: (r: Rec) => Promise.resolve(r.source_key === 'held' ? [finding('licence_not_admitted')] : []) }
+      : c
+  );
+  const report: Report = {
+    name: 'scan_a',
+    one: (r) => [obs(String(r.title), { records: 1, matches: String(r.source_key) === 'k2' ? 3 : 0 })],
+  };
+  const sum = await screenSets(
+    reportScreen([report], checks),
+    {
+      records: setOf([
+        rec('k1', 't', { title: 'h1' }),
+        rec('k2', 't', { title: 'h1' }),
+        rec('held', 't', { title: 'h2' }),
+      ]),
+    },
+    ctx(),
+    shared(),
+    { screened: () => {}, hold: () => {} },
+  );
+  assertEquals(sum.reports, { scan_a: { h1: { records: 2, matches: 3 }, h2: { records: 1, matches: 0 } } });
+  assertEquals(sum.reportErrors, {});
+});
+
+Deno.test('reports: a report never adds a hold or removes one, however it behaves', async () => {
+  const checks = screenOf().checks.map((c) =>
+    c.name === 'c_rights'
+      ? { ...c, one: (r: Rec) => Promise.resolve(r.source_key === 'held' ? [finding('licence_not_admitted')] : []) }
+      : c
+  );
+  const records = () => [rec('k1'), rec('held'), rec('k2')];
+  const plain = await runScreen(screenOf(checks), records(), ctx(), opts());
+  const hostile: Report[] = [
+    { name: 'throws', one: () => Promise.reject(new Error(`boom ${SECRET}`)) },
+    {
+      name: 'throws_sync',
+      one: () => {
+        throw new TypeError('x');
+      },
+    },
+    { name: 'not_a_list', one: () => 'yes' as never },
+    {
+      name: 'bad_counts',
+      one: () => [obs('h', { records: -1 }), obs('h', { records: 1.5 }), obs('h', { records: NaN })],
+    },
+    { name: 'bad_name', one: () => [obs('h', { 'Not A Name': 1 })] },
+    { name: 'huge', one: () => [obs('h', { records: Number.MAX_SAFE_INTEGER })] },
+    {
+      name: 'mutates',
+      one: (r) => {
+        (r as Rec).title = 'changed';
+        delete (r as Rec).text;
+        return [];
+      },
+    },
+  ];
+  const withReports = await runScreen(reportScreen(hostile, checks), records(), ctx(), opts());
+  assertEquals(withReports.holds, plain.holds);
+  assertEquals(withReports.screened.map((r) => r.source_key), ['k1', 'k2']);
+});
+
+Deno.test('reports: a failing report is counted in report_errors, counts only, and the others still run', async () => {
+  const good: Report = { name: 'good', one: () => [obs('h', { records: 1 })] };
+  const bad: Report = {
+    name: 'bad',
+    one: () => {
+      throw new Error(`boom ${SECRET}`);
+    },
+  };
+  const lines: string[] = [];
+  const sum = await screenSets(
+    reportScreen([bad, good]),
+    { records: setOf([rec('k1'), rec('k2')]) },
+    ctx(),
+    shared({ log: (l) => lines.push(l) }),
+    { screened: () => {}, hold: () => {} },
+  );
+  assertEquals(sum.reportErrors, { bad: 2 });
+  assertEquals(sum.reports, { good: { h: { records: 2 } } });
+  assert(!JSON.stringify(sum).includes(SECRET));
+  assert(!lines.join('\n').includes(SECRET), 'a report error must not log a message that could quote a record');
+});
+
+Deno.test('reports: a group that is not a plain label is counted as other; groups per report are capped', async () => {
+  const labels = ['ok.host-1_a', 'has space', 'a/b', '', 'x'.repeat(101), 'émoji', 'a\nb'];
+  const report: Report = { name: 'scan', one: (r) => [obs(String(labels[Number(r.n)]), { records: 1 })] };
+  const recs = labels.map((_, n) => rec(`k${n}`, 't', { n }));
+  const sum = await screenSets(reportScreen([report]), { records: setOf(recs) }, ctx(), shared(), {
+    screened: () => {},
+    hold: () => {},
+  });
+  assertEquals(sum.reports, { scan: { 'ok.host-1_a': { records: 1 }, other: { records: 6 } } });
+  // 150 distinct plain labels: the first 100 are kept, the rest are other.
+  const many: Report = { name: 'many', one: (r) => [obs(`g${String(r.n)}`, { records: 1 })] };
+  const sum2 = await screenSets(
+    reportScreen([many]),
+    { records: setOf(Array.from({ length: 150 }, (_, n) => rec(`m${n}`, 't', { n }))) },
+    ctx(),
+    shared(),
+    { screened: () => {}, hold: () => {} },
+  );
+  assertEquals(Object.keys(sum2.reports.many).length, 101);
+  assertEquals(sum2.reports.many.other, { records: 50 });
+});
+
+Deno.test('reports: they run with live reads and the page check switched off, and the records are still all held', async () => {
+  const report: Report = { name: 'scan', one: () => [obs('h', { records: 1 })] };
+  const out: string[] = [];
+  const sum = await screenSets(
+    reportScreen([report]),
+    { records: setOf([rec('k1'), rec('k2')]) },
+    ctx(),
+    shared({ noLive: true, noPages: true }),
+    {
+      screened: () => void out.push('screened'),
+      hold: () => void out.push('hold'),
+    },
+  );
+  assertEquals(out, ['hold', 'hold']);
+  assertEquals(sum.reports, { scan: { h: { records: 2 } } });
+});
+
+Deno.test('reports: a report is not shown a record that is not an object', async () => {
+  const seen: unknown[] = [];
+  const report: Report = { name: 'scan', one: (r) => (seen.push(r), [obs('h', { records: 1 })]) };
+  const sum = await screenSets(
+    reportScreen([report]),
+    { records: setOf([rec('k1'), null as never, 5 as never, [] as never]) },
+    ctx(),
+    shared(),
+    { screened: () => {}, hold: () => {} },
+  );
+  assertEquals(seen.length, 1);
+  assertEquals(sum.reports, { scan: { h: { records: 1 } } });
+});
+
+areaTest(
+  'main: the receipt carries the reports and report_errors, counts only; a screen without reports has empty ones',
+  async (a) => {
+    const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k1')), JSON.stringify(rec('k2'))]);
+    const report: Report = { name: 'scan', one: () => [obs('rbi.org.in', { records: 1, matches: 2 })] };
+    const bad: Report = {
+      name: 'bad',
+      one: () => {
+        throw new Error('x');
+      },
+    };
+    const { deps } = depsFor(a, reportScreen([report, bad]));
+    assertEquals(await main(argv(a, f.path), deps), 0);
+    const receipt = JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json')));
+    assertEquals(receipt.reports, { scan: { 'rbi.org.in': { records: 2, matches: 4 } } });
+    assertEquals(receipt.report_errors, { bad: 2 });
+    assertEquals(receipt.records.records_out, 2);
+    await Deno.remove(a.out, { recursive: true });
+    assertEquals(await main(argv(a, f.path), depsFor(a).deps), 0);
+    const plain = JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json')));
+    assertEquals([plain.reports, plain.report_errors], [{}, {}]);
+  },
+);
+
+Deno.test('a check that did not run for a record never passes it: a switched-off check and an onlyIfClean skip hold', async () => {
+  const mk = (over: Partial<Check>) =>
+    screenOf(screenOf().checks.map((c) => c.name === 'c_dedupe' ? { ...c, ...over } : c));
+  // Under --no-live a live check is skipped, and the record is held rather than passed.
+  const live = await runScreen(mk({ needs: 'live' }), [rec('k1')], ctx(), opts({ noLive: true }));
+  assertEquals(live.screened, []);
+  assertEquals(live.holds[0].reasons, ['screen_incomplete']);
+  const pages = await runScreen(mk({ needs: 'pages' }), [rec('k1')], ctx(), opts({ noPages: true }));
+  assertEquals(pages.screened, []);
+  // A check that returns a finding set for a record it was not offered is a refusal of the whole run, not a pass.
+  await assertRejects(
+    () =>
+      runScreen(
+        mk({ one: undefined, all: () => Promise.resolve(new Map([['zzz', [finding('x')]]])) }),
+        [rec('k1')],
+        ctx(),
+        opts(),
+      ),
+    Error,
+    'not in the set',
+  );
+});
+
+Deno.test('project: a record the projection cannot copy (a value structuredClone refuses) is held project_failed, not a failed run', async () => {
+  const s: Screen = { ...screenOf(), project: (r) => ({ ...r, extra: 1 }) };
+  const out = await runScreen(s, [rec('k1', 't', { odd: () => 1 }), rec('k2')], ctx(), opts());
+  assertEquals(out.screened.map((r) => r.source_key), ['k2']);
+  assertEquals(out.holds[0].source_key, 'k1');
+  assertEquals(out.holds[0].reasons, ['project_failed']);
+});
+
+Deno.test('holds: a source_key that is not a name (over 200 characters) is not repeated; the hold has null, the reasons stay', async () => {
+  const long = 'k'.repeat(201);
+  const checks = screenOf().checks.map((c) =>
+    c.name === 'c_rights' ? { ...c, one: () => Promise.resolve([finding('licence_not_admitted')]) } : c
+  );
+  const out = await runScreen(screenOf(checks), [rec(long), rec('k'.repeat(200)), rec('k1')], ctx(), opts());
+  assertEquals(out.holds.map((h) => h.source_key), [null, 'k'.repeat(200), 'k1']);
+  assert(out.holds.every((h) => h.reasons[0] === 'licence_not_admitted'));
+  assert(!JSON.stringify(out.holds).includes(long));
+});
+
+Deno.test('reports: each report is told whether the record was screened or held, and may carry a fixed note', async () => {
+  const seen: string[] = [];
+  const checks = screenOf().checks.map((c) =>
+    c.name === 'c_rights'
+      ? { ...c, one: (r: Rec) => Promise.resolve(r.source_key === 'held' ? [finding('licence_not_admitted')] : []) }
+      : c
+  );
+  const report: Report = {
+    name: 'scan',
+    note: 'a fixed note',
+    one: (r, _c, outcome) => (seen.push(`${String(r.source_key)}:${outcome}`), [obs(outcome, { records: 1 })]),
+  };
+  const sum = await screenSets(
+    reportScreen([report], checks),
+    { records: setOf([rec('k1'), rec('held')]) },
+    ctx(),
+    shared(),
+    { screened: () => {}, hold: () => {} },
+  );
+  assertEquals(seen.sort(), ['held:held', 'k1:screened']);
+  assertEquals(sum.reports, { scan: { screened: { records: 1 }, held: { records: 1 } } });
+  assertEquals(sum.reportNotes, { scan: 'a fixed note' });
+  assertThrows(
+    () => validateScreen({ ...screenOf(), reports: [{ name: 'x', one: () => [], note: 5 as never }] }),
+    Error,
+    'note',
+  );
+});
+
+areaTest('main: the receipt carries the report notes and says the scan covers every input record', async (a) => {
+  const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k1'))]);
+  const report: Report = { name: 'scan', note: 'a fixed note', one: () => [obs('screened', { records: 1 })] };
+  assertEquals(await main(argv(a, f.path), depsFor(a, reportScreen([report])).deps), 0);
+  const receipt = JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json')));
+  assertEquals(receipt.report_notes, { scan: 'a fixed note' });
+  assertEquals(receipt.reports_cover, 'every input record, screened and held');
+});
+
+Deno.test('holdKeys hex40: a hold repeats a source_key only when it is 40 hex characters; the default is unchanged', async () => {
+  const checks = screenOf().checks.map((c) =>
+    c.name === 'c_rights' ? { ...c, one: () => Promise.resolve([finding('x')]) } : c
+  );
+  const hex = 'ab'.repeat(20);
+  const recs = () => [rec(hex), rec('k1'), rec('HOSTILE-text')];
+  const plain = await runScreen(screenOf(checks), recs(), ctx(), opts());
+  assertEquals(plain.holds.map((h) => h.source_key), [hex, 'k1', 'HOSTILE-text']);
+  const strict = await runScreen({ ...screenOf(checks), holdKeys: 'hex40' }, recs(), ctx(), opts());
+  assertEquals(strict.holds.map((h) => h.source_key), [hex, null, null]);
+  validateScreen({ ...screenOf(), holdKeys: 'hex40' });
+  for (const bad of ['hex', '', 1, null]) {
+    assertThrows(() => validateScreen({ ...screenOf(), holdKeys: bad as never }), Error, 'holdKeys');
+  }
+});

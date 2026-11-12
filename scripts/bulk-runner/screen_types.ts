@@ -28,6 +28,8 @@ export interface LiveDocument {
   house: string | null;
   document_role: string | null;
   content_sha256: string | null;
+  /** metadata->>'document_key_suggested' (search-only desks). Absent from readers that predate the field. */
+  document_key_suggested?: string | null;
 }
 
 /** A listing row, as the screen may read it (read-only). `row` is desk_rows.row. */
@@ -43,14 +45,16 @@ export interface LiveDeskRow {
 export interface LiveReader {
   /**
    * Live documents matching any of the given lists (each may be empty or absent): source keys, file URLs, stored text
-   * hashes (documents.content_sha256), or document keys (metadata->>'document_key'; only with `tier` and `feature`, which
-   * then also restrict that list's matches to documents of that tier and feature).
+   * hashes (documents.content_sha256), document keys (metadata->>'document_key') or suggested keys
+   * (metadata->>'document_key_suggested'); document keys and suggested keys only with `tier` and `feature`, which then
+   * also restrict those lists' matches to documents of that tier and feature.
    */
   documents(q: {
     sourceKeys: string[];
     fileUrls: string[];
     contentHashes?: string[];
     documentKeys?: string[];
+    suggestedKeys?: string[];
     tier?: string;
     feature?: string;
   }): Promise<LiveDocument[]>;
@@ -88,6 +92,34 @@ export interface Check {
   onlyIfClean?: boolean;
 }
 
+/** What a report counted in one record: counters by group (a host, for example), never text or values. */
+export interface ReportObservation {
+  /** A short label such as a host name: letters, digits, dot, dash, underscore; anything else is counted as 'other'. */
+  group: string;
+  /** Counter name (lower-case letters and underscore) to a count. */
+  counts: Record<string, number>;
+}
+
+/**
+ * A report-only scan. It reads each record and returns counts; the screen adds them up into the receipt. It is not a
+ * check: it covers no review check, its result is never read by the hold logic, and a report that fails or returns
+ * something unusable only adds to `report_errors` in the receipt. It can never add a hold or remove one.
+ */
+export interface Report {
+  name: string;
+  /** A fixed sentence the receipt repeats beside the counts (how to read them). Not built from records. */
+  note?: string;
+  /**
+   * `outcome` says whether the record was screened or held; a report sees every input record either way, so its
+   * counts cover the whole input and can be split by outcome.
+   */
+  one(
+    record: Rec,
+    ctx: ScreenContext,
+    outcome: 'screened' | 'held',
+  ): Promise<ReportObservation[]> | ReportObservation[];
+}
+
 /** A collection screen. Invalid unless every ReviewCheck is covered by at least one check. */
 export interface Screen {
   collection: string;
@@ -96,6 +128,19 @@ export interface Screen {
   /** Repository paths whose bytes, in this order, make review.rules_sha256. */
   rulesFiles: string[];
   checks: Check[];
+  /**
+   * Whether the collection has listing rows under the records' desk_feature. 'required' (the default when absent):
+   * the live identity read must find documents and listing rows, and zero of either stops the run. 'none': only zero
+   * documents stops the run (a desk whose listing uses another spelling, such as Regulatory), and the receipt says so.
+   */
+  listingRows?: 'required' | 'none';
+  /** Report-only scans, counted into the receipt (see Report). Absent: none. */
+  reports?: Report[];
+  /**
+   * What a hold repeats as the record's `source_key`. Absent: the key if it is at most 200 characters, else null.
+   * 'hex40': the key only when it is 40 hex characters, else null (a malformed key can be record-controlled text).
+   */
+  holdKeys?: 'hex40';
   /**
    * Top-level fields the collection's adapter reads, derived only from fields of the record that this screen's checks
    * verified (for Bills: `document_key` from the agreeing links, `document_role` from `citation.version`). Applied to
