@@ -33,3 +33,24 @@ it('keeps copy icon-only with a named button and tooltip',()=>{
 it('copies user text without adding attachment/source metadata',()=>{
   expect(answerForCopy({role:'user',content:'Question?',sources:[{id:1,title:'Attached bill'}]})).toBe('Question?');
 });
+
+// F332: the copied reference line names the publisher, after the page and before the URL.
+it('copies the publisher after the page and before the URL, in English and in Hindi', () => {
+  const m = { content: 'Evidence [1]', sources: [
+    { id: 1, kind: 'text', chunk_id: 'c1', title: 'Circular on KYC', page_number: 4, publisher: 'Reserve Bank of India', file_url: 'https://rbidocs.rbi.org.in/x.pdf' },
+  ] };
+  expect(answerForCopy(m)).toBe('Evidence [1]\n\nSources\n[1] Circular on KYC · p. 4 · Published by Reserve Bank of India — https://rbidocs.rbi.org.in/x.pdf');
+  expect(answerForCopy(m, true)).toBe('Evidence [1]\n\nस्रोत\n[1] Circular on KYC · पृ. 4 · प्रकाशक: Reserve Bank of India — https://rbidocs.rbi.org.in/x.pdf');
+  const noPageNoUrl = { content: 'A', sources: [{ id: 1, kind: 'text', chunk_id: 'c1', title: 'Direction', publisher: 'Competition Commission of India' }] };
+  expect(answerForCopy(noPageNoUrl)).toBe('A\n\nSources\n[1] Direction · Published by Competition Commission of India');
+});
+
+it('a source without a publisher, or with an invalid one, copies as before', () => {
+  const plain = { content: 'Evidence [1]', sources: [{ id: 1, kind: 'text', chunk_id: 'c1', title: 'Bill', page_number: 2, file_url: 'https://example.org/bill.pdf' }] };
+  expect(answerForCopy(plain)).toBe('Evidence [1]\n\nSources\n[1] Bill · p. 2 — https://example.org/bill.pdf');
+  for (const bad of ['', '  ', 7, {}, 'x'.repeat(81), 'A\nB', 'ref:abc123-1']) {
+    expect(answerForCopy({ content: 'E', sources: [{ id: 1, kind: 'text', chunk_id: 'c1', title: 'Bill', publisher: bad }] }), JSON.stringify(bad)).toBe('E\n\nSources\n[1] Bill');
+  }
+  // A row or a web page is not a text citation.
+  expect(answerForCopy({ content: 'E', sources: [{ id: 1, kind: 'row', row_key: 'k', title: 'Record', publisher: 'Reserve Bank of India' }] })).toBe('E\n\nSources\n[1] Record');
+});

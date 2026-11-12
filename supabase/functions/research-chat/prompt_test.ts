@@ -608,3 +608,17 @@ Deno.test('F331: the citation rules say a catalogue line is not passage text and
   assertStringIncludes(rules, 'copy the handle verbatim as "source"');
   assertStringIncludes(rules, 'Never write a handle in the answer text.');
 });
+
+// F332: a Regulatory passage header names the publisher of its document. The rule is the last bullet of the citation
+// rules, after F331's; the persona files are not touched.
+const PUBLISHER_RULE = "- A passage header's 'publisher:' label names the body that published that document, as its 'version:' label names the version. You may state it with that passage's citation. It is not passage text. Publishing alone does not establish that a statement in it is that body's finding; the passage text decides. Do not name a publisher a header does not give, unless the passage text itself states it.";
+const CATALOGUE_RULE = "- A line that starts 'Catalogue fields' under a passage lists the document's catalogue data. It is not passage text: do not quote it as the passage, and do not cite a passage for a fact that only that line states.";
+
+Deno.test('F332: the citation rules end with the publisher sentence, after the catalogue sentence', () => {
+  const start = SYSTEM_PROMPT_STATIC.indexOf('Citations:');
+  const rules = SYSTEM_PROMPT_STATIC.slice(start, SYSTEM_PROMPT_STATIC.indexOf('\n\n', start));
+  assert(rules.endsWith(PUBLISHER_RULE), 'the publisher bullet is last');
+  assert(rules.indexOf(CATALOGUE_RULE) >= 0 && rules.indexOf(CATALOGUE_RULE) < rules.indexOf(PUBLISHER_RULE));
+  assertEquals(rules.split(PUBLISHER_RULE).length - 1, 1);
+  assertStringIncludes(buildSystemPrompt({ persona: 'p', today: 'x', catalogue: 'c', focus: 'broad' }), rules);
+});

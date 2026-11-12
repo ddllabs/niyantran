@@ -1,6 +1,6 @@
 import CitationBubble from './CitationBubble.jsx';
 import { tidyDocTitle } from '../lib/docTitle.js';
-import { documentRoleLabel, isTextCitation } from '../types/citation.js';
+import { documentRoleLabel, isTextCitation, publisherName, publisherPhrase } from '../types/citation.js';
 
 const MAX_PAGES = 5;
 
@@ -15,7 +15,7 @@ export function documentChips(sources) {
     if (!isTextCitation(s)) continue;
     let c = byId.get(s.document_id);
     if (!c) {
-      c = { document_id: s.document_id, title: s.title, version: documentRoleLabel(s.document_role), file_name: s.file_name, desk_feature: s.desk_feature, first: s, pages: [], ids: [] };
+      c = { document_id: s.document_id, title: s.title, version: documentRoleLabel(s.document_role), publisher: publisherName(s), file_name: s.file_name, desk_feature: s.desk_feature, first: s, pages: [], ids: [] };
       byId.set(s.document_id, c);
       chips.push(c);
     }
@@ -54,6 +54,8 @@ export function sourceGroups(sources) {
     for (const id of c.ids) if (!g.ids.includes(id)) g.ids.push(id);
   }
   for (const g of groups) {
+    // F332: a card names a publisher only when every document on it has the same one.
+    g.publisher = g.docs.every(d => d.publisher && d.publisher === g.docs[0].publisher) ? g.docs[0].publisher : '';
     g.pages.sort((a, b) => a - b);
     g.ids.sort((a, b) => a - b);
   }
@@ -109,6 +111,7 @@ export default function SourceList({ sources, onOpen, lang, selectedSource }) {
                   <span className="ai-source-title">{tidyDocTitle(g.title)}</span>
                   <span className="ai-source-meta">
                     {single?.version ? <span className="ai-source-version">{single.version}</span> : null}
+                    {g.publisher ? <span className="ai-source-publisher">{publisherPhrase(g.publisher, hi ? 'hi' : 'en')}</span> : null}
                     {g.desk_feature ? <span>{g.desk_feature}</span> : null}
                     {pages ? <span>{pages}</span> : null}
 

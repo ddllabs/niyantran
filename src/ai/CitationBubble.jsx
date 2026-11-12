@@ -7,7 +7,7 @@
  * than left as a bracket the reader cannot open.
  */
 import { tidyDocTitle } from '../lib/docTitle.js';
-import { documentRoleLabel, isTextCitation, isRowCitation } from '../types/citation.js';
+import { documentRoleLabel, isTextCitation, isRowCitation, publisherLine, validPublisher } from '../types/citation.js';
 import './research.css';
 
 const nonblank = value => typeof value === 'string' && Boolean(value.trim());
@@ -54,6 +54,7 @@ export function sanitizeCitation(source) {
     else delete out[key];
   }
   if ('document_role' in out && !documentRoleLabel(out.document_role)) delete out.document_role;
+  if ('publisher' in out && !validPublisher(out.publisher)) delete out.publisher;
   if ('section' in out) {
     const section = {};
     for (const key of ['heading', 'note']) {
@@ -82,12 +83,15 @@ export default function CitationBubble({ n, source: raw, onOpen, selectedSource,
   const label = source.kind === 'row'
     ? `${source.title || source.row_key} — ${source.feature}`
     : `${tidyDocTitle(source.title)}${source.desk_feature ? ` — ${source.desk_feature}` : ''}`;
+  // F332: only a source-list bubble (with context) names the publisher, in its tooltip; the chip announces it once, and a
+  // marker in the prose stays short.
+  const publisher = showContext ? publisherLine(source, 'en') : '';
   return (
     <button
       type="button"
       className={`cite-bubble${source.kind === 'row' ? ' row' : ''}${selected ? ' selected' : ''}`}
       aria-pressed={selected}
-      title={showContext ? [label, documentRoleLabel(source.document_role), source.page_number ? `Page ${source.page_number}` : '', source.section?.heading].filter(Boolean).join(' · ') : label}
+      title={showContext ? [label, documentRoleLabel(source.document_role), source.page_number ? `Page ${source.page_number}` : '', source.section?.heading, publisher].filter(Boolean).join(' · ') : label}
       aria-label={`Source ${n}: ${label}`}
       onClick={(e) => {
         e.preventDefault();

@@ -11,7 +11,7 @@ import { isReadableCitation, sanitizeCitation } from './CitationBubble.jsx';
 import './research.css';
 import SourceReader from './SourceReader.jsx';
 import WebSourcesList, { cleanWebPages } from './WebSourcesList.jsx';
-import { documentRoleLabel } from '../types/citation.js';
+import { documentRoleLabel, publisherLine } from '../types/citation.js';
 
 /*
  * The page-wise viewer for `pdf_page` citations (docs/specs/2026-10-01-rag-v2-citations-pdf.md).
@@ -106,6 +106,13 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
   if (!viewer) return null;
   const { source, invalid, sources: validSources, reader, pages, searches } = resolved;
   const closeLabel = reader === 'web' ? 'Close web sources' : 'Close citation';
+  // F332: a text citation's publisher goes on a second line under the title; none, and the bar is what it was.
+  const publisher = source?.kind === 'text' ? publisherLine(source, 'en') : '';
+  const title = (
+    <span className="ai-work-title">
+      {source ? (source.kind === 'row' ? source.title || source.row_key : source.title) : (reader === 'web' ? 'Web sources' : 'Sources')}
+    </span>
+  );
 
   // "← Back" and the ✕ close the citation only; the chat stays open (revision 5, point 2). The ✕
   // is the viewer's one close control, so the readers below are not given their own.
@@ -115,9 +122,7 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
         <button type="button" ref={back} className="ai-work-back" onClick={onClose} aria-label="Back to the answer">
           ← Back
         </button>
-        <span className="ai-work-title">
-          {source ? (source.kind === 'row' ? source.title || source.row_key : source.title) : (reader === 'web' ? 'Web sources' : 'Sources')}
-        </span>
+        {publisher ? <span className="ai-work-heading">{title}<span className="ai-work-publisher">{publisher}</span></span> : title}
         {source?.kind === 'text' && documentRoleLabel(source.document_role) ? <small className="ai-work-version">{documentRoleLabel(source.document_role)}</small> : null}
         {source?.kind === 'text' ? <AskAboutDocument citation={source} locked={locked} onAsk={onAskAboutDocument} documentState={documentState} /> : null}
         {/* The web list (F130) is not a citation, so its ✕ says what it closes. */}
@@ -138,7 +143,7 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
           <ul className="ai-work-sources" aria-label="Sources">
             {validSources.map((s, index) => <li key={`${s.kind}:${s.id}:${index}`}>
               <button type="button" onClick={() => onOpen?.(s)}>
-                <span>{s.title}</span><small>{s.kind === 'row' ? `Desk record · ${s.feature}` : [documentRoleLabel(s.document_role), s.file_name || s.desk_feature || 'Document'].filter(Boolean).join(' · ')}</small>
+                <span>{s.title}</span><small>{s.kind === 'row' ? `Desk record · ${s.feature}` : [documentRoleLabel(s.document_role), s.file_name || s.desk_feature || 'Document', publisherLine(s, 'en')].filter(Boolean).join(' · ')}</small>
               </button>
             </li>)}
           </ul>

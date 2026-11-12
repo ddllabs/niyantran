@@ -1,7 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import WorkSurface, { AskAboutDocument, currentDocumentState, resolveViewer } from './WorkSurface.jsx';
-import { isReadableCitation } from './CitationBubble.jsx';
+import { isReadableCitation, sanitizeCitation } from './CitationBubble.jsx';
 
 const handedProps = vi.hoisted(() => []);
 // The real viewer loads data in effects; this stand-in shows exactly what WorkSurface hands it.
@@ -240,5 +241,99 @@ describe('web sources viewer', () => {
   it('a web source is not a citation: isReadableCitation refuses it and the citation list ignores it', () => {
     expect(isReadableCitation(WEB)).toBe(false);
     expect(resolveViewer({ kind: 'list' }, [WEB, LEGACY]).sources).toHaveLength(1);
+  });
+});
+
+// ---- F332: the publisher in the evidence bar -----------------------------------------------------------------------
+
+describe('the publisher in the evidence bar (F332)', () => {
+  const RBI = 'Reserve Bank of India';
+  const CSS = readFileSync(new URL('./research.css', import.meta.url), 'utf8');
+  const OVERLAY_CSS = readFileSync(new URL('../shell/panel-overlay.css', import.meta.url), 'utf8');
+  const REGULATORY = { ...LEGACY, desk_feature: 'Regulatory Body Watch (RBI SEBI TRAI CCI)', publisher: RBI };
+  const REGULATORY_PAGE = { ...PDF_PAGE, desk_feature: 'Regulatory Body Watch (RBI SEBI TRAI CCI)', publisher: RBI };
+  const bar = html => html.slice(html.indexOf('<div class="ai-work-bar">'), html.indexOf('<div class="ai-work-body">'));
+  const rule = (css, selector) => {
+    const found = css.match(new RegExp(`(?:^|\\})\\s*${selector.replace(/[.]/g, '\\.')}\\s*\\{([^}]*)\\}`, 'm'));
+    return found ? found[1] : '';
+  };
+
+  it('puts the publisher on a second line under the title, for the text reader and the page viewer', () => {
+    for (const source of [REGULATORY, REGULATORY_PAGE]) {
+      const html = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source }} onClose={() => {}} />);
+      expect(bar(html)).toContain(`<span class="ai-work-heading"><span class="ai-work-title">${source.title}</span><span class="ai-work-publisher">Published by ${RBI}</span></span>`);
+    }
+  });
+
+  it('shows the publisher with no original file link, and offers no "Open file"', () => {
+    const html = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: REGULATORY }} onClose={() => {}} />);
+    expect(html).toContain(`Published by ${RBI}`);
+    expect(html).not.toContain('Open file');
+    expect(REGULATORY.file_url).toBeUndefined();
+  });
+
+  it('a citation without a publisher keeps the bar it had: the title is not wrapped', () => {
+    const html = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: LEGACY }} onClose={() => {}} />);
+    expect(bar(html)).toContain('<span class="ai-work-title">The Delimitation Bill, 2026</span>');
+    expect(html).not.toContain('ai-work-heading');
+    expect(html).not.toContain('ai-work-publisher');
+    expect(html).not.toContain('Published by');
+  });
+
+  it('sanitizeCitation keeps a valid publisher and drops one that is not; readability never depends on it', () => {
+    expect(sanitizeCitation({ ...LEGACY, publisher: RBI }).publisher).toBe(RBI);
+    for (const bad of [{}, 7, '', '   ', 'x'.repeat(500), 'x'.repeat(81), 'ref:abc123-1', 'A\nB', 'A‮B', 'A​B', ['x'], null, true]) {
+      const out = sanitizeCitation({ ...LEGACY, publisher: bad });
+      expect(out, JSON.stringify(bad)).not.toHaveProperty('publisher');
+      expect(isReadableCitation({ ...LEGACY, publisher: bad })).toBe(true);
+    }
+    expect(isReadableCitation({ ...LEGACY, publisher: RBI })).toBe(true);
+    expect(Object.hasOwn(sanitizeCitation(LEGACY), 'publisher')).toBe(false);
+    // The viewer resolves the same way: the open source and the listed sources are sanitised.
+    expect(resolveViewer({ kind: 'text', source: { ...LEGACY, publisher: {} } }, []).source).not.toHaveProperty('publisher');
+    expect(resolveViewer({ kind: 'list' }, [{ ...LEGACY, publisher: 'x'.repeat(500) }, { ...PDF_PAGE, publisher: RBI }]).sources.map(s => s.publisher)).toEqual([undefined, RBI]);
+    const html = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: { ...LEGACY, publisher: 'x'.repeat(500) } }} onClose={() => {}} />);
+    expect(html).not.toContain('Published by');
+    expect(html).toContain('aria-label="Cited source"');
+  });
+
+  it('the source list names the publisher on each entry that has one', () => {
+    const html = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'list' }} sources={[REGULATORY, LEGACY]} onClose={() => {}} />);
+    expect(html).toContain(`<small>Regulatory Body Watch (RBI SEBI TRAI CCI) · Published by ${RBI}</small>`);
+    expect(html).toContain('<small>Document</small>');
+  });
+
+  it('a web source never shows a publisher, whatever the page carries', () => {
+    const web = { kind: 'web', messageId: 'a1', pages: [{ url: 'https://www.rbi.org.in/press?id=1', title: 'RBI press release', domain: 'rbi.org.in', cited: true, publisher: RBI }] };
+    const html = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'web', source: web }} onClose={() => {}} />);
+    expect(html).toContain('RBI press release');
+    expect(html).not.toContain('Published by');
+    expect(html).not.toContain('ai-work-publisher');
+  });
+
+  // 375 px: the bar must leave the close control room. A real browser check is the supervisor's; here the markup and the
+  // stylesheet are held to what keeps it visible: the heading is the one flexible item, truncates, and adds no fixed width.
+  it('keeps the close control as the last, fixed-size item of the bar, beside a long title and a long publisher', () => {
+    const long = { ...REGULATORY, title: 'Master Direction on Know Your Customer norms for all regulated entities '.repeat(6), publisher: 'x'.repeat(80) };
+    const html = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: long }} onClose={() => {}} />);
+    const b = bar(html);
+    expect(b.endsWith('✕</button></div>')).toBe(true);
+    expect(b.match(/aria-label="Close citation"/g)).toHaveLength(1);
+    expect(b.indexOf('ai-work-heading')).toBeLessThan(b.indexOf('ai-work-ask'));
+    expect(b.indexOf('ai-work-ask')).toBeLessThan(b.indexOf('ai-work-close'));
+    const heading = rule(CSS, '.ai-work-heading');
+    const publisher = rule(CSS, '.ai-work-publisher');
+    expect(heading).toMatch(/flex:\s*1 1 auto/);
+    expect(heading).toMatch(/min-width:\s*0/);
+    expect(heading).toMatch(/display:\s*grid/);
+    expect(publisher).toMatch(/min-width:\s*0/);
+    expect(publisher).toMatch(/overflow:\s*hidden/);
+    expect(publisher).toMatch(/text-overflow:\s*ellipsis/);
+    expect(publisher).toMatch(/white-space:\s*nowrap/);
+    expect(publisher).toMatch(/font-size:\s*12px/);
+    for (const css of [heading, publisher]) expect(css).not.toMatch(/flex:\s*none|flex-shrink:\s*0|(?<![-\w])width:\s*\d/);
+    // The close control keeps its fixed 28 px box.
+    expect(rule(OVERLAY_CSS, '.ai-work-close')).toMatch(/flex:\s*none/);
+    expect(rule(OVERLAY_CSS, '.ai-work-close')).toMatch(/width:\s*28px/);
   });
 });
