@@ -630,7 +630,10 @@ Deno.test('Regulatory: a record whose publisher cannot be resolved is held and n
     if (prepared.kind !== 'request') continue;
     const name = stored(prepared.request.payload);
     assert(name !== '', `stored row of ${r.source_key} has no publisher`);
-    assertEquals(name, documentPublisher('national', r.desk_feature, { source_host: r.source_host, citation: r.citation }, r.file_url));
+    assertEquals(
+      name,
+      documentPublisher('national', r.desk_feature, { source_host: r.source_host, citation: r.citation }, r.file_url),
+    );
   }
   // Bypassing the screen: the same screened record with the values a held record had swapped in is prepared, and the
   // row it would be stored as has no publisher (the screen's hold is what keeps such a row from being written).
@@ -638,7 +641,11 @@ Deno.test('Regulatory: a record whose publisher cannot be resolved is held and n
   const swapped: Rec[] = [
     { ...base, citation: { ...baseCitation, regulator: 'XYZ' } },
     { ...base, citation: { ...baseCitation, regulator: ['TRAI'] } },
-    { ...base, file_url: 'https://www.sebi.gov.in/legal/circulars/c13.html', citation: { ...baseCitation, regulator: 'RBI' } },
+    {
+      ...base,
+      file_url: 'https://www.sebi.gov.in/legal/circulars/c13.html',
+      citation: { ...baseCitation, regulator: 'RBI' },
+    },
   ];
   for (const r of swapped) {
     const prepared = await prepareRecord(r, PREPARE);

@@ -745,7 +745,9 @@ Deno.test('publisher: no regulator and no regulator host is held', async () => {
   assertEquals(await publisherOf(r), ['publisher_unresolved']);
   const nulled = withCitation(await good(2, { source_host: 'example.org' }), { regulator: null });
   assertEquals(await publisherOf(nulled), ['publisher_unresolved']);
-  assertEquals(await publisherOf(await good(3, { source_host: 'example.org', citation: 'RBI' })), ['publisher_unresolved']);
+  assertEquals(await publisherOf(await good(3, { source_host: 'example.org', citation: 'RBI' })), [
+    'publisher_unresolved',
+  ]);
 });
 
 Deno.test('publisher: with no regulator code a record passes only when its hosts name exactly one regulator', async () => {
@@ -756,7 +758,10 @@ Deno.test('publisher: with no regulator code a record passes only when its hosts
   assertEquals(await publisherOf(fileOnly), []);
   const two = await good(3, { source_host: 'rbi.org.in', file_url: HTML(3), citation: noRegulator });
   assertEquals(await publisherOf(two), ['publisher_unresolved'], 'two regulators among the hosts');
-  const inCitation = await good(4, { source_host: 'example.org', citation: { ...noRegulator, source_host: 'cci.gov.in' } });
+  const inCitation = await good(4, {
+    source_host: 'example.org',
+    citation: { ...noRegulator, source_host: 'cci.gov.in' },
+  });
   assertEquals(await publisherOf(inCitation), [], 'the citation own source_host counts, as at serve time');
 });
 
@@ -790,7 +795,11 @@ Deno.test('publisher: a hold names no value from the record, and a hostile one r
     assertEquals(found.every((f) => f.detail === undefined || f.detail === ''), true);
   }
   assertEquals(await oneReasons('publisher_unresolved', {}), ['publisher_unresolved'], 'an empty record');
-  assertEquals(await oneReasons('publisher_unresolved', null as unknown as Rec), ['publisher_unresolved'], 'not an object');
+  assertEquals(
+    await oneReasons('publisher_unresolved', null as unknown as Rec),
+    ['publisher_unresolved'],
+    'not an object',
+  );
 });
 
 Deno.test('publisher: a run holds an unresolved record with the reason and passes a resolved one', async () => {
