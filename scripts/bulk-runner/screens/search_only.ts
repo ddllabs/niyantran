@@ -2,7 +2,8 @@
 // documents are stored, chunked and found by search with no listing link. The desk's specifics (spellings, hosts,
 // limits, the suggested-key prefix, the completeness rules) are in a configuration file, `regulatory.json` for
 // Regulatory, validated here before anything is built. Six checks are Bills' own (`bills.ts`), two take a parameter,
-// the rest are new.
+// the rest are new. One of them asks the live citation path's own resolver who published the document (no publisher,
+// no load).
 //
 // Pack records are third-party data. Every field read here is checked for its type and shape first (through `get`,
 // which reads own properties only), a malformed record is held with a code and never thrown on, and a finding holds
@@ -12,6 +13,7 @@
 import type { Check, Finding, Report, ReviewCheck, Screen, ScreenContext } from '../screen_types.ts';
 import { type Rec, strip } from '../prepare.ts';
 import { billUrlSegmentsOk } from '../../../supabase/functions/_shared/suppliedText.ts';
+import { documentPublisher } from '../../../supabase/functions/_shared/publisher.ts';
 import {
   collisionCheck,
   duplicateText,
@@ -471,6 +473,18 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen 
     return out;
   });
 
+  // 3b. Identity: the publisher the live citation path will show for the stored document (F332, "no publisher, no load").
+  // The resolver is the one the chat calls (`hydrateDocumentRoles`), given what the stored row holds: the desk's tier and
+  // feature (a record of another desk is held by record_shape), `metadata.source_host` and `metadata.citation` (the
+  // payload's fields, copied as they are by prepareSuppliedText and ingest_admit_document) and the `file_url` column.
+  // Whatever the resolver cannot name, this holds; the finding carries a fixed reason and no value from the record.
+  const publisherUnresolved = oneCheck('publisher_unresolved', ['identity'], (r) => {
+    const stored = { source_host: get(r, 'source_host'), citation: get(r, 'citation') };
+    return documentPublisher(cfg.desk_tier, cfg.desk_feature, stored, get(r, 'file_url')) === ''
+      ? [['publisher_unresolved']]
+      : [];
+  });
+
   // 4. Identity: the pack's links are read, never written.
   const linksShape = oneCheck('links_shape', ['identity'], (r) => {
     const links = get(r, 'links');
@@ -629,6 +643,8 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen 
       'scripts/bulk-runner/prepare.ts',
       'supabase/functions/_shared/suppliedText.ts',
       'supabase/functions/_shared/textNormalise.ts',
+      // Decides a hold (publisher_unresolved); it imports nothing.
+      'supabase/functions/_shared/publisher.ts',
     ],
     listingRows: 'none',
     holdKeys: 'hex40',
@@ -636,6 +652,7 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen 
       recordShape,
       notAReplacement,
       sourceFields,
+      publisherUnresolved,
       linksShape,
       tracked(textBinds, passed, withoutPageNumber),
       tracked(makeLength(cfg.min_chars, cfg.max_chars), passed),
