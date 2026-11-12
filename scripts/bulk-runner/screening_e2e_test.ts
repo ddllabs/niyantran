@@ -14,6 +14,7 @@ import { plan } from './plan.ts';
 import { LIMITS } from './fixtures.ts';
 import { makeSearchOnlyScreen, pdfUrlRule } from './screens/search_only.ts';
 import REGULATORY from './screens/regulatory.json' with { type: 'json' };
+import { documentPublisher } from '../../supabase/functions/_shared/publisher.ts';
 import { prepareSuppliedText, searchOnlyUrlOk } from '../../supabase/functions/_shared/suppliedText.ts';
 
 const BILLS = 'Bill Passage Probability Index';
@@ -564,14 +565,20 @@ Deno.test('Regulatory: a file_url of exactly 2,000 bytes and a suggested key of 
   const key501 = key500 + 'k';
   assertEquals([bytesOf(key500), bytesOf(key501)], [500, 501]);
 
-  const ok = [await reg(1, { file_url: url2000 }), await reg(2, { document_key_suggested: key500 })];
+  const ok = [
+    await reg(1, { file_url: url2000 }, { who: 'sebi' }),
+    await reg(2, { document_key_suggested: key500 }),
+  ];
   const { screened, holds } = await screenRegulatory(ok, {});
   assertEquals(holds, []);
   for (const r of screened) {
     assertEquals((await prepareRecord(r, PREPARE)).kind, 'request');
     await prepareSuppliedText(r, { batch: true });
   }
-  const over = [await reg(3, { file_url: url2001 }), await reg(4, { document_key_suggested: key501 })];
+  const over = [
+    await reg(3, { file_url: url2001 }, { who: 'sebi' }),
+    await reg(4, { document_key_suggested: key501 }),
+  ];
   const out = await screenRegulatory(over, {});
   assertEquals(out.screened, []);
   assertEquals(out.holds.map((h) => h.reasons), [['not_official_url'], ['suggested_key_invalid']]);
@@ -583,6 +590,69 @@ Deno.test('Regulatory: a file_url of exactly 2,000 bytes and a suggested key of 
     Error,
     'document_key_suggested',
   );
+});
+
+Deno.test('Regulatory: a record whose publisher cannot be resolved is held and never prepared; one per regulator passes and prepares', async () => {
+  const ok = [
+    await reg(1, {}, { who: 'trai' }),
+    await reg(2, {}, { who: 'cci' }),
+    await reg(3, { file_url: 'https://www.sebi.gov.in/legal/circulars/c3.html' }, { who: 'sebi' }),
+    await reg(4, { file_url: 'https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=4' }, { who: 'rbi' }),
+  ];
+  const own = (n: number, citation: Rec) => reg(n, { citation: { ...ok[0].citation as Rec, ...citation } });
+  const bad = [
+    await own(11, { regulator: 'XYZ' }),
+    await own(12, { regulator: ['TRAI'] }),
+    // The code says RBI and the file is SEBI's: two regulators, no name.
+    await reg(13, {
+      file_url: 'https://www.sebi.gov.in/legal/circulars/c13.html',
+      citation: { ...ok[0].citation as Rec, regulator: 'RBI' },
+    }, { who: 'rbi' }),
+  ];
+  const out = await screenRegulatory([...ok, ...bad], {});
+  assertEquals(out.screened.map((r) => r.source_key), ok.map((r) => r.source_key));
+  assertEquals(out.holds.map((h) => h.source_key), bad.map((r) => r.source_key));
+  for (const h of out.holds) assert(h.reasons.includes('publisher_unresolved'), String(h.source_key));
+  // Only the list in a citation is also an incomplete citation; the other two are held for the publisher alone.
+  assertEquals(out.holds.map((h) => h.reasons.length), [1, 2, 1]);
+  // The publisher of the row admission will store, resolved from the prepared payload. The metadata mirrors the
+  // search-only branch of ingest_admit_document (20261113090000_national_search_only.sql): the payload record minus
+  // text, pages, sections, source_key, title, desk_tier and desk_feature; tier and feature are the row's own columns.
+  const stored = (payload: string): string => {
+    const p = JSON.parse(payload) as Rec;
+    const meta: Rec = { ...p };
+    for (const k of ['text', 'pages', 'sections', 'source_key', 'title', 'desk_tier', 'desk_feature']) delete meta[k];
+    return documentPublisher('national', p.desk_feature, meta, p.file_url ?? null);
+  };
+  for (const r of out.screened) {
+    const prepared = await prepareRecord(r, PREPARE);
+    assertEquals(prepared.kind, 'request');
+    if (prepared.kind !== 'request') continue;
+    const name = stored(prepared.request.payload);
+    assert(name !== '', `stored row of ${r.source_key} has no publisher`);
+    assertEquals(
+      name,
+      documentPublisher('national', r.desk_feature, { source_host: r.source_host, citation: r.citation }, r.file_url),
+    );
+  }
+  // Bypassing the screen: the same screened record with the values a held record had swapped in is prepared, and the
+  // row it would be stored as has no publisher (the screen's hold is what keeps such a row from being written).
+  const base = out.screened[0], baseCitation = base.citation as Rec;
+  const swapped: Rec[] = [
+    { ...base, citation: { ...baseCitation, regulator: 'XYZ' } },
+    { ...base, citation: { ...baseCitation, regulator: ['TRAI'] } },
+    {
+      ...base,
+      file_url: 'https://www.sebi.gov.in/legal/circulars/c13.html',
+      citation: { ...baseCitation, regulator: 'RBI' },
+    },
+  ];
+  for (const r of swapped) {
+    const prepared = await prepareRecord(r, PREPARE);
+    assertEquals(prepared.kind, 'request', JSON.stringify(prepared.kind === 'hold' ? prepared.hold : null));
+    if (prepared.kind === 'request') assertEquals(stored(prepared.request.payload), '');
+  }
+  assert(!JSON.stringify(out.holds).includes('XYZ'), 'a hold carries a value from the record');
 });
 
 Deno.test('rules_sha256: the Regulatory screen moves with each of its rule files; the Bills screen does not move with the search-only files', async () => {

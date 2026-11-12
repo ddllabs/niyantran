@@ -115,6 +115,14 @@ const checkNamed = (name: string, s = screenWith()) => {
   return c;
 };
 
+const CITATION: Rec = {
+  kind: 'regulation',
+  regulator: 'TRAI',
+  regulator_name: 'Telecom Regulatory Authority',
+  title: 'T',
+  source: 'S',
+};
+
 /** Pages of `chars` characters each, joined by form feeds, with the spans, counts and hash the pack gives. */
 async function textRec(n: number, pages: number, chars: number, over: Rec = {}, lead = ''): Promise<Rec> {
   const texts = Array.from(
@@ -145,13 +153,7 @@ async function textRec(n: number, pages: number, chars: number, over: Rec = {}, 
     n_chars: [...text].length,
     page_count: pages,
     page_split: 'exact',
-    citation: {
-      kind: 'regulation',
-      regulator: 'TRAI',
-      regulator_name: 'Telecom Regulatory Authority',
-      title: 'T',
-      source: 'S',
-    },
+    citation: { ...CITATION },
     links: [],
     pages: spans,
     text,
@@ -166,6 +168,7 @@ const goodPdf = (n = 1, over: Rec = {}) =>
   textRec(n, 3, 400, {
     file_url: PDF(n),
     source_host: 'rbi.org.in',
+    citation: { ...CITATION, regulator: 'RBI', regulator_name: 'Reserve Bank of India' },
     links: [{
       tier: 'national',
       feature: LISTING,
@@ -199,7 +202,7 @@ const holdOf = (out: Awaited<ReturnType<typeof run>>, k: string) => out.holds.fi
 
 // ---- the screen definition and the configuration ----
 
-Deno.test('definition: collection, version, rules files in the spec order, all five review checks covered, 17 checks in order', () => {
+Deno.test('definition: collection, version, rules files in the spec order, all five review checks covered, 18 checks in order', () => {
   const s = screenWith();
   assertEquals(s.collection, 'national-regulatory');
   assertEquals(s.mappingVersion, 'search-only-screen-v1');
@@ -216,11 +219,13 @@ Deno.test('definition: collection, version, rules files in the spec order, all f
     'scripts/bulk-runner/prepare.ts',
     'supabase/functions/_shared/suppliedText.ts',
     'supabase/functions/_shared/textNormalise.ts',
+    'supabase/functions/_shared/publisher.ts',
   ]);
   assertEquals(s.checks.map((c) => c.name), [
     'record_shape',
     'not_a_replacement',
     'source_fields',
+    'publisher_unresolved',
     'links_shape',
     'text_binds',
     'length',
@@ -263,6 +268,8 @@ Deno.test('definition: the rules hash covers the configuration file and the reus
       await rulesSha256(s.rulesFiles, root, read('scripts/bulk-runner/screens/regulatory.json'), SETTINGS) !== base,
     );
     assert(await rulesSha256(s.rulesFiles, root, read('scripts/bulk-runner/screens/bills.ts'), SETTINGS) !== base);
+    // The resolver decides a hold, so a change to it must change what the receipt says the rules were.
+    assert(await rulesSha256(s.rulesFiles, root, read('supabase/functions/_shared/publisher.ts'), SETTINGS) !== base);
     assert(await rulesSha256(s.rulesFiles, root, read(), { ...SETTINGS, minCharsPerPage: 601 }) !== base);
   } finally {
     await Deno.remove(root, { recursive: true });
@@ -689,6 +696,121 @@ Deno.test('Bills screen: its check names, order, rules files and mapping version
   ]);
 });
 
+// ---- the publisher (F332): the resolver of the live citation path, called with what the stored row will hold ----
+
+const REGULATORS: Array<[code: string, host: string, url: string]> = [
+  ['RBI', 'rbi.org.in', PDF(1)],
+  ['SEBI', 'sebi.gov.in', HTML(2)],
+  ['TRAI', 'trai.gov.in', ''],
+  ['CCI', 'cci.gov.in', ''],
+];
+const withCitation = (r: Rec, over: Rec): Rec => ({ ...r, citation: { ...(r.citation as Rec), ...over } });
+const publisherOf = async (r: Rec) => await oneReasons('publisher_unresolved', r);
+
+Deno.test('publisher: each of the four regulators resolves and passes, by code and host, with or without a file', async () => {
+  for (const [code, host, url] of REGULATORS) {
+    const r = withCitation(await good(1, { source_host: host, file_url: url || null }), { regulator: code });
+    assertEquals(await publisherOf(r), [], code);
+    const noFile = withCitation(await good(1, { source_host: host, file_url: null }), { regulator: code });
+    assertEquals(await publisherOf(noFile), [], `${code} without a file`);
+  }
+});
+
+Deno.test('publisher: an unknown regulator code is held, whatever the host says', async () => {
+  for (const code of ['XYZ', 'RB1', 'R.B.I', 'RBI SEBI', '\u0131']) {
+    const r = withCitation(await good(1, { source_host: 'rbi.org.in' }), { regulator: code });
+    assertEquals(await publisherOf(r), ['publisher_unresolved'], JSON.stringify(code));
+  }
+});
+
+Deno.test('publisher: a regulator that is present and not a string is held', async () => {
+  for (const code of [5, true, ['RBI'], { name: 'RBI' }]) {
+    const r = withCitation(await good(1, { source_host: 'rbi.org.in' }), { regulator: code });
+    assertEquals(await publisherOf(r), ['publisher_unresolved'], JSON.stringify(code));
+  }
+});
+
+Deno.test('publisher: a code that disagrees with the host or the file URL is held', async () => {
+  const sebiFile = withCitation(await good(1, { source_host: 'rbi.org.in', file_url: HTML(1) }), { regulator: 'RBI' });
+  assertEquals(await publisherOf(sebiFile), ['publisher_unresolved'], 'RBI code, SEBI file');
+  const sebiHost = withCitation(await good(2, { source_host: 'sebi.gov.in' }), { regulator: 'RBI' });
+  assertEquals(await publisherOf(sebiHost), ['publisher_unresolved'], 'RBI code, SEBI host');
+  const agree = withCitation(await good(3, { source_host: 'rbi.org.in', file_url: PDF(3) }), { regulator: 'RBI' });
+  assertEquals(await publisherOf(agree), [], 'the same regulator on all three');
+});
+
+Deno.test('publisher: no regulator and no regulator host is held', async () => {
+  const { regulator: _drop, ...noRegulator } = CITATION;
+  const r = await good(1, { source_host: 'example.org', citation: noRegulator });
+  assertEquals(await publisherOf(r), ['publisher_unresolved']);
+  const nulled = withCitation(await good(2, { source_host: 'example.org' }), { regulator: null });
+  assertEquals(await publisherOf(nulled), ['publisher_unresolved']);
+  assertEquals(await publisherOf(await good(3, { source_host: 'example.org', citation: 'RBI' })), [
+    'publisher_unresolved',
+  ]);
+});
+
+Deno.test('publisher: with no regulator code a record passes only when its hosts name exactly one regulator', async () => {
+  const { regulator: _drop, ...noRegulator } = CITATION;
+  const hostOnly = await good(1, { source_host: 'rbi.org.in', citation: noRegulator });
+  assertEquals(await publisherOf(hostOnly), []);
+  const fileOnly = await good(2, { source_host: 'example.org', file_url: HTML(2), citation: noRegulator });
+  assertEquals(await publisherOf(fileOnly), []);
+  const two = await good(3, { source_host: 'rbi.org.in', file_url: HTML(3), citation: noRegulator });
+  assertEquals(await publisherOf(two), ['publisher_unresolved'], 'two regulators among the hosts');
+  const inCitation = await good(4, {
+    source_host: 'example.org',
+    citation: { ...noRegulator, source_host: 'cci.gov.in' },
+  });
+  assertEquals(await publisherOf(inCitation), [], 'the citation own source_host counts, as at serve time');
+});
+
+Deno.test('publisher: the verdict is the live resolver verdict on the stored values, for a spread of records', async () => {
+  const { documentPublisher } = await import('../../../supabase/functions/_shared/publisher.ts');
+  const hosts = ['rbi.org.in', 'sebi.gov.in', 'trai.gov.in', 'cci.gov.in', 'example.org'];
+  const urls = [null, PDF(1), HTML(1), ASPX(1)];
+  const regs: unknown[] = ['RBI', 'SEBI', 'TRAI', 'CCI', 'XYZ', undefined, null, 7];
+  let n = 0;
+  for (const host of hosts) {
+    for (const url of urls) {
+      for (const reg of regs) {
+        const r = withCitation(await good(1, { source_host: host, file_url: url }), { regulator: reg });
+        const stored = { source_host: r.source_host, citation: r.citation };
+        const live = documentPublisher('national', FEATURE, stored, r.file_url) !== '';
+        assertEquals((await publisherOf(r)).length === 0, live, `${host} ${url} ${JSON.stringify(reg)}`);
+        n++;
+      }
+    }
+  }
+  assertEquals(n, 160);
+});
+
+Deno.test('publisher: a hold names no value from the record, and a hostile one reaches no finding', async () => {
+  const hostile = [MARKER, [MARKER], { x: MARKER }];
+  for (const code of hostile) {
+    const r = withCitation(await good(1, { source_host: MARKER }), { regulator: code, source_host: MARKER });
+    const found = await oneFindings('publisher_unresolved', r);
+    assertEquals(found.map((f) => f.reason), ['publisher_unresolved']);
+    assert(!JSON.stringify(found).includes(MARKER), 'a finding quotes the record');
+    assertEquals(found.every((f) => f.detail === undefined || f.detail === ''), true);
+  }
+  assertEquals(await oneReasons('publisher_unresolved', {}), ['publisher_unresolved'], 'an empty record');
+  assertEquals(
+    await oneReasons('publisher_unresolved', null as unknown as Rec),
+    ['publisher_unresolved'],
+    'not an object',
+  );
+});
+
+Deno.test('publisher: a run holds an unresolved record with the reason and passes a resolved one', async () => {
+  const ok = await good(1);
+  const bad = withCitation(await good(2), { regulator: 'XYZ' });
+  const out = await run([ok, bad]);
+  assertEquals(out.screened.map((r) => r.source_key), [key(1)]);
+  assertEquals(holdOf(out, key(2))?.reasons, ['publisher_unresolved']);
+  assertEquals(out.holds.length, 1);
+});
+
 // ---- 7 density ----
 
 Deno.test('density: below_density when the spans are at least the minimum and the characters per span are under it', async () => {
@@ -956,13 +1078,14 @@ Deno.test('completeness_basis: the density-only basis needs checks 5 to 8 to hav
 });
 
 Deno.test('completeness_basis: a configuration that does not allow density-only holds every record without a checkable PDF', async () => {
+  const sebi = { file_url: HTML(2), source_host: 'sebi.gov.in', citation: { ...CITATION, regulator: 'SEBI' } };
   const strict = screenWith({ ...REGULATORY, allow_density_only: false });
-  const out = await run([await good(1), await good(2, { file_url: HTML(2) }), await goodPdf(3)], strict);
+  const out = await run([await good(1), await good(2, sebi), await goodPdf(3)], strict);
   assertEquals(out.screened.map((r) => r.source_key), [key(3)]);
   assertEquals(holdOf(out, key(1))!.reasons, ['no_completeness_basis']);
   assertEquals(holdOf(out, key(2))!.reasons, ['no_completeness_basis']);
   // And the same configuration, allowed, passes them with the named basis.
-  const lax = await run([await good(1), await good(2, { file_url: HTML(2) })]);
+  const lax = await run([await good(1), await good(2, sebi)]);
   assertEquals(lax.screened.map((r) => r.completeness_basis), ['density_only', 'density_only']);
 });
 
