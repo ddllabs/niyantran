@@ -838,7 +838,7 @@ Deno.test('run: one batch end to end on a fake database, receipts in the given d
 });
 
 /** An acceptance database whose one sampled document passes every check, or fails the stored-document check. */
-function acceptStub(pass: boolean): AcceptDb {
+function acceptStub(pass: boolean, indexMiss = false): AcceptDb {
   const doc = '00000000-0000-4000-8000-000000000001';
   return {
     sample: () => Promise.resolve([{ source_key: 'k', document_id: doc, content_sha256: H, chunks: 1 }]),
@@ -858,7 +858,14 @@ function acceptStub(pass: boolean): AcceptDb {
       ),
     linkKeys: () => Promise.resolve({ [doc]: [] }),
     resolve: () => Promise.resolve([]),
-    probe: () => Promise.resolve({ content: 't', rows: [{ document_id: doc, similarity: 1, content: 't' }] }),
+    probe: () =>
+      Promise.resolve({
+        content: 't',
+        rows: indexMiss
+          ? [{ document_id: 'other', similarity: 1, content: 'x' }]
+          : [{ document_id: doc, similarity: 1, content: 't' }],
+      }),
+    exactProbe: () => Promise.resolve({ content: 't', rows: [{ document_id: doc, similarity: 1, content: 't' }] }),
   };
 }
 const AUTO = { ...COLLECTION, acceptance: { sample: 50, requireLinks: false } };
@@ -911,6 +918,17 @@ Deno.test('run: a batch that passes automated acceptance is accepted, with its r
   assert(report, 'no acceptance report');
   assertStringIncludes(report[1], '"ok": true');
   assert(lines.some((l) => l.includes('acceptance') && l.includes('passed')), lines.join('\n'));
+});
+
+Deno.test('run: an index miss is passed but printed, without the source key', async () => {
+  const records = [await question(1), await question(2)].map((r) => JSON.stringify(r)).join('\n');
+  const { d, lines } = deps(await files(AUTO, records), { acceptDb: () => acceptStub(true, true) });
+  assertEquals(await main([...runArgs, '--accept-service', 'nter-admin'], d), 0, lines.join('\n'));
+  assert(
+    lines.some((l) => l.includes('passed, 1 index miss (exact search ranks the document first)')),
+    lines.join('\n'),
+  );
+  assert(!lines.some((l) => l.includes('"k"') || /\bk\b/.test(l.split('acceptance')[1] ?? '')));
 });
 
 Deno.test('run: a batch that fails automated acceptance makes the run fail, with the failure in its report', async () => {

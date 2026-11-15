@@ -40,6 +40,8 @@ function healthy(count: number) {
   const resolved = new Map<string, Array<{ document_id: string | null; coverage: string }>>();
   /** Per document, what each probe attempt finds (attempt 0 is the first chunk); null means no vector there. */
   const probes = new Map<string, Array<ProbeResult | null>>();
+  /** Per document, what the exact (no index) search finds at each attempt; by default what the index search found. */
+  const exacts = new Map<string, Array<ProbeResult | null>>();
   const calls: string[] = [];
   const db: AcceptDb = {
     sample: (batch, n) => {
@@ -72,8 +74,14 @@ function healthy(count: number) {
         ],
       });
     },
+    exactProbe: (doc, attempt) => {
+      calls.push(`exact ${doc.id} ${attempt}`);
+      // By default the exact search finds what the index search found: no miss.
+      const own = exacts.get(doc.id) ?? probes.get(doc.id);
+      return Promise.resolve(own ? own[attempt] ?? null : null);
+    },
   };
-  return { db, items, stored, keys, coverage, resolved, probes, calls, rowKey };
+  return { db, items, stored, keys, coverage, resolved, probes, exacts, calls, rowKey };
 }
 
 const OPT = { sample: 50, requireLinks: true };
@@ -264,4 +272,87 @@ Deno.test('a database error is not an acceptance: it throws, and the runner stop
   const x = healthy(5);
   x.db.probe = () => Promise.reject(new Error('psql exited 2'));
   await assertRejects(() => acceptBatch(x.db, BATCH, OPT), Error, 'psql');
+});
+
+/** An index search that ranks another document first; the document is second, or absent when `rank` is 0. */
+const missed = (docId: string, rank: 2 | 0): ProbeResult => ({
+  content: 'own',
+  rows: [
+    { document_id: id(9999), similarity: 0.99, content: 'other' },
+    ...(rank === 2 ? [{ document_id: docId, similarity: 0.98, content: 'own' }] : []),
+  ],
+});
+const firstExact = (docId: string): ProbeResult => ({
+  content: 'own',
+  rows: [{ document_id: docId, similarity: 1, content: 'own' }],
+});
+
+Deno.test('F305: one index miss that an exact search ranks first passes, and is reported', async () => {
+  const x = healthy(10);
+  x.probes.set(id(3), [missed(id(3), 0)]);
+  x.exacts.set(id(3), [firstExact(id(3))]);
+  const r = await acceptBatch(x.db, BATCH, OPT);
+  assertEquals(r.ok, true, JSON.stringify(r.failures));
+  assertEquals(r.index_misses, [{ source_key: 'k3', index_rank: 'absent', exact_rank: 1 }]);
+  assert(x.calls.includes(`exact ${id(3)} 0`));
+});
+
+Deno.test('F305: an index miss at rank 2 is reported with that rank', async () => {
+  const x = healthy(10);
+  x.probes.set(id(3), [missed(id(3), 2)]);
+  x.exacts.set(id(3), [firstExact(id(3))]);
+  const r = await acceptBatch(x.db, BATCH, OPT);
+  assertEquals(r.ok, true);
+  assertEquals(r.index_misses, [{ source_key: 'k3', index_rank: 2, exact_rank: 1 }]);
+});
+
+Deno.test('F305: two index misses in one sample fail the batch', async () => {
+  const x = healthy(10);
+  for (const n of [3, 4]) {
+    x.probes.set(id(n), [missed(id(n), 0)]);
+    x.exacts.set(id(n), [firstExact(id(n))]);
+  }
+  const r = await acceptBatch(x.db, BATCH, OPT);
+  assertEquals(r.ok, false);
+  assertEquals(r.index_misses.length, 2);
+  assertEquals(r.failures.map((f) => [f.source_key, f.check]), [[null, 'probe_index_miss_excess']]);
+});
+
+Deno.test('F305: an exact search that does not rank the document first leaves probe_not_first', async () => {
+  const x = healthy(10);
+  x.probes.set(id(3), [missed(id(3), 2)]);
+  x.exacts.set(id(3), [missed(id(3), 2)]);
+  const r = await acceptBatch(x.db, BATCH, OPT);
+  assertEquals(r.ok, false);
+  assertEquals(r.failures.map((f) => [f.source_key, f.check]), [['k3', 'probe_not_first']]);
+  assertEquals(r.index_misses, []);
+});
+
+Deno.test('F305: the exact search is not run when the probe passes or is empty', async () => {
+  const x = healthy(10);
+  x.probes.set(id(4), [{ content: 'a', rows: [] }]);
+  const r = await acceptBatch(x.db, BATCH, OPT);
+  assertEquals(r.failures.map((f) => [f.source_key, f.check]), [['k4', 'probe_empty']]);
+  assertEquals(x.calls.filter((c) => c.startsWith('exact ')), []);
+});
+
+Deno.test('F305: a database without an exact search keeps probe_not_first', async () => {
+  const x = healthy(10);
+  x.probes.set(id(3), [missed(id(3), 0)]);
+  delete x.db.exactProbe;
+  const r = await acceptBatch(x.db, BATCH, OPT);
+  assertEquals(r.failures.map((f) => [f.source_key, f.check]), [['k3', 'probe_not_first']]);
+});
+
+Deno.test('F305: an exact search that throws leaves probe_not_first with a fixed detail and no error text', async () => {
+  const x = healthy(10);
+  x.probes.set(id(3), [missed(id(3), 0)]);
+  x.db.exactProbe = () => Promise.reject(new Error('psql exited 2: secret detail'));
+  const r = await acceptBatch(x.db, BATCH, OPT);
+  assertEquals(r.failures.map((f) => [f.source_key, f.check, f.detail]), [[
+    'k3',
+    'probe_not_first',
+    'exact recheck failed',
+  ]]);
+  assertEquals(r.index_misses, []);
 });
