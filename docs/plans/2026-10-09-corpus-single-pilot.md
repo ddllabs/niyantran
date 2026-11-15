@@ -1,6 +1,6 @@
 # Plan: single existing-text corpus pilot
 
-> **Status: Living.** Sequential operational plan. No delegation. Tracked under R7 in `open-work.md`; scope is the [single pilot spec](../specs/2026-10-09-corpus-single-pilot.md).
+> **Status: Historical (2026-10-09; superseded, R7).** Sequential operational plan. No delegation. Tracked under R7 in `open-work.md`; scope is the [single pilot spec](../specs/2026-10-09-corpus-single-pilot.md).
 
 1. Confirm clean checkout, production target, current bill mapping, exact source/text hash and no existing document. Prepare a one-document manifest and full text outside Git; assert cardinality one and source/key identity.
 2. Invoke the existing script with that manifest and `--dry-run`. Require exactly one dry-run result and six prospective chunks, without provider calls or writes.

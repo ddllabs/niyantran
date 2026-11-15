@@ -1,6 +1,6 @@
 # National corpus continuation plan
 
-> **Status: Living.** Implements the owner-authorized [scope](../specs/2026-10-23-national-corpus-continuation.md). Sequential work; no delegation.
+> **Status: Historical (2026-10-23; superseded, R7).** Implements the owner-authorized [scope](../specs/2026-10-23-national-corpus-continuation.md). Sequential work; no delegation.
 
 1. Capture fresh document and two-feature listing inventories, reconcile all local bill source keys and prior hold/completion ledgers, and report bill/document readiness separately.
 2. Select up to 1,000 distinct pending bill identities. Validate candidate originals and current PDFs; review full text/layout and complete version-4 context. Preserve mapping/quality/version holds with evidence. No production writes in preparation.

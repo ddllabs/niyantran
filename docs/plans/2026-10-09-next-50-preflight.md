@@ -1,6 +1,6 @@
 # Next50 corpus preflight
 
-> **Status: Living.** Owner requested a next50 preflight after the context follow-up. Sequential read-only investigation; no delegation.
+> **Status: Historical (2026-10-09; superseded, R7).** Owner requested a next50 preflight after the context follow-up. Sequential read-only investigation; no delegation.
 
 Current state: six bounded context sources ingested and verified;42 previously mapping/PDF-approved medium sources remain larger than the live worker policy. Select these42 plus eight non-gazette medium holds ordered by legacy chunk count then source key. The additional eight are audit candidates, not approved replacements. Exact inventory and historical status are frozen in `corpus-job-plan/next-50-preflight/selection.json` outside the repository.
 

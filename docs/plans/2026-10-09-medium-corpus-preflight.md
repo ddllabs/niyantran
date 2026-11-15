@@ -1,6 +1,6 @@
 # Plan: medium corpus audit
 
-> **Status: Living.** [Spec](../specs/2026-10-09-medium-corpus-preflight.md). Owner authorized investigation/preparation; sequential, no delegation. Existing task branch; preserve prior uncommitted work and immutable evidence.
+> **Status: Historical (2026-10-09; superseded, R7).** [Spec](../specs/2026-10-09-medium-corpus-preflight.md). Owner authorized investigation/preparation; sequential, no delegation. Existing task branch; preserve prior uncommitted work and immutable evidence.
 
 1. Refresh checkout/production baseline and inspect current preflight/ingestion limits. Read-only.
 2. Add explicit medium preflight policy, preserving small defaults; scope scripts/corpus-job-preflight.mjs and scripts/corpus-job-preflight.test.mjs. Prove medium acceptance fails first, then test invalid tier/oversized source/stage packing boundaries. No execution worker change.

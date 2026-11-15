@@ -1,6 +1,6 @@
 # Existing-text context implementation
 
-> **Status: Living.** Sequential implementation; no delegation.
+> **Status: Historical (2026-10-09; superseded, R7).** Sequential implementation; no delegation.
 
 [Spec](../specs/2026-10-09-text-section-context.md).
 

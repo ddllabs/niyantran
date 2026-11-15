@@ -1,6 +1,6 @@
 # Resume verified corpus ingestion
 
-> **Status: Living.** Owner explicitly requested production ingestion and500-document jobs2026-10-10; R7. Sequential supervised writer, no delegation.
+> **Status: Historical (2026-10-10; superseded, R7).** Owner explicitly requested production ingestion and500-document jobs2026-10-10; R7. Sequential supervised writer, no delegation.
 
 Release scope: activate only the version-role transport/render/guidance prerequisite in research-chat, based on the currently served version46 source graph, preserving unrelated unreleased F69/research-coverage changes and existing custom authentication/verify_jwt:false. Save rollback graph, compare exact changed files, execute release-graph runtime/type tests plus repository gates, deploy and verify served hashes/auth rejection. ingest-documents version19 remains unchanged.
 

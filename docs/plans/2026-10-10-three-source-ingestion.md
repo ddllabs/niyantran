@@ -1,6 +1,6 @@
 # Three-source ingestion execution
 
-> **Status: Living.** Sequential scope for the [spec](../specs/2026-10-10-three-source-ingestion.md); owner “go”2026-10-10. No delegation.
+> **Status: Historical (2026-10-10; superseded, R7).** Sequential scope for the [spec](../specs/2026-10-10-three-source-ingestion.md); owner “go”2026-10-10. No delegation.
 
 1. Reconcile actual processes/locks/completed receipts and the three current live source/listing identities. Preserve existing work.
 2. Review raw/full PDF text order. Prepare local copies with PDF-position-based margin separation and line-number handling; bind all page evidence and preserve every substantive word. Independent comparison must identify omissions, substitutions and ambiguous geometry. Draft extraction is not approved OCR.
