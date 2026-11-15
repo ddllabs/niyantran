@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # The disposable database of the F287 ingestion proof (docs/specs/2026-11-06-ingestion-load-proof.md).
 #
-#   scripts/load-proof/db.sh build [--replace]           schema only, no client data
+#   scripts/load-proof/db.sh build [--replace [--discard-evidence]]   schema only, no client data
 #   scripts/load-proof/db.sh load-real [--limit-chunks N]  documents and chunks copied from niyantran_rehearsal_b9final
 #   scripts/load-proof/db.sh status                       sizes and row counts
-#   scripts/load-proof/db.sh drop                         drop this database (never any other)
+#   scripts/load-proof/db.sh drop [--discard-evidence]    drop this database (never any other)
+#   scripts/load-proof/db.sh inspected                    a failed proof's evidence has been looked at; allows build --replace and drop
 #
-# The database is niyantran_ingest_load_test in container niyantran-corpus-test-db (override the name
-# with LOAD_PROOF_DB; it must match niyantran_ingest_load*_test, which keeps bootstrap_auth.sql's
-# _test guard satisfied and makes a rehearsal or replica database impossible to name).
+# The database is named by LOAD_PROOF_DB, with no default (F340), in container niyantran-corpus-test-db; it must match
+# niyantran_ingest_load*_test, which keeps bootstrap_auth.sql's _test guard satisfied and makes a rehearsal or replica
+# database impossible to name. The load copy, niyantran_ingest_load_test, is refused by build, load-real and drop unless
+# LOAD_PROOF_ALLOW_LOAD_COPY=1. build --replace and drop refuse a database with an uninspected proof failure (guard.sh).
 #
 # The schema is the ingest_register_batch chain of supabase/tests/run.sh (Phase B and C3), taken from
 # run.sh itself so it cannot drift, plus 20261101130000_law_documents_serving_set in timestamp order,
@@ -22,10 +24,17 @@ export PATH="$HOME/.docker/bin:$PATH"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 CONTAINER=niyantran-corpus-test-db
-DB="${LOAD_PROOF_DB:-niyantran_ingest_load_test}"
 SOURCE=niyantran_rehearsal_b9final
 
 die() { echo "db.sh: $*" >&2; exit 1; }
+. "$HERE/guard.sh"
+# No default database (F340). status only reads, so it may name the load copy; the commands that write may not.
+case "${1:-}" in
+  build | load-real | drop) DB="$(proof_db_name)" ;;
+  inspected) DB="${LOAD_PROOF_DB:-}"; [ -n "$DB" ] || die "LOAD_PROOF_DB is not set; name the database" ;;
+  status) DB="${LOAD_PROOF_DB:-}"; [ -n "$DB" ] || die "LOAD_PROOF_DB is not set; name the database" ;;
+  *) DB=niyantran_ingest_load_usage_test ;;
+esac
 case "$DB" in niyantran_ingest_load*_test) ;; *) die "database name $DB must match niyantran_ingest_load*_test" ;; esac
 [[ "$DB" =~ ^[a-z0-9_]+$ ]] || die "database name $DB has unexpected characters"
 
@@ -45,6 +54,7 @@ build() {
   [ "${1:-}" = --replace ] && replace=1
   if exists "$DB"; then
     [ $replace = 1 ] || die "$DB exists; use build --replace to drop and rebuild it"
+    refuse_unless_inspected "$DB" replace "${2:-}"
     guard_loaded
     pg -d postgres -c "drop database $DB with (force)"
   fi
@@ -131,6 +141,7 @@ SQL
 
 drop_db() {
   exists "$DB" || { echo "$DB does not exist"; return 0; }
+  refuse_unless_inspected "$DB" drop "${1:-}"
   guard_loaded
   pg -d postgres -c "drop database $DB with (force)"
   echo "dropped $DB"
@@ -140,6 +151,7 @@ case "${1:-}" in
   build) shift; build "$@" ;;
   load-real) shift; load_real "$@" ;;
   status) status ;;
-  drop) drop_db ;;
-  *) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  inspected) mark_inspected "$DB" ;;
+  drop) shift; drop_db "$@" ;;
+  *) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

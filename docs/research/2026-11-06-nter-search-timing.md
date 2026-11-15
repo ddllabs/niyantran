@@ -55,6 +55,7 @@ embedding provider.
 - **Cold reads.** Nothing here isolates them.
 - **Search mode.** Most steps carry no recorded mode: 405 of 449 could not be matched, so mode splits are not usable.
 - **Which phase failed.** `embeddingMs` and `retrievalMs` exist at run time but are not stored in the trace.
+  *Correction 2026-11-15:* they are stored. `research-chat` measures both in `_shared/retrieval.ts` (in a `finally`, so a failed or aborted phase still reports) and stores them with each chat message in `messages.activity` since `8d0ba3dd`; `chat_turn_traces` has no column for them. Tracked as F295.
 
 ## What it changes
 

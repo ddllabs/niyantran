@@ -2,10 +2,11 @@
 # The database of the Regulatory rehearsal (docs/specs/2026-11-12-regulatory-screen.md, "Rehearsal, then NTER" 1):
 #
 #   scripts/load-proof/regulatory-setup.sh build     build the base database and the working database (about a minute)
-#   scripts/load-proof/regulatory-setup.sh reset     replace the working database with a copy of the base, restart PostgREST
+#   scripts/load-proof/regulatory-setup.sh reset [--discard-evidence]  replace the working database with a copy of the base, restart PostgREST
+#   scripts/load-proof/regulatory-setup.sh inspected  record that the failure of the last proof has been looked at (see below)
 #   scripts/load-proof/regulatory-setup.sh status    sizes and counts of both
 #   scripts/load-proof/regulatory-setup.sh check     read-only: the two rules that tell real Regulatory documents from synthetic ones
-#   scripts/load-proof/regulatory-setup.sh drop      drop both (never any other database)
+#   scripts/load-proof/regulatory-setup.sh drop [--discard-evidence]   drop both (never any other database)
 #
 # Two databases, both in container niyantran-corpus-test-db and both created here:
 #   niyantran_ingest_load_reg_base_test   the template: the fixture chain of db.sh, the migrations it lacks up to and
@@ -26,6 +27,9 @@
 #                the script. All three must agree; if any does not, nothing is copied.
 #   Bills, PQ    SEED_DOCS (default 30) documents of each with a listing link, their chunks, links and listing rows,
 #                so "Bills and question rows unchanged" compares something.
+#
+# A proof that fails leaves ~/niyantran-eval-cache/proof-failures/<db>.marker and its evidence beside it (evidence.ts);
+# reset and drop refuse while the marker exists. Look at the evidence, then run `inspected`; or pass --discard-evidence.
 #
 # Nothing is written to, truncated or dropped from any database but the two named above (the source is only read). The
 # only container it uses is niyantran-corpus-test-db, and the harness's PostgREST container, which `reset` and `drop`
@@ -53,6 +57,7 @@ BILLS="Bill Passage Probability Index"
 PQ="Parliamentary Question Database"
 
 die() { echo "regulatory-setup.sh: $*" >&2; exit 1; }
+. "$HERE/guard.sh"
 # Only a name made for this rehearsal may be created or dropped here.
 mine() { [[ "$1" =~ ^niyantran_ingest_load_[a-z0-9_]*reg[a-z0-9_]*_test$ ]] || die "database name $1 is not a rehearsal name (niyantran_ingest_load_*reg*_test)"; }
 mine "$DB"; mine "$BASE"
@@ -173,6 +178,8 @@ build() {
 }
 
 reset() {
+  # F305: a failed proof's database is not replaced until someone has looked at it.
+  refuse_unless_inspected "$DB" reset "${1:-}"
   exists "$BASE" || die "$BASE does not exist; run build"
   "$HERE/postgrest.sh" down > /dev/null 2>&1 || true
   exists "$DB" && pg -d postgres -c "drop database $DB with (force)"
@@ -183,6 +190,7 @@ reset() {
 }
 
 drop() {
+  refuse_unless_inspected "$DB" drop "${1:-}"
   "$HERE/postgrest.sh" down > /dev/null 2>&1 || true
   for d in "$DB" "$BASE"; do
     mine "$d"
@@ -192,9 +200,10 @@ drop() {
 
 case "${1:-}" in
   build) build ;;
-  reset) reset ;;
+  reset) shift; reset "$@" ;;
+  inspected) mark_inspected "$DB" ;;
   status) counts "$BASE"; counts "$DB" ;;
   check) check_real ;;
-  drop) drop ;;
+  drop) shift; drop "$@" ;;
   *) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

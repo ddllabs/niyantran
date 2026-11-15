@@ -14,6 +14,7 @@
     "build:terminal-styles": "node scripts/build-terminal-styles.mjs",
     "preview": "vite preview",
     "test": "node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run",
+    "test:scripts": "node --experimental-strip-types --test \"scripts/corpus-*.test.mjs\"",
     "test:sql": "./supabase/tests/run.sh",
     "lint": "eslint --max-warnings 0 src server api scripts eslint.config.js vite.config.js vitest.config.js"
   },

@@ -463,7 +463,7 @@ existing Live TV gaps (channel chips never show LIVE, empty schedule and archive
 - **Transcription depends on OpenRouter and ElevenLabs being up,** and audio passes through our Edge Function.
 - **Where Sonar places source links in a real reply was not observed.** Two probe calls were refused by the permission
   system and were not retried; it is confirmed on the first live session.
-- **The modal's player restarts a recorded video when mute or reload is pressed.** This predates this work (F346).
+- **The modal's player restarts a recorded video when mute or reload is pressed.** This predates this work (F348).
 
 ## Open questions
 

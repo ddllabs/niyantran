@@ -143,7 +143,7 @@ The design was reviewed on 2026-11-15 before any SQL was written. No existing cr
 against research chat's available credits because it is an ordinary unsettled hold that lasts until 30 minutes after
 the block; the existing sweep cannot reach it while the session runs. The charge is a normal ledger `charge` drawn
 from lots as chat charges are, with any shortfall going to debt. Fact-check charges appear in balance and usage
-totals but not in the usage activity list; that is recorded as F345.
+totals but not in the usage activity list; that is recorded as F347.
 
 ### Edge Function `factcheck` (`verify_jwt = false`; it checks the user itself, as `transcribe-audio` does)
 

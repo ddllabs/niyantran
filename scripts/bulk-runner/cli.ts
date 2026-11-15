@@ -484,7 +484,15 @@ export const automated =
     await deps.writeText(`${dir}/acceptance-${manifest_sha256.slice(0, 16)}.json`, JSON.stringify(report, null, 2));
     deps.log(
       `  acceptance ${manifest_sha256.slice(0, 16)}: ${
-        report.ok ? 'passed' : `failed, ${report.failures.length} of ${report.sampled}`
+        report.ok
+          ? `passed${
+            report.index_misses.length
+              ? `, ${report.index_misses.length} index miss${
+                report.index_misses.length > 1 ? 'es' : ''
+              } (exact search ranks the document first)`
+              : ''
+          }`
+          : `failed, ${report.failures.length} of ${report.sampled}`
       }`,
     );
     return report.ok;
