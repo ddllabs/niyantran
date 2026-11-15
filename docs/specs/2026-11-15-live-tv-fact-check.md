@@ -11,6 +11,8 @@
 >
 > Slice 1 plan: [F344 slice 1 plan](../plans/2026-11-15-f344-live-tv-fact-check-slice-1.md).
 >
+> Slice 2 plan: [F344 slice 2 plan](../plans/2026-11-15-f344-live-tv-fact-check-slice-2.md).
+>
 > Slice 1 is built and reviewed on the branch (commits `ca1ea764`, `18898b26`, `9149f8df`, `239b77bc`, `47fb973b`,
 > `41ad60c6`), not merged, not deployed; nothing has run as a real session.
 
@@ -31,7 +33,8 @@ extraction and checking, all read-only and outside the repository) are in "Gate 
   about 13 seconds behind the speaker. Claim extraction and fact-checking are short Edge Function calls; fact-checking
   is unchanged and uses Perplexity Sonar through OpenRouter.
 - Claims and verdicts are saved. On recorded videos they are shared by all users, pinned to the position in the
-  video; on live streams they stay with the user who ran them. The full transcript is shown live and not stored.
+  video; on live streams they stay with the user who ran them. The full transcript is shown live; from slice 2 the
+  server keeps it for recorded videos (L24) and never for live streams beyond the session.
 - Gate G1 passed on Chrome, with the real sharing prompt still to be seen by a person. The chunked route was measured
   (G2a) and chosen. The cost per minute was measured (G2b) and the owner set the price at 500 credits (Rs 5) a minute.
 
@@ -84,20 +87,24 @@ page (from the author's knowledge of YouTube's documentation; to be confirmed ag
 | L7 | Providers | Perplexity Sonar through OpenRouter. Version 1 transcription also goes through OpenRouter. A direct streaming provider (Soniox, or a direct Gemini Live or GPT Realtime key) is allowed later under the ADR 0002 exception. |
 | L8 | Transcription provider | Chunked transcription with `elevenlabs/scribe-v2` through OpenRouter, chosen 2026-11-15 from G2a. Sarvam is excluded for streaming (no short-lived keys). A streaming provider test is deferred until a key exists. |
 | L9 | Check model | Plan on `perplexity/sonar`; run `sonar-pro` on the same clips and move only if clearly better. |
-| L10 | What is saved | Claims, verdicts, reasons, sources, a short quote, check date, position. Not the audio, not the full transcript. |
+| L10 | What is saved | Claims, verdicts, reasons, sources, a short quote, check date, position. Not the audio, not the full transcript. Changed for recorded videos by L24. |
 | L11 | Sharing | Recorded videos: shared by all users. Live streams: private to the user who ran them. |
-| L12 | Seeing a stretch someone else paid for | A reduced unlock price (fraction set with pricing). |
+| L12 | Seeing a stretch someone else paid for | A reduced unlock price (fraction set with pricing). Set at 100 credits a minute (L25). |
 | L13 | Purchase | Blocks of 5, 10 or 15 minutes, paid up front; unused minutes returned. |
 | L14 | Price shape | One fixed credit price per minute, set from the measured cost of a dense bulletin. |
 | L15 | Which claims are checked | Every checkable claim; no cap per minute. |
 | L16 | Verdict labels | Supported, Contradicted, Partly true, No evidence found, Opinion. |
-| L17 | Re-analysis | Both: re-check one verdict (recorded and saved live sessions); re-analyze a block of a recorded video by replaying it at full price. The newer result shows first; the older is kept. |
+| L17 | Re-analysis | Both: re-check one verdict (recorded and saved live sessions); re-analyze a block of a recorded video by replaying it at full price. The newer result shows first; the older is kept. A single re-check costs 100 credits (L26). |
 | L18 | Plans | Every plan, for any signed-in user with enough credits. |
 | L19 | Speakers | No speaker labels in version 1 (the chunked route gives none); wanted when a streaming provider is added. |
 | L20 | Release | Three slices behind an admin-only flag. Slice 1: button, live transcript, verdicts, credits, results saved per user. Slice 2: sharing and paid unlock on recorded videos. Slice 3: re-check and re-analyze. |
-| L21 | Price | 500 credits (Rs 5) a minute, approved by the owner on 2026-11-15 from the measured cost (G2b). The research chat applies no markup; this price covers the densest case measured with about 9% to spare. The unlock fraction and the re-check price are set with slices 2 and 3. |
+| L21 | Price | 500 credits (Rs 5) a minute, approved by the owner on 2026-11-15 from the measured cost (G2b). The research chat applies no markup; this price covers the densest case measured with about 9% to spare. The unlock price is L25 and the re-check price is L26. |
 | L22 | Authority | The feature branch may be pushed and pull requests opened without asking. Every merge to main, every migration on NTER and every function deploy needs the owner's yes. |
 | L23 | Retention | Saved results are kept until removed. A user can delete their own live-stream sessions. Shared results on recorded videos stay. |
+| L24 | Stored transcripts | For recorded videos the server keeps the transcript, pinned to the video, so shared results come only from text the server produced and other users can see the transcript of an unlocked stretch. Live-stream transcripts are held only while the session runs. This replaces the "not the full transcript" part of L10 for recorded videos; ADR 0015 is amended. |
+| L25 | Unlock price | 100 credits (Re 1) a minute to open a stretch of a recorded video that another user paid to check. |
+| L26 | Re-check price | 100 credits (Re 1) to re-check one verdict. |
+| L27 | Build order | With pull request 151 held, build only what does not depend on a live session: usage-list charges (F347), single-verdict re-check, and the slice 2 plan. Sharing, unlock and re-analyze are built after the first live admin session. |
 
 ## Design
 
@@ -193,8 +200,8 @@ Row-level security enforces the reading rules; writes go through the Edge Functi
 ### D7. Credits
 
 - The block's credits are reserved at start and settled at the end; unused whole minutes are returned.
-- The price is 500 credits a minute (L21); 1 credit = 1 paisa. The unlock fraction and the re-check price are set
-  with slices 2 and 3 (OQ1).
+- The price is 500 credits a minute (L21); 1 credit = 1 paisa. Unlocking another user's stretch costs 100 credits a
+  minute (L25) and re-checking one verdict costs 100 credits (L26).
 - Because every claim is checked (L15), cost per minute varies. G2 reports claims per minute on a dense bulletin, and
   the price is set to cover it.
 
@@ -443,7 +450,7 @@ result is recorded when it is committed).
 In: the button, the panel, the `factcheck` Edge Function (five actions), the tables, credits, sharing on recorded videos, both kinds of
 re-analysis, session history for live streams.
 
-Out of version 1: phones, Safari and Firefox; server-side audio capture; storing audio or full transcripts;
+Out of version 1: phones, Safari and Firefox; server-side audio capture; storing audio; storing transcripts of live streams beyond the session;
 translated transcripts; speaker labels; a streaming transcription provider; interim words; checking whether a quoted
 person really said something; sharing live-stream results; analysis of anything before the button was pressed; fixing
 existing Live TV gaps (channel chips never show LIVE, empty schedule and archive tabs).
@@ -467,8 +474,8 @@ existing Live TV gaps (channel chips never show LIVE, empty schedule and archive
 
 ## Open questions
 
-- **OQ1 (owner).** The per-minute price is answered by L21. Open: the unlock fraction (slice 2) and the re-check
-  price (slice 3).
+- **OQ1 (owner).** Answered. The per-minute price is answered by L21, the unlock price by L25 and the re-check price
+  by L26. Nothing is open.
 - **OQ2 (deferred).** A streaming provider key (Soniox, Google or OpenAI) when the owner wants lower delay and speaker
   labels.
 - **OQ3.** Whether a live stream that the broadcaster later posts as a recorded video can be recognised as the same
@@ -477,8 +484,8 @@ existing Live TV gaps (channel chips never show LIVE, empty schedule and archive
   sessions.
 - **OQ5 (owner).** Whether a worst case of about twice the price for a hostile client is acceptable before the feature
   opens to all plans, or the bounds should be tightened further.
-- **OQ6.** Slice 2 needs server-held transcripts (see Privacy), which changes L10 (the full transcript is not saved)
-  for at least the length of a session; to be decided with the slice 2 plan.
+- **OQ6.** Answered by L24: for recorded videos the server keeps the transcript, pinned to the video; for live
+  streams it is held only while the session runs.
 
 ## Tasks (outline; the plan sets write scopes and order)
 
@@ -495,5 +502,5 @@ existing Live TV gaps (channel chips never show LIVE, empty schedule and archive
 
 ## Approvals
 
-Owner decisions L1 to L23 were given on 2026-11-15. The owner approved the spec and the chunked transcription route that
-day. L22 governs production actions.
+Owner decisions L1 to L27 were given on 2026-11-15; L24 to L27 were given later that day. The owner approved the spec
+and the chunked transcription route that day. L22 governs production actions.

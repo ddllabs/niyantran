@@ -5,6 +5,8 @@
 > client and "the developer" is DDL Labs.
 >
 > Amended 2026-11-15 (version 1 audio path).
+>
+> Amended 2026-11-15 (stored transcripts for recorded videos, L24 in the spec).
 
 ## Context
 
@@ -31,7 +33,10 @@ this.
    - capture starts only on the user's own action and the browser's own sharing prompt;
    - in version 1 audio goes from the browser to our Edge Function and through OpenRouter to the transcription model
      (ElevenLabs Scribe v2); it is held only for the length of each request and is not stored by us;
-   - the full transcript is shown live and not stored; only claims, verdicts, sources and short quotes are saved;
+   - audio is never stored; for recorded videos the server stores the transcript, pinned to the video, from slice 2
+     onward (owner decision of 2026-11-15, accepting the copyright question of storing broadcasters' speech); for live
+     streams the transcript is held only while the session runs; claims, verdicts, sources and short quotes are saved
+     in both cases;
    - route 2 is not built.
 
 ## Consequences
@@ -42,3 +47,5 @@ this.
 - If YouTube or a broadcaster objects, or legal advice says otherwise, the feature is switched off by its flag and
   this record is revisited.
 - Version 1 adds no new provider account; a direct streaming provider may be added later under the ADR 0002 exception.
+- Stored transcripts of recorded videos are removed, with their shared results, if a broadcaster or YouTube objects;
+  the feature flag switches the feature off at once.
