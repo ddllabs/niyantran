@@ -42,6 +42,7 @@
 // never into the repository. The script prints counts, names and hashes; no record text, title or URL.
 import { basename, fromFileUrl, normalize } from "jsr:@std/path@1";
 import { drain, makeHarness } from "./driver.ts";
+import { makeFakeEmbedder, type VectorMode } from "./fake-embed.ts";
 import {
   errorLabel,
   keepAfterThrow,
@@ -90,7 +91,11 @@ export interface Args {
   /** The folder of `cli.ts split` parts cut from the screen's output; null: cut the first `count` into the rehearsal folder. */
   partsDir: string | null;
   broken: Break | null;
+  /** The fake vectors: near-random (default) or clustered like a real desk's (F305). */
+  vectors: VectorMode;
 }
+
+export const VECTOR_MODES = ["random", "clustered"] as const;
 
 export function parseArgs(argv: string[], home: string): Args {
   const flags = new Map<string, string>();
@@ -111,6 +116,7 @@ export function parseArgs(argv: string[], home: string): Args {
         "--collection-file",
         "--parts-dir",
         "--break",
+        "--vectors",
       ].includes(k)
     ) {
       throw new Error(`unknown option ${k}`);
@@ -124,6 +130,10 @@ export function parseArgs(argv: string[], home: string): Args {
   if (broken !== null && !(BREAKS as readonly string[]).includes(broken)) {
     throw new Error(`--break must be one of ${BREAKS.join(", ")}`);
   }
+  const vectors = flags.get("--vectors") ?? "random";
+  if (!(VECTOR_MODES as readonly string[]).includes(vectors)) {
+    throw new Error(`--vectors must be one of ${VECTOR_MODES.join(", ")}`);
+  }
   const root = `${home}/niyantran-eval-cache/reg-next-700-2026-11-15`;
   return {
     count: Number(count),
@@ -133,6 +143,7 @@ export function parseArgs(argv: string[], home: string): Args {
       `${root}/national-regulatory.collection.json`,
     partsDir: flags.get("--parts-dir") ?? null,
     broken: broken as Break | null,
+    vectors: vectors as VectorMode,
   };
 }
 
@@ -1067,7 +1078,10 @@ export async function proof(args: Args, repo: string): Promise<number> {
     }`,
   );
 
-  const h = await makeHarness();
+  say(`fake vectors: ${args.vectors}`);
+  const h = await makeHarness({
+    embedder: makeFakeEmbedder({ vectors: args.vectors }),
+  });
   assertPinned(pin, h.pin); // the PostgREST the harness found is the one this run started on
   const priorSettings = await psql(
     "select claim_batch || ',' || max_running from public.ingest_settings",
@@ -1408,7 +1422,7 @@ function countBy(xs: string[]): Record<string, number> {
 
 export const USAGE =
   `usage: regulatory-proof.sh [--count 100] [--screen-dir DIR] [--collection-file FILE] [--parts-dir DIR] [--out DIR]
-                             [--break held-key|held-url|no-basis]
+                             [--vectors random|clustered] [--break held-key|held-url|no-basis]
        regulatory-proof.sh test
 
 Run regulatory-setup.sh reset before every proof.
@@ -1418,6 +1432,7 @@ exit 2  not ready (wrong database, no PostgREST for it, bad input or arguments, 
         block than the collection file's, --out outside the rehearsal folder,
         a break that could not be set up); nothing was run
 exit 3  an unexpected exception; with --break: the run failed for a reason other than the intended one (BREAK NOT CONFIRMED)
+--vectors clustered  fake vectors that cluster by vocabulary like a real desk's (default random: near-orthogonal)
 --break held-key   admission refusal: the target must be refused suggested_key_held
 --break held-url   admission refusal: the target must be refused file_url_held
 --break no-basis   prepare-hold break (never reaches admission): the only hold is one prepare_failed`;

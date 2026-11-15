@@ -3,7 +3,8 @@
 # which cannot run it: the runner reads git for its commit and its receipts guard, so git is allowed here too).
 #
 #   scripts/load-proof/regulatory-proof.sh [--count 100] [--screen-dir DIR] [--collection-file FILE] [--parts-dir DIR]
-#                                          [--out DIR] [--break held-key|held-url|no-basis]
+#                                          [--out DIR] [--vectors random|clustered]
+#                                          [--break held-key|held-url|no-basis]
 #   scripts/load-proof/regulatory-proof.sh test
 #   scripts/load-proof/regulatory-proof.sh --help          the exit codes and the three breaks
 #

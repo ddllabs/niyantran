@@ -56,7 +56,14 @@ export async function loadPool(slug: string): Promise<Pool | null> {
   }
 }
 
+/** 'random': a seeded random unit vector per text (the default). 'clustered': see clusteredVector. */
+export type VectorMode = 'random' | 'clustered';
+
 export interface FakeEmbedderOptions {
+  /** Which kind of vector a pool-less embedder makes. Default 'random'. Ignored when a pool is given. */
+  vectors?: VectorMode;
+  /** Seed of the clustered space (default 1). The same seed and text give the same vector in any run. */
+  seed?: number;
   pool?: Pool | null;
   /** Standard deviation of the noise per component (default DEFAULT_SIGMA). */
   noise?: number;
@@ -103,6 +110,49 @@ function gaussian(next: () => number): () => number {
   };
 }
 
+/** FNV-1a over a string, seeded; a 32-bit unsigned integer. */
+function fnv(text: string, seed: number): number {
+  let h = (0x811c9dc5 ^ seed) >>> 0;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
+  h ^= h >>> 15;
+  h = Math.imul(h, 0x2c1b3c6d) >>> 0;
+  h ^= h >>> 12;
+  return h >>> 0;
+}
+
+/** Dimensions each distinct word is spread over. */
+const WORD_SPREAD = 8;
+/** Noise norm added to the sum of word vectors, so two texts of the same words are close but not equal. */
+const CLUSTER_NOISE_NORM = 0.15;
+
+/**
+ * A deterministic CLUSTERED vector of one text, for rehearsals whose search should behave like the real one's.
+ * Real embeddings of one document, and of documents on one subject, share a direction; random unit vectors do not
+ * (their neighbours sit at a cosine of about 0.1, the worst case for an approximate index). Here each distinct word
+ * of at least four letters adds a fixed, seeded, signed pattern over WORD_SPREAD dimensions, weighted by 1 + ln(count);
+ * the sum plus a little seeded noise is normalised. Chunks of one document share the document's words and so lie close
+ * together; documents on one subject share its vocabulary and form a cluster; unrelated text is far apart. Pure: no
+ * state, no clock, no network. The vectors depend on the text and the seed only.
+ */
+export function clusteredVector(text: string, seed = 1): Float32Array {
+  const counts = new Map<string, number>();
+  for (const w of text.toLowerCase().match(/[a-z0-9]{4,}/g) ?? []) counts.set(w, (counts.get(w) ?? 0) + 1);
+  const v = new Float32Array(EMBED_DIMS);
+  for (const [w, n] of counts) {
+    const weight = 1 + Math.log(n);
+    for (let k = 0; k < WORD_SPREAD; k++) {
+      const h = fnv(`${k}:${w}`, seed);
+      v[h % EMBED_DIMS] += (h & 0x80000000 ? -1 : 1) * weight;
+    }
+  }
+  normalise(v);
+  const g = gaussian(rng(fnv(text, seed ^ 0x9e3779b9)));
+  const sigma = CLUSTER_NOISE_NORM / Math.sqrt(EMBED_DIMS);
+  for (let i = 0; i < EMBED_DIMS; i++) v[i] += sigma * g();
+  normalise(v);
+  return v;
+}
+
 /** The vector of one text. Pure: no state, no clock. */
 export async function vectorFor(text: string, pool: Pool | null = null, noise = DEFAULT_SIGMA): Promise<Float32Array> {
   const h = await sha256Hex(text);
@@ -137,7 +187,10 @@ export function makeFakeEmbedder(opts: FakeEmbedderOptions = {}): FakeEmbedder {
       for (const text of inputs) {
         tokens += Math.ceil(text.length / 4);
         // Eight significant digits, so the JSON is the size of a real embedding's (about 1.8 MB per 100 chunks).
-        vectors.push(Array.from(await vectorFor(text, pool, noise), (x) => Number(x.toPrecision(8))));
+        const raw = !pool && opts.vectors === 'clustered'
+          ? clusteredVector(text, opts.seed ?? 1)
+          : await vectorFor(text, pool, noise);
+        vectors.push(Array.from(raw, (x) => Number(x.toPrecision(8))));
       }
       // Counted on return: an input is "paid for" only when its call came back.
       if (opts.track !== false) { for (const text of inputs) seen.set(text, (seen.get(text) ?? 0) + 1); }
