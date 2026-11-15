@@ -26,18 +26,18 @@ Each item's status is in its tracker entry. Nothing below has landed on `main` u
 | | F305 | Failed proof runs keep evidence; acceptance reports index misses (`455c5b57`; `task/f305-acceptance-index-miss`, `1045538f`). |
 | | F295 | Retrieval timing tests (`task/f295-retrieval-timing-tests`, `65826255`). |
 | | | Wave 1 merged 2026-11-15 as PR #149 (`291c3b95`). |
-| 2. Ingestion code, in order | F339 with F345 | Screen counts chunks or states expected holds; hold a record that duplicates a live document under another key. |
-| | F285 | Automatic partition creation with its revoke and row-level security lines. |
+| 2. Ingestion code, in order | F339 with F345 | Built (`6d428d18`, PR #150). Full live screen at 700: 2,605 screened, 714 held; rehearsal 15 of 15. |
+| | F285 | Built (`72fb98e7`): `run` reads partitions from the database; a function creates a partition with its access rules. Not applied. |
 | | F325 to F328 | Bill-key role collision; a twice-failed job blocking its batch; failure rate; provider outage failing a whole claim. |
 | | F314 remainder | Readiness and the admin readers; a key with house and introduction date. |
-| | F305 remainder | The rehearsal proof surfaces the index-miss count (after the Wave 1 branches land). |
+| | F305 remainder | Index-miss count shown (`0a3f65ea`); clustered-vector option built (`916b1c4b`). |
 | 3. Production steps | | Each on the developer's specific yes, with a rolled-back dry run first. |
 | | | Apply `20261113090000_national_search_only` (F330). |
 | | | Deploy `admin-ingest`. |
 | | | Load Regulatory once F346 is answered. |
 | | | Revert the raised worker limits (`claim_batch` 8, `max_running` 16). |
 | | F324, F288 | One cold hybrid measurement straight after the load, counting TOAST reads; then the developer's ship-or-hold decision and the `hybrid_search` flag row. |
-| 4. Paperwork | F343 | Finished plans still marked Living. |
+| 4. Paperwork | F343 | Done (`626707fe`): 29 marked Historical, 67 left Living. |
 | | | Tracker corrections (this pass). |
 
 ## Deferred, with reason
