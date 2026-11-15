@@ -1,10 +1,11 @@
 import { assert, assertEquals, assertNotEquals, assertRejects } from 'jsr:@std/assert@1';
 import { EMBED_DIMS, EMBED_MODEL } from '../../supabase/functions/_shared/embed.ts';
-import { assertLocalSupabaseUrl, guardedFetch } from './lib.ts';
+import { assertLocalSupabaseUrl, guardedFetch, rng } from './lib.ts';
 import {
   DEFAULT_SIGMA,
   makeFakeEmbedder,
   noiseNorm,
+  clusteredVector,
   type Pool,
   REAL_NN_MEDIAN,
   siblingCosine,
@@ -126,4 +127,81 @@ Deno.test('a vector is the size of a real embedding in JSON: about 1.8 MB for 10
   const r = await makeFakeEmbedder({ pool: onePool() }).embed(Array.from({ length: 100 }, (_, i) => `chunk ${i}`));
   const mb = JSON.stringify(r.vectors).length / 1e6;
   assert(mb > 1.4 && mb < 2.3, `${mb} MB`);
+});
+
+// ─── clustered vectors (F305) ───────────────────────────────────────────────
+
+/**
+ * Text with a known structure: C topics, D documents per topic, K chunks per document. A chunk draws about
+ * 55% of its words from its document's own words, 30% from its topic's and 15% from a common stock.
+ */
+function structuredCorpus(clusters: number, docsPer: number, chunksPer: number, seed: number) {
+  const next = rng(seed);
+  const word = (tag: string, i: number) => `${tag}${i.toString(36)}word`;
+  const pick = (tag: string, n: number) => word(tag, Math.floor(next() * n));
+  const docs: { cluster: number; doc: number; chunks: string[] }[] = [];
+  for (let c = 0; c < clusters; c++) {
+    for (let d = 0; d < docsPer; d++) {
+      const chunks: string[] = [];
+      for (let k = 0; k < chunksPer; k++) {
+        const w: string[] = [];
+        for (let i = 0; i < 120; i++) {
+          const r = next();
+          w.push(r < 0.55 ? pick(`d${c}x${d}x`, 30) : r < 0.85 ? pick(`t${c}x`, 80) : pick('common', 40));
+        }
+        chunks.push(w.join(' '));
+      }
+      docs.push({ cluster: c, doc: d, chunks });
+    }
+  }
+  return docs;
+}
+
+const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+Deno.test('a clustered vector is 1536 wide, unit length and the same for the same text and seed', () => {
+  const t = 'the reserve bank issued a circular on digital lending and loan servicing';
+  const a = clusteredVector(t, 7);
+  assertEquals(a.length, EMBED_DIMS);
+  assert(Math.abs(norm(a) - 1) < 1e-5);
+  assertEquals(Array.from(clusteredVector(t, 7)), Array.from(a));
+  assertNotEquals(Array.from(clusteredVector(t, 8)), Array.from(a), 'another seed, another space');
+  assertNotEquals(Array.from(clusteredVector(t + ' extra', 7)), Array.from(a));
+  // Text with no usable word still gives a unit vector.
+  assert(Math.abs(norm(clusteredVector('', 7)) - 1) < 1e-5);
+});
+
+Deno.test('clustered vectors: chunks of one document are closer than documents of other clusters', () => {
+  const docs = structuredCorpus(6, 5, 6, 11);
+  const v = docs.map((d) => d.chunks.map((t) => clusteredVector(t, 3)));
+  const within: number[] = [], sameCluster: number[] = [], between: number[] = [];
+  for (let a = 0; a < docs.length; a++) {
+    for (let b = a; b < docs.length; b++) {
+      for (let i = 0; i < v[a].length; i++) {
+        for (let j = a === b ? i + 1 : 0; j < v[b].length; j++) {
+          const c = cosine(v[a][i], v[b][j]);
+          if (a === b) within.push(c);
+          else if (docs[a].cluster === docs[b].cluster) sameCluster.push(c);
+          else between.push(c);
+        }
+      }
+    }
+  }
+  assert(mean(within) > mean(sameCluster) + 0.1, `within ${mean(within)}, same cluster ${mean(sameCluster)}`);
+  assert(mean(sameCluster) > mean(between) + 0.05, `same cluster ${mean(sameCluster)}, between ${mean(between)}`);
+  assert(mean(within) > mean(between) + 0.3, `within ${mean(within)}, between ${mean(between)}`);
+  // Near neighbours look like a real desk's (median 0.81 to 0.89), not the near-random 0.1 of the default.
+  assert(mean(within) > 0.6 && mean(within) < 0.95, `within ${mean(within)}`);
+  assert(mean(between) < 0.5, `between ${mean(between)}`);
+});
+
+Deno.test('the fake embedder in clustered mode is deterministic, and the default stays random', async () => {
+  const t = 'a clustered chunk of text about securities and exchange board listing rules';
+  const a = (await makeFakeEmbedder({ vectors: 'clustered', seed: 5 }).embed([t])).vectors[0];
+  const b = (await makeFakeEmbedder({ vectors: 'clustered', seed: 5 }).embed([t])).vectors[0];
+  assertEquals(a, b);
+  assertEquals(a.length, EMBED_DIMS);
+  const def = (await makeFakeEmbedder().embed([t])).vectors[0];
+  assertEquals(def, Array.from(await vectorFor(t), (x) => Number(x.toPrecision(8))));
+  assertNotEquals(a, def);
 });
