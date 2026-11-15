@@ -1,6 +1,6 @@
 # National landing redesign: implementation allocation
 
-> **Status: Living.** Approved for local implementation by owner “go”, 2026-10-04. Implementation branch `task/national-landing-redesign`; publication remains separately authorized.
+> **Status: Historical (2026-10-05).** Approved for local implementation by owner “go”, 2026-10-04. Implementation branch `task/national-landing-redesign`; publication remains separately authorized.
 
 ## Inputs and decision
 

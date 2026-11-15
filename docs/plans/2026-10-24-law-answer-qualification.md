@@ -1,6 +1,6 @@
 # F251 implementation plan
 
-**Status: Living.** Implements the [qualification spec](../specs/2026-10-24-law-answer-qualification.md). Branch `task/law-answer-qualification`, baseline `fd059e4b`.
+**Status: Historical (2026-10-24).** Implements the [qualification spec](../specs/2026-10-24-law-answer-qualification.md). Branch `task/law-answer-qualification`, baseline `fd059e4b`.
 
 1. Read-only baseline: current function, corpus fingerprints, representative source originals, bounded baseline evaluations. Private source text stays outside Git.
 2. Causal tests then the smallest measured improvement. Write scope: `supabase/functions/research-chat/lawAnswer.ts`, `lawAnswer_test.ts`; `supabase/functions/_shared/lawContext.ts`, `lawContext_test.ts`, `research-chat/lawPassages.ts` and `lawPassages_test.ts` for the reproduced monetary-decimal false paragraph detection; shared stream tests only if its contract changes; `scripts/eval-law-answers.ts` only for reproducible measurement needs.

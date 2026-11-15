@@ -1,6 +1,6 @@
 # Law landing implementation plan
 
-> **Status: Living.** Local scope authorized 2026-10-05; no delegation or publication.
+> **Status: Historical (2026-10-05).** Local scope authorized 2026-10-05; no delegation or publication.
 
 [Spec](../specs/2026-10-05-law-landing-redesign.md). Branch task/law-landing-redesign based on verified shared National/Global checkpoint9eb4637, retaining their prerequisite work without merging main.
 

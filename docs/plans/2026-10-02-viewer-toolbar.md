@@ -1,6 +1,6 @@
 # Plan: a compact citation viewer header (`viewer-toolbar`), piece 1
 
-> **Status: Living.** Implements `docs/specs/2026-10-02-viewer-toolbar.md`. Tracked as open-work
+> **Status: Historical (2026-10-02).** Implements `docs/specs/2026-10-02-viewer-toolbar.md`. Tracked as open-work
 > F48. Sequential; the supervisor commits each verified task.
 
 ## Architecture decisions

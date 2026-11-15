@@ -1,6 +1,6 @@
 # Plan: the research turn's prompt size (`chat-turn-cost`)
 
-> **Status: Living.** Implements `docs/specs/2026-10-02-chat-turn-cost.md` (F41, F46 D1).
+> **Status: Historical (2026-10-02).** Implements `docs/specs/2026-10-02-chat-turn-cost.md` (F41, F46 D1).
 > - The tasks run in order, test-first, and each is committed once verified.
 > - Deploying `research-chat` waits for its own go-ahead.
 
