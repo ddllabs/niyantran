@@ -1,6 +1,6 @@
 # Plan: RAG v2 — `admin-upload` (R8)
 
-> **Status: Living (2026-10-01).** It implements
+> **Status: Historical (2026-10-15).** It implements
 > `docs/specs/2026-10-01-rag-v2-admin-upload.md` (approved), and is tracked as
 > open-work R8. It becomes Historical when B6 lands.
 

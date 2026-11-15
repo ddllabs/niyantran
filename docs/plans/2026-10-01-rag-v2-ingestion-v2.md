@@ -1,6 +1,6 @@
 # Plan: RAG v2, part 2a — `ingestion-v2`
 
-> **Status: Living (2026-10-01).** It implements
+> **Status: Historical (2026-10-15).** It implements
 > `docs/specs/2026-10-01-rag-v2-ingestion-v2.md` (approved), and is tracked as
 > open-work R4. It becomes Historical when I8 lands. The pilot (R5),
 > `citations-pdf` (R6), `acquisition` (R7) and `admin-upload` (R8) get their

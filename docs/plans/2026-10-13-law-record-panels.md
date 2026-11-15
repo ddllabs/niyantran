@@ -1,6 +1,6 @@
 # Implementation plan: Law record panels (F128)
 
-> **Status: Living.** It implements the [Law record panels spec](../specs/2026-10-13-law-record-panels.md).
+> **Status: Historical (2026-10-13).** It implements the [Law record panels spec](../specs/2026-10-13-law-record-panels.md).
 > Branch `task/law-record-panels` from `main` at `537911c`. It is tracked as F128 in
 > [open-work](open-work.md). It reuses the F121 kit and the F124 process
 > ([National plan](2026-10-13-national-record-panels.md)).

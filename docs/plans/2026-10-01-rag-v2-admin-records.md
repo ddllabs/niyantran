@@ -1,6 +1,6 @@
 # Plan: RAG v2 — admin-upload Amendment A (records-first document management)
 
-> **Status: Living (2026-10-01).** Implements Amendment A (revision 3, approved) of
+> **Status: Historical (2026-10-15).** Implements Amendment A (revision 3, approved) of
 > `docs/specs/2026-10-01-rag-v2-admin-upload.md`. Tracked as open-work R8.
 > Historical when C6 lands.
 

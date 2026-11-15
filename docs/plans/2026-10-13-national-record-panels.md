@@ -1,6 +1,6 @@
 # Implementation plan: National record panels (F124)
 
-> **Status: Living.** It implements the [National record panels spec](../specs/2026-10-13-national-record-panels.md).
+> **Status: Historical (2026-10-13).** It implements the [National record panels spec](../specs/2026-10-13-national-record-panels.md).
 > Branch `task/national-record-panels` from `main` at `879b917`. It is tracked as F124 in
 > [open-work](open-work.md). It reuses the F121 kit and process
 > ([Global plan](2026-10-13-global-record-panels.md)).

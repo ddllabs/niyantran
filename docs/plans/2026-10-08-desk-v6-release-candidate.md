@@ -1,6 +1,6 @@
 # Desk v6 release candidate
 
-> **Status: Living.** Candidate audit on 2026-10-08; Owner authorized main publication on2026-10-08; local merge recorded below. Open work remains tracked only in `open-work.md`.
+> **Status: Historical (2026-10-08).** Candidate audit on 2026-10-08; Owner authorized main publication on2026-10-08; local merge recorded below. Open work remains tracked only in `open-work.md`.
 
 ## Candidate and scope
 

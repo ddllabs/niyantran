@@ -1,6 +1,6 @@
 # F247/F248 implementation and release
 
-> **Status: Living.** Owner approved fixes, NTER testing, PR/CI merge and deployment; no larger batches or re-ingestion.
+> **Status: Historical (2026-10-24).** Owner approved fixes, NTER testing, PR/CI merge and deployment; no larger batches or re-ingestion.
 
 Spec: ../specs/2026-10-24-law-answer-attribution-fields.md. Sequential work on task/law-answer-attribution-fields.
 

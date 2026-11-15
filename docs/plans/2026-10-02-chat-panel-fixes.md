@@ -1,6 +1,6 @@
 # Plan: research chat panel fixes (`chat-panel-fixes`)
 
-> **Status: Living.** Implements `docs/specs/2026-10-02-chat-panel-fixes.md` (F47, F46 D4).
+> **Status: Historical (2026-10-02).** Implements `docs/specs/2026-10-02-chat-panel-fixes.md` (F47, F46 D4).
 > - The tasks run test-first, and each is committed once verified.
 > - Deploying `research-chat` and pushing each wait for their own go-ahead.
 

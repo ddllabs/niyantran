@@ -1,6 +1,6 @@
 # Plan: remaining record-panel follow-ups (F122, F129)
 
-> **Status: Living.** Owner request 2026-10-13: "plan for the rest of the phases excluding F123".
+> **Status: Historical (2026-10-13).** Owner request 2026-10-13: "plan for the rest of the phases excluding F123".
 > The open items left from the record-panel work are F122 (Global data honesty follow-ups) and F129
 > (ICJ and WTO registers). F123 (the AI brief) waits for AI credits (F111) and is out of scope.
 > Items are tracked in [open-work](open-work.md). Findings below were re-checked against the code
