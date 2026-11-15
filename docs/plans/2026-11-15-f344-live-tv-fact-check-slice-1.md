@@ -5,8 +5,8 @@
 > [open-work](open-work.md). Slices 2 and 3 get their own plans.
 
 Baseline on the branch, executed 2026-11-15 before any change: `npm ci`, `npm run build`, `npm run lint` (no
-warnings), `npm test` (7,254 passed in 457 files), router import ok. Deno tests and `npm run test:sql` were not run
-yet; the first task that touches `supabase/` runs both before changing anything and reports the result.
+warnings), `npm test` (7,254 passed in 457 files), router import ok. Deno tests (1,633 passed) and `npm run test:sql` (78 fixtures passed, each non-vacuous) were run unchanged by the T3
+builder the same day.
 
 ## What slice 1 delivers
 
@@ -64,6 +64,7 @@ One `app_flags` row, key `livetv_factcheck`, written only by the server:
 | `credits_per_minute` | numeric, not null | copied from the flag at start |
 | `credits_held` | numeric, not null | |
 | `credits_charged` | numeric, null | set at settlement |
+| `minutes_used` | int, null | set at settlement; null while active |
 | `started_at` | timestamptz, not null | |
 | `last_activity_at` | timestamptz, not null | moved by every accepted piece |
 | `ended_at` | timestamptz, null | |
@@ -95,6 +96,12 @@ Rules: row-level security on both tables. `authenticated` may `SELECT` rows wher
 (L23). No insert or update policy: all writes go through the functions below with the service role. Indexes on
 `(user_id, started_at desc)` and on claims `(session_id, spoken_at)` and `(video_id, position_s)`.
 
+The hold for a block is a `credit_holds` row under a random key (`fc:` plus a UUID) kept in
+`private.factcheck_hold_keys` and never returned to any caller. A guessable key would let a research-chat turn sent
+with the same key release the hold early. The ledger entry keeps the key `factcheck:<session id>`; settlement is
+idempotent from the session row under lock, not from the ledger. Grants: `service_role` may select, insert and update
+`factcheck_claims` and only select `factcheck_sessions`; every session write goes through the functions.
+
 ### SQL functions (all `SECURITY DEFINER`, `search_path = ''`, executable by `service_role` only)
 
 - `public.factcheck_start(p_user uuid, p_video_id text, p_channel_id text, p_video_kind text,
@@ -104,24 +111,30 @@ Rules: row-level security on both tables. `authenticated` may `SELECT` rows wher
   (`already_active`); available credits are below `minutes × credits_per_minute` (`insufficient`, with `needed`
   and `available`). Otherwise creates the session and a hold for the full block, and returns
   `{ok: true, session_id, credits_per_minute, credits_held, ends_at}`. First settles any of this user's sessions
-  that have run out.
-- `public.factcheck_touch(p_user uuid, p_session uuid) returns jsonb`
-  Called for every piece. Returns `{ok: true, seconds_left}` and moves `last_activity_at`, or `{ok: false,
-  reason}` when the session is not this user's, is settled, or is past `started_at + minutes_bought` plus 15
-  seconds of grace.
+  that have run out. Malformed arguments raise SQLSTATE 22023, which the Edge Function maps to `400`.
+- `public.factcheck_touch(p_user uuid, p_session uuid, p_action text) returns jsonb`
+  `p_action` is `transcribe`, `extract` or `check`. It is the session check and the rate limiter for every piece and
+  every model call. Limits per minute, fixed in SQL: 8 transcribe, 6 extract, 40 check; over the limit returns
+  `{ok: false, reason: "rate_limited"}`. `transcribe` is allowed while the session is active and no later than
+  `started_at + minutes_bought` plus 15 seconds; it moves `last_activity_at` and returns `{ok: true, seconds_left}`.
+  `extract` and `check` are allowed until 120 seconds after the session's end, even once it is settled, because
+  verdicts for the last sentences arrive after the block closes; they never move `last_activity_at`. Other refusals:
+  `not_found` (also for another user's session), `settled`, `ended`.
 - `public.factcheck_settle(p_user uuid, p_session uuid) returns jsonb`
   Idempotent. Minutes used = the whole minutes, rounded up, between `started_at` and the earlier of now and
   `last_activity_at + 15 s`, at least 1 and at most `minutes_bought`. Charges `minutes used × credits_per_minute`
   through the existing ledger (a `charge` entry whose key is `factcheck:<session id>`), releases the hold, sets
   `credits_charged`, `ended_at` and `status = 'settled'`. Returns `{ok, minutes_used, credits_charged, balance}`.
 - `public.factcheck_settle_expired() returns int`
-  Settles every active session past its end plus one minute. Scheduled with `pg_cron` every 5 minutes, so a closed
+  Settles every active session past its end plus one minute, and every active session with no accepted piece for 3
+  minutes. Scheduled with `pg_cron` every 5 minutes, so a closed
   tab cannot leave a block uncharged or a hold stuck.
 
-The hold must count against the user's available credits for research chat while it stands, and the existing
-hold sweep must not release a fact-check hold uncharged. How that is done inside the credit functions is the T3
-builder's design, written up before the SQL and reviewed; the existing chat charging behaviour must not change,
-and the existing credit fixtures must pass unchanged.
+The design was reviewed on 2026-11-15 before any SQL was written. No existing credit function changes. The hold counts
+against research chat's available credits because it is an ordinary unsettled hold that lasts until 30 minutes after
+the block; the existing sweep cannot reach it while the session runs. The charge is a normal ledger `charge` drawn
+from lots as chat charges are, with any shortfall going to debt. Fact-check charges appear in balance and usage
+totals but not in the usage activity list; that is recorded as F345.
 
 ### Edge Function `factcheck` (`verify_jwt = false`; it checks the user itself, as `transcribe-audio` does)
 
@@ -150,7 +163,9 @@ fields `action`, `session_id`, `seq` and `file`.
   one of the five labels is saved as `status = 'error'`.
 - Every model call writes a `model_call_logs` row (`caller` `factcheck`, `message_id` null) with its cost, by the
   `transcribe-audio` pattern. These rows are not charged by the chat path.
-- Limits per session: at most 8 `transcribe`, 6 `extract` and 40 `check` calls a minute; over the limit is `429`.
+- Every action calls `factcheck_touch` with its action name before doing any work; `rate_limited` is returned as `429`,
+  `not_found` as `404`, `settled` and `ended` as `409`. A piece that is silent (measured on the server from the WAV
+  samples) is not sent to the provider and returns empty text, but still counts as activity.
 
 ### Browser modules
 
@@ -177,16 +192,20 @@ release.
 
 ### T3. Database: tables, credit functions, fixtures
 
-- **Write scope:** `supabase/migrations/<timestamp>_factcheck.sql`, `supabase/tests/factcheck*.sql`,
-  `supabase/tests/bootstrap_*` only if a new bootstrap is unavoidable, `supabase/tests/run.sh`.
-- **First:** run `deno test` and `npm run test:sql` unchanged and report. Then write a half-page design note for
-  the hold and charge (which existing credit functions are called or changed, and why chat charging is unaffected)
-  and return it for review before writing SQL.
+- **Write scope:** `supabase/migrations/<timestamp>_factcheck.sql`, `supabase/tests/factcheck.sql`,
+  `supabase/tests/factcheck_concurrency.sh`, `supabase/tests/run.sh` (the new chain entry and the concurrency hook
+  only).
+- **Baseline (executed 2026-11-15, unchanged tree):** Deno tests 1,633 passed, 0 failed; `npm run test:sql` all 78
+  fixtures passed, each with "vacuity ok". **Design note:** returned and reviewed 2026-11-15; its outcome is in
+  "Fixed interfaces" above.
 - **Fixtures, each seen failing first:** start refuses in each listed case; the hold reduces chat's available
   credits; settle charges the minutes used and is idempotent; an abandoned session is settled by
   `factcheck_settle_expired`; the existing sweep does not free a fact-check hold; a second user cannot read
   another's session or claim; a user can delete only their own settled live session; `authenticated` cannot call
-  the functions or write the tables. `run.sh` proves the fixture non-vacuous.
+  the functions or write the tables. `run.sh` proves the fixture non-vacuous. Also: a research-chat reserve and settle sent with the key
+  `factcheck:<session id>` does not release the hold; each rate limit; `extract` and `check` allowed after settlement
+  for 120 seconds and refused after; two settles at once; start racing start; settle racing touch (the concurrency
+  script).
 - **Verify:** `npm run test:sql` (all fixtures, including the existing credit ones), `npm run lint`.
 
 ### T4. Edge Function `factcheck`
