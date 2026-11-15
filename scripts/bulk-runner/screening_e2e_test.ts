@@ -253,6 +253,8 @@ Deno.test('a patch for a record in the pack: the original is held, the patch is 
 const FEATURE = 'Regulatory Body Watch (RBI SEBI TRAI CCI)';
 const LISTING = 'Regulatory Body Watch (RBI/SEBI/TRAI/CCI)';
 const REG_LICENCE = 'govt_material_confirm_counsel';
+/** The collection file's prepare block for Regulatory: the one the screen's chunk check and the runner share. */
+const PREPARE = { maxChunks: 700, dropInvalidCitationDates: true };
 const REG_SETTINGS = {
   licenceClasses: [REG_LICENCE],
   minCharsPerPage: 600,
@@ -378,7 +380,7 @@ async function screenRegulatory(records: Rec[], served: Record<string, string[]>
       urlRule: pdfUrlRule(REGULATORY),
     });
     const screen = makeSearchOnlyScreen(REGULATORY, pageCheck);
-    const result = await runScreen(screen, records, { live: regLive(docs), settings: REG_SETTINGS }, {
+    const result = await runScreen(screen, records, { live: regLive(docs), settings: REG_SETTINGS, prepare: PREPARE }, {
       ...RUN,
       packageId: RUN.packageId.replace('bills', 'regulatory'),
     });
@@ -388,7 +390,6 @@ async function screenRegulatory(records: Rec[], served: Record<string, string[]>
   }
 }
 const pagesOf = (r: Rec) => (r.pages as Rec[]).map((p) => String(p.text));
-const PREPARE = { maxChunks: 700, dropInvalidCitationDates: true };
 const regLimits = { ...LIMITS, partitioned: [FEATURE] };
 
 Deno.test('Regulatory: a clean text-layer record earns density_only and a clean RBI PDF earns page_check; prepare carries each basis', async () => {
@@ -729,7 +730,7 @@ Deno.test('URL rule: the screen and admission agree on every row of the table, e
     all: () => Promise.resolve(new Map()),
   });
   const check = screen.checks.find((c) => c.name === 'source_fields')!;
-  const ctx = { live: regLive(), settings: REG_SETTINGS };
+  const ctx = { live: regLive(), settings: REG_SETTINGS, prepare: PREPARE };
   for (const [label, url, screenAccepts, sqlAccepts] of URL_CASES) {
     const found = (await check.one!(await reg(1, { file_url: url }), ctx)).map((f) => f.reason);
     assertEquals(!found.includes('not_official_url'), screenAccepts, `screen: ${label}`);

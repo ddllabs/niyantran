@@ -461,10 +461,84 @@ Deno.test('documents: suggested keys go in batches of at most 500, each asked on
   assertEquals(asked.filter((k) => k.startsWith('s')).sort(), keys(1001, 's').sort());
 });
 
+Deno.test('documents: file dates are matched on metadata->>file_mtime within the tier and feature, as data', async () => {
+  const f = fakePsql();
+  const sent = ['2026-09-08T21:59:01Z', `x'$$y; drop table z; --`];
+  await new PsqlLiveReader(f.exec).documents({
+    sourceKeys: [],
+    fileUrls: [],
+    fileMtimes: sent,
+    tier: 'national',
+    feature: 'Regulatory Body Watch (RBI SEBI TRAI CCI)',
+  });
+  const sql = f.scripts[0];
+  assertStringIncludes(sql, "metadata->>'file_mtime' = any(");
+  assert(literals(sql).some((l) => JSON.stringify(l) === JSON.stringify(sent)));
+  const at = sql.indexOf("and metadata->>'file_mtime' = any(");
+  assert(
+    sql.lastIndexOf('desk_tier =', at) > sql.lastIndexOf(' or ', at),
+    'the restriction is not tied to the match',
+  );
+  assert(
+    sql.lastIndexOf('desk_feature =', at) > sql.lastIndexOf(' or ', at),
+    'the restriction is not tied to the match',
+  );
+  // The title, file date and host come back with the other columns.
+  assertStringIncludes(sql, "metadata->>'file_mtime' as file_mtime");
+  assertStringIncludes(sql, "metadata->>'source_host' as source_host");
+  assertStringIncludes(sql, ', title,');
+});
+
+Deno.test('documents: file dates without a tier and feature, or bad ones, are refused before psql runs', async () => {
+  const f = fakePsql();
+  const r = new PsqlLiveReader(f.exec);
+  await assertRejects(
+    () => r.documents({ sourceKeys: [], fileUrls: [], fileMtimes: ['m'] }),
+    Error,
+    'tier',
+  );
+  await assertRejects(
+    () =>
+      r.documents({
+        sourceKeys: [],
+        fileUrls: [],
+        fileMtimes: ['m'],
+        tier: 't',
+      }),
+    Error,
+    'feature',
+  );
+  for (const bad of [[''], ['a\0'], [1 as unknown as string]]) {
+    await assertRejects(
+      () =>
+        r.documents({
+          sourceKeys: [],
+          fileUrls: [],
+          fileMtimes: bad,
+          tier: 't',
+          feature: 'f',
+        }),
+      Error,
+      'key',
+    );
+  }
+  assertEquals(f.scripts.length, 0);
+});
+
 Deno.test('documents: reads document_key_suggested as well, and returns it', async () => {
   const row = { ...full('a'), document_key_suggested: 'reg:abc' };
   const f = fakePsql(() => ({ stdout: `on\n${JSON.stringify([row])}\n` }));
   const got = await new PsqlLiveReader(f.exec).documents({ sourceKeys: ['a'], fileUrls: [] });
   assertEquals(got, [row]);
   assertStringIncludes(f.scripts[0], "metadata->>'document_key_suggested' as document_key_suggested");
+});
+
+Deno.test('documents: the tier error names fileMtimes when that term needed it', async () => {
+  const r = new PsqlLiveReader(fakePsql().exec);
+  await assertRejects(
+    () => r.documents({ sourceKeys: [], fileUrls: [], fileMtimes: ['m'] }),
+    Error,
+    'fileMtimes need a tier',
+  );
+  await assertRejects(() => r.documents({ sourceKeys: [], fileUrls: [], documentKeys: ['k'] }), Error, 'documentKeys');
 });

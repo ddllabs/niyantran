@@ -974,3 +974,88 @@ Deno.test('run: the run receipt carries citation_dates_dropped and control_codes
     assertEquals(b.control_codes_removed, 1);
   }
 });
+
+// ---- the screen and the runner must use the same prepare block (F339 review) ----
+
+const REG_COLLECTION = {
+  ...COLLECTION,
+  collection: 'national-regulatory',
+  prepare: { maxChunks: 700, dropInvalidCitationDates: true, requireTextIdentity: true },
+};
+const SCREENED_ARGV = ['plan', '--collection', 'c.json', '--records', 'out/screened.jsonl'];
+/** A screened file for a collection, with the screen's receipt carrying `prepare` when given. */
+async function screenedFiles(collection: unknown, prepare?: unknown): Promise<Record<string, string>> {
+  const records = JSON.stringify(await question(1));
+  const receipt = JSON.parse(await screenReceipt(records));
+  if (prepare !== undefined) receipt.prepare = prepare;
+  return {
+    'c.json': JSON.stringify(collection),
+    'out/screened.jsonl': records,
+    'out/screen.receipt.json': JSON.stringify(receipt),
+  };
+}
+
+Deno.test('prepare block: a screened file whose recorded block differs from the collection file is refused, naming both', async () => {
+  const f = await screenedFiles(REG_COLLECTION, {
+    maxChunks: 800,
+    dropInvalidCitationDates: true,
+    requireTextIdentity: true,
+  });
+  const err = await assertRejects(() => main(SCREENED_ARGV, deps(f).d), Error, 'prepare_mismatch');
+  assertStringIncludes(err.message, '"maxChunks":800');
+  assertStringIncludes(err.message, '"maxChunks":700');
+});
+
+Deno.test('prepare block: the same block is accepted, in any key order and whatever patches or corrigenda the file carries', async () => {
+  const f = await screenedFiles(REG_COLLECTION, {
+    requireTextIdentity: true,
+    dropInvalidCitationDates: true,
+    maxChunks: 700,
+  });
+  assertEquals(await main(SCREENED_ARGV, deps(f).d), 0);
+  const withPatches = await screenedFiles({ ...REG_COLLECTION, prepare: { ...REG_COLLECTION.prepare, patches: {} } }, {
+    maxChunks: 700,
+    dropInvalidCitationDates: true,
+    requireTextIdentity: true,
+  });
+  assertEquals(await main(SCREENED_ARGV, deps(withPatches).d), 0);
+});
+
+Deno.test('prepare block: no recorded block is refused for a collection whose screen uses prepare, and accepted for one that does not', async () => {
+  const old = await screenedFiles(REG_COLLECTION);
+  await assertRejects(() => main(SCREENED_ARGV, deps(old).d), Error, 'prepare_mismatch');
+  const bills = await screenedFiles(COLLECTION);
+  assertEquals(await main(SCREENED_ARGV, deps(bills).d), 0);
+});
+
+Deno.test('prepare block: split carries the recorded block into each part, and a part with a different block is refused', async () => {
+  const block = { maxChunks: 800 };
+  const records = [1, 2, 3].map((n) => JSON.stringify({ n })).join('\n') + '\n';
+  const text = (await Promise.all([1, 2, 3].map(async (n) => JSON.stringify(await question(n))))).join('\n') + '\n';
+  const receipt = JSON.parse(await screenReceipt(text));
+  receipt.prepare = block;
+  const g = {
+    'c.json': JSON.stringify(REG_COLLECTION),
+    'out/screened.jsonl': text,
+    'out/screen.receipt.json': JSON.stringify(receipt),
+  };
+  const x = deps(g);
+  assertEquals(await main(['split', '--records', 'out/screened.jsonl', '--lines', '2', '--out', '/var/parts'], x.d), 0);
+  const partReceipt = JSON.parse(x.written.get('/var/parts/part-000.jsonl.receipt.json')!);
+  assertEquals(partReceipt.prepare, block);
+  void records;
+  const part = {
+    'c.json': g['c.json'],
+    'part-000.jsonl': x.written.get('/var/parts/part-000.jsonl')!,
+    'part-000.jsonl.receipt.json': x.written.get('/var/parts/part-000.jsonl.receipt.json')!,
+  };
+  await assertRejects(
+    () => main(['plan', '--collection', 'c.json', '--records', 'part-000.jsonl'], deps(part).d),
+    Error,
+    'prepare_mismatch',
+  );
+  // A part of a file with no recorded block carries none.
+  const plain = deps({ ...g, 'out/screen.receipt.json': await screenReceipt(text) });
+  await main(['split', '--records', 'out/screened.jsonl', '--lines', '2', '--out', '/var/parts'], plain.d);
+  assertEquals('prepare' in JSON.parse(plain.written.get('/var/parts/part-000.jsonl.receipt.json')!), false);
+});

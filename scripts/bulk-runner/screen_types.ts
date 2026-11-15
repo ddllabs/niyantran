@@ -2,7 +2,7 @@
 // (screen.ts), each collection screen (screens/*.ts) and the page check (page_check.ts) are written against this file,
 // so it changes only with the spec.
 
-import type { Rec } from './prepare.ts';
+import type { PrepareOptions, Rec } from './prepare.ts';
 
 /** The five checks every review carries (supabase/functions/_shared/suppliedText.ts). */
 export type ReviewCheck = 'identity' | 'completeness' | 'sensitivity' | 'dedupe' | 'rights';
@@ -30,6 +30,10 @@ export interface LiveDocument {
   content_sha256: string | null;
   /** metadata->>'document_key_suggested' (search-only desks). Absent from readers that predate the field. */
   document_key_suggested?: string | null;
+  /** documents.title, metadata->>'file_mtime' and metadata->>'source_host' (search-only desks; F345). Absent from readers that predate them. */
+  title?: string | null;
+  file_mtime?: string | null;
+  source_host?: string | null;
 }
 
 /** A listing row, as the screen may read it (read-only). `row` is desk_rows.row. */
@@ -47,7 +51,8 @@ export interface LiveReader {
    * Live documents matching any of the given lists (each may be empty or absent): source keys, file URLs, stored text
    * hashes (documents.content_sha256), document keys (metadata->>'document_key') or suggested keys
    * (metadata->>'document_key_suggested'); document keys and suggested keys only with `tier` and `feature`, which then
-   * also restrict those lists' matches to documents of that tier and feature.
+   * also restrict those lists' matches to documents of that tier and feature. `fileMtimes` (metadata->>'file_mtime'),
+   * likewise only with `tier` and `feature`, finds documents of that desk stamped with one of those file dates.
    */
   documents(q: {
     sourceKeys: string[];
@@ -55,6 +60,7 @@ export interface LiveReader {
     contentHashes?: string[];
     documentKeys?: string[];
     suggestedKeys?: string[];
+    fileMtimes?: string[];
     tier?: string;
     feature?: string;
   }): Promise<LiveDocument[]>;
@@ -69,6 +75,11 @@ export interface LiveReader {
 /** What a check can use besides the record. */
 export interface ScreenContext {
   live: LiveReader;
+  /**
+   * The collection file's `prepare` block: the options the runner itself prepares records with (F339). A check that asks
+   * what prepare would hold reads the limit from here, so there is one limit and it is the runner's.
+   */
+  prepare?: PrepareOptions;
   /** The collection file's screen settings (licence classes admitted, and so on). */
   settings: Rec;
 }
@@ -134,6 +145,11 @@ export interface Screen {
    * documents stops the run (a desk whose listing uses another spelling, such as Regulatory), and the receipt says so.
    */
   listingRows?: 'required' | 'none';
+  /**
+   * True when a check reads `ctx.prepare`: the collection file's prepare block then belongs to the rules hash, because
+   * changing the chunk limit changes what the screen holds.
+   */
+  usesPrepare?: boolean;
   /** Report-only scans, counted into the receipt (see Report). Absent: none. */
   reports?: Report[];
   /**

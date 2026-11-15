@@ -16,7 +16,15 @@ import {
 } from './screen.ts';
 import { SCREENS } from './screens/index.ts';
 import { LIMITS } from './fixtures.ts';
-import { type Check, type Finding, type LiveReader, type Report, REVIEW_CHECKS, type Screen } from './screen_types.ts';
+import {
+  type Check,
+  type Finding,
+  type LiveReader,
+  type Report,
+  REVIEW_CHECKS,
+  type Screen,
+  type ScreenContext,
+} from './screen_types.ts';
 import type { Rec } from './prepare.ts';
 
 const sha = (s: string | Uint8Array) => createHash('sha256').update(s).digest('hex');
@@ -1347,16 +1355,75 @@ areaTest(
   },
 );
 
-areaTest('main: --psql is passed to the live reader factory, default psql', async (a) => {
-  const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k1'))]);
-  const d1 = depsFor(a);
-  await main(argv(a, f.path), d1.deps);
-  assertEquals(d1.psqls, ['psql']);
-  await Deno.remove(a.out, { recursive: true });
-  const d2 = depsFor(a);
-  await main(argv(a, f.path, '--psql', '/opt/pg/bin/psql'), d2.deps);
-  assertEquals(d2.psqls, ['/opt/pg/bin/psql']);
-});
+areaTest(
+  "main: a screen that uses the prepare block is given the collection file's own, and its rules hash moves with it (a screen that does not keeps its hash)",
+  async (a) => {
+    const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k1'))]);
+    const seen: unknown[] = [];
+    const spy = (c: Screen['checks'][number]) =>
+      c.name === 'c_rights'
+        ? {
+          ...c,
+          one: (
+            _r: Rec,
+            ctx: ScreenContext,
+          ) => (seen.push(ctx.prepare), Promise.resolve([])),
+        }
+        : c;
+    const using = (): Screen => ({
+      ...screenOf(screenOf().checks.map(spy)),
+      usesPrepare: true,
+    });
+    await main(argv(a, f.path), depsFor(a, using()).deps);
+    assertEquals(seen, [{ maxChunks: 10 }]);
+    const first = JSON.parse(
+      await Deno.readTextFile(join(a.out, 'screen.receipt.json')),
+    );
+    assertEquals(
+      first.rules_sha256,
+      await rulesSha256(
+        ['rules/a.ts'],
+        a.repo,
+        undefined,
+        { licences: ['x'] },
+        { maxChunks: 10 },
+      ),
+    );
+    assert(first.rules_sha256 !== await expectedRules({ licences: ['x'] }));
+    assertEquals(first.prepare, { maxChunks: 10 }, 'the receipt records the block the screen used');
+    await Deno.remove(a.out, { recursive: true });
+    await collectionFile(a, { prepare: { maxChunks: 700 } });
+    await main(argv(a, f.path), depsFor(a, using()).deps);
+    const second = JSON.parse(
+      await Deno.readTextFile(join(a.out, 'screen.receipt.json')),
+    );
+    assert(
+      second.rules_sha256 !== first.rules_sha256,
+      'a different chunk limit is a different rules hash',
+    );
+    await Deno.remove(a.out, { recursive: true });
+    await main(argv(a, f.path), depsFor(a).deps);
+    const plain = JSON.parse(
+      await Deno.readTextFile(join(a.out, 'screen.receipt.json')),
+    );
+    assertEquals(plain.rules_sha256, await expectedRules({ licences: ['x'] }));
+    assertEquals(plain.prepare, null, 'a screen that does not use the block records none');
+  },
+);
+
+areaTest(
+  'main: --psql is passed to the live reader factory, default psql',
+  async (a) => {
+    const f = await reader(a, 'b.jsonl', [JSON.stringify(rec('k1'))]);
+    const d1 = depsFor(a);
+    await main(argv(a, f.path), d1.deps);
+    assertEquals(d1.psqls, ['psql']);
+    await Deno.remove(a.out, { recursive: true });
+    const d2 = depsFor(a);
+    await main(argv(a, f.path, '--psql', '/opt/pg/bin/psql'), d2.deps);
+    assertEquals(d2.psqls, ['/opt/pg/bin/psql']);
+  },
+);
 
 areaTest(
   'main: a check_error is logged to stderr with its message, and appears in no output, receipt or stdout line',
