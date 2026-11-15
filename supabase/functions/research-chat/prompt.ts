@@ -274,7 +274,7 @@ export function buildSystemPrompt(a: PromptInput): string {
  * never reaches the model (the handler passes the title only). */
 export type RenderedAttachment =
   | { kind: 'row' | 'record' | 'file'; title: string; text: string; handle?: string }
-  | { kind: 'document'; title: string; text?: string; handle?: undefined };
+  | { kind: 'document' | 'private_file'; title: string; text?: string; handle?: undefined };
 
 export const MAX_ATTACHMENT_CHARS = 12_000;
 const SERVER_HANDLE_RE = /^ref:[a-z0-9]{6}-\d+$/;

@@ -63,7 +63,13 @@ export interface DocumentAttachment {
   feature?: string;
 }
 
-export type Attachment = TextAttachment | DocumentAttachment;
+export interface PrivateFileAttachment {
+  kind: 'private_file';
+  title: string;
+  file_id: string;
+}
+
+export type Attachment = TextAttachment | DocumentAttachment | PrivateFileAttachment;
 
 export interface ResearchRequest {
   conversation_id?: string;
@@ -182,6 +188,16 @@ export function validateRequest(body: unknown): { request: ResearchRequest } | {
           attachments.push(item);
           continue;
         }
+        if (a.kind === 'private_file') {
+          if (typeof a.file_id !== 'string' || !UUID_RE.test(a.file_id)) {
+            fieldErrors.attachments = `attachment ${index}: file_id must be a uuid`;
+            continue;
+          }
+          if (!title) continue;
+          const item: PrivateFileAttachment = { kind: 'private_file', title, file_id: a.file_id.toLowerCase() };
+          attachments.push(item);
+          continue;
+        }
         const kind = a.kind === 'row' || a.kind === 'record' || a.kind === 'file' ? a.kind : null;
         const text = str(a.text, LIMITS.attachmentText);
         if (!kind || !title || !text) continue;
@@ -254,7 +270,7 @@ export function validateRequest(body: unknown): { request: ResearchRequest } | {
 export function documentKeysOf(r: ResearchRequest): string[] {
   const keys = new Set<string>();
   if (r.selection?.document_key) keys.add(r.selection.document_key);
-  for (const a of r.attachments) if (a.kind !== 'document' && a.document_key) keys.add(a.document_key);
+  for (const a of r.attachments) if (a.kind !== 'document' && a.kind !== 'private_file' && a.document_key) keys.add(a.document_key);
   return [...keys];
 }
 
@@ -262,5 +278,12 @@ export function documentKeysOf(r: ResearchRequest): string[] {
 export function documentIdsOf(r: ResearchRequest): string[] {
   const ids = new Set<string>();
   for (const a of r.attachments) if (a.kind === 'document') ids.add(a.document_id);
+  return [...ids].slice(0, LIMITS.attachments);
+}
+
+/** The indexed private files a turn's private file chips name: distinct, at most one per attachment slot. */
+export function privateFileIdsOf(r: ResearchRequest): string[] {
+  const ids = new Set<string>();
+  for (const a of r.attachments) if (a.kind === 'private_file') ids.add(a.file_id);
   return [...ids].slice(0, LIMITS.attachments);
 }

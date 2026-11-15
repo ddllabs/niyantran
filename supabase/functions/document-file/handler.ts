@@ -1,26 +1,29 @@
 // document-file: a short-lived signature for the stored PDF part that holds one page of a live
-// ingestion-v2 document (docs/specs/2026-10-01-rag-v2-citations-pdf.md, "document-file").
+// ingestion-v2 document (docs/specs/2026-10-01-rag-v2-citations-pdf.md), or a private user file
+// for Feature F341 (docs/specs/private-file-manager-functionality.md).
 //
 // POST {document_id: uuid, page: int >= 1}
 //   200 {ok:true, signed_path, part_index, page_offset, page_count, byte_size, expires_in}
+// POST {file_id: uuid, source_origin?: 'private', page?: int >= 1}
+//   200 {ok:true, signed_path, page_count, byte_size, expires_in}
 //   refusals {ok:false, code, error}, each with one fixed message:
 //     400 bad_request   not POST, a malformed or oversized body, a non-uuid id, a non-integer page
 //     401 unauthorized  no valid Supabase JWT
 //     404 not_found     document missing (or hidden by RLS), legacy (no storage_path), not live
-//                       (indexed_at, extract_hash or page_count null), or no part covers the page
+//                       (indexed_at, extract_hash or page_count null), or no part covers the page;
+//                       or private file missing, belonging to another user, or in Trash
 //     422 bad_page      page < 1 or page > documents.page_count
 //     503 unavailable   a read or the signing failed
 //
-// Order: CORS preflight, requireUser, method, body, document, page range, part, sign. Nothing is
-// read before the caller is known. The document and its parts are read with the CALLER's token
-// (RLS); only `sign` uses the service role, and only for the storage_path that document_files
-// names for this live document and page. The client never supplies a path.
+// Order: CORS preflight, requireUser, method, body, document/file, page range/invariants, sign.
+// Nothing is read before the caller is known. All database rows are read with the CALLER's token
+// (RLS); only `sign` uses the service role, and only for the verified storage_path.
 //
 // signed_path is the signed URL's part after `/storage/v1/`, so the browser prefixes its own
 // Supabase URL: this works when the function sees `http://kong:8000` locally, and the server never
 // tells the browser to fetch an arbitrary origin.
 //
-// Logging: user_id, document_id, page, part_index, outcome and code only. Never the path, the
+// Logging: user_id, document_id, file_id, page, part_index, outcome and code only. Never the path, the
 // signed URL, its token, the caller's token or an error's text (which may embed any of them).
 
 import { requireUser, type Verify } from '../_shared/auth.ts';
@@ -30,8 +33,11 @@ import { log as sharedLog } from '../_shared/logging.ts';
 
 /** The signature's lifetime, and expires_in. */
 export const SIGN_SECONDS = 300;
-/** The body is two short fields; anything longer is refused while it streams in. */
+/** The body is short fields; anything longer is refused while it streams in. */
 export const BODY_MAX_BYTES = 1024;
+
+export const CORPUS_BUCKET = 'corpus' as const;
+export const USER_FILES_BUCKET = 'user-files' as const;
 
 export const MESSAGES = {
   bad_request: 'expected POST {document_id: uuid, page: integer}',
@@ -52,9 +58,10 @@ const STATUS_OF: Readonly<Record<ErrorCode, number>> = {
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** What supabase-js's createSignedUrl returns after SUPABASE_URL: the corpus bucket's sign route. */
+/** What supabase-js's createSignedUrl returns after SUPABASE_URL: the storage sign routes. */
 const SIGN_PREFIX = '/storage/v1/';
-const SIGNED_PATH = /^object\/sign\/corpus\/[^?#]+\?(?:.*&)?token=[^&#]+/;
+const SIGNED_PATH_CORPUS = /^object\/sign\/corpus\/[^?#]+\?(?:.*&)?token=[^&#]+/;
+const SIGNED_PATH_USER_FILES = /^object\/sign\/user-files\/[^?#]+\?(?:.*&)?token=[^&#]+/;
 /** The only part path ingest_register writes (content-addressed); anything else is never signed. */
 const PART_PATH = /^files\/[0-9a-f]{64}\.pdf$/;
 
@@ -78,6 +85,17 @@ export interface PartRow {
   storage_path: string;
 }
 
+/** user_files citation row, as the caller reads it. */
+export interface UserFileCitationRow {
+  id: string;
+  user_id: string;
+  storage_path: string;
+  upload_status: string;
+  deleted_at: string | null;
+  size_bytes: number;
+  page_count?: number | null;
+}
+
 export interface DocumentFileDeps {
   verify?: Verify;
   /** The document as the caller sees it (caller's token, RLS), or null. */
@@ -86,6 +104,10 @@ export interface DocumentFileDeps {
   parts(token: string, documentId: string, page: number): Promise<PartRow[]>;
   /** Service role: a signed URL for this corpus object, valid for `seconds`. */
   sign(path: string, seconds: number): Promise<string>;
+  /** Private user file as the caller sees it (caller's token, RLS), or null. */
+  userFile?: (token: string, fileId: string) => Promise<UserFileCitationRow | null>;
+  /** Service role: a signed URL for this private user-files object, valid for `seconds`. */
+  signPrivate?: (path: string, seconds: number) => Promise<string>;
   log?: (event: string, fields: Record<string, unknown>) => void;
   origins?: string[];
 }
@@ -103,8 +125,8 @@ export function partFor(parts: PartRow[], page: number): PartRow | null {
   return parts.find((p) => page > p.page_offset && page <= p.page_offset + p.page_count) ?? null;
 }
 
-/** The signed URL's path and query after `/storage/v1/`, or null when it is not a corpus signature. */
-export function relativeSignedPath(signedUrl: string): string | null {
+/** The signed URL's path and query after `/storage/v1/`, or null when it is not a valid bucket signature. */
+export function relativeSignedPath(signedUrl: string, bucket: 'corpus' | 'user-files' = 'corpus'): string | null {
   let u: URL;
   try {
     u = new URL(signedUrl);
@@ -113,7 +135,8 @@ export function relativeSignedPath(signedUrl: string): string | null {
   }
   if (!u.pathname.startsWith(SIGN_PREFIX)) return null;
   const rel = u.pathname.slice(SIGN_PREFIX.length) + u.search;
-  return SIGNED_PATH.test(rel) ? rel : null;
+  const pattern = bucket === 'user-files' ? SIGNED_PATH_USER_FILES : SIGNED_PATH_CORPUS;
+  return pattern.test(rel) ? rel : null;
 }
 
 function isLive(d: DocumentRow): d is DocumentRow & { storage_path: string; page_count: number } {
@@ -123,7 +146,11 @@ function isLive(d: DocumentRow): d is DocumentRow & { storage_path: string; page
     typeof d.page_count === 'number' && Number.isInteger(d.page_count) && d.page_count >= 1;
 }
 
-async function readBody(req: Request): Promise<{ document_id: string; page: number }> {
+export type ParsedBody =
+  | { kind: 'corpus'; document_id: string; page: number }
+  | { kind: 'private'; file_id: string; page?: number };
+
+async function readBody(req: Request): Promise<ParsedBody> {
   const declared = Number(req.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > BODY_MAX_BYTES) throw new Refusal('bad_request');
   if (!req.body) throw new Refusal('bad_request');
@@ -153,10 +180,43 @@ async function readBody(req: Request): Promise<{ document_id: string; page: numb
     throw new Refusal('bad_request');
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Refusal('bad_request');
-  const { document_id, page } = parsed as Record<string, unknown>;
+  const p = parsed as Record<string, unknown>;
+
+  const { document_id, file_id, source_origin, page } = p;
+
+  if (source_origin !== undefined && source_origin !== 'shared' && source_origin !== 'private') {
+    throw new Refusal('bad_request');
+  }
+
+  if (page !== undefined && (typeof page !== 'number' || !Number.isSafeInteger(page))) {
+    throw new Refusal('bad_request');
+  }
+
+  // Private user file request: file_id is present, or source_origin is explicitly 'private'
+  if (file_id !== undefined || source_origin === 'private') {
+    if (source_origin === 'shared') throw new Refusal('bad_request');
+    const targetFileId = file_id !== undefined ? file_id : document_id;
+    if (typeof targetFileId !== 'string' || !UUID.test(targetFileId)) throw new Refusal('bad_request');
+    if (document_id !== undefined && (typeof document_id !== 'string' || !UUID.test(document_id))) {
+      throw new Refusal('bad_request');
+    }
+    return {
+      kind: 'private',
+      file_id: targetFileId.toLowerCase(),
+      page: page !== undefined ? page : undefined,
+    };
+  }
+
+  // Corpus document request (existing behavior)
   if (typeof document_id !== 'string' || !UUID.test(document_id)) throw new Refusal('bad_request');
-  if (typeof page !== 'number' || !Number.isSafeInteger(page)) throw new Refusal('bad_request');
-  return { document_id: document_id.toLowerCase(), page };
+  if (page === undefined || typeof page !== 'number' || !Number.isSafeInteger(page)) {
+    throw new Refusal('bad_request');
+  }
+  return {
+    kind: 'corpus',
+    document_id: document_id.toLowerCase(),
+    page,
+  };
 }
 
 function reply(body: unknown, status: number, cors: Record<string, string>): Response {
@@ -179,12 +239,14 @@ export async function handleDocumentFile(req: Request, deps: DocumentFileDeps): 
   const cors = corsHeaders(req, deps.origins);
   const log = deps.log ?? ((event: string, fields: Record<string, unknown>) => sharedLog(event, fields));
   // Only these fields are ever logged; each is set from a validated value.
-  const seen: { user_id?: string; document_id?: string; page?: number; part_index?: number } = {};
+  const seen: { user_id?: string; document_id?: string; file_id?: string; page?: number; part_index?: number } = {};
   try {
     let token: string;
+    let callerUserId: string;
     try {
       const caller = await requireUser(req, deps.verify);
       token = caller.token;
+      callerUserId = caller.userId;
       seen.user_id = caller.userId;
     } catch (e) {
       // A refused token is 401; an Auth outage falls through to 503.
@@ -192,20 +254,72 @@ export async function handleDocumentFile(req: Request, deps: DocumentFileDeps): 
       throw e;
     }
     if (req.method !== 'POST') throw new Refusal('bad_request');
-    const { document_id, page } = await readBody(req);
-    seen.document_id = document_id;
-    seen.page = page;
+    const parsed = await readBody(req);
 
-    const doc = await deps.document(token, document_id);
-    if (!doc || !isLive(doc)) throw new Refusal('not_found');
-    if (page < 1 || page > doc.page_count) throw new Refusal('bad_page');
+    if (parsed.kind === 'corpus') {
+      const { document_id, page } = parsed;
+      seen.document_id = document_id;
+      seen.page = page;
 
-    const part = partFor(await deps.parts(token, document_id, page), page);
-    if (!part) throw new Refusal('not_found');
-    seen.part_index = part.part_index;
+      const doc = await deps.document(token, document_id);
+      if (!doc || !isLive(doc)) throw new Refusal('not_found');
+      if (page < 1 || page > doc.page_count) throw new Refusal('bad_page');
 
-    if (!PART_PATH.test(part.storage_path)) throw new Error('unexpected part path');
-    const signedPath = relativeSignedPath(await deps.sign(part.storage_path, SIGN_SECONDS));
+      const part = partFor(await deps.parts(token, document_id, page), page);
+      if (!part) throw new Refusal('not_found');
+      seen.part_index = part.part_index;
+
+      if (!PART_PATH.test(part.storage_path)) throw new Error('unexpected part path');
+      const signedPath = relativeSignedPath(await deps.sign(part.storage_path, SIGN_SECONDS), 'corpus');
+      if (!signedPath) throw new Error('unexpected signed URL shape');
+
+      log('document_file', { ...seen, outcome: 'ok' });
+      return reply(
+        {
+          ok: true,
+          signed_path: signedPath,
+          part_index: part.part_index,
+          page_offset: part.page_offset,
+          page_count: part.page_count,
+          byte_size: part.byte_size,
+          expires_in: SIGN_SECONDS,
+        },
+        200,
+        cors,
+      );
+    }
+
+    // Private user file
+    seen.file_id = parsed.file_id;
+    if (parsed.page !== undefined) seen.page = parsed.page;
+
+    if (!deps.userFile || !deps.signPrivate) {
+      throw new Error('private file dependencies not configured');
+    }
+
+    const file = await deps.userFile(token, parsed.file_id);
+    if (!file) throw new Refusal('not_found');
+
+    if (
+      file.user_id !== callerUserId ||
+      file.deleted_at !== null ||
+      file.upload_status !== 'uploaded'
+    ) {
+      throw new Refusal('not_found');
+    }
+
+    const storagePath = file.storage_path;
+    if (typeof storagePath !== 'string' || storagePath === '' || storagePath.includes('..') || storagePath.includes('\\')) {
+      throw new Refusal('not_found');
+    }
+
+    const pathMatch = storagePath.match(/^([0-9a-f-]{36})\//i);
+    if (!pathMatch || !UUID.test(pathMatch[1]) || pathMatch[1].toLowerCase() !== callerUserId.toLowerCase()) {
+      throw new Refusal('not_found');
+    }
+
+    const signedUrl = await deps.signPrivate(storagePath, SIGN_SECONDS);
+    const signedPath = relativeSignedPath(signedUrl, 'user-files');
     if (!signedPath) throw new Error('unexpected signed URL shape');
 
     log('document_file', { ...seen, outcome: 'ok' });
@@ -213,10 +327,8 @@ export async function handleDocumentFile(req: Request, deps: DocumentFileDeps): 
       {
         ok: true,
         signed_path: signedPath,
-        part_index: part.part_index,
-        page_offset: part.page_offset,
-        page_count: part.page_count,
-        byte_size: part.byte_size,
+        page_count: typeof file.page_count === 'number' && file.page_count >= 1 ? file.page_count : 1,
+        byte_size: file.size_bytes,
         expires_in: SIGN_SECONDS,
       },
       200,

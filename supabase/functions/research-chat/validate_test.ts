@@ -1,6 +1,14 @@
 import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
 import { fingerprintRequest } from './persistence.ts';
-import { documentIdsOf, documentKeysOf, LIMITS, type TextAttachment, validateRequest } from './validate.ts';
+import {
+  documentIdsOf,
+  documentKeysOf,
+  LIMITS,
+  type PrivateFileAttachment,
+  privateFileIdsOf,
+  type TextAttachment,
+  validateRequest,
+} from './validate.ts';
 
 const base = { message: 'Question', turn_key: 'turn', focus: 'selection' as const };
 function selection(row: Record<string, unknown>) {
@@ -206,4 +214,80 @@ Deno.test('editor override retains exact text, needs a persona probe and partici
   const second = validateRequest({ ...base, persona_probe: 'academic', persona_prompt: exact + 'x' });
   assert('request' in second);
   assert((await fingerprintRequest(first.request)) !== (await fingerprintRequest(second.request)));
+});
+
+// F341: Private file attachments
+const FILE_A = '2d8f3c74-5e6f-4a71-8b0d-2e3f4a5b6c7d';
+const FILE_B = '3e9a4d85-6f7a-4b82-9c1e-3f4a5b6c7d8e';
+
+Deno.test('a private file attachment is accepted with a title and a uuid, and needs no text', () => {
+  const validated = validateRequest({
+    ...base,
+    focus: 'attached',
+    attachments: [{ kind: 'private_file', title: 'Q3 Financial Report.pdf', file_id: FILE_A }],
+  });
+  assert('request' in validated, JSON.stringify(validated));
+  assertEquals(validated.request.attachments, [
+    { kind: 'private_file', title: 'Q3 Financial Report.pdf', file_id: FILE_A },
+  ]);
+  assertEquals(privateFileIdsOf(validated.request), [FILE_A]);
+  assertEquals(documentIdsOf(validated.request), [], 'a private file is not a document');
+  assertEquals(documentKeysOf(validated.request), [], 'a private file is not a document key');
+});
+
+Deno.test('a private file attachment never carries text into the request, even when the client sends some', () => {
+  const validated = validateRequest({
+    ...base,
+    attachments: [{ kind: 'private_file', title: 'Private Notes', file_id: FILE_A, text: 'inlined private text' }],
+  });
+  assert('request' in validated);
+  assertEquals('text' in validated.request.attachments[0], false);
+});
+
+Deno.test('a malformed file_id is a 400 field error, not a silently dropped chip', () => {
+  for (const bad of ['not-a-uuid', '', 42, null, undefined, `${FILE_A} `.repeat(2)]) {
+    const res = validateRequest({ ...base, attachments: [{ kind: 'private_file', title: 'T', file_id: bad }] });
+    assert('fieldErrors' in res, `refused ${JSON.stringify(bad)}`);
+    assertStringIncludes(res.fieldErrors.attachments, 'file_id');
+  }
+});
+
+Deno.test('private file attachment title is sanitized and bounded to LIMITS.title', () => {
+  const longTitle = 'P'.repeat(LIMITS.title + 50);
+  const validated = validateRequest({
+    ...base,
+    attachments: [{ kind: 'private_file', title: `  ${longTitle}  `, file_id: FILE_A }],
+  });
+  assert('request' in validated);
+  const att = validated.request.attachments[0] as PrivateFileAttachment;
+  assertEquals(att.title.length, LIMITS.title);
+  assertEquals(att.title, 'P'.repeat(LIMITS.title));
+});
+
+Deno.test('privateFileIdsOf is distinct and the attachment cap still bounds the chips', () => {
+  const chips = Array.from({ length: 14 }, (_, i) => ({
+    kind: 'private_file' as const,
+    title: `File ${i}`,
+    file_id: i < 13 ? FILE_B.slice(0, -2) + String(i).padStart(2, '0') : FILE_A,
+  }));
+  const validated = validateRequest({
+    ...base,
+    attachments: [{ kind: 'private_file', title: 'Dup', file_id: FILE_A.toUpperCase() }, ...chips],
+  });
+  assert('request' in validated);
+  assertEquals(validated.request.attachments.length, LIMITS.attachments);
+  const ids = privateFileIdsOf(validated.request);
+  assertEquals(ids.length, LIMITS.attachments);
+  assertEquals(ids[0], FILE_A, 'file_ids are compared case-insensitively and kept once');
+
+  const twice = validateRequest({
+    ...base,
+    attachments: [
+      { kind: 'private_file', title: 'One', file_id: FILE_A },
+      { kind: 'private_file', title: 'Again', file_id: FILE_A },
+      { kind: 'private_file', title: 'Two', file_id: FILE_B },
+    ],
+  });
+  assert('request' in twice);
+  assertEquals(privateFileIdsOf(twice.request), [FILE_A, FILE_B]);
 });

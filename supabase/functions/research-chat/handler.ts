@@ -795,8 +795,8 @@ export function featureScopeOf(
  * the turn's document scope is what keeps the searches inside it.
  */
 function promptAttachment(a: Attachment): RenderedAttachment {
-  if (a.kind !== 'document') return { kind: a.kind, title: a.title, text: a.text };
-  return { kind: a.kind, title: a.title };
+  if (a.kind === 'document' || a.kind === 'private_file') return { kind: a.kind, title: a.title };
+  return { kind: a.kind, title: a.title, text: a.text };
 }
 
 interface TurnInput {
@@ -1057,7 +1057,7 @@ async function runTurnBody(
         verifiedHandles.add(handle);
         attachments.push({ kind: attachment.kind as 'row' | 'record', title: attachment.title, text: stored.record_text, handle });
       } else attachments.push(promptAttachment(attachment));
-      if (!observationSelection && attachment.tier === 'economics' && attachment.feature === 'Economic Simulator' && attachment.kind !== 'document') {
+      if (!observationSelection && attachment.kind !== 'document' && attachment.kind !== 'private_file' && attachment.tier === 'economics' && attachment.feature === 'Economic Simulator') {
         observationSelection = stored
           ? { text: observationFields(stored.row), handle: handles.assign(rowSourceKey(stored)) }
           : { text: `${attachment.title}: ${attachment.text}`.slice(0, 300) };
@@ -1127,12 +1127,12 @@ async function runTurnBody(
 
   const observationTurn = !conversational && documentSearchUnavailable && web.offered &&
     request.focus !== 'broad' && [request.selection, ...request.attachments, request.desk_context].some(context =>
-      context?.tier === 'economics' && context.feature === 'Economic Simulator');
+      context && 'tier' in context && context.tier === 'economics' && 'feature' in context && context.feature === 'Economic Simulator');
   const provisionTurn = !conversational && !documentSearchUnavailable &&
     request.focus !== 'broad' && /\b(?:sections?|clauses?|provisions?|amend(?:s|ed|ment|ments)?)\b/i.test(request.message) &&
     [request.desk_context, request.selection, ...request.attachments].some(context =>
-      context?.tier === 'national' && context.feature === 'Bill Passage Probability Index');
-  let lawTurn = !conversational && (request.desk_context?.tier === 'law' || request.selection?.tier === 'law' || request.attachments.some(a => a.tier === 'law'));
+      context && 'tier' in context && context.tier === 'national' && 'feature' in context && context.feature === 'Bill Passage Probability Index');
+  let lawTurn = !conversational && (request.desk_context?.tier === 'law' || request.selection?.tier === 'law' || request.attachments.some(a => 'tier' in a && a.tier === 'law'));
   const onEvent = (e: AgentEvent) => {
     if (signal.aborted) return;
     if ('lawEvidence' in e) { lawTurn = true; return; }

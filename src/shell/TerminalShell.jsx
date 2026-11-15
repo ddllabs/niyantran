@@ -12,7 +12,7 @@ import DeskDirectory, { DeskLandingTabs } from './DeskDirectory.jsx';
 import SidePanel, { useSidePanel } from './SidePanel.jsx';
 import { deskHasRail, rowPicker } from './sidePanelModel.js';
 import { Icon } from './Icons.jsx';
-import { Moon, Sun } from 'lucide-react';
+import { Folder, Moon, Sun } from 'lucide-react';
 import { isConflictsFeature } from '../lib/conflictsMonitor.js';
 import { isTransitFeature } from '../lib/transit.js';
 import { isChokepointsFeature } from '../lib/strategicAssets.js';
@@ -36,6 +36,7 @@ import { openInDesk, pendingDeskRow, takePendingDeskRow } from '../ai/openRowSou
 import OnboardingTour from './OnboardingTour.jsx';
 import PersonaChooser from './PersonaChooser.jsx';
 const CreditsPage = lazy(() => import('./credits/CreditsPage.jsx'));
+const FileManagerShell = lazy(() => import('../fileManager/FileManagerShell.jsx'));
 const PlanChangeDialog = lazy(() => import('./PlanChangeDialog.jsx'));
 import LazyView from './LazyView.jsx';
 import ProfileCredits from './credits/BalancePill.jsx';
@@ -73,6 +74,7 @@ export default function TerminalShell({ onLogout }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [planPickerOpen, setPlanPickerOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(() => typeof location !== 'undefined' && location.hash === '#/files');
   // The credits page (F184): its section while open (#/account/<section>), else null.
   const [account, setAccount] = useState(() => parseAccountHash());
   // F195: the desk rail on module pages, open (names, over the page; a drawer on phones) or not.
@@ -101,7 +103,12 @@ export default function TerminalShell({ onLogout }) {
 
   // The credits page follows the address (F184): back, forward and bookmarks work as for desks.
   useEffect(() => {
-    const sync = () => setAccount(parseAccountHash());
+    const sync = () => {
+      setAccount(parseAccountHash());
+      if (typeof location !== 'undefined') {
+        setFilesOpen(location.hash === '#/files');
+      }
+    };
     window.addEventListener('hashchange', sync);
     window.addEventListener('popstate', sync);
     return () => {
@@ -479,6 +486,23 @@ export default function TerminalShell({ onLogout }) {
           >
             {theme === 'light' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
           </button>
+          <button
+            type="button"
+            className={`icon-btn${filesOpen ? ' on' : ''}`}
+            onClick={() => {
+              setFilesOpen((f) => {
+                const next = !f;
+                if (typeof location !== 'undefined') {
+                  location.hash = next ? '#/files' : '#/';
+                }
+                return next;
+              });
+            }}
+            title={hi ? 'निजी फ़ाइलें और ज्ञान' : 'Private Files & Knowledge'}
+            aria-label="Private Files"
+          >
+            <Folder size={16} aria-hidden="true" />
+          </button>
           <ProfileCredits user={user} open={profileOpen} setOpen={setProfileOpen} onToggle={() => setLiveTvOpen(false)} activePlan={ent.status === 'active' && !ent.lapsed ? ent.plan : null}>
             {(glance) => <>
                 <div className="profile-pop-head">
@@ -531,6 +555,17 @@ export default function TerminalShell({ onLogout }) {
                   </button>
                   <button
                     type="button"
+                    className="profile-pop-upgrade"
+                    onClick={() => {
+                      setProfileOpen(false);
+                      setFilesOpen(true);
+                      if (typeof location !== 'undefined') location.hash = '#/files';
+                    }}
+                  >
+                    Files
+                  </button>
+                  <button
+                    type="button"
                     className="profile-pop-persona"
                     onClick={() => {
                       setProfileOpen(false);
@@ -558,6 +593,18 @@ export default function TerminalShell({ onLogout }) {
       {/* F184: the credits page takes the work area; the desk stays mounted underneath, hidden, so the
           AI panel keeps its thread, draft and any answer still streaming (SidePanel.jsx). */}
       {account ? <LazyView><CreditsPage section={account} user={user} ent={ent} /></LazyView> : null}
+      {filesOpen ? (
+        <LazyView>
+          <div className="files-workbench-overlay" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'var(--bg-primary, #0c0d0e)' }}>
+            <FileManagerShell onClose={() => {
+              setFilesOpen(false);
+              if (typeof location !== 'undefined' && location.hash === '#/files') {
+                location.hash = '#/';
+              }
+            }} />
+          </div>
+        </LazyView>
+      ) : null}
       {moduleNavigation && !account && <DeskRail tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}
         open={railOpen} onOpenChange={setRailOpen} />}
       {moduleNavigation && !account && <DeskNav
