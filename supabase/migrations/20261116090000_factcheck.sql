@@ -11,7 +11,8 @@
 --   * private.factcheck_hold_keys: each session's hold is a credit_holds row under a random key ('fc:' + uuid) that is
 --     never returned to any caller. The research chat takes its turn_key from the client, so a guessable hold key would
 --     let a chat turn release a fact-check hold early (settle_turn_credits sets settled_at on the key it is given).
---   * private.factcheck_rate: per-session, per-action, per-calendar-minute call counts for factcheck_touch.
+--   * private.factcheck_rate: per-USER, per-action, per-calendar-minute call counts for factcheck_touch, and
+--     private.factcheck_budget: per-session counts of accepted extract and check calls over the session's life.
 --   * public.factcheck_start, factcheck_touch, factcheck_settle, factcheck_settle_expired (service_role only), and
 --     private.factcheck_flag / private.factcheck_settle_locked.
 --
@@ -31,15 +32,22 @@
 --
 -- Lock order: the wallet row first (private.credit_refresh), then the session row. factcheck_touch never takes the
 -- wallet lock. 'transcribe' locks the session row FOR UPDATE. 'extract' and 'check' read it without a lock, but their
--- counter insert (private.factcheck_rate references the session) takes a key-share lock on the session row until the
+-- budget insert (private.factcheck_budget references the session) takes a key-share lock on the session row until the
 -- transaction ends. So an extract or check may wait for an in-flight settle or transcribe, and those may wait for it,
--- but it holds no other lock (the wallet, another session) that either needs: no cycle is possible.
+-- but it holds no other lock (the wallet, another session) that either needs: no cycle is possible. Within a touch
+-- the order is always session row, then the session's budget row, then the user's rate row.
 --
 -- Flag. app_flags row 'livetv_factcheck' = {"enabled": true, "audience": "admin"|"all", "credits_per_minute": n}.
 -- A missing row, a non-object, enabled other than JSON true, an audience other than the two, or a price that is not a
 -- number above 0 and at most 5000 (rounded to 4 places) is OFF. The price is never taken from a request.
 --
--- Rates for factcheck_touch, per session per calendar minute: transcribe 10, extract 8, check 40 (pieces can be as short as 8 s, and retries count). 'extract' and 'check'
+-- Limits of factcheck_touch. Per USER (all their sessions together) per calendar minute: transcribe 10 (pieces can be
+-- as short as 8 s, and retries count), extract 6, check 20. Over the whole life of a session, with m the minutes a
+-- settlement would charge now (minutes_used once settled; one private helper shared with settle), extract is accepted
+-- at most 3m + 2 times and check at most 8m + 4 times, then 'budget'; a refused call counts nothing. While the flag is
+-- off every action answers 'off' (settle and settle_expired are unaffected: a running session is still charged).
+-- Price agreement: factcheck_start's optional last argument is the price the caller showed the user; if it differs from
+-- the flag's, nothing is created and 'price_changed' returns the current price. 'extract' and 'check'
 -- stay allowed until 120 seconds after the end of the CHARGE (the settled end, or for a running session the earlier of
 -- the block's end and 15 seconds after the last accepted transcribe), so a session that does not transcribe cannot keep
 -- using them while being charged one minute. factcheck_settle_expired also deletes rate rows over an hour old.
@@ -49,10 +57,11 @@
 -- Down (manual; nothing else depends on these objects):
 --   begin;
 --   select cron.unschedule('factcheck-settle-expired');   -- where pg_cron exists
---   drop function public.factcheck_start(uuid, text, text, text, numeric, integer, boolean),
+--   drop function public.factcheck_start(uuid, text, text, text, numeric, integer, boolean, numeric),
 --     public.factcheck_touch(uuid, uuid, text), public.factcheck_settle(uuid, uuid), public.factcheck_settle_expired(),
---     private.factcheck_settle_locked(uuid, uuid), private.factcheck_flag();
---   drop table private.factcheck_rate, private.factcheck_hold_keys, public.factcheck_claims, public.factcheck_sessions;
+--     private.factcheck_settle_locked(uuid, uuid), private.factcheck_charge_minutes(timestamptz, timestamptz, integer, timestamptz),
+--     private.factcheck_flag();
+--   drop table private.factcheck_budget, private.factcheck_rate, private.factcheck_hold_keys, public.factcheck_claims, public.factcheck_sessions;
 --   commit;
 --   -- Holds and ledger entries already made stay (credit_holds rows under 'fc:' keys are settled or swept).
 
@@ -119,13 +128,20 @@ CREATE TABLE private.factcheck_hold_keys (
 );
 
 CREATE TABLE private.factcheck_rate (
-  session_id uuid        NOT NULL REFERENCES public.factcheck_sessions(id) ON DELETE CASCADE,
-  action     text        NOT NULL CHECK (action IN ('transcribe', 'extract', 'check')),
-  minute     timestamptz NOT NULL,
-  n          integer     NOT NULL CHECK (n > 0),
-  PRIMARY KEY (session_id, action, minute)
+  user_id uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  action  text        NOT NULL CHECK (action IN ('transcribe', 'extract', 'check')),
+  minute  timestamptz NOT NULL,
+  n       integer     NOT NULL CHECK (n > 0),
+  PRIMARY KEY (user_id, action, minute)
 );
 CREATE INDEX factcheck_rate_minute ON private.factcheck_rate (minute);
+
+CREATE TABLE private.factcheck_budget (
+  session_id uuid    NOT NULL REFERENCES public.factcheck_sessions(id) ON DELETE CASCADE,
+  action     text    NOT NULL CHECK (action IN ('extract', 'check')),
+  n          integer NOT NULL CHECK (n >= 0),
+  PRIMARY KEY (session_id, action)
+);
 
 -- 2. Privileges and row-level security --------------------------------------------------------------------------------
 ALTER TABLE public.factcheck_sessions ENABLE ROW LEVEL SECURITY;
@@ -144,7 +160,8 @@ GRANT SELECT, DELETE ON public.factcheck_sessions TO authenticated;
 GRANT SELECT ON public.factcheck_claims TO authenticated;
 GRANT SELECT ON public.factcheck_sessions TO service_role;
 GRANT SELECT, INSERT, UPDATE ON public.factcheck_claims TO service_role;
-REVOKE ALL ON private.factcheck_hold_keys, private.factcheck_rate FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON private.factcheck_hold_keys, private.factcheck_rate, private.factcheck_budget
+  FROM PUBLIC, anon, authenticated, service_role;
 
 -- 3. Private helpers --------------------------------------------------------------------------------------------------
 -- The flag, or NULL when the feature is off for any reason. Never raises.
@@ -181,6 +198,16 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
+-- The whole minutes a settlement charges: from started_at to the earliest of now, 15 s after the last activity and the
+-- end of the block, rounded up, at least 1 and at most the minutes bought. Shared by settle and by the touch budget so
+-- they cannot drift.
+CREATE FUNCTION private.factcheck_charge_minutes(p_started timestamptz, p_last timestamptz, p_bought integer,
+  p_now timestamptz) RETURNS integer
+LANGUAGE sql STABLE SET search_path = '' AS $$
+  SELECT greatest(1, least(p_bought, ceil(extract(epoch FROM (
+    least(p_now, p_last + interval '15 seconds', p_started + make_interval(mins => p_bought)) - p_started)) / 60)::integer));
+$$;
+
 -- Settles one session. The caller holds the wallet lock (private.credit_refresh).
 CREATE FUNCTION private.factcheck_settle_locked(p_user uuid, p_session uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET TimeZone = 'UTC' AS $$
@@ -207,7 +234,7 @@ BEGIN
   END IF;
 
   v_end := least(now(), f.last_activity_at + interval '15 seconds');
-  v_min := greatest(1, least(f.minutes_bought, ceil(extract(epoch FROM (v_end - f.started_at)) / 60)::integer));
+  v_min := private.factcheck_charge_minutes(f.started_at, f.last_activity_at, f.minutes_bought, now());
 
   SELECT k.turn_key INTO v_key FROM private.factcheck_hold_keys k WHERE k.session_id = f.id;
   SELECT * INTO h FROM public.credit_holds x WHERE x.user_id = p_user AND x.turn_key = v_key FOR UPDATE;
@@ -240,7 +267,7 @@ $$;
 
 -- 4. Public functions (service_role only) -----------------------------------------------------------------------------
 CREATE FUNCTION public.factcheck_start(p_user uuid, p_video_id text, p_channel_id text, p_video_kind text,
-  p_start_position_s numeric, p_minutes integer, p_is_admin boolean) RETURNS jsonb
+  p_start_position_s numeric, p_minutes integer, p_is_admin boolean, p_expected_cpm numeric DEFAULT NULL) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET TimeZone = 'UTC' AS $$
 DECLARE
   s public.credit_settings;
@@ -254,11 +281,13 @@ DECLARE
   v_id uuid := gen_random_uuid();
   v_key text := 'fc:' || gen_random_uuid();
   v_ends timestamptz;
+  v_active uuid;
 BEGIN
   IF p_user IS NULL OR p_video_id IS NULL OR char_length(p_video_id) NOT BETWEEN 1 AND 32
      OR p_channel_id IS NULL OR char_length(p_channel_id) NOT BETWEEN 1 AND 64
      OR p_video_kind IS NULL OR p_video_kind NOT IN ('live', 'recorded')
-     OR (p_start_position_s IS NOT NULL AND NOT (p_start_position_s BETWEEN 0 AND 10000000)) THEN
+     OR (p_start_position_s IS NOT NULL AND NOT (p_start_position_s BETWEEN 0 AND 10000000))
+     OR (p_expected_cpm IS NOT NULL AND NOT (p_expected_cpm BETWEEN 0 AND 5000)) THEN
     RAISE EXCEPTION 'A user, a video, a channel and a video kind are required' USING ERRCODE = '22023';
   END IF;
 
@@ -273,6 +302,9 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'reason', 'bad_minutes');
   END IF;
   v_cpm := (fl ->> 'cpm')::numeric;
+  IF p_expected_cpm IS NOT NULL AND round(p_expected_cpm, 4) <> v_cpm THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'price_changed', 'credits_per_minute', v_cpm);
+  END IF;
   v_needed := round(p_minutes * v_cpm, 4);
 
   s := private.credit_config();
@@ -289,8 +321,9 @@ BEGIN
     PERFORM private.factcheck_settle_locked(p_user, r.id);
   END LOOP;
 
-  IF EXISTS (SELECT FROM public.factcheck_sessions x WHERE x.user_id = p_user AND x.status = 'active') THEN
-    RETURN jsonb_build_object('ok', false, 'reason', 'already_active');
+  SELECT x.id INTO v_active FROM public.factcheck_sessions x WHERE x.user_id = p_user AND x.status = 'active';
+  IF FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'already_active', 'session_id', v_active);
   END IF;
 
   SELECT * INTO w FROM public.credit_wallets WHERE user_id = p_user;
@@ -309,7 +342,8 @@ BEGIN
     VALUES (v_id, p_user, p_video_id, p_channel_id, p_video_kind, p_start_position_s,
       p_minutes, v_cpm, v_needed, now(), now());
   EXCEPTION WHEN unique_violation THEN
-    RETURN jsonb_build_object('ok', false, 'reason', 'already_active');
+    SELECT x.id INTO v_active FROM public.factcheck_sessions x WHERE x.user_id = p_user AND x.status = 'active';
+    RETURN jsonb_build_object('ok', false, 'reason', 'already_active', 'session_id', v_active);
   END;
   INSERT INTO private.factcheck_hold_keys (session_id, turn_key) VALUES (v_id, v_key);
   INSERT INTO public.credit_holds (user_id, turn_key, credits, inr_per_credit, expires_at, shadow_blocked)
@@ -320,19 +354,25 @@ BEGIN
 END;
 $$;
 
--- Called for every piece of work. Counts the call against the per-minute limit and, for 'transcribe', keeps the session
--- alive. 'extract' and 'check' stay allowed for 120 seconds after the end of the charge (verdicts for the last
--- sentences arrive after the block closes) and never move last_activity_at, so they never extend the charge.
+-- Called for every piece of work. Answers 'off' while the flag is off. Counts the call against the user's per-minute
+-- limit and, for extract and check, the session's budget (a refused call counts nothing), and, for 'transcribe',
+-- keeps the session alive. 'extract' and 'check' stay allowed for 120 seconds after the end of the charge (verdicts
+-- for the last sentences arrive after the block closes) and never move last_activity_at, so they never extend the charge.
 CREATE FUNCTION public.factcheck_touch(p_user uuid, p_session uuid, p_action text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET TimeZone = 'UTC' AS $$
 DECLARE
   f public.factcheck_sessions;
   v_limit integer;
   v_n integer;
+  v_m integer;
+  v_budget integer;
   v_block_end timestamptz;
 BEGIN
   IF p_user IS NULL OR p_session IS NULL OR p_action IS NULL OR p_action NOT IN ('transcribe', 'extract', 'check') THEN
     RAISE EXCEPTION 'A user, a session and an action (transcribe, extract or check) are required' USING ERRCODE = '22023';
+  END IF;
+  IF private.factcheck_flag() IS NULL THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'off');
   END IF;
 
   IF p_action = 'transcribe' THEN
@@ -357,13 +397,31 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'reason', 'ended');
   END IF;
 
-  v_limit := CASE p_action WHEN 'transcribe' THEN 10 WHEN 'extract' THEN 8 ELSE 40 END;
+  IF p_action <> 'transcribe' THEN
+    -- The session's whole-life budget, tied to the minutes that are (or will be) charged. Counted first, and given
+    -- back below if the user's per-minute limit refuses the call.
+    v_m := CASE WHEN f.status = 'settled' THEN f.minutes_used
+                ELSE private.factcheck_charge_minutes(f.started_at, f.last_activity_at, f.minutes_bought, now()) END;
+    v_budget := CASE p_action WHEN 'extract' THEN 3 * v_m + 2 ELSE 8 * v_m + 4 END;
+    v_n := NULL;
+    INSERT INTO private.factcheck_budget AS b (session_id, action, n) VALUES (f.id, p_action, 1)
+    ON CONFLICT (session_id, action) DO UPDATE SET n = b.n + 1 WHERE b.n < v_budget
+    RETURNING b.n INTO v_n;
+    IF v_n IS NULL THEN
+      RETURN jsonb_build_object('ok', false, 'reason', 'budget');
+    END IF;
+  END IF;
+
+  v_limit := CASE p_action WHEN 'transcribe' THEN 10 WHEN 'extract' THEN 6 ELSE 20 END;
   v_n := NULL;
-  INSERT INTO private.factcheck_rate AS c (session_id, action, minute, n)
-  VALUES (f.id, p_action, date_trunc('minute', now()), 1)
-  ON CONFLICT (session_id, action, minute) DO UPDATE SET n = c.n + 1 WHERE c.n < v_limit
+  INSERT INTO private.factcheck_rate AS c (user_id, action, minute, n)
+  VALUES (p_user, p_action, date_trunc('minute', now()), 1)
+  ON CONFLICT (user_id, action, minute) DO UPDATE SET n = c.n + 1 WHERE c.n < v_limit
   RETURNING c.n INTO v_n;
   IF v_n IS NULL THEN
+    IF p_action <> 'transcribe' THEN
+      UPDATE private.factcheck_budget SET n = n - 1 WHERE session_id = f.id AND action = p_action;
+    END IF;
     RETURN jsonb_build_object('ok', false, 'reason', 'rate_limited');
   END IF;
 
@@ -430,15 +488,16 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION
-  public.factcheck_start(uuid, text, text, text, numeric, integer, boolean),
+  public.factcheck_start(uuid, text, text, text, numeric, integer, boolean, numeric),
   public.factcheck_touch(uuid, uuid, text),
   public.factcheck_settle(uuid, uuid),
   public.factcheck_settle_expired(),
   private.factcheck_flag(),
+  private.factcheck_charge_minutes(timestamptz, timestamptz, integer, timestamptz),
   private.factcheck_settle_locked(uuid, uuid)
 FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION
-  public.factcheck_start(uuid, text, text, text, numeric, integer, boolean),
+  public.factcheck_start(uuid, text, text, text, numeric, integer, boolean, numeric),
   public.factcheck_touch(uuid, uuid, text),
   public.factcheck_settle(uuid, uuid),
   public.factcheck_settle_expired()

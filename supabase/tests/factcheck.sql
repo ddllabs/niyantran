@@ -149,7 +149,8 @@ $$;
 -- 0. The objects exist, and who may do what -------------------------------------------------------------------------------
 SELECT pg_temp.assert_true(to_regclass('public.factcheck_sessions') IS NOT NULL
   AND to_regclass('public.factcheck_claims') IS NOT NULL
-  AND to_regclass('private.factcheck_hold_keys') IS NOT NULL AND to_regclass('private.factcheck_rate') IS NOT NULL,
+  AND to_regclass('private.factcheck_hold_keys') IS NOT NULL AND to_regclass('private.factcheck_rate') IS NOT NULL
+  AND to_regclass('private.factcheck_budget') IS NOT NULL,
   'the tables exist');
 SELECT pg_temp.assert_true((SELECT relrowsecurity FROM pg_class WHERE oid = 'public.factcheck_sessions'::regclass)
   AND (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.factcheck_claims'::regclass), 'row-level security is on');
@@ -190,18 +191,19 @@ BEGIN
   FOREACH actor IN ARRAY ARRAY['anon', 'authenticated', 'service_role', 'public'] LOOP
     PERFORM pg_temp.assert_true(NOT has_table_privilege(actor, 'private.factcheck_hold_keys', 'SELECT')
       AND NOT has_table_privilege(actor, 'private.factcheck_rate', 'SELECT')
+      AND NOT has_table_privilege(actor, 'private.factcheck_budget', 'SELECT')
       AND NOT has_schema_privilege(actor, 'private', 'USAGE'), actor || ' reaches nothing in private');
   END LOOP;
   FOREACH actor IN ARRAY ARRAY['anon', 'authenticated', 'public'] LOOP
     PERFORM pg_temp.assert_true(
-      NOT has_function_privilege(actor, 'public.factcheck_start(uuid,text,text,text,numeric,integer,boolean)', 'EXECUTE')
+      NOT has_function_privilege(actor, 'public.factcheck_start(uuid,text,text,text,numeric,integer,boolean,numeric)', 'EXECUTE')
       AND NOT has_function_privilege(actor, 'public.factcheck_touch(uuid,uuid,text)', 'EXECUTE')
       AND NOT has_function_privilege(actor, 'public.factcheck_settle(uuid,uuid)', 'EXECUTE')
       AND NOT has_function_privilege(actor, 'public.factcheck_settle_expired()', 'EXECUTE'),
       actor || ' cannot call any fact-check function');
   END LOOP;
   PERFORM pg_temp.assert_true(
-    has_function_privilege('service_role', 'public.factcheck_start(uuid,text,text,text,numeric,integer,boolean)', 'EXECUTE')
+    has_function_privilege('service_role', 'public.factcheck_start(uuid,text,text,text,numeric,integer,boolean,numeric)', 'EXECUTE')
     AND has_function_privilege('service_role', 'public.factcheck_touch(uuid,uuid,text)', 'EXECUTE')
     AND has_function_privilege('service_role', 'public.factcheck_settle(uuid,uuid)', 'EXECUTE')
     AND has_function_privilege('service_role', 'public.factcheck_settle_expired()', 'EXECUTE'),
@@ -345,7 +347,8 @@ BEGIN
   PERFORM public.settle_turn_credits(u, 'c1');
 
   r := pg_temp.st(u, 10);
-  PERFORM pg_temp.assert_true(r = '{"ok": false, "reason": "already_active"}'::jsonb, 'a second start is refused while one session is active');
+  PERFORM pg_temp.assert_true(r = jsonb_build_object('ok', false, 'reason', 'already_active', 'session_id', s.id),
+    'a second start is refused while one session is active, and names that session: ' || r::text);
   PERFORM pg_temp.assert_true((SELECT count(*) FROM public.factcheck_sessions WHERE user_id = u) = 1
     AND (SELECT count(*) FROM private.factcheck_hold_keys WHERE session_id = s.id) = 1, 'still one session and one key');
 END;
@@ -639,8 +642,8 @@ BEGIN
   PERFORM pg_temp.age(g1, interval '10 minutes', interval '9 minutes');
   PERFORM pg_temp.age(g2, interval '9 minutes', interval '8 minutes');
   PERFORM set_config('fx.bad_session', bad::text, true);
-  INSERT INTO private.factcheck_rate (session_id, action, minute, n) VALUES
-    (bad, 'check', now() - interval '2 hours', 3), (bad, 'extract', now() - interval '30 minutes', 2);
+  INSERT INTO private.factcheck_rate (user_id, action, minute, n) VALUES
+    (pg_temp.u(26), 'check', now() - interval '2 hours', 3), (pg_temp.u(26), 'extract', now() - interval '30 minutes', 2);
   n := public.factcheck_settle_expired();
   PERFORM pg_temp.assert_true(n = 2 AND (SELECT status = 'settled' FROM public.factcheck_sessions WHERE id = g1)
     AND (SELECT status = 'settled' FROM public.factcheck_sessions WHERE id = g2), 'a session that fails does not stop the others in the run: ' || n);
@@ -648,8 +651,8 @@ BEGIN
     AND pg_temp.charges(pg_temp.u(26)) = 0 AND pg_temp.balance(pg_temp.u(26)) = 100
     AND (SELECT settled_at IS NULL FROM public.credit_holds WHERE user_id = pg_temp.u(26) AND turn_key LIKE 'fc:%'),
     'and the failed one is untouched: no charge, hold standing');
-  PERFORM pg_temp.assert_true(NOT EXISTS (SELECT FROM private.factcheck_rate WHERE session_id = bad AND minute < now() - interval '1 hour')
-    AND EXISTS (SELECT FROM private.factcheck_rate WHERE session_id = bad AND action = 'extract'),
+  PERFORM pg_temp.assert_true(NOT EXISTS (SELECT FROM private.factcheck_rate WHERE user_id = pg_temp.u(26) AND minute < now() - interval '1 hour')
+    AND EXISTS (SELECT FROM private.factcheck_rate WHERE user_id = pg_temp.u(26) AND action = 'extract'),
     'rate rows over an hour old are deleted and newer ones kept');
 END;
 $$;
@@ -691,17 +694,17 @@ BEGIN
 END;
 $$;
 
--- Rates: transcribe 10, extract 8, check 40, per session and calendar minute.
+-- Rates, per USER and calendar minute: transcribe 10, extract 6, check 20.
 DO $$
 DECLARE u uuid := pg_temp.u(18); sid uuid; i integer; r jsonb; la timestamptz;
 BEGIN
   sid := pg_temp.run(u, 15);
-  PERFORM pg_temp.age(sid, interval '60 seconds', interval '30 seconds');
+  PERFORM pg_temp.age(sid, interval '10 minutes', interval '30 seconds');   -- m = 10: the budgets are not the limit here
   FOR i IN 1..10 LOOP
     r := public.factcheck_touch(u, sid, 'transcribe');
     IF r ->> 'ok' <> 'true' THEN RAISE EXCEPTION 'FAIL: transcribe % was refused: %', i, r; END IF;
   END LOOP;
-  PERFORM pg_temp.age(sid, interval '60 seconds', interval '30 seconds');
+  PERFORM pg_temp.age(sid, interval '10 minutes', interval '30 seconds');
   SELECT last_activity_at INTO la FROM public.factcheck_sessions WHERE id = sid;
   r := public.factcheck_touch(u, sid, 'transcribe');
   PERFORM pg_temp.assert_true(r = '{"ok": false, "reason": "rate_limited"}'::jsonb
@@ -709,27 +712,30 @@ BEGIN
     'the 11th transcribe in a minute is rate_limited and does not move the activity');
   PERFORM pg_temp.assert_true(public.factcheck_touch(u, sid, 'extract') ->> 'ok' = 'true', 'the limits are per action');
 
-  FOR i IN 2..8 LOOP
+  FOR i IN 2..6 LOOP
     r := public.factcheck_touch(u, sid, 'extract');
     IF r ->> 'ok' <> 'true' THEN RAISE EXCEPTION 'FAIL: extract % was refused: %', i, r; END IF;
   END LOOP;
-  PERFORM pg_temp.assert_true(public.factcheck_touch(u, sid, 'extract') ->> 'reason' = 'rate_limited', 'the 9th extract in a minute is rate_limited');
+  PERFORM pg_temp.assert_true(public.factcheck_touch(u, sid, 'extract') ->> 'reason' = 'rate_limited', 'the 7th extract in a minute is rate_limited');
 
-  FOR i IN 1..40 LOOP
+  FOR i IN 1..20 LOOP
     r := public.factcheck_touch(u, sid, 'check');
     IF r ->> 'ok' <> 'true' THEN RAISE EXCEPTION 'FAIL: check % was refused: %', i, r; END IF;
   END LOOP;
-  PERFORM pg_temp.assert_true(public.factcheck_touch(u, sid, 'check') ->> 'reason' = 'rate_limited', 'the 41st check in a minute is rate_limited');
-  PERFORM pg_temp.assert_true((SELECT n FROM private.factcheck_rate WHERE session_id = sid AND action = 'transcribe') = 10
-    AND (SELECT n FROM private.factcheck_rate WHERE session_id = sid AND action = 'extract') = 8
-    AND (SELECT n FROM private.factcheck_rate WHERE session_id = sid AND action = 'check') = 40, 'refused calls are not counted');
+  PERFORM pg_temp.assert_true(public.factcheck_touch(u, sid, 'check') ->> 'reason' = 'rate_limited', 'the 21st check in a minute is rate_limited');
+  PERFORM pg_temp.assert_true((SELECT n FROM private.factcheck_rate WHERE user_id = u AND action = 'transcribe') = 10
+    AND (SELECT n FROM private.factcheck_rate WHERE user_id = u AND action = 'extract') = 6
+    AND (SELECT n FROM private.factcheck_rate WHERE user_id = u AND action = 'check') = 20, 'refused calls are not counted');
+  PERFORM pg_temp.assert_true((SELECT n FROM private.factcheck_budget WHERE session_id = sid AND action = 'extract') = 6
+    AND (SELECT n FROM private.factcheck_budget WHERE session_id = sid AND action = 'check') = 20,
+    'and a call refused by the rate limit gives its budget back');
 
   -- The next calendar minute starts again.
-  UPDATE private.factcheck_rate SET minute = minute - interval '1 minute' WHERE session_id = sid;
+  UPDATE private.factcheck_rate SET minute = minute - interval '1 minute' WHERE user_id = u;
   r := jsonb_build_array(public.factcheck_touch(u, sid, 'transcribe'), public.factcheck_touch(u, sid, 'extract'),
                          public.factcheck_touch(u, sid, 'check'));
   PERFORM pg_temp.assert_true(NOT EXISTS (SELECT FROM jsonb_array_elements(r) e WHERE e ->> 'ok' <> 'true')
-    AND (SELECT n FROM private.factcheck_rate WHERE session_id = sid AND action = 'check' AND minute = date_trunc('minute', now())) = 1,
+    AND (SELECT n FROM private.factcheck_rate WHERE user_id = u AND action = 'check' AND minute = date_trunc('minute', now())) = 1,
     'a different minute resets each count: ' || r::text);
 END;
 $$;
@@ -757,7 +763,7 @@ BEGIN
   PERFORM pg_temp.assert_true(public.factcheck_touch(u, sid, 'extract') ->> 'ok' = 'true' AND public.factcheck_touch(u, sid, 'check') ->> 'ok' = 'true',
     'extract and check are allowed right after the settle');
   UPDATE public.factcheck_sessions SET ended_at = now() - interval '119 seconds' WHERE id = sid;
-  UPDATE private.factcheck_rate SET minute = minute - interval '1 minute' WHERE session_id = sid;
+  UPDATE private.factcheck_rate SET minute = minute - interval '1 minute' WHERE user_id = u;
   PERFORM pg_temp.assert_true(public.factcheck_touch(u, sid, 'extract') ->> 'ok' = 'true' AND public.factcheck_touch(u, sid, 'check') ->> 'ok' = 'true',
     'and 119 s after the end');
   UPDATE public.factcheck_sessions SET ended_at = now() - interval '121 seconds' WHERE id = sid;
@@ -814,6 +820,175 @@ BEGIN
   PERFORM pg_temp.assert_true(public.factcheck_touch(u, sid, 'extract') ->> 'reason' = 'ended'
     AND public.factcheck_touch(u, sid, 'check') ->> 'reason' = 'ended', 'but not at 136 s after it');
   PERFORM public.factcheck_settle(u, sid);
+END;
+$$;
+
+-- 8b. What bounds paid work: per-user limits, the per-session budget, the kill switch, the price, the active id --------------
+SELECT pg_temp.mkuser(31, 500);
+SELECT pg_temp.mkuser(32, 500);
+SELECT pg_temp.mkuser(33, 500);
+SELECT pg_temp.mkuser(34, 500);
+SELECT pg_temp.mkuser(35, 500);
+SELECT pg_temp.mkuser(36, 500);
+SELECT pg_temp.mkuser(37, 500);
+
+-- The audit's chain: start, stop at once (one minute charged), then keep using the settled session; and a new session at once.
+DO $$
+DECLARE u uuid := pg_temp.u(31); a uuid; b uuid; i integer; r jsonb;
+BEGIN
+  a := pg_temp.run(u, 10);
+  r := public.factcheck_settle(u, a);
+  PERFORM pg_temp.assert_true((r ->> 'minutes_used')::int = 1, 'the audit chain: stopped at once, one minute charged');
+  FOR i IN 1..5 LOOP
+    r := public.factcheck_touch(u, a, 'extract');
+    IF r ->> 'ok' <> 'true' THEN RAISE EXCEPTION 'FAIL: extract % on the settled session was refused: %', i, r; END IF;
+  END LOOP;
+  PERFORM pg_temp.assert_true(public.factcheck_touch(u, a, 'extract') = '{"ok": false, "reason": "budget"}'::jsonb,
+    'the 6th extract on a session charged one minute is refused with budget (3m + 2 = 5)');
+  FOR i IN 1..12 LOOP
+    r := public.factcheck_touch(u, a, 'check');
+    IF r ->> 'ok' <> 'true' THEN RAISE EXCEPTION 'FAIL: check % on the settled session was refused: %', i, r; END IF;
+  END LOOP;
+  PERFORM pg_temp.assert_true(public.factcheck_touch(u, a, 'check') = '{"ok": false, "reason": "budget"}'::jsonb,
+    'the 13th check is refused with budget (8m + 4 = 12)');
+  PERFORM pg_temp.assert_true((SELECT n FROM private.factcheck_budget WHERE session_id = a AND action = 'extract') = 5
+    AND (SELECT n FROM private.factcheck_budget WHERE session_id = a AND action = 'check') = 12
+    AND (SELECT n FROM private.factcheck_rate WHERE user_id = u AND action = 'extract') = 5
+    AND (SELECT n FROM private.factcheck_rate WHERE user_id = u AND action = 'check') = 12,
+    'a budget refusal counts nothing, neither against the budget nor the minute');
+  -- A second session started at once shares the user's minute limits (6 extracts, 20 checks) and has its own budget.
+  b := pg_temp.run(u, 10);
+  PERFORM pg_temp.assert_true(public.factcheck_touch(u, b, 'extract') ->> 'ok' = 'true'
+    AND public.factcheck_touch(u, b, 'extract') = '{"ok": false, "reason": "rate_limited"}'::jsonb,
+    'a new session at once gets one more extract this minute (6 for the user) and then rate_limited');
+  FOR i IN 1..8 LOOP
+    r := public.factcheck_touch(u, b, 'check');
+    IF r ->> 'ok' <> 'true' THEN RAISE EXCEPTION 'FAIL: check % on the new session was refused: %', i, r; END IF;
+  END LOOP;
+  PERFORM pg_temp.assert_true(public.factcheck_touch(u, b, 'check') ->> 'reason' = 'rate_limited',
+    'and 8 more checks (20 for the user) and then rate_limited');
+  PERFORM pg_temp.assert_true((SELECT n FROM private.factcheck_budget WHERE session_id = b AND action = 'extract') = 1
+    AND (SELECT n FROM private.factcheck_budget WHERE session_id = b AND action = 'check') = 8, 'its budget counts only what was accepted');
+  PERFORM public.factcheck_settle(u, b);
+END;
+$$;
+
+-- The budget grows with the minutes that are charged.
+DO $$
+DECLARE u uuid := pg_temp.u(32); s uuid; i integer; r jsonb;
+BEGIN
+  s := pg_temp.run(u, 15);
+  PERFORM pg_temp.age(s, interval '170 seconds', interval '1 second');   -- a settlement now would charge 3 minutes
+  FOR i IN 1..11 LOOP
+    DELETE FROM private.factcheck_rate WHERE user_id = u;                -- a fresh minute each time
+    r := public.factcheck_touch(u, s, 'extract');
+    IF r ->> 'ok' <> 'true' THEN RAISE EXCEPTION 'FAIL: extract % at m = 3 was refused: %', i, r; END IF;
+  END LOOP;
+  DELETE FROM private.factcheck_rate WHERE user_id = u;
+  PERFORM pg_temp.assert_true(public.factcheck_touch(u, s, 'extract') ->> 'reason' = 'budget', 'at m = 3 the 12th extract is refused (3m + 2 = 11)');
+  FOR i IN 1..28 LOOP
+    DELETE FROM private.factcheck_rate WHERE user_id = u;
+    r := public.factcheck_touch(u, s, 'check');
+    IF r ->> 'ok' <> 'true' THEN RAISE EXCEPTION 'FAIL: check % at m = 3 was refused: %', i, r; END IF;
+  END LOOP;
+  DELETE FROM private.factcheck_rate WHERE user_id = u;
+  PERFORM pg_temp.assert_true(public.factcheck_touch(u, s, 'check') ->> 'reason' = 'budget', 'at m = 3 the 29th check is refused (8m + 4 = 28)');
+  PERFORM pg_temp.assert_true((SELECT n FROM private.factcheck_budget WHERE session_id = s AND action = 'extract') = 11
+    AND (SELECT n FROM private.factcheck_budget WHERE session_id = s AND action = 'check') = 28, 'and the refusals counted nothing');
+  PERFORM pg_temp.age(s, interval '290 seconds', interval '1 second');   -- now 5 minutes: 17 extracts, 44 checks
+  DELETE FROM private.factcheck_rate WHERE user_id = u;
+  PERFORM pg_temp.assert_true(public.factcheck_touch(u, s, 'extract') ->> 'ok' = 'true' AND public.factcheck_touch(u, s, 'check') ->> 'ok' = 'true',
+    'when more minutes are charged the budget grows');
+  r := public.factcheck_settle(u, s);
+  PERFORM pg_temp.assert_true((r ->> 'minutes_used')::int = 5, 'the session is settled at 5 minutes');
+  FOR i IN 1..4 LOOP   -- 12 extracts so far; 17 = 3 * 5 + 2 allowed after the settle, on minutes_used
+    DELETE FROM private.factcheck_rate WHERE user_id = u;
+    r := public.factcheck_touch(u, s, 'extract');
+    IF r ->> 'ok' <> 'true' THEN RAISE EXCEPTION 'FAIL: extract % after the settle at 5 minutes was refused: %', 12 + i, r; END IF;
+  END LOOP;
+  DELETE FROM private.factcheck_rate WHERE user_id = u;
+  PERFORM pg_temp.assert_true(public.factcheck_touch(u, s, 'extract') ->> 'ok' = 'true'
+    AND public.factcheck_touch(u, s, 'extract') ->> 'reason' = 'budget',
+    'a settled session''s budget follows its minutes_used: the 17th extract is accepted and the 18th refused');
+END;
+$$;
+
+-- The minute limits belong to the user across sessions, and not to anyone else.
+DO $$
+DECLARE u uuid := pg_temp.u(33); v uuid := pg_temp.u(34); a uuid; b uuid; c uuid; i integer;
+BEGIN
+  a := pg_temp.run(u, 10);
+  PERFORM public.factcheck_settle(u, a);
+  b := pg_temp.run(u, 10);
+  c := pg_temp.run(v, 10);
+  FOR i IN 1..3 LOOP
+    IF public.factcheck_touch(u, a, 'extract') ->> 'ok' <> 'true' OR public.factcheck_touch(u, b, 'extract') ->> 'ok' <> 'true' THEN
+      RAISE EXCEPTION 'FAIL: extract % across two sessions was refused', i;
+    END IF;
+  END LOOP;
+  PERFORM pg_temp.assert_true(public.factcheck_touch(u, b, 'extract') ->> 'reason' = 'rate_limited'
+    AND public.factcheck_touch(u, a, 'extract') ->> 'reason' = 'rate_limited',
+    'six extracts across two sessions of one user hit the user''s limit on either');
+  PERFORM pg_temp.assert_true((SELECT n FROM private.factcheck_budget WHERE session_id = b AND action = 'extract') = 3,
+    'the refused call gave its budget back');
+  PERFORM pg_temp.assert_true(public.factcheck_touch(v, c, 'extract') ->> 'ok' = 'true', 'another user is not limited by the first');
+  PERFORM public.factcheck_settle(u, b);
+  PERFORM public.factcheck_settle(v, c);
+END;
+$$;
+
+-- The kill switch: touch answers off for every action, settle and the job still charge.
+DO $$
+DECLARE u uuid := pg_temp.u(35); w uuid := pg_temp.u(36); s uuid; t uuid; act text; r jsonb; n integer;
+BEGIN
+  s := pg_temp.run(u, 10);
+  PERFORM pg_temp.age(s, interval '2 minutes', interval '1 second');
+  t := pg_temp.run(w, 5);
+  PERFORM pg_temp.age(t, interval '10 minutes', interval '9 minutes');
+  PERFORM pg_temp.setflag('{"enabled":false,"audience":"admin","credits_per_minute":2}');
+  FOREACH act IN ARRAY ARRAY['transcribe', 'extract', 'check'] LOOP
+    PERFORM pg_temp.assert_true(public.factcheck_touch(u, s, act) = '{"ok": false, "reason": "off"}'::jsonb
+      AND public.factcheck_touch(u, gen_random_uuid(), act) = '{"ok": false, "reason": "off"}'::jsonb,
+      'flag disabled: ' || act || ' answers off');
+  END LOOP;
+  PERFORM pg_temp.setflag('{"enabled":"true","audience":"admin","credits_per_minute":2}');
+  PERFORM pg_temp.assert_true(public.factcheck_touch(u, s, 'transcribe') ->> 'reason' = 'off', 'a malformed flag is off for touch too');
+  PERFORM pg_temp.assert_true((SELECT count(*) FROM private.factcheck_rate WHERE user_id = u) = 0
+    AND (SELECT last_activity_at = now() - interval '1 second' FROM public.factcheck_sessions WHERE id = s), 'and an off touch counts and moves nothing');
+  r := public.factcheck_settle(u, s);
+  PERFORM pg_temp.assert_true(r ->> 'ok' = 'true' AND (r ->> 'minutes_used')::int = 2 AND (r ->> 'credits_charged')::numeric = 4,
+    'with the flag off a running session is still charged for what it used: ' || r::text);
+  n := public.factcheck_settle_expired();
+  PERFORM pg_temp.assert_true(n >= 1 AND (SELECT status = 'settled' FROM public.factcheck_sessions WHERE id = t), 'and settle_expired still settles: ' || n);
+  PERFORM pg_temp.setflag('{"enabled":true,"audience":"admin","credits_per_minute":2}');
+  s := pg_temp.run(u, 5);
+  PERFORM pg_temp.assert_true(public.factcheck_touch(u, s, 'check') ->> 'ok' = 'true', 'with the flag back on, touch works again (the audience is not rechecked)');
+  PERFORM public.factcheck_settle(u, s);
+END;
+$$;
+
+-- The price the user saw.
+DO $$
+DECLARE u uuid := pg_temp.u(37); r jsonb; s uuid;
+BEGIN
+  r := public.factcheck_start(u, 'vid1', 'chan1', 'live', NULL, 10, true, 3);
+  PERFORM pg_temp.assert_true(r = jsonb_build_object('ok', false, 'reason', 'price_changed', 'credits_per_minute', 2),
+    'a different expected price is refused with the current price: ' || r::text);
+  PERFORM pg_temp.assert_true(NOT EXISTS (SELECT FROM public.factcheck_sessions WHERE user_id = u)
+    AND NOT EXISTS (SELECT FROM public.credit_holds WHERE user_id = u), 'and creates nothing');
+  PERFORM pg_temp.assert_true(public.factcheck_start(u, 'vid1', 'chan1', 'live', NULL, 10, true, 0) ->> 'reason' = 'price_changed', 'an expected price of 0 is a mismatch');
+  r := public.factcheck_start(u, 'vid1', 'chan1', 'live', NULL, 10, true, 2);
+  PERFORM pg_temp.assert_true(r ->> 'ok' = 'true', 'the matching price starts the session');
+  s := (r ->> 'session_id')::uuid;
+  PERFORM public.factcheck_settle(u, s);
+  r := public.factcheck_start(u, 'vid1', 'chan1', 'live', NULL, 10, true, NULL);
+  PERFORM pg_temp.assert_true(r ->> 'ok' = 'true', 'no expected price starts as before');
+  PERFORM public.factcheck_settle(u, (r ->> 'session_id')::uuid);
+  PERFORM pg_temp.rejected(format('SELECT public.factcheck_start(%L, %L, %L, %L, NULL, 5, true, %L)', u, 'v', 'c', 'live', 'NaN'), '22023', 'a NaN expected price raises');
+  PERFORM pg_temp.rejected(format('SELECT public.factcheck_start(%L, %L, %L, %L, NULL, 5, true, %L)', u, 'v', 'c', 'live', 'Infinity'), '22023', 'an infinite expected price raises');
+  PERFORM pg_temp.rejected(format('SELECT public.factcheck_start(%L, %L, %L, %L, NULL, 5, true, -1)', u, 'v', 'c', 'live'), '22023', 'a negative expected price raises');
+  PERFORM pg_temp.rejected(format('SELECT public.factcheck_start(%L, %L, %L, %L, NULL, 5, true, 5001)', u, 'v', 'c', 'live'), '22023', 'an expected price over the cap raises');
+  PERFORM pg_temp.assert_true(NOT EXISTS (SELECT FROM public.factcheck_sessions WHERE user_id = u AND status = 'active'), 'nothing was left running');
 END;
 $$;
 
@@ -946,9 +1121,14 @@ DO $$
 DECLARE u uuid := pg_temp.u(12); sid uuid := pg_temp.sid(pg_temp.u(12));
 BEGIN
   PERFORM pg_temp.assert_true(sid IS NOT NULL AND EXISTS (SELECT FROM private.factcheck_hold_keys WHERE session_id = sid), 'a running session has its hold key');
+  INSERT INTO private.factcheck_rate (user_id, action, minute, n) VALUES (u, 'check', now(), 1);
+  INSERT INTO private.factcheck_budget (session_id, action, n) VALUES (sid, 'check', 1);
   DELETE FROM auth.users WHERE id = u;
   PERFORM pg_temp.assert_true(NOT EXISTS (SELECT FROM private.factcheck_hold_keys WHERE session_id = sid)
-    AND NOT EXISTS (SELECT FROM public.credit_holds WHERE user_id = u), 'deleting the account removes the hold key and the hold');
+    AND NOT EXISTS (SELECT FROM public.credit_holds WHERE user_id = u)
+    AND NOT EXISTS (SELECT FROM private.factcheck_rate WHERE user_id = u)
+    AND NOT EXISTS (SELECT FROM private.factcheck_budget WHERE session_id = sid),
+    'deleting the account removes the hold key, the hold, the rate rows and the budget rows');
 END;
 $$;
 
