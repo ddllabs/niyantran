@@ -23,6 +23,7 @@ function fakeSession(handlers) {
     start: vi.fn(async (p) => { s.started = p; s.emit({ status: 'sharing' }); }),
     stop: vi.fn(async (reason) => { s.emit({ status: 'ended', endReason: reason, sessionId: 'S' }); }),
     reset: vi.fn(() => s.emit({ ...idle() })),
+    stopOrphan: vi.fn(async () => ({ minutes_used: 2, credits_charged: 1000, balance: 9000 })),
   };
   return s;
 }
@@ -76,6 +77,41 @@ describe('loading', () => {
     release(ON);
     await p;
     expect(changes.some((v) => v.flag.available)).toBe(false);
+  });
+});
+
+describe('ending another session', () => {
+  const orphanError = { source: 'start', reason: 'already_active', status: 409, sessionId: 'other-1' };
+  it('stops it, shows what it cost, refreshes credits and returns to choosing', async () => {
+    const t = setup();
+    await t.controller.load();
+    t.controller.choose();
+    t.session().emit({ status: 'error', sessionId: null, error: orphanError });
+    t.credits.refresh.mockClear();
+    await t.controller.endOrphan();
+    expect(t.session().stopOrphan).toHaveBeenCalledWith('other-1');
+    expect(t.credits.refresh).toHaveBeenCalled();
+    expect(t.last().session.status).toBe('choosing');
+    expect(t.last().orphanNotice).toBe('The other session was ended. Used 2 minutes, charged 1,000 credits.');
+    expect(t.last().orphanFailed).toBe(false);
+  });
+  it('a failure is reported and leaves the error and its button in place', async () => {
+    const t = setup();
+    await t.controller.load();
+    t.controller.choose();
+    t.session().emit({ status: 'error', sessionId: null, error: orphanError });
+    t.session().stopOrphan.mockRejectedValueOnce(new Error('x'));
+    await t.controller.endOrphan();
+    expect(t.last().orphanFailed).toBe(true);
+    expect(t.last().session.status).toBe('error');
+  });
+  it('does nothing without a session id', async () => {
+    const t = setup();
+    await t.controller.load();
+    t.controller.choose();
+    t.session().emit({ status: 'error', sessionId: null, error: { ...orphanError, sessionId: undefined } });
+    await t.controller.endOrphan();
+    expect(t.session().stopOrphan).not.toHaveBeenCalled();
   });
 });
 

@@ -5,7 +5,7 @@
 // the button, so an account without the feature does no work beyond one flag read.
 import { createFactCheckSession } from '../../lib/factcheck/session.js';
 import { isSupported } from '../../lib/factcheck/capture.js';
-import { refreshCredits, serverCredits, subscribeCredits } from '../../lib/creditsStore.js';
+import { creditsText, refreshCredits, serverCredits, subscribeCredits } from '../../lib/creditsStore.js';
 import { readFactCheckFlag } from './factCheckFlag.js';
 import { VERDICTS, priceChangedText } from './factCheckText.js';
 
@@ -18,7 +18,7 @@ const ACTIVE = new Set(['sharing', 'starting', 'running', 'ending']);
 const FINISHED = new Set(['ended', 'error']);
 
 export const INITIAL_VIEW = Object.freeze({
-  flag: OFF, supported: false, ready: false, session: IDLE, announcement: '', priceNotice: '', balance: null,
+  flag: OFF, supported: false, ready: false, session: IDLE, announcement: '', priceNotice: '', orphanNotice: '', orphanFailed: false, balance: null,
 });
 
 const defaultCredits = {
@@ -41,6 +41,8 @@ export function createFactCheckController({
   let target;            // undefined until the first setTarget; null = nothing playing
   let announcement = '';
   let priceNotice = '';
+  let orphanNotice = '';
+  let orphanFailed = false;
   let chooseId = 0;
   let announced = new Map();
   let unsubscribe = null;
@@ -50,7 +52,7 @@ export function createFactCheckController({
     try { return credits.available(flag.userId); } catch { return null; }
   };
   const view = () => ({
-    flag, supported: isSupportedHere, ready: Boolean(target), session: sessionState, announcement, priceNotice, balance: balance(),
+    flag, supported: isSupportedHere, ready: Boolean(target), session: sessionState, announcement, priceNotice, orphanNotice, orphanFailed, balance: balance(),
   });
   const emit = () => onChange(view());
 
@@ -70,7 +72,7 @@ export function createFactCheckController({
     const prev = sessionState;
     noteVerdicts(state);
     sessionState = state;
-    if (state.status === 'sharing' || state.status === 'idle') priceNotice = '';
+    if (state.status === 'sharing' || state.status === 'idle') { priceNotice = ''; orphanNotice = ''; orphanFailed = false; }
     // The charge is settled on the server; the header balance catches up once. A start that got no
     // answer may have created a session, so it asks too.
     const finishedNow = FINISHED.has(state.status) && !FINISHED.has(prev.status);
@@ -156,7 +158,28 @@ export function createFactCheckController({
   }
   function stop() { return session ? session.stop('user') : Promise.resolve(); }
   function dismiss() { session?.reset(); }
+  // Another session of this account is still active on the server (409 already_active): end it, show
+  // what it cost, and let the user choose again.
+  async function endOrphan() {
+    const id = sessionState.error?.sessionId;
+    if (!session || !id) return;
+    try {
+      const done = await session.stopOrphan(id);
+      Promise.resolve(credits.refresh()).catch(() => {});
+      session.reset();
+      session.choose();
+      const used = typeof done?.minutes_used === 'number' ? done.minutes_used : null;
+      const charged = typeof done?.credits_charged === 'number' ? done.credits_charged : null;
+      orphanNotice = used !== null && charged !== null
+        ? `The other session was ended. Used ${used} ${used === 1 ? 'minute' : 'minutes'}, charged ${creditsText(charged)}.`
+        : 'The other session was ended.';
+      orphanFailed = false;
+    } catch {
+      orphanFailed = true;
+    }
+    emit();
+  }
   function retry() { session?.reset(); void choose(); }
 
-  return { load, close, setTarget, choose, cancel, start, stop, dismiss, retry };
+  return { load, close, setTarget, choose, cancel, start, stop, dismiss, retry, endOrphan };
 }

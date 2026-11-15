@@ -9,7 +9,7 @@ import { FactCheckEntry, FactCheckPanel } from './FactCheckPanel.jsx';
 
 const sessionBase = {
   status: 'idle', sessionId: null, minutesBought: 0, creditsPerMinute: null, creditsHeld: null, secondsLeft: 0,
-  transcript: [], claims: [], silentFor: 0, skippedPieces: 0, droppedTurns: 0, final: null, endReason: null, error: null,
+  transcript: [], claims: [], silentFor: 0, skippedPieces: 0, droppedTurns: 0, budgetReached: false, final: null, endReason: null, error: null,
 };
 const view = (session = {}, extra = {}) => ({
   flag: { available: true, creditsPerMinute: 500, userId: 'u1' },
@@ -300,6 +300,45 @@ describe('claim cards', () => {
     const html = cardFor(claim({ claim_en: '<img src=x onerror=alert(1)>', reason: '<script>x</script>' }));
     expect(html).not.toMatch(/<img src=x/);
     expect(html).not.toMatch(/<script>/);
+  });
+});
+
+describe('budget, switched off, orphan and honest statuses', () => {
+  const BUDGET = 'The checking limit for this session was reached. The transcript continues; later claims are not checked.';
+  it('shows the budget notice while running and in the ended summary, not otherwise', () => {
+    expect(text(render(view({ status: 'running', budgetReached: true })))).toContain(BUDGET);
+    expect(text(render(view({ status: 'ended', endReason: 'time', budgetReached: true })))).toContain(BUDGET);
+    expect(text(render(view({ status: 'running' })))).not.toContain('checking limit');
+  });
+  it('explains the off end reason', () => {
+    expect(text(render(view({ status: 'ended', endReason: 'off' })))).toContain('Fact-check was switched off. You were charged only for the time used.');
+  });
+  it('already_active with a session id offers to end that session', () => {
+    const html = render(view({ status: 'error', error: { source: 'start', reason: 'already_active', status: 409, sessionId: 'other-1' } }));
+    expect(text(html)).toContain('A fact-check session is already running on your account (perhaps in another tab).');
+    expect(html).toMatch(/<button[^>]*data-fc="orphan"[^>]*>End that session</);
+  });
+  it('already_active without a session id has no end button', () => {
+    const html = render(view({ status: 'error', error: { source: 'start', reason: 'already_active', status: 409 } }));
+    expect(html).not.toMatch(/data-fc="orphan"/);
+  });
+  it('says so, and keeps the button, when ending that session failed', () => {
+    const html = render(view({ status: 'error', error: { source: 'start', reason: 'already_active', status: 409, sessionId: 'o' } }, { orphanFailed: true }));
+    expect(text(html)).toContain('Could not end that session. Try again.');
+    expect(html).toMatch(/data-fc="orphan"/);
+  });
+  it('shows the settlement of the ended session on the choose step', () => {
+    const html = render(view({ status: 'choosing' }, { orphanNotice: 'The other session was ended. Used 2 minutes, charged 1,000 credits.' }));
+    expect(html).toMatch(/role="status"[^>]*>The other session was ended/);
+  });
+  it('a check that came back needs_context or not_checkable shows the honest labels', () => {
+    const html = render(view({ status: 'running', claims: [
+      claim({ id: 'a', status: 'needs_context', verdict: null, reason: 'Who is "he"?', sources: [], checked_at: '2026-11-15T10:20:00.000Z' }),
+      claim({ id: 'b', status: 'not_checkable', verdict: null, reason: 'A prediction', sources: [], checked_at: '2026-11-15T10:20:00.000Z' }),
+    ] }));
+    expect(text(html)).toContain('Needs context, not checked');
+    expect(text(html)).toContain('Not checkable');
+    expect(html).not.toMatch(/fc-badge--supported/);
   });
 });
 

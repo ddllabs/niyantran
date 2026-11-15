@@ -79,6 +79,7 @@ const END_REASONS = {
   silent: 'No speech for 90 seconds, so the session ended.',
   channel_change: 'The channel or video changed.',
   modal_close: 'Live TV was closed.',
+  off: 'Fact-check was switched off. You were charged only for the time used.',
   server: 'The server ended the session.',
 };
 
@@ -126,8 +127,8 @@ export function errorMessage(error) {
     const detail = [needs, has].filter(Boolean).join(' and ');
     return { text: detail ? `Not enough credits: ${detail}.` : 'Not enough credits.', retry: true };
   }
-  if (status === 409) {
-    return { text: 'A fact-check session is already running for your account, perhaps in another tab or on another device. Stop it there and try again.', retry: true };
+  if (e.reason === 'already_active' || status === 409) {
+    return { text: 'A fact-check session is already running on your account (perhaps in another tab).', retry: !e.sessionId };
   }
   if (status === 401) return { text: 'Your sign-in has expired. Sign in again.', retry: false };
   if (status === 403) return { text: 'Fact-check is not available for this account.', retry: false };

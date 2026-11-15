@@ -554,6 +554,7 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
             onStop={factCheck.actions.stop}
             onRetry={factCheck.actions.retry}
             onDismiss={factCheck.actions.dismiss}
+            onEndOrphan={factCheck.actions.endOrphan}
           />
 
           {/* Lower Section Tabs */}

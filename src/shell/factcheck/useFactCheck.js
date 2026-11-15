@@ -27,6 +27,7 @@ export function useFactCheck({ open, target, start }) {
     confirm: (minutes, price) => { void controller.start(start, minutes, price); },
     stop: () => { void controller.stop(); },
     retry: () => controller.retry(),
+    endOrphan: () => { void controller.endOrphan(); },
     dismiss: () => controller.dismiss(),
   };
   return { view, actions };

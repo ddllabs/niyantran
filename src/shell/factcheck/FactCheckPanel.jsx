@@ -55,6 +55,7 @@ function Choose({ view, isMuted, onUnmute, onConfirm, onCancel }) {
         {balance === null ? 'Your balance could not be read.' : `Available credits: ${formatCredits(balance)}`}
       </p>
       {view.priceNotice ? <p className="fc-notice" role="status">{view.priceNotice}</p> : null}
+      {view.orphanNotice ? <p className="fc-notice" role="status">{view.orphanNotice}</p> : null}
       {isMuted ? <MutedWarning onUnmute={onUnmute} /> : null}
       <div className="fc-options" role="group" aria-label="Block length">
         {options.map((o) => (
@@ -229,7 +230,7 @@ export function FactCheckPanel(props) {
 
 // Mounted while a session is on screen: focus moves to the heading when it opens, and back to the
 // entry button when it is dismissed (unless the user has already moved focus elsewhere).
-function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss }) {
+function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan }) {
   const heading = useRef(null);
   useEffect(() => {
     heading.current?.focus();
@@ -274,12 +275,27 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
       {s.status === 'running' && s.silentFor > SILENT_NOTICE_MS ? (
         <p className="fc-notice" role="note">No speech heard. Is the video muted or paused?</p>
       ) : null}
+      {(live || s.status === 'ended') && s.budgetReached ? (
+        <p className="fc-notice" role="note">
+          The checking limit for this session was reached. The transcript continues; later claims are not checked.
+        </p>
+      ) : null}
       {showWork && gaps ? (
         <p className="fc-notice" role="note">Some audio could not be processed; the transcript has gaps.</p>
       ) : null}
 
       {s.status === 'ended' ? <p className="fc-ended">{endReasonText(s.endReason)}</p> : null}
-      {problem ? <div className="fc-error" role="alert"><p>{problem.text}</p></div> : null}
+      {problem ? (
+        <div className="fc-error" role="alert">
+          <p>{problem.text}</p>
+          {s.error?.reason === 'already_active' && s.error.sessionId ? (
+            <>
+              {view.orphanFailed ? <p>Could not end that session. Try again.</p> : null}
+              <button type="button" className="ltv-action-btn primary fc-btn" data-fc="orphan" onClick={onEndOrphan}>End that session</button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
       {s.status === 'ended' || s.status === 'error' ? <Final final={s.final} sessionId={s.sessionId} /> : null}
 
       {showWork ? (
