@@ -106,7 +106,8 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
   if (!viewer) return null;
   const { source, invalid, sources: validSources, reader, pages, searches } = resolved;
   const closeLabel = reader === 'web' ? 'Close web sources' : 'Close citation';
-  // F332: a text citation's publisher goes on a second line under the title; none, and the bar is what it was.
+  // F332: a text citation's publisher goes on a second line under the title, in full; none, and the bar is what it was.
+  // The bar carries has-publisher only then, so the narrow layout can give the heading its own row.
   const publisher = source?.kind === 'text' ? publisherLine(source, 'en') : '';
   const title = (
     <span className="ai-work-title">
@@ -118,7 +119,7 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
   // is the viewer's one close control, so the readers below are not given their own.
   return (
     <div className="ai-work-surface" role="region" aria-label="Evidence" onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); onClose?.(); } }}>
-      <div className="ai-work-bar">
+      <div className={publisher ? 'ai-work-bar has-publisher' : 'ai-work-bar'}>
         <button type="button" ref={back} className="ai-work-back" onClick={onClose} aria-label="Back to the answer">
           ← Back
         </button>
