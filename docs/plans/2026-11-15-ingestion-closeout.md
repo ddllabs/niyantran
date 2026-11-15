@@ -25,7 +25,7 @@ Each item's status is in its tracker entry. Nothing below has landed on `main` u
 | | F340 | Load-proof harness: no default database, load copy refused (`task/f340-f305-proof-harness`, `455c5b57`). |
 | | F305 | Failed proof runs keep evidence; acceptance reports index misses (`455c5b57`; `task/f305-acceptance-index-miss`, `1045538f`). |
 | | F295 | Retrieval timing tests (`task/f295-retrieval-timing-tests`, `65826255`). |
-| | | Wave 1 is built 2026-11-15 and awaits push and merge. |
+| | | Wave 1 merged 2026-11-15 as PR #149 (`291c3b95`). |
 | 2. Ingestion code, in order | F339 with F345 | Screen counts chunks or states expected holds; hold a record that duplicates a live document under another key. |
 | | F285 | Automatic partition creation with its revoke and row-level security lines. |
 | | F325 to F328 | Bill-key role collision; a twice-failed job blocking its batch; failure rate; provider outage failing a whole claim. |
