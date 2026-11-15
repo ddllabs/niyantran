@@ -40,7 +40,23 @@
 // never into the repository. The script prints counts, names and hashes; no record text, title or URL.
 import { basename, fromFileUrl, normalize } from 'jsr:@std/path@1';
 import { drain, makeHarness } from './driver.ts';
-import { CONTAINER, DB, HOME, POSTGREST, psql, psqlJson, sha256Hex, sleep } from './lib.ts';
+import { errorLabel, keepAfterThrow, keepEvidence, pendingFailureMessage, shouldKeepEvidence } from './evidence.ts';
+import {
+  assertPinned,
+  CONTAINER,
+  databaseOfUri,
+  HOME,
+  type PostgrestPin,
+  pinOf,
+  postgrestState,
+  proofDb,
+  psql,
+  psqlJson,
+  sha256Hex,
+  sleep,
+} from './lib.ts';
+
+export { databaseOfUri };
 import { type CliDeps, main } from '../bulk-runner/cli.ts';
 import { PsqlAcceptDb } from '../bulk-runner/acceptance.ts';
 import { PsqlDb, psqlExec } from '../bulk-runner/psql_db.ts';
@@ -429,7 +445,7 @@ const deskRowsDigest = () =>
     `select md5(coalesce(string_agg(tier || '|' || feature || '|' || row_key || '|' || row::text || '|' || coalesce(document_key, ''), ',' order by tier, feature, row_key), '')) from public.desk_rows`,
   );
 
-const DOCKER_PSQL = ['docker', 'exec', '-i', CONTAINER, 'psql', '-U', 'postgres', '-d', DB];
+const dockerPsql = () => ['docker', 'exec', '-i', CONTAINER, 'psql', '-U', 'postgres', '-d', proofDb()];
 
 async function gitState(repo: string): Promise<{ commit: string; dirty: boolean }> {
   const git = async (...args: string[]) => {
@@ -454,9 +470,9 @@ function cliDeps(repo: string, log: (l: string) => void): CliDeps {
     writeText: (p, b) => Deno.writeTextFile(p, b, { createNew: true }),
     git: () => gitState(repo),
     // The load copy has no login for corpus_ingest: a local superuser sets the role, as bulk-proof.ts does.
-    db: () => new PsqlDb(psqlExec(DOCKER_PSQL, 'set role corpus_ingest;')),
+    db: () => new PsqlDb(psqlExec(dockerPsql(), 'set role corpus_ingest;')),
     // The developer's own read-only login on NTER; here the same superuser, in read-only transactions.
-    acceptDb: () => new PsqlAcceptDb(psqlExec(DOCKER_PSQL)),
+    acceptDb: () => new PsqlAcceptDb(psqlExec(dockerPsql())),
     listDir: async (dir) => {
       try {
         return (await Array.fromAsync(Deno.readDir(dir))).map((e) => e.name);
@@ -479,12 +495,6 @@ export class NotReady extends Error {}
 /** A database this proof may write to: a rehearsal database made by regulatory-setup.sh, never the load copy. */
 export const REHEARSAL_DB = /^niyantran_ingest_load_[a-z0-9_]*reg[a-z0-9_]*_test$/;
 
-/** The database name in a PostgREST connection URI (the path, without a query), or null. Nothing else of the URI is kept. */
-export function databaseOfUri(uri: string): string | null {
-  const m = /^postgres(?:ql)?:\/\/[^/?#]*\/([^/?#]+)(?:[?#].*)?$/.exec(uri);
-  return m ? decodeURIComponent(m[1]) : null;
-}
-
 /** The folder the wrapper may write to, and so the only place --out may name. */
 export const outRoot = (home: string) => `${home}/niyantran-eval-cache/reg-next/rehearsal`;
 
@@ -496,27 +506,18 @@ export function outAllowed(out: string, home: string): boolean {
 }
 
 /** Refuses, before anything is written, a database that is not a rehearsal one or that PostgREST does not serve. */
-async function requireRehearsalDatabase(db: string): Promise<void> {
+async function requireRehearsalDatabase(db: string): Promise<PostgrestPin> {
   if (!REHEARSAL_DB.test(db)) {
     throw new NotReady(
       `database ${db} is not a rehearsal database (niyantran_ingest_load_*reg*_test); set LOAD_PROOF_DB or use regulatory-proof.sh`,
     );
   }
-  const r = await new Deno.Command('docker', {
-    args: ['inspect', '-f', '{{range .Config.Env}}{{println .}}{{end}}', POSTGREST],
-    env: { PATH: `${HOME}/.docker/bin:${Deno.env.get('PATH') ?? ''}` },
-    stdout: 'piped',
-    stderr: 'null',
-  }).output();
-  if (r.code !== 0) {
-    throw new NotReady(`PostgREST container ${POSTGREST} is not present; run regulatory-setup.sh reset`);
-  }
-  const line = new TextDecoder().decode(r.stdout).split('\n').find((l) => l.startsWith('PGRST_DB_URI='));
-  const served = line ? databaseOfUri(line.slice('PGRST_DB_URI='.length)) : null;
-  if (served !== db) {
-    throw new NotReady(
-      `PostgREST serves ${served ?? '(an unreadable database)'}, not ${db}; run regulatory-setup.sh reset`,
-    );
+  const pending = await pendingFailureMessage(HOME, db);
+  if (pending) throw new NotReady(pending);
+  try {
+    return pinOf(db, await postgrestState());
+  } catch (e) {
+    throw new NotReady(`${message(e)}; run regulatory-setup.sh reset`);
   }
 }
 
@@ -580,6 +581,31 @@ async function fileSha(path: string): Promise<string> {
   return await sha256Hex(await Deno.readTextFile(path));
 }
 
+/** The output folder of the run in progress, once it exists; what a failure keeps evidence from. */
+let runOut: string | null = null;
+/** Set when the run is about to write to the database (a break, a baseline): from then on any failure keeps evidence. */
+let wroteToDb = false;
+
+/** F305: keeps the receipts, the proof's JSON and the ledger of a failed run, and marks the database as uninspected. */
+async function keepFailureEvidence(reason: string): Promise<void> {
+  if (!runOut) return;
+  try {
+    const proofJson = await Deno.readTextFile(`${runOut}/proof.json`).catch(() => null);
+    const folder = await keepEvidence({
+      home: HOME,
+      db: proofDb(),
+      proof: 'regulatory-proof',
+      reason: reason.slice(0, 500),
+      copy: { receipts: `${runOut}/receipts` },
+      files: { 'output-folder.txt': `${runOut}\n`, ...(proofJson ? { 'proof.json': proofJson } : {}) },
+      query: psql,
+    });
+    console.error(`evidence of the failed run: ${folder}; the database will not be reset until it is inspected`);
+  } catch (e) {
+    console.error(`could not keep the evidence: ${message(e)}`);
+  }
+}
+
 export async function proof(args: Args, repo: string): Promise<number> {
   const started = Date.now();
   const stamp = new Date(started).toISOString().replaceAll(/[:.]/g, '').slice(0, 17);
@@ -588,13 +614,20 @@ export async function proof(args: Args, repo: string): Promise<number> {
   const out = args.out ?? `${root}/${stamp}-${tag}${args.broken ? `-break-${args.broken}` : ''}`;
   const say = (l: string) => console.log(l);
   // Before anything is written, here or in the database: the right database, and a folder the wrapper may write to.
-  await requireRehearsalDatabase(DB);
+  let DB: string;
+  try {
+    DB = proofDb();
+  } catch (e) {
+    throw new NotReady(message(e));
+  }
+  const pin = await requireRehearsalDatabase(DB);
   if (!outAllowed(out, HOME)) {
     throw new NotReady(
       '--out must be under ~/niyantran-eval-cache/reg-next/rehearsal, the only folder the wrapper may write',
     );
   }
   await Deno.mkdir(`${out}/receipts`, { recursive: true });
+  runOut = out;
   say(`proof on database ${DB}${args.broken ? `, BREAK ${args.broken}` : ''}; output ${out}`);
 
   // 1. The screen's output, vouched for by its receipt, and its first N records cut as the runner cuts them.
@@ -652,6 +685,7 @@ export async function proof(args: Args, repo: string): Promise<number> {
   }
 
   // 3. The break, if asked.
+  wroteToDb = true;
   // A failure to set a break up is a failure of the setup, not of the thing proved.
   const setup = <T>(f: () => T): T => {
     try {
@@ -727,6 +761,7 @@ export async function proof(args: Args, repo: string): Promise<number> {
   say(`collection file ${collectionFile}, sha256 ${(await fileSha(collectionFile)).slice(0, 12)}`);
 
   const h = await makeHarness();
+  assertPinned(pin, h.pin); // the PostgREST the harness found is the one this run started on
   const priorSettings = await psql("select claim_batch || ',' || max_running from public.ingest_settings");
   let exitCode = 1;
   let stop: string | null = 'not run';
@@ -760,8 +795,9 @@ export async function proof(args: Args, repo: string): Promise<number> {
         );
       },
       // 6. The runner, as the developer runs it, with automated acceptance.
-      body: () => {
+      body: async () => {
         say('running the runner');
+        await h.recheck(); // before the runner call: PostgREST must still be the same container on the same database
         return main(
           [
             'run',
@@ -935,7 +971,7 @@ export async function proof(args: Args, repo: string): Promise<number> {
         exit: code,
         broken: args.broken,
         break_check: breakCheck,
-        database: DB,
+        database: proofDb(),
         keys_digest: await sha256Hex(keys.join(',')),
         checks,
         facts: rest,
@@ -993,11 +1029,17 @@ if (import.meta.main) {
   try {
     const args = parseArgs(Deno.args, HOME);
     const repo = fromFileUrl(new URL('../..', import.meta.url)).replace(/\/$/, '');
-    Deno.exit(await proof(args, repo));
+    const code = await proof(args, repo);
+    if (shouldKeepEvidence(code, args.broken)) await keepFailureEvidence(`exit ${code}`);
+    Deno.exit(code);
   } catch (e) {
     const notReady = e instanceof NotReady ||
       (e instanceof Error && /^(bad argument|unknown option|--)/.test(e.message));
     console.error(`${notReady ? 'not ready' : 'unexpected error'}: ${message(e)}`);
+    // The reason is the error's name and code, never its text: database errors quote the values that failed.
+    if (keepAfterThrow({ refusal: notReady, wrote: wroteToDb })) {
+      await keepFailureEvidence(`${notReady ? 'not ready' : 'unexpected error'} after writes began: ${errorLabel(e)}`);
+    }
     Deno.exit(notReady ? 2 : 3);
   }
 }

@@ -18,10 +18,114 @@ export const FETCH_TIMEOUT_MS = Number(Deno.env.get('LOAD_PROOF_FETCH_TIMEOUT_MS
 
 export const CONTAINER = 'niyantran-corpus-test-db';
 export const POSTGREST = 'niyantran-load-proof-postgrest';
-export const DB = Deno.env.get('LOAD_PROOF_DB') ?? 'niyantran_ingest_load_test';
-if (!/^niyantran_ingest_load[a-z0-9_]*_test$/.test(DB)) {
-  throw new Error(`database ${DB} is not a niyantran_ingest_load*_test name`);
+
+/** The database every harness run once defaulted to: the full-size load copy. */
+export const LOAD_COPY = 'niyantran_ingest_load_test';
+
+/**
+ * The database a proof runs on, from LOAD_PROOF_DB. There is no fallback: a missing name is an error, so a proof run
+ * without its wrapper cannot land on the load copy. The load copy itself is refused unless the proof only reads it
+ * (`readOnly`) or LOAD_PROOF_ALLOW_LOAD_COPY=1 is set on purpose (`allowLoadCopy`).
+ */
+export function resolveProofDb(
+  name: string | undefined,
+  opts: { readOnly?: boolean; allowLoadCopy?: string } = {},
+): string {
+  if (!name) {
+    throw new Error('LOAD_PROOF_DB is not set; name the proof database (the wrappers set it), there is no default');
+  }
+  if (!/^niyantran_ingest_load[a-z0-9_]*_test$/.test(name)) {
+    throw new Error(`database ${name} is not a niyantran_ingest_load*_test name`);
+  }
+  if (name === LOAD_COPY && !opts.readOnly && opts.allowLoadCopy !== '1') {
+    throw new Error(
+      `refusing to run on ${LOAD_COPY}, the load copy: this proof writes. Use a database of its own, or set ` +
+        'LOAD_PROOF_ALLOW_LOAD_COPY=1 if running on the load copy is intended',
+    );
+  }
+  return name;
 }
+
+let declaredReadOnly = false;
+/** A script that never writes to the proof database (calibrate.ts) says so, before it first uses the database. */
+export function declareReadOnly(): void {
+  declaredReadOnly = true;
+}
+
+let resolved: string | null = null;
+let noticed = false;
+/** The proof database, resolved on first use (so importing this module needs no LOAD_PROOF_DB). */
+export function proofDb(): string {
+  resolved ??= resolveProofDb(Deno.env.get('LOAD_PROOF_DB'), {
+    readOnly: declaredReadOnly,
+    allowLoadCopy: Deno.env.get('LOAD_PROOF_ALLOW_LOAD_COPY'),
+  });
+  if (!noticed && resolved === LOAD_COPY && Deno.env.get('LOAD_PROOF_ALLOW_LOAD_COPY') === '1') {
+    noticed = true;
+    console.error(`NOTICE: LOAD_PROOF_ALLOW_LOAD_COPY=1 is set; this run uses ${LOAD_COPY}, the load copy.`);
+  }
+  return resolved;
+}
+
+/** The database name in a PostgREST connection URI (the path, without a query), or null. Nothing else of the URI is kept. */
+export function databaseOfUri(uri: string): string | null {
+  const m = /^postgres(?:ql)?:\/\/[^/?#]*\/([^/?#]+)(?:[?#].*)?$/.exec(uri);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+/** Throws unless PostgREST serves the proof database (`served` is what its container is configured with). */
+export function assertServes(db: string, served: string | null): void {
+  if (served !== db) {
+    throw new Error(`PostgREST serves ${served ?? '(an unreadable database)'}, not ${db}; bring it up on ${db} first`);
+  }
+}
+
+/** A refusal to start (a wrong or unsafe database, a failure not yet inspected): nothing ran, so there is no evidence to keep. */
+export class ProofRefused extends Error {}
+
+/** The running PostgREST container: its id and the database it is configured to serve (null when unreadable). */
+export interface PostgrestState {
+  id: string;
+  db: string | null;
+}
+
+/** What a proof saw of the shared PostgREST at its start; a different container or database later aborts it. */
+export interface PostgrestPin {
+  id: string;
+  db: string;
+}
+
+export async function postgrestState(): Promise<PostgrestState> {
+  const r = await run(['inspect', '-f', '{{println .Id}}{{range .Config.Env}}{{println .}}{{end}}', POSTGREST]);
+  if (r.code !== 0) throw new Error(`PostgREST container ${POSTGREST} is not present; run scripts/load-proof/postgrest.sh up`);
+  const lines = r.out.split('\n');
+  const line = lines.find((l) => l.startsWith('PGRST_DB_URI='));
+  return { id: lines[0].trim(), db: line ? databaseOfUri(line.slice('PGRST_DB_URI='.length)) : null };
+}
+
+/** The database the running PostgREST container serves, or null when it has no readable URI. */
+export async function postgrestServedDb(): Promise<string | null> {
+  return (await postgrestState()).db;
+}
+
+/** Throws unless PostgREST serves `db`, and returns what was seen so a later check can tell it has not been replaced. */
+export function pinOf(db: string, now: PostgrestState): PostgrestPin {
+  assertServes(db, now.db);
+  return { id: now.id, db };
+}
+
+/** Throws when the container or the database it serves is not the one the proof started with (another proof reset it). */
+export function assertPinned(pin: PostgrestPin, now: PostgrestState): void {
+  if (now.id !== pin.id) {
+    throw new Error(`PostgREST was replaced during the run (another container now serves it); the run is aborted, start again`);
+  }
+  if (now.db !== pin.db) {
+    throw new Error(`PostgREST now serves ${now.db ?? '(an unreadable database)'}, not ${pin.db}; the run is aborted, start again`);
+  }
+}
+
+export const pinPostgrest = async (db: string): Promise<PostgrestPin> => pinOf(db, await postgrestState());
+export const recheckPostgrest = async (pin: PostgrestPin): Promise<void> => assertPinned(pin, await postgrestState());
 
 export const HOME = Deno.env.get('HOME') ?? '';
 /** Vector and text pools live here, outside the repository. */
@@ -139,7 +243,7 @@ export async function psql(
       '-U',
       'postgres',
       '-d',
-      opts.db ?? DB,
+      opts.db ?? proofDb(),
       '-X',
       '-q',
       '-At',
