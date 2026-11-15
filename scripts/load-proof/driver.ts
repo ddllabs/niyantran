@@ -24,11 +24,18 @@ import {
   type CallScope,
   callScope,
   elapsedMs,
+  HOME,
   openRest,
+  type PostgrestPin,
+  pinPostgrest,
+  proofDb,
+  ProofRefused,
   psql,
+  recheckPostgrest,
   type Rest,
   sleep,
 } from './lib.ts';
+import { pendingFailureMessage } from './evidence.ts';
 import { type FakeEmbedder, makeFakeEmbedder } from './fake-embed.ts';
 
 /** One timed database call of the worker. `server_ms` is PostgREST's transaction time (Server-Timing), when it sent one. */
@@ -60,6 +67,10 @@ export interface Events {
 export interface Harness {
   rest: Rest;
   svc: SupabaseClient;
+  /** The shared PostgREST container and database seen when the harness opened. */
+  pin: PostgrestPin;
+  /** Throws when PostgREST is no longer that container serving that database (another proof reset it). */
+  recheck(): Promise<void>;
   embedder: FakeEmbedder;
   events: Events;
   /** RunDeps for one worker: shared embedder and counters, its own idle flag. */
@@ -70,6 +81,9 @@ export interface Harness {
 }
 
 export interface HarnessOptions {
+  /** For tests: the folder that holds niyantran-eval-cache, and the proof database, instead of $HOME and LOAD_PROOF_DB. */
+  home?: string;
+  db?: string;
   embedder?: FakeEmbedder;
   ocr?: (request: OcrRequest) => Promise<OcrCallResult>;
   storage?: IngestStorage;
@@ -85,7 +99,28 @@ const FAILURE_EVENTS = new Set([
   'worker.settings_failed',
 ]);
 
+/**
+ * What a writing proof checks before its first write: a named database (never the load copy by default) with no
+ * uninspected failure (F305), and a PostgREST serving that same database (F340). Returns what it saw of PostgREST.
+ */
+export async function preflight(o: { home?: string; db?: string } = {}): Promise<PostgrestPin> {
+  let db: string;
+  try {
+    db = o.db ?? proofDb();
+  } catch (e) {
+    throw new ProofRefused(String((e as Error).message));
+  }
+  const pending = await pendingFailureMessage(o.home ?? HOME, db);
+  if (pending) throw new ProofRefused(pending);
+  try {
+    return await pinPostgrest(db);
+  } catch (e) {
+    throw new ProofRefused(String((e as Error).message));
+  }
+}
+
 export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
+  const pin = await preflight(opts);
   const rest = openRest();
   assertLocalSupabaseUrl(rest.url);
   const svc = await rest.client('service_role');
@@ -161,6 +196,8 @@ export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
   return {
     rest,
     svc,
+    pin,
+    recheck: () => recheckPostgrest(pin),
     embedder,
     events,
     takeInflightMax() {
@@ -240,40 +277,48 @@ export async function drain(h: Harness, o: DrainOptions = {}): Promise<DrainResu
   let lastLook = { at: -Infinity, n: 1 };
   const pending = async () => {
     if (performance.now() - lastLook.at < 400 && lastLook.n > 0) return lastLook.n;
+    await h.recheck(); // idle workers look every 400 ms at most; a replaced PostgREST ends the drain here
     lastLook = { at: performance.now(), n: await rawPending() };
     return lastLook.n;
   };
+  await h.recheck();
   const t0 = performance.now();
   const out: DrainResult = { runs: 0, idleRuns: 0, ms: 0, stopped: null };
   const deadline = o.timeoutMs ? t0 + o.timeoutMs : Infinity;
   let done = false;
   const worker = async () => {
     const { deps, idle } = h.workerDeps(o.overrides);
-    while (!done) {
-      if (performance.now() > deadline) {
-        out.stopped = 'drain timeout';
-        done = true;
-        break;
-      }
-      const stop = o.shouldStop?.();
-      if (stop) {
-        out.stopped = stop;
-        done = true;
-        break;
-      }
-      await runOnce(deps);
-      out.runs += 1;
-      if (idle()) {
-        out.idleRuns += 1;
-        if (await pending() === 0) {
+    try {
+      while (!done) {
+        if (performance.now() > deadline) {
+          out.stopped = 'drain timeout';
           done = true;
           break;
         }
-        await sleep(150);
+        const stop = o.shouldStop?.();
+        if (stop) {
+          out.stopped = stop;
+          done = true;
+          break;
+        }
+        await runOnce(deps);
+        out.runs += 1;
+        if (idle()) {
+          out.idleRuns += 1;
+          if (await pending() === 0) {
+            done = true;
+            break;
+          }
+          await sleep(150);
+        }
       }
+    } catch (e) {
+      done = true; // the other workers stop at their next turn
+      throw e;
     }
   };
   await Promise.all(Array.from({ length: workers }, worker));
+  await h.recheck();
   out.ms = performance.now() - t0;
   return out;
 }

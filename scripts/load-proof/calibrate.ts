@@ -10,8 +10,9 @@
 //
 //   scripts/load-proof/lp.sh calibrate.ts [--levels 1,2,4,8] [--requests 24] [--rows 170] [--out PATH]
 
-import { elapsedMs, psqlJson } from './lib.ts';
-import { openRest } from './lib.ts';
+import { declareReadOnly, elapsedMs, openRest, psqlJson } from './lib.ts';
+
+declareReadOnly(); // the no-op writes nothing, so the load copy may be named
 import { EMBED_DIMS } from '../../supabase/functions/_shared/embed.ts';
 import { rng } from './lib.ts';
 

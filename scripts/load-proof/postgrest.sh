@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PostgREST for the F287 ingestion proof, from the local image public.ecr.aws/supabase/postgrest:v16.2.
 #
-#   scripts/load-proof/postgrest.sh up            start it on the proof database
+#   LOAD_PROOF_DB=<name> scripts/load-proof/postgrest.sh up   start it on the proof database (no default)
 #   scripts/load-proof/postgrest.sh status
 #   scripts/load-proof/postgrest.sh down [--drop-role]   stop and remove it; --drop-role also removes lp_authenticator
 #
@@ -30,14 +30,17 @@ CONTAINER=niyantran-corpus-test-db
 NAME=niyantran-load-proof-postgrest
 IMAGE=public.ecr.aws/supabase/postgrest:v16.2
 ROLE=lp_authenticator
-DB="${LOAD_PROOF_DB:-niyantran_ingest_load_test}"
 POOL="${LOAD_PROOF_POOL:-10}"   # PostgREST connections to the database; keep it above the worker count
 
 die() { echo "postgrest.sh: $*" >&2; exit 1; }
-case "$DB" in niyantran_ingest_load*_test) ;; *) die "database name $DB must match niyantran_ingest_load*_test" ;; esac
+HERE="$(cd "$(dirname "$0")" && pwd)"
+. "$HERE/guard.sh"
 pg() { docker exec -i "$CONTAINER" psql -U postgres -X -q -At -v ON_ERROR_STOP=1 "$@"; }
 
 up() {
+  local DB   # LOAD_PROOF_DB, no default (F340); the load copy only with LOAD_PROOF_ALLOW_LOAD_COPY=1
+  DB="$(proof_db_name)"
+  case "$DB" in niyantran_ingest_load*_test) ;; *) die "database name $DB must match niyantran_ingest_load*_test" ;; esac
   [ "$(pg -d postgres -c "select 1 from pg_database where datname = '$DB'")" = 1 ] || die "$DB does not exist; run db.sh build"
   docker image inspect "$IMAGE" > /dev/null 2>&1 || die "image $IMAGE is not present locally (it is never pulled)"
   local jwt_secret role_password
