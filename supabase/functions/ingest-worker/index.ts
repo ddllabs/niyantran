@@ -7,7 +7,7 @@
 // end-to-end run only, INGEST_DOCUMENT_URL_OVERRIDE_<file sha256> (see documentUrlOverride).
 
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { embedTexts } from '../_shared/embed.ts';
+import { embedTexts, markNetworkErrors } from '../_shared/embed.ts';
 import { log } from '../_shared/logging.ts';
 import { serviceClient } from '../_shared/supabase.ts';
 import { handleWorker, type RunDeps } from './handler.ts';
@@ -293,7 +293,7 @@ export function buildWorkerDeps(client: SupabaseClient, env: Env): RunDeps {
     storage: supabaseIngestStorage(client),
     // callMistralOcr refuses an empty key with a permanent mistral_key_missing error.
     ocr: (request) => callMistralOcr({ fetch, apiKey: mistralKey }, request),
-    embed: (inputs) => embedTexts({ fetch, apiKey: openrouterKey }, inputs),
+    embed: (inputs) => embedTexts({ fetch: markNetworkErrors(fetch), apiKey: openrouterKey }, inputs),
     documentUrlOverride: (sha256) => documentUrlOverride(supabaseUrl, env, sha256),
     now: Date.now,
     log: (event, fields) => log(event, fields),

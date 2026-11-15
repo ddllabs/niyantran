@@ -41,6 +41,56 @@ export class EmbeddingError extends Error {
   }
 }
 
+export type EmbedOutageClass = 'rate_limited' | 'server_error' | 'network';
+
+/**
+ * A rejection of the fetch itself (no response arrived), marked by markNetworkErrors. The message is fixed:
+ * a runtime's own text can carry the request URL.
+ */
+export class EmbedNetworkError extends Error {
+  constructor() {
+    super('embeddings request did not complete');
+    this.name = 'EmbedNetworkError';
+  }
+}
+
+/**
+ * A fetch that rethrows every rejection as an EmbedNetworkError, so a caller can tell "the request never
+ * completed" from a programming error in the code that reads the reply. The ingest worker passes its fetch
+ * through this; embedTexts itself is unchanged for other callers.
+ */
+export function markNetworkErrors(inner: typeof fetch): typeof fetch {
+  return (async (...args: Parameters<typeof fetch>) => {
+    try {
+      return await inner(...args);
+    } catch {
+      throw new EmbedNetworkError();
+    }
+  }) as typeof fetch;
+}
+
+/**
+ * Whether a failed embedding call says the provider is unavailable rather than that the request is wrong:
+ * HTTP 408, 429 or 5xx (after the call's own attempts), or a marked fetch rejection. Anything else (another
+ * 4xx, a malformed or mismatched reply, a bare TypeError, an unknown error) is not an outage and returns
+ * null. AbortError and TimeoutError are recognised too; the worker sets no request timeout today, so they
+ * cannot occur there yet.
+ */
+export function embedOutageClass(err: unknown): EmbedOutageClass | null {
+  if (err instanceof EmbeddingError) {
+    if (err.status === 429) return 'rate_limited';
+    // 408: the provider timed out waiting for the request; transient, like a 5xx.
+    if (err.status === 408) return 'server_error';
+    if (err.status !== undefined && err.status >= 500 && err.status <= 599) return 'server_error';
+    return null;
+  }
+  if (err instanceof EmbedNetworkError) return 'network';
+  if ((err instanceof Error || err instanceof DOMException) && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
+    return 'network';
+  }
+  return null;
+}
+
 export interface EmbedDeps {
   fetch: typeof fetch;
   apiKey: string;
