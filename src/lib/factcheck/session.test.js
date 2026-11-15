@@ -1015,3 +1015,113 @@ describe('API defaults', () => {
     expect(s.getState().status).toBe('idle');
   });
 });
+
+describe('budget, switched off, orphan sessions', () => {
+  const budget = () => new FactCheckError(429, 'budget');
+
+  it('a 429 budget on check is not retried: that claim is unchecked, no further checks, transcript continues', async () => {
+    const w = world({ client: { check: vi.fn(async () => { throw budget(); }) } });
+    w.client.extract.mockResolvedValueOnce({ claims: ['a', 'b', 'c', 'd', 'e'].map(i => claimOf(i)), ledger: {} });
+    await w.start();
+    await w.emit(piece(0), piece(1));
+    expect(w.sleeps).toEqual([]);
+    const calls = w.client.check.mock.calls.length;
+    expect(calls).toBeLessThanOrEqual(3);
+    const s = w.session.getState();
+    expect(s.budgetReached).toBe(true);
+    expect(s.status).toBe('running');
+    expect(s.claims.filter(c => c.status === 'unchecked').length).toBeGreaterThanOrEqual(1);
+    w.client.extract.mockResolvedValueOnce({ claims: [claimOf('z')], ledger: {} });
+    await w.emit(piece(2), piece(3));
+    expect(w.client.check.mock.calls.length).toBe(calls);
+    expect(w.session.getState().transcript).toHaveLength(4);
+    await w.session.stop();
+    expect(w.session.getState().claims.every(c => c.status === 'unchecked')).toBe(true);
+  });
+
+  it('a 429 budget on extract is not retried, further extracts stop, turns are counted as dropped, transcription goes on', async () => {
+    const w = world();
+    w.client.extract.mockRejectedValue(budget());
+    await w.start();
+    await w.emit(piece(0), piece(1));
+    await w.emit(piece(2), piece(3));
+    await w.emit(piece(4));
+    expect(w.client.extract).toHaveBeenCalledTimes(1);
+    expect(w.sleeps).toEqual([]);
+    const s = w.session.getState();
+    expect(s).toMatchObject({ budgetReached: true, status: 'running' });
+    expect(s.droppedTurns).toBe(2);
+    expect(s.transcript).toHaveLength(5);
+    await w.session.stop();
+    expect(w.client.extract).toHaveBeenCalledTimes(1);
+    expect(w.session.getState().droppedTurns).toBe(3);
+  });
+
+  it('budgetReached is false until a budget answer arrives', async () => {
+    const w = world();
+    await w.start();
+    expect(w.session.getState().budgetReached).toBe(false);
+    await w.session.stop();
+  });
+
+  it('a rate_limited 429 is still retried as before', async () => {
+    let n = 0;
+    const w = world({ client: { check: async ({ claim_id }) => { if (n++ === 0) throw new FactCheckError(429, 'rate_limited', { retryAfterMs: 2000 }); return verdict(claim_id); } } });
+    w.client.extract.mockResolvedValueOnce({ claims: [claimOf('c1')], ledger: {} });
+    await w.start();
+    await w.emit(piece(0), piece(1));
+    expect(w.sleeps).toEqual([2000]);
+    expect(w.session.getState().claims[0].verdict).toBe('supported');
+    expect(w.session.getState().budgetReached).toBe(false);
+    await w.session.stop();
+  });
+
+  it.each(['transcribe', 'extract', 'check'])('a 403 off from %s ends through the normal path with reason off, stops the server once, no retries', async source => {
+    const off = () => new FactCheckError(403, 'off');
+    const w = world({
+      transcribe: source === 'transcribe' ? async () => { throw off(); } : undefined,
+      client: source === 'check' ? { check: vi.fn(async () => { throw off(); }) } : {},
+    });
+    if (source === 'extract') w.client.extract.mockRejectedValue(off());
+    if (source === 'check') w.client.extract.mockResolvedValueOnce({ claims: [claimOf('c1')], ledger: {} });
+    await w.start();
+    await w.emit(piece(0), piece(1));
+    await vi.waitFor(() => expect(w.session.getState().status).toBe('ended'));
+    expect(w.session.getState()).toMatchObject({ endReason: 'off', error: null });
+    expect(w.client.stop).toHaveBeenCalledTimes(1);
+    expect(w.sleeps).toEqual([]);
+    const fn = source === 'transcribe' ? w.transcribe : w.client[source];
+    expect(fn.mock.calls.length).toBeLessThanOrEqual(2); // two pieces may be in flight; none is retried
+  });
+
+  it('a 403 that is not "off" is still a fatal error', async () => {
+    const w = world({ transcribe: async () => { throw new FactCheckError(403, 'not_allowed'); } });
+    await w.start();
+    await w.emit(piece(0));
+    await vi.waitFor(() => expect(w.session.getState().status).toBe('error'));
+  });
+
+  it('a 409 already_active from start surfaces the id of the active session in the error', async () => {
+    const w = world({ client: { start: async () => { throw new FactCheckError(409, 'already_active', { sessionId: 'old-1' }); } } });
+    await w.start();
+    expect(w.session.getState()).toMatchObject({ status: 'error', error: { source: 'start', reason: 'already_active', status: 409, sessionId: 'old-1' } });
+    expect(w.client.stop).not.toHaveBeenCalled();
+  });
+
+  it('stopOrphan(sessionId) stops that server session and returns the settlement', async () => {
+    const w = world();
+    const out = await w.session.stopOrphan('old-1');
+    expect(out).toEqual({ minutes_used: 1, credits_charged: 500, balance: 9500 });
+    expect(w.client.stop).toHaveBeenCalledWith({ session_id: 'old-1' });
+  });
+
+  it('check on a claim that is no longer pending applies the returned status in place, not as a failure', async () => {
+    const w = world({ client: { check: async ({ claim_id }) => ({ id: claim_id, status: 'not_checkable', verdict: null, reason: null, sources: [], checked_at: null }) } });
+    w.client.extract.mockResolvedValueOnce({ claims: [claimOf('c1')], ledger: {} });
+    await w.start();
+    await w.emit(piece(0), piece(1));
+    expect(w.session.getState().claims[0].status).toBe('not_checkable');
+    expect(w.session.getState().status).toBe('running');
+    await w.session.stop();
+  });
+});

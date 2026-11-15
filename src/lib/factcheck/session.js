@@ -12,7 +12,13 @@
 // Claim status: pending, checked, needs_context, not_checkable, error, and
 //   unchecked (client-side: the session ended and no check came back; no check
 //   happened). A claim is never left `pending` once the run has ended.
-// endReason: user | browser | time | silent | server | error | price_changed | <caller's reason>
+// endReason: user | browser | time | silent | server | off | error | price_changed | <caller's reason>
+//   (off: the server switched the feature off; the session is stopped and charged as used)
+// budgetReached (state): the server's extract/check budget for this session was used up (429
+//   reason budget, never retried). Later checks/extracts are not sent; their claims end as
+//   unchecked and their turns count in droppedTurns. Transcription goes on.
+// error.sessionId (start refused with 409 already_active): the session still active on the
+//   server; stopOrphan(sessionId) stops it.
 //
 // Order of events on start: the tab is shared first, then the server session
 // is started. A user who dismisses the browser's share prompt therefore costs
@@ -63,7 +69,7 @@ export function createFactCheckSession({
   function idleState(status) {
     return {
       status, sessionId: null, minutesBought: 0, creditsPerMinute: null, creditsHeld: null, secondsLeft: 0,
-      transcript: [], claims: [], silentFor: 0, skippedPieces: 0, droppedTurns: 0,
+      transcript: [], claims: [], silentFor: 0, skippedPieces: 0, droppedTurns: 0, budgetReached: false,
       final: null, endReason: null, error: null,
     };
   }
@@ -82,6 +88,8 @@ export function createFactCheckSession({
     await run.begin();
   }
   function stop(reason = 'user') { return run ? run.stop(reason) : Promise.resolve(); }
+  /** Stops a session left active on the server (for example after 409 already_active). */
+  function stopOrphan(sessionId) { return client.stop({ session_id: sessionId }); }
 
   function createRun(params) {
     const { videoId, channelId, videoKind, startPositionS = null, minutes, seed = {}, expectedCreditsPerMinute } = params;
@@ -96,6 +104,8 @@ export function createFactCheckSession({
     let error = null;
     let skipped = 0;
     let dropped = 0;
+    let noMoreChecks = false;
+    let noMoreExtracts = false;
     let failures = 0;
     let dead = false;            // stop sending work; ignore late results
     let cancelled = false;
@@ -145,7 +155,7 @@ export function createFactCheckSession({
       transcript: lines.map(l => ({ ...l })),
       claims: [...claims.values()].map(c => ({ ...c, sources: [...c.sources] })),
       silentFor: Math.max(0, latestEnd - lastAudibleEnd),
-      skippedPieces: skipped, droppedTurns: dropped, final, endReason, error: error && { ...error },
+      skippedPieces: skipped, droppedTurns: dropped, budgetReached: noMoreChecks || noMoreExtracts, final, endReason, error: error && { ...error },
     });
 
     // ---- bookkeeping for "is everything finished" ----
@@ -184,7 +194,7 @@ export function createFactCheckSession({
           if (dead && !critical) throw e;
           const st = e?.status;
           let wait = null;
-          if (st === 429 && rate < LIMITS.retries429) wait = Math.min(e.retryAfterMs ?? 1000 * 2 ** rate++, LIMITS.maxRetryAfterMs);
+          if (st === 429 && e.reason !== 'budget' && rate < LIMITS.retries429) wait = Math.min(e.retryAfterMs ?? 1000 * 2 ** rate++, LIMITS.maxRetryAfterMs);
           else if ((st === 0 || st >= 500) && transient < LIMITS.retriesTransient) wait = 500 * 2 ** transient++;
           if (wait === null) throw e;
           await sleep(wait);
@@ -197,12 +207,14 @@ export function createFactCheckSession({
       if (e?.needed !== undefined) info.needed = e.needed;
       if (e?.available !== undefined) info.available = e.available;
       if (e?.creditsPerMinute !== undefined) info.creditsPerMinute = e.creditsPerMinute;
+      if (e?.sessionId !== undefined) info.sessionId = e.sessionId;
       return info;
     };
     // A call failed for good. May end the session.
     function failed(source, e) {
       if (dead || endPromise) return;
       const st = e?.status;
+      if (st === 403 && e?.reason === 'off') { void end('off', { flush: false, drain: false }); return; }
       if (st === 409) { void end('server', { flush: false }); return; }
       const fatal = st === 401 || st === 403 || (st === 404 && source !== 'check' && e?.reason === 'not_found');
       if (fatal || ++failures >= LIMITS.failureLimit) void end('error', { errorInfo: describe(source, e), flush: false, drain: false });
@@ -277,6 +289,7 @@ export function createFactCheckSession({
 
     // ---- extraction (one call at a time, paced, queued turns merged) ----
     function enqueueExtract(turn) {
+      if (noMoreExtracts) { dropped++; return; }
       const recent = history.slice(-LIMITS.recentTurns);
       history.push(turn.text);
       jobStart();
@@ -314,7 +327,15 @@ export function createFactCheckSession({
           for (const c of r?.claims || []) takeClaim(c);
         }
       } catch (e) {
-        if (!dead) { dropped += batch.length; failed('extract', e); }
+        if (!dead) {
+          dropped += batch.length;
+          if (e?.status === 429 && e.reason === 'budget') {
+            noMoreExtracts = true;
+            const queued = extractQueue.splice(0).length;
+            dropped += queued;
+            jobDone(queued);
+          } else failed('extract', e);
+        }
       }
       extracting = false;
       jobDone(batch.length);
@@ -340,7 +361,7 @@ export function createFactCheckSession({
           verdict: null, reason: null, sources: [], checked_at: null,
         });
       }
-      if (c.status === 'pending') {
+      if (c.status === 'pending' && !noMoreChecks) {
         checkQueued.add(c.id);
         jobStart();
         checkQueue.push(c.id);
@@ -350,6 +371,7 @@ export function createFactCheckSession({
 
     // ---- checks ----
     function pumpChecks() {
+      if (noMoreChecks) jobDone(checkQueue.splice(0).length); // stay pending; unchecked at the end
       while (!dead && checksRunning < LIMITS.checkConcurrency && checkQueue.length) {
         checksRunning++;
         void checkJob(checkQueue.shift());
@@ -367,7 +389,10 @@ export function createFactCheckSession({
           });
         }
       } catch (e) {
-        if (!dead) { claim.status = 'error'; failed('check', e); }
+        if (!dead) {
+          if (e?.status === 429 && e.reason === 'budget') { claim.status = 'unchecked'; noMoreChecks = true; }
+          else { claim.status = 'error'; failed('check', e); }
+        }
       }
       checksRunning--;
       jobDone();
@@ -516,5 +541,5 @@ export function createFactCheckSession({
     };
   }
 
-  return { start, stop, choose, cancelChoice, reset, getState };
+  return { start, stop, stopOrphan, choose, cancelChoice, reset, getState };
 }

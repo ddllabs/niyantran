@@ -13,6 +13,7 @@ export class FactCheckError extends Error {
     if (extra.needed !== undefined) this.needed = extra.needed;
     if (extra.available !== undefined) this.available = extra.available;
     if (extra.creditsPerMinute !== undefined) this.creditsPerMinute = extra.creditsPerMinute;
+    if (extra.sessionId !== undefined) this.sessionId = extra.sessionId;
     if (extra.retryAfterMs !== undefined) this.retryAfterMs = extra.retryAfterMs;
   }
   /** A 429, a 5xx or a network failure may succeed if tried again. */
@@ -31,6 +32,7 @@ async function toError(response) {
   if (typeof body?.needed === 'number') extra.needed = body.needed;
   if (typeof body?.available === 'number') extra.available = body.available;
   if (typeof body?.credits_per_minute === 'number') extra.creditsPerMinute = body.credits_per_minute;
+  if (typeof body?.session_id === 'string') extra.sessionId = body.session_id;
   const retryAfter = Number(response.headers.get('retry-after'));
   if (status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) extra.retryAfterMs = retryAfter * 1000;
   return new FactCheckError(status, reason, extra);

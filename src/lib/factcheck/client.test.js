@@ -97,6 +97,20 @@ describe('bad success bodies', () => {
   });
 });
 
+describe('already_active', () => {
+  it('carries the id of the session that is still active', async () => {
+    const { client } = make(() => json(409, { reason: 'already_active', session_id: 'old-1' }));
+    const err = await client.start({ video_id: 'v', minutes: 5 }).catch(e => e);
+    expect(err).toMatchObject({ status: 409, reason: 'already_active', sessionId: 'old-1' });
+  });
+  it('a 429 budget answer has no Retry-After and is reported as it came', async () => {
+    const { client } = make(() => json(429, { reason: 'budget' }));
+    const err = await client.check({ session_id: 's', claim_id: 'c' }).catch(e => e);
+    expect(err).toMatchObject({ status: 429, reason: 'budget' });
+    expect(err.retryAfterMs).toBeUndefined();
+  });
+});
+
 describe('error mapping', () => {
   const cases = [
     [402, { reason: 'insufficient', needed: 2500, available: 100 }, { status: 402, reason: 'insufficient', needed: 2500, available: 100 }],
