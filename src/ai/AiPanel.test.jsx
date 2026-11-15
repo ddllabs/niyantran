@@ -664,3 +664,14 @@ it('F257 stale Law keys never override the tuple sent by pins or current selecti
  expect(webPredictionRecords([],{id:'current-row',title:'Order',document_key:old},'law','Orders').selectedRecord).toMatchObject({document_key:key,tier:'law',feature:'Orders',row_key:'current-row'});
  expect(chip.document_key).toBe(old);
 });
+
+it('does not announce the switch to Attached only under the suggestions; the Focus button already says it', async () => {
+ const {readFileSync}=await import('node:fs');
+ const source=readFileSync(new URL('./AiPanel.jsx',import.meta.url),'utf8');
+ expect(source).not.toContain('searches stay within these records');
+ // The switch itself stays, at its three places, and the slot still carries the "Ask about this document" notice.
+ expect(source.match(/setFocus\('attached'\)/g)).toHaveLength(2);
+ expect(source).toContain('setFocus(sendFocus)');
+ expect(source).toContain('setScopeNotice(result.notice)');
+ expect(source).toContain('{scopeNotice ? <p className="ai-foot" role="status">{scopeNotice}</p> : null}');
+});
