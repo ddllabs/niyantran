@@ -46,7 +46,7 @@
 .ai-research-model .ai-v2-role.on, .ai-research-model .ai-v2-effort.on { background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); border-color: var(--accent, #012ea1); }
 .ai-research-model button:disabled { opacity: .5; cursor: not-allowed; }
 .ai-research-model .ai-v2-model-cost { white-space: nowrap; letter-spacing: 2px; flex: 0 60 auto; min-width: 0; overflow: hidden; }
-.ai-work-surface { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; min-height: 0; background: var(--panel, white); overflow: hidden; border: 1px solid var(--line, #e4ddd4); border-radius: 8px; }
+.ai-work-surface { container-type: inline-size; position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; min-height: 0; background: var(--panel, white); overflow: hidden; border: 1px solid var(--line, #e4ddd4); border-radius: 8px; }
 .ai-work-bar { display: flex; align-items: center; flex-shrink: 0; gap: 12px; padding: 12px; border-bottom: 1px solid var(--line, #e4ddd4); }
 .ai-work-back { flex: none; border: 0; background: transparent; color: var(--accent, #012ea1); font: inherit; cursor: pointer; padding: 6px 4px; }
 .ai-work-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
@@ -57,19 +57,37 @@
    column beside the buttons (see the grid below). */
 .ai-work-heading { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
 .ai-work-publisher { min-width: 0; overflow-wrap: anywhere; color: var(--muted, #6d675f); font-size: 12px; line-height: 1.3; }
-/* A bar with a publisher is a grid at every width: Back, the version label, Ask and Close on row 1 (Close pinned to the right
-   edge, Ask in the shrinking column so its label wraps instead of pushing Close off the row), the heading on row 2. The heading
-   is visually below the controls while it stays before them in the DOM; it is not focusable, so tab order is unaffected. */
-.ai-work-bar.has-publisher { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; }
-.ai-work-bar.has-publisher .ai-work-back { grid-area: 1 / 1; }
-.ai-work-bar.has-publisher .ai-work-version { grid-area: 1 / 2; }
-.ai-work-bar.has-publisher .ai-work-ask { grid-area: 1 / 3; justify-self: end; min-width: 0; }
-.ai-work-bar.has-publisher .ai-work-close { grid-area: 1 / 4; }
-.ai-work-bar.has-publisher .ai-work-heading { grid-area: 2 / 1 / 3 / -1; }
+/* One two-row layout, written once. G: Back, the version label, Ask and Close on row 1; Close is pinned to the right edge and Ask
+   takes the shrinking column (min-content floor, so its label wraps rather than overlapping Close); the version label can shrink
+   and wrap; the heading or bare title is on row 2, full width. The heading is visually below the controls while it stays
+   before them in the DOM; it is not focusable, so tab order is unaffected. The placement rules sit at top level because
+   grid-area and justify-self do nothing on flex items, so they are inert while the bar is a single flex row.
+   F332: a bar with a publisher is this grid at every width. F341: a bar without one becomes this grid in a narrow pane (below). */
+.ai-work-bar.has-publisher { display: grid; grid-template-columns: auto minmax(0, auto) minmax(min-content, 1fr) auto; }
+.ai-work-bar > .ai-work-back { grid-area: 1 / 1; }
+.ai-work-bar > .ai-work-version { grid-area: 1 / 2; min-width: 0; white-space: normal; }
+.ai-work-bar > .ai-work-ask { grid-area: 1 / 3; justify-self: end; }
+.ai-work-bar > .ai-work-close { grid-area: 1 / 4; }
+.ai-work-bar > .ai-work-heading, .ai-work-bar > .ai-work-title { grid-area: 2 / 1 / 3 / -1; }
 /* F116: which version of the bill is open; two versions share one title. */
 .ai-work-version { flex: none; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); font-size: 11px; font-weight: 600; white-space: nowrap; }
 .ai-work-ask { flex: none; margin-left: auto; border: 1px solid var(--line, #e4ddd4); border-radius: 6px; background: transparent; color: var(--accent, #012ea1); font: inherit; font-size: 12px; padding: 6px 8px; cursor: pointer; }
 .ai-work-ask:disabled { opacity: .5; cursor: not-allowed; }
+/* F341: the reader is a split pane and can be 288px wide on a wide window (and is full width on a phone), so the pane's width
+   decides, not the viewport's. The surface is the size container; it is sized by its parent, so containment does not change its
+   own layout. The query measures the surface's content box, so a 422px pane counts as 420. A bar with a version label
+   (up to "As passed by both Houses") needs about 460px as one row, so it goes two-row at 560px and under; any bar does at 420px
+   and under. Both blocks come after the base .ai-work-bar rule (same specificity; source order decides). contain: inline-size
+   on the title stops a long title from widening the grid; it must apply only where the bar is a grid, because in a flex row it
+   collapses the title to 0px. */
+@container (max-width: 560px) {
+  .ai-work-bar:has(> .ai-work-version) { display: grid; grid-template-columns: auto minmax(0, auto) minmax(min-content, 1fr) auto; }
+  .ai-work-bar:has(> .ai-work-version) > .ai-work-title { contain: inline-size; }
+}
+@container (max-width: 420px) {
+  .ai-work-bar { display: grid; grid-template-columns: auto minmax(0, auto) minmax(min-content, 1fr) auto; }
+  .ai-work-bar > .ai-work-title { contain: inline-size; }
+}
 .ai-work-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 16px; overflow-wrap: anywhere; }
 .ai-work-sources { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .ai-work-sources button { display: grid; gap: 4px; width: 100%; text-align: left; padding: 12px; border: 1px solid var(--line, #e4ddd4); border-radius: 8px; background: var(--panel, white); color: inherit; font: inherit; cursor: pointer; overflow-wrap: anywhere; }
