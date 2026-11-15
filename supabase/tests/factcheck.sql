@@ -421,9 +421,15 @@ BEGIN
     AND (r ->> 'balance')::numeric = 984, 'settle charges the minutes used: 7.5 minutes is 8 minutes at 2 = 16: ' || r::text);
   SELECT * INTO e FROM public.credit_ledger WHERE user_id = u AND kind = 'charge';
   SELECT inr_per_credit, usd_to_inr INTO v_rate, v_usd FROM public.credit_settings WHERE id;
-  PERFORM pg_temp.assert_true(pg_temp.charges(u) = 1 AND e.credits = -16 AND e.turn_key = 'factcheck:' || sid AND e.lot_id IS NULL
+  PERFORM pg_temp.assert_true(pg_temp.charges(u) = 1 AND e.credits = -16 AND e.turn_key = (SELECT k.turn_key FROM private.factcheck_hold_keys k WHERE k.session_id = sid) AND e.lot_id IS NULL
     AND e.request_id IS NULL AND e.inr_per_credit = v_rate AND e.usd_to_inr = v_usd,
-    'one charge entry, keyed factcheck:<session>, at the current rates');
+    'one charge entry, keyed by the private hold key, at the current rates');
+  PERFORM pg_temp.assert_true(e.turn_key LIKE 'fc:%' AND e.turn_key <> 'factcheck:' || sid AND e.note = 'live tv fact-check',
+    'the charge key is the random hold key, not one derived from the session id, and the entry carries the fact-check note');
+  r2 := public.settle_turn_credits(u, 'factcheck:' || sid);
+  PERFORM pg_temp.assert_true(r2 ->> 'state' = 'free' AND (r2 ->> 'credits')::numeric = 0
+    AND NOT EXISTS (SELECT FROM public.credit_ledger WHERE user_id = u AND turn_key = 'factcheck:' || sid),
+    'a research-chat settle for the key factcheck:<session id> finds nothing of the fact-check charge: ' || r2::text);
   PERFORM pg_temp.assert_true((SELECT sum(remaining) FROM public.credit_lots WHERE user_id = u AND closed_at IS NULL) = v_lots_before - 16
     AND (SELECT sum(credits) FROM public.credit_lot_draws WHERE ledger_id = e.id AND reason = 'charge') = 16, 'the lots paid it');
   PERFORM pg_temp.assert_true((SELECT status = 'settled' AND minutes_used = 8 AND credits_charged = 16 AND ended_at = now()

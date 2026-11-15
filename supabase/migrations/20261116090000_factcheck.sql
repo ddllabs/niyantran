@@ -25,8 +25,11 @@
 -- that wait for unswept holds (the unused top-up review, the unit conversion).
 --
 -- The charge. minutes used = whole minutes, rounded up, between started_at and the earlier of now and
--- last_activity_at + 15 s; at least 1, at most minutes_bought. The ledger entry is a 'charge' with turn_key
--- 'factcheck:<session id>', drawn from the usable lots by private.credit_draw exactly as a chat charge is (earliest expiry
+-- last_activity_at + 15 s; at least 1, at most minutes_bought. The ledger entry is a 'charge' whose turn_key is the
+-- session's private hold key ('fc:<uuid>'), so no research-chat turn key (a client string) can equal it and no report that
+-- sums or joins charges by turn_key can mix a chat turn with a fact-check charge. The key reaches the ledger only at
+-- settlement, when the hold is already being released, so it protects nothing afterwards; reports must still never return
+-- it. The charge is drawn from the usable lots by private.credit_draw exactly as a chat charge is (earliest expiry
 -- first, expired lots skipped, any shortfall becomes debt). The amount is converted from the hold's credit unit to the
 -- current one if they differ. Idempotency comes from the session row (status under its lock), never from the ledger.
 --
@@ -247,7 +250,7 @@ BEGIN
     v_amount := private.credit_current_amount(v_amount, h.inr_per_credit);
   END IF;
 
-  v_ledger := private.credit_entry(p_user, 'charge', -v_amount, NULL, 'factcheck:' || f.id, NULL,
+  v_ledger := private.credit_entry(p_user, 'charge', -v_amount, NULL, v_key, NULL,
                                    s.usd_to_inr, s.inr_per_credit, NULL, 'live tv fact-check');
   PERFORM private.credit_draw(p_user, v_amount, v_ledger, 'charge', now());
 
