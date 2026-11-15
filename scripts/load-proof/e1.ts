@@ -30,8 +30,8 @@
 
 import { runOnce } from '../../supabase/functions/ingest-worker/handler.ts';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { psql, psqlJson, sleep } from './lib.ts';
-import { drain, makeHarness } from './driver.ts';
+import { proofDb, psql, psqlJson, sleep } from './lib.ts';
+import { drain, makeHarness, preflight } from './driver.ts';
 import { makeFakeEmbedder, vectorFor } from './fake-embed.ts';
 import { fakePdfSha, fakeStorage, makeFakeOcr } from './fake-ocr.ts';
 import {
@@ -1055,6 +1055,9 @@ async function runCase(name: string, brokenWith: string | null) {
   activeCase = name;
   activeBreak = brokenWith;
   console.log(`\n== ${name}${brokenWith ? `  [break ${brokenWith}]` : ''}`);
+  // The cases change the worker settings before they open a harness, and the finally below puts them back: a refused
+  // run (wrong or load-copy database, an uninspected failure, another database on PostgREST) must not reach either.
+  await preflight();
   try {
     await CASES[name]();
   } catch (e) {
@@ -1089,7 +1092,7 @@ async function writeResults(
         suite: 'F287 E1',
         mode,
         finished: new Date().toISOString(),
-        database: Deno.env.get('LOAD_PROOF_DB') ?? 'niyantran_ingest_load_test',
+        database: proofDb(),
         checks: clean.map(({ case: c, check: k, ok, detail }) => ({ case: c, check: k, ok, detail })),
         passed: clean.filter((o) => o.ok).length,
         total: clean.length,
