@@ -524,3 +524,71 @@ Deno.test('rowToChunk keeps a publisher only if it is one of the four names and 
     assertEquals(Object.hasOwn(await rowToChunk({ ...row('a', 0.9), desk_feature: REG, publisher }), 'publisher'), false, publisher);
   }
 });
+
+// F295: a failed or timed-out phase still reports the time it took, and the embedding is reported first.
+function clocked() {
+  let t = 1_000;
+  const timings: [string, number][] = [];
+  return {
+    advance: (ms: number) => { t += ms; },
+    base: {
+      now: () => t,
+      onTiming: (phase: string, ms: number) => { timings.push([phase, ms]); },
+    },
+    timings,
+  };
+}
+const timeoutError = () => new DOMException('The signal timed out.', 'TimeoutError');
+const assertTimings = (timings: [string, number][], embedding: number, retrieval: number) => {
+  assertEquals(timings, [['embeddingMs', embedding], ['retrievalMs', retrieval]]);
+  for (const [, ms] of timings) assert(Number.isInteger(ms) && ms >= 0);
+};
+
+Deno.test('F295: a rejected vector retrieval still reports retrievalMs, after embeddingMs', async () => {
+  const c = clocked();
+  await assertRejects(() => search(deps({
+    ...c.base,
+    embed: () => { c.advance(40); return Promise.resolve({ vector: vec(), model: 'openai/text-embedding-3-small' }); },
+    rpc: () => { c.advance(120); return Promise.reject(new Error('connection reset')); },
+  }), { query: 'q' }), Error, 'connection reset');
+  assertTimings(c.timings, 40, 120);
+});
+
+Deno.test('F295: a vector retrieval aborted by the timeout signal still reports retrievalMs, after embeddingMs', async () => {
+  const c = clocked();
+  await assertRejects(() => search(deps({
+    ...c.base,
+    embed: () => { c.advance(15); return Promise.resolve({ vector: vec(), model: 'openai/text-embedding-3-small' }); },
+    rpc: () => { c.advance(3_985); return Promise.reject(timeoutError()); },
+  }), { query: 'q' }), DOMException);
+  assertTimings(c.timings, 15, 3_985);
+});
+
+Deno.test('F295: an error reply from the database still reports retrievalMs', async () => {
+  const c = clocked();
+  await assertRejects(() => search(deps({
+    ...c.base,
+    embed: () => { c.advance(8); return Promise.resolve({ vector: vec(), model: 'openai/text-embedding-3-small' }); },
+    rpc: () => { c.advance(60); return Promise.resolve({ data: null, error: { message: 'boom' } }); },
+  }), { query: 'q' }), Error, 'boom');
+  assertTimings(c.timings, 8, 60);
+});
+
+Deno.test('F295: hybrid timeout then fallback: one retrievalMs covering both calls; a failed fallback still reports it', async () => {
+  for (const fallbackFails of [false, true]) {
+    const c = clocked();
+    const r = rig(ON, {
+      match_documents_hybrid: () => { c.advance(2_500); return Promise.reject(timeoutError()); },
+      match_documents: () => { c.advance(700); return fallbackFails ? Promise.reject(timeoutError()) : Promise.resolve({ data: [row('v', 0.5)], error: null }); },
+    });
+    const d: RetrievalDeps = {
+      ...r.d,
+      ...c.base,
+      embed: () => { c.advance(30); return Promise.resolve({ vector: vec(), model: 'openai/text-embedding-3-small' }); },
+    };
+    if (fallbackFails) await assertRejects(() => search(d, NCLT), DOMException);
+    else assertEquals((await search(d, NCLT)).map((x) => x.id), ['v']);
+    assertEquals(r.calls.map((x) => x.fn), ['match_documents_hybrid', 'match_documents']);
+    assertTimings(c.timings, 30, 3_200);
+  }
+});
