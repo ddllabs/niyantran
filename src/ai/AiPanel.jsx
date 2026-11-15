@@ -613,7 +613,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       return bits;
     }).then(applied => {
       if (!applied || research.actions.getSnapshot().identityVersion !== version) return;
-      if (seed.row || seed.drop?.kind === 'row' || (!seed.attachFeed && selected)) { setFocus('attached'); setScopeNotice('Attached only — searches stay within these records.'); }
+      if (seed.row || seed.drop?.kind === 'row' || (!seed.attachFeed && selected)) { setFocus('attached'); setScopeNotice(''); }
       onSeedConsumed?.();
     });
     return undefined;
@@ -647,7 +647,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       ...(payload ? await materializeAiDrop(payload, { feed, feature: featureName, tier: tab, selected }) : []),
       ...await filesFromDrop({ dataTransfer: { files, items: [] } }),
     ]);
-    if (applied && payload?.kind === 'row') { setFocus('attached'); setScopeNotice('Attached only — searches stay within these records.'); }
+    if (applied && payload?.kind === 'row') { setFocus('attached'); setScopeNotice(''); }
   }
 
   async function onPickFiles(e) {
@@ -707,7 +707,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       if (await research.actions.attach(async () => bits)) pins = [...pins, ...bits];
     }
     const sendFocus = selectionFocus(focus, selection ? `${current?.id || ''}|${contextKey}` : null, explicitFocusContext.current);
-    if (sendFocus !== focus) { setFocus(sendFocus); setScopeNotice('Attached only — searches stay within these records.'); }
+    if (sendFocus !== focus) { setFocus(sendFocus); setScopeNotice(''); }
     const sendsSelection = Boolean(selection && featureName);
     const body = {
       ...(current?.id ? { conversation_id: current.id } : {}),

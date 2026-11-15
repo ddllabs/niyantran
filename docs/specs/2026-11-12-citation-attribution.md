@@ -377,6 +377,32 @@ this spec, this section wins.
   assert the stylesheet rules and the markup order only. The reviewer notes the three fixed-width controls of the bar
   take about 270 px today, so a split pane at that width may already overflow without this change.
 
+## Build notes (2026-11-15): the evidence bar
+
+The signed-in check on the live site (2026-11-13) found the bar's publisher line cut short: 166 of 264 px at a 1280 px
+window and 82 of 264 px at 375 px, where only "Published b…" showed. Attribution that cannot be read is not
+attribution, so the developer asked for the ellipsis to go. This supersedes the "Evidence bar" row of the display table
+and the 375 px pass criterion under "Browser checks" above, for the publisher line only.
+
+- **Publisher line.** It wraps (`overflow-wrap: anywhere`) and is never cut. The title keeps its one-line ellipsis.
+- **Bar with a publisher.** It carries the class `has-publisher` and is a grid at every width: Back, the version label,
+  Ask and Close on the first row, Close in the last column, Ask in the one shrinking column so its label wraps before
+  Close can leave the row; the heading (title and publisher) on a second, full-width row. The heading stays before the
+  controls in the document; it is not focusable, so the tab order is unchanged.
+- **Why not a width query.** The reader is a split pane (30% to 75% of the overlay), so it is narrow on wide windows. A
+  first version keyed on the window width left the heading 62 px wide at a 467 px pane with a version label, and 27 px
+  at a 330 px pane.
+- **Bar without a publisher.** Unchanged, markup and rules.
+- **Source-list bubbles (D3).** Unchanged. The check recorded the missing publisher in the bubble's label as a finding;
+  it is this decision.
+- **Measured** in a browser, on a harness built from `research.css` and `panel-overlay.css` with the bar's markup, not
+  on the app with a live citation: at panes of 700, 467, 375, 330 and 288 px the publisher shows in full and Close is at
+  the right edge of the first row; at 288 px Ask's label takes two lines.
+- **Not fixed (F341).** At 288 px a bar with both a version label and a publisher lets Ask overlap Close (no document
+  has both today), and a bar without a publisher clips Close.
+- **Tests.** The stylesheet rules and the markup; each new assertion seen failing without the change, and the
+  control-order guard seen failing on an added `order`. They do not prove layout; the measurements above do.
+
 ## Open questions
 
 **Owner**

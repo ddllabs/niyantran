@@ -252,7 +252,10 @@ describe('the publisher in the evidence bar (F332)', () => {
   const OVERLAY_CSS = readFileSync(new URL('../shell/panel-overlay.css', import.meta.url), 'utf8');
   const REGULATORY = { ...LEGACY, desk_feature: 'Regulatory Body Watch (RBI SEBI TRAI CCI)', publisher: RBI };
   const REGULATORY_PAGE = { ...PDF_PAGE, desk_feature: 'Regulatory Body Watch (RBI SEBI TRAI CCI)', publisher: RBI };
-  const bar = html => html.slice(html.indexOf('<div class="ai-work-bar">'), html.indexOf('<div class="ai-work-body">'));
+  // The max-width: 480px block of research.css, bounded at its first closing brace on its own line.
+  const MEDIA_START = CSS.indexOf('@media (max-width: 480px)');
+  const MEDIA_CSS = MEDIA_START < 0 ? '' : CSS.slice(MEDIA_START, CSS.indexOf('\n}', MEDIA_START));
+  const bar = html => html.slice(html.indexOf('<div class="ai-work-bar'), html.indexOf('<div class="ai-work-body">'));
   const rule = (css, selector) => {
     const found = css.match(new RegExp(`(?:^|\\})\\s*${selector.replace(/[.]/g, '\\.')}\\s*\\{([^}]*)\\}`, 'm'));
     return found ? found[1] : '';
@@ -263,6 +266,55 @@ describe('the publisher in the evidence bar (F332)', () => {
       const html = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source }} onClose={() => {}} />);
       expect(bar(html)).toContain(`<span class="ai-work-heading"><span class="ai-work-title">${source.title}</span><span class="ai-work-publisher">Published by ${RBI}</span></span>`);
     }
+  });
+
+  it('marks a bar that has a publisher, and only that bar, so the narrow layout can give the heading its own row', () => {
+    for (const source of [REGULATORY, REGULATORY_PAGE]) {
+      const html = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source }} onClose={() => {}} />);
+      expect(html).toContain('<div class="ai-work-bar has-publisher">');
+    }
+    const plain = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: LEGACY }} onClose={() => {}} />);
+    expect(plain).toContain('<div class="ai-work-bar">');
+    expect(plain).not.toContain('has-publisher');
+  });
+
+  // Every rule of research.css whose selector names has-publisher, as [selector, body].
+  const publisherRules = () => [...CSS.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(m => m[1].includes('has-publisher')).map(m => [m[1].replace(/\/\*[\s\S]*?\*\//g, '').trim(), m[2]]);
+
+  it('at every width, a bar with a publisher is a grid: controls on row 1 with Close pinned right, the heading on row 2, in the stylesheet and not in a media query', () => {
+    expect(MEDIA_START).toBeGreaterThanOrEqual(0);
+    expect(MEDIA_CSS).not.toContain('has-publisher');
+    const bar = rule(CSS, '.ai-work-bar.has-publisher');
+    expect(bar).toMatch(/display:\s*grid/);
+    expect(bar).toMatch(/grid-template-columns:\s*auto auto minmax\(0, 1fr\) auto/);
+    expect(rule(CSS, '.ai-work-bar.has-publisher .ai-work-back')).toMatch(/grid-area:\s*1 \/ 1\s*;/);
+    expect(rule(CSS, '.ai-work-bar.has-publisher .ai-work-version')).toMatch(/grid-area:\s*1 \/ 2\s*;/);
+    expect(rule(CSS, '.ai-work-bar.has-publisher .ai-work-close')).toMatch(/grid-area:\s*1 \/ 4\s*;/);
+    // Ask sits in the shrinking column, so its label wraps instead of pushing Close off row 1.
+    const ask = rule(CSS, '.ai-work-bar.has-publisher .ai-work-ask');
+    expect(ask).toMatch(/grid-area:\s*1 \/ 3\s*;/);
+    expect(ask).toMatch(/justify-self:\s*end/);
+    expect(ask).toMatch(/min-width:\s*0/);
+    expect(ask).not.toMatch(/nowrap/);
+    expect(rule(CSS, '.ai-work-bar.has-publisher .ai-work-heading')).toMatch(/grid-area:\s*2 \/ 1 \/ 3 \/ -1/);
+    // No flex wrapping and no reordering anywhere in the has-publisher rules.
+    expect(publisherRules().length).toBe(6);
+    for (const [selector, body] of publisherRules()) {
+      expect(body, selector).not.toMatch(/flex-wrap/);
+      expect(body, selector).not.toMatch(/(?<![-\w])order:/);
+    }
+    // The bar without a publisher keeps its Ask rule.
+    expect(rule(CSS, '.ai-work-ask')).toMatch(/flex:\s*none/);
+    expect(rule(CSS, '.ai-work-ask')).toMatch(/margin-left:\s*auto/);
+  });
+
+  it('leaves the controls in their DOM order: no stylesheet sets order on Back, the version label, Ask or Close', () => {
+    for (const [name, css] of [['research.css', CSS], ['panel-overlay.css', OVERLAY_CSS]]) {
+      for (const [, selector, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        if (/\.ai-work-(back|ask|version|close)\b/.test(selector)) expect(body, `${name}: ${selector.trim()}`).not.toMatch(/(?<![-\w])order:/);
+      }
+    }
+    expect(rule(OVERLAY_CSS, '.ai-work-close')).toMatch(/flex:\s*none/);
   });
 
   it('shows the publisher with no original file link, and offers no "Open file"', () => {
@@ -327,11 +379,16 @@ describe('the publisher in the evidence bar (F332)', () => {
     expect(heading).toMatch(/min-width:\s*0/);
     expect(heading).toMatch(/display:\s*grid/);
     expect(publisher).toMatch(/min-width:\s*0/);
-    expect(publisher).toMatch(/overflow:\s*hidden/);
-    expect(publisher).toMatch(/text-overflow:\s*ellipsis/);
-    expect(publisher).toMatch(/white-space:\s*nowrap/);
+    // The publisher is never cut off: it wraps onto as many lines as it needs.
+    expect(publisher).not.toMatch(/overflow:\s*hidden/);
+    expect(publisher).not.toMatch(/text-overflow/);
+    expect(publisher).not.toMatch(/white-space:\s*nowrap/);
+    expect(publisher).toMatch(/overflow-wrap:\s*anywhere/);
     expect(publisher).toMatch(/font-size:\s*12px/);
-    for (const css of [heading, publisher]) expect(css).not.toMatch(/flex:\s*none|flex-shrink:\s*0|(?<![-\w])width:\s*\d/);
+    // The title keeps its one-line ellipsis.
+    expect(rule(CSS, '.ai-work-title')).toMatch(/text-overflow:\s*ellipsis/);
+    expect(rule(CSS, '.ai-work-title')).toMatch(/white-space:\s*nowrap/);
+    for (const css of [heading, publisher, ...publisherRules().map(r => r[1])]) expect(css).not.toMatch(/flex:\s*none|flex-shrink:\s*0|(?<![-\w])width:\s*\d/);
     // The close control keeps its fixed 28 px box.
     expect(rule(OVERLAY_CSS, '.ai-work-close')).toMatch(/flex:\s*none/);
     expect(rule(OVERLAY_CSS, '.ai-work-close')).toMatch(/width:\s*28px/);
