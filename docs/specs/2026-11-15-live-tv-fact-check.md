@@ -10,6 +10,9 @@
 > and quota), [ADR 0011](../decisions/0011-per-user-credit-ledger.md) (credits).
 >
 > Slice 1 plan: [F344 slice 1 plan](../plans/2026-11-15-f344-live-tv-fact-check-slice-1.md).
+>
+> Slice 1 is built and reviewed on the branch (commits `ca1ea764`, `18898b26`, `9149f8df`, `239b77bc`, `47fb973b`,
+> `41ad60c6`), not merged, not deployed; nothing has run as a real session.
 
 Evidence marks: **read** = seen in this checkout (file:line); **executed** = run on 2026-11-15, read-only;
 **vendor** = a provider's own published claim, not measured by us; **unverified** = neither. No code was written and
@@ -25,7 +28,7 @@ extraction and checking, all read-only and outside the repository) are in "Gate 
 - Audio comes from the browser sharing its own tab (Chromium desktop only). In version 1 the browser cuts the audio
   into pieces of about 10 seconds and sends each to an Edge Function, which transcribes it with
   `elevenlabs/scribe-v2` through OpenRouter. No new provider account and no browser token in version 1. Text appears
-  about 11 seconds behind the speaker. Claim extraction and fact-checking are short Edge Function calls; fact-checking
+  about 13 seconds behind the speaker. Claim extraction and fact-checking are short Edge Function calls; fact-checking
   is unchanged and uses Perplexity Sonar through OpenRouter.
 - Claims and verdicts are saved. On recorded videos they are shared by all users, pinned to the position in the
   video; on live streams they stay with the user who ran them. The full transcript is shown live and not stored.
@@ -62,7 +65,7 @@ page (from the author's knowledge of YouTube's documentation; to be confirmed ag
 
 1. On a supported browser, a signed-in user with credits sees a "Fact-check" button on the Live TV player.
 2. Pressing it offers 5, 10 or 15 minutes at a stated credit price, then asks the browser to share the tab's audio.
-3. A right-hand panel opens. The transcript appears in the spoken language, about 11 seconds behind the speaker.
+3. A right-hand panel opens. The transcript appears in the spoken language, about 13 seconds behind the speaker.
 4. Each checkable claim gets a card in English: the standalone claim, who made it, a verdict label, a one-line
    reason and source links. Opinions and predictions are labelled and not checked.
 5. When the block ends, or the user stops, capture stops and unused whole minutes are returned.
@@ -101,7 +104,7 @@ page (from the author's knowledge of YouTube's documentation; to be confirmed ag
 ### D1. Session start and audio capture
 
 - The button shows only on Chromium desktop, where `navigator.mediaDevices.getDisplayMedia` exists.
-- The `start` action of the `factcheck` Edge Function checks sign-in and account status as `transcribe-audio` does, reserves the
+- Once sharing is granted, the `start` action of the `factcheck` Edge Function checks sign-in and account status as `transcribe-audio` does, reserves the
   block's credits and creates the session row.
 - The browser calls `getDisplayMedia` for the current tab with audio. It asks for echo cancellation, noise suppression
   and gain control to be off (Chrome honoured this in G2a), keeps the audio track, drops the video track and resamples
@@ -113,13 +116,20 @@ page (from the author's knowledge of YouTube's documentation; to be confirmed ag
   `/audio/transcriptions` with `elevenlabs/scribe-v2` and returns the text. Audio is held only for the length of the
   request and is never stored.
 - Capture stops when the block ends, the user stops, the user ends sharing in the browser's own bar, the modal
-  closes, or the channel or video changes. Note that the app's embed starts muted and the user must unmute it.
+  closes, or the channel or video changes. The app's embed starts muted; the start button unmutes it first.
 - The transcription step sits behind one small interface in the browser, so a streaming provider can replace it later.
+- The browser asks to share the tab first and starts the paid session only after sharing is granted, so a dismissed
+  prompt costs nothing. A start is not offered while the player is paused or showing an error, and when the player is
+  muted the button unmutes it first. The browser sends the price it displayed, and the server refuses a start if the
+  price has changed.
 
 ### D2. Speech and turns
 
-- There are no interim words. Each piece's text is appended when it returns, about 11 seconds behind the speaker.
-- Text that overlaps between neighbouring pieces is de-duplicated.
+- There are no interim words. Each piece's text is appended when it returns, about 13 seconds behind the speaker.
+- Overlapping text between neighbouring pieces is removed only when at least two consecutive words repeat; a single
+  doubled word at a join is left in, because removing real speech is worse than keeping a repeat.
+- On news audio with a music bed, true pauses are rare, so the cutter also cuts at the quietest moment between 8 and 12
+  seconds. On the four test clips, 27 of 33 cuts landed on a pause or a quiet moment.
 - Bracketed sound tags such as `[संगीत]` or `[background music]` are removed. A piece that is only a tag is shown as
   nothing.
 - A **turn** is one or two consecutive pieces, 20 seconds at most, closed early at a long pause. There are no speaker
@@ -149,7 +159,9 @@ cannot change the instructions.
 Each standalone claim goes to the `check` action of the `factcheck` function, which calls `perplexity/sonar` through OpenRouter with the claim,
 today's date and a short context line. It returns one of the five labels, a one-line reason and the sources. Results
 stream back to the panel as they finish and are written to the store. Each call logs a `model_call_logs` row with
-its cost, as `transcribe-audio` does. Output is JSON-schema constrained, and the claim sent holds the content only.
+its cost, as `transcribe-audio` does. Sonar does not accept a structured-output request through OpenRouter, so the check asks for a two-line reply (label,
+reason) and accepts it only when it names exactly one of the five labels; sources are taken from the provider's
+citations; a verdict with no source is saved with status `error`, except "No evidence found". The claim sent holds the content only.
 
 ### D5. Storage and sharing
 
@@ -185,6 +197,13 @@ Row-level security enforces the reading rules; writes go through the Edge Functi
   with slices 2 and 3 (OQ1).
 - Because every claim is checked (L15), cost per minute varies. G2 reports claims per minute on a dense bulletin, and
   the price is set to cover it.
+
+**Spend bounds.** Per user and minute, at most 10 audio pieces, 6 extractions and 20 checks. Per session, at most 3
+extractions and 8 checks for each charged minute, plus a small allowance. Extraction input is clipped (the turn to 1,500
+characters, recent turns to 3,000 in total), and at most 8 claims are saved per turn. A check abandoned by the browser
+keeps its lock for 90 seconds. With these, the reviewer's estimate of the worst case for a deliberately hostile client
+is about twice the price; honest use stays below it. Turning the flag off stops running sessions at their next request,
+and they are charged only for the time used.
 
 ## Gates before the build is planned
 
@@ -362,6 +381,35 @@ entries so cost stays flat over a session.
 typical cost is about 356 credits (Rs 3.56) a minute and the densest about 459 credits (Rs 4.59). The price is the
 owner's decision; on 2026-11-15 the owner chose 500 credits a minute (L21).
 
+### Reviews of slice 1 (2026-11-15)
+
+Each task was reviewed by an independent Opus reviewer, and the database and the server function by a security audit.
+No critical finding. No path was found between users' data, credits or sessions, and a non-admin account cannot do paid
+work while the audience is admin.
+
+Findings fixed before commit:
+
+- A credit hold that a research-chat turn with a guessable key could release. Found in design review; the key is now
+  random and private.
+- Extraction and checks staying open for the whole block on a session charged one minute.
+- Paid work not bounded by charged minutes. Confirmed by running it: start, stop at once, then 40 checks a minute on the
+  settled session. Fixed by the spend bounds in D7.
+- The off switch not reaching running sessions.
+- Two paths that charged the minimum with no service when sharing ended or was cancelled during start.
+- Verdicts lost when a claim was returned again mid-check.
+- Overlap clean-up deleting real words.
+- A start allowed while muted.
+- The price shown not guaranteed to be the price charged.
+- Attribution stripping that lost who made a claim.
+
+Live probes (4 calls, about half a US cent): Scribe v2 returned a 10-second piece in 1.5 s with its cost; Gemini 3.8
+Flash accepted the strict extraction request with data collection denied; Sonar returned 404 for a structured-output
+request.
+
+Test counts on the branch: Vitest 7,632 passed before the last two library and panel commits (focused runs 1,924 passed
+after them); Deno 1,774 passed; SQL fixtures 79 passed, each non-vacuous, before the spend-bounds round (that round's
+result is recorded when it is committed).
+
 ## Privacy and safety
 
 - Audio leaves the browser only for transcription: to our Edge Function and through OpenRouter to the
@@ -370,6 +418,13 @@ owner's decision; on 2026-11-15 the owner chose 500 credits a minute (L21).
 - Verdicts name real people. Labels say what the evidence shows, each verdict is dated and sourced, and a reported
   verdict can be re-checked. The panel states that verdicts are automated.
 - Provider keys stay in Edge secrets; none in `VITE_` variables, logs or fixtures.
+- Extraction is sent with the provider setting that denies data collection. That setting cannot be applied to Sonar
+  through OpenRouter, so claim text sent for checking (public broadcast speech, nothing about the user) falls under
+  Perplexity's default retention. Whether the transcription call supports an equivalent is not established.
+- In slice 1 claim text reaches the server from the user's browser and is visible only to that user. Before results are
+  shared between users (slice 2) the server must hold the transcript itself and take claims only from it, and video ids
+  must be checked against the channel list; otherwise a user could attach an invented quote about a named person to a
+  video for everyone to see.
 
 ## Tests (written first; each seen failing before the code)
 
@@ -399,12 +454,16 @@ existing Live TV gaps (channel chips never show LIVE, empty schedule and archive
 - **YouTube's terms.** Accepted in ADR 0015; revisited if YouTube or a broadcaster objects.
 - **Accuracy was judged by reading, on Hindi and English only.** There is no human reference transcript and no
   regional-language clip (none of the 13 channels is regional).
-- **Text is cut at piece edges.** Pause-cutting and overlap are meant to fix it and are unproven.
+- **Text is cut at piece edges.** Cutting at pauses and quiet moments and a one-second overlap reduce it (27 of 33 cuts on the test clips);
+  the overlap clean-up is unproven on real overlapped transcripts.
 - **A wrong verdict about a named person reaches every user of a recorded video.** Dated verdicts, sources, report
   link, re-check, kept history.
-- **Cost per minute is unbounded in principle (L15).** Priced from the dense case; logged per call so it can be
-  watched.
+- **Cost per minute varies with how dense the speech is (L15).** Priced from the dense case, bounded by the spend
+  limits in D7, and logged per call so it can be watched.
 - **Transcription depends on OpenRouter and ElevenLabs being up,** and audio passes through our Edge Function.
+- **Where Sonar places source links in a real reply was not observed.** Two probe calls were refused by the permission
+  system and were not retried; it is confirmed on the first live session.
+- **The modal's player restarts a recorded video when mute or reload is pressed.** This predates this work (F346).
 
 ## Open questions
 
@@ -416,6 +475,10 @@ existing Live TV gaps (channel chips never show LIVE, empty schedule and archive
   programme. Not planned for version 1.
 - **OQ4.** Answered by L23: saved results are kept until removed, and a user can delete their own live-stream
   sessions.
+- **OQ5 (owner).** Whether a worst case of about twice the price for a hostile client is acceptable before the feature
+  opens to all plans, or the bounds should be tightened further.
+- **OQ6.** Slice 2 needs server-held transcripts (see Privacy), which changes L10 (the full transcript is not saved)
+  for at least the length of a session; to be decided with the slice 2 plan.
 
 ## Tasks (outline; the plan sets write scopes and order)
 

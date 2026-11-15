@@ -4,6 +4,10 @@
 > (L20). Written 2026-11-15 at `main` `c1ebb102`, branch `task/f344-livetv-fact-check`. Tracker: F344 in
 > [open-work](open-work.md). Slices 2 and 3 get their own plans.
 
+**State on 2026-11-15:** T3, T4, T5 and T6 are built, reviewed and committed on the branch (`ca1ea764`, `18898b26`,
+`9149f8df`, `239b77bc`, `47fb973b`, `41ad60c6`). A last database round adding the spend bounds, the off switch for
+running sessions and the price check is in progress. T7 has not started, and every step of it needs the owner's yes.
+
 Baseline on the branch, executed 2026-11-15 before any change: `npm ci`, `npm run build`, `npm run lint` (no
 warnings), `npm test` (7,254 passed in 457 files), router import ok. Deno tests (1,633 passed) and `npm run test:sql` (78 fixtures passed, each non-vacuous) were run unchanged by the T3
 builder the same day.
@@ -47,6 +51,9 @@ One `app_flags` row, key `livetv_factcheck`, written only by the server:
   start a session. The server enforces it; the client only hides the button.
 - `credits_per_minute` is a positive number set from the owner's approved price (L21). SQL reads it from the row;
   it is never taken from a request.
+- The browser sends the price it displayed as `expected_credits_per_minute`; `factcheck_start` refuses a different
+  price with `price_changed`. `factcheck_touch` returns `off` when the flag is off, so the flag also stops running
+  sessions.
 
 ### Tables (migration `<timestamp>_factcheck.sql`)
 
@@ -111,15 +118,17 @@ idempotent from the session row under lock, not from the ledger. Grants: `servic
   (`already_active`); available credits are below `minutes × credits_per_minute` (`insufficient`, with `needed`
   and `available`). Otherwise creates the session and a hold for the full block, and returns
   `{ok: true, session_id, credits_per_minute, credits_held, ends_at}`. First settles any of this user's sessions
-  that have run out. Malformed arguments raise SQLSTATE 22023, which the Edge Function maps to `400`.
+  that have run out. Malformed arguments raise SQLSTATE 22023, which the Edge Function maps to `400`. It takes a last argument,
+  `p_expected_cpm numeric` (nullable), and `already_active` also returns the running session's id.
 - `public.factcheck_touch(p_user uuid, p_session uuid, p_action text) returns jsonb`
   `p_action` is `transcribe`, `extract` or `check`. It is the session check and the rate limiter for every piece and
-  every model call. Limits per minute, fixed in SQL: 8 transcribe, 6 extract, 40 check; over the limit returns
-  `{ok: false, reason: "rate_limited"}`. `transcribe` is allowed while the session is active and no later than
+  every model call. Limits per user and minute, fixed in SQL: 10 transcribe, 6 extract, 20 check; and per session over its life: at most
+  3·m + 2 extracts and 8·m + 4 checks, where m is the minutes settlement would charge; over a budget returns
+  `{ok: false, reason: "budget"}`. `transcribe` is allowed while the session is active and no later than
   `started_at + minutes_bought` plus 15 seconds; it moves `last_activity_at` and returns `{ok: true, seconds_left}`.
-  `extract` and `check` are allowed until 120 seconds after the session's end, even once it is settled, because
-  verdicts for the last sentences arrive after the block closes; they never move `last_activity_at`. Other refusals:
-  `not_found` (also for another user's session), `settled`, `ended`.
+  `extract` and `check` are allowed until 120 seconds after the last charged moment (the earlier of the block's end and
+  15 seconds after the last accepted piece), even once the session is settled; they never move `last_activity_at`.
+  Other refusals: `off`, `budget`, `not_found` (also for another user's session), `settled`, `ended`.
 - `public.factcheck_settle(p_user uuid, p_session uuid) returns jsonb`
   Idempotent. Minutes used = the whole minutes, rounded up, between `started_at` and the earlier of now and
   `last_activity_at + 15 s`, at least 1 and at most `minutes_bought`. Charges `minutes used × credits_per_minute`
@@ -144,15 +153,17 @@ fields `action`, `session_id`, `seq` and `file`.
 
 | Action | Request | Response |
 |---|---|---|
-| `start` | `video_id`, `channel_id`, `video_kind`, `start_position_s`, `minutes` | `200 {session_id, credits_per_minute, credits_held, ends_at}`; `402 {reason: "insufficient", needed, available}`; `403`/`409` with `reason` |
+| `start` | `video_id`, `channel_id`, `video_kind`, `start_position_s`, `minutes`, `expected_credits_per_minute` | `200 {session_id, credits_per_minute, credits_held, ends_at}`; `402 {reason: "insufficient", needed, available}`; `403`/`409` with `reason`; `409 {reason: "price_changed", credits_per_minute}`; `409 {reason: "already_active", session_id}` |
 | `transcribe` | `session_id`, `seq`, `file` (WAV, 16 kHz mono 16-bit, at most 15 s and 600 kB) | `200 {seq, text, seconds_left}`; `409 {reason}` when the session is over |
 | `extract` | `session_id`, `turn: {text, spoken_at, position_s}`, `recent: [text]` (at most 3), `ledger` (at most 4 kB), `seed: {channel, title}` | `200 {claims: [{id, quote, claim_en, claimant, reported_by, kind, status}], ledger}` |
-| `check` | `session_id`, `claim_id` | `200 {id, status, verdict, reason, sources, checked_at}` |
+| `check` | `session_id`, `claim_id` | `200 {id, status, verdict, reason, sources, checked_at}`; a claim that is not pending returns `200` with its stored state |
 | `stop` | `session_id` | `200 {minutes_used, credits_charged, balance}` |
 
 - `transcribe` calls OpenRouter `/audio/transcriptions` with `elevenlabs/scribe-v2`. The audio is never written
   anywhere.
-- `extract` uses `google/gemini-3.8-flash` and `check` uses `perplexity/sonar` with JSON-schema output (spec G2b); both ids are constants in one file.
+- `extract` uses `google/gemini-3.8-flash` with strict JSON-schema output, low reasoning effort and data collection
+  denied; `check` uses `perplexity/sonar` with a two-line plain reply, because Sonar rejects structured output through
+  OpenRouter; both ids are constants in one file.
 - `extract` saves each claim before returning it. A claim whose normalised text is already saved in this session
   is not saved again. `check` reads the claim text from the database, never from the request, and checks a claim
   once.
@@ -163,9 +174,10 @@ fields `action`, `session_id`, `seq` and `file`.
   one of the five labels is saved as `status = 'error'`.
 - Every model call writes a `model_call_logs` row (`caller` `factcheck`, `message_id` null) with its cost, by the
   `transcribe-audio` pattern. These rows are not charged by the chat path.
-- Every action calls `factcheck_touch` with its action name before doing any work; `rate_limited` is returned as `429`,
-  `not_found` as `404`, `settled` and `ended` as `409`. A piece that is silent (measured on the server from the WAV
-  samples) is not sent to the provider and returns empty text, but still counts as activity.
+- Every action calls `factcheck_touch` with its action name before any provider call; `rate_limited` is `429` with
+  `Retry-After`, `budget` is `429` without it (the browser does not retry), `off` is `403`, `not_found` is `404`,
+  `settled` and `ended` are `409`. A piece that is silent or shorter than half a second is not sent to the provider
+  and returns empty text, but still counts as activity.
 
 ### Browser modules
 
@@ -178,8 +190,9 @@ fields `action`, `session_id`, `seq` and `file`.
   a streaming provider would replace.
 - `src/lib/factcheck/client.js`: one function per action, built on `accessToken` and `functionsUrl` from
   `src/lib/supabaseClient.js`.
-- `src/lib/factcheck/session.js`: the session state machine (`idle`, `choosing`, `sharing`, `running`, `ending`,
-  `ended`, `error`) tying capture, transcription, extraction and checks together; no React.
+- `src/lib/factcheck/session.js`: the session state machine (`idle`, `choosing`, `sharing`, `starting`, `running`, `ending`,
+  `ended`, `error`) tying capture, transcription, extraction and checks together; no React. Claims that the run never
+  checked end as `unchecked`; the session ends itself after 90 seconds without speech.
 - `src/shell/factcheck/FactCheckPanel.jsx` and `factCheck.css` (class prefix `fc-`): the panel and its states.
 
 ## Tasks
@@ -250,8 +263,17 @@ Supervisor, with the owner's yes for each step: pull request and both CI jobs; m
 and the approved price; a live session on the production site by an admin, including the real Chrome sharing
 prompt that G1 still owes; cost per minute compared with the measurement.
 
+Live checks in addition to the above:
+
+- where Sonar's source links arrive in a real reply;
+- the scheduled settlement job running under `pg_cron`;
+- the real Chrome sharing prompt and the panel's focus handling in a browser (no test in the repository can run those);
+- cost per session from `model_call_logs` (each row carries the session id) against the measured US$0.0375 to 0.0483
+  a minute.
+
 ## Definition of done for slice 1
 
 Every task's tests were seen failing and now pass; both CI jobs pass on the pull request; the Opus reviews and the
 security review have no open findings above low; an admin has completed a live session on production and was
-charged the stated price; open-work F344 records what remains for slices 2 and 3.
+charged the stated price; open-work F344 records what remains for slices 2 and 3. The owner has answered OQ5 before the audience is set to
+`"all"`.
