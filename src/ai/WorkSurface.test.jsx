@@ -257,7 +257,7 @@ describe('the publisher in the evidence bar (F332)', () => {
   const MEDIA_CSS = MEDIA_START < 0 ? '' : CSS.slice(MEDIA_START, CSS.indexOf('\n}', MEDIA_START));
   const bar = html => html.slice(html.indexOf('<div class="ai-work-bar'), html.indexOf('<div class="ai-work-body">'));
   const rule = (css, selector) => {
-    const found = css.match(new RegExp(`(?:^|\\})\\s*${selector.replace(/[.]/g, '\\.')}\\s*\\{([^}]*)\\}`, 'm'));
+    const found = css.match(new RegExp(`(?:^|\\})\\s*${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`, 'm'));
     return found ? found[1] : '';
   };
 
@@ -278,34 +278,89 @@ describe('the publisher in the evidence bar (F332)', () => {
     expect(plain).not.toContain('has-publisher');
   });
 
-  // Every rule of research.css whose selector names has-publisher, as [selector, body].
-  const publisherRules = () => [...CSS.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(m => m[1].includes('has-publisher')).map(m => [m[1].replace(/\/\*[\s\S]*?\*\//g, '').trim(), m[2]]);
+  const G = 'auto minmax\\(0, auto\\) minmax\\(min-content, 1fr\\) auto';
+  // The two F341 container blocks, bounded at their closing brace on its own line, and the sheet without them.
+  const block = query => { const at = CSS.indexOf(query); return at < 0 ? '' : CSS.slice(at, CSS.indexOf('\n}', at)); };
+  const BLOCK_560 = block('@container (max-width: 560px)');
+  const BLOCK_420 = block('@container (max-width: 420px)');
+  const TOP_LEVEL = CSS.replace(BLOCK_560, '').replace(BLOCK_420, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  const BASE_BAR = CSS.search(/^\.ai-work-bar \{/m);
 
-  it('at every width, a bar with a publisher is a grid: controls on row 1 with Close pinned right, the heading on row 2, in the stylesheet and not in a media query', () => {
+  // F332 + F341: the placement rules are written once, at top level (grid-area and justify-self are inert on flex items), and
+  // shared by the has-publisher bar and the narrow container blocks.
+  it('F332: a bar with a publisher is a grid at every width, in the stylesheet and not in a media query; the controls share one set of placement rules', () => {
     expect(MEDIA_START).toBeGreaterThanOrEqual(0);
     expect(MEDIA_CSS).not.toContain('has-publisher');
+    for (const [, selector, body] of MEDIA_CSS.matchAll(/([^{}]*\.ai-work-bar[^{}]*)\{([^{}]*)\}/g)) expect(body, selector.trim()).not.toMatch(/display|grid/);
     const bar = rule(CSS, '.ai-work-bar.has-publisher');
     expect(bar).toMatch(/display:\s*grid/);
-    expect(bar).toMatch(/grid-template-columns:\s*auto auto minmax\(0, 1fr\) auto/);
-    expect(rule(CSS, '.ai-work-bar.has-publisher .ai-work-back')).toMatch(/grid-area:\s*1 \/ 1\s*;/);
-    expect(rule(CSS, '.ai-work-bar.has-publisher .ai-work-version')).toMatch(/grid-area:\s*1 \/ 2\s*;/);
-    expect(rule(CSS, '.ai-work-bar.has-publisher .ai-work-close')).toMatch(/grid-area:\s*1 \/ 4\s*;/);
+    expect(bar).toMatch(new RegExp(`grid-template-columns:\\s*${G}\\s*;`));
+    expect(rule(CSS, '.ai-work-bar > .ai-work-back')).toMatch(/grid-area:\s*1 \/ 1\s*;/);
+    expect(rule(CSS, '.ai-work-bar > .ai-work-version')).toMatch(/grid-area:\s*1 \/ 2\s*;/);
+    expect(rule(CSS, '.ai-work-bar > .ai-work-close')).toMatch(/grid-area:\s*1 \/ 4\s*;/);
     // Ask sits in the shrinking column, so its label wraps instead of pushing Close off row 1.
-    const ask = rule(CSS, '.ai-work-bar.has-publisher .ai-work-ask');
+    const ask = rule(CSS, '.ai-work-bar > .ai-work-ask');
     expect(ask).toMatch(/grid-area:\s*1 \/ 3\s*;/);
     expect(ask).toMatch(/justify-self:\s*end/);
-    expect(ask).toMatch(/min-width:\s*0/);
     expect(ask).not.toMatch(/nowrap/);
-    expect(rule(CSS, '.ai-work-bar.has-publisher .ai-work-heading')).toMatch(/grid-area:\s*2 \/ 1 \/ 3 \/ -1/);
-    // No flex wrapping and no reordering anywhere in the has-publisher rules.
-    expect(publisherRules().length).toBe(6);
-    for (const [selector, body] of publisherRules()) {
-      expect(body, selector).not.toMatch(/flex-wrap/);
-      expect(body, selector).not.toMatch(/(?<![-\w])order:/);
+    // The heading (publisher present) and the bare title (none) take the full-width second row.
+    expect(rule(CSS, '.ai-work-bar > .ai-work-heading, .ai-work-bar > .ai-work-title')).toMatch(/grid-area:\s*2 \/ 1 \/ 3 \/ -1\s*;/);
+    // No flex wrapping and no reordering in any rule that names the bar.
+    for (const [, selector, body] of CSS.matchAll(/([^{}]*\.ai-work-bar[^{}]*)\{([^{}]*)\}/g)) {
+      expect(body, selector.trim()).not.toMatch(/flex-wrap/);
+      expect(body, selector.trim()).not.toMatch(/(?<![-\w])order:/);
     }
     // The bar without a publisher keeps its Ask rule.
     expect(rule(CSS, '.ai-work-ask')).toMatch(/flex:\s*none/);
     expect(rule(CSS, '.ai-work-ask')).toMatch(/margin-left:\s*auto/);
+  });
+
+  it('F341: the surface is an inline-size container sized only by its parent: one position (absolute), inset 0, no width', () => {
+    const surface = rule(CSS, '.ai-work-surface');
+    expect(surface).toMatch(/container-type:\s*inline-size\s*;/);
+    expect(surface.match(/(?<![-\w])position:/g)).toHaveLength(1);
+    expect(surface).toMatch(/(?<![-\w])position:\s*absolute\s*;/);
+    expect(surface).toMatch(/(?<![-\w])inset:\s*0\s*;/);
+    expect(surface).not.toMatch(/(?<![-\w])width:/);
+  });
+
+  it('F341: both container blocks exist, come after the base bar rule, and name no has-publisher and no media query', () => {
+    expect(BASE_BAR).toBeGreaterThanOrEqual(0);
+    for (const [name, text] of [['560', BLOCK_560], ['420', BLOCK_420]]) {
+      expect(text, name).not.toBe('');
+      expect(CSS.indexOf(text), name).toBeGreaterThan(BASE_BAR);
+      expect(text, name).not.toContain('has-publisher');
+      expect(text, name).not.toContain('@media');
+      expect(text, name).not.toMatch(/flex-wrap/);
+      expect(text, name).not.toMatch(/(?<![-\w])order:/);
+    }
+  });
+
+  it('F341: at 560px and under a bar with a version label is a two-row grid; at 420px and under every bar is', () => {
+    const labelled = '.ai-work-bar:has(> .ai-work-version)';
+    expect(rule(BLOCK_560, labelled)).toMatch(/display:\s*grid\s*;/);
+    expect(rule(BLOCK_560, labelled)).toMatch(new RegExp(`grid-template-columns:\\s*${G}\\s*;`));
+    expect(rule(BLOCK_420, '.ai-work-bar')).toMatch(/display:\s*grid\s*;/);
+    expect(rule(BLOCK_420, '.ai-work-bar')).toMatch(new RegExp(`grid-template-columns:\\s*${G}\\s*;`));
+    expect(BLOCK_420).not.toContain(':has(');
+  });
+
+  it('F341: contain: inline-size is on the bare title only inside the container blocks, and only where the bar is a grid', () => {
+    expect(rule(BLOCK_560, '.ai-work-bar:has(> .ai-work-version) > .ai-work-title')).toMatch(/contain:\s*inline-size\s*;/);
+    expect(rule(BLOCK_420, '.ai-work-bar > .ai-work-title')).toMatch(/contain:\s*inline-size\s*;/);
+    // In a flex bar it would collapse the title to 0px.
+    expect(TOP_LEVEL).not.toMatch(/contain:\s*inline-size/);
+  });
+
+  it('F341: the version label may wrap in a grid row', () => {
+    const version = rule(CSS, '.ai-work-bar > .ai-work-version');
+    expect(version).toMatch(/min-width:\s*0\s*;/);
+    expect(version).toMatch(/white-space:\s*normal\s*;/);
+  });
+
+  it('F341: wide, the bar is still a single flex row', () => {
+    expect(rule(CSS, '.ai-work-bar')).toMatch(/display:\s*flex/);
+    expect(rule(CSS, '.ai-work-bar')).not.toMatch(/grid/);
   });
 
   it('leaves the controls in their DOM order: no stylesheet sets order on Back, the version label, Ask or Close', () => {
@@ -388,7 +443,7 @@ describe('the publisher in the evidence bar (F332)', () => {
     // The title keeps its one-line ellipsis.
     expect(rule(CSS, '.ai-work-title')).toMatch(/text-overflow:\s*ellipsis/);
     expect(rule(CSS, '.ai-work-title')).toMatch(/white-space:\s*nowrap/);
-    for (const css of [heading, publisher, ...publisherRules().map(r => r[1])]) expect(css).not.toMatch(/flex:\s*none|flex-shrink:\s*0|(?<![-\w])width:\s*\d/);
+    for (const css of [heading, publisher, ...[...CSS.matchAll(/([^{}]*\.ai-work-bar\s*[>.:][^{}]*)\{([^{}]*)\}/g)].map(r => r[2])]) expect(css).not.toMatch(/flex:\s*none|flex-shrink:\s*0|(?<![-\w])width:\s*\d/);
     // The close control keeps its fixed 28 px box.
     expect(rule(OVERLAY_CSS, '.ai-work-close')).toMatch(/flex:\s*none/);
     expect(rule(OVERLAY_CSS, '.ai-work-close')).toMatch(/width:\s*28px/);

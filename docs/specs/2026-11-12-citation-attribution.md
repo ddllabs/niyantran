@@ -402,6 +402,7 @@ and the 375 px pass criterion under "Browser checks" above, for the publisher li
   has both today), and a bar without a publisher clips Close.
 - **Tests.** The stylesheet rules and the markup; each new assertion seen failing without the change, and the
   control-order guard seen failing on an added `order`. They do not prove layout; the measurements above do.
+- **Narrow panes (F341).** A bar without a publisher uses the same two-row layout when the pane is narrow. A container query on the reader surface decides it, not the window: 560 px and under when the bar has a version label, 420 px and under otherwise. The version label may wrap in that layout. The placement rules are now written once and shared by the publisher and no-publisher cases. Measured on the same harness at pane widths from 960 to 288 px, with no overflow or overlap. Not yet checked in the app.
 
 ## Open questions
 
