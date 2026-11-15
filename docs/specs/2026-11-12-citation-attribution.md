@@ -7,7 +7,7 @@
 > class. The next collection, Regulatory (RBI, SEBI, TRAI, CCI), needs it before its live load: owner gate O2 / task TA
 > of the Regulatory screen draft (`docs/specs/2026-11-12-regulatory-screen.md` on branch `task/regulatory-screen-spec`,
 > `0e628f30`, not on `main`). Related: [F331](2026-11-12-bill-metadata-in-chat.md); F330 (Regulatory has no admission
-> path). Tracker: F332; the supervisor adds the line to `open-work.md`.
+> path). Tracker: F332; the supervisor adds the line to `open-work.md`. Built 2026-11-12 and deployed in `research-chat` v112 the same day; the reader header fix of 2026-11-15 is merged and not yet checked on the live site.
 
 Evidence marks: **read** = seen in this checkout at `4535abab` (file:line); **inferred** = reasoned from read code, not
 executed; **measured** = read-only counts (counts only) by the developer or supervisor on 2026-11-11/12 on NTER or on
@@ -443,6 +443,6 @@ and the 375 px pass criterion under "Browser checks" above, for the publisher li
 
 ## Not determined
 
-- Whether `research-chat` was redeployed after its last recorded version (F331 C4).
+- Whether `research-chat` was redeployed after its last recorded version (F331 C4). (2026-11-15: it was, as v112 on 2026-11-12; see `docs/operations/2026-11-13-release.md`.)
 - The pack's top-level `source_host` values (not in the 2026-11-12 counts); the screen check (TS) measures them in effect.
 - The contents of `citation_text` (deliberately not read out).

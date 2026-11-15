@@ -6,7 +6,7 @@
 > ([spec](2026-10-13-web-search.md)), web recovery ([spec](2026-10-19-rag-citation-web-recovery.md)), prompt cache
 > policy ([F253](2026-10-24-ai-research-cache-policy.md)), contextual chunk headers held under F289, the role rule on
 > shared bill keys (F325), the hybrid fallback (F288) ([open work](../plans/open-work.md)). This spec also closes
-> F329 (renderChunk titles), whose tracker line is not on `main` in this checkout.
+> F329 (renderChunk titles), whose tracker line is not on `main` in this checkout. Built 2026-11-12 and deployed in `research-chat` v112 the same day.
 
 Evidence marks:
 
@@ -500,7 +500,7 @@ The write scopes of T1-T5, plus this spec and its `open-work.md` line (superviso
 - **C3. Wording of F289.** The original brief said "6 of 60 eval questions". `open-work.md:33` says headers "lost 6
   Parliamentary Questions when applied to every desk", and gained in broad search from 38 to 42 of 45.
 - **C4. The live function is not `main`** (Rollout 3-4). Whether `research-chat` was redeployed after v111 cannot be
-  told from the checkout.
+  told from the checkout. (2026-11-15: it was, as v112 on 2026-11-12; see `docs/operations/2026-11-13-release.md`.)
 - **C5. The first draft's out-of-scope note on `PRESEARCH_NOTE`.** The note says the search used "the reader's
   message as written" (`agent.ts:52-53`); since the subject prefix (`turnScope.ts:25`) that is not exact. Still
   reported, not fixed.
