@@ -166,6 +166,11 @@ chain() {
       chain billing_manual_grace
       FILES+=("$TESTS/bootstrap_storage.sql" "$(m 20260928100200_app_flags_and_marketing_media.sql)"
               "$(as_non_superuser 20261116090000_factcheck.sql)") ;;
+    # F347: fact-check charges in the credit reports. The factcheck chain; the fixture applies the report migration itself
+    # (the include below), so the reports can be compared before and after on the same data. The vacuity check drops the
+    # chain's last file, the fact-check migration, and the fixture's first fact-check step fails.
+    factcheck_usage)
+      chain factcheck ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;
@@ -1232,6 +1237,8 @@ fixture_sql() {
           printf '%s\n' "$outer"
         fi
       done < supabase/tests/ingest_bills_admission_rules.sql
+    elif [ "$line" = '\i supabase/migrations/20261116100000_factcheck_usage_reports.sql' ]; then
+      cat supabase/migrations/20261116100000_factcheck_usage_reports.sql
     elif [ "$line" = '\i supabase/migrations/20261101120000_document_chunks_partitioned.sql' ]; then
       cat supabase/migrations/20261101120000_document_chunks_partitioned.sql
     else
