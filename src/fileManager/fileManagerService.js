@@ -143,7 +143,7 @@ export function normalizeFileManagerError(err) {
     (combined.includes('relation') && combined.includes('does not exist')) ||
     combined.includes('missing table')
   ) {
-    return 'File storage is not configured correctly. Contact the administrator.';
+    return 'Backend schema pending: Personal file storage requires the approved F341 schema to be applied to the database.';
   }
 
   // 2. Quota exceeded (54000)
@@ -680,17 +680,17 @@ export async function createFolder({ name, parent_id = null }) {
     if (!error && data) {
       return data;
     }
-    if (error && typeof import.meta !== 'undefined' && !import.meta.env?.DEV && import.meta.env?.MODE !== 'test') {
+    if (error && typeof import.meta !== 'undefined' && import.meta.env?.MODE !== 'test') {
       throw new Error(`Failed to create folder: ${error.message}`);
     }
   } catch (err) {
-    if (typeof import.meta !== 'undefined' && !import.meta.env?.DEV && import.meta.env?.MODE !== 'test') {
+    if (typeof import.meta !== 'undefined' && import.meta.env?.MODE !== 'test') {
       throw err;
     }
   }
 
-  // Development & test environment fallback adapter (strictly isolated from production builds)
-  if (typeof import.meta !== 'undefined' && (import.meta.env?.DEV || import.meta.env?.MODE === 'test')) {
+  // Unit test runner fallback adapter (strictly isolated from live browser and production)
+  if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
     const localFolders = getLocalFolders(user.id);
     const newFolder = {
       id: crypto.randomUUID(),
@@ -1016,8 +1016,8 @@ export async function listFilesAndFolders({
     // Database query error
   }
 
-  // Development & test environment fallback adapter (strictly isolated from production)
-  if (foldersData.length === 0 && typeof import.meta !== 'undefined' && (import.meta.env?.DEV || import.meta.env?.MODE === 'test')) {
+  // Unit test runner fallback adapter (strictly isolated from live browser and production)
+  if (foldersData.length === 0 && typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
     const local = getLocalFolders(user.id);
     foldersData = local.filter((f) => {
       if (view === 'trash') return f.deleted_at !== null;
@@ -1065,8 +1065,8 @@ export async function listFilesAndFolders({
     // Database query error
   }
 
-  // Development & test environment fallback adapter (strictly isolated from production)
-  if (filesData.length === 0 && typeof import.meta !== 'undefined' && (import.meta.env?.DEV || import.meta.env?.MODE === 'test')) {
+  // Unit test runner fallback adapter (strictly isolated from live browser and production)
+  if (filesData.length === 0 && typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
     const local = getLocalFiles(user.id);
     filesData = local.filter((f) => {
       if (view === 'trash') return f.deleted_at !== null;
