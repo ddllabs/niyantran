@@ -105,7 +105,7 @@ Rules: row-level security on both tables. `authenticated` may `SELECT` rows wher
 
 The hold for a block is a `credit_holds` row under a random key (`fc:` plus a UUID) kept in
 `private.factcheck_hold_keys` and never returned to any caller. A guessable key would let a research-chat turn sent
-with the same key release the hold early. The ledger entry keeps the key `factcheck:<session id>`; settlement is
+with the same key release the hold early. The ledger entry is written under the same private key at settlement, so no chat turn can share it; settlement is
 idempotent from the session row under lock, not from the ledger. Grants: `service_role` may select, insert and update
 `factcheck_claims` and only select `factcheck_sessions`; every session write goes through the functions.
 
@@ -132,7 +132,7 @@ idempotent from the session row under lock, not from the ledger. Grants: `servic
 - `public.factcheck_settle(p_user uuid, p_session uuid) returns jsonb`
   Idempotent. Minutes used = the whole minutes, rounded up, between `started_at` and the earlier of now and
   `last_activity_at + 15 s`, at least 1 and at most `minutes_bought`. Charges `minutes used × credits_per_minute`
-  through the existing ledger (a `charge` entry whose key is `factcheck:<session id>`), releases the hold, sets
+  through the existing ledger (a `charge` entry under the private hold key, with the note `live tv fact-check`), releases the hold, sets
   `credits_charged`, `ended_at` and `status = 'settled'`. Returns `{ok, minutes_used, credits_charged, balance}`.
 - `public.factcheck_settle_expired() returns int`
   Settles every active session past its end plus one minute, and every active session with no accepted piece for 3
@@ -216,7 +216,7 @@ release.
   `factcheck_settle_expired`; the existing sweep does not free a fact-check hold; a second user cannot read
   another's session or claim; a user can delete only their own settled live session; `authenticated` cannot call
   the functions or write the tables. `run.sh` proves the fixture non-vacuous. Also: a research-chat reserve and settle sent with the key
-  `factcheck:<session id>` does not release the hold; each rate limit; `extract` and `check` allowed after settlement
+  `factcheck:<session id>` neither releases the hold nor finds the charge; each rate limit; `extract` and `check` allowed after settlement
   for 120 seconds and refused after; two settles at once; start racing start; settle racing touch (the concurrency
   script).
 - **Verify:** `npm run test:sql` (all fixtures, including the existing credit ones), `npm run lint`.
