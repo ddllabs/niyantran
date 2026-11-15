@@ -126,6 +126,14 @@ chain() {
     national_search_only)
       chain ingest_bills_admission_rules
       FILES+=("$(as_non_superuser 20261113090000_national_search_only.sql)") ;;
+    # F326 and F327: a batch closed with its failed jobs named; the failure rate counts failures ever seen.
+    # national_search_only's chain (the last definer of ingest_register_batch), then 20261112090000 (the resume the
+    # fixture uses), then the migration, as a non-superuser. The vacuity check drops the last. Its section (e) proves the
+    # F291 recovery (resume with requeue lets the batch proceed) on this production chain; ingest_batch_resume_requeue keeps
+    # its own chain so that 20261112090000 keeps its own vacuity proof.
+    ingest_batch_close)
+      chain national_search_only
+      FILES+=("$(as_non_superuser 20261112090000_batch_resume_requeue.sql)" "$(as_non_superuser 20261115090000_batch_close_and_failure_count.sql)") ;;
     # F314: a Bills row on a shared bill key resolves only to its own bill's documents. ingest_bills_admission_rules'
     # chain, then the migration, as a non-superuser. The vacuity check drops the last.
     record_resolver_shared_bill_keys)
