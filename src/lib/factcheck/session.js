@@ -12,7 +12,7 @@
 // Claim status: pending, checked, needs_context, not_checkable, error, and
 //   unchecked (client-side: the session ended and no check came back; no check
 //   happened). A claim is never left `pending` once the run has ended.
-// endReason: user | browser | time | silent | server | error | <caller's reason>
+// endReason: user | browser | time | silent | server | error | price_changed | <caller's reason>
 //
 // Order of events on start: the tab is shared first, then the server session
 // is started. A user who dismisses the browser's share prompt therefore costs
@@ -84,7 +84,7 @@ export function createFactCheckSession({
   function stop(reason = 'user') { return run ? run.stop(reason) : Promise.resolve(); }
 
   function createRun(params) {
-    const { videoId, channelId, videoKind, startPositionS = null, minutes, seed = {} } = params;
+    const { videoId, channelId, videoKind, startPositionS = null, minutes, seed = {}, expectedCreditsPerMinute } = params;
     let status = 'sharing';
     let sessionId = null;
     let creditsPerMinute = null;
@@ -196,6 +196,7 @@ export function createFactCheckSession({
       const info = { source, reason: e?.reason || (e?.status === 0 ? 'network' : 'unknown'), status: e?.status ?? 0 };
       if (e?.needed !== undefined) info.needed = e.needed;
       if (e?.available !== undefined) info.available = e.available;
+      if (e?.creditsPerMinute !== undefined) info.creditsPerMinute = e.creditsPerMinute;
       return info;
     };
     // A call failed for good. May end the session.
@@ -462,7 +463,8 @@ export function createFactCheckSession({
       try {
         // Never retried: a second start could create a second session.
         res = await attempt(signal => client.start({
-          video_id: videoId, channel_id: channelId, video_kind: videoKind, start_position_s: startPositionS, minutes, signal,
+          video_id: videoId, channel_id: channelId, video_kind: videoKind, start_position_s: startPositionS, minutes,
+          expected_credits_per_minute: expectedCreditsPerMinute, signal,
         }), LIMITS.startTimeoutMs);
       } catch (e) {
         captureEnded = true;
@@ -478,6 +480,15 @@ export function createFactCheckSession({
       creditsHeld = res.credits_held ?? null;
       // The local clock rules until the first seconds_left arrives.
       endsAt = now() + minutes * 60000;
+      // The user agreed to one price; a session started at another is ended at once (the server
+      // normally refuses a mismatch before this point).
+      if (typeof expectedCreditsPerMinute === 'number' && creditsPerMinute !== expectedCreditsPerMinute) {
+        early.length = 0;
+        void end('price_changed', {
+          errorInfo: { source: 'start', reason: 'price_changed', status: 0, creditsPerMinute }, flush: false, drain: false,
+        });
+        return;
+      }
       setStatus('running');
       tickTimer = timers.setTimeout(tick, LIMITS.tickMs);
       for (const piece of early.splice(0)) enqueuePiece(piece);

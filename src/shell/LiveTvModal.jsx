@@ -6,6 +6,9 @@ import {
   fetchLiveTvArchive,
   fetchLiveTvTranscript,
 } from '../lib/liveTvClient.js';
+import { FactCheckEntry, FactCheckPanel } from './factcheck/FactCheckPanel.jsx';
+import { embedVideoId, playingTarget } from './factcheck/factCheckText.js';
+import { useFactCheck } from './factcheck/useFactCheck.js';
 import './liveTv.css';
 
 export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
@@ -256,6 +259,25 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
       return `${currentEmbedUrl}${currentEmbedUrl.includes('?') ? '&' : '?'}mute=${isMuted ? '1' : '0'}`;
     }
   }, [currentEmbedUrl, isMuted]);
+
+  // F344: fact-check. Added after the existing hooks; nothing above changed. What is playing is read
+  // from the embed address, so it names the video that is really on screen.
+  const factCheckVideoId = embedVideoId(currentEmbedUrl);
+  const factCheckChannelId = activeChannel?.id || '';
+  const factCheck = useFactCheck({
+    open,
+    target: playingTarget(factCheckChannelId, playbackMode, factCheckVideoId),
+    start: {
+      videoId: factCheckVideoId,
+      channelId: factCheckChannelId,
+      videoKind: playbackMode === 'live' ? 'live' : 'recorded',
+      startPositionS: null, // the embed exposes no position
+      seed: {
+        channel: activeChannel?.name || '',
+        title: (playbackMode === 'video' ? activeVideo?.title : playbackMode === 'archive' ? selectedArchiveItem?.title : '') || '',
+      },
+    },
+  });
 
   // After every hook: React needs the same hooks on every render.
   if (!open) return null;
@@ -518,9 +540,21 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
                 >
                   Reload Feed
                 </button>
+                <FactCheckEntry view={factCheck.view} playable={isPlaying && !streamError} onChoose={factCheck.actions.choose} />
               </div>
             </div>
           </section>
+
+          <FactCheckPanel
+            view={factCheck.view}
+            isMuted={isMuted}
+            onUnmute={() => setIsMuted(false)}
+            onConfirm={factCheck.actions.confirm}
+            onCancel={factCheck.actions.cancel}
+            onStop={factCheck.actions.stop}
+            onRetry={factCheck.actions.retry}
+            onDismiss={factCheck.actions.dismiss}
+          />
 
           {/* Lower Section Tabs */}
           {/* F61 (F171 B15): real tabs: one tab stop, arrows, Home and End move between them. */}

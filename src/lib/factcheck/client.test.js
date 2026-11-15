@@ -38,6 +38,12 @@ describe('JSON actions', () => {
     });
   });
 
+  it('start sends the displayed price as expected_credits_per_minute', async () => {
+    const { client, calls } = make(() => json(200, {}));
+    await client.start({ video_id: 'v', channel_id: 'c', video_kind: 'live', start_position_s: null, minutes: 5, expected_credits_per_minute: 500 });
+    expect(JSON.parse(calls[0].init.body).expected_credits_per_minute).toBe(500);
+  });
+
   it.each([
     ['extract', { session_id: 's', turn: { text: 't', spoken_at: 'x', position_s: null }, recent: ['a'], ledger: {}, seed: { channel: 'c', title: 't' } }],
     ['check', { session_id: 's', claim_id: 'c1' }],
@@ -94,6 +100,7 @@ describe('bad success bodies', () => {
 describe('error mapping', () => {
   const cases = [
     [402, { reason: 'insufficient', needed: 2500, available: 100 }, { status: 402, reason: 'insufficient', needed: 2500, available: 100 }],
+    [409, { reason: 'price_changed', credits_per_minute: 700 }, { status: 409, reason: 'price_changed', creditsPerMinute: 700 }],
     [403, { reason: 'not_allowed' }, { status: 403, reason: 'not_allowed' }],
     [404, { reason: 'not_found' }, { status: 404, reason: 'not_found' }],
     [409, { reason: 'settled' }, { status: 409, reason: 'settled' }],

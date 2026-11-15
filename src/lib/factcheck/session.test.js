@@ -597,6 +597,44 @@ describe('starting', () => {
     expect(w.client.stop).not.toHaveBeenCalled();
   });
 
+  it('sends the price the user saw as expected_credits_per_minute, and omits it when none was given', async () => {
+    const w = world();
+    await w.start({ ...PARAMS, expectedCreditsPerMinute: 500 });
+    expect(w.client.start).toHaveBeenCalledWith(expect.objectContaining({ expected_credits_per_minute: 500 }));
+    await w.session.stop();
+    const w2 = world();
+    await w2.start();
+    expect(w2.client.start.mock.calls[0][0].expected_credits_per_minute).toBeUndefined();
+    await w2.session.stop();
+  });
+
+  it('a start refused with price_changed reports the fresh price, releases the tab and never calls stop', async () => {
+    const w = world({ client: { start: async () => { throw new FactCheckError(409, 'price_changed', { creditsPerMinute: 700 }); } } });
+    await w.start({ ...PARAMS, expectedCreditsPerMinute: 500 });
+    expect(w.session.getState()).toMatchObject({ status: 'error', error: { source: 'start', reason: 'price_changed', status: 409, creditsPerMinute: 700 }, sessionId: null });
+    expect(w.capStops).toEqual([{ flush: false }]);
+    expect(w.client.stop).not.toHaveBeenCalled();
+  });
+
+  it('a start answered at a different price than the user saw is stopped at once and reported', async () => {
+    const w = world({ client: { start: async () => ({ session_id: 's1', credits_per_minute: 700, credits_held: 3500 }) } });
+    await w.start({ ...PARAMS, expectedCreditsPerMinute: 500 });
+    expect(w.client.stop).toHaveBeenCalledTimes(1);
+    expect(w.session.getState()).toMatchObject({
+      status: 'error', endReason: 'price_changed', creditsPerMinute: 700,
+      error: { source: 'start', reason: 'price_changed', creditsPerMinute: 700 },
+      final: { credits_charged: 500 },
+    });
+    expect(w.capStops).toHaveLength(1);
+  });
+
+  it('the same price as expected runs normally', async () => {
+    const w = world();
+    await w.start({ ...PARAMS, expectedCreditsPerMinute: 500 });
+    expect(w.session.getState().status).toBe('running');
+    await w.session.stop();
+  });
+
   it('cancelling while the share prompt is open returns to idle and releases the tab when it arrives', async () => {
     const gate = defer();
     const w = world({ captureGate: gate });
