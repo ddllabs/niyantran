@@ -49,6 +49,20 @@ function uuid(value: string): string {
   return `'${value}'::uuid`;
 }
 
+/**
+ * The features named by the partition bounds pg_get_expr prints (`FOR VALUES IN ('a', 'b'::text)`). The default
+ * partition (`DEFAULT`) names none.
+ */
+export function featuresOfBounds(bounds: string[]): string[] {
+  const out: string[] = [];
+  for (const bound of bounds) {
+    const list = /^FOR VALUES IN \((.*)\)$/s.exec(bound.trim());
+    if (!list) continue;
+    for (const m of list[1].matchAll(/'((?:[^']|'')*)'(?:::text)?/g)) out.push(m[1].replaceAll("''", "'"));
+  }
+  return out;
+}
+
 export class PsqlDb implements Db {
   private settings: { lock_timeout_ms: number; statement_timeout_ms: number } | null = null;
 
@@ -86,6 +100,15 @@ export class PsqlDb implements Db {
     const out = (await this.call(body)).trim();
     if (!out) throw new Error('psql returned an empty answer');
     return JSON.parse(out) as T;
+  }
+
+  async partitionedFeatures(): Promise<string[]> {
+    const bounds = await this.answer<string[]>(
+      `select coalesce(jsonb_agg(pg_get_expr(c.relpartbound, c.oid) order by c.relname), '[]'::jsonb)::text ` +
+        `from pg_catalog.pg_inherits i join pg_catalog.pg_class c on c.oid = i.inhrelid ` +
+        `where i.inhparent = 'public.document_chunks'::regclass;`,
+    );
+    return featuresOfBounds(bounds);
   }
 
   async textHolders(hashes: string[]): Promise<TextHolder[]> {

@@ -10,7 +10,8 @@
 //
 // `split` verifies the records file against its receipt, then writes part-NNN.jsonl files of at most n records, each
 // with a receipt (`<part>.receipt.json`) that `plan` and `run` accept; --out must be outside every checkout.
-// `plan` touches no database. `run` and `status` connect through psql as corpus_ingest, from libpq's environment
+// `plan` touches no database (it judges the 100,000-chunk line by the collection file's partition list); `run` reads
+// the real list from the catalog first and judges by that. `run` and `status` connect through psql as corpus_ingest, from libpq's environment
 // (PGHOST, PGPORT, PGDATABASE, PGUSER, PGSSLMODE, and PGPASSWORD or a password file); nothing about the connection is
 // an argument or printed. A batch chains to the next only when it is accepted:
 //   --accept-service <name>  automated acceptance (bulk spec §5.3) on a sample of each batch, read only, through the
@@ -494,6 +495,11 @@ async function checkRecordedPrepare(
   }
 }
 
+/**
+ * Reads, checks and prepares the records. `planWith(partitions)` plans them: with the database's own partition list
+ * (run reads it; plan stays offline and judges by the collection file). The file's list is only a claim: a partition
+ * it names and the database lacks would let a load through.
+ */
 async function prepared(c: { collection: string; records: string }, deps: CliDeps) {
   const coll = checkCollection(JSON.parse(await deps.readText(c.collection)));
   const size = await deps.fileSize(c.records);
@@ -506,8 +512,9 @@ async function prepared(c: { collection: string; records: string }, deps: CliDep
   const { records, prepare: recorded } = await readRecordsText(c.records, deps);
   await checkRecordedPrepare(recorded, coll, c.records);
   const prep = await prepareAll(records, coll.prepare);
-  const p: PlanResult = await plan(prep.requests, coll.limits);
-  return { coll, records, prep, p };
+  const planWith = (partitions?: readonly string[]): Promise<PlanResult> =>
+    plan(prep.requests, partitions ? { ...coll.limits, partitioned: partitions } : coll.limits);
+  return { coll, records, prep, planWith };
 }
 
 function describePlan(p: PlanResult, holds: number, records: number): string[] {
@@ -650,16 +657,24 @@ export async function main(argv: string[], deps: CliDeps): Promise<number> {
     deps.log(JSON.stringify(await db.status(c.batch), null, 2));
     return 0;
   }
-  const { coll, records, prep, p } = await prepared(c, deps);
-  for (const l of describePlan(p, prep.holds.length, records.length)) deps.log(l);
-  if (c.cmd === 'plan') return p.ok ? 0 : 1;
+  const { coll, records, prep, planWith } = await prepared(c, deps);
+  if (c.cmd === 'plan') {
+    const p = await planWith();
+    for (const l of describePlan(p, prep.holds.length, records.length)) deps.log(l);
+    return p.ok ? 0 : 1;
+  }
 
+  // Nothing touches the database before these checks.
   const dir = await checkReceiptsDir(c.receipts, { repoRoot: REPO_ROOT, commonDir: deps.commonDir ?? gitCommonDir });
   if (c.acceptService && !coll.acceptance) {
     throw new Error('--accept-service needs an acceptance block in the collection file');
   }
   const { commit, dirty } = await deps.git();
   if (dirty) throw new Error('the runner has uncommitted changes; a receipt must name the code that ran');
+  const runDb = deps.db(c.psql);
+  await runDb.session({ lock_timeout_ms: 5_000, statement_timeout_ms: 60_000 });
+  const p = await planWith(await runDb.partitionedFeatures());
+  for (const l of describePlan(p, prep.holds.length, records.length)) deps.log(l);
   const input: RunInput = {
     collection: coll.collection,
     plan: p,
@@ -672,7 +687,7 @@ export async function main(argv: string[], deps: CliDeps): Promise<number> {
   };
   const runId = `${new Date(deps.now()).toISOString().replaceAll(':', '')}-${crypto.randomUUID().slice(0, 8)}`;
   const result: RunResult = await run(input, {
-    db: deps.db(c.psql),
+    db: runDb,
     clock: deps.now,
     sleep: deps.sleep,
     writeReceipt: (name, body) => deps.writeText(`${dir}/${name}`, body),

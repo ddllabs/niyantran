@@ -131,7 +131,15 @@ export async function plan(input: PreparedRequest[], limits: PlanLimits): Promis
     if (now === undefined) return refuse('chunks_unknown', `${feature} has no partition and no stored-chunk count`);
     const total = n + now;
     if (total > UNPARTITIONED_CHUNK_LIMIT) {
-      return refuse('unpartitioned_feature_over_100k', `${feature} would hold ${total} chunks with no partition`);
+      const remedy = now > 0
+        ? `it already has ${now} stored chunks, so public.create_document_chunks_partition will refuse it while they sit in ` +
+          'the default partition; follow "Adding a partition later" in the header of ' +
+          '20261101120000_document_chunks_partitioned.sql to move them'
+        : 'create one first with public.create_document_chunks_partition (run by the owner of document_chunks before the load)';
+      return refuse(
+        'unpartitioned_feature_over_100k',
+        `${feature} would hold ${total} chunks with no partition of its own; ${remedy}`,
+      );
     }
   }
 
