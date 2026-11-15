@@ -6,7 +6,7 @@
 > path, policy and load. Plan: [national ingestion, next](../plans/2026-11-11-national-ingestion-next.md), Phase 1
 > tasks 2 to 7. Scope: [ADR 0014](../decisions/0014-national-v1.1-ingestion-scope.md). Related: [PQ screen](2026-11-11-pq-screen.md),
 > [runner and acceptance](2026-11-08-runner-cli-and-acceptance.md), [Bills load](../operations/2026-11-10-bills-load.md). T1 to T3 built 2026-11-12; see Build notes.
-> Open work: F307, F275, F278, F285, F311, F272, F326, F327.
+> Open work: F307, F275, F278, F285, F311, F272, F326, F327. The screen is built and rehearsed on a local database (2026-11-13); no load through this screen has run on NTER and `20261113090000_national_search_only` is not applied.
 
 Evidence labels: **read** = read in the code or document cited, at `origin/main` `c8c03eb9`; **inferred** = concluded
 from what was read, not executed; **T0, 2026-11-12** = counts on the cached v1.1 entry (counts only); **profile,

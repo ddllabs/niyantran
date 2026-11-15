@@ -108,11 +108,14 @@ are separate acceptance checks.
 
 ## Deployment status and verification
 
-**Updated 2026-09-29.** The live Supabase project has all 35 repository
-migrations applied (latest `20260929120100_match_documents_halfvec`) and six Edge
-Functions deployed: `health`, `admin-models`, `refresh-model-pricing`,
-`ingest-documents`, `desk-brief` and `research-chat`, all redeployed from one
-commit (`d1567d1`) on 2026-09-29. `main` is the
+**Updated 2026-11-15.** The live Supabase project has 96 rows in its migration
+history; the latest is `20261112090000_batch_resume_requeue`. One repository
+migration, `20261113090000_national_search_only`, is not applied. The history and
+the repository's `supabase/migrations/` files are not the same set (F283; see
+`docs/plans/open-work.md`). Eleven Edge Functions are deployed: `health`,
+`refresh-model-pricing`, `admin-models`, `ingest-documents`, `research-chat`,
+`desk-brief`, `ingest-worker`, `admin-ingest`, `document-file`, `transcribe-audio`
+and `admin-personas`. `main` is the
 only long-lived branch (see `git log` for its tip), and production on Vercel
 (`niyantran-six.vercel.app`) follows it. Versions and production changes are
 recorded in `docs/agents/coordination.md`, "Operations" entries. All open work,
