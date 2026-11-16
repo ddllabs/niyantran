@@ -24,13 +24,44 @@
 --   * my_credits.recent: such an entry has conversation_id null, title 'Live TV fact-check' and feature 'factcheck'.
 --   * Unchanged: my_usage_timeseries (the pseudo-model comes from credit_usage_charged), my_conversation_credits,
 --     model_credit_estimates, settle_turn_credits and my_credits_cycle*, none of which can see a fact-check charge by key.
+--   * The fact-check helper is read only for kinds that can hold such a row: its two lists carry a gate on p_kind, and the
+--     per-row join is a lateral subquery gated on the row's own kind (OFFSET 0 keeps the planner from turning it into a
+--     join that would read the helper once for every request).
 --   * No report returns the hold key.
 --
--- Down: re-run the five functions from 20261017194626_credit_paise_contract.sql and drop private.factcheck_charges.
+-- The migration refuses (55000, naming the function) to run over a function whose source is neither the original nor this
+-- migration's own, and applying it twice is a no-op.
+--
+-- Down: re-run the functions from 20261017194626_credit_paise_contract.sql and drop private.factcheck_charges.
 
 BEGIN;
 
-CREATE FUNCTION private.factcheck_charges(p_user uuid, p_from timestamptz, p_to timestamptz)
+-- Drift guard. Each function replaced below must still be the version this migration was written against (the md5 of its
+-- source in 20261017194626_credit_paise_contract.sql), or already the version written here (so applying the migration
+-- again is a harmless no-op). Anything else - a hot fix, a later migration - stops the migration with 55000 before it
+-- changes a thing, so it cannot silently overwrite that work.
+DO $guard$
+DECLARE
+  r record;
+  v_md5 text;
+BEGIN
+  FOR r IN SELECT * FROM (VALUES
+      ('public.my_credits()', 'c4c80f54968a8091a948cff66d01e079', 'bea1cdaa7868714635b97a84ed486d09'),
+      ('private.credit_usage_charged(uuid,timestamptz,timestamptz)', 'de05789a99856ade1c9bf6241c9cd9a6', '52a757d70e6861a06679a3add01605a2'),
+      ('public.my_usage_summary(timestamptz,timestamptz)', '68f145777c34827fbc6334876cb7d2a4', 'de45ef61ca33659f8b52f24bd494c173'),
+      ('public.my_usage_activity(integer,integer,boolean,text,text,text)', '2298534d14c203dfb11ba407bae623d6', 'e70f35ab76b6b0df7cfbdb274a4792ec')
+    ) AS t(sig, old_md5, new_md5)
+  LOOP
+    SELECT md5(p.prosrc) INTO v_md5 FROM pg_proc p WHERE p.oid = to_regprocedure(r.sig);
+    IF v_md5 IS NULL OR v_md5 NOT IN (r.old_md5, r.new_md5) THEN
+      RAISE EXCEPTION 'factcheck_usage_reports: % differs from the version this migration was written against (source md5 %); review it before applying',
+        r.sig, coalesce(v_md5, 'missing') USING ERRCODE = '55000';
+    END IF;
+  END LOOP;
+END
+$guard$;
+
+CREATE OR REPLACE FUNCTION private.factcheck_charges(p_user uuid, p_from timestamptz, p_to timestamptz)
 RETURNS TABLE (ledger_id uuid, charged_at timestamptz, credits numeric, channel_id text, video_kind text, minutes_used integer)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' SET TimeZone = 'UTC' AS $$
   SELECT e.id, e.created_at, -private.credit_current_amount(e.credits, e.inr_per_credit),
@@ -366,7 +397,9 @@ BEGIN
       FROM page p
       LEFT JOIN public.conversations c ON c.id = p.conversation_id AND c.user_id = uid
       LEFT JOIN public.chat_messages um ON um.id = p.user_message_id AND um.user_id = uid
-      LEFT JOIN private.factcheck_charges(uid, '-infinity', 'infinity') fcr ON p.item = 'factcheck' AND fcr.ledger_id::text = p.key
+      LEFT JOIN LATERAL (SELECT x.* FROM private.factcheck_charges(uid, '-infinity', 'infinity') x
+                         WHERE p.item = 'factcheck' AND x.ledger_id::text = p.key
+                         OFFSET 0) fcr ON true
     ) r;
   ELSE
     WITH items AS (
@@ -411,7 +444,9 @@ BEGIN
                                                  'video_kind', fcr.video_kind) ELSE '{}'::jsonb END AS row
       FROM page p
       LEFT JOIN public.conversations c ON c.id = p.conversation_id AND c.user_id = uid
-      LEFT JOIN private.factcheck_charges(uid, '-infinity', 'infinity') fcr ON p.is_fc AND fcr.ledger_id = p.id
+      LEFT JOIN LATERAL (SELECT x.* FROM private.factcheck_charges(uid, '-infinity', 'infinity') x
+                         WHERE p.is_fc AND x.ledger_id = p.id
+                         OFFSET 0) fcr ON true
       LEFT JOIN LATERAL (
         SELECT sum(CASE WHEN t.cost > 0 THEN -private.credit_current_amount(e.credits, e.inr_per_credit) * ch.cost_usd / t.cost ELSE 0 END) AS credits
         FROM public.credit_charge_rows ch

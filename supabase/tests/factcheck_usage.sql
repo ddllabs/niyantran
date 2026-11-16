@@ -39,8 +39,10 @@ DECLARE v uuid := pg_temp.u(n);
 BEGIN
   INSERT INTO auth.users (id, email, created_at) VALUES (v, v::text || '@example.invalid', now());
   PERFORM private.credit_wallet(v);
-  PERFORM private.credit_mint(v, 'topup', credits, now() - interval '1 minute', now() + interval '12 months',
-    'fx:' || v, NULL, 'grant', NULL, NULL, NULL);
+  IF credits > 0 THEN
+    PERFORM private.credit_mint(v, 'topup', credits, now() - interval '1 minute', now() + interval '12 months',
+      'fx:' || v, NULL, 'grant', NULL, NULL, NULL);
+  END IF;
   RETURN v;
 END;
 $$;
@@ -52,27 +54,57 @@ BEGIN
   INSERT INTO public.conversations (id, user_id, title) VALUES (conv, p_user, 'Conversation ' || p_key);
   INSERT INTO public.chat_messages (conversation_id, user_id, role, content, turn_key, created_at)
     VALUES (conv, p_user, 'user', 'A question ' || p_key, p_key, clock_timestamp()) RETURNING id INTO um;
-  INSERT INTO public.chat_messages (conversation_id, user_id, role, content, status, created_at)
-    VALUES (conv, p_user, 'assistant', p_content, p_status, clock_timestamp()) RETURNING id INTO am;
+  INSERT INTO public.chat_messages (conversation_id, user_id, role, content, status, execution_expires_at, created_at)
+    VALUES (conv, p_user, 'assistant', p_content, p_status, CASE WHEN p_status = 'running' THEN now() + interval '10 minutes' END, clock_timestamp())
+    RETURNING id INTO am;
   INSERT INTO public.research_turns (user_id, turn_key, request_hash, conversation_id, user_message_id, assistant_message_id, execution_token)
     VALUES (p_user, p_key, encode(sha256(convert_to(p_key, 'UTF8')), 'hex'), conv, um, am, gen_random_uuid());
   RETURN am;
 END;
 $$;
+-- A second turn in an existing conversation.
+CREATE FUNCTION pg_temp.turn_in(p_user uuid, p_conv uuid, p_key text) RETURNS uuid LANGUAGE plpgsql AS $$
+DECLARE um uuid; am uuid;
+BEGIN
+  INSERT INTO public.chat_messages (conversation_id, user_id, role, content, turn_key, created_at)
+    VALUES (p_conv, p_user, 'user', 'A follow-up ' || p_key, p_key, clock_timestamp()) RETURNING id INTO um;
+  INSERT INTO public.chat_messages (conversation_id, user_id, role, content, status, created_at)
+    VALUES (p_conv, p_user, 'assistant', 'An answer.', 'complete', clock_timestamp()) RETURNING id INTO am;
+  INSERT INTO public.research_turns (user_id, turn_key, request_hash, conversation_id, user_message_id, assistant_message_id, execution_token)
+    VALUES (p_user, p_key, encode(sha256(convert_to(p_key, 'UTF8')), 'hex'), p_conv, um, am, gen_random_uuid());
+  RETURN am;
+END;
+$$;
 -- A charged chat answer: the turn, its model calls, the reservation and the settlement.
-CREATE FUNCTION pg_temp.chat(p_user uuid, p_key text, p_status text, p_cost numeric, p_model text DEFAULT 'google/gemini-test')
+CREATE FUNCTION pg_temp.chat(p_user uuid, p_key text, p_status text, p_cost numeric, p_model text DEFAULT 'google/gemini-test',
+                             p_search numeric DEFAULT 0, p_conv uuid DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql AS $$
 DECLARE am uuid;
 BEGIN
   PERFORM public.reserve_turn_credits(p_user, p_key, true);
-  am := pg_temp.turn(p_user, p_key, p_status, CASE WHEN p_status = 'error' THEN '' ELSE 'An answer.' END);
-  INSERT INTO public.model_call_logs (user_id, message_id, caller, purpose, status, cost_usd, model_requested, total_tokens)
-    VALUES (p_user, am, 'research-chat', 'chat_answer', 'success', p_cost, p_model, 100);
+  IF p_conv IS NULL THEN
+    am := pg_temp.turn(p_user, p_key, p_status, CASE WHEN p_status = 'error' THEN '' ELSE 'An answer.' END);
+  ELSE
+    am := pg_temp.turn_in(p_user, p_conv, p_key);
+  END IF;
+  INSERT INTO public.model_call_logs (user_id, message_id, caller, purpose, status, cost_usd, model_requested, total_tokens, web_search_count, web_search_cost_usd)
+    VALUES (p_user, am, 'research-chat', 'chat_answer', 'success', p_cost, p_model, 100, CASE WHEN p_search > 0 THEN 2 ELSE 0 END, nullif(p_search, 0));
   INSERT INTO public.model_call_logs (user_id, message_id, caller, purpose, status, cost_usd, model_requested, total_tokens)
     VALUES (p_user, am, 'research-chat', 'embedding', 'success', p_cost / 10, 'openai/embed-test', 10);
   RETURN public.settle_turn_credits(p_user, p_key);
 END;
 $$;
+-- An answer that cost nothing: no model call was logged.
+CREATE FUNCTION pg_temp.free(p_user uuid, p_key text) RETURNS jsonb LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM public.reserve_turn_credits(p_user, p_key, true);
+  PERFORM pg_temp.turn(p_user, p_key, 'complete');
+  RETURN public.settle_turn_credits(p_user, p_key);
+END;
+$$;
+-- The run's clock: reports are read over explicit bounds around it, so a run that crosses midnight in IST (or a month end)
+-- sees the same buckets before and after the migration.
+CREATE TEMP TABLE clock AS SELECT now() AS t0, now() AS tmid;
 CREATE FUNCTION pg_temp.conv(p_user uuid, p_key text) RETURNS uuid LANGUAGE sql AS $$
   SELECT conversation_id FROM public.research_turns WHERE user_id = p_user AND turn_key = p_key;
 $$;
@@ -80,13 +112,24 @@ $$;
 -- Snapshots of everything a reader can see, for one user.
 CREATE TEMP TABLE snap (tag text, k text, v jsonb, PRIMARY KEY (tag, k));
 CREATE FUNCTION pg_temp.take(p_tag text, p_user uuid, p_conv uuid) RETURNS void LANGUAGE plpgsql AS $$
-DECLARE who text := p_user::text;
+DECLARE who text := p_user::text; lo timestamptz; hi timestamptz; mid timestamptz;
 BEGIN
+  SELECT c.t0 - interval '3 days', c.t0 + interval '1 day', c.tmid INTO lo, hi, mid FROM clock c;
   PERFORM set_config('request.jwt.claim.sub', who, false);
   INSERT INTO snap VALUES
     (p_tag, who || '.summary', public.my_usage_summary(NULL, NULL)),
-    (p_tag, who || '.ts_day', public.my_usage_timeseries(NULL, NULL, 'day')),
-    (p_tag, who || '.ts_month', public.my_usage_timeseries(NULL, NULL, 'month')),
+    (p_tag, who || '.summary_range', public.my_usage_summary(lo, hi)),
+    (p_tag, who || '.summary_mid', public.my_usage_summary(mid, hi)),
+    (p_tag, who || '.ts_day_mid', public.my_usage_timeseries(mid, hi, 'day')),
+    (p_tag, who || '.summary_empty', public.my_usage_summary(lo - interval '10 days', lo - interval '5 days')),
+    (p_tag, who || '.ts_day', public.my_usage_timeseries(lo, hi, 'day')),
+    (p_tag, who || '.ts_month', public.my_usage_timeseries(lo, hi, 'month')),
+    (p_tag, who || '.ts_day_empty', public.my_usage_timeseries(lo - interval '10 days', lo - interval '5 days', 'day')),
+    (p_tag, who || '.act_u_page', public.my_usage_activity(1, 2, false, NULL, 'all', 'all')),
+    (p_tag, who || '.act_u_failed', public.my_usage_activity(0, 100, false, NULL, 'failed', 'all')),
+    (p_tag, who || '.act_u_succ', public.my_usage_activity(0, 100, false, NULL, 'succeeded', 'all')),
+    (p_tag, who || '.act_u_answers', public.my_usage_activity(0, 100, false, NULL, 'all', 'answers')),
+    (p_tag, who || '.act_g_running', public.my_usage_activity(0, 100, true, NULL, 'all', 'answers')),
     (p_tag, who || '.act_g_all', public.my_usage_activity(0, 100, true, NULL, 'all', 'all')),
     (p_tag, who || '.act_u_all', public.my_usage_activity(0, 100, false, NULL, 'all', 'all')),
     (p_tag, who || '.act_g_answers', public.my_usage_activity(0, 100, true, NULL, 'all', 'answers')),
@@ -122,10 +165,33 @@ $$;
 -- 1. Seeded chat and dictation data, before the migration -----------------------------------------------------------
 SELECT pg_temp.mkuser(1, 5000);
 SELECT pg_temp.mkuser(2, 5000);
+SELECT pg_temp.mkuser(3, 0);   -- a user with no data at all
 SELECT pg_temp.chat(pg_temp.u(1), 'a1', 'complete', 0.01);
 SELECT pg_temp.chat(pg_temp.u(1), 'a2', 'complete', 0.02, 'openai/chat-test');
 SELECT pg_temp.chat(pg_temp.u(1), 'a3', 'error', 0.01);
 SELECT pg_temp.chat(pg_temp.u(2), 'b1', 'complete', 0.05);
+UPDATE clock SET tmid = clock_timestamp();   -- the answers above are older than this, the ones below newer
+SELECT pg_temp.chat(pg_temp.u(1), 'c1', 'cancelled', 0.01);
+SELECT pg_temp.chat(pg_temp.u(1), 'c2', 'truncated', 0.015);
+SELECT pg_temp.chat(pg_temp.u(1), 'c3', 'running', 0.01);                      -- still running: pending, not charged
+SELECT pg_temp.free(pg_temp.u(1), 'c4');                                       -- complete with no model call: free
+SELECT pg_temp.chat(pg_temp.u(1), 'c5', 'complete', 0.02, 'google/gemini-test', 0.004);   -- with a web search cost
+SELECT pg_temp.chat(pg_temp.u(1), 'c6', 'complete', 0.012, 'google/gemini-test', 0, pg_temp.conv(pg_temp.u(1), 'a1'));   -- a second turn in a1's conversation
+-- A charge with no charge rows (caller NULL), one in the old credit unit (0.10 a credit against today's), and a charged
+-- dictation call, as the three odd shapes the reports have to carry through.
+DO $$
+DECLARE u uuid := pg_temp.u(1); s public.credit_settings := private.credit_config(); e uuid; lid uuid;
+BEGIN
+  PERFORM pg_temp.turn(u, 'nocr1', 'complete');
+  e := private.credit_entry(u, 'charge', -7, NULL, 'nocr1', NULL, s.usd_to_inr, s.inr_per_credit, NULL, NULL);
+  PERFORM pg_temp.turn(u, 'old1', 'complete');
+  e := private.credit_entry(u, 'charge', -3, NULL, 'old1', NULL, s.usd_to_inr, 10 * s.inr_per_credit, NULL, NULL);
+  INSERT INTO public.model_call_logs (user_id, message_id, caller, purpose, status, cost_usd, model_requested, total_tokens)
+    VALUES (u, NULL, 'transcribe-audio', 'transcription', 'success', 0.02, 'openai/whisper-test', 5) RETURNING id INTO lid;
+  e := private.credit_entry(u, 'charge', -4, NULL, 'dict-1', NULL, s.usd_to_inr, s.inr_per_credit, NULL, NULL);
+  INSERT INTO public.credit_charge_rows (model_call_log_id, ledger_id, cost_usd) VALUES (lid, e, 0.02);
+END;
+$$;
 INSERT INTO public.model_call_logs (user_id, message_id, caller, purpose, status, cost_usd, model_requested, total_tokens)
 VALUES (pg_temp.u(1), NULL, 'transcribe-audio', 'transcription', 'success', 0, 'openai/whisper-test', 20),
        (pg_temp.u(2), NULL, 'transcribe-audio', 'transcription', 'success', 0, 'openai/whisper-test', 30);
@@ -134,6 +200,7 @@ SELECT pg_temp.assert_true((SELECT count(*) FROM public.credit_ledger WHERE kind
 
 SELECT pg_temp.take('before', pg_temp.u(1), pg_temp.conv(pg_temp.u(1), 'a1'));
 SELECT pg_temp.take('before', pg_temp.u(2), pg_temp.conv(pg_temp.u(2), 'b1'));
+SELECT pg_temp.take('before', pg_temp.u(3), NULL);
 SELECT pg_temp.take_procs('before');
 
 -- 2. The migration under test, as the migrating role -----------------------------------------------------------------
@@ -143,20 +210,16 @@ RESET ROLE;
 
 SELECT pg_temp.take('after', pg_temp.u(1), pg_temp.conv(pg_temp.u(1), 'a1'));
 SELECT pg_temp.take('after', pg_temp.u(2), pg_temp.conv(pg_temp.u(2), 'b1'));
+SELECT pg_temp.take('after', pg_temp.u(3), NULL);
 SELECT pg_temp.take_procs('after');
 
 SELECT pg_temp.assert_true((SELECT count(*) FROM snap WHERE tag = 'before') = (SELECT count(*) FROM snap WHERE tag = 'after')
-  AND (SELECT count(*) FROM snap WHERE tag = 'before') >= 28, 'both snapshots hold the same reports');
+  AND (SELECT count(*) FROM snap WHERE tag = 'before') >= 60, 'both snapshots hold the same reports');
 SELECT pg_temp.assert_true(NOT EXISTS (SELECT FROM snap b JOIN snap a ON a.k = b.k AND a.tag = 'after' WHERE b.tag = 'before' AND a.v IS DISTINCT FROM b.v),
   'chat and dictation reports are identical before and after the migration (summary, timeseries, activity in every mode, my_credits, my_conversation_credits, two users)');
 SELECT pg_temp.assert_true((SELECT count(*) FROM procs WHERE tag = 'after') = 6
   AND NOT EXISTS (SELECT FROM procs b JOIN procs a ON a.name = b.name AND a.tag = 'after' WHERE b.tag = 'before' AND a.attrs IS DISTINCT FROM b.attrs),
   'owners, security, volatility, settings, grants and signatures of the six functions are unchanged');
-SELECT pg_temp.assert_true(NOT has_function_privilege('authenticated', 'private.factcheck_charges(uuid,timestamptz,timestamptz)', 'EXECUTE')
-  AND NOT has_function_privilege('service_role', 'private.factcheck_charges(uuid,timestamptz,timestamptz)', 'EXECUTE')
-  AND NOT has_function_privilege('anon', 'private.factcheck_charges(uuid,timestamptz,timestamptz)', 'EXECUTE')
-  AND NOT has_function_privilege('public', 'private.factcheck_charges(uuid,timestamptz,timestamptz)', 'EXECUTE'),
-  'the new helper is private');
 SELECT pg_temp.assert_true(NOT EXISTS (SELECT FROM snap WHERE v::text LIKE '%factcheck%' OR v::text LIKE '%fc:%'),
   'with no fact-check charge, no report mentions fact-check at all');
 
@@ -280,14 +343,19 @@ BEGIN
   SELECT e INTO dict FROM jsonb_array_elements(s -> 'by_feature') e WHERE e ->> 'feature' = 'dictation';
   PERFORM pg_temp.assert_true(f IS NOT NULL AND (f ->> 'calls')::int = 2 AND (f ->> 'credits')::numeric = 20 AND (f ->> 'searches')::int = 0,
     'summary: its own feature with 2 charges and 20 credits: ' || coalesce(f::text, 'missing'));
-  SELECT -sum(credits) INTO chat_credits FROM public.credit_ledger WHERE user_id = pg_temp.u(1) AND kind = 'charge' AND note IS DISTINCT FROM 'live tv fact-check';
-  PERFORM pg_temp.assert_true((research ->> 'credits')::numeric = chat_credits AND (dict ->> 'credits')::numeric = 0,
-    'summary: research credits are the chat charges only (' || (research ->> 'credits') || ' of ' || chat_credits || ')');
+  -- Chat charges in today's unit (the old-unit one counts for ten times its ledger figure), dictation apart.
+  SELECT -sum(private.credit_current_amount(credits, inr_per_credit)) INTO chat_credits FROM public.credit_ledger
+  WHERE user_id = pg_temp.u(1) AND kind = 'charge' AND note IS DISTINCT FROM 'live tv fact-check' AND turn_key <> 'dict-1';
+  PERFORM pg_temp.assert_true((research ->> 'credits')::numeric = chat_credits AND (dict ->> 'credits')::numeric = 4,
+    'summary: research credits are the chat charges only (' || (research ->> 'credits') || ' of ' || chat_credits || '), dictation its own 4');
+  chat_credits := chat_credits + 4;
   PERFORM pg_temp.assert_true((s ->> 'credits')::numeric = chat_credits + 20 AND (s ->> 'lifetime_credits')::numeric = chat_credits + 20,
     'summary: the total and the lifetime figure include the 20');
   PERFORM pg_temp.assert_true(jsonb_array_length(s -> 'by_feature') = 3, 'summary: three features');
-  PERFORM pg_temp.assert_true(NOT EXISTS (SELECT FROM jsonb_array_elements(s -> 'by_model') m WHERE m ->> 'model' IN ('factcheck', 'unknown'))
-    AND (s ->> 'models_used')::int = jsonb_array_length(s -> 'by_model'), 'summary: fact-check is not a model in by_model, nor an unknown one');
+  PERFORM pg_temp.assert_true(NOT EXISTS (SELECT FROM jsonb_array_elements(s -> 'by_model') m WHERE m ->> 'model' = 'factcheck')
+    AND (SELECT (m ->> 'credits')::numeric FROM jsonb_array_elements(s -> 'by_model') m WHERE m ->> 'model' = 'unknown') = 37
+    AND (s ->> 'models_used')::int = jsonb_array_length(s -> 'by_model'),
+    'summary: fact-check is not a model in by_model, and the ''unknown'' model holds only the two charges with no model calls (7 + 30)');
   PERFORM pg_temp.assert_true((SELECT array_agg(m ->> 'model' ORDER BY m ->> 'model') FROM jsonb_array_elements(s -> 'by_model') m)
     = (SELECT array_agg(m ->> 'model' ORDER BY m ->> 'model') FROM jsonb_array_elements((SELECT v FROM snap WHERE tag = 'after' AND k = pg_temp.u(1)::text || '.summary') -> 'by_model') m),
     'summary: by_model lists the same models as before any fact-check charge');
@@ -376,3 +444,41 @@ BEGIN
     'after the session is deleted its charge is still listed, with no channel or minutes, and the totals are the same');
 END;
 $$;
+
+-- 9b. Kinds that cannot contain a fact-check row do not read the ledger for one. A stand-in helper that raises is put in
+-- place; the activity list for 'answers' and for 'dictation' must still work in both modes (so the helper is never
+-- called), and for 'factcheck' it must raise (so the stand-in is really in use). Then the migration is applied again,
+-- which restores the helper (and is the harmless second apply the drift guard allows).
+SET ROLE nter_migrator;
+CREATE OR REPLACE FUNCTION private.factcheck_charges(p_user uuid, p_from timestamptz, p_to timestamptz)
+RETURNS TABLE (ledger_id uuid, charged_at timestamptz, credits numeric, channel_id text, video_kind text, minutes_used integer)
+LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'the fact-check helper was called' USING ERRCODE = 'XX001'; END; $$;
+RESET ROLE;
+DO $$
+DECLARE k text; g boolean; raised boolean;
+BEGIN
+  PERFORM set_config('request.jwt.claim.sub', pg_temp.u(1)::text, false);
+  FOREACH k IN ARRAY ARRAY['answers', 'dictation'] LOOP
+    FOREACH g IN ARRAY ARRAY[true, false] LOOP
+      PERFORM public.my_usage_activity(0, 100, g, NULL, 'all', k);
+    END LOOP;
+  END LOOP;
+  PERFORM pg_temp.assert_true(true, 'kinds answers and dictation never call the fact-check helper, in either mode');
+  raised := false;
+  BEGIN PERFORM public.my_usage_activity(0, 100, true, NULL, 'all', 'factcheck');
+  EXCEPTION WHEN SQLSTATE 'XX001' THEN raised := true; END;
+  PERFORM pg_temp.assert_true(raised, 'and the stand-in is in use: kind factcheck does call it');
+END;
+$$;
+SET ROLE nter_migrator;
+\i supabase/migrations/20261116100000_factcheck_usage_reports.sql
+RESET ROLE;
+SELECT pg_temp.assert_true((SELECT count(*) FROM pg_temp.fcrows(public.my_usage_activity(0, 100, true, NULL, 'all', 'all'))) = 2,
+  'after the second apply the helper is back and the fact-check rows list again');
+
+-- 10. The new helper is private (last on purpose: without the migration the earlier, behavioural assertions fail first).
+SELECT pg_temp.assert_true(NOT has_function_privilege('authenticated', 'private.factcheck_charges(uuid,timestamptz,timestamptz)', 'EXECUTE')
+  AND NOT has_function_privilege('service_role', 'private.factcheck_charges(uuid,timestamptz,timestamptz)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'private.factcheck_charges(uuid,timestamptz,timestamptz)', 'EXECUTE')
+  AND NOT has_function_privilege('public', 'private.factcheck_charges(uuid,timestamptz,timestamptz)', 'EXECUTE'),
+  'the new helper is private');
