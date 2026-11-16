@@ -10,10 +10,10 @@
 import { createHash } from 'node:crypto';
 import { canonical } from '../../supabase/functions/_shared/suppliedText.ts';
 import { isAbsolute, join, normalize, resolve } from 'jsr:@std/path@1';
-import { checkCollection, type CollectionFile } from './cli.ts';
+import { canonicalPrepare, checkCollection, type CollectionFile } from './cli.ts';
 import { exists, gitCommonDir, gitState, refuseInCheckout, REPO_ROOT, writeAll } from './pack.ts';
 import { psqlLiveReader } from './live.ts';
-import type { Rec } from './prepare.ts';
+import type { PrepareOptions, Rec } from './prepare.ts';
 import { SCREENS } from './screens/index.ts';
 import {
   type Finding,
@@ -166,13 +166,17 @@ export function validateScreen(screen: Screen): void {
     }
   }
   if (screen.holdKeys !== undefined && screen.holdKeys !== 'hex40') fail('holdKeys must be "hex40" or absent');
+  if (screen.usesPrepare !== undefined && typeof screen.usesPrepare !== 'boolean') {
+    fail('usesPrepare must be a boolean');
+  }
   const missing = REVIEW_CHECKS.filter((c) => !covered.has(c));
   if (missing.length) fail(`no check covers ${missing.join(', ')}`);
 }
 
 /**
  * The rules hash: sha256 of the canonical JSON (keys sorted) of an array holding, for each rule file in order, its
- * path, length and sha256, then `{ settings }`, the collection's screen settings. So a changed rule file, a changed
+ * path, length and sha256, then `{ settings }`, the collection's screen settings, then (only for a screen that reads it,
+ * `usesPrepare`) `{ prepare }`, the collection's prepare block. So a changed rule file, a changed
  * order or changed settings change it, and file boundaries cannot blur. A missing file is an error.
  */
 export async function rulesSha256(
@@ -180,6 +184,7 @@ export async function rulesSha256(
   root: string,
   read: (path: string) => Promise<Uint8Array> = (p) => Deno.readFile(p),
   settings: Rec = {},
+  prepare?: PrepareOptions,
 ): Promise<string> {
   const entries: unknown[] = [];
   for (const f of files) {
@@ -196,6 +201,8 @@ export async function rulesSha256(
     entries.push({ path: f, length: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') });
   }
   entries.push({ settings });
+  // A screen that reads the collection's prepare block (the chunk limit) is bound to it; others keep their hash.
+  if (prepare !== undefined) entries.push({ prepare });
   return sha256(canonical(entries));
 }
 
@@ -852,7 +859,13 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
   for (const name of Object.values(OUT)) {
     if (await exists(join(outDir, name))) throw new Error(`${join(outDir, name)} already exists; choose a new --out`);
   }
-  const rules = await rulesSha256(screen.rulesFiles, deps.repoRoot, deps.readRules, block.settings);
+  const rules = await rulesSha256(
+    screen.rulesFiles,
+    deps.repoRoot,
+    deps.readRules,
+    block.settings,
+    screen.usesPrepare ? coll.prepare : undefined,
+  );
   const { commit, dirty } = await deps.git();
 
   const inputs = { records: await readInput(c.records, 'records') };
@@ -888,7 +901,12 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
     };
     deps.log(`live database ${id.database} (${id.server}): ${id.documents} documents, ${id.deskRows} listing rows`);
   }
-  const ctx: ScreenContext = { live, settings: block.settings };
+  // The prepare block is the runner's own (the same object `plan` and `run` read from this file): one chunk limit.
+  const ctx: ScreenContext = {
+    live,
+    settings: block.settings,
+    prepare: coll.prepare,
+  };
 
   // Publication: outputs are written as they are produced, to temporary files; then the receipt, then each output, all
   // created exclusively by hard link. The receipt goes first: a stop between steps leaves an orphan receipt, never an
@@ -973,6 +991,8 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
     const receipt = {
       collection: coll.collection,
       collection_file_sha256: createHash('sha256').update(collectionBytes).digest('hex'),
+      // The prepare block this screen judged by (only for a screen that reads it); the runner refuses a different one.
+      prepare: screen.usesPrepare ? canonicalPrepare(coll.prepare) : null,
       screen: c.screen,
       mapping_version: screen.mappingVersion,
       decision_id: block.decisionId,

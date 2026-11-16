@@ -209,7 +209,7 @@ export interface CliDeps {
 }
 
 /** A records file that its receipt does not vouch for. `code` is one of the ReceiptCode values; it leads the message. */
-export type ReceiptCode = 'receipt_missing' | 'receipt_unreadable' | 'receipt_mismatch';
+export type ReceiptCode = 'receipt_missing' | 'receipt_unreadable' | 'receipt_mismatch' | 'prepare_mismatch';
 export class ReceiptError extends Error {
   constructor(readonly code: ReceiptCode, message: string) {
     super(`${code}: ${message}`);
@@ -221,6 +221,19 @@ export class ReceiptError extends Error {
 const SCREENED = 'screened.jsonl';
 const SCREEN_RECEIPT = 'screen.receipt.json';
 const HEX64 = /^[0-9a-f]{64}$/;
+
+/**
+ * The prepare block as the screen and the runner compare it: the collection file's own options without `patches` and
+ * `corrigenda` (which a screen never sees), keys in sorted order, so equal blocks have equal text.
+ */
+export function canonicalPrepare(block: unknown): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (!isRec(block)) return out;
+  for (const k of Object.keys(block).sort()) {
+    if (k !== 'patches' && k !== 'corrigenda' && block[k] !== undefined) out[k] = block[k];
+  }
+  return out;
+}
 
 const isCount = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 1;
 const isText = (v: unknown): v is string => typeof v === 'string' && v !== '';
@@ -250,7 +263,7 @@ function wellFormedSource(v: unknown, lines: number): boolean {
 async function receiptFor(
   records: string,
   readText: CliDeps['readText'],
-): Promise<{ path: string; sha256: string; lines: number }> {
+): Promise<{ path: string; sha256: string; lines: number; prepare?: Record<string, unknown> }> {
   const screened = basename(records) === SCREENED;
   const path = screened ? join(dirname(records), SCREEN_RECEIPT) : `${records}.receipt.json`;
   let text: string;
@@ -283,7 +296,7 @@ async function receiptFor(
     if (typeof s.sha256 !== 'string' || !HEX64.test(s.sha256)) throw unreadable('outputs.screened.sha256');
     // 0 is what the screen writes when it passed nothing; the empty file is then refused as holding no records.
     if (s.lines !== 0 && !isCount(s.lines)) throw unreadable('outputs.screened.lines (a whole number)');
-    return { path, sha256: s.sha256, lines: s.lines };
+    return { path, sha256: s.sha256, lines: s.lines, ...recordedPrepare(value, unreadable) };
   }
   if (typeof value.output_sha256 !== 'string' || !HEX64.test(value.output_sha256)) throw unreadable('output_sha256');
   if (!isCount(value.lines_written)) throw unreadable('lines_written (a positive integer)');
@@ -293,7 +306,17 @@ async function receiptFor(
   ) {
     throw unreadable('pack, entry and manifest_sha256 (a reader receipt), or the source of a part-NNN.jsonl file');
   }
-  return { path, sha256: value.output_sha256, lines: value.lines_written };
+  return { path, sha256: value.output_sha256, lines: value.lines_written, ...recordedPrepare(value, unreadable) };
+}
+
+/** The prepare block a screen receipt (or a part cut from its output) records, if any; present but not an object is unreadable. */
+function recordedPrepare(
+  value: Record<string, unknown>,
+  unreadable: (what: string) => Error,
+): { prepare?: Record<string, unknown> } {
+  if (value.prepare === undefined || value.prepare === null) return {};
+  if (!isRec(value.prepare)) throw unreadable('prepare (an object)');
+  return { prepare: canonicalPrepare(value.prepare) };
 }
 
 const sha256Bytes = async (b: Uint8Array): Promise<string> =>
@@ -307,7 +330,7 @@ const sha256Bytes = async (b: Uint8Array): Promise<string> =>
 export async function readRecordsText(
   records: string,
   deps: Pick<CliDeps, 'readText' | 'readBytes'>,
-): Promise<{ text: string; records: unknown[] }> {
+): Promise<{ text: string; records: unknown[]; prepare?: Record<string, unknown> }> {
   const bytes = await deps.readBytes(records);
   const receipt = await receiptFor(records, deps.readText);
   if ((await sha256Bytes(bytes)) !== receipt.sha256) {
@@ -332,7 +355,7 @@ export async function readRecordsText(
       `${records} holds ${parsed.length} records, the receipt in ${receipt.path} says ${receipt.lines}`,
     );
   }
-  return { text, records: parsed };
+  return { text, records: parsed, ...(receipt.prepare ? { prepare: receipt.prepare } : {}) };
 }
 
 /** What one pass over a records file found. `fault` is the first thing wrong with the bytes, in the order readRecordsText checks. */
@@ -441,6 +464,36 @@ function checkScan(records: string, receipt: { path: string; sha256: string; lin
   }
 }
 
+/**
+ * The screen judged these records against a prepare block (the chunk limit among it); the runner must prepare them
+ * with the same one, or it holds records the screen passed. A recorded block must equal the collection file's; a
+ * file with none is accepted only for a collection whose screen does not use the block (Bills).
+ */
+async function checkRecordedPrepare(
+  recorded: Record<string, unknown> | undefined,
+  coll: CollectionFile,
+  records: string,
+): Promise<void> {
+  const own = JSON.stringify(canonicalPrepare(coll.prepare));
+  if (recorded !== undefined) {
+    if (JSON.stringify(recorded) !== own) {
+      throw new ReceiptError(
+        'prepare_mismatch',
+        `${records} was screened with prepare ${JSON.stringify(recorded)}, but the collection file's prepare is ${own}`,
+      );
+    }
+    return;
+  }
+  const { screenUsesPrepare } = await import('./screens/index.ts');
+  if (await screenUsesPrepare(coll.collection)) {
+    throw new ReceiptError(
+      'prepare_mismatch',
+      `${records} has no recorded prepare block, and the screen for ${coll.collection} depends on it; ` +
+        `screen the records again with the collection file's prepare ${own}`,
+    );
+  }
+}
+
 async function prepared(c: { collection: string; records: string }, deps: CliDeps) {
   const coll = checkCollection(JSON.parse(await deps.readText(c.collection)));
   const size = await deps.fileSize(c.records);
@@ -450,7 +503,8 @@ async function prepared(c: { collection: string; records: string }, deps: CliDep
         'cut it into parts with split and plan or run each part',
     );
   }
-  const { records } = await readRecordsText(c.records, deps);
+  const { records, prepare: recorded } = await readRecordsText(c.records, deps);
+  await checkRecordedPrepare(recorded, coll, c.records);
   const prep = await prepareAll(records, coll.prepare);
   const p: PlanResult = await plan(prep.requests, coll.limits);
   return { coll, records, prep, p };
@@ -558,6 +612,8 @@ async function split(c: Extract<Command, { cmd: 'split' }>, deps: CliDeps): Prom
         from_line: slice[0].no,
         to_line: slice[slice.length - 1].no,
       },
+      // The block the screen used travels with the part, so the runner checks it per part.
+      ...(receipt.prepare ? { prepare: receipt.prepare } : {}),
     };
     slice = [];
     // The part now, its receipt only after the whole file has been read again and is still the one checked: a stop,
