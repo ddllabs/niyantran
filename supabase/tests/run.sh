@@ -166,6 +166,11 @@ chain() {
       chain billing_manual_grace
       FILES+=("$TESTS/bootstrap_storage.sql" "$(m 20260928100200_app_flags_and_marketing_media.sql)"
               "$(as_non_superuser 20261116090000_factcheck.sql)") ;;
+    # F347: fact-check charges in the credit reports. The factcheck chain; the fixture applies the report migration itself
+    # (the include below), so the reports can be compared before and after on the same data. The vacuity check drops the
+    # chain's last file, the fact-check migration, and the fixture's first fact-check step fails.
+    factcheck_usage)
+      chain factcheck ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;
@@ -1187,6 +1192,87 @@ credit_paise_atomic_check() {
   fi
 }
 
+# factcheck_usage only (F347): two checks the fixture cannot make from inside its own run.
+#  * Vacuity of the reports migration. The generic vacuity check drops the chain's last file (the fact-check migration). This
+#    one runs the whole fixture with the reports migration's include left out and requires it to FAIL at a behavioural
+#    assertion (the activity list missing the fact-check rows), not at a missing function or a privilege check.
+#  * The drift guard. On a database where one of the four replaced functions was changed (a hot fix), applying the migration
+#    must stop with 55000 naming that function and change nothing (no helper, the other functions' sources as they were,
+#    the hot fix still there). On an untouched database it must apply, applying it a second time must change nothing, and a
+#    function altered after the first apply must stop a third.
+factcheck_usage_checks() {
+  chain factcheck_usage
+  local db=niyantran_factcheck_usage_chk_test mig sig out rc before after helper
+  local sigs=('public.my_credits()' 'private.credit_usage_charged(uuid,timestamptz,timestamptz)'
+              'public.my_usage_summary(timestamptz,timestamptz)' 'public.my_usage_activity(integer,integer,boolean,text,text,text)')
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  build() {
+    local f
+    q "drop database if exists $db" >/dev/null; q "create database $db" >/dev/null
+    for f in "${FILES[@]}"; do
+      psql_in $db < "$f" >/dev/null 2>&1 || { echo "  CHECKS: bootstrap broke at $(basename "$f")"; return 1; }
+    done
+  }
+  md5s() {
+    q "select string_agg(md5(prosrc), ',' order by oid) from pg_proc where oid in ('public.my_credits()'::regprocedure,
+       'private.credit_usage_charged(uuid,timestamptz,timestamptz)'::regprocedure, 'public.my_usage_summary(timestamptz,timestamptz)'::regprocedure,
+       'public.my_usage_activity(integer,integer,boolean,text,text,text)'::regprocedure)" -d $db
+  }
+  hot_fix() {
+    sed "s|@SIG@|$1|" "$WORK/factcheck_usage_hotfix.sql" | psql_in $db >/dev/null 2>&1
+  }
+  cat > "$WORK/factcheck_usage_hotfix.sql" <<'SQL'
+DO $do$
+DECLARE d text := pg_get_functiondef('@SIG@'::regprocedure); e text;
+BEGIN
+  e := replace(d, E'\n$function$\n', E'\n-- hot fix\n$function$\n');
+  IF e = d THEN RAISE EXCEPTION 'the hot fix changed nothing'; END IF;
+  EXECUTE e;
+END
+$do$;
+SQL
+  mig="$(as_non_superuser 20261116100000_factcheck_usage_reports.sql)"
+
+  if [ "${VACUITY:-1}" = 1 ]; then
+    build || return 1
+    out="$(STUB_USAGE=1 fixture_sql factcheck_usage | psql_in $db 2>&1)" && rc=0 || rc=$?
+    if [ $rc -eq 0 ]; then
+      echo "  VACUITY FAIL - the fixture still passes without the reports migration"; q "drop database if exists $db" >/dev/null; return 1
+    elif ! grep -q 'ERROR:  FAIL: grouped list: both fact-check charges are listed' <<<"$out"; then
+      echo "  VACUITY FAIL - without the reports migration the fixture failed, but not at a behavioural assertion:"
+      grep -E 'ERROR|FAIL' <<<"$out" | head -2 | sed 's/^/    /'; q "drop database if exists $db" >/dev/null; return 1
+    fi
+    echo "  vacuity ok - without 20261116100000_factcheck_usage_reports.sql it fails at a behavioural assertion (grouped list: both fact-check charges are listed)"
+  fi
+
+  for sig in "${sigs[@]}"; do
+    build || return 1
+    hot_fix "$sig" || { echo "  DRIFT: the hot fix did not apply to $sig"; return 1; }
+    before="$(md5s)"
+    out="$({ echo '\set VERBOSITY verbose'; cat "$mig"; } | psql_in $db 2>&1)" && rc=0 || rc=$?
+    after="$(md5s)"; helper="$(q "select to_regprocedure('private.factcheck_charges(uuid,timestamptz,timestamptz)') is null" -d $db)"
+    if [ $rc -eq 0 ] || ! grep -qF "ERROR:  55000: factcheck_usage_reports: $sig differs" <<<"$out" || [ "$after" != "$before" ] || [ "$helper" != t ]; then
+      echo "  DRIFT FAIL - a changed $sig must stop the migration with 55000 and change nothing (exit $rc, sources kept: $([ "$after" = "$before" ] && echo yes || echo no), helper absent: $helper)"
+      q "drop database if exists $db" >/dev/null; return 1
+    fi
+  done
+
+  build || return 1
+  before="$(md5s)"
+  psql_in $db < "$mig" >/dev/null 2>&1 || { echo "  DRIFT FAIL - the migration did not apply to an untouched database"; q "drop database if exists $db" >/dev/null; return 1; }
+  after="$(md5s)"
+  [ "$after" != "$before" ] || { echo "  DRIFT FAIL - the migration changed no function"; q "drop database if exists $db" >/dev/null; return 1; }
+  psql_in $db < "$mig" >/dev/null 2>&1 || { echo "  DRIFT FAIL - applying the migration a second time failed"; q "drop database if exists $db" >/dev/null; return 1; }
+  [ "$(md5s)" = "$after" ] || { echo "  DRIFT FAIL - applying the migration a second time changed a function"; q "drop database if exists $db" >/dev/null; return 1; }
+  hot_fix 'public.my_usage_summary(timestamptz,timestamptz)'
+  out="$({ echo '\set VERBOSITY verbose'; cat "$mig"; } | psql_in $db 2>&1)" && rc=0 || rc=$?
+  if [ $rc -eq 0 ] || ! grep -q 'ERROR:  55000: factcheck_usage_reports: public.my_usage_summary' <<<"$out"; then
+    echo "  DRIFT FAIL - a function changed after the first apply must stop a later apply (exit $rc)"; q "drop database if exists $db" >/dev/null; return 1
+  fi
+  q "drop database if exists $db" >/dev/null
+  echo "  drift ok - each of the 4 changed functions stops the migration with 55000 and nothing changes; an untouched database applies, a second apply changes nothing, a function changed after the first apply stops a later one"
+}
+
 # Expand the one operator-script include into the same psql session. Docker
 # receives SQL on stdin and cannot read workspace paths itself.
 fixture_sql() {
@@ -1232,6 +1318,9 @@ fixture_sql() {
           printf '%s\n' "$outer"
         fi
       done < supabase/tests/ingest_bills_admission_rules.sql
+    elif [ "$line" = '\i supabase/migrations/20261116100000_factcheck_usage_reports.sql' ]; then
+      # STUB_USAGE=1 leaves the include out, for the second vacuity check of factcheck_usage.
+      if [ -n "${STUB_USAGE:-}" ]; then echo '-- reports migration stubbed out'; else cat supabase/migrations/20261116100000_factcheck_usage_reports.sql; fi
     elif [ "$line" = '\i supabase/migrations/20261101120000_document_chunks_partitioned.sql' ]; then
       cat supabase/migrations/20261101120000_document_chunks_partitioned.sql
     else
@@ -1287,6 +1376,7 @@ run_fixture() {
     [ "$name" = record_briefs ] && { record_briefs_checks || rc=1; }
     [ "$name" = record_brief_format ] && { record_brief_format_checks || rc=1; }
     [ "$name" = ingest_register_batch ] && { ingest_register_batch_checks || rc=1; }
+    [ "$name" = factcheck_usage ] && { factcheck_usage_checks || rc=1; }
   else
     rc=1
     echo "  FAIL"

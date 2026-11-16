@@ -477,3 +477,14 @@ describe('creditEstimateText (F151)', () => {
     for (const v of [undefined, null, NaN, 0, -2, 'x']) expect(creditEstimateText(v)).toBe('');
   });
 });
+
+describe('shapeCredits recent fact-check entries (F347)', () => {
+  it('keeps the feature of a fact-check entry and adds none to a chat entry', () => {
+    const c = shapeCredits('u1', { ...SERVER, recent: [
+      { conversation_id: null, title: 'Live TV fact-check', feature: 'factcheck', credits: 12, created_at: '2026-11-15T10:00:00Z' },
+      SERVER.recent[0],
+    ] });
+    expect(c.recent[0]).toEqual({ conversationId: null, title: 'Live TV fact-check', feature: 'factcheck', credits: 12, createdAt: '2026-11-15T10:00:00Z' });
+    expect('feature' in c.recent[1]).toBe(false);
+  });
+});

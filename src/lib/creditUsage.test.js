@@ -13,7 +13,7 @@ vi.mock('./supabaseClient.js', () => ({
 import { activityCsv } from './usageCsv.js';
 import {
   beforeCredits, formatTokens, indianNumber, loadAllActivity, loadUsageActivity, loadUsageSeries, loadUsageSummary,
-  modelName, providerOf, rangeWindow, rowChat, shapeActivity, shapeSeries, shapeSummary,
+  channelName, factcheckDetails, featureLabel, modelLabel, modelName, providerOf, rangeWindow, rowChat, shapeActivity, shapeSeries, shapeSummary,
 } from './creditUsage.js';
 
 beforeEach(() => {
@@ -151,5 +151,46 @@ describe('the report calls', () => {
     expect(await loadAllActivity({}, 150)).toHaveLength(150);
     state.rpc = vi.fn(async () => ({ data: null, error: { message: 'no' } }));
     expect(await loadAllActivity({})).toBeNull();
+  });
+});
+
+// F347: a fact-check charge is not a chat, a dictation call or an AI model.
+describe('fact-check charges', () => {
+  const server = { turn_key: null, created_at: '2026-11-15T06:30:00Z', conversation_id: null, title: null, question: null, model: null,
+    status: 'succeeded', calls: 0, tokens: 0, credits: 12, detail: [], feature: 'factcheck', channel: 'aaj-tak', minutes_used: 8, video_kind: 'live' };
+
+  it('keeps the new keys on a fact-check row, and adds none to a chat or dictation row', () => {
+    const { rows } = shapeActivity({ total: 2, rows: [server, { ...server, feature: undefined, channel: undefined, minutes_used: undefined, video_kind: undefined, turn_key: 'a1' }] });
+    expect(rows[0]).toMatchObject({ feature: 'factcheck', channel: 'aaj-tak', minutesUsed: 8, videoKind: 'live', credits: 12 });
+    expect(Object.keys(rows[1])).not.toEqual(expect.arrayContaining(['feature']));
+    expect(Object.keys(rows[1])).not.toEqual(expect.arrayContaining(['channel', 'minutesUsed', 'videoKind']));
+  });
+
+  it('never calls the row Dictation, even with every field gone', () => {
+    expect(rowChat({ feature: 'factcheck', title: null, conversationId: null, turnKey: null })).toBe('Live TV fact-check');
+    expect(rowChat({ feature: 'factcheck', title: 'Live TV fact-check', conversationId: null, turnKey: null })).toBe('Live TV fact-check');
+  });
+
+  it('labels the feature and the pseudo-model honestly', () => {
+    expect(featureLabel('factcheck')).toBe('Live TV fact-check');
+    expect(featureLabel('something-new')).toBe('Other');
+    expect(modelLabel('factcheck')).toBe('Live TV fact-check');
+    expect(modelLabel('google/gemini-3.7-flash')).toBe('Gemini 3.7 Flash');
+    expect(modelLabel(null)).toBe('Unknown model');
+  });
+
+  it('reads the channel, minutes and live or recorded for a row, leaving out what is unknown', () => {
+    expect(channelName('aaj-tak')).toBe('Aaj Tak');
+    expect(channelName('ndtv_india')).toBe('Ndtv India');
+    expect(channelName(null)).toBe('');
+    expect(factcheckDetails({ channel: 'aaj-tak', minutesUsed: 8, videoKind: 'live' })).toEqual(['Aaj Tak', '8 min', 'Live']);
+    expect(factcheckDetails({ channel: null, minutesUsed: 1, videoKind: 'recorded' })).toEqual(['1 min', 'Recorded']);
+    expect(factcheckDetails({ channel: null, minutesUsed: null, videoKind: null })).toEqual([]);
+  });
+
+  it('sends p_kind factcheck to the report', async () => {
+    state.rpc = vi.fn(async () => ({ data: { total: 0, rows: [] }, error: null }));
+    await loadUsageActivity({ kind: 'factcheck' });
+    expect(state.rpc).toHaveBeenCalledWith('my_usage_activity', expect.objectContaining({ p_kind: 'factcheck' }));
   });
 });
