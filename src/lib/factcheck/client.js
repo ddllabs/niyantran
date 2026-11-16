@@ -13,6 +13,7 @@ export class FactCheckError extends Error {
     if (extra.needed !== undefined) this.needed = extra.needed;
     if (extra.available !== undefined) this.available = extra.available;
     if (extra.creditsPerMinute !== undefined) this.creditsPerMinute = extra.creditsPerMinute;
+    if (extra.price !== undefined) this.price = extra.price;
     if (extra.sessionId !== undefined) this.sessionId = extra.sessionId;
     if (extra.recheckCredits !== undefined) this.recheckCredits = extra.recheckCredits;
     if (extra.claim !== undefined) this.claim = extra.claim;
@@ -34,6 +35,7 @@ async function toError(response) {
   if (typeof body?.needed === 'number') extra.needed = body.needed;
   if (typeof body?.available === 'number') extra.available = body.available;
   if (typeof body?.credits_per_minute === 'number') extra.creditsPerMinute = body.credits_per_minute;
+  if (typeof body?.price === 'number') extra.price = body.price;
   if (typeof body?.session_id === 'string') extra.sessionId = body.session_id;
   if (typeof body?.recheck_credits === 'number') extra.recheckCredits = body.recheck_credits;
   if (body?.claim && typeof body.claim === 'object') extra.claim = body.claim; // a newer result already paid for
@@ -78,16 +80,25 @@ export function createFactCheckClient({
       // credits_charged is null while a delayed charge is pending (charge_pending true).
       return { claim: body.claim, creditsCharged: body.credits_charged, balance: body.balance, chargePending: body.charge_pending === true };
     },
-    transcribe({ session_id, seq, file, signal }) {
+    // Sharing (slice 2). Not part of a live session; none counts against its limits.
+    videoView: ({ videoId, signal } = {}) => call({ action: 'video_view', video_id: videoId }, signal),
+    unlock: ({ stretchId, expectedCredits, signal } = {}) =>
+      call({ action: 'unlock', stretch_id: stretchId, expected_credits: expectedCredits }, signal),
+    report: ({ claimId, reason = '', signal } = {}) => call({ action: 'report', claim_id: claimId, reason }, signal),
+    transcribe({ session_id, seq, file, signal, pieceNo, posStartS, posEndS }) {
       const form = new FormData();
       form.append('action', 'transcribe');
       form.append('session_id', session_id);
       form.append('seq', String(seq));
       form.append('file', file, 'piece.wav');
+      // Present only for a shareable recorded session; the server stores a piece when all three are there.
+      if (pieceNo != null) form.append('piece_no', String(pieceNo));
+      if (posStartS != null) form.append('pos_start_s', String(posStartS));
+      if (posEndS != null) form.append('pos_end_s', String(posEndS));
       return call(form, signal);
     },
   };
 }
 
 const defaultClient = createFactCheckClient();
-export const { start, transcribe, extract, check, stop, recheck } = defaultClient;
+export const { start, transcribe, extract, check, stop, recheck, videoView, unlock, report } = defaultClient;

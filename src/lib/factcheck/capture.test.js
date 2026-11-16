@@ -187,6 +187,16 @@ describe('startCapture running', () => {
     expect(p).not.toHaveProperty('samples');
   });
 
+  it('passes heldMs (audio held after the cut) with each piece', async () => {
+    const t = setup();
+    await startCapture({ ...t.handlers, deps: t.deps });
+    feed(t.log.nodes[0].port, 26);
+    for (const p of t.events.pieces) {
+      expect(p.heldMs).toBeGreaterThanOrEqual(0);
+      expect(p.heldMs).toBeLessThan(130);
+    }
+  });
+
   it('marks a piece of silence as silent but still emits it', async () => {
     const t = setup();
     await startCapture({ ...t.handlers, deps: t.deps });

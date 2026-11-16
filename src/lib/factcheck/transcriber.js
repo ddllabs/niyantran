@@ -7,11 +7,15 @@
 export function createTranscriber(client) {
   return {
     async transcribe(piece, sessionId, { signal } = {}) {
-      const reply = await client.transcribe({ session_id: sessionId, seq: piece.seq, file: piece.wav, signal });
+      const reply = await client.transcribe({
+        session_id: sessionId, seq: piece.seq, file: piece.wav, signal,
+        pieceNo: piece.pieceNo, posStartS: piece.posStartS, posEndS: piece.posEndS,
+      });
       return {
         seq: reply?.seq ?? piece.seq,
         text: typeof reply?.text === 'string' ? reply.text : '',
         secondsLeft: reply?.seconds_left,
+        ...(reply?.stored === undefined ? {} : { stored: reply.stored === true }),
       };
     },
   };
