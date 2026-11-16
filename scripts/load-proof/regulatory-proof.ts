@@ -7,15 +7,17 @@
 //
 //   scripts/load-proof/regulatory-setup.sh build            once: the database (see that script)
 //   scripts/load-proof/regulatory-setup.sh reset            before every proof: a fresh working database
-//   scripts/load-proof/regulatory-proof.sh [--count 100] [--max-chunks 700] [--out DIR] [--break held-key|held-url|no-basis]
+//   scripts/load-proof/regulatory-proof.sh [--count 100] [--screen-dir DIR] [--collection-file FILE] [--parts-dir DIR]
+//                                          [--out DIR] [--break held-key|held-url|no-basis]
 //
-// It exits 0 only when every check of `evaluate` holds. Admitted = the input minus the records the runner's prepare
-// held back; the held set may consist only of over_chunk_limit (designed: prepare.maxChunks is 700, the spec's D6, and
-// a few screened records are longer; with --max-chunks 800 nothing may be held). Every record not held is admitted, 0
-// refusals, the chunks are in document_chunks_regulatory, no record_document_links row for them, completeness_basis is
+// It exits 0 only when every check of `evaluate` holds. The screen holds what prepare would hold (F339: over the
+// collection's maxChunks, control codes), so an input screened under the same prepare block is admitted whole: the
+// runner holds 0 at prepare and every input record is admitted. Any prepare hold is a failure that names its reason.
+// The proof refuses to start (exit 2, nothing written) unless the prepare block the screen recorded equals the
+// collection file's: the rehearsal's collection file carries that block unchanged, so there is no chunk-limit option.
+// 0 refusals, the chunks are in document_chunks_regulatory, no record_document_links row for them, completeness_basis is
 // stored on each document as the screen recorded it, and the Bills, question and pre-existing Regulatory rows are
-// unchanged (counts and digests, taken before and after). The number held and the range of their chunk counts are
-// printed.
+// unchanged (counts and digests, taken before and after). The acceptance line prints the report's index misses.
 //
 // Exit codes: 0 every check held; 1 a check failed (or, with --break, the break was confirmed by its reason, below);
 // 2 the database or the input was not ready (nothing was run, or a break could not be set up); 3 an unexpected
@@ -33,37 +35,46 @@
 //   held-url   a Regulatory document that already holds the file_url of the first record that has one is added first;
 //              the target must be refused file_url_held
 // Prepare-hold break (it never reaches admission: the shared adapter refuses the record in the runner's prepare step):
-//   no-basis   one record loses its completeness_basis, and the part's receipt is rewritten to match; apart from the
-//              designed over_chunk_limit holds, the hold set must be exactly that one record, held prepare_failed
+//   no-basis   one record loses its completeness_basis, and the part's receipt is rewritten to match (it keeps the
+//              screen's prepare block); the hold set must be exactly that one record, held prepare_failed
 //
 // Raw output (receipts, acceptance reports, the proof's own JSON) goes under ~/niyantran-eval-cache/reg-next/rehearsal,
 // never into the repository. The script prints counts, names and hashes; no record text, title or URL.
-import { basename, fromFileUrl, normalize } from 'jsr:@std/path@1';
-import { drain, makeHarness } from './driver.ts';
-import { errorLabel, keepAfterThrow, keepEvidence, pendingFailureMessage, shouldKeepEvidence } from './evidence.ts';
+import { basename, fromFileUrl, normalize } from "jsr:@std/path@1";
+import { drain, makeHarness } from "./driver.ts";
+import {
+  errorLabel,
+  keepAfterThrow,
+  keepEvidence,
+  pendingFailureMessage,
+  shouldKeepEvidence,
+} from "./evidence.ts";
 import {
   assertPinned,
   CONTAINER,
   databaseOfUri,
   HOME,
-  type PostgrestPin,
   pinOf,
+  type PostgrestPin,
   postgrestState,
   proofDb,
   psql,
   psqlJson,
   sha256Hex,
   sleep,
-} from './lib.ts';
+} from "./lib.ts";
 
 export { databaseOfUri };
-import { type CliDeps, main } from '../bulk-runner/cli.ts';
-import { PsqlAcceptDb } from '../bulk-runner/acceptance.ts';
-import { PsqlDb, psqlExec } from '../bulk-runner/psql_db.ts';
+import { canonicalPrepare, type CliDeps, main } from "../bulk-runner/cli.ts";
+import { PsqlAcceptDb } from "../bulk-runner/acceptance.ts";
+import { PsqlDb, psqlExec } from "../bulk-runner/psql_db.ts";
 
-export const REGULATORY = { tier: 'national', feature: 'Regulatory Body Watch (RBI SEBI TRAI CCI)' } as const;
-export const BASES = ['page_check', 'density_only'] as const;
-export const BREAKS = ['held-key', 'held-url', 'no-basis'] as const;
+export const REGULATORY = {
+  tier: "national",
+  feature: "Regulatory Body Watch (RBI SEBI TRAI CCI)",
+} as const;
+export const BASES = ["page_check", "density_only"] as const;
+export const BREAKS = ["held-key", "held-url", "no-basis"] as const;
 export type Break = typeof BREAKS[number];
 const HEX40 = /^[0-9a-f]{40}$/;
 
@@ -71,11 +82,13 @@ const HEX40 = /^[0-9a-f]{40}$/;
 
 export interface Args {
   count: number;
-  /** prepare.maxChunks of the rehearsal's collection file: 700, the spec's D6 (800 is the worker's own limit). */
-  maxChunks: number;
   out: string | null;
+  /** The screen's output folder (screened.jsonl and screen.receipt.json). */
   screenDir: string;
+  /** The collection file the screen was run with (its prepare block, 700 chunks, is the one the screen recorded). */
   collectionFile: string;
+  /** The folder of `cli.ts split` parts cut from the screen's output; null: cut the first `count` into the rehearsal folder. */
+  partsDir: string | null;
   broken: Break | null;
 }
 
@@ -83,32 +96,42 @@ export function parseArgs(argv: string[], home: string): Args {
   const flags = new Map<string, string>();
   for (let i = 0; i < argv.length; i += 2) {
     const k = argv[i], v = argv[i + 1];
-    if (!k?.startsWith('--') || v === undefined || v.startsWith('--')) throw new Error(`bad argument ${k ?? ''}`);
+    if (!k?.startsWith("--") || v === undefined || v.startsWith("--")) {
+      throw new Error(`bad argument ${k ?? ""}`);
+    }
     if (flags.has(k)) throw new Error(`${k} given twice`);
     flags.set(k, v);
   }
   for (const k of flags.keys()) {
-    if (!['--count', '--max-chunks', '--out', '--screen-dir', '--collection-file', '--break'].includes(k)) {
+    if (
+      ![
+        "--count",
+        "--out",
+        "--screen-dir",
+        "--collection-file",
+        "--parts-dir",
+        "--break",
+      ].includes(k)
+    ) {
       throw new Error(`unknown option ${k}`);
     }
   }
-  const count = flags.get('--count') ?? '100';
-  if (!/^[1-9]\d{0,3}$/.test(count)) throw new Error('--count must be a whole number from 1 to 9999');
-  const maxChunks = flags.get('--max-chunks') ?? '700';
-  if (!/^[1-9]\d{0,3}$/.test(maxChunks) || Number(maxChunks) > 800) {
-    throw new Error('--max-chunks must be a whole number from 1 to 800');
+  const count = flags.get("--count") ?? "100";
+  if (!/^[1-9]\d{0,3}$/.test(count)) {
+    throw new Error("--count must be a whole number from 1 to 9999");
   }
-  const broken = flags.get('--break') ?? null;
+  const broken = flags.get("--break") ?? null;
   if (broken !== null && !(BREAKS as readonly string[]).includes(broken)) {
-    throw new Error(`--break must be one of ${BREAKS.join(', ')}`);
+    throw new Error(`--break must be one of ${BREAKS.join(", ")}`);
   }
-  const root = `${home}/niyantran-eval-cache/reg-next`;
+  const root = `${home}/niyantran-eval-cache/reg-next-700-2026-11-15`;
   return {
     count: Number(count),
-    maxChunks: Number(maxChunks),
-    out: flags.get('--out') ?? null,
-    screenDir: flags.get('--screen-dir') ?? `${root}/full/screen-live-d93325ed`,
-    collectionFile: flags.get('--collection-file') ?? `${root}/full/national-regulatory.collection.json`,
+    out: flags.get("--out") ?? null,
+    screenDir: flags.get("--screen-dir") ?? `${root}/screen-live`,
+    collectionFile: flags.get("--collection-file") ??
+      `${root}/national-regulatory.collection.json`,
+    partsDir: flags.get("--parts-dir") ?? null,
     broken: broken as Break | null,
   };
 }
@@ -134,7 +157,7 @@ export interface Facts {
   /** Records the proof took from the screen, and the basis the screen recorded on each (source_key to basis). */
   expected: number;
   basis: Record<string, string>;
-  /** prepare.maxChunks of the run. At 800 (the worker's own limit) nothing may be held. */
+  /** prepare.maxChunks of the run: the collection file's, which equals what the screen recorded. */
   maxChunks: number;
   /** The runner's exit code and the stop it reported, if any. */
   exitCode: number;
@@ -144,20 +167,32 @@ export interface Facts {
   /** The failure that ended the worker loop, if any. */
   workerError: string | null;
   /** The batch's ledger. */
-  ledger: { items: number; admitted: number; existing: number; refused: number; planned: number };
+  ledger: {
+    items: number;
+    admitted: number;
+    existing: number;
+    refused: number;
+    planned: number;
+  };
   refusedReasons: Record<string, number>;
   /** Records the runner's prepare or plan held back (never sent). */
   holds: Held[];
   /** What a dry run foresaw and the runner reported as a disagreement, by reason (a stop before anything is sent). */
   precheckReasons: Record<string, number>;
   docs: { present: number; indexed: number; inDesk: number };
-  chunks: { stored: number; plannedByLedger: number; inRegulatoryPartition: number };
+  chunks: {
+    stored: number;
+    plannedByLedger: number;
+    inRegulatoryPartition: number;
+  };
   links: { forNew: number; before: number; after: number };
   /** source_key to the completeness_basis stored in metadata (null when absent). */
   stored: Record<string, string | null>;
   before: { bills: Snap; pq: Snap; regulatory: Snap; deskRows: string };
   after: { bills: Snap; pq: Snap; regulatory: Snap; deskRows: string };
-  acceptance: Array<{ sampled: number; ok: boolean; failures: number }>;
+  acceptance: Array<
+    { sampled: number; ok: boolean; failures: number; indexMisses: number }
+  >;
   /** acceptance.sample of the collection file the run used. */
   acceptanceSample: number;
 }
@@ -168,7 +203,8 @@ export interface Check {
   detail: string;
 }
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const same = (a: unknown, b: unknown) =>
+  JSON.stringify(a) === JSON.stringify(b);
 
 /** The reasons of a hold set, counted. */
 export function heldByReason(holds: Held[]): Record<string, number> {
@@ -178,7 +214,9 @@ export function heldByReason(holds: Held[]): Record<string, number> {
 }
 
 /** The smallest and largest chunk count the holds report, and how many reported none. */
-export function heldChunkRange(holds: Held[]): { min: number; max: number; unreported: number } | null {
+export function heldChunkRange(
+  holds: Held[],
+): { min: number; max: number; unreported: number } | null {
   const known = holds.flatMap((h) => h.chunks === null ? [] : [h.chunks]);
   if (holds.length === 0) return null;
   return {
@@ -191,93 +229,113 @@ export function heldChunkRange(holds: Held[]): { min: number; max: number; unrep
 /** The pass rule. Pure: every verdict is a function of the facts. */
 export function evaluate(f: Facts): Check[] {
   const out: Check[] = [];
-  const add = (name: string, ok: boolean, detail = '') => out.push({ name, ok, detail });
+  const add = (name: string, ok: boolean, detail = "") =>
+    out.push({ name, ok, detail });
   const keys = Object.keys(f.basis);
-  const heldKeys = new Set(f.holds.flatMap((h) => h.key === null ? [] : [h.key]));
-  const admittedKeys = keys.filter((k) => !heldKeys.has(k));
-  const admitted = f.expected - f.holds.length;
   add(
-    'the input is the expected number of screened records, each with a completeness basis the screen recorded',
-    keys.length === f.expected && keys.every((k) => HEX40.test(k) && (BASES as readonly string[]).includes(f.basis[k])),
+    "the input is the expected number of screened records, each with a completeness basis the screen recorded",
+    keys.length === f.expected &&
+      keys.every((k) =>
+        HEX40.test(k) && (BASES as readonly string[]).includes(f.basis[k])
+      ),
     `${keys.length} of ${f.expected}`,
   );
   add(
-    'the runner finished: exit 0, no stop',
+    "the runner finished: exit 0, no stop",
     f.exitCode === 0 && f.stop === null && f.runnerError === null,
-    `exit ${f.exitCode}, stop ${f.stop}${f.runnerError ? `, threw ${f.runnerError}` : ''}`,
+    `exit ${f.exitCode}, stop ${f.stop}${
+      f.runnerError ? `, threw ${f.runnerError}` : ""
+    }`,
   );
   add(
-    'the worker loop did not fail',
+    "the worker loop did not fail",
     f.workerError === null,
-    f.workerError ?? 'no failure',
+    f.workerError ?? "no failure",
   );
   const range = heldChunkRange(f.holds);
   add(
-    f.maxChunks >= 800
-      ? 'the runner held none of them back in prepare or plan (maxChunks 800)'
-      : `the runner held back only records over the ${f.maxChunks}-chunk limit, each a record of the input`,
-    f.holds.every((h) =>
-      h.reason === 'over_chunk_limit' && h.key !== null && h.key in f.basis &&
-      (h.chunks === null || h.chunks > f.maxChunks)
-    ) && heldKeys.size === f.holds.length && (f.maxChunks < 800 || f.holds.length === 0),
+    `the runner held none of them back in prepare or plan (screened under maxChunks ${f.maxChunks})`,
+    f.holds.length === 0,
     `${f.holds.length} held ${JSON.stringify(heldByReason(f.holds))}` +
       (range
-        ? `, chunk counts ${range.min} to ${range.max}${range.unreported ? ` (${range.unreported} not reported)` : ''}`
-        : ''),
+        ? `, chunk counts ${range.min} to ${range.max}${
+          range.unreported ? ` (${range.unreported} not reported)` : ""
+        }`
+        : ""),
   );
   add(
-    'every record not held is admitted, none planned or existing',
-    f.ledger.admitted === admitted && f.ledger.items === admitted && f.ledger.planned === 0 &&
-      f.ledger.existing === 0 && f.docs.present === admitted,
-    `${f.ledger.admitted} admitted of ${admitted} (${f.expected} input, ${f.holds.length} held), ` +
+    "every record of the input is admitted, none planned or existing",
+    f.ledger.admitted === f.expected && f.ledger.items === f.expected &&
+      f.ledger.planned === 0 &&
+      f.ledger.existing === 0 && f.docs.present === f.expected,
+    `${f.ledger.admitted} admitted of ${f.expected}, ` +
       `${f.ledger.planned} planned, ${f.ledger.existing} existing, ${f.docs.present} documents`,
   );
   const reasons = { ...f.refusedReasons };
-  for (const [k, n] of Object.entries(f.precheckReasons)) reasons[`precheck:${k}`] = n;
+  for (const [k, n] of Object.entries(f.precheckReasons)) {
+    reasons[`precheck:${k}`] = n;
+  }
   add(
-    '0 refusals',
+    "0 refusals",
     f.ledger.refused === 0 && Object.keys(reasons).length === 0,
     `${f.ledger.refused} refused ${JSON.stringify(reasons)}`,
   );
   add(
-    'every admitted document is in the Regulatory desk and indexed',
-    f.docs.inDesk === admitted && f.docs.indexed === admitted,
+    "every admitted document is in the Regulatory desk and indexed",
+    f.docs.inDesk === f.expected && f.docs.indexed === f.expected,
     `${f.docs.inDesk} in the desk, ${f.docs.indexed} indexed`,
   );
   add(
-    'the chunks landed in document_chunks_regulatory, as many as the ledger planned',
+    "the chunks landed in document_chunks_regulatory, as many as the ledger planned",
     f.chunks.stored > 0 && f.chunks.inRegulatoryPartition === f.chunks.stored &&
       f.chunks.stored === f.chunks.plannedByLedger,
     `${f.chunks.stored} stored, ${f.chunks.inRegulatoryPartition} in the partition, ${f.chunks.plannedByLedger} planned`,
   );
   add(
-    'no record_document_links row for them, and the table is unchanged',
+    "no record_document_links row for them, and the table is unchanged",
     f.links.forNew === 0 && f.links.before === f.links.after,
     `${f.links.forNew} for the new documents, table ${f.links.before} to ${f.links.after}`,
   );
   const storedKeys = Object.keys(f.stored);
-  const wrong = admittedKeys.filter((k) => f.stored[k] !== f.basis[k]);
+  const wrong = keys.filter((k) => f.stored[k] !== f.basis[k]);
   add(
-    'completeness_basis is stored on each admitted document as the screen recorded it, and on no held record',
-    wrong.length === 0 && storedKeys.length === admittedKeys.length && storedKeys.every((k) => !heldKeys.has(k)),
-    `${admittedKeys.length - wrong.length} of ${admitted} match`,
+    "completeness_basis is stored on each admitted document as the screen recorded it",
+    wrong.length === 0 && storedKeys.length === keys.length,
+    `${keys.length - wrong.length} of ${f.expected} match`,
   );
-  for (const k of ['bills', 'pq', 'regulatory'] as const) {
-    const label = { bills: 'Bills', pq: 'Parliamentary Question', regulatory: 'pre-existing Regulatory' }[k];
+  for (const k of ["bills", "pq", "regulatory"] as const) {
+    const label = {
+      bills: "Bills",
+      pq: "Parliamentary Question",
+      regulatory: "pre-existing Regulatory",
+    }[k];
     add(
       `the ${label} documents, chunks and links are unchanged (counts and digest), and there were some`,
-      f.before[k].docs > 0 && f.before[k].chunks > 0 && same(f.before[k], f.after[k]),
-      `${f.before[k].docs} documents, ${f.before[k].chunks} chunks, ${f.before[k].links} links before; ` +
+      f.before[k].docs > 0 && f.before[k].chunks > 0 &&
+        same(f.before[k], f.after[k]),
+      `${f.before[k].docs} documents, ${f.before[k].chunks} chunks, ${
+        f.before[k].links
+      } links before; ` +
         `${f.after[k].docs}, ${f.after[k].chunks}, ${f.after[k].links} after` +
-        (same(f.before[k], f.after[k]) ? '' : '; the digest or a count differs'),
+        (same(f.before[k], f.after[k])
+          ? ""
+          : "; the digest or a count differs"),
     );
   }
-  add('the listing rows are unchanged', f.before.deskRows === f.after.deskRows, f.after.deskRows.slice(0, 12));
-  const want = Math.min(f.acceptanceSample, admitted);
   add(
-    'automated acceptance passed on a full sample',
-    f.acceptance.length >= 1 && f.acceptance.every((a) => a.ok && a.failures === 0 && a.sampled === want),
-    JSON.stringify(f.acceptance),
+    "the listing rows are unchanged",
+    f.before.deskRows === f.after.deskRows,
+    f.after.deskRows.slice(0, 12),
+  );
+  const want = Math.min(f.acceptanceSample, f.expected);
+  const misses = f.acceptance.reduce((t, a) => t + a.indexMisses, 0);
+  add(
+    "automated acceptance passed on a full sample",
+    f.acceptance.length >= 1 &&
+      f.acceptance.every((a) => a.ok && a.failures === 0 && a.sampled === want),
+    `${JSON.stringify(f.acceptance)}; ${misses} index ${
+      misses === 1 ? "miss" : "misses"
+    } (acceptance allows at most one)`,
   );
   return out;
 }
@@ -291,25 +349,40 @@ export interface BreakSeen {
 
 /** The reason each break must produce on its target record. */
 export const BREAK_REASON: Record<Break, string> = {
-  'held-key': 'suggested_key_held',
-  'held-url': 'file_url_held',
-  'no-basis': 'prepare_failed',
+  "held-key": "suggested_key_held",
+  "held-url": "file_url_held",
+  "no-basis": "prepare_failed",
 };
 
 /**
  * Whether the intended reason was seen on the target record. A break is proved by its reason, not by a failure.
- * no-basis is a prepare-hold break: apart from the designed over_chunk_limit holds, the hold set is exactly one
- * prepare_failed, on the target.
+ * no-basis is a prepare-hold break: the hold set is exactly one prepare_failed, on the target (the input is screened
+ * under the same prepare block, so nothing else is held).
  */
-export function breakSeen(broken: Break, target: string, seen: BreakSeen): Check {
-  const name = `the break ${broken} was seen as ${BREAK_REASON[broken]} on the target record`;
-  if (broken === 'no-basis') {
-    const others = seen.holds.filter((h) => h.reason !== 'over_chunk_limit');
-    const ok = others.length === 1 && others[0].reason === 'prepare_failed' && others[0].key === target;
-    return { name, ok, detail: `holds other than over_chunk_limit: ${JSON.stringify(heldByReason(others))}` };
+export function breakSeen(
+  broken: Break,
+  target: string,
+  seen: BreakSeen,
+): Check {
+  const name = `the break ${broken} was seen as ${
+    BREAK_REASON[broken]
+  } on the target record`;
+  if (broken === "no-basis") {
+    const others = seen.holds;
+    const ok = others.length === 1 && others[0].reason === "prepare_failed" &&
+      others[0].key === target;
+    return {
+      name,
+      ok,
+      detail: `holds: ${JSON.stringify(heldByReason(others))}`,
+    };
   }
   const got = seen.refused[target] ?? null;
-  return { name, ok: got === BREAK_REASON[broken], detail: `target refused: ${got ?? 'not refused'}` };
+  return {
+    name,
+    ok: got === BREAK_REASON[broken],
+    detail: `target refused: ${got ?? "not refused"}`,
+  };
 }
 
 /** The verdict of a break run: confirmed (exit 1) only when the reason was seen, nothing crashed and an ordinary check failed. */
@@ -318,19 +391,31 @@ export function breakVerdict(
   o: { seen: Check; checks: Check[]; crashed: string | null },
 ): { confirmed: boolean; line: string } {
   const noticed = o.checks.some((c) => !c.ok);
-  if (o.crashed) return { confirmed: false, line: `VERDICT BREAK NOT CONFIRMED (break ${broken}): ${o.crashed}` };
+  if (o.crashed) {
+    return {
+      confirmed: false,
+      line: `VERDICT BREAK NOT CONFIRMED (break ${broken}): ${o.crashed}`,
+    };
+  }
   if (!o.seen.ok) {
     return {
       confirmed: false,
-      line: `VERDICT BREAK NOT CONFIRMED (break ${broken}): the intended reason was not seen`,
+      line:
+        `VERDICT BREAK NOT CONFIRMED (break ${broken}): the intended reason was not seen`,
     };
   }
   if (!noticed) {
-    return { confirmed: false, line: `VERDICT BREAK NOT CONFIRMED (break ${broken}): no ordinary check failed` };
+    return {
+      confirmed: false,
+      line:
+        `VERDICT BREAK NOT CONFIRMED (break ${broken}): no ordinary check failed`,
+    };
   }
   return {
     confirmed: true,
-    line: `VERDICT BREAK CONFIRMED (break ${broken}): ${BREAK_REASON[broken]} seen on the target record`,
+    line: `VERDICT BREAK CONFIRMED (break ${broken}): ${
+      BREAK_REASON[broken]
+    } seen on the target record`,
   };
 }
 
@@ -338,28 +423,70 @@ export function breakVerdict(
 
 /** Part lines with `completeness_basis` removed from line `index` (0-based); every other line is kept byte for byte. */
 export function stripBasis(partText: string, index: number): string {
-  const lines = partText.split('\n');
-  const at = lines.map((l, i) => [l, i] as const).filter(([l]) => l.trim()).map(([, i]) => i)[index];
+  const lines = partText.split("\n");
+  const at =
+    lines.map((l, i) => [l, i] as const).filter(([l]) => l.trim()).map((
+      [, i],
+    ) => i)[index];
   if (at === undefined) throw new Error(`the part has no line ${index}`);
   const r = JSON.parse(lines[at]) as Record<string, unknown>;
-  if (!('completeness_basis' in r)) throw new Error('the record has no completeness_basis to remove');
+  if (!("completeness_basis" in r)) {
+    throw new Error("the record has no completeness_basis to remove");
+  }
   delete r.completeness_basis;
   lines[at] = JSON.stringify(r);
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 /** The receipt `cli.ts split` writes for a part: its own hash and count, and the source it was cut from. */
-export async function partReceipt(body: string, source: Record<string, unknown>): Promise<string> {
-  const lines = body.split('\n').filter((l) => l.trim()).length;
-  return JSON.stringify({ output_sha256: await sha256Hex(body), lines_written: lines, source }, null, 2) + '\n';
+export async function partReceipt(
+  body: string,
+  source: Record<string, unknown>,
+  prepare?: Record<string, unknown>,
+): Promise<string> {
+  const lines = body.split("\n").filter((l) => l.trim()).length;
+  return JSON.stringify(
+    {
+      output_sha256: await sha256Hex(body),
+      lines_written: lines,
+      source,
+      ...(prepare ? { prepare } : {}),
+    },
+    null,
+    2,
+  ) + "\n";
+}
+
+/**
+ * Why the prepare block a screen recorded cannot be the one the runner will use, or null when they agree. The runner
+ * refuses (prepare_mismatch) a screened set with no recorded block or another one; the proof says so before it starts.
+ * Compared as the runner compares them (cli.ts canonicalPrepare: sorted keys, no patches or corrigenda).
+ */
+export function prepareDisagreement(
+  recorded: unknown,
+  collectionPrepare: unknown,
+): string | null {
+  const isObj = (v: unknown) =>
+    typeof v === "object" && v !== null && !Array.isArray(v);
+  const own = JSON.stringify(canonicalPrepare(collectionPrepare));
+  if (!isObj(recorded)) {
+    return `the screened input has no recorded prepare block (the collection file's is ${own}); screen it again`;
+  }
+  const theirs = JSON.stringify(canonicalPrepare(recorded));
+  return theirs === own
+    ? null
+    : `the screened input was screened with prepare ${theirs}, but the collection file's prepare is ${own}`;
 }
 
 /** source_key to completeness_basis, from a part's text. */
 export function basisOf(partText: string): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const l of partText.split('\n')) {
+  for (const l of partText.split("\n")) {
     if (!l.trim()) continue;
-    const r = JSON.parse(l) as { source_key?: unknown; completeness_basis?: unknown };
+    const r = JSON.parse(l) as {
+      source_key?: unknown;
+      completeness_basis?: unknown;
+    };
     out[String(r.source_key)] = String(r.completeness_basis);
   }
   return out;
@@ -368,15 +495,17 @@ export function basisOf(partText: string): Record<string, string> {
 /** The rehearsal's collection file: the supervisor's copy with values for a rehearsal (spec, "Policy, collection file"). */
 export function rehearsalCollection(
   original: Record<string, unknown>,
-  o: { decisionId: string; diskUsedBytes: number; maxChunks: number },
+  o: { decisionId: string; diskUsedBytes: number },
 ): Record<string, unknown> {
   const limits = original.limits as Record<string, unknown>;
-  const prepare = original.prepare as Record<string, unknown>;
   const screen = original.screen as Record<string, unknown>;
-  const partitioned = new Set([...(limits.partitioned as string[]), REGULATORY.feature]);
+  const partitioned = new Set([
+    ...(limits.partitioned as string[]),
+    REGULATORY.feature,
+  ]);
   return {
     ...original,
-    prepare: { ...prepare, maxChunks: o.maxChunks },
+    // prepare is the original's, unchanged: it is the block the screen recorded, and the runner refuses another.
     limits: {
       ...limits,
       budgetUsd: 5,
@@ -387,40 +516,58 @@ export function rehearsalCollection(
       chunksNow: {},
     },
     // The collection file's own sample size; only requireLinks is set (Regulatory has no listing links).
-    acceptance: { ...(original.acceptance as Record<string, unknown>), requireLinks: false },
+    acceptance: {
+      ...(original.acceptance as Record<string, unknown>),
+      requireLinks: false,
+    },
     screen: { ...screen, decisionId: o.decisionId },
   };
 }
 
 /** The spec's policy for the collection (admitted desk, licence class, density numbers, thresholds). */
-export function policyFor(collection: string, decisionId: string): Record<string, unknown> {
+export function policyFor(
+  collection: string,
+  decisionId: string,
+): Record<string, unknown> {
   return {
     collection,
-    admitted: [{ desk_tier: REGULATORY.tier, desk_feature: REGULATORY.feature, adapter: 'national_search_only' }],
-    licence_classes: ['govt_material_confirm_counsel'],
+    admitted: [{
+      desk_tier: REGULATORY.tier,
+      desk_feature: REGULATORY.feature,
+      adapter: "national_search_only",
+    }],
+    licence_classes: ["govt_material_confirm_counsel"],
     min_chars_per_page: 600,
     min_pages_for_density: 5,
     require_page_count: true,
     budget_usd: 5,
     chunk_ceiling: 200_000,
-    stop_thresholds: { refusal_share: 0.05, failure_rate: 0.05, uncertain_max: 5, min_decided: 400 },
+    stop_thresholds: {
+      refusal_share: 0.05,
+      failure_rate: 0.05,
+      uncertain_max: 5,
+      min_decided: 400,
+    },
     decision_id: decisionId,
-    approver: 'Regulatory Rehearsal Harness',
-    evidence_sha256: 'e'.repeat(64),
+    approver: "Regulatory Rehearsal Harness",
+    evidence_sha256: "e".repeat(64),
   };
 }
 
 // ─── the run ─────────────────────────────────────────────────────────────────
 
 const q = (s: string) => `'${s.replaceAll("'", "''")}'`;
-const keyArray = (keys: string[]) => `array(select jsonb_array_elements_text($lp$${JSON.stringify(keys)}$lp$::jsonb))`;
+const keyArray = (keys: string[]) =>
+  `array(select jsonb_array_elements_text($lp$${
+    JSON.stringify(keys)
+  }$lp$::jsonb))`;
 const n = async (sql: string) => Number(await psql(sql));
 
 /** Rows of one desk other than `except`, with a digest of everything a load could change in them. */
 async function snap(feature: string, except: string[]): Promise<Snap> {
-  const d = `(select * from public.documents where desk_feature = ${q(feature)} and source_key <> all(${
-    keyArray(except)
-  })) d`;
+  const d = `(select * from public.documents where desk_feature = ${
+    q(feature)
+  } and source_key <> all(${keyArray(except)})) d`;
   const r = await psqlJson<Snap[]>(
     `select
        (select count(*) from ${d})::int as docs,
@@ -445,17 +592,38 @@ const deskRowsDigest = () =>
     `select md5(coalesce(string_agg(tier || '|' || feature || '|' || row_key || '|' || row::text || '|' || coalesce(document_key, ''), ',' order by tier, feature, row_key), '')) from public.desk_rows`,
   );
 
-const dockerPsql = () => ['docker', 'exec', '-i', CONTAINER, 'psql', '-U', 'postgres', '-d', proofDb()];
+const dockerPsql = () => [
+  "docker",
+  "exec",
+  "-i",
+  CONTAINER,
+  "psql",
+  "-U",
+  "postgres",
+  "-d",
+  proofDb(),
+];
 
-async function gitState(repo: string): Promise<{ commit: string; dirty: boolean }> {
+async function gitState(
+  repo: string,
+): Promise<{ commit: string; dirty: boolean }> {
   const git = async (...args: string[]) => {
-    const out = await new Deno.Command('git', { args: ['-C', repo, ...args], stdout: 'piped' }).output();
+    const out = await new Deno.Command("git", {
+      args: ["-C", repo, ...args],
+      stdout: "piped",
+    }).output();
     if (out.code !== 0) throw new Error(`git ${args[0]} failed`);
     return new TextDecoder().decode(out.stdout).trim();
   };
   return {
-    commit: await git('rev-parse', 'HEAD'),
-    dirty: (await git('status', '--porcelain', '--', 'scripts/bulk-runner', 'supabase/functions/_shared')) !== '',
+    commit: await git("rev-parse", "HEAD"),
+    dirty: (await git(
+      "status",
+      "--porcelain",
+      "--",
+      "scripts/bulk-runner",
+      "supabase/functions/_shared",
+    )) !== "",
   };
 }
 
@@ -470,7 +638,7 @@ function cliDeps(repo: string, log: (l: string) => void): CliDeps {
     writeText: (p, b) => Deno.writeTextFile(p, b, { createNew: true }),
     git: () => gitState(repo),
     // The load copy has no login for corpus_ingest: a local superuser sets the role, as bulk-proof.ts does.
-    db: () => new PsqlDb(psqlExec(dockerPsql(), 'set role corpus_ingest;')),
+    db: () => new PsqlDb(psqlExec(dockerPsql(), "set role corpus_ingest;")),
     // The developer's own read-only login on NTER; here the same superuser, in read-only transactions.
     acceptDb: () => new PsqlAcceptDb(psqlExec(dockerPsql())),
     listDir: async (dir) => {
@@ -493,16 +661,18 @@ function cliDeps(repo: string, log: (l: string) => void): CliDeps {
 export class NotReady extends Error {}
 
 /** A database this proof may write to: a rehearsal database made by regulatory-setup.sh, never the load copy. */
-export const REHEARSAL_DB = /^niyantran_ingest_load_[a-z0-9_]*reg[a-z0-9_]*_test$/;
+export const REHEARSAL_DB =
+  /^niyantran_ingest_load_[a-z0-9_]*reg[a-z0-9_]*_test$/;
 
 /** The folder the wrapper may write to, and so the only place --out may name. */
-export const outRoot = (home: string) => `${home}/niyantran-eval-cache/reg-next/rehearsal`;
+export const outRoot = (home: string) =>
+  `${home}/niyantran-eval-cache/reg-next/rehearsal`;
 
 /** Whether --out lies inside the rehearsal folder, after dots in the path are resolved. */
 export function outAllowed(out: string, home: string): boolean {
   const root = outRoot(home);
   const n = normalize(out);
-  return n.startsWith('/') && (n === root || n.startsWith(`${root}/`));
+  return n.startsWith("/") && (n === root || n.startsWith(`${root}/`));
 }
 
 /** Refuses, before anything is written, a database that is not a rehearsal one or that PostgREST does not serve. */
@@ -529,7 +699,8 @@ export interface WorkerRun<T> {
   workerError: string | null;
 }
 
-const message = (e: unknown) => String((e as Error)?.message ?? e).slice(0, 200);
+const message = (e: unknown) =>
+  String((e as Error)?.message ?? e).slice(0, 200);
 
 /**
  * Runs `body` with a background worker loop beside it. A failure of the loop is caught (never an unhandled rejection):
@@ -549,19 +720,24 @@ export async function withWorkers<T>(o: {
   try {
     await o.setup();
     let down: () => void = () => {};
-    const workerDown = new Promise<'down'>((resolve) => (down = () => resolve('down')));
+    const workerDown = new Promise<"down">((
+      resolve,
+    ) => (down = () => resolve("down")));
     background = o.start(() => running).then(() => {}, (e) => {
       workerError = message(e);
       running = false;
       down();
     });
-    const body = o.body().then((result) => ({ result, bodyError: null as string | null }), (e) => ({
-      result: null as T | null,
-      bodyError: message(e),
-    }));
+    const body = o.body().then(
+      (result) => ({ result, bodyError: null as string | null }),
+      (e) => ({
+        result: null as T | null,
+        bodyError: message(e),
+      }),
+    );
     // The body is abandoned if the loop dies; its own rejection is already handled above.
     const first = await Promise.race([body, workerDown]);
-    outcome = first === 'down' ? { result: null, bodyError: null } : first;
+    outcome = first === "down" ? { result: null, bodyError: null } : first;
   } finally {
     running = false;
     try {
@@ -590,17 +766,24 @@ let wroteToDb = false;
 async function keepFailureEvidence(reason: string): Promise<void> {
   if (!runOut) return;
   try {
-    const proofJson = await Deno.readTextFile(`${runOut}/proof.json`).catch(() => null);
+    const proofJson = await Deno.readTextFile(`${runOut}/proof.json`).catch(
+      () => null,
+    );
     const folder = await keepEvidence({
       home: HOME,
       db: proofDb(),
-      proof: 'regulatory-proof',
+      proof: "regulatory-proof",
       reason: reason.slice(0, 500),
       copy: { receipts: `${runOut}/receipts` },
-      files: { 'output-folder.txt': `${runOut}\n`, ...(proofJson ? { 'proof.json': proofJson } : {}) },
+      files: {
+        "output-folder.txt": `${runOut}\n`,
+        ...(proofJson ? { "proof.json": proofJson } : {}),
+      },
       query: psql,
     });
-    console.error(`evidence of the failed run: ${folder}; the database will not be reset until it is inspected`);
+    console.error(
+      `evidence of the failed run: ${folder}; the database will not be reset until it is inspected`,
+    );
   } catch (e) {
     console.error(`could not keep the evidence: ${message(e)}`);
   }
@@ -608,10 +791,14 @@ async function keepFailureEvidence(reason: string): Promise<void> {
 
 export async function proof(args: Args, repo: string): Promise<number> {
   const started = Date.now();
-  const stamp = new Date(started).toISOString().replaceAll(/[:.]/g, '').slice(0, 17);
+  const stamp = new Date(started).toISOString().replaceAll(/[:.]/g, "").slice(
+    0,
+    17,
+  );
   const tag = crypto.randomUUID().slice(0, 8);
   const root = outRoot(HOME);
-  const out = args.out ?? `${root}/${stamp}-${tag}${args.broken ? `-break-${args.broken}` : ''}`;
+  const out = args.out ??
+    `${root}/${stamp}-${tag}${args.broken ? `-break-${args.broken}` : ""}`;
   const say = (l: string) => console.log(l);
   // Before anything is written, here or in the database: the right database, and a folder the wrapper may write to.
   let DB: string;
@@ -623,53 +810,128 @@ export async function proof(args: Args, repo: string): Promise<number> {
   const pin = await requireRehearsalDatabase(DB);
   if (!outAllowed(out, HOME)) {
     throw new NotReady(
-      '--out must be under ~/niyantran-eval-cache/reg-next/rehearsal, the only folder the wrapper may write',
+      "--out must be under ~/niyantran-eval-cache/reg-next/rehearsal, the only folder the wrapper may write",
     );
   }
-  await Deno.mkdir(`${out}/receipts`, { recursive: true });
-  runOut = out;
-  say(`proof on database ${DB}${args.broken ? `, BREAK ${args.broken}` : ''}; output ${out}`);
 
-  // 1. The screen's output, vouched for by its receipt, and its first N records cut as the runner cuts them.
+  // 1. The screen's output, vouched for by its receipt: read and compared with the collection file before anything is
+  // written, so a screen made under other prepare settings is refused here, not by the runner in mid-run.
   const screened = `${args.screenDir}/screened.jsonl`;
-  const screenReceipt = await readJson(`${args.screenDir}/screen.receipt.json`);
-  const screenOut = (screenReceipt.outputs as { screened: { sha256: string; lines: number } }).screened;
-  if (screenReceipt.complete !== true || screenReceipt.screen !== 'national-regulatory') {
-    throw new NotReady('the screen receipt is not a complete national-regulatory screen');
+  const screenReceipt = await readJson(`${args.screenDir}/screen.receipt.json`)
+    .catch((e) => {
+      throw new NotReady(
+        `cannot read the screen receipt in ${args.screenDir}: ${message(e)}`,
+      );
+    });
+  const screenOut =
+    (screenReceipt.outputs as { screened: { sha256: string; lines: number } })
+      .screened;
+  if (
+    screenReceipt.complete !== true ||
+    screenReceipt.screen !== "national-regulatory"
+  ) {
+    throw new NotReady(
+      "the screen receipt is not a complete national-regulatory screen",
+    );
   }
   if (screenOut.lines < args.count) {
-    throw new NotReady(`the screen passed ${screenOut.lines} records, fewer than ${args.count}`);
+    throw new NotReady(
+      `the screen passed ${screenOut.lines} records, fewer than ${args.count}`,
+    );
   }
+  const collectionOriginal = await readJson(args.collectionFile).catch((e) => {
+    throw new NotReady(
+      `cannot read the collection file ${args.collectionFile}: ${message(e)}`,
+    );
+  });
+  const disagreement = prepareDisagreement(
+    screenReceipt.prepare,
+    collectionOriginal.prepare,
+  );
+  if (disagreement) throw new NotReady(disagreement);
+  const maxChunks = Number(
+    (collectionOriginal.prepare as { maxChunks: unknown }).maxChunks,
+  );
+  await Deno.mkdir(`${out}/receipts`, { recursive: true });
+  runOut = out;
   say(
-    `screen receipt: commit ${String(screenReceipt.screen_commit).slice(0, 8)}, rules ${
+    `proof on database ${DB}${
+      args.broken ? `, BREAK ${args.broken}` : ""
+    }; output ${out}`,
+  );
+  say(`prepare block agrees with the screen's: maxChunks ${maxChunks}`);
+  say(
+    `screen receipt: commit ${
+      String(screenReceipt.screen_commit).slice(0, 8)
+    }, rules ${
       String(screenReceipt.rules_sha256).slice(0, 12)
-    }, ${screenOut.lines} screened records, sha256 ${screenOut.sha256.slice(0, 12)}`,
+    }, ${screenOut.lines} screened records, sha256 ${
+      screenOut.sha256.slice(0, 12)
+    }`,
   );
   const deps = cliDeps(repo, say);
-  const parts = `${root}/parts-${args.count}`;
-  if (!(await deps.listDir(parts)).includes('part-000.jsonl.receipt.json')) {
+  // A given parts folder is used as it is; otherwise the first `count` records are cut into a folder named by the
+  // screen output's hash, so parts of another screen are never taken for this one's.
+  const parts = args.partsDir ??
+    `${root}/parts-${args.count}-${screenOut.sha256.slice(0, 12)}`;
+  if (!(await deps.listDir(parts)).includes("part-000.jsonl.receipt.json")) {
+    if (args.partsDir) {
+      throw new NotReady(
+        `${parts} holds no part-000.jsonl with its receipt; run cli.ts split first`,
+      );
+    }
     say(`cutting the first ${args.count} screened records into ${parts}`);
-    const rc = await main(['split', '--records', screened, '--lines', String(args.count), '--out', parts], deps);
+    const rc = await main([
+      "split",
+      "--records",
+      screened,
+      "--lines",
+      String(args.count),
+      "--out",
+      parts,
+    ], deps);
     if (rc !== 0) throw new NotReady(`split exited ${rc}`);
   }
   let part = `${parts}/part-000.jsonl`;
   const partReceiptPath = `${part}.receipt.json`;
   const original = await Deno.readTextFile(part);
-  const source = (await readJson(partReceiptPath)).source as Record<string, unknown>;
-  if (source.sha256 !== screenOut.sha256) throw new NotReady('the part was not cut from this screen output');
+  const partReceiptJson = await readJson(partReceiptPath);
+  const source = partReceiptJson.source as Record<string, unknown>;
+  if (source.sha256 !== screenOut.sha256) {
+    throw new NotReady("the part was not cut from this screen output");
+  }
+  const partDisagreement = prepareDisagreement(
+    partReceiptJson.prepare,
+    collectionOriginal.prepare,
+  );
+  if (partDisagreement) throw new NotReady(`part-000: ${partDisagreement}`);
   const basis = basisOf(original);
   const keys = Object.keys(basis);
-  if (keys.length !== args.count) throw new NotReady(`the part holds ${keys.length} records, not ${args.count}`);
+  if (keys.length !== args.count) {
+    throw new NotReady(
+      `the part holds ${keys.length} records, not ${args.count}`,
+    );
+  }
   say(
-    `part-000: ${keys.length} records, sha256 ${(await sha256Hex(original)).slice(0, 12)}, keys digest ${
-      (await sha256Hex(keys.join(','))).slice(0, 12)
-    }, bases ${JSON.stringify(countBy(Object.values(basis)))}`,
+    `part-000: ${keys.length} records, sha256 ${
+      (await sha256Hex(original)).slice(0, 12)
+    }, keys digest ${(await sha256Hex(keys.join(","))).slice(0, 12)}, bases ${
+      JSON.stringify(countBy(Object.values(basis)))
+    }`,
   );
 
   // 2. A fresh database: nothing of this input, no batch of the collection, and rows of each desk to compare.
-  const collection = String((await readJson(args.collectionFile)).collection);
-  const present = await n(`select count(*) from public.documents where source_key = any(${keyArray(keys)})`);
-  const batches = await n(`select count(*) from public.ingest_batches where collection = ${q(collection)}`);
+  const collection = String(collectionOriginal.collection);
+  const present = await n(
+    `select count(*) from public.documents where source_key = any(${
+      keyArray(keys)
+    })`,
+  );
+  const batches = await n(
+    `select count(*) from public.ingest_batches where collection = ${
+      q(collection)
+    }`,
+  );
   if (present > 0 || batches > 0) {
     throw new NotReady(
       `the database is not fresh (${present} of these documents, ${batches} batches); run regulatory-setup.sh reset`,
@@ -680,8 +942,10 @@ export async function proof(args: Args, repo: string): Promise<number> {
       JSON.stringify(REGULATORY.feature)
     }}'::jsonb)`,
   );
-  if (admitsRegulatory !== 'national_search_only') {
-    throw new NotReady('the database lacks 20261113090000_national_search_only');
+  if (admitsRegulatory !== "national_search_only") {
+    throw new NotReady(
+      "the database lacks 20261113090000_national_search_only",
+    );
   }
 
   // 3. The break, if asked.
@@ -695,120 +959,176 @@ export async function proof(args: Args, repo: string): Promise<number> {
     }
   };
   let target = keys[Math.min(7, keys.length - 1)];
-  if (args.broken === 'held-key') {
+  if (args.broken === "held-key") {
     const key = setup(() => parseSuggestedKey(original, target));
     await psql(
       `insert into public.documents(source_key, title, content_sha256, ocr_text, metadata, desk_tier, desk_feature)
-       values ('rehearsal-decoy-' || ${q(tag)}, 'Rehearsal decoy', encode(sha256(convert_to(${
+       values ('rehearsal-decoy-' || ${
+        q(tag)
+      }, 'Rehearsal decoy', encode(sha256(convert_to(${
         q(`decoy-${tag}`)
       }, 'UTF8')), 'hex'),
-               '', jsonb_build_object('document_key_suggested', ${q(key)}::text), ${q(REGULATORY.tier)}, ${
-        q(REGULATORY.feature)
-      })`,
+               '', jsonb_build_object('document_key_suggested', ${
+        q(key)
+      }::text), ${q(REGULATORY.tier)}, ${q(REGULATORY.feature)})`,
     );
     say(
-      `break held-key: a document now holds the suggested key of record ${keys.indexOf(target)} (${
-        target.slice(0, 8)
-      })`,
+      `break held-key: a document now holds the suggested key of record ${
+        keys.indexOf(target)
+      } (${target.slice(0, 8)})`,
     );
   }
-  if (args.broken === 'held-url') {
-    const withUrl = setup(() => keys.find((k) => parseField(original, k, 'file_url') !== null));
-    if (!withUrl) throw new NotReady('no record of the part has a file_url');
+  if (args.broken === "held-url") {
+    const withUrl = setup(() =>
+      keys.find((k) => parseField(original, k, "file_url") !== null)
+    );
+    if (!withUrl) throw new NotReady("no record of the part has a file_url");
     target = withUrl;
     await psql(
       `insert into public.documents(source_key, title, content_sha256, ocr_text, metadata, file_url, desk_tier, desk_feature)
-       values ('rehearsal-decoy-' || ${q(tag)}, 'Rehearsal decoy', encode(sha256(convert_to(${
+       values ('rehearsal-decoy-' || ${
+        q(tag)
+      }, 'Rehearsal decoy', encode(sha256(convert_to(${
         q(`decoy-${tag}`)
       }, 'UTF8')), 'hex'),
-               '', '{}'::jsonb, ${q(setup(() => parseField(original, target, 'file_url')) as string)}, ${
-        q(REGULATORY.tier)
-      }, ${q(REGULATORY.feature)})`,
+               '', '{}'::jsonb, ${
+        q(setup(() => parseField(original, target, "file_url")) as string)
+      }, ${q(REGULATORY.tier)}, ${q(REGULATORY.feature)})`,
     );
-    say(`break held-url: a document now holds the file_url of record ${keys.indexOf(target)} (${target.slice(0, 8)})`);
+    say(
+      `break held-url: a document now holds the file_url of record ${
+        keys.indexOf(target)
+      } (${target.slice(0, 8)})`,
+    );
   }
-  if (args.broken === 'no-basis') {
-    const body = setup(() => stripBasis(original, Math.min(7, keys.length - 1)));
+  if (args.broken === "no-basis") {
+    const body = setup(() =>
+      stripBasis(original, Math.min(7, keys.length - 1))
+    );
     part = `${out}/records/part-000.jsonl`;
     await Deno.mkdir(`${out}/records`, { recursive: true });
     await Deno.writeTextFile(part, body, { createNew: true });
-    await Deno.writeTextFile(`${part}.receipt.json`, await partReceipt(body, source), { createNew: true });
-    say(`break no-basis: record ${Math.min(7, keys.length - 1)} of ${basename(part)} has no completeness_basis`);
+    await Deno.writeTextFile(
+      `${part}.receipt.json`,
+      await partReceipt(
+        body,
+        source,
+        partReceiptJson.prepare as Record<string, unknown>,
+      ),
+      {
+        createNew: true,
+      },
+    );
+    say(
+      `break no-basis: record ${Math.min(7, keys.length - 1)} of ${
+        basename(part)
+      } has no completeness_basis`,
+    );
   }
 
   // 4. Baselines, then the collection file, the policy and the worker settings.
   await psql(
-    'analyze public.documents; analyze public.document_chunks; analyze public.desk_rows; analyze public.record_document_links',
+    "analyze public.documents; analyze public.document_chunks; analyze public.desk_rows; analyze public.record_document_links",
   );
   const newKeys = keys;
   const before = {
-    bills: await snap('Bill Passage Probability Index', newKeys),
-    pq: await snap('Parliamentary Question Database', newKeys),
+    bills: await snap("Bill Passage Probability Index", newKeys),
+    pq: await snap("Parliamentary Question Database", newKeys),
     regulatory: await snap(REGULATORY.feature, newKeys),
     deskRows: await deskRowsDigest(),
   };
-  const linksBefore = await n('select count(*) from public.record_document_links');
-  say(`before: ${JSON.stringify({ bills: before.bills, pq: before.pq, regulatory: before.regulatory })}`);
+  const linksBefore = await n(
+    "select count(*) from public.record_document_links",
+  );
+  say(
+    `before: ${
+      JSON.stringify({
+        bills: before.bills,
+        pq: before.pq,
+        regulatory: before.regulatory,
+      })
+    }`,
+  );
 
   const decisionId = `rehearsal-${tag}`;
   const collectionFile = `${out}/collection.json`;
-  const coll = rehearsalCollection(await readJson(args.collectionFile), {
+  const coll = rehearsalCollection(collectionOriginal, {
     decisionId,
-    diskUsedBytes: await n('select pg_database_size(current_database())'),
-    maxChunks: args.maxChunks,
+    diskUsedBytes: await n("select pg_database_size(current_database())"),
   });
-  await Deno.writeTextFile(collectionFile, JSON.stringify(coll, null, 2) + '\n', { createNew: true });
-  say(`collection file ${collectionFile}, sha256 ${(await fileSha(collectionFile)).slice(0, 12)}`);
+  await Deno.writeTextFile(
+    collectionFile,
+    JSON.stringify(coll, null, 2) + "\n",
+    { createNew: true },
+  );
+  say(
+    `collection file ${collectionFile}, sha256 ${
+      (await fileSha(collectionFile)).slice(0, 12)
+    }`,
+  );
 
   const h = await makeHarness();
   assertPinned(pin, h.pin); // the PostgREST the harness found is the one this run started on
-  const priorSettings = await psql("select claim_batch || ',' || max_running from public.ingest_settings");
+  const priorSettings = await psql(
+    "select claim_batch || ',' || max_running from public.ingest_settings",
+  );
   let exitCode = 1;
-  let stop: string | null = 'not run';
+  let stop: string | null = "not run";
   let runnerError: string | null = null;
   let workerError: string | null = null;
   try {
-    const { error } = await h.svc.rpc('ingest_policy_approve', { p: policyFor(collection, decisionId) });
-    if (error) throw new NotReady(`policy approval failed: ${error.message.slice(0, 200)}`);
+    const { error } = await h.svc.rpc("ingest_policy_approve", {
+      p: policyFor(collection, decisionId),
+    });
+    if (error) {
+      throw new NotReady(
+        `policy approval failed: ${error.message.slice(0, 200)}`,
+      );
+    }
     say(`policy approved for ${collection}`);
 
     const run = await withWorkers({
       setup: async () => {
-        await psql('update public.ingest_settings set claim_batch = 8, max_running = 16');
+        await psql(
+          "update public.ingest_settings set claim_batch = 8, max_running = 16",
+        );
       },
       // 5. The worker runs beside the runner, as on a deployment.
       start: async (running) => {
         while (running()) {
           await drain(h, {
             concurrency: 4,
-            pending: () => n(`select count(*) from public.ingest_jobs where status in ('queued','running')`),
-            shouldStop: () => (running() ? null : 'proof finished'),
+            pending: () =>
+              n(`select count(*) from public.ingest_jobs where status in ('queued','running')`),
+            shouldStop: () => (running() ? null : "proof finished"),
           });
           await sleep(300);
         }
       },
       // Always runs, whatever the worker loop or the runner did.
       restore: async () => {
-        const [cb, mr] = priorSettings.split(',');
+        const [cb, mr] = priorSettings.split(",");
         await psql(
-          `update public.ingest_settings set claim_batch = ${Number(cb) || 1}, max_running = ${Number(mr) || 2}`,
+          `update public.ingest_settings set claim_batch = ${
+            Number(cb) || 1
+          }, max_running = ${Number(mr) || 2}`,
         );
       },
       // 6. The runner, as the developer runs it, with automated acceptance.
       body: async () => {
-        say('running the runner');
+        say("running the runner");
         await h.recheck(); // before the runner call: PostgREST must still be the same container on the same database
         return main(
           [
-            'run',
-            '--collection',
+            "run",
+            "--collection",
             collectionFile,
-            '--records',
+            "--records",
             part,
-            '--receipts',
+            "--receipts",
             `${out}/receipts`,
-            '--accept-service',
-            'rehearsal-local',
+            "--accept-service",
+            "rehearsal-local",
           ],
           deps,
         );
@@ -816,7 +1136,7 @@ export async function proof(args: Args, repo: string): Promise<number> {
     });
     workerError = run.workerError;
     if (run.workerError) {
-      stop = 'worker loop failed';
+      stop = "worker loop failed";
     } else if (run.bodyError !== null) {
       runnerError = run.bodyError;
       stop = `runner threw: ${run.bodyError}`;
@@ -832,67 +1152,111 @@ export async function proof(args: Args, repo: string): Promise<number> {
   const receiptNames = (await deps.listDir(`${out}/receipts`)).sort();
   let runReceipt: Record<string, unknown> | null = null;
   for (const name of receiptNames) {
-    if (name.startsWith('receipt-')) runReceipt = await readJson(`${out}/receipts/${name}`);
+    if (name.startsWith("receipt-")) {
+      runReceipt = await readJson(`${out}/receipts/${name}`);
+    }
   }
-  const runStop = (runReceipt?.stop as { reason?: string } | null | undefined)?.reason ?? null;
+  const runStop =
+    (runReceipt?.stop as { reason?: string } | null | undefined)?.reason ??
+      null;
   const precheckReasons: Record<string, number> = {};
-  const precheckItems = (runReceipt?.disagreements as Array<{ source_key: string | null; got: string }> | undefined) ??
+  const precheckItems = (runReceipt?.disagreements as
+    | Array<{ source_key: string | null; got: string }>
+    | undefined) ??
     [];
   for (const d of precheckItems) {
-    const why = d.got.replace(/^refused\s+/, '');
+    const why = d.got.replace(/^refused\s+/, "");
     precheckReasons[why] = (precheckReasons[why] ?? 0) + 1;
   }
-  const holds: Held[] =
-    ((runReceipt?.holds as Array<{ source_key: string | null; reason: string; chunks?: number }>) ?? [])
-      .map((x) => ({ key: x.source_key, reason: x.reason, chunks: typeof x.chunks === 'number' ? x.chunks : null }));
+  const holds: Held[] = ((runReceipt?.holds as Array<
+    { source_key: string | null; reason: string; chunks?: number }
+  >) ?? [])
+    .map((x) => ({
+      key: x.source_key,
+      reason: x.reason,
+      chunks: typeof x.chunks === "number" ? x.chunks : null,
+    }));
   if (runStop && stop === null) stop = runStop;
-  const acceptance: Facts['acceptance'] = [];
+  const acceptance: Facts["acceptance"] = [];
   for (const name of receiptNames) {
-    if (!name.startsWith('acceptance-')) continue;
-    const r = await readJson(`${out}/receipts/${name}`) as { sampled: number; ok: boolean; failures: unknown[] };
-    acceptance.push({ sampled: r.sampled, ok: r.ok, failures: r.failures.length });
+    if (!name.startsWith("acceptance-")) continue;
+    const r = await readJson(`${out}/receipts/${name}`) as {
+      sampled: number;
+      ok: boolean;
+      failures: unknown[];
+      index_misses: unknown[];
+    };
+    acceptance.push({
+      sampled: r.sampled,
+      ok: r.ok,
+      failures: r.failures.length,
+      indexMisses: r.index_misses.length,
+    });
   }
-  await psql('analyze public.documents; analyze public.document_chunks; analyze public.record_document_links');
+  await psql(
+    "analyze public.documents; analyze public.document_chunks; analyze public.record_document_links",
+  );
 
-  const batchIdSql = `(select id from public.ingest_batches where collection = ${
-    q(collection)
-  } order by created_at desc limit 1)`;
-  const ledgerRows = await psqlJson<Array<{ outcome: string; reason: string | null; n: number; chunks: number }>>(
+  const batchIdSql =
+    `(select id from public.ingest_batches where collection = ${
+      q(collection)
+    } order by created_at desc limit 1)`;
+  const ledgerRows = await psqlJson<
+    Array<{ outcome: string; reason: string | null; n: number; chunks: number }>
+  >(
     `select outcome, reason, count(*)::int as n, coalesce(sum(chunks), 0)::int as chunks
        from public.ingest_batch_items where batch_id = ${batchIdSql} group by 1, 2`,
   );
-  const refusedItems = await psqlJson<Array<{ source_key: string; reason: string | null }>>(
+  const refusedItems = await psqlJson<
+    Array<{ source_key: string; reason: string | null }>
+  >(
     `select source_key, reason from public.ingest_batch_items where batch_id = ${batchIdSql} and outcome = 'refused'`,
   );
-  const outcomeCount = (o: string) => ledgerRows.filter((r) => r.outcome === o).reduce((s, r) => s + r.n, 0);
+  const outcomeCount = (o: string) =>
+    ledgerRows.filter((r) => r.outcome === o).reduce((s, r) => s + r.n, 0);
   const refusedReasons: Record<string, number> = {};
-  for (const r of ledgerRows) if (r.outcome === 'refused') refusedReasons[r.reason ?? 'none'] = r.n;
+  for (const r of ledgerRows) {
+    if (r.outcome === "refused") refusedReasons[r.reason ?? "none"] = r.n;
+  }
   const docRows = await psqlJson<
-    Array<{ source_key: string; basis: string | null; indexed: boolean; in_desk: boolean }>
+    Array<
+      {
+        source_key: string;
+        basis: string | null;
+        indexed: boolean;
+        in_desk: boolean;
+      }
+    >
   >(
     `select source_key, metadata->>'completeness_basis' as basis, indexed_at is not null as indexed,
-            (desk_tier = ${q(REGULATORY.tier)} and desk_feature = ${q(REGULATORY.feature)}) as in_desk
+            (desk_tier = ${q(REGULATORY.tier)} and desk_feature = ${
+      q(REGULATORY.feature)
+    }) as in_desk
        from public.documents where source_key = any(${keyArray(keys)})`,
   );
-  const newDocs = `(select id from public.documents where source_key = any(${keyArray(keys)}))`;
-  const chunkRows = await psqlJson<Array<{ stored: number; partition: number }>>(
+  const newDocs = `(select id from public.documents where source_key = any(${
+    keyArray(keys)
+  }))`;
+  const chunkRows = await psqlJson<
+    Array<{ stored: number; partition: number }>
+  >(
     `select count(*)::int as stored, count(*) filter (where tableoid::regclass::text = 'document_chunks_regulatory')::int as partition
        from public.document_chunks where document_id in ${newDocs}`,
   );
   const facts: Facts = {
     expected: args.count,
     basis,
-    maxChunks: args.maxChunks,
+    maxChunks,
     exitCode,
     stop,
     runnerError,
     workerError,
     ledger: {
       items: ledgerRows.reduce((s, r) => s + r.n, 0),
-      admitted: outcomeCount('admitted'),
-      existing: outcomeCount('existing'),
-      refused: outcomeCount('refused'),
-      planned: outcomeCount('planned'),
+      admitted: outcomeCount("admitted"),
+      existing: outcomeCount("existing"),
+      refused: outcomeCount("refused"),
+      planned: outcomeCount("planned"),
     },
     refusedReasons,
     holds,
@@ -904,19 +1268,22 @@ export async function proof(args: Args, repo: string): Promise<number> {
     },
     chunks: {
       stored: chunkRows[0].stored,
-      plannedByLedger: ledgerRows.filter((r) => r.outcome === 'admitted').reduce((s, r) => s + r.chunks, 0),
+      plannedByLedger: ledgerRows.filter((r) => r.outcome === "admitted")
+        .reduce((s, r) => s + r.chunks, 0),
       inRegulatoryPartition: chunkRows[0].partition,
     },
     links: {
-      forNew: await n(`select count(*) from public.record_document_links where document_id in ${newDocs}`),
+      forNew: await n(
+        `select count(*) from public.record_document_links where document_id in ${newDocs}`,
+      ),
       before: linksBefore,
-      after: await n('select count(*) from public.record_document_links'),
+      after: await n("select count(*) from public.record_document_links"),
     },
     stored: Object.fromEntries(docRows.map((r) => [r.source_key, r.basis])),
     before,
     after: {
-      bills: await snap('Bill Passage Probability Index', newKeys),
-      pq: await snap('Parliamentary Question Database', newKeys),
+      bills: await snap("Bill Passage Probability Index", newKeys),
+      pq: await snap("Parliamentary Question Database", newKeys),
       regulatory: await snap(REGULATORY.feature, newKeys),
       deskRows: await deskRowsDigest(),
     },
@@ -925,16 +1292,30 @@ export async function proof(args: Args, repo: string): Promise<number> {
   };
 
   const checks = evaluate(facts);
-  say('');
+  say("");
   say(
-    `held by prepare: ${holds.length} of ${args.count} ${JSON.stringify(heldByReason(holds))}` +
-      (holds.length ? `, chunk counts ${heldChunkRange(holds)!.min} to ${heldChunkRange(holds)!.max}` : '') +
-      `; admitted: ${args.count - holds.length}`,
+    `held by prepare: ${holds.length} of ${args.count} ${
+      JSON.stringify(heldByReason(holds))
+    }` +
+      (holds.length
+        ? `, chunk counts ${heldChunkRange(holds)!.min} to ${
+          heldChunkRange(holds)!.max
+        }`
+        : "") +
+      `; admitted: ${facts.ledger.admitted}`,
   );
-  for (const c of checks) say(`  ${c.ok ? 'PASS' : 'FAIL'}  ${c.name}${c.detail ? `  -- ${c.detail}` : ''}`);
+  for (const c of checks) {
+    say(
+      `  ${c.ok ? "PASS" : "FAIL"}  ${c.name}${
+        c.detail ? `  -- ${c.detail}` : ""
+      }`,
+    );
+  }
   const failed = checks.filter((c) => !c.ok).length;
   say(
-    `\n${checks.length - failed} of ${checks.length} checks passed in ${Math.round((Date.now() - started) / 1000)} s`,
+    `\n${checks.length - failed} of ${checks.length} checks passed in ${
+      Math.round((Date.now() - started) / 1000)
+    } s`,
   );
   let verdictLine: string;
   let code: number;
@@ -942,11 +1323,23 @@ export async function proof(args: Args, repo: string): Promise<number> {
   let breakCheck: Check | null = null;
   if (args.broken) {
     const refused: Record<string, string> = {};
-    for (const r of refusedItems) refused[r.source_key] = r.reason ?? 'none';
-    for (const d of precheckItems) if (d.source_key) refused[d.source_key] = d.got.replace(/^refused\s+/, '');
-    say(`break ${args.broken}: refusal reasons seen ${JSON.stringify({ ...refusedReasons, ...precheckReasons })}`);
+    for (const r of refusedItems) refused[r.source_key] = r.reason ?? "none";
+    for (const d of precheckItems) {
+      if (d.source_key) {
+        refused[d.source_key] = d.got.replace(/^refused\s+/, "");
+      }
+    }
+    say(
+      `break ${args.broken}: refusal reasons seen ${
+        JSON.stringify({ ...refusedReasons, ...precheckReasons })
+      }`,
+    );
     breakCheck = breakSeen(args.broken, target, { refused, holds });
-    say(`  ${breakCheck.ok ? 'PASS' : 'FAIL'}  ${breakCheck.name}  -- ${breakCheck.detail}`);
+    say(
+      `  ${
+        breakCheck.ok ? "PASS" : "FAIL"
+      }  ${breakCheck.name}  -- ${breakCheck.detail}`,
+    );
     const crashed = runnerError
       ? `the runner threw: ${runnerError}`
       : workerError
@@ -954,10 +1347,10 @@ export async function proof(args: Args, repo: string): Promise<number> {
       : null;
     const v = breakVerdict(args.broken, { seen: breakCheck, checks, crashed });
     verdictLine = v.line;
-    verdict = v.confirmed ? 'BREAK CONFIRMED' : 'BREAK NOT CONFIRMED';
+    verdict = v.confirmed ? "BREAK CONFIRMED" : "BREAK NOT CONFIRMED";
     code = v.confirmed ? 1 : 3;
   } else {
-    verdict = failed === 0 ? 'PASS' : 'FAIL';
+    verdict = failed === 0 ? "PASS" : "FAIL";
     verdictLine = `VERDICT ${verdict}`;
     code = failed === 0 ? 0 : 1;
   }
@@ -972,32 +1365,38 @@ export async function proof(args: Args, repo: string): Promise<number> {
         broken: args.broken,
         break_check: breakCheck,
         database: proofDb(),
-        keys_digest: await sha256Hex(keys.join(',')),
+        keys_digest: await sha256Hex(keys.join(",")),
         checks,
         facts: rest,
       },
       null,
       2,
-    ) + '\n',
+    ) + "\n",
     { createNew: true },
   );
   return code;
 }
 
 /** A string field of one record of a part, or null when the record has none. */
-export function parseField(partText: string, sourceKey: string, field: string): string | null {
-  for (const l of partText.split('\n')) {
+export function parseField(
+  partText: string,
+  sourceKey: string,
+  field: string,
+): string | null {
+  for (const l of partText.split("\n")) {
     if (!l.trim()) continue;
     const r = JSON.parse(l) as Record<string, unknown>;
-    if (r.source_key === sourceKey) return typeof r[field] === 'string' ? r[field] as string : null;
+    if (r.source_key === sourceKey) {
+      return typeof r[field] === "string" ? r[field] as string : null;
+    }
   }
-  throw new Error('no such record in the part');
+  throw new Error("no such record in the part");
 }
 
 /** The suggested key of one record of a part. */
 function parseSuggestedKey(partText: string, sourceKey: string): string {
-  const key = parseField(partText, sourceKey, 'document_key_suggested');
-  if (key === null) throw new Error('the record has no suggested key');
+  const key = parseField(partText, sourceKey, "document_key_suggested");
+  if (key === null) throw new Error("the record has no suggested key");
   return key;
 }
 
@@ -1008,37 +1407,51 @@ function countBy(xs: string[]): Record<string, number> {
 }
 
 export const USAGE =
-  `usage: regulatory-proof.sh [--count 100] [--max-chunks 700] [--out DIR] [--break held-key|held-url|no-basis]
+  `usage: regulatory-proof.sh [--count 100] [--screen-dir DIR] [--collection-file FILE] [--parts-dir DIR] [--out DIR]
+                             [--break held-key|held-url|no-basis]
        regulatory-proof.sh test
 
 Run regulatory-setup.sh reset before every proof.
 exit 0  every check held
 exit 1  a check failed; with --break: the break was CONFIRMED by its intended reason on the target record
-exit 2  not ready (wrong database, no PostgREST for it, bad input or arguments, --out outside the rehearsal folder,
+exit 2  not ready (wrong database, no PostgREST for it, bad input or arguments, a screen made under another prepare
+        block than the collection file's, --out outside the rehearsal folder,
         a break that could not be set up); nothing was run
 exit 3  an unexpected exception; with --break: the run failed for a reason other than the intended one (BREAK NOT CONFIRMED)
 --break held-key   admission refusal: the target must be refused suggested_key_held
 --break held-url   admission refusal: the target must be refused file_url_held
---break no-basis   prepare-hold break (never reaches admission): the only hold besides over_chunk_limit is one prepare_failed`;
+--break no-basis   prepare-hold break (never reaches admission): the only hold is one prepare_failed`;
 
 if (import.meta.main) {
-  if (Deno.args.includes('--help') || Deno.args.includes('-h')) {
+  if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
     console.log(USAGE);
     Deno.exit(0);
   }
   try {
     const args = parseArgs(Deno.args, HOME);
-    const repo = fromFileUrl(new URL('../..', import.meta.url)).replace(/\/$/, '');
+    const repo = fromFileUrl(new URL("../..", import.meta.url)).replace(
+      /\/$/,
+      "",
+    );
     const code = await proof(args, repo);
-    if (shouldKeepEvidence(code, args.broken)) await keepFailureEvidence(`exit ${code}`);
+    if (shouldKeepEvidence(code, args.broken)) {
+      await keepFailureEvidence(`exit ${code}`);
+    }
     Deno.exit(code);
   } catch (e) {
     const notReady = e instanceof NotReady ||
-      (e instanceof Error && /^(bad argument|unknown option|--)/.test(e.message));
-    console.error(`${notReady ? 'not ready' : 'unexpected error'}: ${message(e)}`);
+      (e instanceof Error &&
+        /^(bad argument|unknown option|--)/.test(e.message));
+    console.error(
+      `${notReady ? "not ready" : "unexpected error"}: ${message(e)}`,
+    );
     // The reason is the error's name and code, never its text: database errors quote the values that failed.
     if (keepAfterThrow({ refusal: notReady, wrote: wroteToDb })) {
-      await keepFailureEvidence(`${notReady ? 'not ready' : 'unexpected error'} after writes began: ${errorLabel(e)}`);
+      await keepFailureEvidence(
+        `${notReady ? "not ready" : "unexpected error"} after writes began: ${
+          errorLabel(e)
+        }`,
+      );
     }
     Deno.exit(notReady ? 2 : 3);
   }

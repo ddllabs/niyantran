@@ -74,6 +74,7 @@ export class PsqlLiveReader implements LiveReader {
     contentHashes?: string[];
     documentKeys?: string[];
     suggestedKeys?: string[];
+    fileMtimes?: string[];
     tier?: string;
     feature?: string;
   }): Promise<LiveDocument[]> {
@@ -82,13 +83,19 @@ export class PsqlLiveReader implements LiveReader {
     const contentHashes = batches(checkKeys(q.contentHashes ?? [], 'documents.contentHashes'));
     const documentKeys = batches(checkKeys(q.documentKeys ?? [], 'documents.documentKeys'));
     const suggestedKeys = batches(checkKeys(q.suggestedKeys ?? [], 'documents.suggestedKeys'));
-    if (documentKeys.length > 0 || suggestedKeys.length > 0) {
+    const fileMtimes = batches(checkKeys(q.fileMtimes ?? [], 'documents.fileMtimes'));
+    if (documentKeys.length > 0 || suggestedKeys.length > 0 || fileMtimes.length > 0) {
       // A document key is only meaningful within one tier and feature; they also let the partial index be used.
+      const needing = [
+        documentKeys.length > 0 && 'documentKeys',
+        suggestedKeys.length > 0 && 'suggestedKeys',
+        fileMtimes.length > 0 && 'fileMtimes',
+      ].filter(Boolean).join(' and ');
       if (typeof q.tier !== 'string' || q.tier === '' || q.tier.includes('\0')) {
-        throw new Error('documents: documentKeys and suggestedKeys need a tier');
+        throw new Error(`documents: ${needing} need a tier`);
       }
       if (typeof q.feature !== 'string' || q.feature === '' || q.feature.includes('\0')) {
-        throw new Error('documents: documentKeys and suggestedKeys need a feature');
+        throw new Error(`documents: ${needing} need a feature`);
       }
     }
     const seen = new Map<string, LiveDocument>();
@@ -98,6 +105,7 @@ export class PsqlLiveReader implements LiveReader {
       contentHashes.length,
       documentKeys.length,
       suggestedKeys.length,
+      fileMtimes.length,
     );
     // Any failed batch throws out of the loop: the caller never sees a partial result.
     for (let i = 0; i < rounds; i++) {
@@ -117,11 +125,18 @@ export class PsqlLiveReader implements LiveReader {
             `and metadata->>'document_key_suggested' = any(${asTextArray(suggestedKeys[i])}))`,
         );
       }
+      if (fileMtimes[i]) {
+        terms.push(
+          `(desk_tier = ${dollarQuote(q.tier!)} and desk_feature = ${dollarQuote(q.feature!)} ` +
+            `and metadata->>'file_mtime' = any(${asTextArray(fileMtimes[i])}))`,
+        );
+      }
       const rows = await this.read<LiveDocument>(
         `select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb)::text from (
            select id, source_key, file_url, file_name, desk_feature, metadata->>'document_key' as document_key,
                   metadata->>'house' as house, metadata->>'document_role' as document_role, content_sha256,
-                  metadata->>'document_key_suggested' as document_key_suggested
+                  metadata->>'document_key_suggested' as document_key_suggested, title,
+                  metadata->>'file_mtime' as file_mtime, metadata->>'source_host' as source_host
              from public.documents
             where ${terms.join(' or ')}) t;`,
       );
