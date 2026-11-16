@@ -452,3 +452,7 @@ verify_jwt = false
 
 [functions.admin-personas]
 verify_jwt = false
+
+# factcheck checks the user itself (requireUser and the active-account check), so its 401 and 403 carry CORS.
+[functions.factcheck]
+verify_jwt = false

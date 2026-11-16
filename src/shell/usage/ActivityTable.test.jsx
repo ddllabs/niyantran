@@ -209,3 +209,67 @@ describe('grouped by chat', () => {
     expect(labelled(props({ filters: byChat, chats: { status: 'ready', groups: [] } }), /Export CSV/).props.disabled).toBe(true);
   });
 });
+
+// F347: a fact-check charge reads as one, not as dictation, and carries no model, calls or chat.
+describe('fact-check rows', () => {
+  const fact = { turnKey: null, createdAt: '2026-11-15T06:30:00Z', conversationId: null, title: null, question: null, model: null,
+    status: 'succeeded', calls: 0, tokens: 0, credits: 12, detail: [], feature: 'factcheck', channel: 'aaj-tak', minutesUsed: 8, videoKind: 'live' };
+  // The rows only: the filter bar above them has its own Dictation option.
+  const listOf = (out) => out.match(/<ul class="cp-rows"[\s\S]*?<\/ul>/)[0];
+  const factRow = (row, grouped = true) => html({ state: { status: 'ready', total: 1, rows: [row] }, filters: { ...FIRST_FILTERS, grouped } });
+
+  it('reads the title, channel, minutes, live or recorded and the date, with credits', () => {
+    const out = factRow(fact);
+    expect(out).toContain('<p class="cp-row-q">Live TV fact-check</p>');
+    expect(out).toContain('15 Nov, 12:00');
+    expect(out).toContain('Aaj Tak');
+    expect(out).toContain('8 min');
+    expect(out).toContain('Live');
+    expect(out).toMatch(/<span class="cp-row-credits">12<span class="cu-sr"> credits<\/span><\/span>/);
+  });
+
+  it('has no model chip, calls or tokens text, chat button or expander', () => {
+    for (const grouped of [true, false]) {
+      const out = listOf(factRow({ ...fact, detail: [{ role: 'answer', model: 'x/y', tokens: 1, credits: 1, free: false, status: 'succeeded' }], calls: 2 }, grouped));
+      expect(out).not.toContain('cp-chip');
+      expect(out).not.toContain('No model');
+      expect(out.replace(/<[^>]+>/g, ' ')).not.toMatch(/calls?\b|tokens/);
+      expect(out).not.toContain('cu-chat-open');
+      expect(out).not.toContain('cu-expand"');
+      expect(out).not.toContain('Dictation');
+    }
+  });
+
+  it('reads just "Live TV fact-check" when the session was deleted', () => {
+    const out = factRow({ ...fact, channel: null, minutesUsed: null, videoKind: null });
+    expect(out).toContain('<p class="cp-row-q">Live TV fact-check</p>');
+    expect(out).not.toContain(' min');
+    expect(out).not.toContain('Recorded');
+  });
+
+  it('says recorded for a recorded video', () => {
+    expect(factRow({ ...fact, videoKind: 'recorded', minutesUsed: 1 })).toContain('Recorded');
+  });
+
+  it('leaves chat and dictation rows exactly as they were in a mixed list', () => {
+    const mixed = html({ state: { status: 'ready', total: 4, rows: [answer, fact, deleted, dictation] } });
+    const plain = html();
+    for (const piece of plain.match(/<li class="cp-row[\s\S]*?<\/li>/g)) expect(mixed).toContain(piece);
+    expect(mixed.match(/<p class="cp-row-q">Dictation<\/p>/g)).toHaveLength(1);
+  });
+
+  it('offers a Fact-check kind in the filter', () => {
+    const out = html();
+    expect(out).toContain('<option value="factcheck">Fact-check</option>');
+    expect(out.indexOf('value="dictation"')).toBeLessThan(out.indexOf('value="factcheck"'));
+  });
+
+  it('totals fact-checks as their own group by chat, never as dictation', () => {
+    const groups = [{ key: 'factcheck', conversationId: null, credits: 20, calls: 0, answers: 2, latest: '2026-11-15T11:00:00Z', sample: fact }];
+    const out = listOf(html({ filters: { ...FIRST_FILTERS, byChat: true }, chats: { status: 'ready', groups, capped: false } }));
+    expect(out).toContain('Live TV fact-check');
+    expect(out).toContain('2 fact-checks');
+    expect(out).not.toContain('Dictation');
+    expect(out).not.toContain('calls');
+  });
+});

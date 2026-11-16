@@ -186,3 +186,17 @@ describe('the heat map keys', () => {
     expect(heatStep('a', 5, 90, 45)).toBeNull();
   });
 });
+
+describe('groupByChat with fact-check charges (F347)', () => {
+  it('keeps fact-checks in their own group, apart from dictation and deleted chats', () => {
+    const rows = [
+      { conversationId: null, turnKey: null, title: null, credits: 0, calls: 1, createdAt: '2026-11-14T10:00:00Z' },
+      { conversationId: null, turnKey: null, title: null, feature: 'factcheck', credits: 12, calls: 0, createdAt: '2026-11-15T10:00:00Z' },
+      { conversationId: null, turnKey: null, title: 'Live TV fact-check', feature: 'factcheck', credits: 8, calls: 0, createdAt: '2026-11-15T11:00:00Z' },
+      { conversationId: null, turnKey: 't1', title: null, credits: 5, calls: 2, createdAt: '2026-11-13T10:00:00Z' },
+    ];
+    expect(groupByChat(rows).map((c) => [c.key, c.credits, c.answers])).toEqual([
+      ['factcheck', 20, 2], ['deleted', 5, 1], ['dictation', 0, 1],
+    ]);
+  });
+});

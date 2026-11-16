@@ -201,3 +201,44 @@ describe('the 90-day heat map', () => {
     expect(renderToStaticMarkup(<UsageHeatmap points={[]} now={now} columns={30} />).match(/role="row"/g)).toHaveLength(3);
   });
 });
+
+// F347: fact-check charges in the Overview's recent list, the feature breakdown and the model lists.
+describe('fact-check charges on the credits page', () => {
+  const fact = { turnKey: null, createdAt: '2026-11-15T06:30:00Z', conversationId: null, title: 'Live TV fact-check', question: null, model: null,
+    status: 'succeeded', calls: 0, tokens: 0, credits: 12, detail: [], feature: 'factcheck', channel: 'aaj-tak', minutesUsed: 8, videoKind: 'live' };
+
+  it('shows a fact-check in Recent answers by its title, with no link and no "No model" chip', () => {
+    const out = renderToStaticMarkup(
+      <OverviewSection credits={CREDITS} cycle={{ status: 'ready', summary: SUMMARY }} series={{ status: 'ready', points: POINTS }}
+        recent={{ status: 'ready', rows: [fact] }} onOpenChat={vi.fn()} now={Date.parse('2026-10-20T06:30:00Z')} />,
+    );
+    expect(out).toContain('<p class="cp-row-q">Live TV fact-check</p>');
+    expect(out).not.toContain('No model');
+    expect(out).not.toContain('Dictation');
+    expect(out).not.toContain('cp-row-link');
+  });
+
+  it('lists the feature with its own colour class, and still calls an unknown one Other', () => {
+    const summary = { ...SUMMARY, byFeature: [...SUMMARY.byFeature, { feature: 'factcheck', calls: 2, credits: 24, searches: 0 }, { feature: 'novel', calls: 1, credits: 1, searches: 0 }] };
+    const out = renderToStaticMarkup(
+      <UsageAnalytics range="30d" measure="credits" groupBy="model" state={{ status: 'ready', summary, window: { from: '2026-10-01T00:00:00Z', to: '2026-10-20T00:00:00Z' }, series: { points: POINTS } }}
+        chart={buildChart(POINTS)} onRange={() => {}} onMeasure={() => {}} onGroupBy={() => {}} onToggle={() => {}} />,
+    );
+    expect(out).toContain('<span class="cu-feature-name">Live TV fact-check</span>');
+    expect(out).toContain('cu-feature-icon cu-feature-factcheck');
+    expect(out).toContain('<span class="cu-feature-name">Other</span>');
+  });
+
+  it('labels a factcheck series in the chart legend, not "Unknown model"', () => {
+    const points = [...POINTS, { bucket: '2026-10-14', model: 'factcheck', credits: 24, calls: 0, tokens: 0 }];
+    const chart = buildChart(points);
+    expect(chart.series.map((s) => s.label)).toContain('Live TV fact-check');
+    expect(chart.series.map((s) => s.label)).not.toContain('Unknown model');
+  });
+
+  it('keeps the factcheck pseudo-model out of the activity model filter', () => {
+    const summary = { ...SUMMARY, byModel: [...SUMMARY.byModel, { model: 'factcheck', provider: 'other', credits: 99, calls: 0, tokens: 0 }] };
+    expect(filterModels(summary)).not.toContain('factcheck');
+    expect(filterModels(summary)).toContain('google/gemini-3.7-flash');
+  });
+});

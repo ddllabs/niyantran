@@ -4,7 +4,7 @@
  * my_usage_activity (creditUsage.js). Credits only; nothing here is shown in money.
  */
 import { creditsText, lowBalance } from './creditsStore.js';
-import { dayText as periodDay, istDayStart } from './creditUsage.js';
+import { dayText as periodDay, isFactcheck, istDayStart } from './creditUsage.js';
 
 const DAY_MS = 86400000;
 const IST_OFFSET_MS = 330 * 60000;
@@ -90,11 +90,11 @@ export function heatmapCells(points, now = Date.now(), count = 90) {
   return cells.map((c) => ({ ...c, level: c.value > 0 && max > 0 ? Math.min(4, Math.max(1, Math.ceil((c.value / max) * 4))) : 0 }));
 }
 
-/** Activity rows totalled per chat, most credits first. Rows with no chat (dictation) share one group. */
+/** Activity rows totalled per chat, most credits first. Rows with no chat share one group each: dictation, and fact-checks. */
 export function groupByChat(rows) {
   const groups = new Map();
   for (const row of Array.isArray(rows) ? rows : []) {
-    const key = row.conversationId || (row.turnKey ? 'deleted' : 'dictation');
+    const key = isFactcheck(row) ? 'factcheck' : row.conversationId || (row.turnKey ? 'deleted' : 'dictation');
     const g = groups.get(key) || { key, conversationId: row.conversationId || null, title: null, credits: 0, calls: 0, answers: 0, latest: null, sample: row };
     g.title = g.title || row.title || null;
     g.credits += n(row.credits);

@@ -4,7 +4,7 @@
  * latest answers and the credits by expiry. Hook-free: CreditsPage reads the reports.
  */
 import { creditsText, formatCredits } from '../../lib/creditsStore.js';
-import { indianNumber, modelLabel, rowChat, whenText } from '../../lib/creditUsage.js';
+import { indianNumber, isFactcheck, modelLabel, rowChat, whenText } from '../../lib/creditUsage.js';
 import { periodLine } from '../../lib/creditsVisual.js';
 import CreditLots from '../CreditLots.jsx';
 import { Tokens } from '../usage/usageParts.jsx';
@@ -26,7 +26,7 @@ function RecentAnswers({ state, onOpenChat }) {
               {r.conversationId
                 ? <button type="button" className="cp-row-q cp-row-link" onClick={() => onOpenChat(r.conversationId)}>{r.question || rowChat(r)}</button>
                 : <p className="cp-row-q">{r.question || rowChat(r)}</p>}
-              <p className="cp-row-meta"><span>{whenText(r.createdAt)}</span><span className="cp-chip" title={r.model || ''}>{r.model ? modelLabel(r.model) : 'No model'}</span>{r.status === 'failed' ? <span>Failed · not charged</span> : null}</p>
+              <p className="cp-row-meta"><span>{whenText(r.createdAt)}</span>{isFactcheck(r) ? null : <span className="cp-chip" title={r.model || ''}>{r.model ? modelLabel(r.model) : 'No model'}</span>}{r.status === 'failed' ? <span>Failed · not charged</span> : null}</p>
             </div>
             <span className="cp-mini" aria-hidden="true"><span className="cp-s0" style={{ width: `${max > 0 ? Math.round((100 * r.credits) / max) : 0}%` }} /></span>
             <span className="cp-row-credits">{formatCredits(r.credits)}<span className="cu-sr"> credits</span></span>
