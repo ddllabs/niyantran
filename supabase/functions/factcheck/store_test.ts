@@ -127,3 +127,9 @@ Deno.test('claims are listed newest first with a limit, and a missing row reads 
   );
   assertEquals(await postgrestStore(() => fakeDb({ data: null, error: null }).db as never).claim('U', 'S', 'C'), null);
 });
+
+Deno.test('claimById is scoped by id AND user', async () => {
+  const f = fakeDb({ data: { id: 'c' }, error: null });
+  await postgrestStore(() => f.db as never).claimById('U', 'C');
+  assertEquals([has(f.calls, 'eq', 'id', 'C'), has(f.calls, 'eq', 'user_id', 'U')], [true, true]);
+});

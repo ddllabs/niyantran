@@ -8,7 +8,7 @@ import { ApiError } from './apiError.ts';
 import { OPENROUTER_CHAT_URL } from './models.ts';
 import type { Ctx, FactcheckDeps } from './types.ts';
 
-export type Purpose = 'transcription' | 'claim_extraction' | 'claim_check';
+export type Purpose = 'transcription' | 'claim_extraction' | 'claim_check' | 'claim_recheck';
 
 export interface ModelCallRow {
   user_id: string;

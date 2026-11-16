@@ -13,6 +13,7 @@ import { ApiError } from './apiError.ts';
 import { MAX_JSON_BYTES, MAX_MULTIPART_BYTES, readCapped } from './body.ts';
 import { checkAction } from './check.ts';
 import { extractAction } from './extract.ts';
+import { recheckAction } from './recheck.ts';
 import { startAction } from './start.ts';
 import { stopAction } from './stop.ts';
 import { transcribeAction } from './transcribe.ts';
@@ -24,6 +25,7 @@ const JSON_ACTIONS: Record<string, (ctx: Ctx, body: Obj) => Promise<Obj>> = {
   extract: extractAction,
   check: checkAction,
   stop: stopAction,
+  recheck: recheckAction,
 };
 
 async function parse(req: Request): Promise<{ action: string; json?: Obj; form?: FormData }> {

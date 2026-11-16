@@ -42,6 +42,8 @@ export interface ClaimRow {
   sources: Source[];
   checked_at: string | null;
   spoken_at: string;
+  /** The earlier claim this row re-checks, if any. */
+  supersedes?: string | null;
 }
 
 export interface ClaimInsert {
@@ -84,6 +86,8 @@ export interface ClaimStore {
   /** Updates a claim only while it is still needs_context. Null when it no longer is. */
   updateHeld(userId: string, sessionId: string, claimId: string, patch: HeldPatch): Promise<ClaimRow | null>;
   claim(userId: string, sessionId: string, claimId: string): Promise<ClaimRow | null>;
+  /** One claim of this user by id alone (the re-check row, whose session the caller does not name). */
+  claimById(userId: string, claimId: string): Promise<ClaimRow | null>;
   /**
    * Claims the right to check a claim: succeeds only while it is pending and not already being
    * checked (checked_at null, or older than staleBefore). True when this caller now holds it.
