@@ -135,7 +135,8 @@ BEGIN
   PERFORM public.factcheck_recheck_collect();
   snap_before := pg_temp.snap(p_user);
   r := public.factcheck_recheck_begin(p_user, p_claim, p_admin, p_expected);
-  IF r ->> 'ok' <> 'false' OR r ->> 'reason' <> p_reason OR pg_temp.snap(p_user) <> snap_before THEN
+  IF r ->> 'ok' <> 'false' OR r ->> 'reason' <> p_reason OR pg_temp.snap(p_user) <> snap_before
+     OR (r ? 'newer_claim_id' AND p_reason <> 'not_recheckable') THEN
     RAISE EXCEPTION 'FAIL: % (wanted %, got % ; state % -> %)', p_label, p_reason, r, snap_before, pg_temp.snap(p_user);
   END IF;
   RAISE NOTICE 'PASS: %', p_label;
@@ -237,6 +238,7 @@ BEGIN
   r := pg_temp.refused(u, gen_random_uuid(), true, 100, 'not_found', 'an unknown claim is not_found');
   r := pg_temp.refused(u, pg_temp.claim(osid, o, 'checked', 'Other'), true, 100, 'not_found', 'another user''s claim is not_found');
   r := pg_temp.refused(u, pg_temp.claim(sid, u, 'pending', 'P'), true, 100, 'not_recheckable', 'a pending claim is not_recheckable');
+  PERFORM pg_temp.assert_true(NOT (r ? 'newer_claim_id'), 'and names no newer claim');
   r := pg_temp.refused(u, pg_temp.claim(sid, u, 'needs_context', 'N'), true, 100, 'not_recheckable', 'a needs_context claim is not_recheckable');
   r := pg_temp.refused(u, pg_temp.claim(sid, u, 'not_checkable', 'M'), true, 100, 'not_recheckable', 'a not_checkable claim is not_recheckable');
   r := pg_temp.refused(u, c, true, 99, 'price_changed', 'a different expected price is price_changed');
@@ -329,7 +331,10 @@ BEGIN
   PERFORM pg_temp.assert_true(c IS NOT NULL AND (SELECT supersedes = b FROM public.factcheck_claims WHERE id = c), 'a re-check of a re-check is allowed and names the re-check');
   PERFORM pg_temp.finish(c, 'checked');
   r := pg_temp.refused(u, b, true, 100, 'not_recheckable', 'the middle row is superseded');
+  PERFORM pg_temp.assert_true((r ->> 'newer_claim_id')::uuid = c, 'and names the newest successor: ' || r::text);
   r := pg_temp.refused(u, a, true, 100, 'not_recheckable', 'and so is the first');
+  PERFORM pg_temp.assert_true((r ->> 'newer_claim_id')::uuid = c AND (SELECT count(*) FROM jsonb_object_keys(r)) = 3,
+    'the first row names the END of the chain, not its direct successor, and the refusal has just ok, reason and newer_claim_id: ' || r::text);
   -- A re-check that ended in error supersedes its parent too; the error row itself can be tried again.
   d := (public.factcheck_recheck_begin(u, c, true, 100) ->> 'claim_id')::uuid;
   PERFORM pg_temp.finish(d, 'error');
@@ -371,6 +376,126 @@ BEGIN
   INSERT INTO private.factcheck_recheck_rate (user_id, minute, n) VALUES (u, now() - interval '3 hours', 2);
   PERFORM public.factcheck_recheck_begin(u, cl[8], true, 100);
   PERFORM pg_temp.assert_true(NOT EXISTS (SELECT FROM private.factcheck_recheck_rate WHERE user_id = u AND minute < now() - interval '1 hour'), 'rate rows over an hour old are deleted');
+END;
+$$;
+
+-- 5b. Re-checks in flight are owed: they count against the available credits ----------------------------------------------------------
+SELECT pg_temp.mkuser(20, 150);
+SELECT pg_temp.mkuser(21, 250);
+DO $$
+DECLARE u uuid := pg_temp.u(20); sid uuid := pg_temp.session(pg_temp.u(20)); c1 uuid; c2 uuid; c3 uuid; k1 uuid; k2 uuid; r jsonb;
+BEGIN
+  c1 := pg_temp.claim(sid, u, 'checked', 'Flight 1'); c2 := pg_temp.claim(sid, u, 'checked', 'Flight 2'); c3 := pg_temp.claim(sid, u, 'checked', 'Flight 3');
+  PERFORM pg_temp.assert_true((SELECT balance FROM public.credit_wallets WHERE user_id = u) = 148, 'the user has 148 credits');
+  k1 := (public.factcheck_recheck_begin(u, c1, true, 100) ->> 'claim_id')::uuid;
+  PERFORM pg_temp.assert_true(k1 IS NOT NULL, 'the first re-check begins');
+  r := pg_temp.refused(u, c2, true, 100, 'insufficient', 'the second is insufficient while the first is in flight');
+  PERFORM pg_temp.assert_true((r ->> 'available')::numeric = 48, 'available is 148 less the 100 in flight: ' || r::text);
+  PERFORM pg_temp.finish(k1, 'error');
+  k2 := (public.factcheck_recheck_begin(u, c2, true, 100) ->> 'claim_id')::uuid;
+  PERFORM pg_temp.assert_true(k2 IS NOT NULL, 'when the first ends in error the credits are available again');
+  PERFORM pg_temp.finish(k2, 'checked');
+  r := public.factcheck_recheck_charge(u, k2);
+  PERFORM pg_temp.assert_true((r ->> 'balance')::numeric = 48, 'the second is charged: balance 48');
+  r := pg_temp.refused(u, c3, true, 100, 'insufficient', 'and a third is insufficient on the balance alone');
+  PERFORM pg_temp.assert_true((r ->> 'available')::numeric = 48, 'available 48: ' || r::text);
+END;
+$$;
+DO $$
+DECLARE u uuid := pg_temp.u(21); sid uuid := pg_temp.session(pg_temp.u(21), false); c1 uuid; c2 uuid; c3 uuid; r jsonb;
+BEGIN
+  c1 := pg_temp.claim(sid, u, 'checked', 'Both 1'); c2 := pg_temp.claim(sid, u, 'checked', 'Both 2'); c3 := pg_temp.claim(sid, u, 'checked', 'Both 3');
+  PERFORM pg_temp.assert_true(public.factcheck_recheck_begin(u, c1, true, 100) ->> 'ok' = 'true'
+    AND public.factcheck_recheck_begin(u, c2, true, 100) ->> 'ok' = 'true', '250 credits, a block holding 10: two re-checks fit');
+  r := pg_temp.refused(u, c3, true, 100, 'insufficient', 'the third is insufficient');
+  PERFORM pg_temp.assert_true((r ->> 'available')::numeric = 40, 'a running session''s hold (10) and two in flight (200) are both counted: ' || r::text);
+  PERFORM public.factcheck_settle(u, sid);
+END;
+$$;
+
+-- A re-check pending for more than 90 seconds is no longer in flight (its request died): its price is not held back.
+SELECT pg_temp.mkuser(28, 150);
+DO $$
+DECLARE u uuid := pg_temp.u(28); sid uuid := pg_temp.session(pg_temp.u(28)); c1 uuid; c2 uuid; k uuid; r jsonb;
+BEGIN
+  c1 := pg_temp.claim(sid, u, 'checked', 'Dead 1'); c2 := pg_temp.claim(sid, u, 'checked', 'Dead 2');
+  k := (public.factcheck_recheck_begin(u, c1, true, 100) ->> 'claim_id')::uuid;
+  UPDATE private.factcheck_recheck_state SET begun_at = now() - interval '89 seconds' WHERE claim_id = k;
+  r := pg_temp.refused(u, c2, true, 100, 'insufficient', 'at 89 seconds the pending re-check is still in flight');
+  UPDATE private.factcheck_recheck_state SET begun_at = now() - interval '91 seconds' WHERE claim_id = k;
+  r := public.factcheck_recheck_begin(u, c2, true, 100);
+  PERFORM pg_temp.assert_true(r ->> 'ok' = 'true', 'at 91 seconds it no longer is: its price is available again');
+END;
+$$;
+
+-- 5c. Failures are capped: provider calls that end without a charge are free -----------------------------------------------------------
+SELECT pg_temp.mkuser(22, 5000);
+SELECT pg_temp.mkuser(23, 5000);
+SELECT pg_temp.mkuser(24, 5000);
+SELECT pg_temp.mkuser(25, 5000);
+DO $$
+DECLARE u uuid := pg_temp.u(22); sid uuid := pg_temp.session(pg_temp.u(22)); x uuid; y uuid; i integer; k uuid; r jsonb;
+BEGIN
+  x := pg_temp.claim(sid, u, 'checked', 'Same claim'); y := pg_temp.claim(sid, u, 'checked', 'Other claim');
+  FOR i IN 1..3 LOOP
+    DELETE FROM private.factcheck_recheck_rate WHERE user_id = u;
+    r := public.factcheck_recheck_begin(u, x, true, 100);
+    IF r ->> 'ok' <> 'true' THEN RAISE EXCEPTION 'FAIL: attempt % on one claim was refused: %', i, r; END IF;
+    PERFORM pg_temp.finish((r ->> 'claim_id')::uuid, 'error');
+  END LOOP;
+  PERFORM pg_temp.assert_true(true, 'three failed attempts on one claim are allowed (the third began with two failures behind it)');
+  DELETE FROM private.factcheck_recheck_rate WHERE user_id = u;
+  r := pg_temp.refused(u, x, true, 100, 'too_many_failures', 'the fourth attempt on the claim is too_many_failures');
+  PERFORM pg_temp.assert_true((SELECT count(*) FROM jsonb_object_keys(r)) = 2, 'with just ok and reason');
+  r := public.factcheck_recheck_begin(u, y, true, 100);
+  PERFORM pg_temp.assert_true(r ->> 'ok' = 'true', 'another claim of the same user is not affected');
+  -- the 24-hour window
+  UPDATE private.factcheck_recheck_state s SET begun_at = now() - interval '25 hours'
+  FROM public.factcheck_claims c WHERE c.id = s.claim_id AND c.supersedes = x;
+  DELETE FROM private.factcheck_recheck_rate WHERE user_id = u;
+  r := public.factcheck_recheck_begin(u, x, true, 100);
+  PERFORM pg_temp.assert_true(r ->> 'ok' = 'true', 'failures older than 24 hours no longer count');
+  PERFORM pg_temp.finish((r ->> 'claim_id')::uuid, 'error');
+  UPDATE private.factcheck_recheck_state s SET begun_at = now() - interval '23 hours'
+  FROM public.factcheck_claims c WHERE c.id = s.claim_id AND c.supersedes = x AND s.begun_at < now() - interval '24 hours';
+  DELETE FROM private.factcheck_recheck_rate WHERE user_id = u;
+  r := pg_temp.refused(u, x, true, 100, 'too_many_failures', 'and at 23 hours they do');
+END;
+$$;
+DO $$
+DECLARE u uuid := pg_temp.u(23); sid uuid := pg_temp.session(pg_temp.u(23)); i integer; r jsonb; extra uuid;
+BEGIN
+  FOR i IN 1..10 LOOP
+    DELETE FROM private.factcheck_recheck_rate WHERE user_id = u;
+    r := public.factcheck_recheck_begin(u, pg_temp.claim(sid, u, 'checked', 'User ' || i), true, 100);
+    IF r ->> 'ok' <> 'true' THEN RAISE EXCEPTION 'FAIL: failed attempt % of the user was refused: %', i, r; END IF;
+    PERFORM pg_temp.finish((r ->> 'claim_id')::uuid, 'error');
+  END LOOP;
+  PERFORM pg_temp.assert_true(true, 'ten failed attempts across claims are allowed (the tenth began with nine behind it)');
+  DELETE FROM private.factcheck_recheck_rate WHERE user_id = u;
+  extra := pg_temp.claim(sid, u, 'checked', 'User 11');
+  r := pg_temp.refused(u, extra, true, 100, 'too_many_failures', 'the eleventh is too_many_failures');
+  -- another user is not affected
+  PERFORM pg_temp.assert_true(public.factcheck_recheck_begin(pg_temp.u(25), pg_temp.claim(pg_temp.session(pg_temp.u(25)), pg_temp.u(25), 'checked', 'Free'), true, 100) ->> 'ok' = 'true',
+    'another user is not affected by it');
+  UPDATE private.factcheck_recheck_state s SET begun_at = now() - interval '25 hours'
+  FROM public.factcheck_claims c WHERE c.id = s.claim_id AND c.user_id = u AND c.status = 'error';
+  PERFORM pg_temp.assert_true(public.factcheck_recheck_begin(u, extra, true, 100) ->> 'ok' = 'true', 'after 24 hours the user may try again');
+END;
+$$;
+-- A pending row older than 90 seconds (a dead request) counts as a failure.
+DO $$
+DECLARE u uuid := pg_temp.u(24); sid uuid := pg_temp.session(pg_temp.u(24)); z uuid; i integer; r jsonb;
+BEGIN
+  z := pg_temp.claim(sid, u, 'checked', 'Dies');
+  FOR i IN 1..3 LOOP
+    DELETE FROM private.factcheck_recheck_rate WHERE user_id = u;
+    r := public.factcheck_recheck_begin(u, z, true, 100);
+    IF r ->> 'ok' <> 'true' THEN RAISE EXCEPTION 'FAIL: attempt % on a claim with dead requests was refused: %', i, r; END IF;
+    UPDATE private.factcheck_recheck_state SET begun_at = now() - interval '100 seconds' WHERE claim_id = (r ->> 'claim_id')::uuid;
+  END LOOP;
+  DELETE FROM private.factcheck_recheck_rate WHERE user_id = u;
+  r := pg_temp.refused(u, z, true, 100, 'too_many_failures', 'three dead requests count as three failures');
 END;
 $$;
 
@@ -463,14 +588,15 @@ END;
 $$;
 
 -- Available counts live holds: a running session's block takes credits from a re-check, as from the chat.
--- Available counts live holds, as the research chat and factcheck_start count them.
 SELECT pg_temp.mkuser(12, 120);
 DO $$
 DECLARE u uuid := pg_temp.u(12); sid uuid; a uuid; r jsonb;
 BEGIN
   sid := pg_temp.session(u, false);                                  -- a running 5-minute block holds 10
   a := pg_temp.claim(sid, u, 'checked', 'Held');
-  PERFORM pg_temp.assert_true(public.factcheck_recheck_begin(u, a, true, 100) ->> 'ok' = 'true', '120 credits, 10 held: 110 available, 100 needed');
+  r := public.factcheck_recheck_begin(u, a, true, 100);
+  PERFORM pg_temp.assert_true(r ->> 'ok' = 'true', '120 credits, 10 held: 110 available, 100 needed');
+  PERFORM pg_temp.finish((r ->> 'claim_id')::uuid, 'error');   -- no longer in flight
   UPDATE public.credit_holds SET credits = 25 WHERE user_id = u AND turn_key LIKE 'fc:%';
   a := pg_temp.claim(sid, u, 'checked', 'Held 2');
   r := pg_temp.refused(u, a, true, 100, 'insufficient', 'with 25 held only 95 are available: insufficient');
@@ -595,6 +721,90 @@ BEGIN
     AND NOT has_function_privilege('anon', 'public.factcheck_recheck_collect()', 'EXECUTE')
     AND has_function_privilege('service_role', 'public.factcheck_recheck_collect()', 'EXECUTE')
     AND NOT has_function_privilege('service_role', 'private.factcheck_recheck_charge_locked(uuid,uuid)', 'EXECUTE'), 'the collector is service_role only, the internal routine private');
+END;
+$$;
+
+-- 6c. The collector ends dead requests, and failing rows cannot starve its batch --------------------------------------------------------
+SELECT pg_temp.mkuser(26, 1050);
+SELECT pg_temp.mkuser(27, 5000);
+DO $$
+DECLARE u uuid := pg_temp.u(27); sid uuid := pg_temp.session(pg_temp.u(27)); a uuid; b uuid; c uuid; d uuid; ka uuid; kb uuid; kc uuid; n integer;
+BEGIN
+  a := pg_temp.claim(sid, u, 'checked', 'Dead A'); b := pg_temp.claim(sid, u, 'checked', 'Dead B'); c := pg_temp.claim(sid, u, 'checked', 'Dead C');
+  ka := (public.factcheck_recheck_begin(u, a, true, 100) ->> 'claim_id')::uuid;
+  kb := (public.factcheck_recheck_begin(u, b, true, 100) ->> 'claim_id')::uuid;
+  kc := (public.factcheck_recheck_begin(u, c, true, 100) ->> 'claim_id')::uuid;
+  d := pg_temp.claim(sid, u, 'pending', 'Forged pending');
+  UPDATE public.factcheck_claims SET supersedes = a WHERE id = d;
+  UPDATE private.factcheck_recheck_state SET begun_at = now() - interval '6 minutes' WHERE claim_id = ka;
+  UPDATE private.factcheck_recheck_state SET begun_at = now() - interval '4 minutes' WHERE claim_id = kb;
+  n := public.factcheck_recheck_collect();
+  PERFORM pg_temp.assert_true(n = 0, 'the collector returns only the number charged');
+  PERFORM pg_temp.assert_true((SELECT status = 'error' AND checked_at IS NOT NULL FROM public.factcheck_claims WHERE id = ka), 'a re-check pending for 6 minutes ends in error');
+  PERFORM pg_temp.assert_true((SELECT status = 'pending' FROM public.factcheck_claims WHERE id = kb) AND (SELECT status = 'pending' FROM public.factcheck_claims WHERE id = kc)
+    AND (SELECT status = 'pending' FROM public.factcheck_claims WHERE id = d), 'one pending for 4 minutes, a young one and a row with no private record are left alone');
+  PERFORM pg_temp.assert_true((SELECT credits_charged IS NULL FROM private.factcheck_recheck_state WHERE claim_id = ka), 'and the ended one is never charged');
+END;
+$$;
+CREATE FUNCTION public.fx_refuse_bad() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.credits_charged IS NOT NULL AND EXISTS (SELECT FROM public.factcheck_claims c WHERE c.id = NEW.claim_id AND c.quote LIKE 'Quote BAD%') THEN
+    RAISE EXCEPTION 'fixture failure' USING ERRCODE = 'XX001';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER fx_refuse_bad BEFORE UPDATE ON private.factcheck_recheck_state FOR EACH ROW EXECUTE FUNCTION public.fx_refuse_bad();
+DO $$
+DECLARE u uuid := pg_temp.u(27); sid uuid := (SELECT id FROM public.factcheck_sessions WHERE user_id = pg_temp.u(27) LIMIT 1); parent uuid; bad uuid; good uuid; i integer; n integer; v_rate numeric;
+BEGIN
+  parent := pg_temp.claim(sid, u, 'checked', 'Parent');
+  SELECT inr_per_credit INTO v_rate FROM public.credit_settings WHERE id;
+  FOR i IN 1..51 LOOP
+    bad := pg_temp.claim(sid, u, 'checked', 'BAD ' || i);
+    UPDATE public.factcheck_claims SET supersedes = parent WHERE id = bad;
+    INSERT INTO private.factcheck_recheck_state (claim_id, price, inr_per_credit, begun_at) VALUES (bad, 100, v_rate, now() - interval '2 hours' + i * interval '1 second');
+  END LOOP;
+  good := pg_temp.claim(sid, u, 'checked', 'GOOD');
+  UPDATE public.factcheck_claims SET supersedes = parent WHERE id = good;
+  INSERT INTO private.factcheck_recheck_state (claim_id, price, inr_per_credit, begun_at) VALUES (good, 100, v_rate, now() - interval '1 hour');
+  n := public.factcheck_recheck_collect();
+  PERFORM pg_temp.assert_true(n = 0 AND (SELECT credits_charged IS NULL FROM private.factcheck_recheck_state WHERE claim_id = good)
+    AND (SELECT count(*) FROM private.factcheck_recheck_state s JOIN public.factcheck_claims c ON c.id = s.claim_id WHERE s.collect_failed_at IS NOT NULL AND c.quote LIKE 'Quote BAD%') = 50,
+    'a batch of 50 rows that all fail charges nothing and marks them: ' || n);
+  n := public.factcheck_recheck_collect();
+  PERFORM pg_temp.assert_true(n = 1 AND (SELECT credits_charged = 100 FROM private.factcheck_recheck_state WHERE claim_id = good),
+    'the next run reaches the good row because the rows that just failed go last: ' || n);
+END;
+$$;
+DROP TRIGGER fx_refuse_bad ON private.factcheck_recheck_state;
+DROP FUNCTION public.fx_refuse_bad();
+-- Rows that failed before are charged normally once they stop failing.
+SELECT public.factcheck_recheck_collect();
+SELECT public.factcheck_recheck_collect();
+
+-- 6d. The credit unit travels with the price ---------------------------------------------------------------------------------------------
+DO $$
+DECLARE u uuid := pg_temp.u(26); sid uuid := pg_temp.session(pg_temp.u(26), false); a uuid; b uuid; k uuid; r jsonb; bal numeric; v_rate numeric; e record;
+BEGIN
+  SELECT inr_per_credit INTO v_rate FROM public.credit_settings WHERE id;
+  a := pg_temp.claim(sid, u, 'checked', 'Unit 1'); b := pg_temp.claim(sid, u, 'checked', 'Unit 2');
+  k := (public.factcheck_recheck_begin(u, a, true, 100) ->> 'claim_id')::uuid;
+  PERFORM pg_temp.assert_true((SELECT inr_per_credit = v_rate FROM private.factcheck_recheck_state WHERE claim_id = k), 'begin stores the credit unit of the price');
+  -- As if the price had been set in a unit ten times larger per credit (before a cutover): worth 1000 of today''s credits.
+  UPDATE private.factcheck_recheck_state SET inr_per_credit = inr_per_credit * 10 WHERE claim_id = k;
+  r := pg_temp.refused(u, b, true, 100, 'insufficient', 'a re-check in flight in the old unit counts at its converted value');
+  PERFORM pg_temp.assert_true((r ->> 'available')::numeric = 1050 - 10 - 1000, 'available is 1050 less the 10 held and the 1000 converted: ' || r::text);
+  PERFORM pg_temp.finish(k, 'checked');
+  SELECT balance INTO bal FROM public.credit_wallets WHERE user_id = u;
+  r := public.factcheck_recheck_charge(u, k);
+  PERFORM pg_temp.assert_true((r ->> 'credits_charged')::numeric = 1000 AND (r ->> 'balance')::numeric = bal - 1000, 'the charge is converted to the current unit: ' || r::text);
+  SELECT * INTO e FROM public.credit_ledger WHERE user_id = u AND turn_key LIKE 'fcr:%';
+  PERFORM pg_temp.assert_true(e.credits = -1000 AND e.inr_per_credit = v_rate, 'the ledger holds 1000 at the current rate');
+  PERFORM pg_temp.assert_true((SELECT credits_charged = 1000 FROM private.factcheck_recheck_state WHERE claim_id = k) AND public.factcheck_recheck_charge(u, k) ->> 'repeated' = 'true',
+    'and a repeat returns the same amount');
+  PERFORM pg_temp.invariants('after a converted re-check charge');
+  PERFORM public.factcheck_settle(u, sid);
 END;
 $$;
 

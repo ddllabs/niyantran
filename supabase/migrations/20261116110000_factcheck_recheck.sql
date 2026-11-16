@@ -24,9 +24,16 @@
 --     stored at begin as a ledger 'charge' (note exactly 'live tv fact-check', key 'fcr:<uuid>'), drawn from the lots like
 --     any charge (shortfall to debt); idempotent per claim under the claim's row lock.
 --
+-- Limits on begin beyond the plan: re-checks begun and not yet settled (pending, uncharged, younger than 90 s) are owed, so they
+-- are subtracted from the available credits; and provider calls that end without a charge are capped (too_many_failures: 10
+-- failed re-checks of the user, or 3 of the same claim, in 24 hours; a failure is an error row or a pending row older than
+-- 90 s). The collector also ends re-checks still pending after 5 minutes as errors. The state keeps the credit unit of the
+-- price, converted at charge time like a session settle.
+--
 -- Returns. begin: {ok:true, claim_id, recheck_credits} or {ok:false, reason} with reason one of off, not_allowed, not_found,
--- not_recheckable, price_changed (+ recheck_credits, the current price), insufficient (+ needed, available), rate_limited,
--- in_progress. charge: {ok:true, credits_charged, balance, repeated} or {ok:false, reason} with reason one of not_found,
+-- not_recheckable (+ newer_claim_id, only when a newer checked row names the claim: the newest successor, following the chain
+-- to its end), price_changed (+ recheck_credits, the current price), insufficient (+ needed, available), too_many_failures,
+-- rate_limited, in_progress. charge: {ok:true, credits_charged, balance, repeated} or {ok:false, reason} with reason one of not_found,
 -- not_chargeable. Neither returns a ledger key.
 --
 -- Which rows can be re-checked. The claim must be the user's and either status 'checked' (an original, or a successful
@@ -61,7 +68,9 @@ ALTER TABLE public.factcheck_claims
 CREATE TABLE private.factcheck_recheck_state (
   claim_id        uuid          PRIMARY KEY REFERENCES public.factcheck_claims(id) ON DELETE CASCADE,
   price           numeric(14,4) NOT NULL CHECK (price > 0 AND price <= 1000),
+  inr_per_credit  numeric(10,4) NOT NULL CHECK (inr_per_credit > 0),   -- the credit unit the price was set in
   begun_at        timestamptz   NOT NULL DEFAULT now(),
+  collect_failed_at timestamptz,                                       -- when the collector last failed to charge it
   turn_key        text          UNIQUE,
   credits_charged numeric(14,4) CHECK (credits_charged > 0),
   charged_at      timestamptz,
@@ -122,6 +131,9 @@ DECLARE
   v_available numeric;
   v_n integer;
   v_new uuid := gen_random_uuid();
+  v_inflight numeric;
+  v_successor uuid;
+  v_unit numeric;
   uc record;
 BEGIN
   IF p_user IS NULL OR p_claim IS NULL THEN
@@ -152,8 +164,19 @@ BEGIN
   IF NOT FOUND THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'not_found');
   END IF;
-  IF NOT (c.status = 'checked' OR (c.status = 'error' AND c.supersedes IS NULL))
-     OR EXISTS (SELECT FROM public.factcheck_claims x WHERE x.supersedes = c.id AND x.status = 'checked') THEN
+  -- The newest successful successor, following the chain to its end, so that a paid result stays reachable.
+  WITH RECURSIVE chain(id, depth) AS (
+    SELECT x.id, 1 FROM public.factcheck_claims x WHERE x.supersedes = c.id AND x.status = 'checked'
+    UNION ALL
+    SELECT y.id, ch.depth + 1 FROM chain ch JOIN public.factcheck_claims y ON y.supersedes = ch.id AND y.status = 'checked'
+    WHERE ch.depth < 100
+  )
+  SELECT ch.id INTO v_successor FROM chain ch JOIN public.factcheck_claims z ON z.id = ch.id
+  ORDER BY ch.depth DESC, z.checked_at DESC NULLS LAST, z.id LIMIT 1;
+  IF v_successor IS NOT NULL THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'not_recheckable', 'newer_claim_id', v_successor);
+  END IF;
+  IF NOT (c.status = 'checked' OR (c.status = 'error' AND c.supersedes IS NULL)) THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'not_recheckable');
   END IF;
   IF p_expected_credits IS DISTINCT FROM v_price THEN
@@ -165,9 +188,24 @@ BEGIN
   SELECT coalesce(sum(private.credit_current_amount(x.credits, x.inr_per_credit)), 0) INTO v_held
   FROM public.credit_holds x WHERE x.user_id = p_user AND x.settled_at IS NULL
     AND x.expires_at > now() AND NOT x.shadow_blocked;
-  v_available := w.balance - v_held;
+  -- Re-checks begun and not yet settled are owed too: pending, uncharged and younger than 90 seconds, at their own unit.
+  SELECT coalesce(sum(private.credit_current_amount(s.price, s.inr_per_credit)), 0) INTO v_inflight
+  FROM private.factcheck_recheck_state s JOIN public.factcheck_claims x ON x.id = s.claim_id
+  WHERE x.user_id = p_user AND x.status = 'pending' AND s.credits_charged IS NULL AND s.begun_at > now() - interval '90 seconds';
+  v_available := w.balance - v_held - v_inflight;
   IF v_available < v_price THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'insufficient', 'needed', v_price, 'available', v_available);
+  END IF;
+
+  -- Provider calls that end without a charge are free, so they are capped: 10 failed re-checks of the user in 24 hours, or 3
+  -- of the same claim. A failure is a re-check row in error, or one still pending after 90 seconds (its request died).
+  IF (SELECT count(*) FROM public.factcheck_claims x JOIN private.factcheck_recheck_state s ON s.claim_id = x.id
+      WHERE x.user_id = p_user AND x.supersedes IS NOT NULL AND s.begun_at > now() - interval '24 hours'
+        AND (x.status = 'error' OR (x.status = 'pending' AND s.begun_at <= now() - interval '90 seconds'))) >= 10
+     OR (SELECT count(*) FROM public.factcheck_claims x JOIN private.factcheck_recheck_state s ON s.claim_id = x.id
+      WHERE x.user_id = p_user AND x.supersedes = c.id AND s.begun_at > now() - interval '24 hours'
+        AND (x.status = 'error' OR (x.status = 'pending' AND s.begun_at <= now() - interval '90 seconds'))) >= 3 THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'too_many_failures');
   END IF;
 
   SELECT r.n INTO v_n FROM private.factcheck_recheck_rate r
@@ -184,7 +222,8 @@ BEGIN
     claimant, reported_by, kind, status, supersedes, recheck_credits)
   VALUES (v_new, c.session_id, c.user_id, c.video_id, c.video_kind, c.position_s, c.spoken_at, c.quote, c.claim_en,
     c.claimant, c.reported_by, c.kind, 'pending', c.id, v_price);
-  INSERT INTO private.factcheck_recheck_state (claim_id, price, begun_at) VALUES (v_new, v_price, now());
+  SELECT cs.inr_per_credit INTO v_unit FROM public.credit_settings cs WHERE cs.id;
+  INSERT INTO private.factcheck_recheck_state (claim_id, price, inr_per_credit, begun_at) VALUES (v_new, v_price, v_unit, now());
   INSERT INTO private.factcheck_recheck_rate (user_id, minute, n) VALUES (p_user, date_trunc('minute', now()), 1)
   ON CONFLICT (user_id, minute) DO UPDATE SET n = private.factcheck_recheck_rate.n + 1;
   DELETE FROM private.factcheck_recheck_rate WHERE user_id = p_user AND minute < now() - interval '1 hour';
@@ -203,6 +242,7 @@ DECLARE
   v_key text;
   v_ledger uuid;
   v_balance numeric;
+  v_amount numeric(14,4);
 BEGIN
   SELECT * INTO c FROM public.factcheck_claims WHERE id = p_claim AND user_id = p_user FOR UPDATE;
   IF NOT FOUND THEN
@@ -218,13 +258,15 @@ BEGIN
   END IF;
 
   v_key := 'fcr:' || gen_random_uuid();
-  v_ledger := private.credit_entry(p_user, 'charge', -st.price, NULL, v_key, NULL, s.usd_to_inr, s.inr_per_credit, NULL,
+  -- The price was set in the unit current at begin; the ledger is in the current one (as factcheck_settle_locked converts).
+  v_amount := private.credit_current_amount(st.price, st.inr_per_credit);
+  v_ledger := private.credit_entry(p_user, 'charge', -v_amount, NULL, v_key, NULL, s.usd_to_inr, s.inr_per_credit, NULL,
                                    'live tv fact-check');
-  PERFORM private.credit_draw(p_user, st.price, v_ledger, 'charge', now());
-  UPDATE private.factcheck_recheck_state SET turn_key = v_key, credits_charged = st.price, charged_at = now()
+  PERFORM private.credit_draw(p_user, v_amount, v_ledger, 'charge', now());
+  UPDATE private.factcheck_recheck_state SET turn_key = v_key, credits_charged = v_amount, charged_at = now()
   WHERE claim_id = c.id;
   SELECT w.balance INTO v_balance FROM public.credit_wallets w WHERE w.user_id = p_user;
-  RETURN jsonb_build_object('ok', true, 'credits_charged', st.price, 'balance', v_balance, 'repeated', false);
+  RETURN jsonb_build_object('ok', true, 'credits_charged', v_amount, 'balance', v_balance, 'repeated', false);
 END;
 $$;
 
@@ -252,10 +294,15 @@ DECLARE
   v_seen integer := 0;
   v_failed integer := 0;
 BEGIN
+  -- A re-check still pending five minutes after it began is a dead request: it ends in error (and is never charged).
+  UPDATE public.factcheck_claims x SET status = 'error', checked_at = now()
+  FROM private.factcheck_recheck_state s
+  WHERE s.claim_id = x.id AND x.status = 'pending' AND x.supersedes IS NOT NULL AND s.begun_at < now() - interval '5 minutes';
+  -- Rows that failed on an earlier run go last, so that rows which fail every time cannot starve the batch.
   FOR r IN
     SELECT x.id, x.user_id FROM public.factcheck_claims x JOIN private.factcheck_recheck_state s ON s.claim_id = x.id
     WHERE x.status = 'checked' AND x.supersedes IS NOT NULL AND s.credits_charged IS NULL
-    ORDER BY s.begun_at, x.id
+    ORDER BY s.collect_failed_at NULLS FIRST, s.begun_at, x.id
     LIMIT 50
   LOOP
     v_seen := v_seen + 1;
@@ -269,6 +316,7 @@ BEGIN
     EXCEPTION WHEN OTHERS THEN
       v_failed := v_failed + 1;
       RAISE WARNING 'factcheck_recheck_collect: claim % not charged (% %)', r.id, SQLSTATE, SQLERRM;
+      UPDATE private.factcheck_recheck_state SET collect_failed_at = now() WHERE claim_id = r.id;
     END;
   END LOOP;
   IF v_failed > 0 THEN

@@ -1383,6 +1383,7 @@ run_fixture() {
     [ "$name" = record_brief_format ] && { record_brief_format_checks || rc=1; }
     [ "$name" = ingest_register_batch ] && { ingest_register_batch_checks || rc=1; }
     [ "$name" = factcheck_usage ] && { factcheck_usage_checks || rc=1; }
+    [ "$name" = factcheck_recheck ] && { bash "$TESTS/factcheck_recheck_concurrency.sh" || rc=1; }
   else
     rc=1
     echo "  FAIL"
