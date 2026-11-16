@@ -126,6 +126,7 @@ export default function DriveBrowser({
   view = 'all',
   searchQuery = '',
   sort = { field: 'name', direction: 'asc' },
+  quota,
   onSortChange,
   onSelectFolder,
   onSelectFile,
@@ -278,12 +279,16 @@ export default function DriveBrowser({
       );
     }
 
+    const hasOccupiedStorage = (quota?.used_bytes || 0) > 0;
+
     return (
       <div className="fm-empty-state">
         <Folder size={40} className="fm-empty-icon" />
         <div className="fm-empty-title">This folder is empty</div>
         <div className="fm-empty-desc">
-          Drag and drop files here to upload, or use the Upload button in the toolbar.
+          {hasOccupiedStorage
+            ? 'Your storage is occupied by files or pending uploads that are not currently visible in this folder.'
+            : 'Drag and drop files here to upload, or use the Upload button in the toolbar.'}
         </div>
         {onUploadClick && (
           <button type="button" className="fm-btn fm-btn-primary" onClick={onUploadClick}>

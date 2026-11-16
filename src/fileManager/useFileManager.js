@@ -15,6 +15,7 @@ import {
   prepareUpload,
   uploadBinary,
   completeUpload,
+  cleanupPendingUpload,
   calculateSha256,
   createFolder,
   renameFolder,
@@ -207,9 +208,11 @@ export function useFileManager(initialFolderId = null) {
       )
     );
 
+    let prep = null;
+
     try {
       // Step 1: Pre-flight reservation
-      const prep = await prepareUpload({
+      prep = await prepareUpload({
         name: item.name,
         mime_type: item.file?.type || 'application/octet-stream',
         size_bytes: item.size,
@@ -247,6 +250,11 @@ export function useFileManager(initialFolderId = null) {
         )
       );
     } catch (err) {
+      // Release reservation so aborted/failed upload does not falsely occupy quota
+      if (prep?.file_id) {
+        await cleanupPendingUpload(prep.file_id);
+      }
+
       if (controller.signal.aborted || err?.name === 'AbortError') {
         setUploadQueue((prev) =>
           prev.map((q) =>
@@ -299,7 +307,22 @@ export function useFileManager(initialFolderId = null) {
         continue;
       }
 
-      // Client-side Pre-validation 2: Storage quota limit
+      // Client-side Pre-validation 2: Storage quota availability & limit
+      if (quota?.unavailable) {
+        newItems.push({
+          id: tempId,
+          file,
+          name: uniqueName,
+          originalName: file.name,
+          size: file.size,
+          status: 'failed',
+          percent: 0,
+          error: 'Storage usage is temporarily unavailable. Please retry.',
+          folderId: currentFolderId,
+        });
+        continue;
+      }
+
       if (
         runningRemainingQuota !== undefined &&
         runningRemainingQuota !== null &&

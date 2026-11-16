@@ -167,6 +167,8 @@ export interface UserStorageQuota {
   used_bytes: number;
   remaining_bytes: number;
   is_lapsed: boolean;
+  unavailable?: boolean;
+  error?: string | null;
 }
 
 // ─── 13 Approved v1 UI Capabilities Helper Interfaces ────────────────────────

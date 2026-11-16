@@ -5,7 +5,7 @@
  * ('free', 'plus', 'pro', 'max') according to normative limits.
  */
 
-import { HardDrive, AlertTriangle } from 'lucide-react';
+import { HardDrive, AlertTriangle, RefreshCw } from 'lucide-react';
 import { formatBytes } from './fileManagerService.js';
 
 /**
@@ -15,21 +15,27 @@ import { formatBytes } from './fileManagerService.js';
  *     quota_bytes: number,
  *     used_bytes: number,
  *     remaining_bytes: number,
- *     is_lapsed?: boolean
+ *     is_lapsed?: boolean,
+ *     unavailable?: boolean,
+ *     error?: string | null
  *   },
- *   compact?: boolean
+ *   compact?: boolean,
+ *   onRetry?: () => void
  * }} props
  */
-export default function StorageUsageGauge({ quota, compact = false }) {
+export default function StorageUsageGauge({ quota, compact = false, onRetry }) {
+  const isUnavailable = !!quota?.unavailable;
   const plan = quota?.plan || 'free';
   const used = quota?.used_bytes || 0;
   const total = quota?.quota_bytes || 524_288_000; // default 500 MB
   const isLapsed = !!quota?.is_lapsed;
 
-  const percentUsed = Math.min(100, Math.round((used / total) * 100));
+  const percentUsed = isUnavailable ? 0 : Math.min(100, Math.round((used / total) * 100));
 
   let variant = 'normal';
-  if (percentUsed >= 95) {
+  if (isUnavailable) {
+    variant = 'unavailable';
+  } else if (percentUsed >= 95) {
     variant = 'danger';
   } else if (percentUsed >= 80) {
     variant = 'warning';
@@ -53,7 +59,7 @@ export default function StorageUsageGauge({ quota, compact = false }) {
         aria-valuenow={percentUsed}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label={`${percentUsed}% storage used`}
+        aria-label={isUnavailable ? 'Storage usage unavailable' : `${percentUsed}% storage used`}
       >
         <div
           className={`storage-progress-fill ${variant}`}
@@ -62,11 +68,31 @@ export default function StorageUsageGauge({ quota, compact = false }) {
       </div>
 
       <div className="storage-gauge-labels">
-        <span>{formatBytes(used)} used</span>
+        <span>{isUnavailable ? 'Unavailable' : `${formatBytes(used)} used`}</span>
         <span>{formatBytes(total)}</span>
       </div>
 
-      {!compact && percentUsed >= 80 && (
+      {!compact && isUnavailable && (
+        <div className="storage-gauge-warning" role="alert" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div>
+            <AlertTriangle size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: -2 }} />
+            {quota?.error || 'Storage usage is temporarily unavailable. Please retry.'}
+          </div>
+          {onRetry && (
+            <button
+              type="button"
+              className="fm-btn fm-btn-secondary"
+              onClick={onRetry}
+              style={{ alignSelf: 'flex-start', padding: '3px 8px', fontSize: 11 }}
+            >
+              <RefreshCw size={11} style={{ marginRight: 4 }} />
+              Retry
+            </button>
+          )}
+        </div>
+      )}
+
+      {!compact && !isUnavailable && percentUsed >= 80 && (
         <div className="storage-gauge-warning" role="alert">
           <AlertTriangle size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: -2 }} />
           {percentUsed >= 100

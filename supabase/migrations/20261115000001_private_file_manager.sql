@@ -356,7 +356,9 @@ BEGIN
 
   SELECT COALESCE(SUM(size_bytes), 0) INTO v_used
   FROM public.user_files
-  WHERE user_id = v_uid;
+  WHERE user_id = v_uid
+    AND upload_status <> 'upload_failed'
+    AND NOT (upload_status = 'pending_upload' AND created_at < (now() - interval '2 hours'));
 
   RETURN v_used;
 END;

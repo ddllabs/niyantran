@@ -221,7 +221,7 @@ export default function FileManagerShell({ onClose } = {}) {
 
         {/* Real-time Storage Quota Gauge */}
         <div className="fm-sidebar-bottom">
-          <StorageUsageGauge quota={quota} />
+          <StorageUsageGauge quota={quota} onRetry={() => refresh(false)} />
         </div>
       </aside>
 
@@ -388,6 +388,7 @@ export default function FileManagerShell({ onClose } = {}) {
             view={view}
             searchQuery={searchQuery}
             sort={sort}
+            quota={quota}
             onSortChange={(field) =>
               setSort((prev) => ({
                 field,

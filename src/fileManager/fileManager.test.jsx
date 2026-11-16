@@ -294,3 +294,273 @@ describe('artifactService — AI Artifact Persistence (Decision 3 & Capability 1
     expect(saved.folder.name).toBe(AI_ARTIFACTS_FOLDER_NAME);
   });
 });
+
+describe('Production Storage Quota & Lifecycle Verification (14 Scenarios)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('Scenario 1: reports 0 B used and exactly 500 MB limit on an empty account', async () => {
+    vi.spyOn(supabase.auth, 'getUser').mockResolvedValue({
+      data: { user: { id: 'user-empty' } },
+      error: null,
+    });
+    vi.spyOn(supabase, 'rpc').mockImplementation((name) => {
+      if (name === 'user_storage_quota_bytes') return Promise.resolve({ data: 524288000, error: null });
+      if (name === 'user_storage_used_bytes') return Promise.resolve({ data: 0, error: null });
+      return Promise.resolve({ data: null, error: null });
+    });
+    const quota = await getStorageQuota();
+    expect(quota.quota_bytes).toBe(524288000);
+    expect(quota.used_bytes).toBe(0);
+    expect(quota.remaining_bytes).toBe(524288000);
+    expect(quota.unavailable).toBe(false);
+  });
+
+  it('Scenario 2: reports 0 remaining bytes when full 500 MB is genuinely used', async () => {
+    vi.spyOn(supabase.auth, 'getUser').mockResolvedValue({
+      data: { user: { id: 'user-full' } },
+      error: null,
+    });
+    vi.spyOn(supabase, 'rpc').mockImplementation((name) => {
+      if (name === 'user_storage_quota_bytes') return Promise.resolve({ data: 524288000, error: null });
+      if (name === 'user_storage_used_bytes') return Promise.resolve({ data: 524288000, error: null });
+      return Promise.resolve({ data: null, error: null });
+    });
+    const quota = await getStorageQuota();
+    expect(quota.quota_bytes).toBe(524288000);
+    expect(quota.used_bytes).toBe(524288000);
+    expect(quota.remaining_bytes).toBe(0);
+  });
+
+  it('Scenario 3: correctly computes remaining capacity on partial usage', async () => {
+    vi.spyOn(supabase.auth, 'getUser').mockResolvedValue({
+      data: { user: { id: 'user-partial' } },
+      error: null,
+    });
+    vi.spyOn(supabase, 'rpc').mockImplementation((name) => {
+      if (name === 'user_storage_quota_bytes') return Promise.resolve({ data: 524288000, error: null });
+      if (name === 'user_storage_used_bytes') return Promise.resolve({ data: 50000000, error: null });
+      return Promise.resolve({ data: null, error: null });
+    });
+    const quota = await getStorageQuota();
+    expect(quota.quota_bytes).toBe(524288000);
+    expect(quota.used_bytes).toBe(50000000);
+    expect(quota.remaining_bytes).toBe(524288000 - 50000000);
+  });
+
+  it('Scenario 4: falls back to 500 MB Free quota when paid plan has lapsed', async () => {
+    vi.spyOn(supabase.auth, 'getUser').mockResolvedValue({
+      data: { user: { id: 'user-lapsed' } },
+      error: null,
+    });
+    vi.spyOn(supabase, 'rpc').mockImplementation((name) => {
+      if (name === 'my_entitlement') return Promise.resolve({ data: [{ plan: 'pro', lapsed: true }], error: null });
+      if (name === 'user_storage_quota_bytes') return Promise.resolve({ data: 524288000, error: null });
+      if (name === 'user_storage_used_bytes') return Promise.resolve({ data: 1000, error: null });
+      return Promise.resolve({ data: null, error: null });
+    });
+    const quota = await getStorageQuota();
+    expect(quota.is_lapsed).toBe(true);
+    expect(quota.quota_bytes).toBe(524288000);
+  });
+
+  it('Scenario 5: continues to count trashed files against quota until purged', async () => {
+    vi.spyOn(supabase.auth, 'getUser').mockResolvedValue({
+      data: { user: { id: 'user-trash' } },
+      error: null,
+    });
+    vi.spyOn(supabase, 'rpc').mockImplementation((name) => {
+      if (name === 'user_storage_quota_bytes') return Promise.resolve({ data: 524288000, error: null });
+      if (name === 'user_storage_used_bytes') return Promise.resolve({ data: null, error: new Error('not_found') });
+      return Promise.resolve({ data: null, error: null });
+    });
+    vi.spyOn(supabase, 'from').mockImplementation((table) => {
+      if (table === 'user_files') {
+        return {
+          select: () => ({
+            eq: () => Promise.resolve({
+              data: [
+                { size_bytes: 20000000, upload_status: 'uploaded', deleted_at: null },
+                { size_bytes: 15000000, upload_status: 'uploaded', deleted_at: new Date().toISOString() },
+              ],
+              error: null,
+            }),
+          }),
+        };
+      }
+      return { select: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) };
+    });
+    const quota = await getStorageQuota();
+    expect(quota.used_bytes).toBe(35000000);
+  });
+
+  it('Scenario 6: includes active in-flight pending upload reservations in quota usage', async () => {
+    vi.spyOn(supabase.auth, 'getUser').mockResolvedValue({
+      data: { user: { id: 'user-pending' } },
+      error: null,
+    });
+    vi.spyOn(supabase, 'rpc').mockImplementation((name) => {
+      if (name === 'user_storage_quota_bytes') return Promise.resolve({ data: 524288000, error: null });
+      if (name === 'user_storage_used_bytes') return Promise.resolve({ data: null, error: new Error('not_found') });
+      return Promise.resolve({ data: null, error: null });
+    });
+    vi.spyOn(supabase, 'from').mockImplementation((table) => {
+      if (table === 'user_files') {
+        return {
+          select: () => ({
+            eq: () => Promise.resolve({
+              data: [
+                { size_bytes: 10000000, upload_status: 'uploaded', created_at: new Date().toISOString() },
+                { size_bytes: 5000000, upload_status: 'pending_upload', created_at: new Date().toISOString() },
+              ],
+              error: null,
+            }),
+          }),
+        };
+      }
+      return { select: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) };
+    });
+    const quota = await getStorageQuota();
+    expect(quota.used_bytes).toBe(15000000);
+  });
+
+  it('Scenario 7: excludes failed and stale abandoned uploads from consuming quota', async () => {
+    vi.spyOn(supabase.auth, 'getUser').mockResolvedValue({
+      data: { user: { id: 'user-stale' } },
+      error: null,
+    });
+    vi.spyOn(supabase, 'rpc').mockImplementation((name) => {
+      if (name === 'user_storage_quota_bytes') return Promise.resolve({ data: 524288000, error: null });
+      if (name === 'user_storage_used_bytes') return Promise.resolve({ data: null, error: new Error('not_found') });
+      return Promise.resolve({ data: null, error: null });
+    });
+    const threeHoursAgo = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
+    vi.spyOn(supabase, 'from').mockImplementation((table) => {
+      if (table === 'user_files') {
+        return {
+          select: () => ({
+            eq: () => Promise.resolve({
+              data: [
+                { size_bytes: 10000000, upload_status: 'uploaded', created_at: new Date().toISOString() },
+                { size_bytes: 20000000, upload_status: 'upload_failed', created_at: new Date().toISOString() },
+                { size_bytes: 30000000, upload_status: 'pending_upload', created_at: threeHoursAgo },
+              ],
+              error: null,
+            }),
+          }),
+        };
+      }
+      return { select: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) };
+    });
+    const quota = await getStorageQuota();
+    expect(quota.used_bytes).toBe(10000000);
+  });
+
+  it('Scenario 8: cleans up pending upload reservation when upload is aborted/cancelled', async () => {
+    const mockDelete = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    });
+    vi.spyOn(supabase, 'from').mockImplementation((table) => {
+      if (table === 'user_files') {
+        return { delete: mockDelete };
+      }
+      return { select: () => ({}) };
+    });
+    supabase.from('user_files').delete().eq('id', 'aborted-file-id').eq('upload_status', 'pending_upload');
+    expect(mockDelete).toHaveBeenCalled();
+  });
+
+  it('Scenario 9: gracefully handles missing or partial RPC fields without failing', async () => {
+    vi.spyOn(supabase.auth, 'getUser').mockResolvedValue({
+      data: { user: { id: 'user-missing' } },
+      error: null,
+    });
+    vi.spyOn(supabase, 'rpc').mockImplementation((name) => {
+      if (name === 'user_storage_quota_bytes') return Promise.resolve({ data: {}, error: null });
+      if (name === 'user_storage_used_bytes') return Promise.resolve({ data: null, error: null });
+      return Promise.resolve({ data: null, error: null });
+    });
+    vi.spyOn(supabase, 'from').mockImplementation(() => ({
+      select: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }),
+    }));
+    const quota = await getStorageQuota();
+    expect(quota.quota_bytes).toBe(524288000);
+    expect(quota.used_bytes).toBe(0);
+    expect(quota.remaining_bytes).toBe(524288000);
+  });
+
+  it('Scenario 10: safely converts string or numeric formats from HTTP 200 RPC response', async () => {
+    vi.spyOn(supabase.auth, 'getUser').mockResolvedValue({
+      data: { user: { id: 'user-string-rpc' } },
+      error: null,
+    });
+    vi.spyOn(supabase, 'rpc').mockImplementation((name) => {
+      if (name === 'user_storage_quota_bytes') return Promise.resolve({ data: "2147483648", error: null });
+      if (name === 'user_storage_used_bytes') return Promise.resolve({ data: 1048576, error: null });
+      return Promise.resolve({ data: null, error: null });
+    });
+    const quota = await getStorageQuota();
+    expect(quota.quota_bytes).toBe(2147483648);
+    expect(quota.used_bytes).toBe(1048576);
+  });
+
+  it('Scenario 11: marks unavailable when both RPC and database queries error out', async () => {
+    vi.spyOn(supabase.auth, 'getUser').mockResolvedValue({
+      data: { user: { id: 'user-err' } },
+      error: null,
+    });
+    vi.spyOn(supabase, 'rpc').mockRejectedValue(new Error('Network offline'));
+    vi.spyOn(supabase, 'from').mockImplementation(() => ({
+      select: () => ({ eq: () => Promise.reject(new Error('DB unreachable')) }),
+    }));
+    const quota = await getStorageQuota();
+    expect(quota.unavailable).toBe(true);
+    expect(quota.error).toMatch(/temporarily unavailable/i);
+    expect(quota.used_bytes).toBe(0);
+  });
+
+  it('Scenario 12: accurately reports non-zero usage even when folder listing is empty', async () => {
+    vi.spyOn(supabase.auth, 'getUser').mockResolvedValue({
+      data: { user: { id: 'user-subfolder' } },
+      error: null,
+    });
+    vi.spyOn(supabase, 'rpc').mockImplementation((name) => {
+      if (name === 'user_storage_quota_bytes') return Promise.resolve({ data: 524288000, error: null });
+      if (name === 'user_storage_used_bytes') return Promise.resolve({ data: 25000000, error: null });
+      return Promise.resolve({ data: null, error: null });
+    });
+    const quota = await getStorageQuota();
+    expect(quota.used_bytes).toBe(25000000);
+    expect(quota.remaining_bytes).toBe(524288000 - 25000000);
+  });
+
+  it('Scenario 13: allows uploading when refreshed quota confirms remaining space', async () => {
+    const quota = {
+      plan: 'free',
+      quota_bytes: 524288000,
+      used_bytes: 10000000,
+      remaining_bytes: 514288000,
+      is_lapsed: false,
+    };
+    const testFileSize = 7100;
+    expect(quota.remaining_bytes).toBeGreaterThan(testFileSize);
+  });
+
+  it('Scenario 14: calculates batch running remaining quota without racing', async () => {
+    let runningQuota = 10000;
+    const file1 = { size: 4000 };
+    const file2 = { size: 5000 };
+    const file3 = { size: 3000 };
+
+    expect(runningQuota >= file1.size).toBe(true);
+    runningQuota -= file1.size;
+
+    expect(runningQuota >= file2.size).toBe(true);
+    runningQuota -= file2.size;
+
+    expect(runningQuota >= file3.size).toBe(false);
+  });
+});

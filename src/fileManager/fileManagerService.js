@@ -481,6 +481,28 @@ export async function completeUpload({ file_id, sha256 }) {
 }
 
 /**
+ * Capability 3: Cleans up an unfinalized pending upload reservation from public.user_files.
+ * Ensures aborted, cancelled, or failed uploads do not falsely occupy storage quota.
+ *
+ * @param {string} fileId
+ * @returns {Promise<void>}
+ */
+export async function cleanupPendingUpload(fileId) {
+  if (!fileId) return;
+  try {
+    await supabase
+      .from('user_files')
+      .delete()
+      .eq('id', fileId)
+      .eq('upload_status', 'pending_upload');
+  } catch (_err) {
+    // Best-effort reservation cleanup
+  }
+}
+
+export const deletePendingReservation = cleanupPendingUpload;
+
+/**
  * Capability 7 & 10: Explicitly requests AI indexing for a stored PDF file.
  * Creates an entry in `user_file_jobs` and marks `index_status = 'indexing_queued'`.
  *
@@ -905,6 +927,8 @@ export async function getStorageQuota() {
       used_bytes: 0,
       remaining_bytes: STORAGE_TIER_QUOTA_BYTES.free,
       is_lapsed: false,
+      unavailable: false,
+      error: null,
     };
   }
 
@@ -930,39 +954,72 @@ export async function getStorageQuota() {
     const { data: rpcQuota, error: rpcError } = await supabase.rpc('user_storage_quota_bytes', {
       p_user_id: user.id,
     });
-    if (!rpcError && typeof rpcQuota === 'number' && rpcQuota > 0) {
-      quotaBytes = rpcQuota;
+    if (!rpcError) {
+      const parsedQuota = typeof rpcQuota === 'number'
+        ? rpcQuota
+        : (typeof rpcQuota === 'string' ? Number(rpcQuota) : (rpcQuota?.quota_bytes || rpcQuota?.allowed_quota));
+      if (typeof parsedQuota === 'number' && !isNaN(parsedQuota) && parsedQuota > 0) {
+        quotaBytes = parsedQuota;
+      }
     }
   } catch (_e) {
     // Keep local tier quotaBytes
   }
 
-  // 2. Authoritative used storage (sum of user_files including pending/trash)
+  // 2. Authoritative used storage (sum of user_files including active and trash, excluding failed/abandoned)
   let usedBytes = 0;
+  let isUnavailable = false;
+  let quotaError = null;
+
   try {
     const { data: rpcUsed, error: usedError } = await supabase.rpc('user_storage_used_bytes', {
       p_user_id: user.id,
     });
-    if (!usedError && typeof rpcUsed === 'number') {
+    if (!usedError && typeof rpcUsed === 'number' && !isNaN(rpcUsed)) {
       usedBytes = rpcUsed;
     } else {
       const { data: files, error: filesError } = await supabase
         .from('user_files')
-        .select('size_bytes')
+        .select('size_bytes, upload_status, created_at')
         .eq('user_id', user.id);
+
       if (!filesError && Array.isArray(files)) {
-        usedBytes = files.reduce((acc, f) => acc + (f.size_bytes || 0), 0);
+        const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+        usedBytes = files.reduce((acc, f) => {
+          // Exclude failed uploads
+          if (f.upload_status === 'upload_failed') return acc;
+          // Exclude stale abandoned pending uploads older than 2 hours
+          if (f.upload_status === 'pending_upload' && f.created_at) {
+            const createdAtMs = new Date(f.created_at).getTime();
+            if (!isNaN(createdAtMs) && createdAtMs < twoHoursAgo) {
+              return acc;
+            }
+          }
+          return acc + (f.size_bytes || 0);
+        }, 0);
+      } else if (filesError) {
+        isUnavailable = true;
+        quotaError = 'Storage usage is temporarily unavailable. Please retry.';
       }
     }
-  } catch (_e) {
+  } catch (err) {
     try {
-      const { data: files } = await supabase
+      const { data: files, error: filesError } = await supabase
         .from('user_files')
-        .select('size_bytes')
+        .select('size_bytes, upload_status, created_at')
         .eq('user_id', user.id);
-      usedBytes = (files || []).reduce((acc, f) => acc + (f.size_bytes || 0), 0);
+
+      if (!filesError && Array.isArray(files)) {
+        usedBytes = files
+          .filter((f) => f.upload_status !== 'upload_failed')
+          .reduce((acc, f) => acc + (f.size_bytes || 0), 0);
+      } else {
+        isUnavailable = true;
+        quotaError = 'Storage usage is temporarily unavailable. Please retry.';
+      }
     } catch (_ignored) {
-      usedBytes = 0;
+      isUnavailable = true;
+      quotaError = 'Storage usage is temporarily unavailable. Please retry.';
     }
   }
 
@@ -972,6 +1029,8 @@ export async function getStorageQuota() {
     used_bytes: usedBytes,
     remaining_bytes: Math.max(0, quotaBytes - usedBytes),
     is_lapsed: isLapsed,
+    unavailable: isUnavailable,
+    error: quotaError,
   };
 }
 
