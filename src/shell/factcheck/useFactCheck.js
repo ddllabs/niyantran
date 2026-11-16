@@ -7,6 +7,7 @@ import { INITIAL_VIEW, createFactCheckController } from './factCheckController.j
 /**
  * open    the modal is open (the flag is read on open; a session ends on close)
  * target  what is playing, as one string, or null; a change ends a running session
+ * getPosition  () => { positionS, playerState } | null, the player's position (recorded videos only are used)
  * start   { videoId, channelId, videoKind, startPositionS, seed } for a session started now;
  *         getStartPositionS(), when given, is read at confirm time and replaces startPositionS
  */
@@ -17,9 +18,15 @@ export function withPosition(start) {
   return { ...rest, startPositionS: Number.isInteger(p) && p >= 0 ? p : null };
 }
 
-export function useFactCheck({ open, target, start }) {
+export function useFactCheck({ open, target, start, getPosition }) {
   const [view, setView] = useState(INITIAL_VIEW);
-  const [controller] = useState(() => createFactCheckController({ onChange: (next) => setView(next) }));
+  // The controller outlives renders; it reads the newest getPosition through this holder.
+  const [source] = useState(() => ({ read: null }));
+  source.read = getPosition || null;
+  const [controller] = useState(() => createFactCheckController({
+    onChange: (next) => setView(next),
+    getPosition: () => (source.read ? source.read() : null),
+  }));
 
   useEffect(() => {
     if (!open) return undefined;
@@ -28,6 +35,8 @@ export function useFactCheck({ open, target, start }) {
   }, [open, controller]);
 
   useEffect(() => { controller.setTarget(target); }, [target, controller]);
+  // Shared results are looked up for the video that is playing, when it is a recorded one.
+  useEffect(() => { controller.setVideo({ videoId: start.videoId, videoKind: start.videoKind }); }, [start.videoId, start.videoKind, controller]);
 
   const actions = {
     choose: () => controller.choose(),
