@@ -7,7 +7,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import type { CheckResult, ClaimInsert, ClaimRow, ClaimStore, HeldPatch, SessionRow } from './types.ts';
 
 const CLAIM_COLUMNS =
-  'id,session_id,user_id,quote,claim_en,claimant,reported_by,kind,status,verdict,reason,sources,checked_at,spoken_at';
+  'id,session_id,user_id,quote,claim_en,claimant,reported_by,kind,status,verdict,reason,sources,checked_at,spoken_at,supersedes';
 const SESSION_COLUMNS = 'id,user_id,video_id,channel_id,video_kind';
 
 type Db = Pick<SupabaseClient, 'from'>;
@@ -52,6 +52,10 @@ export function postgrestStore(db: () => Db): ClaimStore {
         'user_id',
         s.user_id,
       ).maybeSingle();
+      return (must(r) as ClaimRow | null) ?? null;
+    },
+    async claimById(userId, claimId) {
+      const r = await claims().select(CLAIM_COLUMNS).eq('id', claimId).eq('user_id', userId).maybeSingle();
       return (must(r) as ClaimRow | null) ?? null;
     },
     async lockForCheck(userId, sessionId, claimId, at, staleBefore) {

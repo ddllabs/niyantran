@@ -19,6 +19,7 @@ export const SESSION = '22222222-2222-4222-8222-222222222222';
 export const TOKEN = 'hdr.payload-SECRET-TOKEN.sig';
 export const KEY = 'sk-or-test-KEY-0123456789';
 export const ORIGIN = 'http://localhost:5173';
+export const NEW_CLAIM = '55555555-5555-4555-8555-555555555555';
 export const NOW = Date.parse('2026-11-16T10:00:20.000Z');
 
 // ---- WAV -------------------------------------------------------------------------------------
@@ -222,6 +223,13 @@ export class MemStore implements ClaimStore {
     return row ? { ...row } : null;
   }
   // deno-lint-ignore require-await
+  async claimById(userId: string, claimId: string) {
+    this.ops.push('claimById');
+    this.scopes.push({ op: 'claimById', userId, sessionId: '', claimId });
+    const row = this.rows.find((r) => r.id === claimId && r.user_id === userId);
+    return row ? { ...row } : null;
+  }
+  // deno-lint-ignore require-await
   async lockForCheck(userId: string, sessionId: string, claimId: string, at: string, staleBefore: string) {
     this.ops.push('lock');
     this.scopes.push({ op: 'lock', userId, sessionId, claimId });
@@ -287,6 +295,8 @@ export function harness(overrides: Partial<FactcheckDeps> = {}): Harness {
       },
       error: null,
     },
+    factcheck_recheck_begin: { data: { ok: true, claim_id: NEW_CLAIM, recheck_credits: 100 }, error: null },
+    factcheck_recheck_charge: { data: { ok: true, repeated: false, credits_charged: 100, balance: 3900 }, error: null },
     factcheck_settle: {
       data: { ok: true, repeated: false, minutes_used: 2, credits_charged: 1000, balance: 4000 },
       error: null,

@@ -171,6 +171,12 @@ chain() {
     # chain's last file, the fact-check migration, and the fixture's first fact-check step fails.
     factcheck_usage)
       chain factcheck ;;
+    # F344 R1: re-check one verdict. The F347 chain (the factcheck chain), the report migration (so the fixture can show the
+    # charge in the reports), then the re-check migration, as a non-superuser. The vacuity check drops the last.
+    factcheck_recheck)
+      chain factcheck_usage
+      FILES+=("$(as_non_superuser 20261116100000_factcheck_usage_reports.sql)"
+              "$(as_non_superuser 20261116110000_factcheck_recheck.sql)") ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;
@@ -1377,6 +1383,7 @@ run_fixture() {
     [ "$name" = record_brief_format ] && { record_brief_format_checks || rc=1; }
     [ "$name" = ingest_register_batch ] && { ingest_register_batch_checks || rc=1; }
     [ "$name" = factcheck_usage ] && { factcheck_usage_checks || rc=1; }
+    [ "$name" = factcheck_recheck ] && { bash "$TESTS/factcheck_recheck_concurrency.sh" || rc=1; }
   else
     rc=1
     echo "  FAIL"

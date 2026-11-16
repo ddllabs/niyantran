@@ -156,18 +156,16 @@ function Transcript({ lines, emptyText }) {
   );
 }
 
-function checkedTime(iso) {
+function checkedTime(iso, withDate = false) {
   const d = new Date(iso);
   if (typeof iso !== 'string' || Number.isNaN(d.getTime())) return null;
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return withDate
+    ? d.toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-function Card({ claim }) {
-  const badge = claimBadge(claim);
-  const tag = kindTag(claim, badge);
-  const by = [claim.claimant && `Claim by ${claim.claimant}`, claim.reported_by && `reported by ${claim.reported_by}`]
-    .filter(Boolean).join(', ');
-  const sources = (Array.isArray(claim.sources) ? claim.sources : []).flatMap((s, i) => {
+function SourceList({ result }) {
+  const items = (Array.isArray(result.sources) ? result.sources : []).flatMap((s, i) => {
     const href = safeSourceUrl(s?.url);
     const title = typeof s?.title === 'string' ? s.title.trim() : '';
     if (href) {
@@ -175,7 +173,102 @@ function Card({ claim }) {
     }
     return title ? [<li key={i}><span>{title}</span></li>] : [];
   });
-  const time = claim.checked_at ? checkedTime(claim.checked_at) : null;
+  return items.length ? <ul className="fc-sources" aria-label="Sources">{items}</ul> : null;
+}
+
+// A re-checked card and its earlier results show the date too: they were checked at different times.
+function CheckedAt({ result, withDate = false }) {
+  const time = result.checked_at ? checkedTime(result.checked_at, withDate) : null;
+  return time ? <p className="fc-time"><time dateTime={result.checked_at}>{`Checked ${time}`}</time></p> : null;
+}
+
+// The "Earlier result" disclosure: a button that shows or hides the older results, newest first.
+function Earlier({ id, items }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className="fc-earlier-toggle" aria-expanded={open} aria-controls={`fc-earlier-${id}`} onClick={() => setOpen((o) => !o)}>
+        {items.length === 1 ? 'Earlier result' : `Earlier results (${items.length})`}
+      </button>
+      <ol className="fc-earlier" id={`fc-earlier-${id}`} hidden={!open}>
+        {items.map((r) => {
+          const b = claimBadge(r);
+          return (
+            <li className="fc-earlier-item" key={r.id}>
+              <span className={`fc-badge fc-badge--${b.key}`}>
+                <span className="fc-glyph" aria-hidden="true">{b.glyph}</span>
+                {` ${b.label}`}
+              </span>
+              {r.reason ? <p className="fc-reason" dir="auto">{r.reason}</p> : null}
+              <SourceList result={r} />
+              <CheckedAt result={r} withDate />
+            </li>
+          );
+        })}
+      </ol>
+    </>
+  );
+}
+
+// "Check again": a button, an inline confirmation with the price and the balance, progress, and the
+// outcome. Focus goes to Confirm when the confirmation opens and back to the button when it closes.
+function RecheckControls({ id, price, balance, recheck, onAsk, onConfirm, onCancel }) {
+  const phase = recheck?.phase || 'idle';
+  const button = useRef(null);
+  const confirmButton = useRef(null);
+  const previous = useRef(phase);
+  useEffect(() => {
+    if (phase === 'confirming') confirmButton.current?.focus();
+    else if (previous.current === 'confirming') button.current?.focus();
+    previous.current = phase;
+  }, [phase]);
+  const known = typeof balance === 'number';
+  const short = known && balance < price;
+  if (recheck?.locked) {
+    return <div className="fc-recheck">{recheck.error ? <p className="fc-recheck-note fc-recheck-note--error">{recheck.error}</p> : null}</div>;
+  }
+  return (
+    <div className="fc-recheck">
+      {recheck?.notice ? <p className="fc-recheck-note">{recheck.notice}</p> : null}
+      {recheck?.error ? <p className="fc-recheck-note fc-recheck-note--error">{recheck.error}</p> : null}
+      {phase === 'running' ? <p className="fc-rechecking">Checking again…</p> : null}
+      {phase === 'confirming' ? (
+        <div className="fc-confirm" role="group" aria-label="Check this claim again">
+          <p>{`Check this claim again for ${creditsText(price)}?`}</p>
+          <p>{known ? `Your balance is ${creditsText(balance)}.` : 'Your balance could not be read.'}</p>
+          {short ? <p className="fc-confirm-why">{`Needs ${creditsText(price)}; you have ${creditsText(balance)}.`}</p> : null}
+          <div className="fc-actions">
+            <button type="button" className="ltv-action-btn primary fc-btn" data-fc="recheck-confirm" disabled={short} ref={confirmButton} onClick={() => onConfirm(id, price)}>Check again</button>
+            <button type="button" className="ltv-action-btn fc-btn" data-fc="recheck-cancel" onClick={() => onCancel(id)}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          id={`fc-recheck-${id}`}
+          className="ltv-action-btn fc-btn fc-recheck-btn"
+          data-fc="recheck"
+          data-claim={id}
+          aria-disabled={phase === 'running' ? 'true' : undefined}
+          ref={button}
+          onClick={() => { if (phase !== 'running') onAsk(id); }}
+        >
+          {`Check again · ${creditsText(price)}`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel }) {
+  // With no re-check price the card is exactly what it was before re-checks existed.
+  const priced = typeof price === 'number';
+  const chain = priced && recheck?.results?.length ? [...recheck.results, claim] : [claim];
+  const shown = chain[0];
+  const badge = claimBadge(shown);
+  const tag = kindTag(claim, badge);
+  const by = [claim.claimant && `Claim by ${claim.claimant}`, claim.reported_by && `reported by ${claim.reported_by}`]
+    .filter(Boolean).join(', ');
   return (
     <li className={`fc-card fc-card--${badge.key}`}>
       <div className="fc-card-head">
@@ -187,20 +280,27 @@ function Card({ claim }) {
       </div>
       <p className="fc-claim" dir="auto">{claim.claim_en}</p>
       {by ? <p className="fc-by">{by}</p> : null}
-      {claim.reason ? <p className="fc-reason" dir="auto">{claim.reason}</p> : null}
-      {sources.length ? <ul className="fc-sources" aria-label="Sources">{sources}</ul> : null}
-      {time ? <p className="fc-time"><time dateTime={claim.checked_at}>{`Checked ${time}`}</time></p> : null}
+      {shown.reason ? <p className="fc-reason" dir="auto">{shown.reason}</p> : null}
+      <SourceList result={shown} />
+      <CheckedAt result={shown} withDate={chain.length > 1} />
+      {priced && (shown.status === 'checked' || shown.status === 'error') ? (
+        <RecheckControls id={claim.id} price={price} balance={balance} recheck={recheck} onAsk={onAsk} onConfirm={onConfirm} onCancel={onCancel} />
+      ) : null}
+      {chain.length > 1 ? <Earlier id={claim.id} items={chain.slice(1)} /> : null}
     </li>
   );
 }
 
-function Claims({ claims, emptyText }) {
+function Claims({ claims, emptyText, recheck }) {
   return (
     <>
       <h4 className="fc-section">{`Claims (${claims.length})`}</h4>
       {claims.length === 0 ? <p className="fc-empty">{emptyText}</p> : (
         <ol className="fc-claims" aria-label="Claims">
-          {[...claims].reverse().map((c) => <Card key={c.id} claim={c} />)}
+          {[...claims].reverse().map((c) => (
+            <Card key={c.id} claim={c} price={recheck.price} balance={recheck.balance} recheck={recheck.states[c.id]}
+              onAsk={recheck.onAsk} onConfirm={recheck.onConfirm} onCancel={recheck.onCancel} />
+          ))}
         </ol>
       )}
     </>
@@ -224,16 +324,19 @@ function Final({ final, sessionId }) {
 
 /** The right-hand panel. Renders nothing while idle or when the flag is off. */
 export function FactCheckPanel(props) {
-  if (!props.view?.flag?.available || props.view.session.status === 'idle') return null;
+  if (!props.view?.flag?.available) return null;
+  // Idle shows only if a re-check message has to outlive the session (a late charge, switched off).
+  if (props.view.session.status === 'idle' && !props.view.recheckNotices?.length) return null;
   return <PanelBody {...props} />;
 }
 
 // Mounted while a session is on screen: focus moves to the heading when it opens, and back to the
 // entry button when it is dismissed (unless the user has already moved focus elsewhere).
-function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan }) {
+function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel }) {
   const heading = useRef(null);
+  const opensForNotice = useRef(view.session.status === 'idle'); // a late message must not take focus
   useEffect(() => {
-    heading.current?.focus();
+    if (!opensForNotice.current) heading.current?.focus();
     return () => {
       setTimeout(() => {
         const active = document.activeElement;
@@ -264,6 +367,13 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
         <p className="fc-rate">
           {`${creditsText(s.creditsPerMinute)} a minute${s.creditsHeld != null ? ` · ${creditsText(s.creditsHeld)} held` : ''}`}
         </p>
+      ) : null}
+
+      {view.recheckNotices?.length ? (
+        <div className="fc-notices">
+          {view.recheckNotices.map((n, i) => <p className="fc-notice" role="note" key={i}>{n}</p>)}
+          <button type="button" className="ltv-action-btn fc-btn" data-fc="notices-dismiss" onClick={view.recheckActions?.dismissNotices}>Close</button>
+        </div>
       ) : null}
 
       {s.status === 'choosing' ? (
@@ -305,7 +415,16 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
             lines={s.transcript}
             emptyText={live ? 'Listening… Text appears about 13 seconds behind the speaker.' : 'No speech was transcribed.'}
           />
-          <Claims claims={s.claims} emptyText={live ? 'No claims yet.' : 'No claims were found.'} />
+          <Claims
+            claims={s.claims}
+            emptyText={live ? 'No claims yet.' : 'No claims were found.'}
+            recheck={{
+              price: view.flag.recheckCredits ?? null, balance: view.balance, states: view.rechecks || {},
+              onAsk: onRecheckAsk ?? view.recheckActions?.ask,
+              onConfirm: onRecheckConfirm ?? view.recheckActions?.confirm,
+              onCancel: onRecheckCancel ?? view.recheckActions?.cancel,
+            }}
+          />
         </div>
       ) : null}
 

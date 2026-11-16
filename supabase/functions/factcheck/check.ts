@@ -5,7 +5,7 @@ import { chatCompletion, ProviderError } from './modelCall.ts';
 import { CHECK_MODEL } from './models.ts';
 import { CHECK_SYSTEM, checkUser } from './prompts.ts';
 import { touch } from './touch.ts';
-import type { CheckResult, ClaimRow, Ctx, Source, Verdict } from './types.ts';
+import type { CheckResult, ClaimRow, Ctx, SessionRow, Source, Verdict } from './types.ts';
 import { isObject, type Obj, uuid } from './validate.ts';
 
 /** A check that started longer ago than this is presumed dead, and another request may take over. */
@@ -90,6 +90,44 @@ const stored = (c: ClaimRow): Obj => ({
 });
 
 /**
+ * The model call, parsing and source rules shared by check and recheck: asks sonar about the claim's stored
+ * text and returns what to save. Throws ProviderError (502) when the provider fails, times out or the client
+ * goes away; every other outcome is a result.
+ */
+export async function verdictFor(
+  ctx: Ctx,
+  p: { purpose: 'claim_check' | 'claim_recheck'; claim: ClaimRow; session: SessionRow; detached?: boolean },
+): Promise<CheckResult> {
+  const now = ctx.now();
+  const { payload, text } = await chatCompletion(ctx, {
+    purpose: p.purpose,
+    detached: p.detached,
+    model: CHECK_MODEL,
+    sessionId: p.session.id,
+    system: CHECK_SYSTEM,
+    user: checkUser({
+      date: new Date(now + IST_OFFSET_MS).toISOString().slice(0, 10),
+      claim: p.claim.claim_en,
+      claimant: p.claim.claimant,
+      reportedBy: p.claim.reported_by,
+      channel: channelName(p.session.channel_id),
+      kind: p.session.video_kind,
+    }),
+    maxTokens: 700,
+    // No provider block: perplexity/sonar returns 404 under require_parameters (live probe 2026-11-16),
+    // and data_collection: 'deny' for it was not probed. The claim text sent is already public speech.
+  });
+  const parsed = text === null ? undefined : parseVerdict(text);
+  const sources = parseSources(payload);
+  const at = new Date(now).toISOString();
+  // Anything but one of the five labels is an error, never a verdict, and its text is not kept. So is a
+  // verdict with no source, unless it says no evidence was found.
+  return parsed && (sources.length > 0 || parsed.verdict === 'no_evidence')
+    ? { status: 'checked', verdict: parsed.verdict, reason: parsed.reason, sources, checked_at: at }
+    : { status: 'error', verdict: null, reason: null, sources: [], checked_at: at };
+}
+
+/**
  * Checks one pending claim. The text sent to the model is read from the database by claim, session and
  * user; nothing but the two ids is taken from the request. A conditional update claims the row before the
  * model is called, so two simultaneous requests cannot both spend. The reply is plain text in a fixed format
@@ -123,30 +161,7 @@ export async function checkAction(ctx: Ctx, body: Obj): Promise<Obj> {
 
   let row: ClaimRow | null;
   try {
-    const { payload, text } = await chatCompletion(ctx, {
-      purpose: 'claim_check',
-      model: CHECK_MODEL,
-      sessionId,
-      system: CHECK_SYSTEM,
-      user: checkUser({
-        date: new Date(now + IST_OFFSET_MS).toISOString().slice(0, 10),
-        claim: claim.claim_en,
-        claimant: claim.claimant,
-        reportedBy: claim.reported_by,
-        channel: channelName(session.channel_id),
-        kind: session.video_kind,
-      }),
-      maxTokens: 700,
-      // No provider block: perplexity/sonar returns 404 under require_parameters (live probe 2026-11-16),
-      // and data_collection: 'deny' for it was not probed. The claim text sent is already public speech.
-    });
-    const parsed = text === null ? undefined : parseVerdict(text);
-    const sources = parseSources(payload);
-    // Anything but one of the five labels is an error, never a verdict, and its text is not kept. So is a
-    // verdict with no source, unless it says no evidence was found.
-    const result: CheckResult = parsed && (sources.length > 0 || parsed.verdict === 'no_evidence')
-      ? { status: 'checked', verdict: parsed.verdict, reason: parsed.reason, sources, checked_at: at }
-      : { status: 'error', verdict: null, reason: null, sources: [], checked_at: at };
+    const result = await verdictFor(ctx, { purpose: 'claim_check', claim, session });
     row = await store.finishCheck(ctx.userId, sessionId, claimId, result);
   } catch (error) {
     // A client that went away keeps the lease: the provider may well have been paid, and a retry within

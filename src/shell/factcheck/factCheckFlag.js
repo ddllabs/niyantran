@@ -7,26 +7,36 @@ import { supabase } from '../../lib/supabaseClient.js';
 
 const KEY = 'livetv_factcheck';
 const MAX_PRICE = 5000;
+const MAX_RECHECK = 1000;
 const CACHE_MS = 60000;
 
-/** The flag's value as { audience, creditsPerMinute }, or null when the feature is off. */
+// The server rounds prices to four decimals; one that rounds to zero is no price.
+function roundedPrice(value, max) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > max) return null;
+  const rounded = Math.round(value * 10000) / 10000;
+  return rounded > 0 ? rounded : null;
+}
+
+/** The flag's value as { audience, creditsPerMinute, recheckCredits }, or null when the feature is off. */
 export function parseFactCheckFlag(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   if (value.enabled !== true) return null;
   if (value.audience !== 'admin' && value.audience !== 'all') return null;
-  const price = value.credits_per_minute;
-  if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0 || price > MAX_PRICE) return null;
-  return { audience: value.audience, creditsPerMinute: price };
+  const price = roundedPrice(value.credits_per_minute, MAX_PRICE);
+  if (price === null) return null;
+  // The re-check price is optional: absent or out of range switches re-check off, nothing else.
+  const recheckCredits = roundedPrice(value.recheck_credits, MAX_RECHECK);
+  return { audience: value.audience, creditsPerMinute: price, recheckCredits };
 }
 
-const off = (userId = null) => ({ available: false, creditsPerMinute: null, userId });
+const off = (userId = null) => ({ available: false, creditsPerMinute: null, recheckCredits: null, userId });
 
 let cache = null; // { userId, at, result }
 
 export function clearFactCheckFlagCache() { cache = null; }
 
 /**
- * { available, creditsPerMinute, userId } for the signed-in account. Read once and kept for a minute
+ * { available, creditsPerMinute, recheckCredits, userId } for the signed-in account. Read once and kept for a minute
  * per account; an answer is kept, a failed read never. `fresh` skips the kept answer (the price a
  * user is about to agree to must be current). Never rejects.
  */
@@ -49,7 +59,7 @@ export async function readFactCheckFlag({ client = supabase, now = Date.now, fre
         if (admin.error) return off(userId);
         allowed = admin.data === true;
       }
-      if (allowed) result = { available: true, creditsPerMinute: flag.creditsPerMinute, userId };
+      if (allowed) result = { available: true, creditsPerMinute: flag.creditsPerMinute, recheckCredits: flag.recheckCredits, userId };
     }
     cache = { userId, at: now(), result };
     return result;
