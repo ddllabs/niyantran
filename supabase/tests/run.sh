@@ -160,6 +160,12 @@ chain() {
     law_documents_serving_set)
       chain document_chunks_partitions
       FILES+=("$(as_non_superuser 20261101130000_law_documents_serving_set.sql)") ;;
+    # F344 (T3): Live TV fact-check. The latest credit and billing chain (billing_manual_grace's), the Storage stub and
+    # app_flags (the flag row), then the migration, as a non-superuser. The vacuity check drops the last.
+    factcheck)
+      chain billing_manual_grace
+      FILES+=("$TESTS/bootstrap_storage.sql" "$(m 20260928100200_app_flags_and_marketing_media.sql)"
+              "$(as_non_superuser 20261116090000_factcheck.sql)") ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;
@@ -1265,6 +1271,7 @@ run_fixture() {
     [ "$name" = billing_live_cycle ] && { bash "$TESTS/billing_live_cycle_concurrency.sh" || rc=1; }
     [ "$name" = billing_manual_grace ] && { bash "$TESTS/billing_manual_grace_concurrency.sh" || rc=1; }
     [ "$name" = billing_purchases ] && { bash "$TESTS/billing_concurrency.sh" || rc=1; }
+    [ "$name" = factcheck ] && { bash "$TESTS/factcheck_concurrency.sh" || rc=1; }
     [ "$name" = credit_paise_contract ] && { credit_paise_atomic_check "$db" || rc=1; }
     [ "${VACUITY:-1}" = 1 ] && { vacuity_check "$name" || rc=1; }
     [ "$name" = chunk_hybrid_search ] && { hybrid_exposure_check || rc=1; hybrid_private_check || rc=1; hybrid_drift_rollback_check || rc=1; hybrid_mutation_checks || rc=1; }

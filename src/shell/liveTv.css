@@ -1,5 +1,8 @@
 /* Live TV Intelligence Modal Styles */
 
+/* F344: the fact-check panel's styles ride with this sheet (see FactCheckPanel.jsx). */
+@import './factcheck/factCheck.css';
+
 .ltv-modal-backdrop {
   position: fixed;
   inset: 0;
