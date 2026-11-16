@@ -398,6 +398,57 @@ Both windows understate the cold cost; a later measurement adds `toast_blks_read
 Recommended: (b). The fix for the slow first calls is the keep-warm step either way, and one measurement after an
 eviction would show whether it works before users see hybrid.
 
+## Result, 2026-11-16: cold measurement after the Regulatory load (keep-warm on)
+
+All read-only, no spend, 11:19 to 11:21 UTC. Same 72 NCLT questions, order, settings and in-database timing as the two
+windows of 2026-11-10; the runner now sends its SQL through psql instead of the Supabase CLI, which changes the
+transport only. This is the one measurement F324 asked for: straight after an eviction, vector-only first, counting
+TOAST reads.
+
+**The load did evict NCLT's search set.** The Regulatory load's last 26 parts ran from about 03:00 to 09:34 UTC; the load grew
+the database by 2.76 GB in all. The keep-warm job, which takes about 0.1 s when its three relations are in memory, took up to 28 s a run
+during the load (hourly worst: 5.6, 7.3, 14.2, 15.4, 11.7, 16.0 and 28.3 s from 03:00 to 09:00 UTC), with no failed
+run. From 10:03 UTC it was back at 0.14 s.
+
+**Quiet, checked at 11:18 UTC.** No ingest job queued or running, last batch 09:33 UTC, no other active query. The
+NCLT vector index was last scanned at 18:58 UTC on 2026-11-15 and the keyword index on 2026-11-10 (window 2), so
+nothing but keep-warm had touched the set since the load.
+
+| NTER, 72 NCLT questions | first call | p50 | p95 | max | over 2.5 s | doc@10 | chunk@10 | chunk@40 | chunk MRR |
+|---|---|---|---|---|---|---|---|---|---|
+| vector-only, first | 351 ms | 166 ms | 220 ms | 351 ms | 0 | 40/72 | 25/58 | 29/58 | 0.299 |
+| hybrid, straight after | 681 ms | 573 ms | 991 ms | 1,289 ms | 0 | 58/72 | 28/58 | 32/58 | 0.337 |
+
+No timeout, no `55000`. All 72 rankings (40 results each) are identical to window 2 in both arms. Hybrid meets the
+pass rule: no call over 2.5 s. Three hybrid calls took over 1 s.
+
+**Blocks the NCLT partition read from outside Postgres's buffer cache:**
+
+| | vector-only run (first) | hybrid run (second) |
+|---|---|---|
+| vector index | 102,640 | 117 |
+| table | 5,680 | 19,405 |
+| keyword index | 0 | 1,929 |
+| TOAST (embeddings) | 4,134 | 45,979 |
+| TOAST index | 1,497 | 864 |
+
+- **Keep-warm did what it was built for.** The vector-only run read as many vector-index blocks from outside
+  Postgres's buffers as window 1's hybrid run did (102,640 against 103,664, about 800 MB), yet its slowest call took
+  351 ms where window 1's took 5.5 s. Keep-warm prefetches into the operating system's cache, not into Postgres's
+  buffers, so the blocks were out of Postgres's cache and still in memory.
+- **Hybrid's TOAST reads did not break the rule.** Hybrid read 45,979 TOAST blocks (about 359 MB) that keep-warm does
+  not cover, and its slowest call was 1.29 s.
+- **Limit of this evidence.** Postgres's counters do not say whether a block came from the operating system's cache or
+  from disk, so it is not shown that the TOAST blocks came from disk. They had not been read by a hybrid search since
+  2026-11-10, with the Bills and Regulatory loads in between. This is one window on one desk. After a database restart
+  the first searches run before keep-warm's first pass (up to 10 minutes) and are not covered by this result.
+
+### Decision for the developer
+
+T9 was held until this measurement passed; it has. Switching the app to hybrid is the developer's decision and a
+production step of its own: the `hybrid_search` row in `app_flags` (absent today, so the app uses vector-only), with
+F288's fallback budgets (hybrid 2.5 s, then vector-only 4 s). Rollback is deleting the row.
+
 ## Decisions for the developer
 
 **Decided 2026-11-09:** both as recommended. Apply and measure now, before the bulk load; privacy on NTER rests on the

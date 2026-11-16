@@ -36,7 +36,7 @@ Each item's status is in its tracker entry. Nothing below has landed on `main` u
 | | | Deploy `admin-ingest`. |
 | | | Load Regulatory: done 2026-11-16, 2,605 records ([record](../operations/2026-11-16-regulatory-load.md)); the search check fell from 50 to 40 of 55 and awaits the developer's reading. |
 | | | Worker limits: back at `claim_batch` 2, `max_running` 1 since 2026-11-16. |
-| | F324, F288 | One cold hybrid measurement straight after the load, counting TOAST reads; then the developer's ship-or-hold decision and the `hybrid_search` flag row. |
+| | F324, F288 | Cold hybrid measurement taken 2026-11-16 after the load, counting TOAST reads: passed (slowest hybrid call 1.29 s). Remaining: the developer's ship-or-hold decision and the `hybrid_search` flag row. |
 | 4. Paperwork | F343 | Done (`626707fe`): 29 marked Historical, 67 left Living. |
 | | | Tracker corrections (this pass). |
 

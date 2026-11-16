@@ -78,7 +78,8 @@ shows. Read the figures, not the verdict, until the script compares the mode it 
 - No signed-in question on the site about one of the new documents; attribution in citations (F332) not spot-checked.
 - The 714 records the screen held are not loaded (by design; reasons are in the screen receipt).
 - Titles and dates of the new documents are as the pack gives them (F346): mostly file names, mostly no date.
-- The cold hybrid measurement (F324, F288) has not been run.
+- The cold hybrid measurement (F324, F288) was not part of this load. It was taken afterwards, at 11:19 UTC, and is
+  recorded in the [hybrid runbook](2026-11-09-hybrid-apply-and-measure.md).
 
 ## Rollback
 
