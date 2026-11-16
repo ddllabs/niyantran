@@ -5,6 +5,7 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 BEGIN;
+SET LOCAL search_path = public, extensions;
 
 CREATE FUNCTION pg_temp.assert_true(actual boolean, label text) RETURNS void
 LANGUAGE plpgsql AS $$

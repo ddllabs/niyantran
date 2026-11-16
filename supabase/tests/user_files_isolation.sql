@@ -23,6 +23,7 @@
 
 \set ON_ERROR_STOP on
 BEGIN;
+SET LOCAL search_path = public, extensions;
 
 -- ---------------------------------------------------------------------------
 -- 0. Test Harness Assertions & Setup
@@ -135,7 +136,7 @@ VALUES (
   1,
   'User B confidential financial data',
   repeat('2', 64),
-  array_fill(0.05::real, array[1536])::vector
+  array_fill(0.05::real, array[1536])::extensions.vector
 );
 
 INSERT INTO public.user_file_jobs (file_id, user_id, status, step)
@@ -187,7 +188,7 @@ SELECT pg_temp.rejected(
 
 SELECT pg_temp.rejected(
   $q$INSERT INTO public.user_file_chunks (user_id, file_id, chunk_index, chunk_hash, page_start, page_end, content, text_hash, embedding)
-     VALUES ('00000000-0000-4000-8000-0000000000b2', '20000000-0000-4000-8000-00000000000b', 1, repeat('f', 64), 1, 1, 'Injected', repeat('3', 64), array_fill(0.01::real, array[1536])::vector)$q$,
+     VALUES ('00000000-0000-4000-8000-0000000000b2', '20000000-0000-4000-8000-00000000000b', 1, repeat('f', 64), 1, 1, 'Injected', repeat('3', 64), array_fill(0.01::real, array[1536])::extensions.vector)$q$,
   '42501',
   'User A cannot INSERT chunk for User B'
 );
@@ -444,8 +445,9 @@ DECLARE
   v_sub_folder_id  uuid := '11000000-0000-4000-8000-000000000002'::uuid;
   v_root_file_id   uuid := '21000000-0000-4000-8000-000000000001'::uuid;
   v_sub_file_id    uuid := '21000000-0000-4000-8000-000000000002'::uuid;
-  v_vec vector(1536)    := array_fill(0.15::real, array[1536])::vector;
+  v_vec extensions.vector(1536) := array_fill(0.15::real, array[1536])::extensions.vector;
 BEGIN
+  PERFORM set_config('search_path', 'public, extensions', true);
   INSERT INTO public.user_folders (id, user_id, parent_id, name, path, depth)
   VALUES (v_root_folder_id, '00000000-0000-4000-8000-0000000000a1', NULL, 'RootFolder', '/RootFolder', 0);
 
@@ -468,7 +470,7 @@ END $$;
 
 -- T-4.1: match_user_files retrieves active files
 SELECT pg_temp.assert_true(
-  (SELECT count(*) = 2 FROM public.match_user_files(array_fill(0.15::real, array[1536])::vector, 0.0, 10)),
+  (SELECT count(*) = 2 FROM public.match_user_files(array_fill(0.15::real, array[1536])::extensions.vector, 0.0, 10)),
   'User A match_user_files retrieves both active files'
 );
 
@@ -501,7 +503,7 @@ SELECT pg_temp.assert_true(
 
 -- T-4.3: match_user_files strictly excludes trashed files
 SELECT pg_temp.assert_true(
-  (SELECT count(*) = 0 FROM public.match_user_files(array_fill(0.15::real, array[1536])::vector, 0.0, 10)),
+  (SELECT count(*) = 0 FROM public.match_user_files(array_fill(0.15::real, array[1536])::extensions.vector, 0.0, 10)),
   'match_user_files returns 0 results for soft-deleted files'
 );
 
@@ -511,12 +513,12 @@ SET LOCAL request.jwt.claim.sub = '00000000-0000-4000-8000-0000000000b2';
 SET LOCAL request.jwt.claim.role = 'authenticated';
 
 SELECT pg_temp.assert_true(
-  (SELECT count(*) = 0 FROM public.match_user_files(array_fill(0.15::real, array[1536])::vector, 0.0, 10) WHERE user_id = '00000000-0000-4000-8000-0000000000a1'),
+  (SELECT count(*) = 0 FROM public.match_user_files(array_fill(0.15::real, array[1536])::extensions.vector, 0.0, 10) WHERE user_id = '00000000-0000-4000-8000-0000000000a1'),
   'User B match_user_files returns 0 matches for User A content'
 );
 
 SELECT pg_temp.assert_true(
-  (SELECT count(*) = 0 FROM public.match_user_files(array_fill(0.15::real, array[1536])::vector, 0.0, 10, ARRAY['21000000-0000-4000-8000-000000000001'::uuid])),
+  (SELECT count(*) = 0 FROM public.match_user_files(array_fill(0.15::real, array[1536])::extensions.vector, 0.0, 10, ARRAY['21000000-0000-4000-8000-000000000001'::uuid])),
   'User B cannot retrieve User A chunk even when providing User A file_id filter'
 );
 
@@ -626,7 +628,7 @@ VALUES (
   1,
   'User B Trashed Content',
   repeat('4', 64),
-  array_fill(0.01::real, array[1536])::vector
+  array_fill(0.01::real, array[1536])::extensions.vector
 );
 
 INSERT INTO public.user_file_jobs (file_id, user_id, status, step)
@@ -678,7 +680,7 @@ VALUES (
   1,
   'To be permanently purged chunk',
   repeat('5', 64),
-  array_fill(0.01::real, array[1536])::vector
+  array_fill(0.01::real, array[1536])::extensions.vector
 );
 
 INSERT INTO public.user_file_jobs (file_id, user_id, status, step)

@@ -3,6 +3,7 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 BEGIN;
+SET LOCAL search_path = public, extensions;
 
 CREATE FUNCTION pg_temp.assert_true(actual boolean, label text) RETURNS void
 LANGUAGE plpgsql AS $$
@@ -20,9 +21,10 @@ DECLARE
   v_user_b uuid := '00000000-0000-4000-8000-0000000000b2';
   v_admin  uuid := '00000000-0000-4000-8000-0000000000f9';
   v_file_a uuid := '20000000-0000-4000-8000-0000000000a1';
-  v_query_vec vector(1536);
+  v_query_vec extensions.vector(1536);
   v_count int;
 BEGIN
+  PERFORM set_config('search_path', 'public, extensions', true);
   -- Insert users
   INSERT INTO auth.users (id, email) VALUES
     (v_user_a, 'tenant.a@example.test'),
@@ -37,7 +39,7 @@ BEGIN
   ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role;
 
   -- Create vector of 1536 dimensions
-  SELECT array_agg(0.01::real)::vector INTO v_query_vec FROM generate_series(1, 1536);
+  SELECT array_agg(0.01::real)::extensions.vector INTO v_query_vec FROM generate_series(1, 1536);
 
   -- 1. Setup User A file and chunks as User A
   PERFORM set_config('request.jwt.claim.sub', v_user_a::text, true);

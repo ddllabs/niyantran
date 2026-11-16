@@ -3,6 +3,7 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 BEGIN;
+SET LOCAL search_path = public, extensions;
 
 CREATE FUNCTION pg_temp.assert_true(actual boolean, label text) RETURNS void
 LANGUAGE plpgsql AS $$
@@ -41,6 +42,7 @@ DECLARE
   v_job_id bigint;
   v_file_id uuid;
 BEGIN
+  PERFORM set_config('search_path', 'public, extensions', true);
   -- Insert auth.users first
   INSERT INTO auth.users (id, email) VALUES
     (v_free_user, 'explorer@example.test'),

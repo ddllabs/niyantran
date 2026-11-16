@@ -236,11 +236,47 @@ CREATE POLICY user_file_jobs_owner_all ON public.user_file_jobs
   USING (user_id = (SELECT auth.uid()))
   WITH CHECK (user_id = (SELECT auth.uid()));
 
--- Service role access
+-- Service role access & Worker bypass policies
 GRANT ALL ON public.user_folders TO service_role;
 GRANT ALL ON public.user_files TO service_role;
 GRANT ALL ON public.user_file_chunks TO service_role;
 GRANT ALL ON public.user_file_jobs TO service_role;
+
+CREATE POLICY user_folders_service_all ON public.user_folders
+  FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY user_files_service_all ON public.user_files
+  FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY user_file_chunks_service_all ON public.user_file_chunks
+  FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY user_file_jobs_service_all ON public.user_file_jobs
+  FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'nter_migrator') THEN
+    CREATE POLICY user_folders_migrator_all ON public.user_folders FOR ALL TO nter_migrator USING (true) WITH CHECK (true);
+    CREATE POLICY user_files_migrator_all ON public.user_files FOR ALL TO nter_migrator USING (true) WITH CHECK (true);
+    CREATE POLICY user_file_chunks_migrator_all ON public.user_file_chunks FOR ALL TO nter_migrator USING (true) WITH CHECK (true);
+    CREATE POLICY user_file_jobs_migrator_all ON public.user_file_jobs FOR ALL TO nter_migrator USING (true) WITH CHECK (true);
+  END IF;
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'postgres') THEN
+    CREATE POLICY user_folders_postgres_all ON public.user_folders FOR ALL TO postgres USING (true) WITH CHECK (true);
+    CREATE POLICY user_files_postgres_all ON public.user_files FOR ALL TO postgres USING (true) WITH CHECK (true);
+    CREATE POLICY user_file_chunks_postgres_all ON public.user_file_chunks FOR ALL TO postgres USING (true) WITH CHECK (true);
+    CREATE POLICY user_file_jobs_postgres_all ON public.user_file_jobs FOR ALL TO postgres USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- 4. Storage Quota & Upload Reservation RPCs
@@ -464,6 +500,9 @@ BEGIN
   SELECT user_file_max_running, max_running_per_user
   INTO v_max_user_file_running, v_max_per_user
   FROM public.ingest_settings LIMIT 1;
+
+  v_max_user_file_running := COALESCE(v_max_user_file_running, 2);
+  v_max_per_user := COALESCE(v_max_per_user, 1);
 
   -- Count currently active jobs with valid leases
   SELECT COUNT(*) INTO v_current_running

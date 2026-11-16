@@ -3,6 +3,7 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 BEGIN;
+SET LOCAL search_path = public, extensions;
 
 CREATE FUNCTION pg_temp.assert_true(actual boolean, label text) RETURNS void
 LANGUAGE plpgsql AS $$
@@ -47,7 +48,7 @@ BEGIN
   -- Index file & add chunk
   UPDATE public.user_files SET index_status = 'indexed' WHERE id = v_file_id;
   INSERT INTO public.user_file_chunks (id, user_id, file_id, chunk_index, chunk_hash, page_start, page_end, content, text_hash, embedding)
-  VALUES (gen_random_uuid(), v_user_a, v_file_id, 0, repeat('a', 64), 1, 1, 'Sample content about Indian regulatory filings', repeat('a', 64), (SELECT array_agg(0.01::real) FROM generate_series(1, 1536))::vector);
+  VALUES (gen_random_uuid(), v_user_a, v_file_id, 0, repeat('a', 64), 1, 1, 'Sample content about Indian regulatory filings', repeat('a', 64), (SELECT array_agg(0.01::real) FROM generate_series(1, 1536))::extensions.vector);
   PERFORM pg_temp.assert_true(EXISTS(SELECT 1 FROM public.user_file_chunks WHERE file_id = v_file_id), 'File chunk created');
 
   -- 3. Rename file

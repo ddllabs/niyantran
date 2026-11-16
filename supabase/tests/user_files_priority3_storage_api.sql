@@ -2,6 +2,7 @@
 \set ON_ERROR_STOP on
 
 BEGIN;
+SET LOCAL search_path = public, extensions;
 
 DO $$
 DECLARE

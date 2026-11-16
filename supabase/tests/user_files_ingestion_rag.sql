@@ -9,6 +9,7 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 BEGIN;
+SET LOCAL search_path = public, extensions;
 
 CREATE FUNCTION pg_temp.assert_true(actual boolean, label text) RETURNS void
 LANGUAGE plpgsql AS $$
@@ -31,9 +32,10 @@ DECLARE
   v_shared_chunk_count_before int := 0;
   v_shared_chunk_count_after int := 0;
   v_private_chunk_count int := 0;
-  v_query_vec vector(1536);
+  v_query_vec extensions.vector(1536);
   v_retrieval RECORD;
 BEGIN
+  PERFORM set_config('search_path', 'public, extensions', true);
   -- Ensure users exist
   INSERT INTO auth.users (id, email) VALUES
     (v_user_a, 'tenant.a@example.test'),
@@ -96,7 +98,7 @@ BEGIN
   );
 
   -- 6. Generate embedding vector and commit private chunks to public.user_file_chunks
-  SELECT array_agg(0.02::real)::vector INTO v_query_vec FROM generate_series(1, 1536);
+  SELECT array_agg(0.02::real)::extensions.vector INTO v_query_vec FROM generate_series(1, 1536);
 
   INSERT INTO public.user_file_chunks (id, user_id, file_id, chunk_index, chunk_hash, page_start, page_end, content, text_hash, embedding)
   VALUES
