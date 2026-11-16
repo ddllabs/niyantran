@@ -4,7 +4,7 @@ import { assert, assertEquals, assertRejects, assertThrows } from 'jsr:@std/asse
 import { sha256Hex } from '../../../supabase/functions/_shared/textNormalise.ts';
 import { type Check, type Finding, type LiveDocument, type LiveReader, REVIEW_CHECKS } from '../screen_types.ts';
 import type { ScreenContext } from '../screen_types.ts';
-import type { Rec } from '../prepare.ts';
+import { type PrepareOptions, prepareRecord, type Rec } from '../prepare.ts';
 import { rulesSha256, type RunOptions, runScreen, runScreenSets, screenSets } from '../screen.ts';
 import { makeBillsScreen, makeLength } from './bills.ts';
 import { makeSearchOnlyScreen, pdfUrlRule, verhoeffValid, yearLikeTriple } from './search_only.ts';
@@ -24,6 +24,12 @@ const HTML = (n: number) => `https://www.sebi.gov.in/legal/circulars/c${n}.html`
 const ASPX = (n: number) => `https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=${n}`;
 const key = (n: number) => n.toString(16).padStart(40, '0');
 const MARKER = 'HOSTILE-MARKER-4d2c';
+/** The runner's prepare block for this collection (D6: 700 chunks), as the collection file carries it. */
+const PREPARE: PrepareOptions = {
+  maxChunks: 700,
+  requireTextIdentity: true,
+  dropInvalidCitationDates: true,
+};
 
 type DocQuery = Parameters<LiveReader['documents']>[0];
 class FakeLive implements LiveReader {
@@ -41,7 +47,16 @@ class FakeLive implements LiveReader {
     this.docCalls.push(q);
     // The real reader refuses a bad key for the whole call (live.ts checkKeys): a fake that did not would hide a record
     // that takes every other record down with it.
-    for (const list of [q.sourceKeys, q.fileUrls, q.contentHashes ?? [], q.documentKeys ?? [], q.suggestedKeys ?? []]) {
+    for (
+      const list of [
+        q.sourceKeys,
+        q.fileUrls,
+        q.contentHashes ?? [],
+        q.documentKeys ?? [],
+        q.suggestedKeys ?? [],
+        q.fileMtimes ?? [],
+      ]
+    ) {
       for (const k of list) {
         if (typeof k !== 'string' || k === '' || k.length > 4_000 || k.includes('\0')) {
           return Promise.reject(new Error('documents: a key is not a non-empty string without NUL'));
@@ -54,6 +69,8 @@ class FakeLive implements LiveReader {
         q.sourceKeys.includes(d.source_key ?? '\0') || q.fileUrls.includes(d.file_url ?? '\0') ||
         (q.contentHashes ?? []).includes(d.content_sha256 ?? '\0') ||
         ((q.suggestedKeys ?? []).includes(d.document_key_suggested ?? '\0') &&
+          (this.leaky || q.feature === undefined || q.feature === d.desk_feature)) ||
+        ((q.fileMtimes ?? []).includes(d.file_mtime ?? '\0') &&
           (this.leaky || q.feature === undefined || q.feature === d.desk_feature))
       ),
     );
@@ -70,6 +87,9 @@ const liveDoc = (o: Partial<LiveDocument>): LiveDocument => ({
   document_role: null,
   content_sha256: null,
   document_key_suggested: null,
+  title: null,
+  file_mtime: null,
+  source_host: null,
   ...o,
 });
 
@@ -108,7 +128,11 @@ function fakePage(verdicts: Record<string, string[]> = {}, extra: Rec = {}, scan
 }
 
 const screenWith = (config: unknown = REGULATORY, page = fakePage()) => makeSearchOnlyScreen(config, page.check);
-const ctxOf = (live: LiveReader = new FakeLive(), settings: Rec = SETTINGS): ScreenContext => ({ live, settings });
+const ctxOf = (live: LiveReader = new FakeLive(), settings: Rec = SETTINGS, prepare = PREPARE): ScreenContext => ({
+  live,
+  settings,
+  prepare,
+});
 const checkNamed = (name: string, s = screenWith()) => {
   const c = s.checks.find((x) => x.name === name);
   assert(c, `no check ${name}`);
@@ -202,7 +226,7 @@ const holdOf = (out: Awaited<ReturnType<typeof run>>, k: string) => out.holds.fi
 
 // ---- the screen definition and the configuration ----
 
-Deno.test('definition: collection, version, rules files in the spec order, all five review checks covered, 18 checks in order', () => {
+Deno.test('definition: collection, version, rules files in the spec order, all five review checks covered, 20 checks in order', () => {
   const s = screenWith();
   assertEquals(s.collection, 'national-regulatory');
   assertEquals(s.mappingVersion, 'search-only-screen-v1');
@@ -239,7 +263,9 @@ Deno.test('definition: collection, version, rules files in the spec order, all f
     'file_url_collision',
     'duplicate_text',
     'duplicate_text_live',
+    'duplicate_title_live',
     'completeness_basis',
+    'prepare_holds',
   ]);
   const covered = new Set(s.checks.flatMap((c) => c.covers));
   for (const c of REVIEW_CHECKS) assert(covered.has(c), `${c} not covered`);
@@ -248,6 +274,7 @@ Deno.test('definition: collection, version, rules files in the spec order, all f
     'already_live',
     'suggested_key_held_live',
     'duplicate_text_live',
+    'duplicate_title_live',
   ]);
   assertEquals(s.checks.filter((c) => c.needs === 'pages').map((c) => c.name), ['completeness_basis']);
   assertEquals(checkNamed('completeness_basis').onlyIfClean, true);
@@ -355,7 +382,8 @@ Deno.test('configuration: the PDF rule matches RBI PDFs only, with any case, and
 Deno.test('a clean record with no official file passes every offline check and earns the density_only basis', async () => {
   const r = await good(1);
   for (const c of screenWith().checks) {
-    if (c.one) assertEquals((await c.one(r, ctxOf())).map((f) => f.reason), [], c.name);
+    // prepare_holds probes the record with the basis the whole-set completeness check earned; the run below covers it.
+    if (c.one && c.name !== 'prepare_holds') assertEquals((await c.one(r, ctxOf())).map((f) => f.reason), [], c.name);
   }
   const out = await run([r]);
   assertEquals(out.holds, []);
@@ -1568,7 +1596,8 @@ Deno.test('registration: national-regulatory builds the Regulatory screen withou
     'search-only-screen-v1',
     'none',
   ]);
-  assertEquals(s.checks.at(-1)?.name, 'completeness_basis');
+  assertEquals(s.checks.at(-1)?.name, 'prepare_holds');
+  assertEquals(s.checks.at(-2)?.name, 'completeness_basis');
   assertEquals(s.checks.filter((c) => c.needs === 'pages').length, 1);
   assertEquals((await SCREENS['national-bills']()).collection, 'national-bills');
 });
@@ -1753,4 +1782,337 @@ Deno.test('licence_admitted: the settings error names the screen that raised it;
     await message(checkNamed('licence_admitted')),
     'search-only screen: settings.licenceClasses (an array of strings) is required',
   );
+});
+
+// ---- F339: the screen holds what prepare would hold ----
+
+/** A record that passes every offline check and makes several chunks: 3 pages of `chars` characters each. */
+const longish = (n = 1, over: Rec = {}) => textRec(n, 3, 1_500, over);
+/** The chunk count prepare gives a record the screen passed (the runner's own input: the screened record). */
+async function chunksOf(screened: Rec): Promise<number> {
+  const p = await prepareRecord(screened, { maxChunks: 800 });
+  assertEquals(p.kind, 'request');
+  return p.kind === 'request' ? p.item.chunks : -1;
+}
+const runWith = (
+  records: Rec[],
+  prepare: PrepareOptions | undefined,
+  live: LiveReader = new FakeLive(),
+) =>
+  runScreen(
+    screenWith(),
+    records,
+    { live, settings: SETTINGS, prepare },
+    opts(),
+  );
+
+Deno.test('prepare_holds: a record whose chunks exceed the collection file maxChunks is held over_chunk_limit, under the completeness group', async () => {
+  const rec = await longish(1);
+  const passing = await runWith([rec], PREPARE);
+  assertEquals(passing.holds, []);
+  const n = await chunksOf(passing.screened[0]);
+  assert(n >= 3, `the fixture should make several chunks, made ${n}`);
+  const at = await runWith([rec], { ...PREPARE, maxChunks: n });
+  assertEquals(
+    at.holds,
+    [],
+    'exactly at the limit is admitted, as prepare admits it',
+  );
+  const over = await runWith([rec], { ...PREPARE, maxChunks: n - 1 });
+  assertEquals(over.screened, []);
+  assertEquals(over.holds.length, 1);
+  assertEquals(over.holds[0].reasons, ['over_chunk_limit']);
+  assertEquals(over.holds[0].findings[0].detail, `${n} chunks`);
+  assertEquals(
+    over.holds[0].findings.map((f) => [f.check, f.covers, f.reason]),
+    [
+      ['prepare_holds', ['completeness'], 'over_chunk_limit'],
+    ],
+  );
+  assert(
+    !JSON.stringify(over.holds).includes('Page 1 of document'),
+    'a finding carries no record text',
+  );
+});
+
+Deno.test('prepare_holds: every record the screen passes, prepare admits at the same limit, and every one it holds prepare would hold', async () => {
+  const records = [
+    await longish(1),
+    await good(2),
+    await textRec(3, 3, 3_000),
+    await textRec(4, 3, 400, {}, '\u0001'.repeat(11)),
+  ];
+  let sawHeld = false, sawPassed = false;
+  for (const maxChunks of [1, 3, 5, 700]) {
+    const prepare = { ...PREPARE, maxChunks };
+    const out = await runWith(records, prepare);
+    for (const s of out.screened) {
+      sawPassed = true;
+      assertEquals(
+        (await prepareRecord(s, prepare)).kind,
+        'request',
+        `max ${maxChunks}`,
+      );
+    }
+    for (const h of out.holds) {
+      sawHeld = true;
+      const rec = records.find((r) => r.source_key === h.source_key)!;
+      const passing = (await runWith([rec], { ...PREPARE, maxChunks: 800 })).screened[0];
+      // The reason prepare gives for the same record at the same limit, or the record was held by prepare's other rule.
+      const p = passing ? await prepareRecord(passing, prepare) : null;
+      if (p) {
+        assertEquals(
+          p.kind === 'hold' ? p.hold.reason : null,
+          h.reasons[0],
+          `max ${maxChunks}`,
+        );
+      }
+    }
+  }
+  assert(sawHeld && sawPassed);
+});
+
+Deno.test('prepare_holds: a dense run of control codes is held control_codes_excess, as prepare holds it', async () => {
+  const lead = '\u0001'.repeat(11);
+  const rec = await good(1, {});
+  const dense = await textRec(1, 3, 400, {}, lead);
+  void rec;
+  const out = await runWith([dense], PREPARE);
+  assertEquals(out.screened, []);
+  assertEquals(out.holds[0].reasons, ['control_codes_excess']);
+  assertEquals(out.holds[0].findings[0].check, 'prepare_holds');
+  assertEquals(out.holds[0].findings[0].covers, ['completeness']);
+  // Ten codes in the window are allowed, by prepare and so by the screen.
+  const ten = await runWith(
+    [await textRec(2, 3, 400, {}, '\u0001'.repeat(10))],
+    PREPARE,
+  );
+  assertEquals(ten.holds, []);
+});
+
+Deno.test('prepare_holds: with no prepare block in the context the check fails closed (check_error), never passes', async () => {
+  const out = await runWith([await good(1)], undefined);
+  assertEquals(out.screened, []);
+  assertEquals(out.holds[0].reasons, ['check_error']);
+  assertEquals(out.holds[0].findings[0].check, 'prepare_holds');
+  const bad = await runWith(
+    [await good(1)],
+    { maxChunks: 0 } as PrepareOptions,
+  );
+  assertEquals(bad.holds[0].reasons, ['check_error']);
+});
+
+Deno.test('prepare_holds: only a record every other check passed is probed, and a record already held is not', async () => {
+  const out = await runWith([await longish(1, { licence_class: 'other' })], {
+    ...PREPARE,
+    maxChunks: 1,
+  });
+  assertEquals(out.holds[0].reasons, ['licence_not_admitted']);
+});
+
+Deno.test('definition: the screen says it uses the prepare block, and the rules hash moves with it', async () => {
+  const s = screenWith();
+  assertEquals(s.usesPrepare, true);
+  assertEquals(makeBillsScreen().usesPrepare, undefined);
+  const read = () => Promise.resolve(new TextEncoder().encode('x'));
+  const a = await rulesSha256(s.rulesFiles, '/r', read, SETTINGS, PREPARE);
+  assert(
+    a !==
+      await rulesSha256(s.rulesFiles, '/r', read, SETTINGS, {
+        ...PREPARE,
+        maxChunks: 800,
+      }),
+  );
+  assert(a !== await rulesSha256(s.rulesFiles, '/r', read, SETTINGS));
+  assertEquals(
+    await rulesSha256(s.rulesFiles, '/r', read, SETTINGS),
+    await rulesSha256(s.rulesFiles, '/r', read, SETTINGS),
+  );
+});
+
+// ---- F345: a live document of the desk holds the same title and file date under another key ----
+
+const MTIME = '2026-09-08T21:59:01Z';
+const twin = (o: Partial<LiveDocument> = {}) =>
+  liveDoc({
+    id: 'twin',
+    source_key: 'a'.repeat(40),
+    title: 'TRAI_recommendation__Letter-to-Secretary-MIB',
+    file_name: 'TRAI_recommendation__Letter-to-Secretary-MIB.pdf',
+    file_mtime: MTIME,
+    source_host: 'trai.gov.in',
+    ...o,
+  });
+const titled = (n: number, over: Rec = {}) =>
+  good(n, {
+    title: 'TRAI: TRAI recommendation — Letter to Secretary, MIB',
+    title_stem: 'TRAI_recommendation__Letter to Secretary, MIB',
+    file_mtime: MTIME,
+    ...over,
+  });
+
+Deno.test('duplicate_title_live: the same normalised title and file date under another key holds the record', async () => {
+  const r = await titled(1);
+  const live = new FakeLive([twin()]);
+  assertEquals(await allReasons('duplicate_title_live', [r], live), {
+    [key(1)]: ['duplicate_title_live'],
+  });
+  const m = await checkNamed('duplicate_title_live').all!([r], ctxOf(live));
+  const f = m.get(key(1))![0];
+  assertEquals([f.check, f.covers], ['duplicate_title_live', ['dedupe']]);
+  assertEquals(live.docCalls.at(-1)?.tier, 'national');
+  assertEquals(live.docCalls.at(-1)?.feature, FEATURE);
+  assertEquals(live.docCalls.at(-1)?.fileMtimes, [MTIME]);
+});
+
+Deno.test('duplicate_title_live: the title may match the live title, the live file stem, the record title_stem or the record title', async () => {
+  const stemOnly = twin({
+    title: 'something else',
+    file_name: 'Report on Spectrum.PDF',
+  });
+  const byLiveStem = await titled(1, {
+    title: 'Report-on_Spectrum',
+    title_stem: 'unrelated',
+  });
+  assertEquals(
+    await allReasons(
+      'duplicate_title_live',
+      [byLiveStem],
+      new FakeLive([stemOnly]),
+    ),
+    {
+      [key(1)]: ['duplicate_title_live'],
+    },
+  );
+  const byTitle = await titled(2, {
+    title: 'Report, on spectrum',
+    title_stem: 'unrelated',
+  });
+  assertEquals(
+    await allReasons(
+      'duplicate_title_live',
+      [byTitle],
+      new FakeLive([stemOnly]),
+    ),
+    {
+      [key(2)]: ['duplicate_title_live'],
+    },
+  );
+  const byLiveTitle = twin({ title: 'Report on Spectrum', file_name: 'x.pdf' });
+  assertEquals(
+    await allReasons(
+      'duplicate_title_live',
+      [byTitle],
+      new FakeLive([byLiveTitle]),
+    ),
+    {
+      [key(2)]: ['duplicate_title_live'],
+    },
+  );
+});
+
+Deno.test('duplicate_title_live: a different file date, regulator, desk, or no usable title does not hold', async () => {
+  const r = await titled(1);
+  const none = async (live: FakeLive, rec = r) =>
+    assertEquals(await allReasons('duplicate_title_live', [rec], live), {});
+  await none(new FakeLive([twin({ file_mtime: '2026-09-08T21:59:02Z' })]));
+  await none(new FakeLive([twin({ file_mtime: null })]));
+  await none(new FakeLive([twin({ source_host: 'cci.gov.in' })]));
+  await none(new FakeLive([twin({ source_host: null })]));
+  await none(
+    new FakeLive([
+      twin({
+        title: 'Letter to Secretary DoT',
+        file_name: 'Letter to Secretary DoT.pdf',
+      }),
+    ]),
+  );
+  const other = new FakeLive([twin({ desk_feature: 'Another desk' })]);
+  other.leaky = true;
+  await none(other);
+  // Nothing that normalises to nothing matches anything.
+  const blank = await titled(2, { title: '— —', title_stem: '__' });
+  await none(new FakeLive([twin({ title: '--', file_name: '__.pdf' })]), blank);
+  // A record without a file date asks nothing and is not held by this check.
+  const noDate = await titled(3, { file_mtime: undefined });
+  const live = new FakeLive([twin()]);
+  await none(live, noDate);
+  assertEquals(live.docCalls.length, 0);
+});
+
+Deno.test('duplicate_title_live: a reader that returns documents of another file date is not trusted; the finding names the live key', async () => {
+  const r = await titled(1);
+  const reader = (docs: LiveDocument[]): LiveReader => ({
+    identity: () => Promise.reject(new Error('unused')),
+    deskRows: () => Promise.reject(new Error('unused')),
+    documents: () => Promise.resolve(docs),
+  });
+  assertEquals(
+    await allReasons('duplicate_title_live', [r], reader([twin({ file_mtime: '2026-09-08T21:59:02Z' })])),
+    {},
+  );
+  const m = await checkNamed('duplicate_title_live').all!([r], ctxOf(reader([twin()])));
+  assertEquals(m.get(key(1))![0].detail, `held by ${'a'.repeat(40)}`);
+});
+
+Deno.test('duplicate_title_live: titles in other scripts are compared too, not reduced to nothing', async () => {
+  const r = await titled(1, { title: 'सलाह पत्र 7', title_stem: 'zz' });
+  const live = new FakeLive([twin({ title: 'सलाह_पत्र-7', file_name: 'q.pdf' })]);
+  assertEquals(await allReasons('duplicate_title_live', [r], live), { [key(1)]: ['duplicate_title_live'] });
+  const other = new FakeLive([twin({ title: 'अन्य_पत्र-7', file_name: 'q.pdf' })]);
+  assertEquals(await allReasons('duplicate_title_live', [r], other), {});
+});
+
+Deno.test("duplicate_title_live: the document that holds the record's own key is already_live, not a second finding here", async () => {
+  const r = await titled(1);
+  const same = twin({ source_key: key(1) });
+  assertEquals(
+    await allReasons('duplicate_title_live', [r], new FakeLive([same])),
+    {},
+  );
+  const out = await run([r], screenWith(), new FakeLive([same]));
+  assertEquals(out.holds[0].reasons, ['already_live']);
+  const other = await run([r], screenWith(), new FakeLive([twin()]));
+  assertEquals(other.screened, []);
+  assertEquals(other.holds[0].reasons, ['duplicate_title_live']);
+  assertEquals(other.holds[0].findings.map((f) => f.check), [
+    'duplicate_title_live',
+  ]);
+});
+
+Deno.test('duplicate_title_live: a failed live read is an error for the whole check, never a pass', async () => {
+  await assertRejects(
+    async () =>
+      await checkNamed('duplicate_title_live').all!(
+        [await titled(1)],
+        ctxOf(new FakeLive([twin()], true)),
+      ),
+    Error,
+    'live read failed',
+  );
+});
+
+Deno.test('duplicate_title_live: a leading www. on either host is ignored, the full timestamp still must match', async () => {
+  const r = await titled(1, { source_host: 'www.trai.gov.in' });
+  assertEquals(await allReasons('duplicate_title_live', [r], new FakeLive([twin()])), {
+    [key(1)]: ['duplicate_title_live'],
+  });
+  const r2 = await titled(2);
+  assertEquals(
+    await allReasons('duplicate_title_live', [r2], new FakeLive([twin({ source_host: 'www.trai.gov.in' })])),
+    {
+      [key(2)]: ['duplicate_title_live'],
+    },
+  );
+  assertEquals(
+    await allReasons('duplicate_title_live', [r2], new FakeLive([twin({ source_host: 'www.cci.gov.in' })])),
+    {},
+  );
+});
+
+Deno.test('prepare_holds: a prepare block that carries patches fails closed (check_error), never holds a patch record as superseded', async () => {
+  const out = await runWith([await good(1)], { ...PREPARE, patches: { [key(1)]: {} } });
+  assertEquals(out.screened, []);
+  assertEquals(out.holds[0].reasons, ['check_error']);
+  assertEquals(out.holds[0].findings[0].check, 'prepare_holds');
 });

@@ -10,8 +10,17 @@
 // field names, codes and counts, never a value from the record. A review is written only from checks that ran and
 // passed: the density-only completeness basis is earned by checks 5 to 8 having passed on that very record, and a
 // record whose basis was not recorded is not projected, so it is not screened.
-import type { Check, Finding, Report, ReviewCheck, Screen, ScreenContext } from '../screen_types.ts';
-import { type Rec, strip } from '../prepare.ts';
+import {
+  type Check,
+  type Finding,
+  type Report,
+  REVIEW_CHECKS,
+  type ReviewCheck,
+  type Screen,
+  type ScreenContext,
+} from '../screen_types.ts';
+import { type PrepareOptions, prepareRecord, type Rec, strip } from '../prepare.ts';
+import { sha256Hex } from '../../../supabase/functions/_shared/textNormalise.ts';
 import { billUrlSegmentsOk } from '../../../supabase/functions/_shared/suppliedText.ts';
 import { documentPublisher } from '../../../supabase/functions/_shared/publisher.ts';
 import {
@@ -280,6 +289,42 @@ function densityNumbers(settings: unknown): { minChars: number; minPages: number
     throw new Error('search-only screen: settings.requirePageCount (true or false) is required');
   }
   return { minChars, minPages: minPages as number, requirePageCount: s.requirePageCount };
+}
+
+/** The prepare options of the run, from the context; a missing or unusable block is an error (the check then fails closed). */
+function prepareOptionsOf(ctx: ScreenContext | undefined): PrepareOptions {
+  const p = ctx?.prepare;
+  if (
+    !isRec(p) || !Number.isSafeInteger(p.maxChunks) ||
+    (p.maxChunks as number) < 1
+  ) {
+    throw new Error(
+      'search-only screen: the collection file prepare block (maxChunks) is required',
+    );
+  }
+  // A patch replaces a pack record under its key; this check probes records one by one and would hold the original as
+  // superseded_by_patch. A collection that uses patches is not one this check can judge.
+  if (p.patches !== undefined && p.patches !== null) {
+    throw new Error('search-only screen: prepare.patches is not supported with prepare_holds');
+  }
+  return p as unknown as PrepareOptions;
+}
+
+/** What a prepare hold may say: its chunk count, or the numbers of its own fixed sentences; never a value of the record. */
+function holdDetail(
+  h: { reason: string; detail?: string; chunks?: number },
+): string | undefined {
+  if (h.reason === 'over_chunk_limit' && typeof h.chunks === 'number') {
+    return `${h.chunks} chunks`;
+  }
+  if (
+    (h.reason === 'over_chunk_limit' || h.reason === 'control_codes_excess') &&
+    typeof h.detail === 'string' &&
+    /^[A-Za-z0-9 ,.()-]{1,160}$/.test(h.detail)
+  ) {
+    return h.detail;
+  }
+  return undefined;
 }
 
 // ---- the report-only scan ----
@@ -627,6 +672,49 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen 
     },
   };
 
+  // 18. Completeness (F339): what the runner's prepare step would hold. The screen counts characters, prepare counts
+  // chunks (and control codes), so a record could pass here and be held there. This asks prepare itself, with the
+  // options the runner reads from the same collection file (`ctx.prepare`): no second chunker and no second limit.
+  // prepare is given the record as the runner will receive it (the screen's own additions, with a placeholder review
+  // that has no effect on the chunks), and its reason code is the finding's. Only records that every other check passed
+  // are probed, so the cost is spent on the records that would be admitted.
+  const prepareHolds: Check = {
+    name: 'prepare_holds',
+    covers: ['completeness'],
+    onlyIfClean: true,
+    async one(record, ctx) {
+      const options = prepareOptionsOf(ctx);
+      const basis = basisOf.get(record);
+      if (basis === undefined) {
+        throw new Error(
+          'prepare_holds: no completeness basis was recorded for this record',
+        );
+      }
+      const hash = await sha256Hex(record.text as string);
+      const probe: Rec = {
+        ...record,
+        completeness_basis: basis,
+        text_sha256: hash,
+        review: {
+          status: 'eligible',
+          text_sha256: hash,
+          source_key: record.source_key,
+          rules_sha256: '0'.repeat(64),
+          package_id: 'probe',
+          mapping_version: 'probe',
+          decision_id: 'probe',
+          checks: Object.fromEntries(REVIEW_CHECKS.map((c) => [c, true])),
+        },
+      };
+      const done = await prepareRecord(probe, options);
+      if (done.kind === 'request') return [];
+      const h = done.hold;
+      return [
+        finding('prepare_holds', ['completeness'], h.reason, holdDetail(h)),
+      ];
+    },
+  };
+
   return {
     collection: cfg.collection,
     mappingVersion: cfg.mapping_version,
@@ -671,8 +759,11 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen 
       onHexKeys(fileUrlCollision),
       onHexKeys(duplicateText),
       duplicateTextLive,
+      duplicateTitleLive(cfg),
       completenessBasis,
+      prepareHolds,
     ],
+    usesPrepare: true,
     reports: [identifierShapes(cfg)],
     project(record) {
       const basis = basisOf.get(record);
@@ -716,6 +807,85 @@ function alreadyLive(cfg: SearchOnlyConfig): Check {
         if (liveKeys.has(k)) out.set(k, [finding('already_live', ['dedupe'], 'already_live', 'source_key')]);
         else if (typeof u === 'string' && liveUrls.has(u)) {
           out.set(k, [finding('already_live', ['dedupe'], 'already_live', 'file_url')]);
+        }
+      }
+      return out;
+    },
+  };
+}
+
+/** Letters and digits only, lower case, every other run (spaces, underscores, hyphens, commas) one space, trimmed. */
+export const normaliseTitle = (v: string): string => v.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+/** A host as compared between a record and a live document: a leading `www.` is not part of the name. */
+const bareHost = (h: unknown): string | null => typeof h === 'string' ? h.replace(/^www\./i, '').toLowerCase() : null;
+/** A file name without its last extension (`A_b.PDF` to `A_b`). */
+const fileStem = (name: string): string => name.replace(/\.[A-Za-z0-9]{1,6}$/, '');
+
+/**
+ * 13b. Dedupe (F345): a live document of the desk, from the same source host, with the same file date and the same
+ * normalised title under another key. The pack's title is often the file name, and an OCR-derived live document's title
+ * is that name with hyphens for spaces; the content hash and the key differ, so the other live checks miss it. The
+ * record's `title_stem` and `title` are compared with the live document's title and file stem. A document that holds
+ * the record's own key is `already_live`, and is not reported again here.
+ */
+function duplicateTitleLive(cfg: SearchOnlyConfig): Check {
+  return {
+    name: 'duplicate_title_live',
+    covers: ['dedupe'],
+    needs: 'live',
+    async all(records, ctx) {
+      const out = new Map<string, Finding[]>();
+      const asked = new Map<string, Set<string>>();
+      const mtimes = new Set<string>();
+      for (const r of records) {
+        const k = keyOf(r),
+          m = get(r, 'file_mtime'),
+          host = get(r, 'source_host');
+        if (k === null || !askable(m) || typeof host !== 'string') continue;
+        const names = new Set<string>();
+        for (const f of ['title_stem', 'title']) {
+          const v = get(r, f);
+          const n = typeof v === 'string' ? normaliseTitle(v) : '';
+          if (n !== '') names.add(n);
+        }
+        if (names.size === 0) continue;
+        asked.set(k, names);
+        mtimes.add(m);
+      }
+      if (mtimes.size === 0) return out;
+      const docs = await ctx.live.documents({
+        sourceKeys: [],
+        fileUrls: [],
+        fileMtimes: [...mtimes],
+        tier: cfg.desk_tier,
+        feature: cfg.desk_feature,
+      });
+      const ofDesk = docs.filter((d) => d.desk_feature === cfg.desk_feature && typeof d.file_mtime === 'string');
+      for (const r of records) {
+        const k = keyOf(r);
+        const names = k === null ? undefined : asked.get(k);
+        if (k === null || !names) continue;
+        const m = get(r, 'file_mtime'), host = get(r, 'source_host');
+        const held = ofDesk.filter((d) => {
+          if (
+            d.file_mtime !== m || bareHost(d.source_host) !== bareHost(host) || d.source_key === k
+          ) return false;
+          const theirs = [
+            d.title,
+            typeof d.file_name === 'string' ? fileStem(d.file_name) : null,
+          ]
+            .map((v) => typeof v === 'string' ? normaliseTitle(v) : '');
+          return theirs.some((n) => n !== '' && names.has(n));
+        }).map((d) => d.source_key ?? `document ${d.id}`).sort();
+        if (held.length) {
+          out.set(k, [
+            finding(
+              'duplicate_title_live',
+              ['dedupe'],
+              'duplicate_title_live',
+              `held by ${held[0]}`,
+            ),
+          ]);
         }
       }
       return out;

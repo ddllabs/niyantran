@@ -22,3 +22,12 @@ export const SCREENS: Record<string, () => Promise<Screen>> = {
       makeSearchOnlyScreen(REGULATORY, makePageCheck({ ...pageCheckDeps, urlRule: pdfUrlRule(REGULATORY) })),
     ),
 };
+
+/** Whether the screen for a collection reads the collection file's prepare block (`Screen.usesPrepare`). */
+export async function screenUsesPrepare(collection: string): Promise<boolean> {
+  for (const make of Object.values(SCREENS)) {
+    const screen = await make();
+    if (screen.collection === collection) return screen.usesPrepare === true;
+  }
+  return false;
+}
