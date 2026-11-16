@@ -240,6 +240,11 @@ BEGIN
   v_min := private.factcheck_charge_minutes(f.started_at, f.last_activity_at, f.minutes_bought, now());
 
   SELECT k.turn_key INTO v_key FROM private.factcheck_hold_keys k WHERE k.session_id = f.id;
+  IF v_key IS NULL THEN
+    -- The private key row is gone (it is never written elsewhere): the session is still charged and settled, under a
+    -- fresh key, so it cannot stay active. Its hold, which is only found by that key, expires by itself.
+    v_key := 'fc:' || gen_random_uuid();
+  END IF;
   SELECT * INTO h FROM public.credit_holds x WHERE x.user_id = p_user AND x.turn_key = v_key FOR UPDATE;
   v_has_hold := FOUND;
 
