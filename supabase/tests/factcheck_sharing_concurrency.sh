@@ -38,6 +38,7 @@ DO \$\$ DECLARE u uuid; sid uuid; i integer; BEGIN
   PERFORM public.factcheck_mark_shareable('$O', sid);
   FOR i IN 1..3 LOOP PERFORM public.factcheck_piece_store('$O', sid, i, (i - 1) * 10, i * 10, 'Line ' || i); END LOOP;
   PERFORM public.factcheck_settle('$O', sid);
+  UPDATE public.factcheck_sessions SET ended_at = now() - interval '10 minutes' WHERE user_id = '$O';
 END \$\$;
 SQL
 S=$(q -c "SELECT id FROM public.factcheck_sessions WHERE video_id = 'VR'")

@@ -83,7 +83,10 @@ export async function transcribeAction(ctx: Ctx, form: FormData): Promise<Obj> {
   const left = Math.max(0, Math.ceil(secondsLeft - (ctx.now() - touchedAt) / 1000));
   const text = outcome.payload.text.trim().slice(0, MAX_TEXT);
   const answer: Obj = { seq, text, seconds_left: left };
-  if (place) answer.stored = text ? await storePiece(ctx, sessionId, place, text) : false;
+  // Stored only when the declared length matches the audio actually sent (within 1.5 s), so a position
+  // range cannot inflate or shrink what a stretch costs to unlock.
+  const honest = place !== null && Math.abs(place.end - place.start - info.seconds) <= 1.5;
+  if (place) answer.stored = text && honest ? await storePiece(ctx, sessionId, place, text) : false;
   return answer;
 }
 

@@ -254,7 +254,7 @@ Deno.test('the answer of the app server is data: extra fields and a huge body ch
 
 // ---- transcribe: piece storage ------------------------------------------------------------------
 
-const pieceFields = { piece_no: '4', pos_start_s: '100.5', pos_end_s: '110.5' };
+const pieceFields = { piece_no: '4', pos_start_s: '100.5', pos_end_s: '108.5' };
 
 Deno.test('a transcribe without the position fields makes no store call and the answer is unchanged', async () => {
   const h = sharing();
@@ -275,12 +275,36 @@ Deno.test('a transcribe with the three fields stores the text after transcriptio
       p_session: SESSION,
       p_piece_no: 4,
       p_pos_start_s: 100.5,
-      p_pos_end_s: 110.5,
+      p_pos_end_s: 108.5,
       p_text: 'नमस्ते दर्शकों',
     },
   }]);
   assertEquals(h.events.indexOf('fetch:transcribe') < h.events.indexOf('rpc:factcheck_piece_store'), true);
   assertEquals(h.events.indexOf('rpc:factcheck_touch') < h.events.indexOf('rpc:factcheck_piece_store'), true);
+});
+
+Deno.test('a declared length that does not match the audio sent is not stored: stored false, no store call, never an error', async () => {
+  const cases: [string, number, string][] = [
+    ['1 s declared as 15 s', 1, '115.5'],
+    ['8 s declared as 1 s', 8, '101.5'],
+    ['8 s declared 1.6 s long', 8, '110.1'],
+  ];
+  for (const [why, seconds, end] of cases) {
+    const h = sharing();
+    const res = await handleFactcheck(transcribeRequest(wav({ seconds }), { ...pieceFields, pos_end_s: end }), h.deps);
+    assertEquals(res.status, 200, why);
+    assertEquals((await res.json()).stored, false, why);
+    assertEquals(calls(h, 'factcheck_piece_store'), [], why);
+  }
+  const ok = sharing();
+  assertEquals(
+    (await (await handleFactcheck(
+      transcribeRequest(wav({ seconds: 8 }), { ...pieceFields, pos_end_s: '110' }),
+      ok.deps,
+    )).json()).stored,
+    true,
+  );
+  assertEquals(calls(ok, 'factcheck_piece_store').length, 1);
 });
 
 Deno.test('a refused or failed store is a 200 with stored: false, never an error', async () => {

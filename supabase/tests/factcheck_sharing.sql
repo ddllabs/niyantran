@@ -101,7 +101,10 @@ BEGIN
       IF r ->> 'ok' <> 'true' THEN RAISE EXCEPTION 'FAIL: piece % refused: %', i, r; END IF;
     END LOOP;
   END IF;
-  IF p_settle THEN PERFORM public.factcheck_settle(p_user, sid); END IF;
+  IF p_settle THEN
+    PERFORM public.factcheck_settle(p_user, sid);
+    UPDATE public.factcheck_sessions SET ended_at = now() - interval '10 minutes' WHERE id = sid;   -- past the 2-minute window
+  END IF;
   RETURN sid;
 END;
 $$;
@@ -290,6 +293,7 @@ BEGIN
   PERFORM pg_temp.assert_true(n = 1, 'refused pieces are not stored and the session goes on');
   -- the boundaries that are allowed
   PERFORM pg_temp.assert_true(public.factcheck_piece_store(a, sid, 2, 8, 8.5, 'half a second') ->> 'ok' = 'true', 'a piece of exactly 0.5 s that starts exactly 2 s before the lower neighbour''s end is stored');
+  PERFORM pg_temp.assert_true(public.factcheck_piece_store(a, sid, 3, 7, 14, 'backwards') ->> 'reason' = 'bad_piece', 'a start before the lower neighbour''s START (8) is bad_piece even within 2 s of its end');
   PERFORM pg_temp.assert_true(public.factcheck_piece_store(a, sid, 3, 8.5, 23.5, repeat('y', 2000)) ->> 'ok' = 'true', 'a piece of exactly 15 s with a text of 2000 characters is stored');
   -- a forward jump (a seek) is accepted, whatever time has passed, and so is what follows it
   PERFORM pg_temp.assert_true(public.factcheck_piece_store(a, sid, 4, 600, 610, 'after a seek') ->> 'ok' = 'true', 'a forward jump of 576 s is stored: a gap in the stretch');
@@ -329,6 +333,7 @@ BEGIN
     IF r ->> 'ok' <> 'true' THEN RAISE EXCEPTION 'FAIL: overlapping piece % refused: %', i, r; END IF;
   END LOOP;
   PERFORM public.factcheck_settle(a, sid);
+  UPDATE public.factcheck_sessions SET ended_at = now() - interval '10 minutes' WHERE id = sid;
   PERFORM pg_temp.assert_true(private.factcheck_stretch_minutes(sid) = 10, '66 pieces of 10 s overlapping by 1 s are 595 s: 10 minutes, not 11: ' || coalesce(private.factcheck_stretch_minutes(sid)::text, 'null'));
   PERFORM pg_temp.assert_true((SELECT (e ->> 'minutes')::int = 10 AND (e ->> 'price')::numeric = 1000 FROM jsonb_array_elements(public.factcheck_video_view(pg_temp.u(3), 'VOVL', true) -> 'stretches') e),
     'the view shows 10 minutes and the price of 1000');
@@ -481,7 +486,7 @@ $$;
 DO $$
 DECLARE i integer; v jsonb;
 BEGIN
-  FOR i IN 1..52 LOOP PERFORM pg_temp.direct(pg_temp.u(2), 'VMANY', (i * interval '1 minute')); END LOOP;
+  FOR i IN 1..52 LOOP PERFORM pg_temp.direct(pg_temp.u(2), 'VMANY', ((i + 5) * interval '1 minute')); END LOOP;
   v := public.factcheck_video_view(pg_temp.u(2), 'VMANY', true);
   PERFORM pg_temp.assert_true(jsonb_array_length(v -> 'stretches') = 50 AND NOT EXISTS (SELECT FROM jsonb_array_elements(v -> 'stretches') e WHERE e ->> 'access' <> 'own'),
     'the runner sees all of their own stretches, at most 50: ' || jsonb_array_length(v -> 'stretches'));
@@ -501,8 +506,8 @@ DO $$
 DECLARE i integer; v jsonb; u1 uuid := pg_temp.u(1); u2 uuid := pg_temp.u(2); c3 uuid := pg_temp.u(3); oldest uuid; ids2 uuid[] := '{}';
 BEGIN
   FOR i IN 1..5 LOOP
-    PERFORM pg_temp.direct(u1, 'VMIX', (i * interval '1 minute'));
-    ids2 := ids2 || pg_temp.direct(u2, 'VMIX', (i * interval '1 minute') + interval '30 seconds');
+    PERFORM pg_temp.direct(u1, 'VMIX', ((i + 5) * interval '1 minute'));
+    ids2 := ids2 || pg_temp.direct(u2, 'VMIX', ((i + 5) * interval '1 minute') + interval '30 seconds');
   END LOOP;
   v := public.factcheck_video_view(u1, 'VMIX', true);
   PERFORM pg_temp.assert_true(jsonb_array_length(v -> 'stretches') = 8 AND (SELECT count(*) FROM jsonb_array_elements(v -> 'stretches') e WHERE e ->> 'access' = 'own') = 5,
@@ -537,6 +542,24 @@ BEGIN
   INSERT INTO private.factcheck_view_rate (user_id, minute, n) VALUES (u, now() - interval '3 hours', 2);
   PERFORM public.factcheck_video_view(u, 'NOVIDEO', true);
   PERFORM pg_temp.assert_true(NOT EXISTS (SELECT FROM private.factcheck_view_rate WHERE user_id = u AND minute < now() - interval '1 hour'), 'old view-rate rows are pruned');
+END;
+$$;
+
+-- A stretch settled less than 2 minutes ago is not listed to others and cannot be unlocked; the runner sees it at once.
+SELECT pg_temp.mkuser(18, 500);
+DO $$
+DECLARE a uuid := pg_temp.u(2); c3 uuid := pg_temp.u(18); sid uuid; v jsonb; r jsonb;
+BEGIN
+  sid := pg_temp.run(a, 'VFRESH', 2);
+  UPDATE public.factcheck_sessions SET ended_at = now() - interval '119 seconds' WHERE id = sid;
+  PERFORM pg_temp.assert_true(jsonb_array_length(public.factcheck_video_view(c3, 'VFRESH', true) -> 'stretches') = 0, 'a stretch settled 119 s ago is not listed to others');
+  v := public.factcheck_video_view(a, 'VFRESH', true);
+  PERFORM pg_temp.assert_true(jsonb_array_length(v -> 'stretches') = 1 AND v #>> '{stretches,0,access}' = 'own', 'but the runner sees it at once');
+  PERFORM pg_temp.assert_true(public.factcheck_unlock(c3, sid, true, 100) = '{"ok": false, "reason": "not_found"}'::jsonb AND pg_temp.fcr(c3) = 0, 'and unlock answers not_found, charging nothing');
+  UPDATE public.factcheck_sessions SET ended_at = now() - interval '120 seconds' WHERE id = sid;
+  PERFORM pg_temp.assert_true(jsonb_array_length(public.factcheck_video_view(c3, 'VFRESH', true) -> 'stretches') = 1, 'at exactly 2 minutes it is listed');
+  r := public.factcheck_unlock(c3, sid, true, 100);
+  PERFORM pg_temp.assert_true(r ->> 'ok' = 'true', 'and can be unlocked: ' || r::text);
 END;
 $$;
 

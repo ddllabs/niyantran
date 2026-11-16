@@ -15,6 +15,8 @@
 --   * private.factcheck_share_flag(): {audience, unlock_cpm}, or NULL when sharing is off for any reason: the base flag
 --     (private.factcheck_flag) is off, share_recorded is not exactly true, or unlock_credits_per_minute is not a number above 0
 --     and at most 1000 (rounded to 4 places). Never raises.
+--   * A stretch is listed to others, and can be unlocked, only 2 minutes after its session settled (extract and check can still add
+--     to it until then); the runner's own stretch is listed to them at once.
 --   * private.factcheck_view_rate: listings per user per calendar minute (limit 30), pruned inside factcheck_video_view.
 --   * Functions (service_role only, SECURITY DEFINER, search_path ''): factcheck_share_on, factcheck_mark_shareable,
 --     factcheck_piece_store, factcheck_turn_pieces, factcheck_video_view, factcheck_unlock, factcheck_report. factcheck_claim_hide,
@@ -269,10 +271,10 @@ BEGIN
      OR (SELECT count(*) FROM private.factcheck_pieces x WHERE x.session_id = s.id) >= 120 THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'bad_piece');
   END IF;
-  -- Against the nearest stored neighbours by number: not more than 2 s before the lower one's end, nor more than 2 s past the
-  -- higher one's start.
+  -- Against the nearest stored neighbours by number: not more than 2 s before the lower one's end, never before the lower one's
+  -- start (no stepping backwards to bill nothing), nor more than 2 s past the higher one's start.
   SELECT * INTO lo FROM private.factcheck_pieces WHERE session_id = s.id AND piece_no < p_piece_no ORDER BY piece_no DESC LIMIT 1;
-  IF FOUND AND p_pos_start_s < lo.pos_end_s - 2 THEN
+  IF FOUND AND (p_pos_start_s < lo.pos_end_s - 2 OR p_pos_start_s < lo.pos_start_s) THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'bad_piece');
   END IF;
   SELECT * INTO hi FROM private.factcheck_pieces WHERE session_id = s.id AND piece_no > p_piece_no ORDER BY piece_no LIMIT 1;
@@ -343,6 +345,7 @@ BEGIN
                  row_number() OVER (PARTITION BY s.user_id ORDER BY s.ended_at DESC, s.id) AS rn
           FROM public.factcheck_sessions s
           WHERE s.video_id = p_video_id AND s.video_kind = 'recorded' AND s.shareable AND s.status = 'settled'
+            AND (s.ended_at <= now() - interval '2 minutes' OR s.user_id = p_user)   -- extract/check may still run for 2 minutes
             AND EXISTS (SELECT FROM private.factcheck_pieces p WHERE p.session_id = s.id)) q
     WHERE q.rn <= 3 OR q.user_id = p_user
        OR EXISTS (SELECT FROM public.factcheck_unlocks u WHERE u.user_id = p_user AND u.session_id = q.id)
@@ -420,7 +423,7 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'reason', 'not_allowed');
   END IF;
   SELECT * INTO ses FROM public.factcheck_sessions x
-  WHERE x.id = p_stretch AND x.video_kind = 'recorded' AND x.shareable AND x.status = 'settled'
+  WHERE x.id = p_stretch AND x.video_kind = 'recorded' AND x.shareable AND x.status = 'settled' AND x.ended_at <= now() - interval '2 minutes'
     AND EXISTS (SELECT FROM private.factcheck_pieces p WHERE p.session_id = x.id);
   IF NOT FOUND THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'not_found');

@@ -204,7 +204,7 @@ describe('plain words about sharing', () => {
     expect(text(render(view()))).toContain('This text comes from another user’s run of this video. You can report a verdict that looks wrong.');
   });
   it('the choose step says the block will be visible to other users for a fee', () => {
-    expect(text(render(view()))).toContain('The transcript and verdicts of this block will be visible to other users of this video, for a fee.');
+    expect(text(render(view()))).toContain('Other users of this video will be able to pay to see the transcript and verdicts of this block.');
   });
   it('neither sentence shows with sharing off', () => {
     const v = view();

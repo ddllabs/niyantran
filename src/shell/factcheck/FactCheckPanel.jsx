@@ -90,7 +90,7 @@ function Choose({ view, isMuted, onUnmute, onConfirm, onCancel, covered, onShowP
         <li>Unused whole minutes are released when the session ends.</li>
         <li>Closing Live TV ends the session.</li>
         <li>The video must be unmuted.</li>
-        {sharing ? <li>The transcript and verdicts of this block will be visible to other users of this video, for a fee.</li> : null}
+        {sharing ? <li>Other users of this video will be able to pay to see the transcript and verdicts of this block.</li> : null}
       </ul>
       <div className="fc-actions">
         <button
