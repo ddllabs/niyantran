@@ -43,7 +43,7 @@ Deno.test('every claim read and write is scoped by id AND session AND user', asy
           reported_by: null,
           kind: 'claim',
           status: 'pending',
-        }),
+        }, false),
       () =>
         store.finishCheck('U', 'S', 'C', {
           status: 'checked',
@@ -99,8 +99,18 @@ Deno.test('results are saved and released only while the claim is pending', asyn
     reported_by: null,
     kind: 'claim',
     status: 'pending',
-  });
+  }, false);
   assertEquals(has(f.calls, 'eq', 'status', 'needs_context'), true);
+  assertEquals(has(f.calls, 'eq', 'shared', false), true, 'a private claim is updated only while it is private');
+  f.calls.length = 0;
+  await store.updateHeld('U', 'S', 'C', {
+    claim_en: 'x',
+    claimant: null,
+    reported_by: null,
+    kind: 'claim',
+    status: 'pending',
+  }, true);
+  assertEquals(has(f.calls, 'eq', 'shared', true), true, 'a shared claim is updated only while it is shared');
 });
 
 Deno.test('a database error is thrown with its code only', async () => {

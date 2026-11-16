@@ -1,0 +1,109 @@
+[
+  {
+    "name": "hindi overlap of a whole phrase",
+    "pieces": [
+      "आज प्रधानमंत्री ने कहा कि देश में महंगाई कम हुई है",
+      "देश में महंगाई कम हुई है और रोज़गार बढ़ा है"
+    ],
+    "expected": "आज प्रधानमंत्री ने कहा कि देश में महंगाई कम हुई है और रोज़गार बढ़ा है"
+  },
+  {
+    "name": "hindi half word cut at the edge",
+    "pieces": [
+      "उन्होंने बताया कि सरकार ने चार करोड़ मकान बना",
+      "सरकार ने चार करोड़ मकान बनाए हैं पिछले साल"
+    ],
+    "expected": "उन्होंने बताया कि सरकार ने चार करोड़ मकान बनाए हैं पिछले साल"
+  },
+  {
+    "name": "nukta spelling differences still match",
+    "pieces": [
+      "बीस हज़ार करोड़ रुपये का बजट",
+      "हजार करोड़ रुपये का बजट पास हुआ"
+    ],
+    "expected": "बीस हज़ार करोड़ रुपये का बजट पास हुआ"
+  },
+  {
+    "name": "sound tags removed",
+    "pieces": [
+      "[संगीत] नमस्कार दर्शकों आप देख रहे हैं",
+      "आप देख रहे हैं हमारा विशेष कार्यक्रम [background music]"
+    ],
+    "expected": "नमस्कार दर्शकों आप देख रहे हैं हमारा विशेष कार्यक्रम"
+  },
+  {
+    "name": "a piece that is only a tag is dropped",
+    "pieces": [
+      "पहली बात यह है",
+      "[संगीत]",
+      "दूसरी बात यह है"
+    ],
+    "expected": "पहली बात यह है दूसरी बात यह है"
+  },
+  {
+    "name": "no overlap",
+    "pieces": [
+      "The minister spoke about the budget",
+      "Rain is expected in Kolkata tomorrow"
+    ],
+    "expected": "The minister spoke about the budget Rain is expected in Kolkata tomorrow"
+  },
+  {
+    "name": "one word overlap must not merge",
+    "pieces": [
+      "We will build the road",
+      "road safety is important for everyone"
+    ],
+    "expected": "We will build the road road safety is important for everyone"
+  },
+  {
+    "name": "one repeated word is not removed",
+    "pieces": [
+      "they said no",
+      "no no way at all"
+    ],
+    "expected": "they said no no no way at all"
+  },
+  {
+    "name": "english overlap of three words",
+    "pieces": [
+      "the central bank raised the repo rate by",
+      "raised the repo rate by 25 basis points"
+    ],
+    "expected": "the central bank raised the repo rate by 25 basis points"
+  },
+  {
+    "name": "full duplicate",
+    "pieces": [
+      "the budget will be presented tomorrow morning",
+      "the budget will be presented tomorrow morning"
+    ],
+    "expected": "the budget will be presented tomorrow morning"
+  },
+  {
+    "name": "empty pieces",
+    "pieces": [
+      "",
+      "hello there everyone",
+      ""
+    ],
+    "expected": "hello there everyone"
+  },
+  {
+    "name": "three pieces chained",
+    "pieces": [
+      "one two three four five",
+      "four five six seven eight",
+      "seven eight nine ten eleven"
+    ],
+    "expected": "one two three four five six seven eight nine ten eleven"
+  },
+  {
+    "name": "space before punctuation tidied",
+    "pieces": [
+      "आज मौसम साफ है ।",
+      "मौसम साफ है । कल बारिश होगी"
+    ],
+    "expected": "आज मौसम साफ है। कल बारिश होगी"
+  }
+]

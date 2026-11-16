@@ -9,6 +9,8 @@ const edgeRuntime = (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknow
 const handle = (req: Request) =>
   handleFactcheck(req, {
     apiKey: Deno.env.get('OPENROUTER_API_KEY') || '',
+    // The app's public origin (not a secret). Unset: nothing is shareable.
+    livetvApiBase: Deno.env.get('LIVETV_API_BASE') || '',
     origins: allowedOrigins(),
     fetch,
     // The log insert runs after the response, kept alive by the runtime; without EdgeRuntime the
