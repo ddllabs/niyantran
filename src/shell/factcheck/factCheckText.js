@@ -151,3 +151,30 @@ export function embedVideoId(embedUrl) {
 export function playingTarget(channelId, playbackMode, videoId) {
   return channelId && videoId ? `${channelId}|${playbackMode}|${videoId}` : null;
 }
+
+export const RECHECK_FAILED = 'The new check failed. Nothing was charged.';
+
+/** Plain words for a re-check that did not produce a result (the price_changed case is handled by the caller). */
+export function recheckErrorText(error) {
+  const e = error || {};
+  const status = e.status ?? 0;
+  if (e.reason === 'insufficient' || status === 402) {
+    const needs = typeof e.needed === 'number' ? `this needs ${creditsText(e.needed)}` : '';
+    const has = typeof e.available === 'number' ? `you have ${creditsText(e.available)}` : '';
+    const detail = [needs, has].filter(Boolean).join(' and ');
+    return detail ? `Not enough credits: ${detail}.` : 'Not enough credits.';
+  }
+  if (e.reason === 'not_recheckable') return 'This verdict cannot be checked again.';
+  if (e.reason === 'claim_not_found') return 'This claim could no longer be found, so it cannot be checked again.';
+  if (e.reason === 'off') return 'Checking again is switched off.';
+  if (e.reason === 'not_allowed' || status === 403) return 'Checking again is not available for this account.';
+  if (e.reason === 'in_progress') return 'This claim is already being checked again.';
+  if (e.reason === 'rate_limited' || status === 429) return 'Too many checks just now. Wait a minute and try again.';
+  if (status === 401) return 'Your sign-in has expired. Sign in again.';
+  if (status === 0) return 'The server did not answer. If the new check went through, you may have been charged; your balance will show it.';
+  return RECHECK_FAILED;
+}
+
+export function recheckPriceChangedText(price) {
+  return `The price changed to ${creditsText(price)}. Check again to confirm.`;
+}

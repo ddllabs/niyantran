@@ -187,3 +187,62 @@ describe('default client', () => {
     } finally { vi.unstubAllGlobals(); }
   });
 });
+
+describe('recheck', () => {
+  const claim = { id: 'n1', supersedes: 'c1', status: 'checked', verdict: 'contradicted', reason: 'r', sources: [{ url: 'https://a.test', title: 'A' }], checked_at: '2026-11-16T10:00:00Z' };
+
+  it('posts the recheck action with claim_id and expected_recheck_credits and maps the answer', async () => {
+    const { client, calls } = make(() => json(200, { claim, credits_charged: 100, balance: 900 }));
+    const out = await client.recheck({ claimId: 'c1', expectedRecheckCredits: 100 });
+    expect(JSON.parse(calls[0].init.body)).toEqual({ action: 'recheck', claim_id: 'c1', expected_recheck_credits: 100 });
+    expect(calls[0].init.headers.Authorization).toBe('Bearer tok-1');
+    expect(out).toEqual({ claim, creditsCharged: 100, balance: 900 });
+  });
+
+  it('passes an abort signal through', async () => {
+    const { client, calls } = make(() => json(200, { claim, credits_charged: 0, balance: 1 }));
+    const ctl = new AbortController();
+    await client.recheck({ claimId: 'c1', expectedRecheckCredits: 100, signal: ctl.signal });
+    expect(calls[0].init.signal).toBe(ctl.signal);
+  });
+
+  it('a body without a claim is a bad response, not a result', async () => {
+    const { client } = make(() => json(200, { credits_charged: 0 }));
+    const err = await client.recheck({ claimId: 'c1', expectedRecheckCredits: 100 }).catch((e) => e);
+    expect(err).toBeInstanceOf(FactCheckError);
+    expect(err).toMatchObject({ status: 0, reason: 'bad_response' });
+  });
+
+  it.each([
+    [402, { reason: 'insufficient', needed: 100, available: 40 }, { status: 402, reason: 'insufficient', needed: 100, available: 40 }],
+    [403, { reason: 'off' }, { status: 403, reason: 'off' }],
+    [403, { reason: 'not_allowed' }, { status: 403, reason: 'not_allowed' }],
+    [404, { reason: 'claim_not_found' }, { status: 404, reason: 'claim_not_found' }],
+    [409, { reason: 'not_recheckable' }, { status: 409, reason: 'not_recheckable' }],
+    [409, { reason: 'price_changed', recheck_credits: 150 }, { status: 409, reason: 'price_changed', recheckCredits: 150 }],
+    [502, {}, { status: 502, reason: 'server_error' }],
+    [401, {}, { status: 401, reason: 'unauthorized' }],
+  ])('HTTP %s %j', async (status, body, expected) => {
+    const { client } = make(() => json(status, body));
+    const err = await client.recheck({ claimId: 'c1', expectedRecheckCredits: 100 }).catch((e) => e);
+    expect(err).toBeInstanceOf(FactCheckError);
+    expect(err).toMatchObject(expected);
+  });
+
+  it.each(['rate_limited', 'in_progress'])('429 %s keeps the Retry-After wait', async (reason) => {
+    const { client } = make(() => json(429, { reason }, { 'retry-after': '7' }));
+    const err = await client.recheck({ claimId: 'c1', expectedRecheckCredits: 100 }).catch((e) => e);
+    expect(err).toMatchObject({ status: 429, reason, retryAfterMs: 7000, retryable: true });
+  });
+
+  it('a lost connection is status 0', async () => {
+    const { client } = make(() => { throw new TypeError('offline'); });
+    const err = await client.recheck({ claimId: 'c1', expectedRecheckCredits: 100 }).catch((e) => e);
+    expect(err).toMatchObject({ status: 0, reason: 'network' });
+  });
+
+  it('is exported as a function of the default client', async () => {
+    const mod = await import('./client.js');
+    expect(typeof mod.recheck).toBe('function');
+  });
+});
