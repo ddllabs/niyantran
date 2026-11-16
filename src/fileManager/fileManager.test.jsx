@@ -134,6 +134,9 @@ describe('fileManagerService — Upload Lifecycle & Quota (Capability 3 & 5)', (
 
     vi.spyOn(supabase, 'rpc').mockImplementation((name) => {
       if (name === 'user_storage_quota_bytes') {
+        return Promise.resolve({ data: STORAGE_TIER_QUOTA_BYTES.pro, error: null });
+      }
+      if (name === 'user_storage_used_bytes') {
         return Promise.resolve({ data: 104857600, error: null }); // 100 MB used
       }
       if (name === 'my_entitlement') {

@@ -60,8 +60,12 @@ describe('Feature F341 — Full Multi-Tenant E2E User Journey & Release Gate', (
         return { data: [{ plan: currentUser.plan, lapsed: false }], error: null };
       }
       if (fnName === 'user_storage_quota_bytes') {
+        const quota = STORAGE_TIER_QUOTA_BYTES[currentUser.plan || 'free'] || STORAGE_TIER_QUOTA_BYTES.free;
+        return { data: quota, error: null };
+      }
+      if (fnName === 'user_storage_used_bytes') {
         const used = mockDatabase.files
-          .filter((f) => f.user_id === currentUser.id && !f.deleted_at)
+          .filter((f) => f.user_id === currentUser.id)
           .reduce((acc, f) => acc + (f.size_bytes || 0), 0);
         return { data: used, error: null };
       }

@@ -333,6 +333,35 @@ BEGIN
 END;
 $$;
 
+-- Used storage calculation helper (sums active, in-flight, and trashed files)
+CREATE OR REPLACE FUNCTION public.user_storage_used_bytes(p_user_id uuid DEFAULT NULL)
+RETURNS bigint
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_uid uuid := COALESCE(p_user_id, (SELECT auth.uid()));
+  v_used bigint;
+BEGIN
+  IF v_uid IS NULL THEN
+    RETURN 0;
+  END IF;
+
+  -- Caller cannot query another tenant's usage unless service_role/superuser
+  IF (SELECT auth.uid()) IS NOT NULL AND (SELECT auth.uid()) <> v_uid THEN
+    RAISE EXCEPTION 'unauthorized: cannot inspect storage usage of another user' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT COALESCE(SUM(size_bytes), 0) INTO v_used
+  FROM public.user_files
+  WHERE user_id = v_uid;
+
+  RETURN v_used;
+END;
+$$;
+
 -- Prepare upload RPC with concurrency-safe advisory lock
 CREATE OR REPLACE FUNCTION public.user_file_prepare_upload(
   p_name text,

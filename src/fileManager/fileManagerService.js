@@ -908,11 +908,6 @@ export async function getStorageQuota() {
     };
   }
 
-  // 1. Try authoritative RPC
-  const { data: rpcData, error: rpcError } = await supabase.rpc('user_storage_quota_bytes', {
-    p_user_id: user.id,
-  });
-
   // Determine user's active plan tier
   let plan = 'free';
   let isLapsed = false;
@@ -926,28 +921,50 @@ export async function getStorageQuota() {
     // Defaults to free
   }
 
-  const quotaBytes = isLapsed
+  let quotaBytes = isLapsed
     ? STORAGE_TIER_QUOTA_BYTES.free
     : (STORAGE_TIER_QUOTA_BYTES[plan] || STORAGE_TIER_QUOTA_BYTES.free);
 
-  if (!rpcError && typeof rpcData === 'number') {
-    const usedBytes = rpcData;
-    return {
-      plan,
-      quota_bytes: quotaBytes,
-      used_bytes: usedBytes,
-      remaining_bytes: Math.max(0, quotaBytes - usedBytes),
-      is_lapsed: isLapsed,
-    };
+  // 1. Authoritative quota limit (from RPC if available)
+  try {
+    const { data: rpcQuota, error: rpcError } = await supabase.rpc('user_storage_quota_bytes', {
+      p_user_id: user.id,
+    });
+    if (!rpcError && typeof rpcQuota === 'number' && rpcQuota > 0) {
+      quotaBytes = rpcQuota;
+    }
+  } catch (_e) {
+    // Keep local tier quotaBytes
   }
 
-  // Fallback: sum all files owned by user (including trash, which counts until purged)
-  const { data: files } = await supabase
-    .from('user_files')
-    .select('size_bytes')
-    .eq('user_id', user.id);
-
-  const usedBytes = (files || []).reduce((acc, f) => acc + (f.size_bytes || 0), 0);
+  // 2. Authoritative used storage (sum of user_files including pending/trash)
+  let usedBytes = 0;
+  try {
+    const { data: rpcUsed, error: usedError } = await supabase.rpc('user_storage_used_bytes', {
+      p_user_id: user.id,
+    });
+    if (!usedError && typeof rpcUsed === 'number') {
+      usedBytes = rpcUsed;
+    } else {
+      const { data: files, error: filesError } = await supabase
+        .from('user_files')
+        .select('size_bytes')
+        .eq('user_id', user.id);
+      if (!filesError && Array.isArray(files)) {
+        usedBytes = files.reduce((acc, f) => acc + (f.size_bytes || 0), 0);
+      }
+    }
+  } catch (_e) {
+    try {
+      const { data: files } = await supabase
+        .from('user_files')
+        .select('size_bytes')
+        .eq('user_id', user.id);
+      usedBytes = (files || []).reduce((acc, f) => acc + (f.size_bytes || 0), 0);
+    } catch (_ignored) {
+      usedBytes = 0;
+    }
+  }
 
   return {
     plan,
