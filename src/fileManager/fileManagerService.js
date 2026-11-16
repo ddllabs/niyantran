@@ -21,6 +21,10 @@ import {
  * Resolves current authenticated user from Supabase Auth.
  * Isolates local test adapter strictly to development and testing environments.
  */
+export async function getCurrentUser() {
+  return getAuthUser();
+}
+
 async function getAuthUser() {
   try {
     const { data: { user }, error } = await supabase.auth.getUser();

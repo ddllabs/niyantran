@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   listFilesAndFolders,
   getStorageQuota,
+  getCurrentUser,
   prepareUpload,
   uploadBinary,
   completeUpload,
@@ -30,8 +31,60 @@ import {
   logFileManagerError,
   getUniqueFileName,
 } from './fileManagerService.js';
-import { MAX_FILE_SIZE_BYTES } from '../types/fileManager.ts';
+import { MAX_FILE_SIZE_BYTES, isPdfMimeType } from '../types/fileManager.ts';
 import { openAiResearch } from '../lib/aiDrop.js';
+
+export const KNOWLEDGE_BASE_NOTICE = 'Knowledge Base creation is configured in Niyantran Knowledge Bases.';
+export const NEW_DOC_NOTICE = 'New Document creation is managed in Niyantran Terminal Editor.';
+
+export function filterDisplayFolders(folders = [], { view = 'all', typeFilter = 'all', indexStatusFilter = 'any', ownerFilter = 'anyone', currentUser = null } = {}) {
+  if (view === 'organisation') return [];
+  if (typeFilter !== 'all' && typeFilter !== 'folders') return [];
+  if (indexStatusFilter !== 'any') return [];
+  if (ownerFilter === 'me' && currentUser?.id) {
+    return folders.filter((f) => !f.user_id || f.user_id === currentUser.id);
+  }
+  return folders;
+}
+
+export function filterDisplayFiles(files = [], { view = 'all', typeFilter = 'all', indexStatusFilter = 'any', ownerFilter = 'anyone', currentUser = null } = {}) {
+  if (view === 'organisation') return [];
+  return files.filter((file) => {
+    if (ownerFilter === 'me' && currentUser?.id && file.user_id && file.user_id !== currentUser.id) {
+      return false;
+    }
+    if (typeFilter === 'folders') return false;
+    if (typeFilter === 'pdf' && !isPdfMimeType(file.mime_type)) return false;
+    if (typeFilter === 'spreadsheets') {
+      const m = (file.mime_type || '').toLowerCase();
+      const ext = (file.name?.split('.').pop() || '').toLowerCase();
+      if (!m.includes('spreadsheet') && !m.includes('csv') && !['csv', 'xlsx', 'xls', 'tsv'].includes(ext)) {
+        return false;
+      }
+    }
+    if (typeFilter === 'images') {
+      const m = (file.mime_type || '').toLowerCase();
+      const ext = (file.name?.split('.').pop() || '').toLowerCase();
+      if (!m.startsWith('image/') && !['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) {
+        return false;
+      }
+    }
+    if (typeFilter === 'code') {
+      const ext = (file.name?.split('.').pop() || '').toLowerCase();
+      if (!['js', 'ts', 'jsx', 'tsx', 'json', 'md', 'html', 'css', 'py', 'sql', 'yaml', 'yml'].includes(ext)) {
+        return false;
+      }
+    }
+
+    if (indexStatusFilter === 'indexed' && file.index_status !== 'indexed') return false;
+    if (indexStatusFilter === 'queued' && file.index_status !== 'indexing_queued') return false;
+    if (indexStatusFilter === 'indexing' && !['indexing_extracting', 'indexing_chunking'].includes(file.index_status)) return false;
+    if (indexStatusFilter === 'not_indexed' && file.index_status !== 'not_indexed') return false;
+    if (indexStatusFilter === 'failed' && file.index_status !== 'indexing_failed') return false;
+
+    return true;
+  });
+}
 
 export function useFileManager(initialFolderId = null) {
   // Navigation & View state
@@ -44,6 +97,35 @@ export function useFileManager(initialFolderId = null) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchScope, setSearchScope] = useState('folder'); // 'folder' | 'everywhere'
   const [sort, setSort] = useState({ field: 'name', direction: 'asc' });
+  const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'folders' | 'pdf' | 'spreadsheets' | 'code' | 'images'
+  const [indexStatusFilter, setIndexStatusFilter] = useState('any'); // 'any' | 'indexed' | 'indexing' | 'queued' | 'not_indexed' | 'failed'
+  const [ownerFilter, setOwnerFilter] = useState('anyone'); // 'anyone' | 'me'
+  const [currentUser, setCurrentUser] = useState(null);
+  const [noticeMessage, setNoticeMessage] = useState(null);
+  const noticeTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    getCurrentUser().then((u) => {
+      if (u) setCurrentUser(u);
+    }).catch(() => {});
+  }, []);
+
+  const showNotice = useCallback((msg) => {
+    if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
+    setNoticeMessage(msg);
+    noticeTimeoutRef.current = setTimeout(() => {
+      setNoticeMessage(null);
+    }, 4500);
+  }, []);
+
+  const handleNewBase = useCallback(() => {
+    showNotice(KNOWLEDGE_BASE_NOTICE);
+  }, [showNotice]);
+
+  const handleNewDoc = useCallback(() => {
+    showNotice(NEW_DOC_NOTICE);
+  }, [showNotice]);
+
 
   // Data state
   const [folders, setFolders] = useState([]);
@@ -574,17 +656,47 @@ export function useFileManager(initialFolderId = null) {
     });
   }, []);
 
+  const displayFolders = useMemo(() => {
+    return filterDisplayFolders(folders, {
+      view,
+      typeFilter,
+      indexStatusFilter,
+      ownerFilter,
+      currentUser,
+    });
+  }, [folders, view, typeFilter, indexStatusFilter, ownerFilter, currentUser]);
+
+  const displayFiles = useMemo(() => {
+    return filterDisplayFiles(files, {
+      view,
+      typeFilter,
+      indexStatusFilter,
+      ownerFilter,
+      currentUser,
+    });
+  }, [files, view, typeFilter, indexStatusFilter, ownerFilter, currentUser]);
+
+  const clearFilters = useCallback(() => {
+    setTypeFilter('all');
+    setIndexStatusFilter('any');
+    setOwnerFilter('anyone');
+    setSearchQuery('');
+  }, []);
+
   return {
-    // State
+    // Navigation & View state
     view,
     currentFolder,
     pathSegments,
     viewMode,
-    searchQuery,
-    searchScope,
     sort,
+
+    // Data state
     folders,
     files,
+    displayFolders,
+    displayFiles,
+    currentUser,
     quota,
     loading,
     error,
@@ -595,6 +707,14 @@ export function useFileManager(initialFolderId = null) {
     hasSelectedPdf,
     uploadMap,
     uploadQueue,
+
+    // Filters & Notices
+    searchQuery,
+    searchScope,
+    typeFilter,
+    indexStatusFilter,
+    ownerFilter,
+    noticeMessage,
 
     // Modals
     isJobsOpen,
@@ -609,6 +729,9 @@ export function useFileManager(initialFolderId = null) {
     setViewMode,
     setSearchQuery,
     setSearchScope,
+    setTypeFilter,
+    setIndexStatusFilter,
+    setOwnerFilter,
     setSort,
     setIsJobsOpen,
     setPreviewFile,
@@ -619,6 +742,9 @@ export function useFileManager(initialFolderId = null) {
 
     // Actions
     refresh,
+    clearFilters,
+    handleNewBase,
+    handleNewDoc,
     navigateToFolder,
     handleSelectFolder,
     handleSelectFile,

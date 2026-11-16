@@ -1,15 +1,16 @@
 /**
- * Feature F341: Drive Browser Component (Phase 4).
+ * Feature F341: Drive Browser Component (Redesigned per Reference Architecture).
  *
  * Implements:
- * - List and Grid view presentations with responsive layouts and full feature parity.
- * - Shift-click range multi-selection, select all, and individual item selection.
- * - Recognizable file-type icons (PDF, Image, Document, Spreadsheet, Code, Archive, Generic).
- * - Orthogonal status pills for upload (`upload_status`) and AI indexing (`index_status`).
- * - Detailed tooltips for AI indexing states and failure retries.
- * - Trash banner: "Trashed files continue consuming quota and will be permanently deleted after 30 days."
- * - Item context actions: "✦ Ask AI", "Index for AI", "Preview", "Download", "Rename", "Trash".
- * - Distinct empty states for empty folders, search results, trash, and AI artifacts.
+ * - Reference table structure with 8 normative columns:
+ *   [Selection, Name, Documents, Indexing, Size, Owner, Shared With, Connected, Actions]
+ * - Dual status pills for upload (`upload_status`) and AI indexing (`index_status`):
+ *   "Not searchable", "Queued", "Processing", "Searchable", "Failed"
+ * - Multi-selection (Shift-click range, Select All, and individual checkboxes)
+ * - Recognizable file-type icons (PDF, Spreadsheet, Code, Image, Document, Archive, Generic)
+ * - Row context actions ("✦ Ask AI", "Index for AI", "Preview", "Download", "Rename", "Trash")
+ * - Responsive horizontal scrolling and layout
+ * - Loading skeletons, empty states (Empty folder, Search, Filters, Organisation, Trash, Artifacts)
  */
 
 import { useState } from 'react';
@@ -33,6 +34,8 @@ import {
   Pencil,
   ArrowUpDown,
   Search,
+  Building2,
+  Filter,
 } from 'lucide-react';
 import {
   formatBytes,
@@ -91,32 +94,6 @@ function getFileIcon(mimeType = '', name = '', size = 18) {
   return <FileText size={size} style={{ color: 'var(--muted)' }} />;
 }
 
-/**
- * @param {{
- *   folders: any[],
- *   files: any[],
- *   selectedFolderIds: string[],
- *   selectedFileIds: string[],
- *   viewMode?: 'grid' | 'list',
- *   view?: 'all' | 'trash' | 'artifacts',
- *   searchQuery?: string,
- *   sort?: { field: string, direction: 'asc' | 'desc' },
- *   onSortChange?: (field: string) => void,
- *   onSelectFolder: (id: string, isShift: boolean, isCtrl: boolean) => void,
- *   onSelectFile: (id: string, isShift: boolean, isCtrl: boolean) => void,
- *   onSelectAll: (checked: boolean) => void,
- *   onOpenFolder: (folder: any) => void,
- *   onPreviewFile: (file: any) => void,
- *   onDownloadFile: (file: any) => void,
- *   onIndexFile: (file: any) => void,
- *   onChatWithFile: (file: any) => void,
- *   onRenameItem: (item: any, kind: 'file' | 'folder') => void,
- *   onTrashItem: (item: any, kind: 'file' | 'folder') => void,
- *   onRestoreItem?: (item: any, kind: 'file' | 'folder') => void,
- *   onPermanentDeleteItem?: (item: any, kind: 'file' | 'folder') => void,
- *   onUploadClick?: () => void
- * }} props
- */
 export default function DriveBrowser({
   folders = [],
   files = [],
@@ -127,6 +104,10 @@ export default function DriveBrowser({
   searchQuery = '',
   sort = { field: 'name', direction: 'asc' },
   quota,
+  loading = false,
+  currentUser = null,
+  hasActiveFilters = false,
+  onClearFilters,
   onSortChange,
   onSelectFolder,
   onSelectFile,
@@ -151,6 +132,7 @@ export default function DriveBrowser({
     selectedFileIds.length === files.length;
 
   const isTrash = view === 'trash';
+  const isOrganisation = view === 'organisation';
 
   // Toggle row action menu
   const toggleMenu = (e, id) => {
@@ -163,8 +145,13 @@ export default function DriveBrowser({
     if (activeMenuId) setActiveMenuId(null);
   };
 
-  // Render Dual Status Pills for a File
-  const renderStatusPills = (file) => {
+  // Display user identity or friendly name
+  const ownerLabel = currentUser?.email
+    ? currentUser.email.split('@')[0]
+    : 'Me';
+
+  // Render AI Indexing Status Pills (per Section 6 requirements)
+  const renderIndexStatusPill = (file) => {
     const isPdf = isPdfMimeType(file.mime_type);
 
     if (file.upload_status === 'uploading') {
@@ -185,8 +172,8 @@ export default function DriveBrowser({
 
     if (!isPdf) {
       return (
-        <span className="fm-pill fm-pill-unsupported" title="Stored securely. AI indexing in v1 is supported for PDF documents.">
-          Stored Only
+        <span className="fm-pill fm-pill-unsupported" title="Stored securely. AI vector indexing is supported for PDF documents.">
+          Not searchable
         </span>
       );
     }
@@ -195,7 +182,7 @@ export default function DriveBrowser({
       case 'indexed':
         return (
           <span className="fm-pill fm-pill-indexed" title="Vector embedded and searchable in Niyantran AI">
-            <CheckCircle2 size={11} /> Indexed
+            <CheckCircle2 size={11} /> Searchable
           </span>
         );
       case 'indexing_queued':
@@ -208,7 +195,7 @@ export default function DriveBrowser({
       case 'indexing_chunking':
         return (
           <span className="fm-pill fm-pill-running" title="Processing OCR and vector embeddings">
-            <Loader2 size={11} className="animate-spin" /> Indexing
+            <Loader2 size={11} className="animate-spin" /> Processing
           </span>
         );
       case 'indexing_failed':
@@ -222,7 +209,7 @@ export default function DriveBrowser({
             }}
             title={file.index_error ? `${file.index_error} — Click to retry indexing.` : 'Indexing failed. Click to retry.'}
           >
-            <AlertCircle size={11} /> Retry Index
+            <AlertCircle size={11} /> Failed
           </button>
         );
       case 'not_indexed':
@@ -237,13 +224,44 @@ export default function DriveBrowser({
             }}
             title="Click to extract text and vector index for AI research"
           >
-            <Sparkles size={11} /> Index for AI
+            <Sparkles size={11} /> Not searchable
           </button>
         );
     }
   };
 
-  // Render Empty State
+  // ─── Loading Skeletons State ────────────────────────────────────────────────
+  if (loading && totalItemsCount === 0) {
+    return (
+      <div className="fm-table-wrap">
+        <div className="fm-loading-skeleton-container" role="status" aria-label="Loading files">
+          <div className="fm-skeleton-row" />
+          <div className="fm-skeleton-row" />
+          <div className="fm-skeleton-row" />
+          <div className="fm-skeleton-row" />
+          <div className="fm-skeleton-row" />
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Empty & Specific Tab States ───────────────────────────────────────────
+  if (isOrganisation) {
+    return (
+      <div className="fm-empty-state">
+        <Building2 size={44} className="fm-empty-icon" style={{ color: 'var(--accent)' }} />
+        <div className="fm-empty-title">Organisation Files</div>
+        <div className="fm-empty-desc">
+          Organisation drives and shared team workspaces are not enabled for this account tier.
+          Files in your personal drive remain private, encrypted, and isolated to your account.
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <span className="fm-pill fm-pill-unsupported">Enterprise Tier Required</span>
+        </div>
+      </div>
+    );
+  }
+
   if (totalItemsCount === 0) {
     if (searchQuery) {
       return (
@@ -251,6 +269,26 @@ export default function DriveBrowser({
           <Search size={40} className="fm-empty-icon" />
           <div className="fm-empty-title">No files matching &ldquo;{searchQuery}&rdquo;</div>
           <div className="fm-empty-desc">Check your spelling or switch search scope to Everywhere.</div>
+        </div>
+      );
+    }
+
+    if (hasActiveFilters) {
+      return (
+        <div className="fm-empty-state">
+          <Filter size={40} className="fm-empty-icon" />
+          <div className="fm-empty-title">No items match the selected filters</div>
+          <div className="fm-empty-desc">Try selecting a different type or index status filter.</div>
+          {onClearFilters && (
+            <button
+              type="button"
+              className="fm-btn fm-btn-secondary"
+              onClick={onClearFilters}
+              style={{ marginTop: 12 }}
+            >
+              Reset Filters
+            </button>
+          )}
         </div>
       );
     }
@@ -288,7 +326,7 @@ export default function DriveBrowser({
         <div className="fm-empty-desc">
           {hasOccupiedStorage
             ? 'Your storage is occupied by files or pending uploads that are not currently visible in this folder.'
-            : 'Drag and drop files here to upload, or use the Upload button in the toolbar.'}
+            : 'Drag and drop files here to upload, or use the Upload Here button in the toolbar.'}
         </div>
         {onUploadClick && (
           <button type="button" className="fm-btn fm-btn-primary" onClick={onUploadClick}>
@@ -299,11 +337,11 @@ export default function DriveBrowser({
     );
   }
 
-  // ─── Table / List View ─────────────────────────────────────────────────────
+  // ─── Table / List View (Normative 8-Column Reference Structure) ────────────
   if (viewMode === 'list') {
     return (
       <div className="fm-table-wrap" onClick={handleContainerClick}>
-        {/* Trash Retention Warning Banner (Phase 4 Requirement) */}
+        {/* Trash Retention Warning Banner */}
         {isTrash && (
           <div className="fm-trash-notice-banner" role="status">
             <AlertCircle size={15} style={{ color: '#b45309', flexShrink: 0 }} />
@@ -326,7 +364,7 @@ export default function DriveBrowser({
               </th>
               <th
                 onClick={() => onSortChange?.('name')}
-                style={{ cursor: 'pointer' }}
+                style={{ cursor: 'pointer', minWidth: 220 }}
                 title="Sort by Name"
               >
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -334,7 +372,8 @@ export default function DriveBrowser({
                   {sort.field === 'name' && <ArrowUpDown size={12} />}
                 </div>
               </th>
-              <th style={{ width: 140 }}>Status</th>
+              <th style={{ width: 110 }}>Documents</th>
+              <th style={{ width: 140 }}>Indexing</th>
               <th
                 onClick={() => onSortChange?.('size_bytes')}
                 style={{ width: 100, cursor: 'pointer' }}
@@ -345,17 +384,10 @@ export default function DriveBrowser({
                   {sort.field === 'size_bytes' && <ArrowUpDown size={12} />}
                 </div>
               </th>
-              <th
-                onClick={() => onSortChange?.('updated_at')}
-                style={{ width: 130, cursor: 'pointer' }}
-                title="Sort by Date"
-              >
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <span>Modified</span>
-                  {sort.field === 'updated_at' && <ArrowUpDown size={12} />}
-                </div>
-              </th>
-              <th style={{ width: 110, textAlign: 'right' }}>Actions</th>
+              <th style={{ width: 100 }}>Owner</th>
+              <th style={{ width: 110 }}>Shared With</th>
+              <th style={{ width: 100 }}>Connected</th>
+              <th style={{ width: 90, textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -374,7 +406,7 @@ export default function DriveBrowser({
                     <input
                       type="checkbox"
                       checked={isSelected}
-                      onChange={(e) => onSelectFolder(folder.id, false, true)}
+                      onChange={() => onSelectFolder(folder.id, false, true)}
                       aria-label={`Select folder ${folder.name}`}
                     />
                   </td>
@@ -387,19 +419,17 @@ export default function DriveBrowser({
                       <span title={folder.name}>{folder.name}</span>
                     </div>
                   </td>
-                  <td>
-                    <span className="fm-pill fm-pill-coverage">Folder</span>
-                  </td>
-                  <td style={{ color: 'var(--muted)', fontSize: 12 }}>—</td>
-                  <td style={{ color: 'var(--muted)', fontSize: 12 }}>
-                    {formatRelativeDate(folder.updated_at || folder.created_at)}
-                  </td>
+                  <td style={{ color: 'var(--muted)', fontSize: 13 }}>—</td>
+                  <td style={{ color: 'var(--muted)', fontSize: 13 }}>—</td>
+                  <td style={{ color: 'var(--muted)', fontSize: 13 }}>—</td>
+                  <td style={{ color: 'var(--muted)', fontSize: 13 }}>{ownerLabel}</td>
+                  <td style={{ color: 'var(--muted)', fontSize: 13 }}>—</td>
+                  <td style={{ color: 'var(--muted)', fontSize: 13 }}>—</td>
                   <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                     <div style={{ position: 'relative', display: 'inline-block' }}>
                       <button
                         type="button"
-                        className="fm-btn"
-                        style={{ padding: '4px 6px', border: 0 }}
+                        className="fm-btn fm-btn-icon"
                         onClick={(e) => toggleMenu(e, `folder-${folder.id}`)}
                         aria-label={`Actions for folder ${folder.name}`}
                       >
@@ -407,26 +437,12 @@ export default function DriveBrowser({
                       </button>
 
                       {isMenuOpen && (
-                        <div
-                          style={{
-                            position: 'absolute',
-                            right: 0,
-                            top: '100%',
-                            background: 'var(--panel)',
-                            border: '1px solid var(--line)',
-                            borderRadius: 6,
-                            boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-                            zIndex: 30,
-                            minWidth: 140,
-                            padding: '4px 0',
-                          }}
-                        >
+                        <div className="fm-context-menu">
                           {!isTrash ? (
                             <>
                               <button
                                 type="button"
                                 className="fm-nav-btn"
-                                style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                                 onClick={() => {
                                   setActiveMenuId(null);
                                   onOpenFolder(folder);
@@ -437,7 +453,6 @@ export default function DriveBrowser({
                               <button
                                 type="button"
                                 className="fm-nav-btn"
-                                style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                                 onClick={() => {
                                   setActiveMenuId(null);
                                   onRenameItem(folder, 'folder');
@@ -448,7 +463,6 @@ export default function DriveBrowser({
                               <button
                                 type="button"
                                 className="fm-nav-btn text-danger"
-                                style={{ width: '100%', padding: '6px 12px', fontSize: 12, color: '#dc2626' }}
                                 onClick={() => {
                                   setActiveMenuId(null);
                                   onTrashItem(folder, 'folder');
@@ -462,7 +476,6 @@ export default function DriveBrowser({
                               <button
                                 type="button"
                                 className="fm-nav-btn"
-                                style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                                 onClick={() => {
                                   setActiveMenuId(null);
                                   onRestoreItem?.(folder, 'folder');
@@ -472,8 +485,7 @@ export default function DriveBrowser({
                               </button>
                               <button
                                 type="button"
-                                className="fm-nav-btn"
-                                style={{ width: '100%', padding: '6px 12px', fontSize: 12, color: '#dc2626' }}
+                                className="fm-nav-btn text-danger"
                                 onClick={() => {
                                   setActiveMenuId(null);
                                   onPermanentDeleteItem?.(folder, 'folder');
@@ -495,6 +507,12 @@ export default function DriveBrowser({
             {files.map((file) => {
               const isSelected = selectedFileIds.includes(file.id);
               const isMenuOpen = activeMenuId === `file-${file.id}`;
+              const isPdf = isPdfMimeType(file.mime_type);
+              const docsCount = file.page_count
+                ? `${file.page_count} ${file.page_count === 1 ? 'doc' : 'docs'}`
+                : isPdf
+                  ? '1 doc'
+                  : '—';
 
               return (
                 <tr
@@ -506,7 +524,7 @@ export default function DriveBrowser({
                     <input
                       type="checkbox"
                       checked={isSelected}
-                      onChange={(e) => onSelectFile(file.id, false, true)}
+                      onChange={() => onSelectFile(file.id, false, true)}
                       aria-label={`Select file ${file.name}`}
                     />
                   </td>
@@ -519,21 +537,21 @@ export default function DriveBrowser({
                       <span title={file.name}>{file.name}</span>
                     </div>
                   </td>
-                  <td>{renderStatusPills(file)}</td>
-                  <td style={{ color: 'var(--muted)', fontSize: 12 }}>
+                  <td style={{ color: 'var(--muted)', fontSize: 13 }}>{docsCount}</td>
+                  <td>{renderIndexStatusPill(file)}</td>
+                  <td style={{ color: 'var(--text)', fontSize: 13, whiteSpace: 'nowrap' }}>
                     {formatBytes(file.size_bytes)}
                   </td>
-                  <td style={{ color: 'var(--muted)', fontSize: 12 }}>
-                    {formatRelativeDate(file.updated_at || file.created_at)}
-                  </td>
+                  <td style={{ color: 'var(--muted)', fontSize: 13 }}>{ownerLabel}</td>
+                  <td style={{ color: 'var(--muted)', fontSize: 13 }}>—</td>
+                  <td style={{ color: 'var(--muted)', fontSize: 13 }}>—</td>
                   <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
                       {!isTrash && (
                         <>
                           <button
                             type="button"
-                            className="fm-btn"
-                            style={{ padding: '4px 6px', border: 0 }}
+                            className="fm-btn fm-btn-icon"
                             onClick={() => onPreviewFile(file)}
                             title="Preview file"
                           >
@@ -541,8 +559,7 @@ export default function DriveBrowser({
                           </button>
                           <button
                             type="button"
-                            className="fm-btn"
-                            style={{ padding: '4px 6px', border: 0 }}
+                            className="fm-btn fm-btn-icon"
                             onClick={() => onDownloadFile(file)}
                             title="Download file"
                           >
@@ -554,8 +571,7 @@ export default function DriveBrowser({
                       <div style={{ position: 'relative', display: 'inline-block' }}>
                         <button
                           type="button"
-                          className="fm-btn"
-                          style={{ padding: '4px 6px', border: 0 }}
+                          className="fm-btn fm-btn-icon"
                           onClick={(e) => toggleMenu(e, `file-${file.id}`)}
                           aria-label={`More actions for file ${file.name}`}
                         >
@@ -563,26 +579,12 @@ export default function DriveBrowser({
                         </button>
 
                         {isMenuOpen && (
-                          <div
-                            style={{
-                              position: 'absolute',
-                              right: 0,
-                              top: '100%',
-                              background: 'var(--panel)',
-                              border: '1px solid var(--line)',
-                              borderRadius: 6,
-                              boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-                              zIndex: 30,
-                              minWidth: 150,
-                              padding: '4px 0',
-                            }}
-                          >
+                          <div className="fm-context-menu">
                             {!isTrash ? (
                               <>
                                 <button
                                   type="button"
                                   className="fm-nav-btn"
-                                  style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                                   onClick={() => {
                                     setActiveMenuId(null);
                                     onChatWithFile(file);
@@ -590,11 +592,10 @@ export default function DriveBrowser({
                                 >
                                   <Sparkles size={13} /> ✦ Ask AI
                                 </button>
-                                {isPdfMimeType(file.mime_type) && file.index_status !== 'indexed' && (
+                                {isPdf && file.index_status !== 'indexed' && (
                                   <button
                                     type="button"
                                     className="fm-nav-btn"
-                                    style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                                     onClick={() => {
                                       setActiveMenuId(null);
                                       onIndexFile(file);
@@ -606,7 +607,6 @@ export default function DriveBrowser({
                                 <button
                                   type="button"
                                   className="fm-nav-btn"
-                                  style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                                   onClick={() => {
                                     setActiveMenuId(null);
                                     onRenameItem(file, 'file');
@@ -617,7 +617,6 @@ export default function DriveBrowser({
                                 <button
                                   type="button"
                                   className="fm-nav-btn text-danger"
-                                  style={{ width: '100%', padding: '6px 12px', fontSize: 12, color: '#dc2626' }}
                                   onClick={() => {
                                     setActiveMenuId(null);
                                     onTrashItem(file, 'file');
@@ -631,7 +630,6 @@ export default function DriveBrowser({
                                 <button
                                   type="button"
                                   className="fm-nav-btn"
-                                  style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                                   onClick={() => {
                                     setActiveMenuId(null);
                                     onRestoreItem?.(file, 'file');
@@ -641,8 +639,7 @@ export default function DriveBrowser({
                                 </button>
                                 <button
                                   type="button"
-                                  className="fm-nav-btn"
-                                  style={{ width: '100%', padding: '6px 12px', fontSize: 12, color: '#dc2626' }}
+                                  className="fm-nav-btn text-danger"
                                   onClick={() => {
                                     setActiveMenuId(null);
                                     onPermanentDeleteItem?.(file, 'file');
@@ -666,10 +663,9 @@ export default function DriveBrowser({
     );
   }
 
-  // ─── Grid View (Phase 4 Full Feature Parity) ───────────────────────────────
+  // ─── Grid View ─────────────────────────────────────────────────────────────
   return (
     <div className="fm-grid-wrap" onClick={handleContainerClick}>
-      {/* Trash Retention Warning Banner (Phase 4 Requirement) */}
       {isTrash && (
         <div className="fm-trash-notice-banner" role="status" style={{ marginBottom: 16 }}>
           <AlertCircle size={15} style={{ color: '#b45309', flexShrink: 0 }} />
@@ -692,18 +688,16 @@ export default function DriveBrowser({
               onClick={(e) => onSelectFolder(folder.id, e.shiftKey, e.ctrlKey || e.metaKey)}
               onDoubleClick={() => onOpenFolder(folder)}
             >
-              {/* Card Header: Checkbox + Context Menu */}
               <div className="fm-grid-card-head" onClick={(e) => e.stopPropagation()}>
                 <input
                   type="checkbox"
                   checked={isSelected}
-                  onChange={(e) => onSelectFolder(folder.id, false, true)}
+                  onChange={() => onSelectFolder(folder.id, false, true)}
                   aria-label={`Select folder ${folder.name}`}
                 />
                 <button
                   type="button"
-                  className="fm-btn"
-                  style={{ padding: '2px 4px', border: 0 }}
+                  className="fm-btn fm-btn-icon"
                   onClick={(e) => toggleMenu(e, `grid-folder-${folder.id}`)}
                   aria-label={`Actions for folder ${folder.name}`}
                 >
@@ -711,13 +705,12 @@ export default function DriveBrowser({
                 </button>
 
                 {isMenuOpen && (
-                  <div className="fm-grid-menu">
+                  <div className="fm-context-menu">
                     {!isTrash ? (
                       <>
                         <button
                           type="button"
                           className="fm-nav-btn"
-                          style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                           onClick={() => {
                             setActiveMenuId(null);
                             onOpenFolder(folder);
@@ -728,7 +721,6 @@ export default function DriveBrowser({
                         <button
                           type="button"
                           className="fm-nav-btn"
-                          style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                           onClick={() => {
                             setActiveMenuId(null);
                             onRenameItem(folder, 'folder');
@@ -739,7 +731,6 @@ export default function DriveBrowser({
                         <button
                           type="button"
                           className="fm-nav-btn text-danger"
-                          style={{ width: '100%', padding: '6px 12px', fontSize: 12, color: '#dc2626' }}
                           onClick={() => {
                             setActiveMenuId(null);
                             onTrashItem(folder, 'folder');
@@ -753,7 +744,6 @@ export default function DriveBrowser({
                         <button
                           type="button"
                           className="fm-nav-btn"
-                          style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                           onClick={() => {
                             setActiveMenuId(null);
                             onRestoreItem?.(folder, 'folder');
@@ -763,8 +753,7 @@ export default function DriveBrowser({
                         </button>
                         <button
                           type="button"
-                          className="fm-nav-btn"
-                          style={{ width: '100%', padding: '6px 12px', fontSize: 12, color: '#dc2626' }}
+                          className="fm-nav-btn text-danger"
                           onClick={() => {
                             setActiveMenuId(null);
                             onPermanentDeleteItem?.(folder, 'folder');
@@ -778,15 +767,18 @@ export default function DriveBrowser({
                 )}
               </div>
 
-              <div className="fm-card-icon-area">
-                <Folder size={40} style={{ color: 'var(--accent)' }} />
+              <div className="fm-grid-card-body">
+                <Folder size={36} style={{ color: 'var(--accent)' }} />
+                <span className="fm-grid-card-title" title={folder.name}>
+                  {folder.name}
+                </span>
               </div>
-              <div className="fm-card-name" title={folder.name}>
-                {folder.name}
-              </div>
-              <div className="fm-card-meta">
-                <span>Folder</span>
-                <span>{formatRelativeDate(folder.updated_at || folder.created_at)}</span>
+
+              <div className="fm-grid-card-footer">
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>Folder</span>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                  {formatRelativeDate(folder.updated_at || folder.created_at)}
+                </span>
               </div>
             </div>
           );
@@ -796,6 +788,7 @@ export default function DriveBrowser({
         {files.map((file) => {
           const isSelected = selectedFileIds.includes(file.id);
           const isMenuOpen = activeMenuId === `grid-file-${file.id}`;
+          const isPdf = isPdfMimeType(file.mime_type);
 
           return (
             <div
@@ -804,18 +797,16 @@ export default function DriveBrowser({
               onClick={(e) => onSelectFile(file.id, e.shiftKey, e.ctrlKey || e.metaKey)}
               onDoubleClick={() => onPreviewFile(file)}
             >
-              {/* Card Header: Checkbox + Context Menu */}
               <div className="fm-grid-card-head" onClick={(e) => e.stopPropagation()}>
                 <input
                   type="checkbox"
                   checked={isSelected}
-                  onChange={(e) => onSelectFile(file.id, false, true)}
+                  onChange={() => onSelectFile(file.id, false, true)}
                   aria-label={`Select file ${file.name}`}
                 />
                 <button
                   type="button"
-                  className="fm-btn"
-                  style={{ padding: '2px 4px', border: 0 }}
+                  className="fm-btn fm-btn-icon"
                   onClick={(e) => toggleMenu(e, `grid-file-${file.id}`)}
                   aria-label={`Actions for file ${file.name}`}
                 >
@@ -823,13 +814,12 @@ export default function DriveBrowser({
                 </button>
 
                 {isMenuOpen && (
-                  <div className="fm-grid-menu">
+                  <div className="fm-context-menu">
                     {!isTrash ? (
                       <>
                         <button
                           type="button"
                           className="fm-nav-btn"
-                          style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                           onClick={() => {
                             setActiveMenuId(null);
                             onPreviewFile(file);
@@ -840,7 +830,6 @@ export default function DriveBrowser({
                         <button
                           type="button"
                           className="fm-nav-btn"
-                          style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                           onClick={() => {
                             setActiveMenuId(null);
                             onDownloadFile(file);
@@ -851,7 +840,6 @@ export default function DriveBrowser({
                         <button
                           type="button"
                           className="fm-nav-btn"
-                          style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                           onClick={() => {
                             setActiveMenuId(null);
                             onChatWithFile(file);
@@ -859,11 +847,10 @@ export default function DriveBrowser({
                         >
                           <Sparkles size={13} /> ✦ Ask AI
                         </button>
-                        {isPdfMimeType(file.mime_type) && file.index_status !== 'indexed' && (
+                        {isPdf && file.index_status !== 'indexed' && (
                           <button
                             type="button"
                             className="fm-nav-btn"
-                            style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                             onClick={() => {
                               setActiveMenuId(null);
                               onIndexFile(file);
@@ -875,7 +862,6 @@ export default function DriveBrowser({
                         <button
                           type="button"
                           className="fm-nav-btn"
-                          style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                           onClick={() => {
                             setActiveMenuId(null);
                             onRenameItem(file, 'file');
@@ -886,7 +872,6 @@ export default function DriveBrowser({
                         <button
                           type="button"
                           className="fm-nav-btn text-danger"
-                          style={{ width: '100%', padding: '6px 12px', fontSize: 12, color: '#dc2626' }}
                           onClick={() => {
                             setActiveMenuId(null);
                             onTrashItem(file, 'file');
@@ -900,7 +885,6 @@ export default function DriveBrowser({
                         <button
                           type="button"
                           className="fm-nav-btn"
-                          style={{ width: '100%', padding: '6px 12px', fontSize: 12 }}
                           onClick={() => {
                             setActiveMenuId(null);
                             onRestoreItem?.(file, 'file');
@@ -910,8 +894,7 @@ export default function DriveBrowser({
                         </button>
                         <button
                           type="button"
-                          className="fm-nav-btn"
-                          style={{ width: '100%', padding: '6px 12px', fontSize: 12, color: '#dc2626' }}
+                          className="fm-nav-btn text-danger"
                           onClick={() => {
                             setActiveMenuId(null);
                             onPermanentDeleteItem?.(file, 'file');
@@ -925,16 +908,23 @@ export default function DriveBrowser({
                 )}
               </div>
 
-              <div className="fm-card-icon-area">
+              <div className="fm-grid-card-body">
                 {getFileIcon(file.mime_type, file.name, 36)}
+                <span className="fm-grid-card-title" title={file.name}>
+                  {file.name}
+                </span>
+                <div style={{ marginTop: 6 }}>
+                  {renderIndexStatusPill(file)}
+                </div>
               </div>
-              <div className="fm-card-name" title={file.name}>
-                {file.name}
-              </div>
-              <div>{renderStatusPills(file)}</div>
-              <div className="fm-card-meta">
-                <span>{formatBytes(file.size_bytes)}</span>
-                <span>{formatRelativeDate(file.updated_at || file.created_at)}</span>
+
+              <div className="fm-grid-card-footer">
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                  {formatBytes(file.size_bytes)}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                  {formatRelativeDate(file.updated_at || file.created_at)}
+                </span>
               </div>
             </div>
           );

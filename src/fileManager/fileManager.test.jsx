@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderToStaticMarkup } from 'react-dom/server';
 import {
   formatBytes,
   formatRelativeDate,
@@ -29,6 +30,15 @@ import {
   resolvePreviewKind,
 } from '../types/fileManager.ts';
 import { supabase } from '../lib/supabaseClient.js';
+import DriveBrowser from './DriveBrowser.jsx';
+import FileManagerShell from './FileManagerShell.jsx';
+import * as useFileManagerModule from './useFileManager.js';
+import {
+  filterDisplayFolders,
+  filterDisplayFiles,
+  KNOWLEDGE_BASE_NOTICE,
+  NEW_DOC_NOTICE,
+} from './useFileManager.js';
 
 describe('fileManagerService — Utility & Format Helpers', () => {
   it('formats byte quantities into clean human-readable units', () => {
@@ -562,5 +572,645 @@ describe('Production Storage Quota & Lifecycle Verification (14 Scenarios)', () 
     runningQuota -= file2.size;
 
     expect(runningQuota >= file3.size).toBe(false);
+  });
+});
+
+describe('FileManager UI/UX — Navigation Tabs & Workspaces', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const baseHookState = {
+    view: 'all',
+    currentFolder: null,
+    pathSegments: [],
+    viewMode: 'list',
+    sort: { field: 'name', direction: 'asc' },
+    folders: [],
+    files: [],
+    displayFolders: [],
+    displayFiles: [],
+    currentUser: { id: 'u-1', email: 'user@example.test' },
+    quota: { used_bytes: 0, quota_bytes: 524288000, remaining_bytes: 524288000 },
+    loading: false,
+    error: null,
+    selectedFolderIds: [],
+    selectedFileIds: [],
+    selectedCount: 0,
+    totalSelectedSizeBytes: 0,
+    hasSelectedPdf: false,
+    uploadQueue: [],
+    searchQuery: '',
+    searchScope: 'folder',
+    typeFilter: 'all',
+    indexStatusFilter: 'any',
+    ownerFilter: 'anyone',
+    noticeMessage: null,
+    isJobsOpen: false,
+    previewFile: null,
+    isCreateFolderOpen: false,
+    renameTarget: null,
+    isEmptyTrashConfirmOpen: false,
+    setView: vi.fn(),
+    setViewMode: vi.fn(),
+    setSearchQuery: vi.fn(),
+    setSearchScope: vi.fn(),
+    setTypeFilter: vi.fn(),
+    setIndexStatusFilter: vi.fn(),
+    setOwnerFilter: vi.fn(),
+    setSort: vi.fn(),
+    setIsJobsOpen: vi.fn(),
+    setPreviewFile: vi.fn(),
+    setIsCreateFolderOpen: vi.fn(),
+    setRenameTarget: vi.fn(),
+    setIsEmptyTrashConfirmOpen: vi.fn(),
+    refresh: vi.fn(),
+    clearFilters: vi.fn(),
+    handleNewBase: vi.fn(),
+    handleNewDoc: vi.fn(),
+    navigateToFolder: vi.fn(),
+    handleSelectFolder: vi.fn(),
+    handleSelectFile: vi.fn(),
+    handleSelectAll: vi.fn(),
+    clearSelection: vi.fn(),
+    uploadFiles: vi.fn(),
+    cancelUpload: vi.fn(),
+    retryUpload: vi.fn(),
+    dismissUpload: vi.fn(),
+    clearCompletedUploads: vi.fn(),
+    handleCreateFolder: vi.fn(),
+    handleRename: vi.fn(),
+    handleSoftDelete: vi.fn(),
+    handleRestore: vi.fn(),
+    handlePermanentDelete: vi.fn(),
+    handleEmptyTrash: vi.fn(),
+    handleMove: vi.fn(),
+    handleIndex: vi.fn(),
+    handleBulkIndex: vi.fn(),
+    handleDownload: vi.fn(),
+    handleBulkDownload: vi.fn(),
+    handleChatWithFile: vi.fn(),
+  };
+
+  it('renders all four canonical navigation tabs with icons and labels', () => {
+    vi.spyOn(useFileManagerModule, 'useFileManager').mockReturnValue(baseHookState);
+    const html = renderToStaticMarkup(<FileManagerShell />);
+    expect(html).toContain('My Files');
+    expect(html).toContain('Organisation Files');
+    expect(html).toContain('Enterprise');
+    expect(html).toContain('AI Artifacts');
+    expect(html).toContain('Trash');
+  });
+
+  it("marks 'My Files' tab as active when view is 'all'", () => {
+    vi.spyOn(useFileManagerModule, 'useFileManager').mockReturnValue({
+      ...baseHookState,
+      view: 'all',
+    });
+    const html = renderToStaticMarkup(<FileManagerShell />);
+    expect(html).toMatch(/class="[^"]*fm-tab-btn active[^"]*"[^>]*>[\s\S]*?My Files/);
+  });
+
+  it("switches to 'Organisation Files' view with enterprise banner and empty state", () => {
+    vi.spyOn(useFileManagerModule, 'useFileManager').mockReturnValue({
+      ...baseHookState,
+      view: 'organisation',
+    });
+    const html = renderToStaticMarkup(<FileManagerShell />);
+    expect(html).toMatch(/class="[^"]*fm-tab-btn active[^"]*"[^>]*>[\s\S]*?Organisation Files/);
+    expect(html).toContain('Enterprise Tier Required');
+    expect(html).toContain('Organisation drives and shared team workspaces are not enabled');
+  });
+
+  it("switches to 'AI Artifacts' view and renders artifacts empty state", () => {
+    vi.spyOn(useFileManagerModule, 'useFileManager').mockReturnValue({
+      ...baseHookState,
+      view: 'artifacts',
+    });
+    const html = renderToStaticMarkup(<FileManagerShell />);
+    expect(html).toMatch(/class="[^"]*fm-tab-btn active[^"]*"[^>]*>[\s\S]*?AI Artifacts/);
+    expect(html).toContain('No AI artifacts saved yet');
+    expect(html).toContain('Save analysis briefs, generated tables, or executive summaries');
+  });
+
+  it("switches to 'Trash' view, displays retention notice, and replaces creation buttons with Empty Trash", () => {
+    // 1. Empty Trash state
+    vi.spyOn(useFileManagerModule, 'useFileManager').mockReturnValue({
+      ...baseHookState,
+      view: 'trash',
+      displayFiles: [],
+      displayFolders: [],
+    });
+    const htmlEmpty = renderToStaticMarkup(<FileManagerShell />);
+    expect(htmlEmpty).toMatch(/class="[^"]*fm-tab-btn fm-tab-trash active[^"]*"[^>]*>[\s\S]*?Trash/);
+    expect(htmlEmpty).toContain('Empty Trash');
+    expect(htmlEmpty).not.toContain('Upload Here');
+    expect(htmlEmpty).not.toContain('New Folder');
+    expect(htmlEmpty).toContain('Trash is empty');
+    expect(htmlEmpty).toContain('Deleted files and folders are safely stored here for 30 days before permanent erasure.');
+
+    // 2. Populated Trash table view with retention banner
+    vi.spyOn(useFileManagerModule, 'useFileManager').mockReturnValue({
+      ...baseHookState,
+      view: 'trash',
+      displayFiles: [{
+        id: 'trashed-1',
+        name: 'discarded.pdf',
+        mime_type: 'application/pdf',
+        size_bytes: 1024,
+        deleted_at: new Date().toISOString(),
+        upload_status: 'uploaded',
+        index_status: 'not_indexed',
+      }],
+      displayFolders: [],
+    });
+    const htmlPopulated = renderToStaticMarkup(<FileManagerShell />);
+    expect(htmlPopulated).toContain('Trashed files continue consuming quota and will be permanently deleted after 30 days.');
+  });
+});
+
+describe('FileManager UI/UX — Filter Logic & Predicates', () => {
+  const testFolders = [
+    { id: 'fol-1', name: 'Legal Briefs', user_id: 'user-me' },
+    { id: 'fol-2', name: 'Org Policies', user_id: 'user-other' },
+  ];
+
+  const testFiles = [
+    {
+      id: 'f-pdf-indexed',
+      name: 'contract.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 1048576,
+      user_id: 'user-me',
+      index_status: 'indexed',
+      upload_status: 'uploaded',
+    },
+    {
+      id: 'f-pdf-extracting',
+      name: 'statute.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 2048576,
+      user_id: 'user-me',
+      index_status: 'indexing_extracting',
+      upload_status: 'uploaded',
+    },
+    {
+      id: 'f-pdf-chunking',
+      name: 'treaty.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 1548576,
+      user_id: 'user-other',
+      index_status: 'indexing_chunking',
+      upload_status: 'uploaded',
+    },
+    {
+      id: 'f-pdf-queued',
+      name: 'order.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 512000,
+      user_id: 'user-me',
+      index_status: 'indexing_queued',
+      upload_status: 'uploaded',
+    },
+    {
+      id: 'f-pdf-not-indexed',
+      name: 'brief.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 819200,
+      user_id: 'user-other',
+      index_status: 'not_indexed',
+      upload_status: 'uploaded',
+    },
+    {
+      id: 'f-pdf-failed',
+      name: 'corrupted.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 102400,
+      user_id: 'user-me',
+      index_status: 'indexing_failed',
+      index_error: 'OCR timeout',
+      upload_status: 'uploaded',
+    },
+    {
+      id: 'f-sheet-xlsx',
+      name: 'budget_2026.xlsx',
+      mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      size_bytes: 300000,
+      user_id: 'user-me',
+      index_status: 'not_indexed',
+      upload_status: 'uploaded',
+    },
+    {
+      id: 'f-sheet-csv',
+      name: 'metrics.csv',
+      mime_type: 'text/csv',
+      size_bytes: 45000,
+      user_id: 'user-other',
+      index_status: 'not_indexed',
+      upload_status: 'uploaded',
+    },
+    {
+      id: 'f-code-js',
+      name: 'parser.js',
+      mime_type: 'text/javascript',
+      size_bytes: 12000,
+      user_id: 'user-me',
+      index_status: 'not_indexed',
+      upload_status: 'uploaded',
+    },
+    {
+      id: 'f-code-py',
+      name: 'nlp_model.py',
+      mime_type: 'text/x-python',
+      size_bytes: 25000,
+      user_id: 'user-other',
+      index_status: 'not_indexed',
+      upload_status: 'uploaded',
+    },
+    {
+      id: 'f-img-png',
+      name: 'diagram.png',
+      mime_type: 'image/png',
+      size_bytes: 500000,
+      user_id: 'user-me',
+      index_status: 'not_indexed',
+      upload_status: 'uploaded',
+    },
+    {
+      id: 'f-img-jpg',
+      name: 'photo.jpg',
+      mime_type: 'image/jpeg',
+      size_bytes: 750000,
+      user_id: 'user-other',
+      index_status: 'not_indexed',
+      upload_status: 'uploaded',
+    },
+  ];
+
+  const currentUser = { id: 'user-me', email: 'me@example.test' };
+
+  describe('typeFilter', () => {
+    it("returns all files and folders when typeFilter is 'all'", () => {
+      const folders = filterDisplayFolders(testFolders, { typeFilter: 'all' });
+      const files = filterDisplayFiles(testFiles, { typeFilter: 'all' });
+      expect(folders).toHaveLength(2);
+      expect(files).toHaveLength(12);
+    });
+
+    it("returns only folders and zero files when typeFilter is 'folders'", () => {
+      const folders = filterDisplayFolders(testFolders, { typeFilter: 'folders' });
+      const files = filterDisplayFiles(testFiles, { typeFilter: 'folders' });
+      expect(folders).toHaveLength(2);
+      expect(files).toHaveLength(0);
+    });
+
+    it("returns only PDF files and zero folders when typeFilter is 'pdf'", () => {
+      const folders = filterDisplayFolders(testFolders, { typeFilter: 'pdf' });
+      const files = filterDisplayFiles(testFiles, { typeFilter: 'pdf' });
+      expect(folders).toHaveLength(0);
+      expect(files).toHaveLength(6);
+      expect(files.every((f) => f.mime_type === 'application/pdf')).toBe(true);
+    });
+
+    it("returns only spreadsheet and csv files when typeFilter is 'spreadsheets'", () => {
+      const folders = filterDisplayFolders(testFolders, { typeFilter: 'spreadsheets' });
+      const files = filterDisplayFiles(testFiles, { typeFilter: 'spreadsheets' });
+      expect(folders).toHaveLength(0);
+      expect(files).toHaveLength(2);
+      expect(files.map((f) => f.name)).toEqual(['budget_2026.xlsx', 'metrics.csv']);
+    });
+
+    it("returns only code/script files when typeFilter is 'code'", () => {
+      const folders = filterDisplayFolders(testFolders, { typeFilter: 'code' });
+      const files = filterDisplayFiles(testFiles, { typeFilter: 'code' });
+      expect(folders).toHaveLength(0);
+      expect(files).toHaveLength(2);
+      expect(files.map((f) => f.name)).toEqual(['parser.js', 'nlp_model.py']);
+    });
+
+    it("returns only image files when typeFilter is 'images'", () => {
+      const folders = filterDisplayFolders(testFolders, { typeFilter: 'images' });
+      const files = filterDisplayFiles(testFiles, { typeFilter: 'images' });
+      expect(folders).toHaveLength(0);
+      expect(files).toHaveLength(2);
+      expect(files.map((f) => f.name)).toEqual(['diagram.png', 'photo.jpg']);
+    });
+  });
+
+  describe('indexStatusFilter', () => {
+    it("returns all files and folders when indexStatusFilter is 'any'", () => {
+      const folders = filterDisplayFolders(testFolders, { indexStatusFilter: 'any' });
+      const files = filterDisplayFiles(testFiles, { indexStatusFilter: 'any' });
+      expect(folders).toHaveLength(2);
+      expect(files).toHaveLength(12);
+    });
+
+    it("returns only indexed files when indexStatusFilter is 'indexed'", () => {
+      const folders = filterDisplayFolders(testFolders, { indexStatusFilter: 'indexed' });
+      const files = filterDisplayFiles(testFiles, { indexStatusFilter: 'indexed' });
+      expect(folders).toHaveLength(0);
+      expect(files).toHaveLength(1);
+      expect(files[0].id).toBe('f-pdf-indexed');
+    });
+
+    it("returns files currently being indexed when indexStatusFilter is 'indexing'", () => {
+      const folders = filterDisplayFolders(testFolders, { indexStatusFilter: 'indexing' });
+      const files = filterDisplayFiles(testFiles, { indexStatusFilter: 'indexing' });
+      expect(folders).toHaveLength(0);
+      expect(files).toHaveLength(2);
+      expect(files.map((f) => f.id)).toEqual(['f-pdf-extracting', 'f-pdf-chunking']);
+    });
+
+    it("returns queued indexing jobs when indexStatusFilter is 'queued'", () => {
+      const folders = filterDisplayFolders(testFolders, { indexStatusFilter: 'queued' });
+      const files = filterDisplayFiles(testFiles, { indexStatusFilter: 'queued' });
+      expect(folders).toHaveLength(0);
+      expect(files).toHaveLength(1);
+      expect(files[0].id).toBe('f-pdf-queued');
+    });
+
+    it("returns not indexed files when indexStatusFilter is 'not_indexed'", () => {
+      const folders = filterDisplayFolders(testFolders, { indexStatusFilter: 'not_indexed' });
+      const files = filterDisplayFiles(testFiles, { indexStatusFilter: 'not_indexed' });
+      expect(folders).toHaveLength(0);
+      expect(files).toHaveLength(7);
+      expect(files.every((f) => f.index_status === 'not_indexed')).toBe(true);
+    });
+
+    it("returns failed index jobs when indexStatusFilter is 'failed'", () => {
+      const folders = filterDisplayFolders(testFolders, { indexStatusFilter: 'failed' });
+      const files = filterDisplayFiles(testFiles, { indexStatusFilter: 'failed' });
+      expect(folders).toHaveLength(0);
+      expect(files).toHaveLength(1);
+      expect(files[0].id).toBe('f-pdf-failed');
+    });
+  });
+
+  describe('ownerFilter', () => {
+    it("returns items from all owners when ownerFilter is 'anyone'", () => {
+      const folders = filterDisplayFolders(testFolders, { ownerFilter: 'anyone', currentUser });
+      const files = filterDisplayFiles(testFiles, { ownerFilter: 'anyone', currentUser });
+      expect(folders).toHaveLength(2);
+      expect(files).toHaveLength(12);
+    });
+
+    it("returns only current user items when ownerFilter is 'me'", () => {
+      const folders = filterDisplayFolders(testFolders, { ownerFilter: 'me', currentUser });
+      const files = filterDisplayFiles(testFiles, { ownerFilter: 'me', currentUser });
+      expect(folders).toHaveLength(1);
+      expect(folders[0].user_id).toBe('user-me');
+      expect(files).toHaveLength(7);
+      expect(files.every((f) => f.user_id === 'user-me')).toBe(true);
+    });
+  });
+
+  describe('clearFilters', () => {
+    it('resets all filter settings back to defaults', () => {
+      let state = {
+        typeFilter: 'pdf',
+        indexStatusFilter: 'indexed',
+        ownerFilter: 'me',
+        searchQuery: 'contract',
+      };
+
+      const clearFilters = () => {
+        state = {
+          typeFilter: 'all',
+          indexStatusFilter: 'any',
+          ownerFilter: 'anyone',
+          searchQuery: '',
+        };
+      };
+
+      clearFilters();
+
+      expect(state.typeFilter).toBe('all');
+      expect(state.indexStatusFilter).toBe('any');
+      expect(state.ownerFilter).toBe('anyone');
+      expect(state.searchQuery).toBe('');
+
+      const folders = filterDisplayFolders(testFolders, state);
+      const files = filterDisplayFiles(testFiles, state);
+      expect(folders).toHaveLength(2);
+      expect(files).toHaveLength(12);
+    });
+  });
+});
+
+describe('FileManager UI/UX — Action Notices & Informative Feedback', () => {
+  it('defines informative notice for Knowledge Base configuration', () => {
+    expect(KNOWLEDGE_BASE_NOTICE).toBe(
+      'Knowledge Base creation is configured in Niyantran Knowledge Bases.'
+    );
+  });
+
+  it('defines informative notice for Terminal Editor document creation', () => {
+    expect(NEW_DOC_NOTICE).toBe(
+      'New Document creation is managed in Niyantran Terminal Editor.'
+    );
+  });
+
+  it('renders notice banner in FileManagerShell when noticeMessage is set', () => {
+    const mockState = {
+      view: 'all',
+      currentFolder: null,
+      pathSegments: [],
+      viewMode: 'list',
+      sort: { field: 'name', direction: 'asc' },
+      folders: [],
+      files: [],
+      displayFolders: [],
+      displayFiles: [],
+      currentUser: { id: 'u-1' },
+      quota: null,
+      loading: false,
+      error: null,
+      selectedFolderIds: [],
+      selectedFileIds: [],
+      selectedCount: 0,
+      totalSelectedSizeBytes: 0,
+      hasSelectedPdf: false,
+      uploadQueue: [],
+      searchQuery: '',
+      searchScope: 'folder',
+      typeFilter: 'all',
+      indexStatusFilter: 'any',
+      ownerFilter: 'anyone',
+      noticeMessage: KNOWLEDGE_BASE_NOTICE,
+      isJobsOpen: false,
+      previewFile: null,
+      isCreateFolderOpen: false,
+      renameTarget: null,
+      isEmptyTrashConfirmOpen: false,
+      setView: vi.fn(),
+      setViewMode: vi.fn(),
+      setSearchQuery: vi.fn(),
+      setSearchScope: vi.fn(),
+      setTypeFilter: vi.fn(),
+      setIndexStatusFilter: vi.fn(),
+      setOwnerFilter: vi.fn(),
+      setSort: vi.fn(),
+      setIsJobsOpen: vi.fn(),
+      setPreviewFile: vi.fn(),
+      setIsCreateFolderOpen: vi.fn(),
+      setRenameTarget: vi.fn(),
+      setIsEmptyTrashConfirmOpen: vi.fn(),
+      refresh: vi.fn(),
+      clearFilters: vi.fn(),
+      handleNewBase: vi.fn(),
+      handleNewDoc: vi.fn(),
+      navigateToFolder: vi.fn(),
+      handleSelectFolder: vi.fn(),
+      handleSelectFile: vi.fn(),
+      handleSelectAll: vi.fn(),
+      clearSelection: vi.fn(),
+      uploadFiles: vi.fn(),
+      cancelUpload: vi.fn(),
+      retryUpload: vi.fn(),
+      dismissUpload: vi.fn(),
+      clearCompletedUploads: vi.fn(),
+      handleCreateFolder: vi.fn(),
+      handleRename: vi.fn(),
+      handleSoftDelete: vi.fn(),
+      handleRestore: vi.fn(),
+      handlePermanentDelete: vi.fn(),
+      handleEmptyTrash: vi.fn(),
+      handleMove: vi.fn(),
+      handleIndex: vi.fn(),
+      handleBulkIndex: vi.fn(),
+      handleDownload: vi.fn(),
+      handleBulkDownload: vi.fn(),
+      handleChatWithFile: vi.fn(),
+    };
+
+    vi.spyOn(useFileManagerModule, 'useFileManager').mockReturnValue(mockState);
+    const htmlBase = renderToStaticMarkup(<FileManagerShell />);
+    expect(htmlBase).toContain('role="status"');
+    expect(htmlBase).toContain(KNOWLEDGE_BASE_NOTICE);
+
+    vi.spyOn(useFileManagerModule, 'useFileManager').mockReturnValue({
+      ...mockState,
+      noticeMessage: NEW_DOC_NOTICE,
+    });
+    const htmlDoc = renderToStaticMarkup(<FileManagerShell />);
+    expect(htmlDoc).toContain(NEW_DOC_NOTICE);
+  });
+});
+
+describe('FileManager UI/UX — Table Columns & Dual Status Pills', () => {
+  const baseFile = {
+    id: 'f-test',
+    name: 'document.pdf',
+    mime_type: 'application/pdf',
+    size_bytes: 2048576,
+    upload_status: 'uploaded',
+    index_status: 'indexed',
+    created_at: new Date().toISOString(),
+  };
+
+  it('renders normative 8-column headers in table list view', () => {
+    const html = renderToStaticMarkup(
+      <DriveBrowser files={[baseFile]} folders={[]} viewMode="list" />
+    );
+    expect(html).toContain('Name');
+    expect(html).toContain('Documents');
+    expect(html).toContain('Indexing');
+    expect(html).toContain('Size');
+    expect(html).toContain('Owner');
+    expect(html).toContain('Shared With');
+    expect(html).toContain('Connected');
+    expect(html).toContain('Actions');
+  });
+
+  it('renders "Searchable" status pill for indexed PDF file', () => {
+    const html = renderToStaticMarkup(
+      <DriveBrowser
+        files={[{ ...baseFile, index_status: 'indexed' }]}
+        folders={[]}
+        viewMode="list"
+      />
+    );
+    expect(html).toContain('fm-pill-indexed');
+    expect(html).toContain('Searchable');
+  });
+
+  it('renders "Processing" status pill for indexing_extracting and indexing_chunking', () => {
+    const htmlExtracting = renderToStaticMarkup(
+      <DriveBrowser
+        files={[{ ...baseFile, index_status: 'indexing_extracting' }]}
+        folders={[]}
+        viewMode="list"
+      />
+    );
+    expect(htmlExtracting).toContain('fm-pill-running');
+    expect(htmlExtracting).toContain('Processing');
+
+    const htmlChunking = renderToStaticMarkup(
+      <DriveBrowser
+        files={[{ ...baseFile, index_status: 'indexing_chunking' }]}
+        folders={[]}
+        viewMode="list"
+      />
+    );
+    expect(htmlChunking).toContain('fm-pill-running');
+    expect(htmlChunking).toContain('Processing');
+  });
+
+  it('renders "Queued" status pill for indexing_queued PDF file', () => {
+    const html = renderToStaticMarkup(
+      <DriveBrowser
+        files={[{ ...baseFile, index_status: 'indexing_queued' }]}
+        folders={[]}
+        viewMode="list"
+      />
+    );
+    expect(html).toContain('fm-pill-queued');
+    expect(html).toContain('Queued');
+  });
+
+  it('renders "Not searchable" status pill for not_indexed PDF file', () => {
+    const html = renderToStaticMarkup(
+      <DriveBrowser
+        files={[{ ...baseFile, index_status: 'not_indexed' }]}
+        folders={[]}
+        viewMode="list"
+      />
+    );
+    expect(html).toContain('fm-pill-not-indexed');
+    expect(html).toContain('Not searchable');
+  });
+
+  it('renders "Not searchable" unsupported pill for non-PDF files', () => {
+    const html = renderToStaticMarkup(
+      <DriveBrowser
+        files={[{
+          ...baseFile,
+          name: 'spreadsheet.xlsx',
+          mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          index_status: 'indexed',
+        }]}
+        folders={[]}
+        viewMode="list"
+      />
+    );
+    expect(html).toContain('fm-pill-unsupported');
+    expect(html).toContain('Not searchable');
+  });
+
+  it('renders "Failed" status pill with retry title for indexing_failed', () => {
+    const html = renderToStaticMarkup(
+      <DriveBrowser
+        files={[{
+          ...baseFile,
+          index_status: 'indexing_failed',
+          index_error: 'OCR extraction timed out after 30 seconds',
+        }]}
+        folders={[]}
+        viewMode="list"
+      />
+    );
+    expect(html).toContain('fm-pill-failed');
+    expect(html).toContain('Failed');
+    expect(html).toContain('OCR extraction timed out after 30 seconds');
   });
 });
