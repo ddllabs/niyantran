@@ -449,6 +449,28 @@ T9 was held until this measurement passed; it has. Switching the app to hybrid i
 production step of its own: the `hybrid_search` row in `app_flags` (absent today, so the app uses vector-only), with
 F288's fallback budgets (hybrid 2.5 s, then vector-only 4 s). Rollback is deleting the row.
 
+## Result, 2026-11-16: the app switched to hybrid (T9)
+
+The developer decided to ship. At 11:47 UTC a dry run inside a rolled-back transaction inserted the row and read it
+back as `authenticated`; a fresh read afterwards found no row. At 11:49:29 UTC the row was created on NTER:
+
+```sql
+insert into public.app_flags (key, value)
+values ('hybrid_search', '{"enabled": true, "hybrid_ms": 2500, "fallback_ms": 4000}'::jsonb);
+```
+
+Read back as `authenticated` at 11:49:31 UTC with the same value. Checked before, read-only: `research-chat` is version
+112 (the release that carries F288), `match_documents_hybrid` exists, `app_flags` has no trigger and is readable by
+`anon` and `authenticated` (the row holds the switch and two budgets only).
+
+From now an NCLT feature search with no document ids calls hybrid with a 2.5 s budget and falls back to vector-only
+with its own 4 s. The flag is cached for 15 s per isolate. **Rollback:**
+`delete from public.app_flags where key = 'hybrid_search';`
+
+**Not verified:** no signed-in NCLT question has been asked since the switch, so the app's hybrid path and its fallback
+have not been seen on NTER. The supervisor cannot sign in; the developer asks the question, and the path taken is then
+read from `messages.activity` (`retrievalPath`, `hybridMs`, `fallbackReason`).
+
 ## Decisions for the developer
 
 **Decided 2026-11-09:** both as recommended. Apply and measure now, before the bulk load; privacy on NTER rests on the
