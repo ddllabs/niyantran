@@ -1023,5 +1023,28 @@ BEGIN
 END;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- 9. Explicit RPC & Table Grants for Authenticated and Service Roles
+-- ---------------------------------------------------------------------------
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_folders TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_files TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_file_chunks TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_file_jobs TO authenticated, service_role;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated, service_role;
+
+GRANT EXECUTE ON FUNCTION public.user_storage_quota_bytes(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.user_storage_used_bytes(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.user_file_prepare_upload(text, bigint, text, uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.user_file_complete_upload(uuid, text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.user_file_claim(text, int) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.user_file_advance(bigint, text, text, text, text, int, text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.user_file_settle_credits(bigint, bigint) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.user_file_enqueue_indexing(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.match_user_files(extensions.vector, float, int, uuid[]) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.user_folder_soft_delete(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.user_file_verify_index_validity(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.user_file_restore(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.user_files_empty_trash() TO authenticated, service_role;
+
 COMMIT;
 
