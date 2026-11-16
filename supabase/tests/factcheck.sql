@@ -453,6 +453,26 @@ END;
 $$;
 SELECT public.factcheck_settle(pg_temp.u(1), pg_temp.sid(pg_temp.u(1)));
 
+-- A session whose private key row has been lost is still charged and settled (and a new session may start).
+SELECT pg_temp.mkuser(38, 500);
+DO $$
+DECLARE u uuid := pg_temp.u(38); sid uuid; r jsonb; e record;
+BEGIN
+  sid := pg_temp.run(u, 5);
+  DELETE FROM private.factcheck_hold_keys WHERE session_id = sid;
+  PERFORM pg_temp.age(sid, interval '2 minutes', interval '1 second');
+  r := public.factcheck_settle(u, sid);
+  PERFORM pg_temp.assert_true(r ->> 'ok' = 'true' AND (r ->> 'credits_charged')::numeric = 4,
+    'without its key row a session is still charged: ' || r::text);
+  SELECT * INTO e FROM public.credit_ledger WHERE user_id = u AND kind = 'charge';
+  PERFORM pg_temp.assert_true(e.credits = -4 AND e.turn_key LIKE 'fc:%' AND e.note = 'live tv fact-check' AND pg_temp.charges(u) = 1
+    AND (SELECT status = 'settled' AND minutes_used = 2 FROM public.factcheck_sessions WHERE id = sid),
+    'the charge is under a fresh fc: key, and the session is settled');
+  PERFORM pg_temp.assert_true(pg_temp.st(u, 5) ->> 'ok' = 'true', 'and the user may start again');
+  PERFORM public.factcheck_settle(u, pg_temp.sid(u));
+END;
+$$;
+
 -- The settle works whatever the state of the hold, and the unit travels with the hold.
 SELECT pg_temp.mkuser(5, 1000);
 DO $$
