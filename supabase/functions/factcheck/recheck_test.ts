@@ -44,7 +44,7 @@ Deno.test('recheck: begin, one model call, the verdict saved on the new row, the
   const res = await handleFactcheck(req(), h.deps);
   assertEquals(res.status, 200);
   const json = await res.json();
-  assertEquals(Object.keys(json).sort(), ['balance', 'claim', 'credits_charged']);
+  assertEquals(Object.keys(json).sort(), ['balance', 'charge_pending', 'claim', 'credits_charged']);
   assertEquals(Object.keys(json.claim).sort(), [
     'checked_at',
     'id',
@@ -267,18 +267,171 @@ Deno.test('No evidence found without a source is a saved verdict and is charged'
   assertEquals(calls(h, 'factcheck_recheck_charge').length, 1);
 });
 
-Deno.test('a client that disconnects mid-call leaves the new row as error, not pending, and charges nothing', async () => {
-  const h = setup();
-  const controller = new AbortController();
-  h.deps.fetch = (_u, init) =>
-    new Promise<Response>((_r, reject) => {
+/** A fetch fake that honours its abort signal, and aborts the request once the call starts. */
+const abortingFetch = (h: Harness, controller: AbortController) => {
+  const inner = h.deps.fetch;
+  h.deps.fetch = (url, init) =>
+    new Promise<Response>((resolve, reject) => {
       init.signal!.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
       controller.abort();
+      setTimeout(() => inner(url, init).then(resolve, reject), 5);
     });
-  await handleFactcheck(new Request(req(), { signal: controller.signal }), h.deps);
+};
+
+Deno.test('a re-check finishes, saves and charges even when the client disconnects mid-call', async () => {
+  const h = setup();
+  const controller = new AbortController();
+  abortingFetch(h, controller);
+  const res = await handleFactcheck(new Request(req(), { signal: controller.signal }), h.deps);
+  assertEquals(res.status, 200);
+  assertEquals(newRow(h).status, 'checked');
+  assertEquals(calls(h, 'factcheck_recheck_charge').length, 1);
+  assertEquals(h.logRows.length, 1);
+  assertEquals(h.logRows[0].status, 'success');
+});
+
+Deno.test('the re-check work is handed to waitUntil and the response waits for it', async () => {
+  const h = setup();
+  const jobs: Promise<unknown>[] = [];
+  h.deps.waitUntil = (p) => void jobs.push(p);
+  const res = await handleFactcheck(req(), h.deps);
+  assertEquals(res.status, 200);
+  assertEquals(jobs.length, 2, 'the model-call log and the re-check work');
+  await Promise.all(jobs);
+  assertEquals(calls(h, 'factcheck_recheck_charge').length, 1);
+});
+
+Deno.test('check keeps its abort behaviour: the provider call is tied to the request signal', async () => {
+  const h = setup();
+  const controller = new AbortController();
+  abortingFetch(h, controller);
+  const res = await handleFactcheck(
+    new Request(jsonRequest({ action: 'check', session_id: SESSION, claim_id: NEW_CLAIM }), {
+      signal: controller.signal,
+    }),
+    h.deps,
+  );
+  assertEquals(res.status, 502);
+  assertEquals(h.logRows[0].status, 'aborted');
+});
+
+Deno.test('when the verdict update committed but its response failed, the row is re-read and the charge goes ahead', async () => {
+  const h = setup();
+  const inner = h.deps.store.finishCheck.bind(h.deps.store);
+  h.deps.store.finishCheck = async (...a) => {
+    await inner(...a);
+    throw new Error('connection reset');
+  };
+  const res = await handleFactcheck(req(), h.deps);
+  assertEquals(res.status, 200);
+  const json = await res.json();
+  assertEquals([json.claim.status, json.claim.verdict, json.credits_charged, json.charge_pending], [
+    'checked',
+    'supported',
+    100,
+    false,
+  ]);
+  assertEquals(calls(h, 'factcheck_recheck_charge').length, 1);
+});
+
+Deno.test('when the update really did not happen, the row is marked error and the failure is reported', async () => {
+  const h = setup();
+  const inner = h.deps.store.finishCheck.bind(h.deps.store);
+  let first = true;
+  h.deps.store.finishCheck = (...a) => {
+    if (first) {
+      first = false;
+      return Promise.reject(new Error('down'));
+    }
+    return inner(...a);
+  };
+  assertEquals((await handleFactcheck(req(), h.deps)).status, 500);
   assertEquals(newRow(h).status, 'error');
   assertEquals(calls(h, 'factcheck_recheck_charge'), []);
-  assertEquals(h.logRows[0].status, 'aborted');
+});
+
+Deno.test('a failure in the reads after begin marks the new row error instead of leaving it pending', async () => {
+  const h = setup();
+  h.deps.store.session = () => Promise.reject(new Error('down'));
+  assertEquals((await handleFactcheck(req(), h.deps)).status, 500);
+  assertEquals(newRow(h).status, 'error');
+  assertEquals(h.fetches.length, 0);
+});
+
+Deno.test('too_many_failures is a 429 without Retry-After', async () => {
+  const h = setup();
+  h.rpcResult.factcheck_recheck_begin = { data: { ok: false, reason: 'too_many_failures' }, error: null };
+  const res = await handleFactcheck(req(), h.deps);
+  assertEquals(res.status, 429);
+  assertEquals(res.headers.get('retry-after'), null);
+  assertEquals((await res.json()).reason, 'too_many_failures');
+  assertEquals(h.fetches.length, 0);
+});
+
+Deno.test('not_recheckable with newer_claim_id returns that result in a claim; without it there is no claim', async () => {
+  const NEWER = '66666666-6666-4666-8666-666666666666';
+  const h = setup();
+  h.store.add({
+    id: NEWER,
+    status: 'checked',
+    verdict: 'contradicted',
+    reason: 'r',
+    supersedes: OLD,
+    checked_at: '2026-11-16T09:30:00.000Z',
+    sources: [{ url: 'https://example.org/x', title: 'X' }],
+  });
+  h.rpcResult.factcheck_recheck_begin = {
+    data: { ok: false, reason: 'not_recheckable', newer_claim_id: NEWER },
+    error: null,
+  };
+  const res = await handleFactcheck(req(), h.deps);
+  assertEquals(res.status, 409);
+  const json = await res.json();
+  assertEquals(json.reason, 'not_recheckable');
+  assertEquals(json.claim, {
+    id: NEWER,
+    supersedes: OLD,
+    status: 'checked',
+    verdict: 'contradicted',
+    reason: 'r',
+    sources: [{ url: 'https://example.org/x', title: 'X' }],
+    checked_at: '2026-11-16T09:30:00.000Z',
+  });
+  assertEquals(
+    h.store.scopes.filter((s) => s.op === 'claimById').every((s) => s.userId === USER && s.claimId === NEWER),
+    true,
+  );
+  for (
+    const data of [{ ok: false, reason: 'not_recheckable' }, {
+      ok: false,
+      reason: 'not_recheckable',
+      newer_claim_id: '44444444-4444-4444-8444-444444444444',
+    }, { ok: false, reason: 'not_recheckable', newer_claim_id: 'junk' }]
+  ) {
+    const hh = setup();
+    hh.rpcResult.factcheck_recheck_begin = { data, error: null };
+    const r = await handleFactcheck(req(), hh.deps);
+    assertEquals(r.status, 409);
+    assertEquals('claim' in (await r.json()), false);
+  }
+});
+
+Deno.test('charge_pending is false on success and on error, true only when a saved verdict could not be charged', async () => {
+  const ok = await (await handleFactcheck(req(), setup().deps)).json();
+  assertEquals([ok.credits_charged, ok.charge_pending], [100, false]);
+  const e = setup();
+  e.models.check = () => checkReply('Mostly true', 'x', { citations: ['https://example.org/a'] });
+  const err = await (await handleFactcheck(req(), e.deps)).json();
+  assertEquals([err.claim.status, err.credits_charged, err.balance, err.charge_pending], ['error', 0, null, false]);
+  const p = setup();
+  p.rpcResult.factcheck_recheck_charge = { data: null, error: { code: 'XX000' } };
+  const pending = await (await handleFactcheck(req(), p.deps)).json();
+  assertEquals([pending.claim.status, pending.credits_charged, pending.balance, pending.charge_pending], [
+    'checked',
+    null,
+    null,
+    true,
+  ]);
 });
 
 Deno.test('a failing charge after a saved verdict still returns the verdict, with credits_charged null, and logs the failure', async () => {

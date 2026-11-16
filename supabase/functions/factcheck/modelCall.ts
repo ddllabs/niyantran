@@ -150,7 +150,7 @@ export interface ProviderOutcome {
  */
 export async function callProvider(
   ctx: Ctx,
-  meta: { purpose: Purpose; model: string; sessionId: string; timeoutMs?: number },
+  meta: { purpose: Purpose; model: string; sessionId: string; timeoutMs?: number; detached?: boolean },
   send: (signal: AbortSignal) => Promise<Response>,
   /** A 2xx JSON answer the caller cannot use is logged as an error, not a success. */
   usable: (payload: Record<string, unknown>) => boolean = () => true,
@@ -162,7 +162,10 @@ export async function callProvider(
   let ok = false;
   try {
     const response = await send(
-      AbortSignal.any([ctx.req.signal, AbortSignal.timeout(meta.timeoutMs ?? PROVIDER_TIMEOUT_MS)]),
+      // detached: work that must finish (a paid re-check) ignores a client that went away; only the timeout stops it.
+      meta.detached
+        ? AbortSignal.timeout(meta.timeoutMs ?? PROVIDER_TIMEOUT_MS)
+        : AbortSignal.any([ctx.req.signal, AbortSignal.timeout(meta.timeoutMs ?? PROVIDER_TIMEOUT_MS)]),
     );
     if (!response.ok) {
       await response.body?.cancel();
@@ -182,7 +185,7 @@ export async function callProvider(
       }
     }
   } catch (error) {
-    if (ctx.req.signal.aborted) {
+    if (!meta.detached && ctx.req.signal.aborted) {
       status = 'aborted';
       reason = 'Provider attempt aborted.';
     } else {reason = (error as Error)?.name === 'TimeoutError'
@@ -227,6 +230,8 @@ export interface ChatRequest {
   provider?: Record<string, unknown>;
   /** OpenRouter reasoning setting, e.g. { effort: 'low' }. */
   reasoning?: Record<string, unknown>;
+  /** Not tied to the request's abort signal (see callProvider). */
+  detached?: boolean;
 }
 
 /**
@@ -257,7 +262,7 @@ export async function chatCompletion(
   });
   const outcome = await callProvider(
     ctx,
-    { purpose: r.purpose, model: r.model, sessionId: r.sessionId, timeoutMs: CHAT_TIMEOUT_MS },
+    { purpose: r.purpose, model: r.model, sessionId: r.sessionId, timeoutMs: CHAT_TIMEOUT_MS, detached: r.detached },
     (signal) =>
       ctx.deps.fetch(OPENROUTER_CHAT_URL, {
         method: 'POST',

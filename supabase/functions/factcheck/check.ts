@@ -80,7 +80,7 @@ export function parseSources(payload: Obj): Source[] {
 const channelName = (id: string) =>
   id.split(/[-_.:]+/).filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || id;
 
-export const stored = (c: ClaimRow): Obj => ({
+const stored = (c: ClaimRow): Obj => ({
   id: c.id,
   status: c.status,
   verdict: c.verdict,
@@ -96,11 +96,12 @@ export const stored = (c: ClaimRow): Obj => ({
  */
 export async function verdictFor(
   ctx: Ctx,
-  p: { purpose: 'claim_check' | 'claim_recheck'; claim: ClaimRow; session: SessionRow },
+  p: { purpose: 'claim_check' | 'claim_recheck'; claim: ClaimRow; session: SessionRow; detached?: boolean },
 ): Promise<CheckResult> {
   const now = ctx.now();
   const { payload, text } = await chatCompletion(ctx, {
     purpose: p.purpose,
+    detached: p.detached,
     model: CHECK_MODEL,
     sessionId: p.session.id,
     system: CHECK_SYSTEM,
