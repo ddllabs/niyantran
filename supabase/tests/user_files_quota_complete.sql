@@ -55,11 +55,11 @@ BEGIN
 
   -- 2. Setup user profiles with active plans and expired plan
   INSERT INTO public.user_profiles (user_id, email, plan, plan_status, plan_period_end) VALUES
-    (v_user_free,   'user.free@example.test',   'explorer',     'free',   NULL),
-    (v_user_plus,   'user.plus@example.test',   'plus',         'active', now() + interval '30 days'),
-    (v_user_pro,    'user.pro@example.test',    'professional', 'active', now() + interval '30 days'),
-    (v_user_max,    'user.max@example.test',    'enterprise',   'active', now() + interval '30 days'),
-    (v_user_lapsed, 'user.lapsed@example.test', 'professional', 'active', now() - interval '1 hour') -- Expired 1 hour ago
+    (v_user_free,   'user.free@example.test',   'free', 'free',   NULL),
+    (v_user_plus,   'user.plus@example.test',   'plus', 'active', now() + interval '30 days'),
+    (v_user_pro,    'user.pro@example.test',    'pro',  'active', now() + interval '30 days'),
+    (v_user_max,    'user.max@example.test',    'max',  'active', now() + interval '30 days'),
+    (v_user_lapsed, 'user.lapsed@example.test', 'pro',  'active', now() - interval '1 hour') -- Expired 1 hour ago
   ON CONFLICT (user_id) DO UPDATE SET
     plan = EXCLUDED.plan,
     plan_status = EXCLUDED.plan_status,

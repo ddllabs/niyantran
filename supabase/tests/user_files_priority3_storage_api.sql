@@ -28,9 +28,9 @@ BEGIN
 
   -- Upload file record via prepare_upload
   SELECT user_file_prepare_upload(
-    p_file_name := 'Corporate_Audit.pdf',
-    p_mime_type := 'application/pdf',
+    p_name := 'Corporate_Audit.pdf',
     p_size_bytes := v_file_size,
+    p_mime_type := 'application/pdf',
     p_folder_id := NULL
   ) INTO v_prep_res;
 

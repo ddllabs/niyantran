@@ -26,12 +26,6 @@ ON CONFLICT (id) DO UPDATE SET
   public = false,
   file_size_limit = 52428800;
 
--- Ensure storage.foldername helper exists
-CREATE OR REPLACE FUNCTION storage.foldername(name text)
-RETURNS text[] LANGUAGE sql IMMUTABLE AS $$
-  SELECT string_to_array(name, '/');
-$$;
-
 -- Storage object RLS policies
 DO $$
 BEGIN
@@ -160,7 +154,7 @@ CREATE TABLE IF NOT EXISTS public.user_file_chunks (
   page_end             int NOT NULL CHECK (page_end >= page_start),
   content              text NOT NULL,
   text_hash            text NOT NULL CHECK (length(text_hash) = 64),
-  embedding            vector(1536) NOT NULL,
+  embedding            extensions.vector(1536) NOT NULL,
   token_count          int DEFAULT NULL,
   created_at           timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT user_file_chunks_file_owner_fk FOREIGN KEY (file_id, user_id)
@@ -172,7 +166,7 @@ CREATE INDEX IF NOT EXISTS idx_user_file_chunks_file
   ON public.user_file_chunks(file_id);
 
 CREATE INDEX IF NOT EXISTS idx_user_file_chunks_embedding
-  ON public.user_file_chunks USING hnsw (embedding vector_cosine_ops);
+  ON public.user_file_chunks USING hnsw (embedding extensions.vector_cosine_ops);
 
 -- user_file_jobs table
 CREATE TABLE IF NOT EXISTS public.user_file_jobs (
@@ -614,12 +608,63 @@ BEGIN
 END;
 $$;
 
+-- Enqueue user file indexing RPC
+CREATE OR REPLACE FUNCTION public.user_file_enqueue_indexing(p_file_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id uuid := (SELECT auth.uid());
+  v_file RECORD;
+  v_job_id bigint;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'not_authenticated: authentication required' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT * INTO v_file
+  FROM public.user_files
+  WHERE id = p_file_id AND user_id = v_user_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'file_not_found: file % does not exist or access denied', p_file_id USING ERRCODE = 'P0002';
+  END IF;
+
+  IF v_file.deleted_at IS NOT NULL THEN
+    RAISE EXCEPTION 'file_trashed: cannot index a file in trash' USING ERRCODE = 'P0001';
+  END IF;
+
+  IF v_file.upload_status <> 'uploaded' THEN
+    RAISE EXCEPTION 'upload_not_complete: file % is %', p_file_id, v_file.upload_status USING ERRCODE = 'P0001';
+  END IF;
+
+  -- Create job in user_file_jobs
+  INSERT INTO public.user_file_jobs (file_id, user_id, status, step)
+  VALUES (p_file_id, v_user_id, 'queued', 'ocr')
+  RETURNING id INTO v_job_id;
+
+  -- Sync user_files.index_status
+  UPDATE public.user_files
+  SET index_status = 'indexing_queued', updated_at = now()
+  WHERE id = p_file_id;
+
+  RETURN jsonb_build_object(
+    'ok', true,
+    'job_id', v_job_id,
+    'file_id', p_file_id,
+    'status', 'queued'
+  );
+END;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- 7. Dual-Source Vector Retrieval RPC: match_user_files
 -- ---------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION public.match_user_files(
-  query_embedding vector(1536),
+  query_embedding extensions.vector(1536),
   match_threshold float DEFAULT 0.2,
   match_count int DEFAULT 10,
   filter_file_ids uuid[] DEFAULT NULL

@@ -80,6 +80,22 @@ m() { echo "$MIG/$1"; }
 # fixture name -> container, then the ordered bootstrap files.
 chain() {
   case "$1" in
+    # F341: Quota fixture verifies active and lapsed post-INR plans (free, plus, pro, max).
+    user_files_quota_complete)
+      CONTAINER=$VECTOR
+      FILES=("$TESTS/bootstrap_auth.sql" "$TESTS/bootstrap_storage.sql" backend/sql/auth_schema.sql
+             "$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)"
+             "$(as_non_superuser 20261012120000_inr_plans.sql)"
+             "$(m 20260921000001_vector_and_email.sql)"
+             "$(as_non_superuser 20261115000001_private_file_manager.sql)") ;;
+    # F341: Private File Manager & Knowledge Integration. Bootstrap includes auth, storage,
+    # user_profiles, vector extension, then the migration, as a non-superuser. The vacuity check
+    # drops the last.
+    user_files_isolation|user_files_lifecycle|user_files_retrieval|user_files_storage_lifecycle|user_files_reliability|user_files_priority3_storage_api|user_files_ingestion_rag)
+      CONTAINER=$VECTOR
+      FILES=("$TESTS/bootstrap_auth.sql" "$TESTS/bootstrap_storage.sql" backend/sql/auth_schema.sql
+             "$(m 20260921000001_vector_and_email.sql)"
+             "$(as_non_superuser 20261115000001_private_file_manager.sql)") ;;
     admin_corpus_readiness)
       chain record_document_associations
       FILES+=("$(as_non_superuser 20261027231901_admin_corpus_readiness.sql)") ;;
