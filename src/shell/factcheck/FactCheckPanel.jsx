@@ -156,10 +156,12 @@ function Transcript({ lines, emptyText }) {
   );
 }
 
-function checkedTime(iso) {
+function checkedTime(iso, withDate = false) {
   const d = new Date(iso);
   if (typeof iso !== 'string' || Number.isNaN(d.getTime())) return null;
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return withDate
+    ? d.toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
 function SourceList({ result }) {
@@ -174,8 +176,9 @@ function SourceList({ result }) {
   return items.length ? <ul className="fc-sources" aria-label="Sources">{items}</ul> : null;
 }
 
-function CheckedAt({ result }) {
-  const time = result.checked_at ? checkedTime(result.checked_at) : null;
+// A re-checked card and its earlier results show the date too: they were checked at different times.
+function CheckedAt({ result, withDate = false }) {
+  const time = result.checked_at ? checkedTime(result.checked_at, withDate) : null;
   return time ? <p className="fc-time"><time dateTime={result.checked_at}>{`Checked ${time}`}</time></p> : null;
 }
 
@@ -198,7 +201,7 @@ function Earlier({ id, items }) {
               </span>
               {r.reason ? <p className="fc-reason" dir="auto">{r.reason}</p> : null}
               <SourceList result={r} />
-              <CheckedAt result={r} />
+              <CheckedAt result={r} withDate />
             </li>
           );
         })}
@@ -221,6 +224,9 @@ function RecheckControls({ id, price, balance, recheck, onAsk, onConfirm, onCanc
   }, [phase]);
   const known = typeof balance === 'number';
   const short = known && balance < price;
+  if (recheck?.locked) {
+    return <div className="fc-recheck">{recheck.error ? <p className="fc-recheck-note fc-recheck-note--error">{recheck.error}</p> : null}</div>;
+  }
   return (
     <div className="fc-recheck">
       {recheck?.notice ? <p className="fc-recheck-note">{recheck.notice}</p> : null}
@@ -232,7 +238,7 @@ function RecheckControls({ id, price, balance, recheck, onAsk, onConfirm, onCanc
           <p>{known ? `Your balance is ${creditsText(balance)}.` : 'Your balance could not be read.'}</p>
           {short ? <p className="fc-confirm-why">{`Needs ${creditsText(price)}; you have ${creditsText(balance)}.`}</p> : null}
           <div className="fc-actions">
-            <button type="button" className="ltv-action-btn primary fc-btn" data-fc="recheck-confirm" disabled={short} ref={confirmButton} onClick={() => onConfirm(id)}>Check again</button>
+            <button type="button" className="ltv-action-btn primary fc-btn" data-fc="recheck-confirm" disabled={short} ref={confirmButton} onClick={() => onConfirm(id, price)}>Check again</button>
             <button type="button" className="ltv-action-btn fc-btn" data-fc="recheck-cancel" onClick={() => onCancel(id)}>Cancel</button>
           </div>
         </div>
@@ -276,7 +282,7 @@ function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel }) {
       {by ? <p className="fc-by">{by}</p> : null}
       {shown.reason ? <p className="fc-reason" dir="auto">{shown.reason}</p> : null}
       <SourceList result={shown} />
-      <CheckedAt result={shown} />
+      <CheckedAt result={shown} withDate={chain.length > 1} />
       {priced && (shown.status === 'checked' || shown.status === 'error') ? (
         <RecheckControls id={claim.id} price={price} balance={balance} recheck={recheck} onAsk={onAsk} onConfirm={onConfirm} onCancel={onCancel} />
       ) : null}
@@ -318,7 +324,9 @@ function Final({ final, sessionId }) {
 
 /** The right-hand panel. Renders nothing while idle or when the flag is off. */
 export function FactCheckPanel(props) {
-  if (!props.view?.flag?.available || props.view.session.status === 'idle') return null;
+  if (!props.view?.flag?.available) return null;
+  // Idle shows only if a re-check message has to outlive the session (a late charge, switched off).
+  if (props.view.session.status === 'idle' && !props.view.recheckNotices?.length) return null;
   return <PanelBody {...props} />;
 }
 
@@ -326,8 +334,9 @@ export function FactCheckPanel(props) {
 // entry button when it is dismissed (unless the user has already moved focus elsewhere).
 function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel }) {
   const heading = useRef(null);
+  const opensForNotice = useRef(view.session.status === 'idle'); // a late message must not take focus
   useEffect(() => {
-    heading.current?.focus();
+    if (!opensForNotice.current) heading.current?.focus();
     return () => {
       setTimeout(() => {
         const active = document.activeElement;
@@ -358,6 +367,13 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
         <p className="fc-rate">
           {`${creditsText(s.creditsPerMinute)} a minute${s.creditsHeld != null ? ` · ${creditsText(s.creditsHeld)} held` : ''}`}
         </p>
+      ) : null}
+
+      {view.recheckNotices?.length ? (
+        <div className="fc-notices">
+          {view.recheckNotices.map((n, i) => <p className="fc-notice" role="note" key={i}>{n}</p>)}
+          <button type="button" className="ltv-action-btn fc-btn" data-fc="notices-dismiss" onClick={view.recheckActions?.dismissNotices}>Close</button>
+        </div>
       ) : null}
 
       {s.status === 'choosing' ? (

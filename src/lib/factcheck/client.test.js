@@ -196,7 +196,38 @@ describe('recheck', () => {
     const out = await client.recheck({ claimId: 'c1', expectedRecheckCredits: 100 });
     expect(JSON.parse(calls[0].init.body)).toEqual({ action: 'recheck', claim_id: 'c1', expected_recheck_credits: 100 });
     expect(calls[0].init.headers.Authorization).toBe('Bearer tok-1');
-    expect(out).toEqual({ claim, creditsCharged: 100, balance: 900 });
+    expect(out).toEqual({ claim, creditsCharged: 100, balance: 900, chargePending: false });
+  });
+
+  it('carries charge_pending, and a delayed charge has no amount yet', async () => {
+    const { client } = make(() => json(200, { claim, credits_charged: null, balance: 900, charge_pending: true }));
+    expect(await client.recheck({ claimId: 'c1', expectedRecheckCredits: 100 })).toEqual({ claim, creditsCharged: null, balance: 900, chargePending: true });
+  });
+
+  it('a saved error claim comes back with nothing charged', async () => {
+    const bad = { ...claim, status: 'error', verdict: null };
+    const { client } = make(() => json(200, { claim: bad, credits_charged: 0, balance: 900, charge_pending: false }));
+    expect(await client.recheck({ claimId: 'c1', expectedRecheckCredits: 100 })).toEqual({ claim: bad, creditsCharged: 0, balance: 900, chargePending: false });
+  });
+
+  it('a 409 not_recheckable carries the newer claim when the server sent one', async () => {
+    const { client } = make(() => json(409, { reason: 'not_recheckable', claim }));
+    const err = await client.recheck({ claimId: 'c1', expectedRecheckCredits: 100 }).catch((e) => e);
+    expect(err).toMatchObject({ status: 409, reason: 'not_recheckable', claim });
+    const { client: plain } = make(() => json(409, { reason: 'not_recheckable' }));
+    expect((await plain.recheck({ claimId: 'c1', expectedRecheckCredits: 100 }).catch((e) => e)).claim).toBeUndefined();
+  });
+
+  it('too_many_failures is a 429 with no wait', async () => {
+    const { client } = make(() => json(429, { reason: 'too_many_failures' }));
+    const err = await client.recheck({ claimId: 'c1', expectedRecheckCredits: 100 }).catch((e) => e);
+    expect(err).toMatchObject({ status: 429, reason: 'too_many_failures' });
+    expect(err.retryAfterMs).toBeUndefined();
+  });
+
+  it('a 500 is a server error', async () => {
+    const { client } = make(() => json(500, {}));
+    expect(await client.recheck({ claimId: 'c1', expectedRecheckCredits: 100 }).catch((e) => e)).toMatchObject({ status: 500, reason: 'server_error' });
   });
 
   it('passes an abort signal through', async () => {

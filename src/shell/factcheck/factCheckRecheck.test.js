@@ -15,7 +15,7 @@ const base = {
 const orig = { id: 'c1', claim_en: 'X is 5', status: 'checked', verdict: 'supported', reason: 'old', sources: [], checked_at: '2026-11-16T09:00:00Z' };
 const fresh = (id, over = {}) => ({ id, supersedes: 'c1', status: 'checked', verdict: 'contradicted', reason: `r-${id}`, sources: [{ url: 'https://a.test', title: 'A' }], checked_at: '2026-11-16T10:00:00Z', ...over });
 
-function setup({ flag = ON, recheck, balance = 1000 } = {}) {
+function setup({ flag = ON, recheck, balance = 1000, sleepImpl } = {}) {
   const changes = [];
   let state = { ...base };
   const handlers = {};
@@ -27,12 +27,12 @@ function setup({ flag = ON, recheck, balance = 1000 } = {}) {
   };
   const credits = { available: vi.fn(() => balance), refresh: vi.fn(async () => {}), subscribe: () => () => {} };
   const client = { recheck: vi.fn(recheck || (async () => ({ claim: fresh('n1'), creditsCharged: 100, balance: 900 }))) };
-  const sleep = vi.fn(async () => {});
+  const sleep = vi.fn(sleepImpl || (async () => {}));
   const controller = createFactCheckController({
     createSession: (h) => { Object.assign(handlers, h); return session; },
     readFlag: async () => flag, supported: () => true, credits, client, sleep, onChange: (v) => changes.push(v),
   });
-  return { controller, session, credits, client, sleep, last: () => changes.at(-1), rc: (id = 'c1') => changes.at(-1).rechecks[id] };
+  return { controller, session, credits, client, sleep, last: () => changes.at(-1), rc: (id = 'c1') => changes.at(-1).rechecks[id], changes };
 }
 
 async function ready(t, claimOver = {}) {
@@ -176,13 +176,35 @@ describe('a re-check that fails', () => {
     await t.controller.recheckConfirm('c1');
     expect(t.client.recheck).toHaveBeenLastCalledWith({ claimId: 'c1', expectedRecheckCredits: 100 });
   });
-  it('a lost answer warns that a charge may have happened and refreshes credits', async () => {
-    const t = setup({ recheck: async () => { throw new FactCheckError(0, 'network'); } });
+  const LOST = 'The answer did not arrive. The check may have finished and been charged. Press Check again to see it.';
+  it.each([[0, 'network'], [500, 'server_error'], [504, 'server_error']])('a lost answer (%s) says it may have been charged and refreshes credits', async (status, reason) => {
+    const t = setup({ recheck: async () => { throw new FactCheckError(status, reason); } });
     await ready(t);
     t.controller.recheckAsk('c1');
     await t.controller.recheckConfirm('c1');
-    expect(t.rc().error).toMatch(/did not answer.*may have been charged/i);
+    expect(t.rc().error).toBe(LOST);
+    expect(t.rc().phase).toBe('idle');
     expect(t.credits.refresh).toHaveBeenCalled();
+  });
+  it('a 503 is the plain failure, like a 502', async () => {
+    const t = setup({ recheck: async () => { throw new FactCheckError(503, 'server_error'); } });
+    await ready(t);
+    t.controller.recheckAsk('c1');
+    await t.controller.recheckConfirm('c1');
+    expect(t.rc().error).toBe('The new check failed. Nothing was charged.');
+    expect(t.credits.refresh).not.toHaveBeenCalled();
+  });
+  it('pressing Check again after a lost answer surfaces the paid result (409 with the claim)', async () => {
+    const t = setup();
+    t.client.recheck.mockRejectedValueOnce(new FactCheckError(0, 'network'));
+    await ready(t);
+    t.controller.recheckAsk('c1');
+    await t.controller.recheckConfirm('c1');
+    t.client.recheck.mockRejectedValueOnce(new FactCheckError(409, 'not_recheckable', { claim: fresh('n1') }));
+    t.controller.recheckAsk('c1');
+    await t.controller.recheckConfirm('c1');
+    expect(t.rc().results.map((r) => r.id)).toEqual(['n1']);
+    expect(t.rc().notice).toBe('This verdict was already checked again. Showing that result.');
   });
 });
 
@@ -206,8 +228,6 @@ describe('refusals, in plain words', () => {
   it.each([
     [409, 'not_recheckable', undefined, /cannot be checked again/i],
     [404, 'claim_not_found', undefined, /could no longer be found/i],
-    [403, 'off', undefined, /switched off/i],
-    [403, 'not_allowed', undefined, /not available for this account/i],
     [401, 'signed_out', undefined, /sign-in has expired/i],
   ])('%s %s', async (status, reason, extra, pattern) => {
     const t = setup({ recheck: async () => { throw new FactCheckError(status, reason, extra); } });
@@ -216,6 +236,165 @@ describe('refusals, in plain words', () => {
     await t.controller.recheckConfirm('c1');
     expect(t.rc().error).toMatch(pattern);
     expect(t.rc().phase).toBe('idle');
+  });
+});
+
+describe('a verdict that is already checked again (409 with the claim)', () => {
+  const stale = (claim) => async () => { throw new FactCheckError(409, 'not_recheckable', { claim }); };
+  it('shows the newer paid result as the newest, without a charge message', async () => {
+    const t = setup({ recheck: stale(fresh('n9', { verdict: 'partly_true' })) });
+    await ready(t);
+    t.controller.recheckAsk('c1');
+    await t.controller.recheckConfirm('c1');
+    expect(t.rc()).toMatchObject({ phase: 'idle', error: null, notice: 'This verdict was already checked again. Showing that result.' });
+    expect(t.rc().results.map((r) => r.id)).toEqual(['n9']);
+    expect(t.last().announcement).toBe('Partly true: X is 5 (checked again)');
+    expect(t.credits.refresh).not.toHaveBeenCalled();
+  });
+  it('does not add the same result twice', async () => {
+    const t = setup({ recheck: stale(fresh('n1')) });
+    await ready(t);
+    t.controller.recheckAsk('c1');
+    await t.controller.recheckConfirm('c1');
+    t.controller.recheckAsk('c1');
+    await t.controller.recheckConfirm('c1');
+    expect(t.rc().results).toHaveLength(1);
+  });
+  it('without a usable claim it is the plain message', async () => {
+    for (const claim of [undefined, fresh('n1', { status: 'error', verdict: null })]) {
+      const t = setup({ recheck: stale(claim) });
+      await ready(t);
+      t.controller.recheckAsk('c1');
+      await t.controller.recheckConfirm('c1');
+      expect(t.rc().error).toBe('This verdict cannot be checked again.');
+      expect(t.rc().results).toEqual([]);
+    }
+  });
+});
+
+describe('charge wording', () => {
+  it('a delayed charge shows the verdict with the confirmed price as "will be charged", and refreshes credits', async () => {
+    const t = setup({ recheck: async () => ({ claim: fresh('n1'), creditsCharged: null, balance: 1000, chargePending: true }) });
+    await ready(t);
+    t.controller.recheckAsk('c1');
+    await t.controller.recheckConfirm('c1');
+    expect(t.rc().results).toHaveLength(1);
+    expect(t.rc().notice).toBe('100 credits will be charged.');
+    expect(t.credits.refresh).toHaveBeenCalled();
+  });
+  it('a checked claim with a non-number charge is treated as pending', async () => {
+    const t = setup({ recheck: async () => ({ claim: fresh('n1'), creditsCharged: undefined, balance: 1, chargePending: false }) });
+    await ready(t);
+    t.controller.recheckAsk('c1');
+    await t.controller.recheckConfirm('c1');
+    expect(t.rc().notice).toBe('100 credits will be charged.');
+  });
+  it('sends exactly the price shown in the confirmation, even if the flag moved meanwhile', async () => {
+    const t = setup();
+    await ready(t);
+    t.controller.recheckAsk('c1');
+    await t.controller.recheckConfirm('c1', 80);
+    expect(t.client.recheck).toHaveBeenCalledWith({ claimId: 'c1', expectedRecheckCredits: 80 });
+    expect(t.rc().notice).toBe('Charged 100 credits');
+  });
+});
+
+describe('announcements', () => {
+  it('announces "Checking again" at the start and a failure once', async () => {
+    let release;
+    const t = setup({ recheck: () => new Promise((_, reject) => { release = () => reject(new FactCheckError(502, 'server_error')); }) });
+    await ready(t);
+    t.controller.recheckAsk('c1');
+    const p = t.controller.recheckConfirm('c1');
+    expect(t.last().announcement).toBe('Checking again: X is 5');
+    release();
+    await p;
+    expect(t.last().announcement).toBe('The new check failed. Nothing was charged.');
+  });
+});
+
+describe('too many failures', () => {
+  it('is not retried, says why, and the card gets no button for the rest of the panel', async () => {
+    const t = setup({ recheck: async () => { throw new FactCheckError(429, 'too_many_failures'); } });
+    await ready(t);
+    t.controller.recheckAsk('c1');
+    await t.controller.recheckConfirm('c1');
+    expect(t.client.recheck).toHaveBeenCalledTimes(1);
+    expect(t.sleep).not.toHaveBeenCalled();
+    expect(t.rc()).toMatchObject({ locked: true, phase: 'idle', error: 'Checking again is unavailable for now after repeated failures.' });
+    t.controller.recheckAsk('c1');
+    expect(t.rc().phase).toBe('idle');
+    await t.controller.recheckConfirm('c1');
+    expect(t.client.recheck).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('switched off or not allowed', () => {
+  it.each([[403, 'off', /switched off/i], [403, 'not_allowed', /not available for this account/i]])('%s %s clears the price everywhere and says so at panel level', async (status, reason, pattern) => {
+    const t = setup({ recheck: async () => { throw new FactCheckError(status, reason); } });
+    await ready(t);
+    t.controller.recheckAsk('c1');
+    await t.controller.recheckConfirm('c1');
+    expect(t.last().flag.recheckCredits).toBeNull();
+    expect(t.last().recheckNotices[0]).toMatch(pattern);
+    t.controller.recheckAsk('c1');
+    expect(t.rc()?.phase ?? 'idle').toBe('idle');
+  });
+});
+
+describe('after the panel was reset', () => {
+  async function leave(recheck) {
+    let release;
+    const t = setup({ recheck: () => new Promise((resolve, reject) => { release = (v, fail) => (fail ? reject(fail) : resolve(v)); }) });
+    await ready(t);
+    t.controller.recheckAsk('c1');
+    const p = t.controller.recheckConfirm('c1');
+    t.controller.setTarget('other|live|x');
+    return { t, finish: async (v, fail) => { release(v, fail); await p; } };
+  }
+  it('a charged late result is announced at panel level with the amount, and credits refresh', async () => {
+    const { t, finish } = await leave();
+    await finish({ claim: fresh('n1'), creditsCharged: 100, balance: 900, chargePending: false });
+    expect(t.last().rechecks).toEqual({});
+    expect(t.last().recheckNotices).toEqual(['A re-check finished after you left: Contradicted. Charged 100 credits.']);
+    expect(t.credits.refresh).toHaveBeenCalled();
+  });
+  it('a delayed late charge says it will be charged', async () => {
+    const { t, finish } = await leave();
+    await finish({ claim: fresh('n1'), creditsCharged: null, balance: 900, chargePending: true });
+    expect(t.last().recheckNotices).toEqual(['A re-check finished after you left: Contradicted. 100 credits will be charged.']);
+  });
+  it('a late failed claim needs no notice and charges nothing', async () => {
+    const { t, finish } = await leave();
+    await finish({ claim: fresh('n1', { status: 'error', verdict: null }), creditsCharged: 0, balance: 900, chargePending: false });
+    expect(t.last().recheckNotices).toEqual([]);
+  });
+  it('a late lost answer warns that a charge may have happened and refreshes credits', async () => {
+    const { t, finish } = await leave();
+    await finish(null, new FactCheckError(0, 'network'));
+    expect(t.last().recheckNotices[0]).toMatch(/may have finished after you left and been charged/i);
+    expect(t.credits.refresh).toHaveBeenCalled();
+  });
+  it('the notices can be dismissed, and a new session clears them', async () => {
+    const { t, finish } = await leave();
+    await finish({ claim: fresh('n1'), creditsCharged: 100, balance: 900, chargePending: false });
+    t.last().recheckActions.dismissNotices();
+    expect(t.last().recheckNotices).toEqual([]);
+    const u = (await leave());
+    await u.finish({ claim: fresh('n1'), creditsCharged: 100, balance: 900, chargePending: false });
+    expect(u.t.last().recheckNotices).toHaveLength(1);
+    u.t.session.emit({ status: 'idle' });
+    u.t.session.emit({ status: 'sharing' });
+    expect(u.t.last().recheckNotices).toEqual([]);
+  });
+  it('the retry that follows a 429 is not sent once the panel has reset', async () => {
+    const t = setup({ sleepImpl: async () => { t.controller.setTarget('other|live|x'); } });
+    t.client.recheck.mockRejectedValue(new FactCheckError(429, 'rate_limited', { retryAfterMs: 1000 }));
+    await ready(t);
+    t.controller.recheckAsk('c1');
+    await t.controller.recheckConfirm('c1');
+    expect(t.client.recheck).toHaveBeenCalledTimes(1);
+    expect(t.last().recheckNotices).toEqual([]);
   });
 });
 

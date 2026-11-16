@@ -8,7 +8,9 @@ import { createFactCheckSession } from '../../lib/factcheck/session.js';
 import { isSupported } from '../../lib/factcheck/capture.js';
 import { creditsText, refreshCredits, serverCredits, subscribeCredits } from '../../lib/creditsStore.js';
 import { readFactCheckFlag } from './factCheckFlag.js';
-import { RECHECK_FAILED, VERDICTS, priceChangedText, recheckErrorText, recheckPriceChangedText } from './factCheckText.js';
+import {
+  RECHECK_ALREADY, RECHECK_FAILED, VERDICTS, priceChangedText, recheckAnswerLost, recheckErrorText, recheckPriceChangedText,
+} from './factCheckText.js';
 
 const OFF = { available: false, creditsPerMinute: null, recheckCredits: null, userId: null };
 const IDLE = {
@@ -19,7 +21,7 @@ const ACTIVE = new Set(['sharing', 'starting', 'running', 'ending']);
 const FINISHED = new Set(['ended', 'error']);
 
 export const INITIAL_VIEW = Object.freeze({
-  flag: OFF, supported: false, ready: false, session: IDLE, announcement: '', priceNotice: '', orphanNotice: '', orphanFailed: false, rechecks: {}, balance: null,
+  flag: OFF, supported: false, ready: false, session: IDLE, announcement: '', priceNotice: '', orphanNotice: '', orphanFailed: false, rechecks: {}, recheckNotices: [], balance: null,
 });
 
 const defaultCredits = {
@@ -51,6 +53,9 @@ export function createFactCheckController({
   // Independent of the session; cleared with the panel.
   const rechecks = new Map();
   let recheckEpoch = 0;
+  // Panel-level messages that must outlive a reset: a re-check that finished after the user left, or
+  // the feature being switched off. Cleared by the user or when a new session starts.
+  let recheckNotices = [];
   let clientRef = client;
   let announced = new Map();
   let unsubscribe = null;
@@ -60,7 +65,7 @@ export function createFactCheckController({
     try { return credits.available(flag.userId); } catch { return null; }
   };
   const view = () => ({
-    flag, supported: isSupportedHere, ready: Boolean(target), session: sessionState, announcement, priceNotice, orphanNotice, orphanFailed, rechecks: recheckView(), recheckActions, balance: balance(),
+    flag, supported: isSupportedHere, ready: Boolean(target), session: sessionState, announcement, priceNotice, orphanNotice, orphanFailed, rechecks: recheckView(), recheckNotices: [...recheckNotices], recheckActions, balance: balance(),
   });
   const recheckView = () => Object.fromEntries([...rechecks].map(([id, r]) => [id, { ...r, results: [...r.results] }]));
   const emit = () => onChange(view());
@@ -83,6 +88,7 @@ export function createFactCheckController({
     noteVerdicts(state);
     sessionState = state;
     if (state.status === 'idle' || (state.status === 'sharing' && !ACTIVE.has(prev.status))) clearRechecks();
+    if (state.status === 'sharing' && !ACTIVE.has(prev.status)) recheckNotices = [];
     if (state.status === 'sharing' || state.status === 'idle') { priceNotice = ''; orphanNotice = ''; orphanFailed = false; }
     // The charge is settled on the server; the header balance catches up once. A start that got no
     // answer may have created a session, so it asks too.
@@ -199,70 +205,112 @@ export function createFactCheckController({
     const claim = findClaim(id);
     if (!rechecksEnabled() || !claim || (claim.status !== 'checked' && claim.status !== 'error')) return;
     const r = rechecks.get(id) || { phase: 'idle', results: [], error: null, notice: '' };
-    if (r.phase === 'running') return;
+    if (r.phase === 'running' || r.locked) return;
     rechecks.set(id, { ...r, phase: 'confirming', error: null, notice: '' });
     emit();
   }
   function recheckCancel(id) {
     const r = rechecks.get(id);
     if (!r || r.phase !== 'confirming') return;
-    if (r.results.length === 0) rechecks.delete(id); else Object.assign(r, { phase: 'idle', error: null });
+    if (r.results.length === 0 && !r.locked) rechecks.delete(id); else Object.assign(r, { phase: 'idle', error: null });
     emit();
   }
-  // One retry after a rate limit, at the wait the server gave (capped).
-  async function recheckCall(claimId, price) {
+  const CANCELLED = Symbol('panel reset');
+  // One retry after a rate limit, at the wait the server gave (capped). Never after a reset of the
+  // panel, and never after too_many_failures.
+  async function recheckCall(claimId, price, epoch) {
     for (let attempt = 0; ; attempt++) {
       try {
         clientRef ??= createFactCheckClient();
         return await clientRef.recheck({ claimId, expectedRecheckCredits: price });
       } catch (e) {
-        if (e?.status === 429 && attempt === 0) { await sleep(Math.min(e.retryAfterMs ?? 5000, 30000)); continue; }
+        if (e?.status === 429 && e.reason !== 'too_many_failures' && attempt === 0) {
+          await sleep(Math.min(e.retryAfterMs ?? 5000, 30000));
+          if (epoch !== recheckEpoch) throw CANCELLED;
+          continue;
+        }
         throw e;
       }
     }
   }
-  async function recheckConfirm(id) {
+  const refreshCredits_ = () => Promise.resolve(credits.refresh()).catch(() => {});
+  const chargeText = (out, price) => (typeof out.creditsCharged === 'number' && !out.chargePending
+    ? `Charged ${creditsText(out.creditsCharged)}` : `${creditsText(price)} will be charged.`);
+  const addNotice = (text) => { recheckNotices = [...recheckNotices, text].slice(-5); };
+  // price: the amount the user saw in the confirmation; exactly that is sent for the server to check.
+  async function recheckConfirm(id, shownPrice) {
     const r = rechecks.get(id);
     const claim = findClaim(id);
-    if (!r || r.phase !== 'confirming' || !rechecksEnabled() || !claim) return;
+    if (!r || r.phase !== 'confirming' || r.locked || !rechecksEnabled() || !claim) return;
     const epoch = recheckEpoch;
-    const price = flag.recheckCredits;
+    const price = typeof shownPrice === 'number' ? shownPrice : flag.recheckCredits;
     const latest = r.results[0]?.id ?? id;
     Object.assign(r, { phase: 'running', error: null, notice: '' });
+    announcement = `Checking again: ${claim.claim_en}`;
     emit();
-    const refresh = () => Promise.resolve(credits.refresh()).catch(() => {});
+    const say = (text) => { announcement = text; };
     let out;
     try {
-      out = await recheckCall(latest, price);
+      out = await recheckCall(latest, price, epoch);
     } catch (e) {
-      if (epoch !== recheckEpoch) return;
-      if (e?.reason === 'price_changed' && typeof e.recheckCredits === 'number' && e.recheckCredits > 0 && e.recheckCredits <= 1000) {
+      if (e === CANCELLED) return;
+      const lost = recheckAnswerLost(e?.status ?? 0);
+      if (lost) void refreshCredits_(); // the server finishes a started check; it may have charged
+      if (epoch !== recheckEpoch) {
+        if (lost) { addNotice('A re-check may have finished after you left and been charged. Check your balance.'); emit(); }
+        return;
+      }
+      const newer = e?.reason === 'not_recheckable' ? e.claim : null;
+      if (newer && newer.status === 'checked' && Object.hasOwn(VERDICTS, newer.verdict)) {
+        // Already checked again (another tab, or an answer that was lost): that result is paid for.
+        const results = r.results.some((x) => x.id === newer.id) ? r.results : [newer, ...r.results];
+        settle(id, { phase: 'idle', results, error: null, notice: RECHECK_ALREADY });
+        say(`${VERDICTS[newer.verdict].label}: ${claim.claim_en} (checked again)`);
+      } else if (e?.reason === 'price_changed' && typeof e.recheckCredits === 'number' && e.recheckCredits > 0 && e.recheckCredits <= 1000) {
         flag = { ...flag, recheckCredits: e.recheckCredits };
         settle(id, { phase: 'confirming', error: recheckPriceChangedText(e.recheckCredits) });
+        say(recheckPriceChangedText(e.recheckCredits));
+      } else if (e?.status === 403 && (e.reason === 'off' || e.reason === 'not_allowed')) {
+        // Not available any more: no price, no buttons anywhere, one message for the panel.
+        flag = { ...flag, recheckCredits: null };
+        rechecks.delete(id);
+        addNotice(recheckErrorText(e));
+        say(recheckErrorText(e));
       } else {
-        if (e?.status === 0) void refresh(); // the answer was lost; a charge may have happened
-        settle(id, { phase: 'idle', error: recheckErrorText(e) });
+        const text = recheckErrorText(e);
+        settle(id, { phase: 'idle', error: text, ...(e?.reason === 'too_many_failures' ? { locked: true } : {}) });
+        say(text);
       }
       emit();
       return;
     }
-    if (typeof out.creditsCharged === 'number' && out.creditsCharged > 0) void refresh();
-    if (epoch !== recheckEpoch) return;
     const c = out.claim;
-    if (c.status === 'checked' && Object.hasOwn(VERDICTS, c.verdict)) {
-      settle(id, {
-        phase: 'idle', results: [c, ...r.results], error: null,
-        notice: typeof out.creditsCharged === 'number' ? `Charged ${creditsText(out.creditsCharged)}` : '',
-      });
-      announcement = `${VERDICTS[c.verdict].label}: ${claim.claim_en} (checked again)`;
+    const good = c.status === 'checked' && Object.hasOwn(VERDICTS, c.verdict);
+    if (good) void refreshCredits_(); // charged now, or about to be
+    if (epoch !== recheckEpoch) {
+      // The panel was reset while this ran. It was charged on the server, so say so.
+      if (good) {
+        const charge = chargeText(out, price);
+        addNotice(`A re-check finished after you left: ${VERDICTS[c.verdict].label}. ${charge}${charge.endsWith('.') ? '' : '.'}`);
+        emit();
+      }
+      return;
+    }
+    if (good) {
+      settle(id, { phase: 'idle', results: [c, ...r.results], error: null, notice: chargeText(out, price) });
+      say(`${VERDICTS[c.verdict].label}: ${claim.claim_en} (checked again)`);
     } else {
       settle(id, { phase: 'idle', error: RECHECK_FAILED });
+      say(RECHECK_FAILED);
     }
     emit();
   }
 
   // Carried in the published view so the panel needs no extra props from the modal.
-  const recheckActions = { ask: recheckAsk, confirm: recheckConfirm, cancel: recheckCancel };
+  const recheckActions = {
+    ask: recheckAsk, confirm: recheckConfirm, cancel: recheckCancel,
+    dismissNotices: () => { recheckNotices = []; emit(); },
+  };
 
   function retry() { session?.reset(); void choose(); }
 

@@ -153,6 +153,12 @@ export function playingTarget(channelId, playbackMode, videoId) {
 }
 
 export const RECHECK_FAILED = 'The new check failed. Nothing was charged.';
+export const RECHECK_LOST = 'The answer did not arrive. The check may have finished and been charged. Press Check again to see it.';
+export const RECHECK_ALREADY = 'This verdict was already checked again. Showing that result.';
+export const RECHECK_LOCKED = 'Checking again is unavailable for now after repeated failures.';
+
+/** The answer may never have reached us although the server finished (and charged) the check. */
+export const recheckAnswerLost = (status) => status === 0 || (status >= 500 && status !== 502 && status !== 503);
 
 /** Plain words for a re-check that did not produce a result (the price_changed case is handled by the caller). */
 export function recheckErrorText(error) {
@@ -168,10 +174,11 @@ export function recheckErrorText(error) {
   if (e.reason === 'claim_not_found') return 'This claim could no longer be found, so it cannot be checked again.';
   if (e.reason === 'off') return 'Checking again is switched off.';
   if (e.reason === 'not_allowed' || status === 403) return 'Checking again is not available for this account.';
+  if (e.reason === 'too_many_failures') return RECHECK_LOCKED;
   if (e.reason === 'in_progress') return 'This claim is already being checked again.';
   if (e.reason === 'rate_limited' || status === 429) return 'Too many checks just now. Wait a minute and try again.';
   if (status === 401) return 'Your sign-in has expired. Sign in again.';
-  if (status === 0) return 'The server did not answer. If the new check went through, you may have been charged; your balance will show it.';
+  if (recheckAnswerLost(status)) return RECHECK_LOST;
   return RECHECK_FAILED;
 }
 

@@ -10,16 +10,22 @@ const MAX_PRICE = 5000;
 const MAX_RECHECK = 1000;
 const CACHE_MS = 60000;
 
+// The server rounds prices to four decimals; one that rounds to zero is no price.
+function roundedPrice(value, max) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > max) return null;
+  const rounded = Math.round(value * 10000) / 10000;
+  return rounded > 0 ? rounded : null;
+}
+
 /** The flag's value as { audience, creditsPerMinute, recheckCredits }, or null when the feature is off. */
 export function parseFactCheckFlag(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   if (value.enabled !== true) return null;
   if (value.audience !== 'admin' && value.audience !== 'all') return null;
-  const price = value.credits_per_minute;
-  if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0 || price > MAX_PRICE) return null;
+  const price = roundedPrice(value.credits_per_minute, MAX_PRICE);
+  if (price === null) return null;
   // The re-check price is optional: absent or out of range switches re-check off, nothing else.
-  const recheck = value.recheck_credits;
-  const recheckCredits = typeof recheck === 'number' && Number.isFinite(recheck) && recheck > 0 && recheck <= MAX_RECHECK ? recheck : null;
+  const recheckCredits = roundedPrice(value.recheck_credits, MAX_RECHECK);
   return { audience: value.audience, creditsPerMinute: price, recheckCredits };
 }
 

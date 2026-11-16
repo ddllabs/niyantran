@@ -68,6 +68,12 @@ describe('recheck_credits', () => {
   ])('%j gives %j', (value, expected) => {
     expect(parseFactCheckFlag({ ...ON, recheck_credits: value }).recheckCredits).toBe(expected);
   });
+  it('a price that rounds to zero at four decimals is no price', () => {
+    expect(parseFactCheckFlag({ ...ON, recheck_credits: 0.00004 }).recheckCredits).toBeNull();
+    expect(parseFactCheckFlag({ ...ON, recheck_credits: 0.0001 }).recheckCredits).toBe(0.0001);
+    expect(parseFactCheckFlag({ ...ON, credits_per_minute: 0.00004 })).toBeNull();
+    expect(parseFactCheckFlag({ ...ON, credits_per_minute: 0.0001 })).toMatchObject({ creditsPerMinute: 0.0001 });
+  });
   it('does not change availability when the price is absent or bad', () => {
     expect(parseFactCheckFlag({ ...ON, recheck_credits: 'x' })).toMatchObject({ audience: 'all', creditsPerMinute: 500 });
   });

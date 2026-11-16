@@ -184,3 +184,40 @@ describe('accessibility', () => {
     expect(render(withClaim(claim()))).toMatch(/class="fc-claim" dir="auto"/);
   });
 });
+
+describe('review fixes', () => {
+  const state = (over) => ({ phase: 'idle', results: [], error: null, notice: '', ...over });
+  it('a locked card shows why and has no button', () => {
+    const html = render(withClaim(claim(), { rechecks: { c1: state({ locked: true, error: 'Checking again is unavailable for now after repeated failures.' }) } }));
+    expect(text(html)).toContain('Checking again is unavailable for now after repeated failures.');
+    expect(html).not.toMatch(/data-fc="recheck"/);
+  });
+  it('other cards keep their button when one is locked', () => {
+    const v = view({ claims: [claim(), claim({ id: 'c2', claim_en: 'Other' })] }, { rechecks: { c1: state({ locked: true }) } });
+    expect(render(v).match(/data-fc="recheck"/g)).toHaveLength(1);
+  });
+  it('panel-level notices show even when the session is idle, with a Close that clears them', () => {
+    const html = render(view({ status: 'idle' }, { recheckNotices: ['A re-check finished after you left: Contradicted. Charged 100 credits.'] }));
+    expect(text(html)).toContain('A re-check finished after you left: Contradicted. Charged 100 credits.');
+    expect(html).toMatch(/data-fc="notices-dismiss"/);
+    expect(html).toMatch(/aria-label="Fact-check"/);
+  });
+  it('notices also show above a running session', () => {
+    const html = render(view({ status: 'running' }, { recheckNotices: ['Checking again is switched off.'] }));
+    expect(text(html)).toContain('Checking again is switched off.');
+  });
+  it('an idle panel with no notices renders nothing', () => {
+    expect(render(view({ status: 'idle' }, { recheckNotices: [] }))).toBe('');
+    expect(render(view({ status: 'idle' }))).toBe('');
+  });
+  it('a re-checked result and the earlier ones show the date as well as the time', () => {
+    const html = render(withClaim(claim(), { rechecks: { c1: state({ results: [result('n1')] }) } }));
+    const main = html.slice(html.indexOf('<li class="fc-card'), html.indexOf('fc-earlier-toggle'));
+    expect(text(main)).toMatch(/Checked .*Nov/);
+    const earlier = html.match(/<ol[^>]*id="fc-earlier-c1"[^>]*>[\s\S]*?<\/ol>/)[0];
+    expect(text(earlier)).toMatch(/Checked .*Nov/);
+  });
+  it('an unchanged card still shows just the time', () => {
+    expect(text(render(withClaim(claim())))).not.toMatch(/Checked .*Nov/);
+  });
+});
