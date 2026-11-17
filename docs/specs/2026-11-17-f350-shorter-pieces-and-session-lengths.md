@@ -1,14 +1,14 @@
 # Live TV fact-check: session lengths of 1, 2, 5, 10 and 15 minutes and a listening line (F350, proposed)
 
 > **Status: Living.** Written 2026-11-17 from the owner's request of the same day and from code read at `main`
-> `7034e9f7`. Gate G1 executed 2026-11-17: both shorter settings failed; piece length unchanged. Reduced scope built and reviewed on 2026-11-17: server in pull request 167, browser in pull request 168; every gate run on the combined change (executed). Released 2026-11-17: pull requests 166, 167 and 168 merged, the migration applied on NTER and function `factcheck` version 5 deployed; the five lengths and the listening line are on the live site (executed). A real 1- or 2-minute session has not yet run (see the plan's release record). Tracker: F350 in [open-work](../plans/open-work.md). Plan:
+> `7034e9f7`. Gate G1 executed 2026-11-17: both shorter settings failed; piece length unchanged. Reduced scope built and reviewed on 2026-11-17: server in pull request 167, browser in pull request 168; every gate run on the combined change (executed). Released 2026-11-17: pull requests 166, 167 and 168 merged, the migration applied on NTER and function `factcheck` version 5 deployed; the five lengths and the listening line are on the live site (executed). A real 1-minute session ran on 2026-11-17 (executed, see the plan's release record); a real 2-minute session has not yet run. Tracker: F350 in [open-work](../plans/open-work.md). Plan:
 > [F350 plan](../plans/2026-11-17-f350-shorter-pieces-and-session-lengths.md). Builds on the
 > [F344 spec](2026-11-15-live-tv-fact-check.md) and the [F349 fixes](../plans/2026-11-17-f349-fact-check-fixes.md).
 > Accepted risk for audio capture: [ADR 0015](../decisions/0015-live-tv-fact-check-audio-capture.md).
 
 Evidence marks: **read** = seen in this checkout (file:line); **executed** = run, with the date; **vendor** = a provider's
 own claim, not measured by us; **unverified** = neither. The five lengths and the listening line were released on
-2026-11-17 and seen on the live site; no real 1- or 2-minute session has run yet. Gate G1 was run on 2026-11-17 (see "Gates").
+2026-11-17 and seen on the live site; a real 1-minute session has run (2026-11-17, executed); a real 2-minute session has not. Gate G1 was run on 2026-11-17 (see "Gates").
 
 ## Summary
 

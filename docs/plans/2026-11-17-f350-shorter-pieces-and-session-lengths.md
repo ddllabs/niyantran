@@ -176,10 +176,27 @@ Done in the order above, each step on the owner's yes given the same day (execut
 - **Step 5:** outside checks as in the F349 release: GET 405, no token 401, bad token 401, foreign origin 403. No paid start.
 - **Step 6:** pull request 168 merged (`c76e0b58`); main CI passed and the production deployment completed. Pull request 166
   (spec and plan) merged as `246e934e`.
-- **Step 7 (not done):** no real 1-minute or 2-minute session yet. Chrome's sharing prompt was not accepted on two
-  attempts (nobody was at the browser). The panel showed "Your browser did not allow tab sharing" and "Nothing was
+- **Step 7 (1-minute part done; 2-minute part not run):** a real 1-minute session ran on 2026-11-17 (block below). Two
+  earlier attempts stopped because Chrome's sharing prompt was not accepted; the panel showed
+  (nobody was at the browser). The panel showed "Your browser did not allow tab sharing" and "Nothing was
   charged", then offered only "Close". The server has no session row for these attempts (checked). The "Listening…"
-  line has not been seen in a real session.
+  line was not seen before the 1-minute session below.
+
+**1-minute session (executed 2026-11-17, 23:35:26 to 23:36:30 UTC; after a page reload; the owner accepted the sharing
+prompt; run by the supervisor in the owner's Chrome on the live site).** The start button read "Unmute and start 1 minute ·
+500 credits". 500 credits were held, 1 minute was used, 500 credits were charged, and the session settled with no session
+left active. While running, transcript lines arrived and "Listening…" showed as the last element under them; the panel was
+603 px high. After the end: "Time is up.", 1 minute used, 500 credits charged, the new balance, the buttons "Start a new
+session · from 500 credits" and "Close"; the listening line was gone; the panel was 640 px high. Five claims: 3 checked
+(supported) and 2 `error` with `fail_reason` `no_label`. Provider calls: 7 transcriptions (median 1.0 s, worst 1.3 s);
+2 extractions (median 3.8 s, worst 3.9 s); 6 check calls (3 usable, median 2.2 s, worst 2.3 s; 3 unusable `no_label`,
+median 1.3 s). The panel height changed from 603 px to 640 px at the end; the F349 plan records the same range for the
+5-minute session, so the one-height part of the F349 fix is not confirmed.
+
+**Not part of this test:** the live database also holds another 1-minute session, started 23:30:40 UTC (1 minute used,
+500 credits charged). The supervisor did not start it.
+
+**Still not run:** a real 2-minute session.
 
 **Observed on the live site (executed):** five length options, 5 minutes selected by default; 1 minute changes the start
 button to "Start 1 minute · 500 credits".

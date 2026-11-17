@@ -113,6 +113,12 @@ each). Executed.
 screen shows "Time is up.", the 5 minutes used, the 2,500 credits charged, the new balance, and the buttons "Start a new
 session · from 2,500 credits" and "Close", the latter kept in view; failed checks show "Check failed".
 
+**Panel height (correction to the line above).** Session 2 recorded a range of 603 to 640 px and called it a fixed height.
+The later 1-minute session (F350) measured 603 px while running and 640 px after the end. The height rule is
+`min(640px, 90vh − 152px)` (read), so the height follows the window: a likely cause is that Chrome's sharing bar makes
+the page shorter while a tab is being shared (inference; the window height was not measured). What was seen: within each
+state the panel did not grow or shrink as lines and claims arrived.
+
 **Not seen:** the "No sources found" card in either session, so that state is still unseen with real data. Closing and
 reopening the panel during a session was not tested (closing Live TV ends the session).
 
