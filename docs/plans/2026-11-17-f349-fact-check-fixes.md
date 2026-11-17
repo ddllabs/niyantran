@@ -3,7 +3,8 @@
 > **Status: Living (2026-11-17).** Written 2026-11-17 on branch `task/f349-findings`. Tracker: F349 in
 > [open-work](open-work.md). Findings are in the
 > [research note](../research/2026-11-17-f349-fact-check-first-sessions.md), which says what was executed and what was
-> read from code. Nothing is built. The owner's decisions below are needed before building.
+> read from code. Owner decisions D1 to D3 were made on 2026-11-17; D4 is still open. Building started 2026-11-17 on
+> branch `task/f349-fixes`; not merged, not deployed.
 
 ## What it delivers
 
@@ -18,15 +19,37 @@
 - Re-analyzing a block.
 - A past-sessions view.
 
-## Owner decisions needed
+## Owner decisions
 
-- **D1.** A verdict has one of the five labels but no citation. Keep it hidden as a failure, or show it under a new state
-  "No sources found"? Recommended: the new state, with no verdict colour and no "Check again".
-- **D2.** A second page starts while a session runs. Keep "End that session" and explain it on the other page, or refuse
-  the second page outright? Recommended: keep it, and explain it.
-- **D3.** Approve one paid replay of the failed claim to capture the reason (about 100 credits). Or wait for the reason
-  code to appear in normal use.
-- **D4.** Confirm whether two pages or windows had Live TV open at 14:52 UTC on 2026-11-17.
+- **D1.** Decided 2026-11-17: a verdict that has one of the five labels but no citation shows under a new state,
+  "No sources found", with a neutral look and no "Check again".
+- **D2.** Decided 2026-11-17: keep "End that session". The other page says "This session was ended from another tab or
+  window."
+- **D3.** Decided 2026-11-17: no paid replay. The reason code will be read from the log after the next normal session.
+- **D4.** Still open. The owner has not yet said whether two pages or windows had Live TV open at 14:52 UTC on
+  2026-11-17.
+
+Note: on 2026-11-17 the owner agreed to this order of later work, each item its own plan:
+
+1. these fixes;
+2. shorter audio pieces (about 5 seconds, after an accuracy test on recorded clips), a "listening" line, and session
+   lengths of 1, 2, 5, 10 and 15 minutes, with 20 and 30 minutes held until the fixes are proven (tracker F350);
+3. Live TV as a page of its own instead of a pop-up;
+4. sharing switched on, then a streaming transcription test when a key is available.
+
+Longer time limits are not planned, because no timeout was found.
+
+## Fixed interfaces
+
+- **Claim JSON** gains `fail_reason`: `null`, `no_label`, `bad_label`, `label_conflict` or `no_sources`. `status` stays
+  `error` for those. It is stored in a new nullable column, `public.factcheck_claims.fail_reason`, in migration
+  `20261118090000_factcheck_fail_reason.sql` (additive).
+- **`stop`** may carry `end_reason`: `user_stop`, `modal_close`, `channel_change`, `sharing_stopped`, `time_up`, `silence`,
+  `server`, `error` or `other`. Unknown values are ignored. It is logged, not stored.
+- **409 reasons** keep their existing names.
+- **Write scopes:** server work in `supabase/functions/factcheck/**`, the migration and its fixture; browser work in
+  `src/lib/factcheck/**`, `src/shell/factcheck/**`, `src/shell/LiveTvModal.jsx`, `src/shell/liveTv/**` and the panel's
+  stylesheets. The two are built at the same time because the scopes do not overlap.
 
 ## Tasks
 
@@ -38,9 +61,9 @@ defect. The checks are `npm run lint`, `npm run build`, `npm test`, and
 A failed verdict logs one of `no_label`, `bad_label`, `label_conflict` or `no_sources`, and the citation count. It never
 logs the reply text. `model_call_logs` records such a call as not usable.
 
-**T2. Server and panel: the no-sources state (after D1).** Scope: `check.ts`, `types.ts`, a migration only if the status
-set is constrained in SQL (check first), `src/shell/factcheck/factCheckText.js`, `FactCheckPanel.jsx`. No "Check again"
-on a state that repeats.
+**T2. Server and panel: the no-sources state (after D1).** Scope: `check.ts`, `types.ts`, `src/shell/factcheck/factCheckText.js`,
+`FactCheckPanel.jsx`. The status set is constrained in SQL, so the state is kept as `error` plus the new `fail_reason`
+column. No "Check again" on a state that repeats.
 
 **T3. Browser: a session ends with a reason.** Scope: `src/lib/factcheck/session.js`, `src/shell/factcheck/factCheckText.js`,
 the controller and its tests. A 409 with `settled` shows "This session was ended from another tab or window." Other 409s
@@ -62,8 +85,8 @@ differ.
 
 ## Release
 
-One pull request. The function is redeployed only on the owner's yes. No migration is expected unless T2 finds a
-constraint. The feature flag is unchanged.
+One pull request. A migration is needed (`20261118090000`), applied on NTER before the function is redeployed, each on
+the owner's yes. The function is redeployed only on the owner's yes. The feature flag is unchanged.
 
 ## Proof still owed
 
