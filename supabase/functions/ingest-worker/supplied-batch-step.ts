@@ -12,6 +12,14 @@
 //     carried one job fails that job. Slices other jobs committed stay. Every call, failed or solo, is
 //     logged with the batch id. Inside the deadline reserve a solo call is not started: the jobs not yet
 //     retried get no error and are released, their share having never been committed;
+//   * a provider outage (HTTP 408, 429, 5xx or a request that never completed, embedOutageClass) is not held
+//     against any document. A solo call (or the only call of a single-job window) that meets one releases its
+//     job with a NON-permanent error 'embed_outage' (class and HTTP status only, never provider or document
+//     text) and the claim goes on; a second outage in a row (no call succeeded between them) means the provider
+//     is down: the claim makes no further call, and every job not yet embedded is released the same way.
+//     ingest_advance queues such a job with backoff 30 s * 2^attempts (at most an hour) and does not fail it, so
+//     no batch failure is counted; the queue's six-claim limit (attempts_exhausted) bounds the retries. A job
+//     already recovered keeps its committed slices. Any other failure still fails the job as above;
 //   * no call and no activation starts within INDEX_STEP.deadlineReserveMs of the deadline; such jobs
 //     are released for the next claim;
 //   * a supplied-text failure after paid work is permanent (reconciled before retry), as before.
@@ -19,7 +27,16 @@
 // stay in model_call_logs, one row per call, carrying the batch_id so the stop rules count a call
 // whose claim was killed before it reported.
 
-import { EMBED_BATCH, type EmbedBatchBounds, EMBED_MODEL, EmbeddingError, type EmbedResult, planBatches } from '../_shared/embed.ts';
+import {
+  EMBED_BATCH,
+  type EmbedBatchBounds,
+  EMBED_MODEL,
+  EmbeddingError,
+  embedOutageClass,
+  type EmbedOutageClass,
+  type EmbedResult,
+  planBatches,
+} from '../_shared/embed.ts';
 import { type EmbeddingChunk, INDEX_STEP } from './index-step.ts';
 import { readAll } from './paging.ts';
 import { loadSuppliedPlan } from './supplied-step.ts';
@@ -40,7 +57,12 @@ interface Member {
   committed: boolean;
   spend: Spend;
   error?: IngestError;
+  /** Set when an outage met this job's own call: it is released with embed_outage and not embedded again. */
+  outage?: { cls: EmbedOutageClass; status: number | null };
 }
+
+/** An embedding call's failure that says the provider is unavailable, with its class and HTTP status if any. */
+const outages = new WeakMap<IngestError, { cls: EmbedOutageClass; status: number | null }>();
 
 const estimate = (text: string) => Math.ceil(text.length / 4);
 
@@ -156,7 +178,10 @@ export async function runSuppliedBatch(
         prompt_tokens: spent.tokens, total_tokens: spent.tokens, cost_usd: spent.cost,
         raw_usage: { ...usage, status: err instanceof EmbeddingError ? err.status ?? null : null },
       });
-      throw new IngestError('embed_failed', message, true, err instanceof EmbeddingError ? err.status : undefined);
+      const failed = new IngestError('embed_failed', message, true, err instanceof EmbeddingError ? err.status : undefined);
+      const cls = embedOutageClass(err);
+      if (cls) outages.set(failed, { cls, status: err instanceof EmbeddingError ? err.status ?? null : null });
+      throw failed;
     }
     const split = splitSpend(shares, r.promptTokens, r.costUsd);
     split.forEach((x, k) => {
@@ -187,9 +212,20 @@ export async function runSuppliedBatch(
     }
   };
 
+  /** Set when two outages in a row end the claim's embedding: the jobs not finished are released, none failed. */
+  let stopped: { cls: EmbedOutageClass; status: number | null } | undefined;
+  /** Outage results in a row from calls that carried one job (a shared call's failure does not say whose it is). */
+  let streak = 0;
+  /** One job's own call met an outage: it is released; two in a row stop the claim. */
+  const outageOf = (i: number, down: { cls: EmbedOutageClass; status: number | null }) => {
+    members[i]!.outage = down;
+    streak += 1;
+    if (streak >= 2) stopped = down;
+  };
+
   let at = 0;
   for (const size of sizes) {
-    const window = stream.slice(at, at + size).filter((s) => !members[s.i]!.error);
+    const window = stream.slice(at, at + size).filter((s) => !members[s.i]!.error && !members[s.i]!.outage);
     at += size;
     if (!window.length) continue;
     if (reserveReached()) {
@@ -200,7 +236,15 @@ export async function runSuppliedBatch(
     let vectors: number[][];
     try {
       vectors = await embedCall(window);
+      streak = 0;
     } catch (e) {
+      const down = e instanceof IngestError ? outages.get(e) : undefined;
+      if (down && involved.length < 2) {
+        // The only call of this window met an outage: nothing is held against the job (released below).
+        outageOf(involved[0], down);
+        if (stopped) break;
+        continue;
+      }
       if (!(e instanceof IngestError && e.code === 'embed_failed') || involved.length < 2) {
         // Only the jobs this call carried fail; their committed slices, and every other job, stay.
         failJobs(involved, e);
@@ -222,15 +266,34 @@ export async function runSuppliedBatch(
         try {
           solo = await embedCall(own);
         } catch (soloError) {
+          const down = soloError instanceof IngestError ? outages.get(soloError) : undefined;
+          if (down) {
+            // This job is released with embed_outage below. A second outage in a row ends the claim: the
+            // jobs not yet retried are released the same way and no other call is made.
+            outageOf(i, down);
+            if (stopped) break;
+            continue;
+          }
+          streak = 0;
           failJobs([i], soloError);
           continue;
         }
+        streak = 0;
         await commitItems(own, solo);
       }
-      if (outOfTime) break;
+      if (outOfTime || stopped) break;
       continue;
     }
     await commitItems(window, vectors);
+  }
+
+  // A job's own outage, else the one that stopped the claim, for every job still unfinished.
+  const downFor = (m: Member) => (m.done < m.stale.length ? m.outage ?? stopped : undefined);
+  const hit = members.filter((m): m is Member => !!m && !m.error && !!downFor(m));
+  if (hit.length) {
+    // Counts and classes only; no document or user text.
+    const last = downFor(hit[hit.length - 1])!;
+    deps.log('ingest.batch_outage', { released: hit.length, error_class: last.cls, status: last.status, stopped: !!stopped });
   }
 
   // 4. Each job: failed, released for the next claim, or activated (its last write).
@@ -238,6 +301,18 @@ export async function runSuppliedBatch(
     if (!m) continue;
     if (m.error) {
       outcomes[i] = failure(m.error, m.spend, m.committed, true);
+    } else if (downFor(m)) {
+      // Released because the provider failed: queued again with the queue's backoff, not failed.
+      const down = downFor(m)!;
+      const where = down.status === null ? '' : ` HTTP ${down.status}`;
+      outcomes[i] = {
+        patch: {
+          progressed: m.committed,
+          embed_tokens: m.spend.tokens,
+          embed_cost_usd: m.spend.cost,
+          error: { code: 'embed_outage', message: `embedding provider unavailable: ${down.cls}${where}`, permanent: false },
+        },
+      };
     } else if (m.done < m.stale.length || deps.now() >= deadline - INDEX_STEP.deadlineReserveMs) {
       // Unfinished, or no time left to activate inside the reserve: released for the next claim, which
       // finds the committed slices and embeds nothing again.
