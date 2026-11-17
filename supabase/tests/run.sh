@@ -200,6 +200,11 @@ chain() {
     factcheck_fail_reason)
       chain factcheck_sharing
       FILES+=("$(as_non_superuser 20261118090000_factcheck_fail_reason.sql)") ;;
+    # F350: fact-check sessions of 1 and 2 minutes. The fail_reason chain, then the session-lengths migration, as a
+    # non-superuser. The vacuity check drops the last.
+    factcheck_lengths)
+      chain factcheck_fail_reason
+      FILES+=("$(as_non_superuser 20261119090000_factcheck_session_lengths.sql)") ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;
