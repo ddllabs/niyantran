@@ -78,6 +78,10 @@ Provider calls come from `model_call_logs` with caller `factcheck`.
   runs at temperature 0 (read from code), so a repeat gives the same answer.
 - Confidence: the code path is confirmed (read from code). Which branch fired is not established.
 - Effect: the panel shows "Check failed" on a claim that was searched and answered. Pressing again cannot help.
+- Which rule (added 2026-11-17, executed in two real sessions and read from code): the rule was the one in `replyFailure`
+  that returns `no_label` when the reply has no LABEL line at all. All six `no_label` calls in the two sessions were of
+  this kind, and no other reason code appeared. The reply text is not kept, so the exact reply is not known. A LABEL line
+  that names none of the five labels is `bad_label`, which these sessions did not show. The cause is tracked as F351.
 
 **F349-2. The four 409 responses.**
 

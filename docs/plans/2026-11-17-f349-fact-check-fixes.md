@@ -4,7 +4,7 @@
 > [open-work](open-work.md). Findings are in the
 > [research note](../research/2026-11-17-f349-fact-check-first-sessions.md), which says what was executed and what was
 > read from code. Owner decisions D1 to D3 were made on 2026-11-17; D4 was answered the same day (see below). Merged 2026-11-17 in
-> pull request 162 (`ac4a7726`); migration applied on NTER and function version 4 deployed the same day; proof by a real session still owed.
+> pull request 162 (`ac4a7726`); migration applied on NTER and function version 4 deployed the same day. Proof by two real sessions on 2026-11-17 is recorded below; the "No sources found" state and reopening the panel during a session are still unseen.
 
 ## What it delivers
 
@@ -92,3 +92,34 @@ the owner's yes. The function is redeployed only on the owner's yes. The feature
 
 A real session by the owner, after the fixes. The browser test runs cannot start a capture. The reason codes are read
 from the log for that session.
+
+## Proof by real session (2026-11-17)
+
+Run by the supervisor in the owner's Chrome on the live site, the owner accepting Chrome's sharing prompt. Each session
+used 5 minutes and charged 2,500 credits. Both settled, and no session or hold was left open (0 active sessions after
+each). Executed.
+
+| | Session 1 | Session 2 |
+|---|---|---|
+| Time (UTC) | 22:25:31 to 22:30:48 | 22:32:28 to 22:37:53 |
+| Page | stale copy, loaded before these browser fixes (still showed "Run again"); function version 4 | after a reload; the Live TV chunk carried the new texts and not "Run again" |
+| Claims | 25: 11 checked (all supported), 10 not checkable, 2 needs context, 2 `error` (`no_label`) | 36: 25 checked (16 supported, 6 contradicted, 3 partly true), 5 not checkable, 2 needs context, 4 `error` (`no_label`) |
+| Transcriptions | 32, median 1.1 s, worst 2.3 s | 27, median 1.2 s, worst 2.4 s |
+| Extractions | 17, median 3.3 s, worst 7.1 s | 17, median 3.3 s, worst 5.3 s |
+| Checks | 13 (11 usable, median 2.9 s, worst 3.7 s; 2 unusable) | 29 (25 usable, median 2.4 s, worst 3.6 s; 4 unusable) |
+
+**Seen in the real pop-up (session 2):** the muted video is unmuted by the start button ("Unmute and start 5 minutes ·
+2,500 credits"); the panel keeps a fixed height (603 to 640 px) beside the player, during and after the session; the end
+screen shows "Time is up.", the 5 minutes used, the 2,500 credits charged, the new balance, and the buttons "Start a new
+session · from 2,500 credits" and "Close", the latter kept in view; failed checks show "Check failed".
+
+**Not seen:** the "No sources found" card in either session, so that state is still unseen with real data. Closing and
+reopening the panel during a session was not tested (closing Live TV ends the session).
+
+**Cause of the failed checks.** Six of 42 check calls in the two sessions were stored as `error`, each with
+`fail_reason` `no_label`: the reply had no LABEL line. No call failed at the provider, and there was no 409 and no
+timeout in session 1. The timeout and provider-failure hypotheses stay refuted. The cause is tracked as F351 in the
+[tracker](open-work.md).
+
+**Status.** F349 stays open in the tracker for the two items not seen (the "No sources found" state and reopening during
+a session). The failed checks move to F351.
