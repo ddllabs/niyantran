@@ -2,7 +2,13 @@
 // the network or the browser, so every sentence can be tested.
 import { creditsText } from '../../lib/creditsStore.js';
 
-export const MINUTE_CHOICES = [5, 10, 15];
+export const MINUTE_CHOICES = [1, 2, 5, 10, 15];
+
+/** Measured on 2026-11-17: the transcript runs a median 13.2 s behind the speaker, rounded up. */
+export const DELAY_SECONDS = 14;
+
+/** "1 minute", "2 minutes". */
+export const minutesText = (n) => `${n} ${n === 1 ? 'minute' : 'minutes'}`;
 
 export const VERDICTS = {
   supported: { label: 'Supported', glyph: '✓' },
@@ -69,12 +75,26 @@ export function formatClock(seconds) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-/** The three blocks with their price; `affordable` is true when the balance is unknown (the server decides). */
+/** The blocks with their price; `affordable` is true when the balance is unknown (the server decides). */
 export function blockOptions(creditsPerMinute, balance) {
   return MINUTE_CHOICES.map((minutes) => {
     const price = Math.round(minutes * creditsPerMinute * 10000) / 10000;
     return { minutes, price, affordable: typeof balance !== 'number' || balance >= price };
   });
+}
+
+const DEFAULT_MINUTES = 5;
+
+/**
+ * The block selected before the user chooses: 5 minutes when affordable, else the longest affordable
+ * one below 5, else the first affordable one; null when nothing is affordable (Start is then disabled).
+ */
+export function defaultBlock(options) {
+  const ok = options.filter((o) => o.affordable);
+  return ok.find((o) => o.minutes === DEFAULT_MINUTES)
+    || ok.filter((o) => o.minutes < DEFAULT_MINUTES).pop()
+    || ok[0]
+    || null;
 }
 
 const END_REASONS = {
