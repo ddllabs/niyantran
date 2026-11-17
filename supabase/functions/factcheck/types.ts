@@ -44,6 +44,8 @@ export interface ClaimRow {
   spoken_at: string;
   /** The earlier claim this row re-checks, if any. */
   supersedes?: string | null;
+  /** True for a claim extracted from stored pieces of a shareable session. */
+  shared?: boolean;
 }
 
 export interface ClaimInsert {
@@ -53,6 +55,8 @@ export interface ClaimInsert {
   video_kind: 'live' | 'recorded';
   position_s: number | null;
   spoken_at: string;
+  /** Set (true) only for claims extracted from stored pieces of a shareable session. */
+  shared?: boolean;
   quote: string;
   claim_en: string;
   claimant: string | null;
@@ -84,7 +88,14 @@ export interface ClaimStore {
   claims(userId: string, sessionId: string, limit: number): Promise<ClaimRow[]>;
   insertClaims(rows: ClaimInsert[]): Promise<ClaimRow[]>;
   /** Updates a claim only while it is still needs_context. Null when it no longer is. */
-  updateHeld(userId: string, sessionId: string, claimId: string, patch: HeldPatch): Promise<ClaimRow | null>;
+  /** `shared` must match the row's: a shared claim is only touched from stored pieces, a private one only from text. */
+  updateHeld(
+    userId: string,
+    sessionId: string,
+    claimId: string,
+    patch: HeldPatch,
+    shared: boolean,
+  ): Promise<ClaimRow | null>;
   claim(userId: string, sessionId: string, claimId: string): Promise<ClaimRow | null>;
   /** One claim of this user by id alone (the re-check row, whose session the caller does not name). */
   claimById(userId: string, claimId: string): Promise<ClaimRow | null>;
@@ -109,6 +120,8 @@ export interface FactcheckDeps {
   rpc(name: string, args: Record<string, unknown>): Promise<RpcResult>;
   store: ClaimStore;
   apiKey: string;
+  /** The app's public origin, for confirming a recorded video (LIVETV_API_BASE). Empty: nothing is shareable. */
+  livetvApiBase?: string;
   fetch(input: string, init: RequestInit): Promise<Response>;
   /** Inserts the row with the service client. May throw or hang; see recordModelCall(). */
   logModelCall(row: ModelCallRow): Promise<void>;

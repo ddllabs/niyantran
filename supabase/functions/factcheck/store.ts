@@ -7,7 +7,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import type { CheckResult, ClaimInsert, ClaimRow, ClaimStore, HeldPatch, SessionRow } from './types.ts';
 
 const CLAIM_COLUMNS =
-  'id,session_id,user_id,quote,claim_en,claimant,reported_by,kind,status,verdict,reason,sources,checked_at,spoken_at,supersedes';
+  'id,session_id,user_id,quote,claim_en,claimant,reported_by,kind,status,verdict,reason,sources,checked_at,spoken_at,supersedes,shared';
 const SESSION_COLUMNS = 'id,user_id,video_id,channel_id,video_kind';
 
 type Db = Pick<SupabaseClient, 'from'>;
@@ -40,10 +40,10 @@ export function postgrestStore(db: () => Db): ClaimStore {
       if (!rows.length) return [];
       return (must(await claims().insert(rows).select(CLAIM_COLUMNS)) as ClaimRow[] | null) ?? [];
     },
-    async updateHeld(userId, sessionId, claimId, patch: HeldPatch) {
+    async updateHeld(userId, sessionId, claimId, patch: HeldPatch, shared: boolean) {
       const s = scoped(userId, sessionId, claimId);
       const r = await claims().update(patch).eq('id', s.id).eq('session_id', s.session_id).eq('user_id', s.user_id)
-        .eq('status', 'needs_context').select(CLAIM_COLUMNS).maybeSingle();
+        .eq('status', 'needs_context').eq('shared', shared).select(CLAIM_COLUMNS).maybeSingle();
       return (must(r) as ClaimRow | null) ?? null;
     },
     async claim(userId, sessionId, claimId) {

@@ -182,6 +182,11 @@ chain() {
       chain factcheck_usage
       FILES+=("$(as_non_superuser 20261116100000_factcheck_usage_reports.sql)"
               "$(as_non_superuser 20261116110000_factcheck_recheck.sql)") ;;
+    # F344 S1: shared results and paid unlock. The re-check chain (everything through the re-check migration), then the sharing
+    # migration, as a non-superuser. The vacuity check drops the last.
+    factcheck_sharing)
+      chain factcheck_recheck
+      FILES+=("$(as_non_superuser 20261117090000_factcheck_sharing.sql)") ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;
@@ -1389,6 +1394,7 @@ run_fixture() {
     [ "$name" = ingest_register_batch ] && { ingest_register_batch_checks || rc=1; }
     [ "$name" = factcheck_usage ] && { factcheck_usage_checks || rc=1; }
     [ "$name" = factcheck_recheck ] && { bash "$TESTS/factcheck_recheck_concurrency.sh" || rc=1; }
+    [ "$name" = factcheck_sharing ] && { bash "$TESTS/factcheck_sharing_concurrency.sh" || rc=1; }
   else
     rc=1
     echo "  FAIL"

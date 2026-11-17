@@ -133,6 +133,7 @@ export function createPieceCutter(options = {}) {
     received += samples.length;
 
     const pieces = [];
+    const cuts = [];
     while ((nextFrame + 1) * frameLen <= received) {
       const from = nextFrame * frameLen - bufStart;
       let sum = 0;
@@ -152,10 +153,14 @@ export function createPieceCutter(options = {}) {
       if (at === null) continue;
       const cutSample = (cutFrame + at) * frameLen;
       pieces.push(emit(bufStart, cutSample, endPauseMs, kind));
+      cuts.push(cutSample);
       cutFrame += at;
       energy = energy.slice(at);
       dropBefore(Math.max(cutSample - overlapSamples, bufStart));
     }
+    // Audio received after each piece's last sample: the caller reads the player when it gets the
+    // piece, so the player is this far ahead of the piece's end.
+    pieces.forEach((piece, i) => { piece.heldMs = toMs(received - cuts[i]); });
     return pieces;
   }
 
@@ -163,7 +168,7 @@ export function createPieceCutter(options = {}) {
     const lastCut = cutFrame * frameLen;
     const fresh = received - lastCut;
     const out = [];
-    if (fresh >= Math.round((o.minTailMs * RATE) / 1000)) out.push(emit(bufStart, received, 0, 'flush'));
+    if (fresh >= Math.round((o.minTailMs * RATE) / 1000)) out.push({ ...emit(bufStart, received, 0, 'flush'), heldMs: 0 });
     energy = []; nextFrame = 0; cutFrame = 0; bufStart = 0; received = 0;
     return out;
   }

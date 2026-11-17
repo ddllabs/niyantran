@@ -281,6 +281,8 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
   const factCheck = useFactCheck({
     open,
     target: playingTarget(factCheckChannelId, playbackMode, factCheckVideoId),
+    // where the player is, for shared results on recorded videos
+    getPosition: () => (playbackMode === 'live' ? null : player.getPosition()),
     start: {
       videoId: factCheckVideoId,
       channelId: factCheckChannelId,

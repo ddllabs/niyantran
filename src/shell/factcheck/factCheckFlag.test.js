@@ -33,9 +33,9 @@ beforeEach(() => clearFactCheckFlagCache());
 
 describe('parseFactCheckFlag', () => {
   it('accepts the documented shape', () => {
-    expect(parseFactCheckFlag(ON)).toEqual({ audience: 'all', creditsPerMinute: 500, recheckCredits: null });
-    expect(parseFactCheckFlag({ ...ON, audience: 'admin', credits_per_minute: 0.5 })).toEqual({ audience: 'admin', creditsPerMinute: 0.5, recheckCredits: null });
-    expect(parseFactCheckFlag({ ...ON, credits_per_minute: 5000 })).toEqual({ audience: 'all', creditsPerMinute: 5000, recheckCredits: null });
+    expect(parseFactCheckFlag(ON)).toEqual({ audience: 'all', creditsPerMinute: 500, recheckCredits: null, sharing: null });
+    expect(parseFactCheckFlag({ ...ON, audience: 'admin', credits_per_minute: 0.5 })).toEqual({ audience: 'admin', creditsPerMinute: 0.5, recheckCredits: null, sharing: null });
+    expect(parseFactCheckFlag({ ...ON, credits_per_minute: 5000 })).toEqual({ audience: 'all', creditsPerMinute: 5000, recheckCredits: null, sharing: null });
   });
 
   it.each([
@@ -82,23 +82,57 @@ describe('recheck_credits', () => {
   });
   it('the reader returns it, and null when off', async () => {
     const on = fakeClient({ row: { value: { ...ON, recheck_credits: 100 } } });
-    expect(await readFactCheckFlag({ client: on })).toEqual({ available: true, creditsPerMinute: 500, recheckCredits: 100, userId: 'u1' });
+    expect(await readFactCheckFlag({ client: on })).toEqual({ available: true, creditsPerMinute: 500, recheckCredits: 100, sharing: null, userId: 'u1' });
     clearFactCheckFlagCache();
     const off = fakeClient({ row: { value: { ...ON, enabled: false, recheck_credits: 100 } } });
     expect((await readFactCheckFlag({ client: off })).recheckCredits).toBeNull();
   });
 });
 
+describe('sharing keys', () => {
+  const SH = { ...ON, share_recorded: true, unlock_credits_per_minute: 100 };
+  it('is on only when share_recorded is exactly true and the unlock price is in (0, 1000]', () => {
+    expect(parseFactCheckFlag(SH).sharing).toEqual({ unlockCreditsPerMinute: 100 });
+    expect(parseFactCheckFlag({ ...SH, unlock_credits_per_minute: 1000 }).sharing).toEqual({ unlockCreditsPerMinute: 1000 });
+    expect(parseFactCheckFlag({ ...SH, unlock_credits_per_minute: 0.5 }).sharing).toEqual({ unlockCreditsPerMinute: 0.5 });
+  });
+  it.each([
+    ['share_recorded false', { share_recorded: false }],
+    ['share_recorded "true"', { share_recorded: 'true' }],
+    ['share_recorded 1', { share_recorded: 1 }],
+    ['share_recorded missing', { share_recorded: undefined }],
+    ['price 0', { unlock_credits_per_minute: 0 }],
+    ['price negative', { unlock_credits_per_minute: -1 }],
+    ['price above 1000', { unlock_credits_per_minute: 1000.5 }],
+    ['price a string', { unlock_credits_per_minute: '100' }],
+    ['price NaN', { unlock_credits_per_minute: Number.NaN }],
+    ['price rounds to zero', { unlock_credits_per_minute: 0.00004 }],
+    ['price missing', { unlock_credits_per_minute: undefined }],
+  ])('is off for %s, and nothing else changes', (_n, over) => {
+    const out = parseFactCheckFlag({ ...SH, ...over });
+    expect(out.sharing).toBeNull();
+    expect(out).toMatchObject({ audience: 'all', creditsPerMinute: 500 });
+  });
+  it('is never on when the feature itself is off', () => {
+    expect(parseFactCheckFlag({ ...SH, enabled: false })).toBeNull();
+  });
+  it('the reader returns it, and null when off', async () => {
+    expect((await readFactCheckFlag({ client: fakeClient({ row: { value: SH } }) })).sharing).toEqual({ unlockCreditsPerMinute: 100 });
+    clearFactCheckFlagCache();
+    expect((await readFactCheckFlag({ client: fakeClient({ row: { value: { ...SH, enabled: false } } }) })).sharing).toBeNull();
+  });
+});
+
 describe('readFactCheckFlag', () => {
   it('is available to any signed-in account when the audience is all', async () => {
     const client = fakeClient();
-    expect(await readFactCheckFlag({ client })).toEqual({ available: true, creditsPerMinute: 500, recheckCredits: null, userId: 'u1' });
+    expect(await readFactCheckFlag({ client })).toEqual({ available: true, creditsPerMinute: 500, recheckCredits: null, sharing: null, userId: 'u1' });
     expect(client.calls.rpc).toEqual([]);
   });
 
   it('with audience admin, asks is_platform_admin and follows the answer', async () => {
     const yes = fakeClient({ row: { value: { ...ON, audience: 'admin' } }, admin: true });
-    expect(await readFactCheckFlag({ client: yes })).toEqual({ available: true, creditsPerMinute: 500, recheckCredits: null, userId: 'u1' });
+    expect(await readFactCheckFlag({ client: yes })).toEqual({ available: true, creditsPerMinute: 500, recheckCredits: null, sharing: null, userId: 'u1' });
     expect(yes.calls.rpc).toEqual(['is_platform_admin']);
     clearFactCheckFlagCache();
     const no = fakeClient({ row: { value: { ...ON, audience: 'admin' } }, admin: false });
@@ -119,7 +153,7 @@ describe('readFactCheckFlag', () => {
 
   it('is off when signed out, without reading the table', async () => {
     const client = fakeClient({ user: null });
-    expect(await readFactCheckFlag({ client })).toEqual({ available: false, creditsPerMinute: null, recheckCredits: null, userId: null });
+    expect(await readFactCheckFlag({ client })).toEqual({ available: false, creditsPerMinute: null, recheckCredits: null, sharing: null, userId: null });
     expect(client.calls.select).toBe(0);
   });
 

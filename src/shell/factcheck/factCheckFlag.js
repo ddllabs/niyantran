@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabaseClient.js';
 const KEY = 'livetv_factcheck';
 const MAX_PRICE = 5000;
 const MAX_RECHECK = 1000;
+const MAX_UNLOCK = 1000;
 const CACHE_MS = 60000;
 
 // The server rounds prices to four decimals; one that rounds to zero is no price.
@@ -17,7 +18,7 @@ function roundedPrice(value, max) {
   return rounded > 0 ? rounded : null;
 }
 
-/** The flag's value as { audience, creditsPerMinute, recheckCredits }, or null when the feature is off. */
+/** The flag's value as { audience, creditsPerMinute, recheckCredits, sharing }, or null when the feature is off. */
 export function parseFactCheckFlag(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   if (value.enabled !== true) return null;
@@ -26,10 +27,13 @@ export function parseFactCheckFlag(value) {
   if (price === null) return null;
   // The re-check price is optional: absent or out of range switches re-check off, nothing else.
   const recheckCredits = roundedPrice(value.recheck_credits, MAX_RECHECK);
-  return { audience: value.audience, creditsPerMinute: price, recheckCredits };
+  // Sharing recorded videos is on only with share_recorded exactly true and a usable unlock price.
+  const unlock = roundedPrice(value.unlock_credits_per_minute, MAX_UNLOCK);
+  const sharing = value.share_recorded === true && unlock !== null ? { unlockCreditsPerMinute: unlock } : null;
+  return { audience: value.audience, creditsPerMinute: price, recheckCredits, sharing };
 }
 
-const off = (userId = null) => ({ available: false, creditsPerMinute: null, recheckCredits: null, userId });
+const off = (userId = null) => ({ available: false, creditsPerMinute: null, recheckCredits: null, sharing: null, userId });
 
 let cache = null; // { userId, at, result }
 
@@ -59,7 +63,7 @@ export async function readFactCheckFlag({ client = supabase, now = Date.now, fre
         if (admin.error) return off(userId);
         allowed = admin.data === true;
       }
-      if (allowed) result = { available: true, creditsPerMinute: flag.creditsPerMinute, recheckCredits: flag.recheckCredits, userId };
+      if (allowed) result = { available: true, creditsPerMinute: flag.creditsPerMinute, recheckCredits: flag.recheckCredits, sharing: flag.sharing, userId };
     }
     cache = { userId, at: now(), result };
     return result;

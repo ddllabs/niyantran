@@ -8,6 +8,8 @@ import { creditsText, formatCredits } from '../../lib/creditsStore.js';
 import {
   blockOptions, claimBadge, confirmStart, endReasonText, errorMessage, formatClock, kindTag, safeSourceUrl, sourceLabel,
 } from './factCheckText.js';
+import { CoveredBanner, Parts, ReportControls } from './FactCheckParts.jsx';
+import { formatPosition, partModel } from './factCheckShare.js';
 
 const SILENT_NOTICE_MS = 30000;
 
@@ -44,8 +46,9 @@ function MutedWarning({ onUnmute }) {
   );
 }
 
-function Choose({ view, isMuted, onUnmute, onConfirm, onCancel }) {
+function Choose({ view, isMuted, onUnmute, onConfirm, onCancel, covered, onShowPart, sharing }) {
   const [preferred, setPreferred] = useState(null);
+  const [anyway, setAnyway] = useState(false);
   const balance = typeof view.balance === 'number' ? view.balance : null;
   const options = blockOptions(view.flag.creditsPerMinute, balance);
   const chosen = options.find((o) => o.minutes === preferred && o.affordable) || options.find((o) => o.affordable) || null;
@@ -57,6 +60,10 @@ function Choose({ view, isMuted, onUnmute, onConfirm, onCancel }) {
       {view.priceNotice ? <p className="fc-notice" role="status">{view.priceNotice}</p> : null}
       {view.orphanNotice ? <p className="fc-notice" role="status">{view.orphanNotice}</p> : null}
       {isMuted ? <MutedWarning onUnmute={onUnmute} /> : null}
+      {covered && !anyway ? (
+        <CoveredBanner model={covered} onShow={(id) => { setAnyway(true); onShowPart(id); }} onAnyway={() => setAnyway(true)} onCancel={onCancel} />
+      ) : (
+      <>
       <div className="fc-options" role="group" aria-label="Block length">
         {options.map((o) => (
           <button
@@ -83,6 +90,7 @@ function Choose({ view, isMuted, onUnmute, onConfirm, onCancel }) {
         <li>Unused whole minutes are released when the session ends.</li>
         <li>Closing Live TV ends the session.</li>
         <li>The video must be unmuted.</li>
+        {sharing ? <li>Other users of this video will be able to pay to see the transcript and verdicts of this block.</li> : null}
       </ul>
       <div className="fc-actions">
         <button
@@ -96,6 +104,8 @@ function Choose({ view, isMuted, onUnmute, onConfirm, onCancel }) {
         </button>
         <button type="button" className="ltv-action-btn fc-btn" data-fc="cancel" onClick={onCancel}>Cancel</button>
       </div>
+      </>
+      )}
     </div>
   );
 }
@@ -260,7 +270,7 @@ function RecheckControls({ id, price, balance, recheck, onAsk, onConfirm, onCanc
   );
 }
 
-function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel }) {
+function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, share }) {
   // With no re-check price the card is exactly what it was before re-checks existed.
   const priced = typeof price === 'number';
   const chain = priced && recheck?.results?.length ? [...recheck.results, claim] : [claim];
@@ -280,9 +290,12 @@ function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel }) {
       </div>
       <p className="fc-claim" dir="auto">{claim.claim_en}</p>
       {by ? <p className="fc-by">{by}</p> : null}
+      {share && typeof claim.position_s === 'number' ? <p className="fc-by">{`At ${formatPosition(claim.position_s)}`}</p> : null}
       {shown.reason ? <p className="fc-reason" dir="auto">{shown.reason}</p> : null}
       <SourceList result={shown} />
-      <CheckedAt result={shown} withDate={chain.length > 1} />
+      <CheckedAt result={shown} withDate={chain.length > 1 || Boolean(share)} />
+      {claim.reported === true ? <p className="fc-reported">Reported</p> : null}
+      {share?.report && claim.reported !== true ? <ReportControls id={claim.id} {...share.report} /> : null}
       {priced && (shown.status === 'checked' || shown.status === 'error') ? (
         <RecheckControls id={claim.id} price={price} balance={balance} recheck={recheck} onAsk={onAsk} onConfirm={onConfirm} onCancel={onCancel} />
       ) : null}
@@ -334,6 +347,7 @@ export function FactCheckPanel(props) {
 // entry button when it is dismissed (unless the user has already moved focus elsewhere).
 function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel }) {
   const heading = useRef(null);
+  const [openParts, setOpenParts] = useState({});
   const opensForNotice = useRef(view.session.status === 'idle'); // a late message must not take focus
   useEffect(() => {
     if (!opensForNotice.current) heading.current?.focus();
@@ -345,6 +359,18 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
     };
   }, []);
   const s = view.session;
+  // Shared results show only with sharing on and a recorded video (the controller sets view.shared).
+  const sharedOn = Boolean(view.flag.sharing && view.shared);
+  const shareActions = view.shareActions || {};
+  const partsShown = sharedOn && (s.status === 'choosing' || s.status === 'ended' || s.status === 'error');
+  const coveringStretch = sharedOn && view.shared.covering
+    ? view.shared.stretches.find((x) => x.stretch_id === view.shared.covering) : null;
+  const covered = coveringStretch ? partModel(coveringStretch) : null;
+  const showPart = (id) => {
+    setOpenParts((o) => ({ ...o, [id]: true }));
+    const st = view.shared.stretches.find((x) => x.stretch_id === id);
+    if (st && !partModel(st).readable) shareActions.unlockAsk?.(id);
+  };
   const live = s.status === 'running' || s.status === 'ending';
   const hasContent = s.transcript.length > 0 || s.claims.length > 0;
   const showWork = live || s.status === 'ended' || (s.status === 'error' && hasContent);
@@ -377,7 +403,7 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
       ) : null}
 
       {s.status === 'choosing' ? (
-        <Choose view={view} isMuted={isMuted} onUnmute={onUnmute} onConfirm={onConfirm} onCancel={onCancel} />
+        <Choose view={view} isMuted={isMuted} onUnmute={onUnmute} onConfirm={onConfirm} onCancel={onCancel} covered={covered} onShowPart={showPart} sharing={sharedOn} />
       ) : null}
       {s.status === 'sharing' || s.status === 'starting' ? <Waiting status={s.status} onStop={onStop} /> : null}
 
@@ -426,6 +452,27 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
             }}
           />
         </div>
+      ) : null}
+
+      {partsShown ? (
+        <Parts
+          shared={view.shared} balance={view.balance} openIds={openParts} actions={shareActions}
+          onToggle={(id) => setOpenParts((o) => ({ ...o, [id]: !o[id] }))}
+          renderCard={(c, part) => (
+            <Card
+              key={c.id} claim={c}
+              price={null} balance={view.balance} /* no re-check inside a part: the server shows the original claim id */
+              recheck={view.rechecks?.[c.id]}
+              onAsk={onRecheckAsk ?? view.recheckActions?.ask} onConfirm={onRecheckConfirm ?? view.recheckActions?.confirm}
+              onCancel={onRecheckCancel ?? view.recheckActions?.cancel}
+              share={{
+                report: part.reportable ? {
+                  report: view.shared.reports[c.id], onAsk: shareActions.reportAsk, onCancel: shareActions.reportCancel, onSend: shareActions.reportSend,
+                } : null,
+              }}
+            />
+          )}
+        />
       ) : null}
 
       {s.status === 'ended' || s.status === 'error' ? (

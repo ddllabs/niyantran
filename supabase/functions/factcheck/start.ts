@@ -5,6 +5,93 @@ import { badRequest, isObject, type Obj, position } from './validate.ts';
 const VIDEO_ID = /^[A-Za-z0-9_-]{1,32}$/;
 const CHANNEL_ID = /^[A-Za-z0-9_.:-]{1,64}$/;
 
+const CONFIRM_TIMEOUT_MS = 4000;
+const MAX_CONFIRM_BYTES = 1_000_000;
+
+/** True when the app's uploads list holds this video and says it is neither live nor upcoming. Never throws. */
+/** The body as text, or null as soon as it passes the byte cap (the rest is never read). */
+async function readCapped(res: Response): Promise<string | null> {
+  if (!res.body) return '';
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_CONFIRM_BYTES) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const all = new Uint8Array(size);
+  let at = 0;
+  for (const c of chunks) {
+    all.set(c, at);
+    at += c.byteLength;
+  }
+  return new TextDecoder().decode(all);
+}
+
+async function confirmVideo(ctx: Ctx, videoId: string, channelId: string): Promise<boolean> {
+  try {
+    const base = (ctx.deps.livetvApiBase ?? '').replace(/\/+$/, '');
+    if (!/^https?:\/\//.test(base)) return false;
+    const res = await ctx.deps.fetch(`${base}/api/livetv/videos?channelId=${encodeURIComponent(channelId)}`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      redirect: 'error',
+      signal: AbortSignal.timeout(CONFIRM_TIMEOUT_MS),
+    });
+    if (res.status !== 200) {
+      await res.body?.cancel();
+      return false;
+    }
+    const raw = await readCapped(res);
+    if (raw === null) return false;
+    // Untrusted data: only the fields below are read. The answer must say it came from the YouTube API
+    // itself ('youtube-api'); the curated fallback, a stale cache and a plain 'cache' (which can hold the
+    // fallback, see liveTvApi.mjs) are refused. Both flags must be exactly false.
+    const body = JSON.parse(raw) as Obj | null;
+    if (!isObject(body) || body.ok !== true || body.dataOrigin !== 'youtube-api') return false;
+    const list = body.recentVideos;
+    if (!Array.isArray(list)) return false;
+    return list.some((v) =>
+      isObject(v) && (v.videoId ?? v.id) === videoId && v.isLive === false && v.isUpcoming === false
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Asks SQL whether sharing is on for this caller, so a start with sharing off costs no fetch and no quota. */
+async function sharingOn(ctx: Ctx, isAdmin: boolean): Promise<boolean> {
+  try {
+    const { data, error } = await ctx.deps.rpc('factcheck_share_on', { p_is_admin: isAdmin === true });
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
+
+async function confirmAndMark(ctx: Ctx, videoId: string, channelId: string, sessionId: string): Promise<boolean> {
+  if (!await confirmVideo(ctx, videoId, channelId)) return false;
+  try {
+    const { data, error } = await ctx.deps.rpc('factcheck_mark_shareable', {
+      p_user: ctx.userId,
+      p_session: sessionId,
+    });
+    return !error && isObject(data) && data.ok === true;
+  } catch {
+    return false;
+  }
+}
+
 /** Starts a block: validates, asks the SQL function (which holds the credits), returns the session. */
 export async function startAction(ctx: Ctx, body: Obj): Promise<Obj> {
   const { video_id, channel_id, video_kind, minutes } = body;
@@ -50,7 +137,13 @@ export async function startAction(ctx: Ctx, body: Obj): Promise<Obj> {
     ) {
       throw new Error('unexpected factcheck_start answer');
     }
-    return { session_id, credits_per_minute, credits_held, ends_at };
+    const answer: Obj = { session_id, credits_per_minute, credits_held, ends_at };
+    // Sharing (slice 2): only a recorded video the app's own server confirms is shared; any failure leaves
+    // the session private and the start unchanged. The field is present only when a confirmation was tried.
+    if (video_kind === 'recorded' && ctx.deps.livetvApiBase && await sharingOn(ctx, isAdmin)) {
+      answer.shareable = await confirmAndMark(ctx, video_id, channel_id, session_id);
+    }
+    return answer;
   }
   switch (data.reason) {
     case 'off':

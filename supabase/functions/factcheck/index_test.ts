@@ -21,9 +21,10 @@ Deno.test('function entry uses the OpenRouter key and no other provider key', ()
   }
   assertEquals(
     (source.match(/Deno\.env\.get\(/g) ?? []).length,
-    1,
-    'OPENROUTER_API_KEY is the only env read in index.ts',
+    2,
+    'OPENROUTER_API_KEY and LIVETV_API_BASE are the only env reads in index.ts',
   );
+  assertStringIncludes(source, "Deno.env.get('LIVETV_API_BASE')");
 });
 
 Deno.test('function entry serves only when run as the main module', () => {

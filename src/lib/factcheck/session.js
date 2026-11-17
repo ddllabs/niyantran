@@ -20,6 +20,12 @@
 // error.sessionId (start refused with 409 already_active): the session still active on the
 //   server; stopOrphan(sessionId) stops it.
 //
+// Shared results (recorded videos): when `start` answers shareable: true and a getPosition()
+// option exists ({ positionS, playerState } from the player; playerState 1 = playing), each piece
+// whose position moved with the audio goes to the server with pieceNo (seq + 1), posStartS and
+// posEndS (all three or none; any other piece is sent as in slice 1); a turn whose pieces the server all stored is sent as a piece range instead of text.
+// Without that, requests are exactly as before. State: shareable.
+//
 // Order of events on start: the tab is shared first, then the server session
 // is started. A user who dismisses the browser's share prompt therefore costs
 // nothing (a started session is charged at least one minute). Pieces that arrive
@@ -60,6 +66,7 @@ export function createFactCheckSession({
   sleep = ms => new Promise(resolve => timers.setTimeout(resolve, ms)),
   initialLedger = null,
   extractGapMs = LIMITS.extractGapMs,
+  getPosition = null,
 } = {}) {
   let run = null;
   let phase = 'idle';
@@ -69,7 +76,7 @@ export function createFactCheckSession({
   function idleState(status) {
     return {
       status, sessionId: null, minutesBought: 0, creditsPerMinute: null, creditsHeld: null, secondsLeft: 0,
-      transcript: [], claims: [], silentFor: 0, skippedPieces: 0, droppedTurns: 0, budgetReached: false,
+      transcript: [], claims: [], silentFor: 0, skippedPieces: 0, droppedTurns: 0, budgetReached: false, shareable: false,
       final: null, endReason: null, error: null,
     };
   }
@@ -104,6 +111,10 @@ export function createFactCheckSession({
     let error = null;
     let skipped = 0;
     let dropped = 0;
+    let shareable = false;       // the server confirmed this recorded video can be shared
+    const posByPiece = new Map(); // seq -> { posStartS, posEndS } for pieces with a sane position
+    const storedSeqs = new Set(); // seqs the server stored (answered stored: true)
+    let lastSample = null;        // player position when the previous piece was cut
     let noMoreChecks = false;
     let noMoreExtracts = false;
     let failures = 0;
@@ -155,7 +166,7 @@ export function createFactCheckSession({
       transcript: lines.map(l => ({ ...l })),
       claims: [...claims.values()].map(c => ({ ...c, sources: [...c.sources] })),
       silentFor: Math.max(0, latestEnd - lastAudibleEnd),
-      skippedPieces: skipped, droppedTurns: dropped, budgetReached: noMoreChecks || noMoreExtracts, final, endReason, error: error && { ...error },
+      skippedPieces: skipped, droppedTurns: dropped, budgetReached: noMoreChecks || noMoreExtracts, shareable, final, endReason, error: error && { ...error },
     });
 
     // ---- bookkeeping for "is everything finished" ----
@@ -221,9 +232,44 @@ export function createFactCheckSession({
     }
     const succeeded = () => { failures = 0; };
 
+    // ---- positions (shared results) ----
+    // The player is read when a piece arrives, which is `heldMs` of audio after the piece's last
+    // sample (the cutter holds audio past a cut): the end position is the reading minus heldMs, the
+    // start is the end minus the piece's own audio length. Valid only if the player was playing at
+    // this reading and the previous one, and the position moved by the audio received between the two
+    // readings within 1.5 s (a pause, buffering or a seek fails). A start a little below 0 is 0.
+    function samplePosition() {
+      if (!getPosition) return null;
+      try {
+        const p = getPosition();
+        return p && Number.isFinite(p.positionS) ? { positionS: p.positionS, playing: p.playerState === 1, atMs: 0 } : null;
+      } catch { return null; }
+    }
+    function notePosition(piece) {
+      if (!getPosition) return;
+      const cur = samplePosition();
+      const prev = lastSample;
+      if (cur) cur.atMs = piece.endMs + (piece.heldMs || 0);
+      lastSample = cur;
+      if (!prev || !cur || !prev.playing || !cur.playing) return;
+      if (Math.abs((cur.positionS - prev.positionS) - (cur.atMs - prev.atMs) / 1000) > 1.5) return;
+      const endS = cur.positionS - (piece.heldMs || 0) / 1000;
+      let startS = endS - (piece.endMs - piece.startMs) / 1000;
+      if (startS < 0) { if (startS < -1.5) return; startS = 0; }
+      if (endS < startS) return;
+      posByPiece.set(piece.seq, { posStartS: Math.round(startS * 1000) / 1000, posEndS: Math.round(endS * 1000) / 1000 });
+    }
+    // With sharing off or no position getter the piece is passed on untouched.
+    // The three piece fields go together or not at all: the server refuses a piece with only some.
+    const forServer = piece => {
+      const pos = shareable && getPosition ? posByPiece.get(piece.seq) : null;
+      return pos ? { ...piece, pieceNo: piece.seq + 1, ...pos } : piece;
+    };
+
     // ---- transcription ----
     function onPiece(piece) {
       if (dead || cancelled) return;
+      notePosition(piece);
       latestEnd = Math.max(latestEnd, piece.endMs);
       if (!piece.silent) lastAudibleEnd = piece.endMs;
       if (!sessionId) { early.push(piece); return; }
@@ -243,7 +289,8 @@ export function createFactCheckSession({
       let secondsLeft;
       let failure = null;
       try {
-        const r = await retrying(signal => transcriber.transcribe(piece, sessionId, { signal }));
+        const r = await retrying(signal => transcriber.transcribe(forServer(piece), sessionId, { signal }));
+        if (r?.stored === true) storedSeqs.add(piece.seq);
         text = typeof r?.text === 'string' ? r.text : '';
         secondsLeft = r?.secondsLeft;
         succeeded();
@@ -310,13 +357,17 @@ export function createFactCheckSession({
       lastExtractAt = now();
       const first = batch[0].turn;
       const turn = batch.length === 1 ? first : { ...first, text: batch.map(b => b.turn.text).join(' ') };
+      const when = {
+        spoken_at: new Date(startedAt + turn.startMs).toISOString(),
+        position_s: videoKind === 'recorded' && startPositionS !== null ? startPositionS + turn.startMs / 1000 : null,
+      };
+      // A turn whose pieces the server all stored is sent as a range: the server builds the text.
+      const seqs = batch.flatMap(b => b.turn.seqs || []).sort((a, b) => a - b);
+      const ranged = shareable && seqs.length > 0 && seqs.length <= 12
+        && seqs.every((q, i) => storedSeqs.has(q) && (i === 0 || q === seqs[i - 1] + 1));
       const payload = {
         session_id: sessionId,
-        turn: {
-          text: turn.text,
-          spoken_at: new Date(startedAt + turn.startMs).toISOString(),
-          position_s: videoKind === 'recorded' && startPositionS !== null ? startPositionS + turn.startMs / 1000 : null,
-        },
+        turn: ranged ? { piece_from: seqs[0] + 1, piece_to: seqs.at(-1) + 1, ...when } : { text: turn.text, ...when },
         recent: batch[0].recent, ledger, seed,
       };
       try {
@@ -481,6 +532,7 @@ export function createFactCheckSession({
         return;
       }
       capHandle = cap;
+      lastSample = samplePosition(); // player position at the first audio sample
       if (cancelled) { await cap.stop({ flush: false }); return; }
       startedAt = now();
       setStatus('starting');
@@ -501,6 +553,7 @@ export function createFactCheckSession({
         return;
       }
       sessionId = res.session_id;
+      shareable = res.shareable === true;
       creditsPerMinute = res.credits_per_minute ?? null;
       creditsHeld = res.credits_held ?? null;
       // The local clock rules until the first seconds_left arrives.

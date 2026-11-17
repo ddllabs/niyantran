@@ -12,6 +12,7 @@ const claims = [
 const flag = { available: true, creditsPerMinute: 500, userId: 'u' };
 const mk = (session) => ({ flag, supported: true, ready: true, session: { ...base, ...session }, announcement: '', balance: 5000 });
 export const PIN_VIEWS = () => ({
+  choosing: mk({ status: 'choosing' }),
   running: mk({ status: 'running', secondsLeft: 100, transcript: [{ seq: 0, text: 'hello', startMs: 0 }], claims }),
   ended: mk({ status: 'ended', endReason: 'time', final: { minutes_used: 1, credits_charged: 500, balance: 4500 }, claims }),
 });

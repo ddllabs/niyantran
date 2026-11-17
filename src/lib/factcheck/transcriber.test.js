@@ -31,4 +31,11 @@ describe('createTranscriber', () => {
     await expect(createTranscriber(client).transcribe({ seq: 0, wav }, 's', { signal: ctl.signal })).rejects.toBe(boom);
     expect(client.transcribe.mock.calls[0][0].signal).toBe(ctl.signal);
   });
+
+  it('passes piece number and positions to the client and returns stored', async () => {
+    const client = { transcribe: vi.fn(async () => ({ seq: 2, text: 'a', seconds_left: 5, stored: true })) };
+    const out = await createTranscriber(client).transcribe({ seq: 2, wav, pieceNo: 3, posStartS: 1, posEndS: 12 }, 's');
+    expect(out.stored).toBe(true);
+    expect(client.transcribe).toHaveBeenCalledWith(expect.objectContaining({ pieceNo: 3, posStartS: 1, posEndS: 12 }));
+  });
 });
