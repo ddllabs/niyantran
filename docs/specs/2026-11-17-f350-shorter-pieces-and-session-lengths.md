@@ -1,8 +1,7 @@
 # Live TV fact-check: session lengths of 1, 2, 5, 10 and 15 minutes and a listening line (F350, proposed)
 
 > **Status: Living.** Written 2026-11-17 from the owner's request of the same day and from code read at `main`
-> `7034e9f7`. Gate G1 executed 2026-11-17: both shorter settings failed; piece length unchanged. Reduced scope not yet
-> built. Tracker: F350 in [open-work](../plans/open-work.md). Plan:
+> `7034e9f7`. Gate G1 executed 2026-11-17: both shorter settings failed; piece length unchanged. Reduced scope built and reviewed on 2026-11-17: server in pull request 167, browser in pull request 168; every gate run on the combined change (executed). Not merged, not applied to the live database, not deployed. Tracker: F350 in [open-work](../plans/open-work.md). Plan:
 > [F350 plan](../plans/2026-11-17-f350-shorter-pieces-and-session-lengths.md). Builds on the
 > [F344 spec](2026-11-15-live-tv-fact-check.md) and the [F349 fixes](../plans/2026-11-17-f349-fact-check-fixes.md).
 > Accepted risk for audio capture: [ADR 0015](../decisions/0015-live-tv-fact-check-audio-capture.md).
