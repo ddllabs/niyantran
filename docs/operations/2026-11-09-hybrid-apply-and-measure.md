@@ -478,7 +478,9 @@ question on the NCLT / NCLAT desk in the browser, focus "Desk", no document pinn
 
 The answer completed with cited passages in 32.3 s in all (search 6.1 s). Step 1 is the app's hybrid path seen working
 on NTER, inside its 2.5 s budget. Step 2's stored input names no module, and a search without the NCLT module never
-reads the switch, so no path is recorded for it; why the follow-up search carries no module was not traced.
+reads the switch, so no path is recorded for it. Traced the same day: step 2 is the fixed Law context search in
+`research-chat/agent.ts` (it fetches the headings that govern a submission), confined to the documents step 1 found.
+A search confined to named documents is not eligible for hybrid, so vector-only is the designed path for it.
 
 **Not verified:** one question only; the fallback has still never fired on NTER, so its live behaviour rests on the
 tests and the local reproduction.
