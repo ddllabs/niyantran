@@ -1,7 +1,7 @@
 # F350 plan: session lengths of 1, 2, 5, 10 and 15 minutes and a listening line
 
 > **Status: Living.** Written 2026-11-17 on branch `task/f350-plan`. Gate G1 executed 2026-11-17: both shorter settings
-> failed; piece length unchanged. Reduced scope not yet built. Revised after the independent review and again after G1.
+> failed; piece length unchanged. Reduced scope built and reviewed on 2026-11-17: server in pull request 167, browser in pull request 168; every gate run on the combined change (executed). Not merged, not applied to the live database, not deployed. Revised after the independent review and again after G1.
 > Tracker: F350 in [open-work](open-work.md). Spec: [F350 spec](../specs/2026-11-17-f350-shorter-pieces-and-session-lengths.md),
 > which holds the reasons, the decisions, the G1 results, the owner's answers and the list of what is not built.
 > Code references are in the spec (read at `main` `7034e9f7`).
