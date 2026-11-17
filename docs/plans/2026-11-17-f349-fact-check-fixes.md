@@ -3,7 +3,7 @@
 > **Status: Living (2026-11-17).** Written 2026-11-17 on branch `task/f349-findings`. Tracker: F349 in
 > [open-work](open-work.md). Findings are in the
 > [research note](../research/2026-11-17-f349-fact-check-first-sessions.md), which says what was executed and what was
-> read from code. Owner decisions D1 to D3 were made on 2026-11-17; D4 is still open. Merged 2026-11-17 in
+> read from code. Owner decisions D1 to D3 were made on 2026-11-17; D4 was answered the same day (see below). Merged 2026-11-17 in
 > pull request 162 (`ac4a7726`); migration applied on NTER and function version 4 deployed the same day; proof by a real session still owed.
 
 ## What it delivers
@@ -26,8 +26,8 @@
 - **D2.** Decided 2026-11-17: keep "End that session". The other page says "This session was ended from another tab or
   window."
 - **D3.** Decided 2026-11-17: no paid replay. The reason code will be read from the log after the next normal session.
-- **D4.** Still open. The owner has not yet said whether two pages or windows had Live TV open at 14:52 UTC on
-  2026-11-17.
+- **D4.** Answered 2026-11-17: the owner confirmed that Live TV was open in two tabs or windows at about 14:52 UTC, so the
+  cause of the 409 responses is confirmed.
 
 Note: on 2026-11-17 the owner agreed to this order of later work, each item its own plan:
 

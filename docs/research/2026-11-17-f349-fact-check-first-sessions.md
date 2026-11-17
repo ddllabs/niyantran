@@ -83,11 +83,11 @@ Provider calls come from `model_call_logs` with caller `factcheck`.
 
 - What happens: three `start` calls were refused as `already_active` (14:52:29, 14:52:58, 14:53:17). One `transcribe`
   call was refused as `settled` (14:52:43) (executed).
-- Likely sequence (not established; needs the owner's confirmation): Live TV was open in two pages. Page A started a
+- Sequence (the owner confirmed on 2026-11-17 that Live TV was open in two tabs or windows at about 14:52 UTC, so the cause of the 409 responses is confirmed). Page A started a
   session at 14:52:06. Page B's start was refused. Page B pressed "End that session", which stopped A's session at
   14:52:33. A's next `transcribe` got 409. `session.js` turns any 409 into an end with the text "The server ended the
   session." Page B then started a new session.
-- This is the only session the server ended. It is probably the "connection drop". It is not a network failure or a
+- This is the only session the server ended. It is the "connection drop" the owner reported. It is not a network failure or a
   provider failure.
 
 **F349-3. Why sessions ended early.**
@@ -139,5 +139,5 @@ latencies in section 4 refute it.
 - What the provider returned for the failed claim. Settled by a reason code in the log, or by one deliberate paid replay
   that the owner approves.
 - Which action ended each session. Settled by an end reason sent with `stop`, or by a network trace from a real session.
-- Whether two pages were open at 14:52 UTC. Settled by asking the owner.
+- Whether two pages were open at 14:52 UTC. Settled: the owner confirmed on 2026-11-17 that Live TV was open in two tabs or windows at about 14:52 UTC.
 - Whether a failed capture can leave credits held. Settled by reading the order of `start` in code and by a test.
