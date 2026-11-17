@@ -5,7 +5,7 @@ import { chatCompletion, ProviderError } from './modelCall.ts';
 import { CHECK_MODEL } from './models.ts';
 import { CHECK_SYSTEM, checkUser } from './prompts.ts';
 import { touch } from './touch.ts';
-import type { CheckResult, ClaimRow, Ctx, SessionRow, Source, Verdict } from './types.ts';
+import type { CheckResult, ClaimRow, Ctx, FailReason, SessionRow, Source, Verdict } from './types.ts';
 import { isObject, type Obj, uuid } from './validate.ts';
 
 /** A check that started longer ago than this is presumed dead, and another request may take over. */
@@ -26,15 +26,29 @@ const VERDICTS = new Map<string, Verdict>([
 const norm = (label: string) => label.replace(/[*_`"'.]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
 const BY_NORMALISED = new Map([...VERDICTS].map(([label, v]) => [norm(label), v]));
 
+const readLabels = (reply: string) =>
+  [...reply.matchAll(/^[\s*_#>-]*label[\s*_]*:[\s*_]*(.+)$/gim)].map((m) => BY_NORMALISED.get(norm(m[1])));
+
+/**
+ * Why a reply cannot be saved as a verdict, as exactly one code (null when it can). Beside parseVerdict and
+ * agreeing with it: the label rules are the same, then a label other than "No evidence found" needs a source.
+ * Looks at the reply only; nothing of it is returned.
+ */
+export function replyFailure(reply: string | null, sourceCount: number): FailReason | null {
+  const labels = readLabels(reply ?? '');
+  if (!labels.length) return 'no_label';
+  if (labels.some((l) => l === undefined)) return 'bad_label';
+  if (new Set(labels).size !== 1) return 'label_conflict';
+  return labels[0] !== 'no_evidence' && sourceCount === 0 ? 'no_sources' : null;
+}
+
 /**
  * The label and reason from the fixed two-line reply. Read leniently (case, markdown, a trailing full stop,
  * "[1]" citation marks, an extra SOURCES line) but accepted only when every LABEL line names the same one of
  * the five labels. Anything else is undefined.
  */
 export function parseVerdict(reply: string): { verdict: Verdict; reason: string | null } | undefined {
-  const labels = [...reply.matchAll(/^[\s*_#>-]*label[\s*_]*:[\s*_]*(.+)$/gim)].map((m) =>
-    BY_NORMALISED.get(norm(m[1]))
-  );
+  const labels = readLabels(reply);
   if (!labels.length || labels.some((l) => l === undefined) || new Set(labels).size !== 1) return undefined;
   const m = /^[\s*_#>-]*reason[\s*_]*:[\s*_]*([\s\S]*?)(?=^[\s*_#>-]*(?:sources?|label)[\s*_]*:|$(?![\s\S]))/im.exec(
     reply,
@@ -87,17 +101,19 @@ const stored = (c: ClaimRow): Obj => ({
   reason: c.reason,
   sources: c.sources ?? [],
   checked_at: c.checked_at,
+  fail_reason: c.fail_reason ?? null,
 });
 
 /**
  * The model call, parsing and source rules shared by check and recheck: asks sonar about the claim's stored
  * text and returns what to save. Throws ProviderError (502) when the provider fails, times out or the client
- * goes away; every other outcome is a result.
+ * goes away; every other outcome is a result. `citations` is how many sources the provider gave (kept for the
+ * log: an error result stores none).
  */
 export async function verdictFor(
   ctx: Ctx,
   p: { purpose: 'claim_check' | 'claim_recheck'; claim: ClaimRow; session: SessionRow; detached?: boolean },
-): Promise<CheckResult> {
+): Promise<{ result: CheckResult; citations: number }> {
   const now = ctx.now();
   const { payload, text } = await chatCompletion(ctx, {
     purpose: p.purpose,
@@ -114,6 +130,8 @@ export async function verdictFor(
       kind: p.session.video_kind,
     }),
     maxTokens: 700,
+    // The call is logged as an error row ("unusable: <code>") when the reply cannot be saved, not as a success.
+    unusable: (payload, reply) => replyFailure(reply, parseSources(payload).length),
     // No provider block: perplexity/sonar returns 404 under require_parameters (live probe 2026-11-16),
     // and data_collection: 'deny' for it was not probed. The claim text sent is already public speech.
   });
@@ -121,10 +139,19 @@ export async function verdictFor(
   const sources = parseSources(payload);
   const at = new Date(now).toISOString();
   // Anything but one of the five labels is an error, never a verdict, and its text is not kept. So is a
-  // verdict with no source, unless it says no evidence was found.
-  return parsed && (sources.length > 0 || parsed.verdict === 'no_evidence')
-    ? { status: 'checked', verdict: parsed.verdict, reason: parsed.reason, sources, checked_at: at }
-    : { status: 'error', verdict: null, reason: null, sources: [], checked_at: at };
+  // verdict with no source, unless it says no evidence was found. The error carries one reason code.
+  const fail = replyFailure(text, sources.length);
+  const result: CheckResult = parsed && !fail
+    ? { status: 'checked', verdict: parsed.verdict, reason: parsed.reason, sources, checked_at: at, fail_reason: null }
+    : {
+      status: 'error',
+      verdict: null,
+      reason: null,
+      sources: [],
+      checked_at: at,
+      fail_reason: fail ?? 'no_label',
+    };
+  return { result, citations: sources.length };
 }
 
 /**
@@ -160,9 +187,11 @@ export async function checkAction(ctx: Ctx, body: Obj): Promise<Obj> {
   }
 
   let row: ClaimRow | null;
+  let citations: number | null = null;
   try {
-    const result = await verdictFor(ctx, { purpose: 'claim_check', claim, session });
-    row = await store.finishCheck(ctx.userId, sessionId, claimId, result);
+    const outcome = await verdictFor(ctx, { purpose: 'claim_check', claim, session });
+    citations = outcome.citations;
+    row = await store.finishCheck(ctx.userId, sessionId, claimId, outcome.result);
   } catch (error) {
     // A client that went away keeps the lease: the provider may well have been paid, and a retry within
     // the lease must not pay again. Every other failure hands the claim back so a retry can run; a failed
@@ -174,7 +203,13 @@ export async function checkAction(ctx: Ctx, body: Obj): Promise<Obj> {
     }
     throw error;
   }
-  log('factcheck.check', { session_id: sessionId, claim_id: claimId, status: row?.status ?? 'unknown' });
+  log('factcheck.check', {
+    session_id: sessionId,
+    claim_id: claimId,
+    status: row?.status ?? 'unknown',
+    fail_reason: row?.fail_reason ?? null,
+    citations,
+  });
   if (row) return stored(row);
   const current = await store.claim(ctx.userId, sessionId, claimId);
   if (!current) throw new ApiError(404, 'Claim not found.', { reason: 'claim_not_found' });

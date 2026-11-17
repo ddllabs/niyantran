@@ -1,8 +1,8 @@
 import { assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
 import { handleFactcheck } from './handler.ts';
 import { CHECK_SYSTEM } from './prompts.ts';
-import { chatPayload, checkReply, type Harness, harness, jsonRequest, SESSION, USER } from './testkit.ts';
-import { parseSources, parseVerdict } from './check.ts';
+import { captureLogs, chatPayload, checkReply, type Harness, harness, jsonRequest, SESSION, USER } from './testkit.ts';
+import { parseSources, parseVerdict, replyFailure } from './check.ts';
 
 const fixture = async (name: string) =>
   JSON.parse(await Deno.readTextFile(new URL(`./__fixtures__/${name}`, import.meta.url)));
@@ -36,7 +36,8 @@ Deno.test('a pending claim is touched first, read by id and session and user, ch
   const res = await handleFactcheck(req(), h.deps);
   assertEquals(res.status, 200);
   const json = await res.json();
-  assertEquals(Object.keys(json).sort(), ['checked_at', 'id', 'reason', 'sources', 'status', 'verdict']);
+  assertEquals(Object.keys(json).sort(), ['checked_at', 'fail_reason', 'id', 'reason', 'sources', 'status', 'verdict']);
+  assertEquals(json.fail_reason, null);
   assertEquals([json.id, json.status, json.verdict, json.reason], [
     CLAIM,
     'checked',
@@ -246,6 +247,7 @@ Deno.test('a claim that was already checked returns its stored result without a 
     reason: 'Stored reason.',
     sources: stored,
     checked_at: '2026-11-16T09:00:00.000Z',
+    fail_reason: null,
   });
   assertEquals(h.fetches.length, 0);
   assertEquals(h.logRows.length, 0);
@@ -443,5 +445,88 @@ Deno.test('an error verdict still logs the model call it cost', async () => {
   verdict(h, 'Gibberish');
   await handleFactcheck(req(), h.deps);
   assertEquals(h.logRows.length, 1);
-  assertEquals(h.logRows[0].status, 'success');
+  assertEquals(h.logRows[0].status, 'error');
+  assertEquals(h.logRows[0].cost_usd, 0.0054, 'the cost it incurred is kept');
+});
+
+Deno.test('replyFailure names exactly one code, and is null for every reply parseVerdict accepts with a source', () => {
+  const some = 1;
+  assertEquals(replyFailure(null, some), 'no_label');
+  assertEquals(replyFailure('', some), 'no_label');
+  assertEquals(replyFailure('plain prose', some), 'no_label');
+  assertEquals(replyFailure('REASON: no label here', some), 'no_label');
+  assertEquals(replyFailure('{"label":"Supported"}', some), 'no_label');
+  assertEquals(replyFailure('LABEL: Mostly true\nREASON: x', some), 'bad_label');
+  assertEquals(replyFailure('LABEL: Supported or Contradicted\nREASON: x', some), 'bad_label');
+  assertEquals(replyFailure('LABEL: Supported\nLABEL: Nonsense', some), 'bad_label');
+  assertEquals(replyFailure('LABEL: Supported\nLABEL: Contradicted\nREASON: two', some), 'label_conflict');
+  assertEquals(replyFailure('LABEL: Supported\nREASON: x', 0), 'no_sources');
+  assertEquals(replyFailure('LABEL: Opinion\nREASON: x', 0), 'no_sources');
+  assertEquals(replyFailure('LABEL: No evidence found\nREASON: x', 0), null);
+  for (
+    const ok of [
+      'LABEL: supported\nREASON: x',
+      '**LABEL:** **Partly true.**\n**REASON:** x',
+      'Label : "No evidence found"\nreason: x',
+      'LABEL: Supported\nLABEL: supported\nREASON: x',
+      'LABEL: Supported\nREASON: x\nSOURCES: https://a.example',
+    ]
+  ) {
+    assertEquals(parseVerdict(ok) !== undefined, true, ok);
+    assertEquals(replyFailure(ok, some), null, ok);
+  }
+});
+
+const REPLY_TEXT = 'SECRET-REPLY-TEXT-9f3 ';
+const FAILURES: [string, string, Record<string, unknown>, string][] = [
+  ['no_label', REPLY_TEXT + 'prose without a label', { citations: ['https://example.org/a'] }, 'no_label'],
+  ['no_label', '', { citations: ['https://example.org/a'] }, 'empty reply'],
+  ['bad_label', `LABEL: Mostly true ${REPLY_TEXT}\nREASON: x`, { citations: ['https://example.org/a'] }, 'bad'],
+  ['label_conflict', `LABEL: Supported\nLABEL: Contradicted\nREASON: ${REPLY_TEXT}`, {
+    citations: ['https://example.org/a'],
+  }, 'conflict'],
+  ['no_sources', `LABEL: Supported\nREASON: ${REPLY_TEXT}`, {}, 'no sources'],
+];
+
+Deno.test('a check that ends in error stores, returns and logs its reason code, and the model call is logged as unusable', async () => {
+  for (const [code, content, extra, why] of FAILURES) {
+    const h = withClaim();
+    h.models.check = () => chatPayload(content, extra);
+    const { result, lines } = await captureLogs(() => handleFactcheck(req(), h.deps));
+    const json = await result.json();
+    assertEquals([json.status, json.verdict, json.fail_reason], ['error', null, code], why);
+    assertEquals([h.store.rows[0].status, h.store.rows[0].fail_reason], ['error', code], why);
+    assertEquals(h.logRows.length, 1, why);
+    const row = h.logRows[0];
+    assertEquals([row.status, row.error_message], ['error', `unusable: ${code}`], why);
+    assertEquals(
+      [row.cost_usd, row.prompt_tokens, row.completion_tokens, row.total_tokens],
+      [0.0054, 120, 40, 160],
+      why,
+    );
+    const line = JSON.parse(lines.find((l) => l.includes('"factcheck.check"'))!);
+    assertEquals([line.status, line.fail_reason, line.citations], ['error', code, 'citations' in extra ? 1 : 0], why);
+    assertEquals(
+      [...lines, JSON.stringify(row), JSON.stringify(json)].some((t) => t.includes('SECRET-REPLY-TEXT')),
+      false,
+      why,
+    );
+  }
+});
+
+Deno.test('a checked claim has fail_reason null and a success model-call row', async () => {
+  const h = withClaim();
+  const { result, lines } = await captureLogs(() => handleFactcheck(req(), h.deps));
+  const json = await result.json();
+  assertEquals([json.status, json.fail_reason, h.store.rows[0].fail_reason], ['checked', null, null]);
+  assertEquals([h.logRows[0].status, h.logRows[0].error_message], ['success', null]);
+  const line = JSON.parse(lines.find((l) => l.includes('"factcheck.check"'))!);
+  assertEquals([line.fail_reason, line.citations], [null, 1]);
+});
+
+Deno.test('a stored error is returned with its fail_reason, and a stored claim without one with null', async () => {
+  const h = withClaim({ status: 'error', checked_at: '2026-11-16T09:00:00.000Z', fail_reason: 'bad_label' });
+  assertEquals((await (await handleFactcheck(req(), h.deps)).json()).fail_reason, 'bad_label');
+  const old = withClaim({ status: 'error', checked_at: '2026-11-16T09:00:00.000Z' });
+  assertEquals((await (await handleFactcheck(req(), old.deps)).json()).fail_reason, null);
 });

@@ -152,8 +152,12 @@ export async function callProvider(
   ctx: Ctx,
   meta: { purpose: Purpose; model: string; sessionId: string; timeoutMs?: number; detached?: boolean },
   send: (signal: AbortSignal) => Promise<Response>,
-  /** A 2xx JSON answer the caller cannot use is logged as an error, not a success. */
-  usable: (payload: Record<string, unknown>) => boolean = () => true,
+  /**
+   * A 2xx JSON answer the caller cannot use is logged as an error, not a success. false: the provider call failed
+   * (ok is false). A string: the provider answered, the content was unusable for the stated server-authored reason;
+   * logged as an error "unusable: <reason>" but ok stays true so the caller decides what follows.
+   */
+  usable: (payload: Record<string, unknown>) => boolean | string = () => true,
 ): Promise<ProviderOutcome> {
   const started = ctx.now();
   let status: ModelCallRow['status'] = 'error';
@@ -174,11 +178,17 @@ export async function callProvider(
       try {
         payload = asObject(await response.json());
         if (!payload) reason = 'Provider response was not an object.';
-        else if (!usable(payload)) reason = 'Provider response had no usable content.';
         else {
-          ok = true;
-          status = 'success';
-          reason = null;
+          const verdict = usable(payload);
+          if (verdict === false) reason = 'Provider response had no usable content.';
+          else {
+            ok = true;
+            if (typeof verdict === 'string') reason = `unusable: ${verdict}`;
+            else {
+              status = 'success';
+              reason = null;
+            }
+          }
         }
       } catch {
         reason = 'Provider response was not JSON.';
@@ -232,6 +242,8 @@ export interface ChatRequest {
   reasoning?: Record<string, unknown>;
   /** Not tied to the request's abort signal (see callProvider). */
   detached?: boolean;
+  /** A reason code when the reply is unusable (logged as an error row "unusable: <code>"); null when it is fine. */
+  unusable?: (payload: Record<string, unknown>, text: string | null) => string | null;
 }
 
 /**
@@ -270,11 +282,16 @@ export async function chatCompletion(
         body,
         signal,
       }),
+    r.unusable ? (payload) => r.unusable!(payload, replyText(payload)) ?? true : undefined,
   );
   if (!outcome.ok || !outcome.payload) throw new ProviderError(outcome.status === 'aborted');
-  const choices = outcome.payload.choices;
+  return { payload: outcome.payload, text: replyText(outcome.payload) };
+}
+
+function replyText(payload: Record<string, unknown>): string | null {
+  const choices = payload.choices;
   const message = Array.isArray(choices) ? asObject(asObject(choices[0])?.message) : null;
-  return { payload: outcome.payload, text: typeof message?.content === 'string' ? message.content : null };
+  return typeof message?.content === 'string' ? message.content : null;
 }
 
 /** chatCompletion with the reply parsed as JSON (null when it is not JSON). */

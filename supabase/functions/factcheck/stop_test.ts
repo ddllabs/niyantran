@@ -1,6 +1,6 @@
 import { assertEquals } from 'jsr:@std/assert@1';
 import { handleFactcheck } from './handler.ts';
-import { harness, jsonRequest, SESSION, USER } from './testkit.ts';
+import { captureLogs, harness, jsonRequest, SESSION, USER } from './testkit.ts';
 
 const stop = (o: Record<string, unknown> = {}) => jsonRequest({ action: 'stop', session_id: SESSION, ...o });
 
@@ -52,4 +52,46 @@ Deno.test('an unusable settlement answer is a 500', async () => {
     h.rpcResult.factcheck_settle = { data, error: null };
     assertEquals((await handleFactcheck(stop(), h.deps)).status, 500);
   }
+});
+
+const stopLine = (lines: string[]) => JSON.parse(lines.find((l) => l.includes('"factcheck.stop"'))!);
+
+Deno.test('stop logs a valid end_reason, and ignores an unknown or malformed one without a 400', async () => {
+  for (
+    const r of [
+      'user_stop',
+      'modal_close',
+      'channel_change',
+      'sharing_stopped',
+      'time_up',
+      'silence',
+      'server',
+      'error',
+      'other',
+    ]
+  ) {
+    const h = harness();
+    const { result, lines } = await captureLogs(() => handleFactcheck(stop({ end_reason: r }), h.deps));
+    assertEquals(result.status, 200);
+    assertEquals(await result.json(), { minutes_used: 2, credits_charged: 1000, balance: 4000 });
+    assertEquals(stopLine(lines).end_reason, r);
+  }
+  for (
+    const r of ['USER_STOP', 'user stop', 'drop table', '', 7, null, true, ['user_stop'], { a: 1 }, 'x'.repeat(5000)]
+  ) {
+    const h = harness();
+    const { result, lines } = await captureLogs(() => handleFactcheck(stop({ end_reason: r }), h.deps));
+    assertEquals(result.status, 200, String(r));
+    assertEquals(stopLine(lines).end_reason, null, String(r));
+    assertEquals(h.rpcCalls.length, 1);
+  }
+  const none = harness();
+  const { lines } = await captureLogs(() => handleFactcheck(stop(), none.deps));
+  assertEquals(stopLine(lines).end_reason, null);
+});
+
+Deno.test('end_reason is only logged: the settlement call carries nothing but the user and session', async () => {
+  const h = harness();
+  await handleFactcheck(stop({ end_reason: 'time_up' }), h.deps);
+  assertEquals(h.rpcCalls, [{ name: 'factcheck_settle', args: { p_user: USER, p_session: SESSION } }]);
 });
