@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
 import {
-  NO_SOURCES_TEXT, blockOptions, claimBadge, confirmStart, embedVideoId, endReasonText, errorMessage, formatClock, kindTag,
+  DELAY_SECONDS, NO_SOURCES_TEXT, blockOptions, defaultBlock, minutesText, claimBadge, confirmStart, embedVideoId, endReasonText, errorMessage, formatClock, kindTag,
   playingTarget, priceChangedText, safeSourceUrl,
 } from './factCheckText.js';
 
@@ -13,14 +13,47 @@ describe('formatClock', () => {
 });
 
 describe('blockOptions', () => {
-  it('prices 5, 10 and 15 minutes and marks what the balance cannot cover', () => {
+  it('prices 1, 2, 5, 10 and 15 minutes and marks what the balance cannot cover', () => {
     const o = blockOptions(500, 5000);
-    expect(o.map((x) => [x.minutes, x.price, x.affordable])).toEqual([[5, 2500, true], [10, 5000, true], [15, 7500, false]]);
+    expect(o.map((x) => [x.minutes, x.price, x.affordable])).toEqual([[1, 500, true], [2, 1000, true], [5, 2500, true], [10, 5000, true], [15, 7500, false]]);
     expect(blockOptions(500, null).every((x) => x.affordable)).toBe(true);
     expect(blockOptions(0.5, 0).every((x) => !x.affordable)).toBe(true);
   });
   it('keeps fractional prices exact enough to display', () => {
-    expect(blockOptions(0.5, 100)[0].price).toBe(2.5);
+    expect(blockOptions(0.5, 100).map((x) => x.price)).toEqual([0.5, 1, 2.5, 5, 7.5]);
+  });
+});
+
+describe('minutesText', () => {
+  it('is singular for one minute and plural otherwise', () => {
+    expect(minutesText(1)).toBe('1 minute');
+    expect(minutesText(2)).toBe('2 minutes');
+    expect(minutesText(15)).toBe('15 minutes');
+  });
+});
+
+describe('defaultBlock', () => {
+  const pick = (balance) => defaultBlock(blockOptions(500, balance))?.minutes ?? null;
+  it('is 5 minutes when affordable, or when the balance is unknown', () => {
+    expect(pick(10000)).toBe(5);
+    expect(pick(2500)).toBe(5);
+    expect(pick(null)).toBe(5);
+  });
+  it('is the longest affordable length below 5 otherwise', () => {
+    expect(pick(2499)).toBe(2);
+    expect(pick(1000)).toBe(2);
+    expect(pick(999)).toBe(1);
+    expect(pick(500)).toBe(1);
+  });
+  it('is nothing when nothing is affordable', () => {
+    expect(pick(499)).toBe(null);
+    expect(pick(0)).toBe(null);
+  });
+});
+
+describe('DELAY_SECONDS', () => {
+  it('is the measured delay, rounded up', () => {
+    expect(DELAY_SECONDS).toBe(14);
   });
 });
 

@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { creditsText, formatCredits } from '../../lib/creditsStore.js';
 import {
-  NO_SOURCES_TEXT, blockOptions, claimBadge, confirmStart, endReasonText, errorMessage, formatClock, kindTag, safeSourceUrl, sourceLabel,
+  DELAY_SECONDS, NO_SOURCES_TEXT, blockOptions, claimBadge, confirmStart, defaultBlock, endReasonText, errorMessage, formatClock, kindTag, minutesText, safeSourceUrl, sourceLabel,
 } from './factCheckText.js';
 import { CoveredBanner, Parts, ReportControls } from './FactCheckParts.jsx';
 import { formatPosition, partModel } from './factCheckShare.js';
@@ -64,7 +64,7 @@ function Choose({ view, isMuted, onUnmute, onConfirm, onCancel, covered, onShowP
   const [anyway, setAnyway] = useState(false);
   const balance = typeof view.balance === 'number' ? view.balance : null;
   const options = blockOptions(view.flag.creditsPerMinute, balance);
-  const chosen = options.find((o) => o.minutes === preferred && o.affordable) || options.find((o) => o.affordable) || null;
+  const chosen = options.find((o) => o.minutes === preferred && o.affordable) || defaultBlock(options);
   return (
     <div className="fc-choose">
       <p className="fc-balance">
@@ -88,7 +88,7 @@ function Choose({ view, isMuted, onUnmute, onConfirm, onCancel, covered, onShowP
             disabled={!o.affordable}
             onClick={() => setPreferred(o.minutes)}
           >
-            <span className="fc-option-minutes">{`${o.minutes} minutes`}</span>
+            <span className="fc-option-minutes">{minutesText(o.minutes)}</span>
             <span className="fc-option-price">{creditsText(o.price)}</span>
             {o.affordable ? null : (
               <span className="fc-option-why">{`Needs ${creditsText(o.price)}; you have ${formatCredits(balance)}`}</span>
@@ -114,7 +114,7 @@ function Choose({ view, isMuted, onUnmute, onConfirm, onCancel, covered, onShowP
           disabled={!chosen}
           onClick={() => chosen && confirmStart({ isMuted, onUnmute, onConfirm }, chosen.minutes, view.flag.creditsPerMinute)}
         >
-          {chosen ? `${isMuted ? 'Unmute and start' : 'Start'} ${chosen.minutes} minutes · ${creditsText(chosen.price)}` : 'Start'}
+          {chosen ? `${isMuted ? 'Unmute and start' : 'Start'} ${minutesText(chosen.minutes)} · ${creditsText(chosen.price)}` : 'Start'}
         </button>
         <button type="button" className="ltv-action-btn fc-btn" data-fc="cancel" onClick={onCancel}>Cancel</button>
       </div>
@@ -148,11 +148,11 @@ function Waiting({ status, onStop }) {
 }
 
 // Keeps the newest line in view until the reader scrolls up; a button brings them back.
-function Transcript({ lines, emptyText }) {
+function Transcript({ lines, emptyText, listening = false }) {
   const box = useRef(null);
   const follow = useRef(true);
   const [away, setAway] = useState(false);
-  const tail = lines.length ? `${lines.length}:${lines[lines.length - 1].text.length}` : '';
+  const tail = lines.length ? `${lines.length}:${lines[lines.length - 1].text.length}:${listening ? 'l' : ''}` : '';
   useEffect(() => {
     const el = box.current;
     if (el && follow.current) el.scrollTop = el.scrollHeight;
@@ -174,6 +174,7 @@ function Transcript({ lines, emptyText }) {
     <div className="fc-transcript-wrap">
       <div className="fc-transcript" role="region" aria-label="Transcript" aria-live="off" tabIndex={0} ref={box} onScroll={onScroll}>
         {lines.length === 0 ? <p className="fc-empty">{emptyText}</p> : lines.map((l) => <p className="fc-line" dir="auto" key={l.seq}>{l.text}</p>)}
+        {lines.length > 0 && listening ? <p className="fc-listening" aria-hidden="true" key="listening">Listening…</p> : null}
       </div>
       {away ? <button type="button" className="ltv-action-btn fc-btn fc-jump" onClick={jump}>Jump to latest</button> : null}
     </div>
@@ -341,7 +342,7 @@ function Final({ final, sessionId }) {
     return sessionId ? <p className="fc-final-note">The final amount is not shown here. Check your balance.</p> : null;
   }
   const rows = [];
-  if (typeof final.minutes_used === 'number') rows.push(['Used', `${final.minutes_used} ${final.minutes_used === 1 ? 'minute' : 'minutes'}`]);
+  if (typeof final.minutes_used === 'number') rows.push(['Used', minutesText(final.minutes_used)]);
   if (typeof final.credits_charged === 'number') rows.push(['Charged', creditsText(final.credits_charged)]);
   if (typeof final.balance === 'number') rows.push(['New balance', creditsText(final.balance)]);
   return (
@@ -463,7 +464,8 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
           <h4 className="fc-section">Transcript</h4>
           <Transcript
             lines={s.transcript}
-            emptyText={live ? 'Listening… Text appears about 13 seconds behind the speaker.' : 'No speech was transcribed.'}
+            emptyText={live ? `Listening… Text appears about ${DELAY_SECONDS} seconds behind the speaker.` : 'No speech was transcribed.'}
+            listening={s.status === 'running' && !isMuted && !(s.silentFor > SILENT_NOTICE_MS)}
           />
           <Claims
             claims={s.claims}

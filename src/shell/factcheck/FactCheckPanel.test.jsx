@@ -72,9 +72,12 @@ describe('entry point', () => {
 });
 
 describe('choosing a block', () => {
-  it('lists 5, 10 and 15 minutes with prices and the balance', () => {
+  it('lists 1, 2, 5, 10 and 15 minutes with prices and the balance', () => {
     const html = render(view({ status: 'choosing' }, { balance: 10000 }));
     const t = text(html);
+    expect(t).toMatch(/1 minute\s*500 credits/);
+    expect(t).not.toContain('1 minutes');
+    expect(t).toMatch(/2 minutes\s*1,000 credits/);
     expect(t).toMatch(/5 minutes\s*2,500 credits/);
     expect(t).toMatch(/10 minutes\s*5,000 credits/);
     expect(t).toMatch(/15 minutes\s*7,500 credits/);
@@ -84,12 +87,11 @@ describe('choosing a block', () => {
   it('disables options the balance cannot cover, with the reason', () => {
     const html = render(view({ status: 'choosing' }, { balance: 5000 }));
     const buttons = html.match(/<button[^>]*data-minutes="\d+"[^>]*>/g);
-    expect(buttons).toHaveLength(3);
-    expect(buttons[0]).not.toMatch(/disabled/);
-    expect(buttons[1]).not.toMatch(/disabled/);
-    expect(buttons[2]).toMatch(/disabled/);
+    expect(buttons).toHaveLength(5);
+    for (const b of buttons.slice(0, 4)) expect(b).not.toMatch(/disabled/);
+    expect(buttons[4]).toMatch(/disabled/);
     expect(text(html)).toMatch(/Needs 7,500 credits; you have 5,000/);
-    expect(buttons[2]).not.toMatch(/style=/);
+    expect(buttons[4]).not.toMatch(/style=/);
   });
   it('has Start and Cancel; Start names the selected block, and is disabled when nothing is affordable', () => {
     const html = render(view({ status: 'choosing' }, { balance: 10000 }));
@@ -97,6 +99,12 @@ describe('choosing a block', () => {
     expect(html).toMatch(/<button[^>]*data-fc="cancel"/);
     const poor = render(view({ status: 'choosing' }, { balance: 100 }));
     expect(poor).toMatch(/<button[^>]*data-fc="confirm"[^>]*disabled/);
+  });
+  it('starts on 5 minutes by default, or the longest shorter length the balance covers', () => {
+    expect(text(render(view({ status: 'choosing' }, { balance: null })))).toContain('Start 5 minutes · 2,500 credits');
+    expect(text(render(view({ status: 'choosing' }, { balance: 1200 })))).toContain('Start 2 minutes · 1,000 credits');
+    expect(text(render(view({ status: 'choosing' }, { balance: 600 })))).toContain('Start 1 minute · 500 credits');
+    expect(text(render(view({ status: 'choosing' }, { balance: 600 })))).not.toContain('Start 1 minutes');
   });
   it('says plainly what is held, charged and released, and that closing ends the session', () => {
     const t = text(render(view({ status: 'choosing' })));
@@ -173,9 +181,47 @@ describe('running', () => {
   it('says nothing was heard yet rather than inventing a transcript', () => {
     const t = text(render(running({ transcript: [], claims: [] })));
     expect(t).toMatch(/Listening/);
-    expect(t).toContain('about 13 seconds');
+    expect(t).toContain('about 14 seconds');
+    expect(t).not.toContain('13 seconds');
     expect(t).not.toContain('10 seconds');
     expect(t).toMatch(/No claims yet/);
+  });
+  describe('the listening line', () => {
+    const lineCount = (html) => (html.match(/class="fc-listening"/g) || []).length;
+    it('ends the transcript while running with lines, after the last line', () => {
+      const html = render(running());
+      expect(lineCount(html)).toBe(1);
+      expect(html.indexOf('Good evening')).toBeLessThan(html.indexOf('fc-listening'));
+      expect(html).toMatch(/<p class="fc-listening"[^>]*>Listening…<\/p>/);
+      expect(html).toMatch(/<div[^>]*class="fc-transcript"[^>]*aria-live="off"/);
+    });
+    it('is hidden with no lines (the empty text covers that)', () => {
+      expect(lineCount(render(running({ transcript: [], claims: [] })))).toBe(0);
+    });
+    it('is hidden while ending, ended or in error, though the transcript itself is shown', () => {
+      for (const status of ['ending', 'ended', 'error']) {
+        const html = render(running({ status, claims: [claim()] }));
+        expect(text(html), status).toContain('Good evening');
+        expect(lineCount(html), status).toBe(0);
+      }
+    });
+    it('no transcript is rendered while choosing, sharing or starting', () => {
+      for (const status of ['starting', 'sharing', 'choosing']) {
+        const html = render(view({ status, transcript: running().session.transcript }));
+        expect(html, status).not.toContain('fc-transcript');
+        expect(lineCount(html), status).toBe(0);
+      }
+    });
+    it('is hidden while the muted warning shows', () => {
+      const muted = render(running(), { isMuted: true });
+      expect(muted).toContain('data-fc="unmute"');
+      expect(lineCount(muted)).toBe(0);
+      expect(lineCount(render(running(), { isMuted: false }))).toBe(1);
+    });
+    it('is hidden while the silence notice shows', () => {
+      expect(lineCount(render(running({ silentFor: 31000 })))).toBe(0);
+      expect(lineCount(render(running({ silentFor: 30000 })))).toBe(1);
+    });
   });
   it('shows the silence notice after 30 seconds, not before', () => {
     expect(text(render(running({ silentFor: 31000 })))).toContain('No speech heard. Is the video muted or paused?');
@@ -506,7 +552,7 @@ describe('F349: starting again is plainly a new paid session', () => {
   const ended = view({ status: 'ended', endReason: 'time', claims: [claim()] });
   it('the ended view says it is a new session, shows the price and that the list is cleared', () => {
     const html = render(ended);
-    expect(html).toMatch(/<button[^>]*data-fc="again"[^>]*>Start a new session · from 2,500 credits</);
+    expect(html).toMatch(/<button[^>]*data-fc="again"[^>]*>Start a new session · from 500 credits</);
     expect(text(html)).toContain('A new session is charged separately and clears the claims above. You choose the length first.');
     expect(text(html)).not.toContain('Run again');
   });
