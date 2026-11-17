@@ -6,7 +6,7 @@
  */
 import { formatCredits } from '../../lib/creditsStore.js';
 import {
-  CREDITS_STARTED_NOTE, beforeCredits, effortLabel, indianNumber, modelLabel, roleLabel, rowChat, whenText,
+  CREDITS_STARTED_NOTE, beforeCredits, effortLabel, factcheckDetails, indianNumber, isFactcheck, modelLabel, roleLabel, rowChat, whenText,
 } from '../../lib/creditUsage.js';
 import { roleSegments } from '../../lib/creditsVisual.js';
 import { StatusPill, Tokens } from './usageParts.jsx';
@@ -48,6 +48,7 @@ function Filters({ filters, models, onFilter, onExport, exporting, disabled }) {
           <option value="all">All</option>
           <option value="answers">Answers</option>
           <option value="dictation">Dictation</option>
+          <option value="factcheck">Fact-check</option>
         </select>
       </label>
       <Switch label="Group by question" on={filters.grouped && !filters.byChat} onChange={(grouped) => onFilter({ grouped })} disabled={filters.byChat} />
@@ -115,7 +116,28 @@ function Calls({ row, id }) {
   );
 }
 
+/** A Live TV fact-check charge: no model, calls, chat or detail, only what the session said of itself. */
+function FactcheckRow({ row, max }) {
+  return (
+    <li className="cp-row">
+      <div className="cp-row-main">
+        <span className="cu-expand-gap" aria-hidden="true" />
+        <div className="cp-row-text">
+          <p className="cp-row-q">{rowChat(row)}</p>
+          <p className="cp-row-meta">
+            <span>{whenText(row.createdAt)}</span>
+            {factcheckDetails(row).map((d) => <span key={d}>{d}</span>)}
+          </p>
+        </div>
+        <span className="cp-mini" aria-hidden="true"><span className="cp-s0" style={{ width: `${max > 0 ? Math.round((100 * row.credits) / max) : 0}%` }} /></span>
+        <span className="cp-row-credits">{formatCredits(row.credits)}<span className="cu-sr"> credits</span></span>
+      </div>
+    </li>
+  );
+}
+
 function Row({ row, index, max, expanded, onToggleRow, onOpenChat, grouped }) {
+  if (isFactcheck(row)) return <FactcheckRow row={row} max={max} />;
   const key = rowKey(row, index);
   const chat = rowChat(row);
   const canExpand = grouped && row.detail.length > 0 && (row.calls > 1 || row.detail.length > 1);
@@ -169,7 +191,7 @@ function ChatGroups({ groups, onOpenChat }) {
               <p className="cp-row-q">{g.conversationId
                 ? <button type="button" className="cu-chat-open cp-chat-title" onClick={() => onOpenChat(g.conversationId)}>{rowChat(g.sample)}</button>
                 : rowChat(g.sample)}</p>
-              <p className="cp-row-meta"><span>{indianNumber(g.answers)} {g.answers === 1 ? 'answer' : 'answers'} · {indianNumber(g.calls)} calls</span><span>latest {whenText(g.latest)}</span></p>
+              <p className="cp-row-meta"><span>{g.key === 'factcheck' ? `${indianNumber(g.answers)} ${g.answers === 1 ? 'fact-check' : 'fact-checks'}` : `${indianNumber(g.answers)} ${g.answers === 1 ? 'answer' : 'answers'} · ${indianNumber(g.calls)} calls`}</span><span>latest {whenText(g.latest)}</span></p>
             </div>
             <span className="cp-mini" aria-hidden="true"><span className="cp-s0" style={{ width: `${max > 0 ? Math.round((100 * g.credits) / max) : 0}%` }} /></span>
             <span className="cp-row-credits">{formatCredits(g.credits)}<span className="cu-sr"> credits</span></span>

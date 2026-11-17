@@ -6,7 +6,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { openConversation, refreshCredits, serverCredits, subscribeCredits } from '../../lib/creditsStore.js';
-import { loadUsageActivity, loadUsageSeries, loadUsageSummary, rangeWindow } from '../../lib/creditUsage.js';
+import { FACTCHECK, loadUsageActivity, loadUsageSeries, loadUsageSummary, rangeWindow } from '../../lib/creditUsage.js';
 import { buildChart } from '../../lib/usageChart.js';
 import UsageAnalytics from '../usage/UsageAnalytics.jsx';
 import PlanBilling from '../PlanBilling.jsx';
@@ -22,7 +22,7 @@ import './creditsPage.css';
 export function filterModels(...summaries) {
   const seen = new Map();
   for (const s of summaries) for (const m of s?.byModel || []) seen.set(m.model, (seen.get(m.model) || 0) + m.credits);
-  return [...seen.entries()].filter(([m]) => m !== 'unknown').sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([m]) => m);
+  return [...seen.entries()].filter(([m]) => m !== 'unknown' && m !== FACTCHECK).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([m]) => m);
 }
 
 /** The parts of each section, as in-page links under the open item in the side menu. */

@@ -1,0 +1,59 @@
+{
+  "id": "gen-FIXTURE",
+  "object": "chat.completion",
+  "created": 0,
+  "model": "google/gemini-3.8-flash",
+  "provider": "Google AI Studio",
+  "service_tier": "default",
+  "choices": [
+    {
+      "index": 0,
+      "logprobs": null,
+      "finish_reason": "stop",
+      "native_finish_reason": "STOP",
+      "message": {
+        "role": "assistant",
+        "content": "{\n  \"sentences\": [\n    {\n      \"text\": \"गृह मंत्री ने कहा कि देश में अपराध 20 प्रतिशत घटा है।\",\n      \"kind\": \"claim\"\n    },\n    {\n      \"text\": \"मैं इस स्कूल में पढ़ा था।\",\n      \"kind\": \"claim\"\n    },\n    {\n      \"text\": \"प्रधानमंत्री ने बताया कि पिछले साल 4 करोड़ घर बने।\",\n      \"kind\": \"claim\"\n    }\n  ],\n  \"claims\": [\n    {\n      \"quote\": \"गृह मंत्री ने कहा कि देश में अपराध 20 प्रतिशत घटा है।\",\n      \"claim_en\": \"Crime in India has decreased by 20%.\",\n      \"claimant\": \"the Home Minister\",\n      \"reported_by\": \"Rajesh\",\n      \"kind\": \"claim\",\n      \"checkable\": true,\n      \"needs_context\": false,\n      \"resolves_id\": null\n    },\n    {\n      \"quote\": \"मैं इस स्कूल में पढ़ा था।\",\n      \"claim_en\": \"Rajesh studied in this school.\",\n      \"claimant\": \"Rajesh\",\n      \"reported_by\": null,\n      \"kind\": \"claim\",\n      \"checkable\": true,\n      \"needs_context\": true,\n      \"resolves_id\": null\n    },\n    {\n      \"quote\": \"प्रधानमंत्री ने बताया कि पिछले साल 4 करोड़ घर बने।\",\n      \"claim_en\": \"4 crore houses were built in India last year.\",\n      \"claimant\": \"the Prime Minister\",\n      \"reported_by\": \"Rajesh\",\n      \"kind\": \"claim\",\n      \"checkable\": true,\n      \"needs_context\": false,\n      \"resolves_id\": null\n    }\n  ],\n  \"ledger_updates\": [\n    {\n      \"name\": \"the Home Minister\",\n      \"kind\": \"person\",\n      \"note\": \"Mentioned by Rajesh citing crime reduction statistics\"\n    },\n    {\n      \"name\": \"the Prime Minister\",\n      \"kind\": \"person\",\n      \"note\": \"Mentioned by Rajesh citing housing construction numbers\"\n    }\n  ]\n}",
+        "refusal": null,
+        "reasoning": "**Extracting Claims From Text**\n\nI'm currently focused on extracting factual claims from the provided transcript. I've parsed the text and have identified potential claims like \"The Home Minister said crime in the country has decreased by 20 percent\" and \"The Prime Minister stated that 40 million houses were built last year\". Now, I'm working on refining the extraction process to ensure accuracy and relevance.\n\n\n**Refining Claim Extraction**\n\nI've made progress in extracting claims from the text. I've identified and categorized three sentences. The first, attributed to \"the Home Minister,\" is a verifiable claim about a 20% decrease in crime. I've tagged that as \"checkable.\" I also got one from the \"Prime Minister\", which indicates 40 million houses were built. I'm focusing on handling claims from different speakers and establishing their credibility.\n\n\n",
+        "reasoning_details": [
+          {
+            "type": "reasoning.text",
+            "text": "**Extracting Claims From Text**\n\nI'm currently focused on extracting factual claims from the provided transcript. I've parsed the text and have identified potential claims like \"The Home Minister said crime in the country has decreased by 20 percent\" and \"The Prime Minister stated that 40 million houses were built last year\". Now, I'm working on refining the extraction process to ensure accuracy and relevance.\n\n\n**Refining Claim Extraction**\n\nI've made progress in extracting claims from the text. I've identified and categorized three sentences. The first, attributed to \"the Home Minister,\" is a verifiable claim about a 20% decrease in crime. I've tagged that as \"checkable.\" I also got one from the \"Prime Minister\", which indicates 40 million houses were built. I'm focusing on handling claims from different speakers and establishing their credibility.\n\n\n",
+            "format": "google-gemini-v1",
+            "index": 0
+          },
+          {
+            "type": "reasoning.encrypted",
+            "data": "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.eyJlbmRwb2ludF9zbHVnIjoiZ29vZ2xlL2dlbWluaS0zLjgtZmxhc2gtMjAyNjA5MDJ8Z29vZ2xlLWFpLXN0dWRpbyJ9",
+            "format": "google-gemini-v1",
+            "index": 1
+          }
+        ]
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 971,
+    "completion_tokens": 951,
+    "total_tokens": 1922,
+    "cost": 0.0042945,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.0042945,
+      "upstream_inference_prompt_cost": 0.00072825,
+      "upstream_inference_completions_cost": 0.00356625
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 457,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  }
+}

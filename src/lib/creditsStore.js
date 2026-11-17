@@ -108,6 +108,7 @@ export function shapeCredits(userId, data) {
         title: r.title || null,
         credits: num(r.credits) ?? 0,
         createdAt: r.created_at || null,
+        ...(r.feature ? { feature: String(r.feature) } : {}),
       }))
       : [],
   };

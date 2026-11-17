@@ -28,6 +28,12 @@ export const MEASURES = [
   { id: 'calls', label: 'Calls' },
 ];
 
+/** The feature and pseudo-model name of a Live TV fact-check charge (F347); it is not an AI model. */
+export const FACTCHECK = 'factcheck';
+export const FACTCHECK_LABEL = 'Live TV fact-check';
+
+export const isFactcheck = (row) => row?.feature === FACTCHECK;
+
 function num(value) {
   const n = Number(value);
   return value === null || value === undefined || value === '' || !Number.isFinite(n) ? 0 : n;
@@ -108,6 +114,8 @@ export function shapeActivity(data) {
       calls: num(r?.calls),
       tokens: num(r?.tokens),
       credits: num(r?.credits),
+      // Only a fact-check row carries these (F347); a chat or dictation row keeps its old shape.
+      ...(r?.feature === FACTCHECK ? { feature: FACTCHECK, channel: text(r.channel), minutesUsed: r.minutes_used == null ? null : num(r.minutes_used), videoKind: text(r.video_kind) } : {}),
       detail: Array.isArray(r?.detail)
         ? r.detail.map((d) => ({
           role: text(d?.role) || 'other',
@@ -213,6 +221,7 @@ const BRANDS = { gpt: 'GPT', deepseek: 'DeepSeek', gemini: 'Gemini', claude: 'Cl
 /** A readable model name for people (F184): "google/gemini-3.7-flash" is "Gemini 3.7 Flash". */
 export function modelLabel(model) {
   const id = modelName(model);
+  if (id === FACTCHECK) return FACTCHECK_LABEL;
   if (id === 'Unknown model') return id;
   return id.split(/[-_]+/).filter(Boolean).map((w) => {
     const low = w.toLowerCase();
@@ -238,7 +247,7 @@ export function effortLabel(effort) {
   return effort[0].toUpperCase() + effort.slice(1);
 }
 
-const FEATURES = { research: 'AI research', dictation: 'Dictation' };
+const FEATURES = { research: 'AI research', dictation: 'Dictation', [FACTCHECK]: FACTCHECK_LABEL };
 export function featureLabel(feature) {
   return FEATURES[feature] || 'Other';
 }
@@ -269,10 +278,26 @@ export function dayText(iso) {
 /**
  * The chat column's words for a row: its title; "Untitled" for a saved chat without one; "Deleted
  * conversation" for an answer whose chat is gone (it still has its turn); "Dictation" for a dictation
- * call, which belongs to no chat.
+ * call, which belongs to no chat; "Live TV fact-check" for a fact-check charge, which is neither.
  */
 export function rowChat(row) {
+  if (isFactcheck(row)) return FACTCHECK_LABEL;
   if (row.title) return row.title;
   if (row.conversationId) return 'Untitled';
   return row.turnKey ? 'Deleted conversation' : 'Dictation';
+}
+
+/** A channel id in words: "aaj-tak" is "Aaj Tak". Empty when unknown. */
+export function channelName(id) {
+  return String(id || '').split(/[-_\s]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+}
+
+/** What is known of a fact-check charge, in reading order: channel, minutes used, live or recorded. */
+export function factcheckDetails(row) {
+  const kinds = { live: 'Live', recorded: 'Recorded' };
+  return [
+    channelName(row?.channel),
+    Number.isFinite(row?.minutesUsed) ? `${row.minutesUsed} min` : '',
+    kinds[row?.videoKind] || '',
+  ].filter(Boolean);
 }

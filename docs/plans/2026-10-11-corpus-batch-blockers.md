@@ -1,6 +1,6 @@
 # Corpus batch blocker implementation
 
-> **Status: Living.** Sequential, no delegation. Implements [spec](../specs/2026-10-11-corpus-batch-blockers.md).
+> **Status: Historical (2026-10-11; superseded, R7).** Sequential, no delegation. Implements [spec](../specs/2026-10-11-corpus-batch-blockers.md).
 
 Latest continuation: owner requested the next set after the completed 182-document job. Review the 180 remaining identity/version candidates as one inventory, retaining actual failures separately. First refresh live documents/listings and inspect writer locks; verify original/pack/PDF identity and full source/Download text, rendered layout and v4 context. Freeze every fully proven absent source into one new at-most-500 manifest; run fresh price/budget/production mapping/Edge dry-run/retrieval/capacity gates, then existing sequential supervisor and all cumulative/final audits. The 88 recent and two prior quality holds remain excluded unless new proof resolves them; ten shared mapping holds retain their requirements. Write scope: new runtime evidence, current spec/plan/R7/operations and a new run report; authorized absent-source ingestion only. No delegation or application/guard/deployment changes.
 

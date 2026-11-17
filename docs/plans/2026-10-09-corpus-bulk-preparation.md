@@ -1,6 +1,6 @@
 # Plan: reviewable bulk corpus preparation
 
-> **Status: Living.** Tracked under R7 in `open-work.md`; [spec](../specs/2026-10-09-corpus-bulk-preparation.md). Sequential; no delegation.
+> **Status: Historical (2026-10-09; superseded, R7).** Tracked under R7 in `open-work.md`; [spec](../specs/2026-10-09-corpus-bulk-preparation.md). Sequential; no delegation.
 
 Preparation completed:
 1. Read current production document identities and bill listings; exclude existing source IDs.
