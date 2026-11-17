@@ -1,7 +1,7 @@
 // The multi-job supplied-text step and the worker's multi-job claim (C3b, design 8.3). The embedding
 // provider is a stub; no network.
 import { assert, assertEquals, assertFalse } from 'jsr:@std/assert@1';
-import { EMBED_MODEL, EmbeddingError, type EmbedResult } from '../_shared/embed.ts';
+import { EMBED_MODEL, EmbedNetworkError, EmbeddingError, type EmbedResult } from '../_shared/embed.ts';
 import { prepareSuppliedText } from '../_shared/suppliedText.ts';
 import { input } from '../_shared/suppliedText_fixture.ts';
 import { sha256Hex } from '../_shared/textNormalise.ts';
@@ -235,6 +235,136 @@ Deno.test('batch: a failed shared call whose carried jobs cannot be retried insi
   assertEquals(out.reduce((t, o) => t + o.patch.embed_tokens!, 0), 6, 'the failed call\'s spend is still reported, once');
   assertEquals(w.rec.commits, []);
   assertEquals(w.rec.activations, []);
+});
+
+/** Replaces the world's embedding call: `script(inputs, n)` returns the error to throw for call n, or null to succeed as usual. */
+function scriptEmbed(w: Awaited<ReturnType<typeof world>>, script: (inputs: string[], n: number) => Error | null) {
+  const normal = w.deps.embed;
+  let n = 0;
+  const log: Array<{ inputs: number; failed: boolean }> = [];
+  w.deps.embed = async (inputs: string[]) => {
+    const e = script(inputs, n++);
+    log.push({ inputs: inputs.length, failed: !!e });
+    if (e) throw e;
+    return await normal(inputs);
+  };
+  return log;
+}
+const spent0 = { costUsd: 0, promptTokens: 0 };
+/** An outage release: a non-permanent error, so the queue's backoff spaces the retry; class and status only. */
+function assertOutageRelease(o: StepOutcome, text: string, label = '') {
+  assertEquals(o.patch.error?.code, 'embed_outage', label);
+  assertEquals(o.patch.error?.permanent, false, `${label}: not failed, so no failure is counted`);
+  assertEquals(o.patch.error?.message, text, label);
+  assertFalse(o.activated);
+}
+const outage = (status = 503) => new EmbeddingError(`embeddings HTTP ${status} after 3 attempts: busy`, spent0, status);
+
+Deno.test('batch outage (F328): two solo calls in a row that meet an outage stop the claim; every job is released with embed_outage', async () => {
+  const w = await world(3);
+  const calls = scriptEmbed(w, () => outage(503));
+  const out = await runSuppliedBatch(w.deps, [job(1), job(2), job(3)], FAR, BOUNDS);
+  assertEquals(calls.length, 3, 'the shared call and two solo calls; the third solo call is not made');
+  assertEquals(w.rec.logs.map((l) => l.status), ['error', 'error', 'error'], 'every call is logged');
+  for (const o of out) {
+    assertOutageRelease(o, 'embedding provider unavailable: server_error HTTP 503');
+    assertEquals(o.patch.progressed, false, 'nothing was committed, so attempts are not reset');
+  }
+  assertEquals(w.rec.commits, []);
+  assertEquals(w.rec.activations, []);
+});
+
+Deno.test('batch outage (F328): a network error and a 429 are outages too; a 400 is not', async () => {
+  for (const [name, e, released] of [
+    ['network', new EmbedNetworkError(), true],
+    ['rate limit', outage(429), true],
+    ['bad request', new EmbeddingError('embeddings HTTP 400: bad input', spent0, 400), false],
+  ] as const) {
+    const w = await world(2);
+    scriptEmbed(w, () => e);
+    const out = await runSuppliedBatch(w.deps, [job(1), job(2)], FAR, BOUNDS);
+    for (const o of out) {
+      if (released) assertEquals([o.patch.error?.code, o.patch.error?.permanent], ['embed_outage', false], name);
+      else assertEquals([o.patch.error?.code, o.patch.error?.permanent], ['embed_failed', true], name);
+    }
+  }
+});
+
+Deno.test('batch outage (F328): single-job windows: two outages in a row stop the claim, and a third window is not called', async () => {
+  const w = await world(3);
+  const calls = scriptEmbed(w, () => outage(502));
+  // One input per call: each job is its own window.
+  const out = await runSuppliedBatch(w.deps, [job(1), job(2), job(3)], FAR, { ...BOUNDS, maxCount: 1 });
+  assertEquals(calls.length, 2, 'the provider is not called for the third window');
+  for (const o of out) assertOutageRelease(o, 'embedding provider unavailable: server_error HTTP 502');
+  assertEquals(w.rec.commits, []);
+});
+
+Deno.test('batch outage (F328): a job already recovered by its solo call stays committed; a 400 on its own call still fails only that job; the job that meets the outage is released with the rest', async () => {
+  const w = await world(4);
+  // Call 0 (shared) 503; solo job 1 succeeds; solo job 2 is a 400; solo job 3 is a 503 (a single outage after a
+  // success and a 400 is not an outage of the provider); solo job 4 succeeds.
+  const calls = scriptEmbed(w, (_inputs, n) => (n === 0 ? outage(503) : n === 2 ? new EmbeddingError('embeddings HTTP 400: bad input', spent0, 400) : n === 3 ? outage(503) : null));
+  const out = await runSuppliedBatch(w.deps, [job(1), job(2), job(3), job(4)], FAR, BOUNDS);
+  assertEquals(calls.length, 5, 'shared, then solo for jobs 1, 2, 3 and 4');
+  assert(out[0].activated, 'job 1 recovered by its own call');
+  assertEquals([out[1].patch.error?.code, out[1].patch.error?.permanent], ['embed_failed', true], 'job 2 is a content failure');
+  assertOutageRelease(out[2], 'embedding provider unavailable: server_error HTTP 503', 'job 3 met the outage');
+  assert(out[3].activated, 'job 4 is still embedded: one outage between successes does not stop the claim');
+  assertEquals(w.rec.commits.map((c) => c.jobId), ['job-1', 'job-4']);
+});
+
+Deno.test('batch outage (F328): a document whose own input makes the provider fail does not stop the claim; the others activate', async () => {
+  const w = await world(3);
+  // Anything carrying document 1 fails with a 503, the shared call included; the others are fine alone.
+  const calls = scriptEmbed(w, (inputs) => (inputs.some((i) => i.includes('appeal number 1 ')) ? outage(503) : null));
+  const out = await runSuppliedBatch(w.deps, [job(1), job(2), job(3)], FAR, BOUNDS);
+  assertEquals(calls.length, 4, 'shared, then one solo call for each of the three jobs');
+  assertOutageRelease(out[0], 'embedding provider unavailable: server_error HTTP 503', 'the poison job is released');
+  assert(out[1].activated && out[2].activated, 'the innocent jobs activate');
+  assertEquals(out[1].patch.error, undefined);
+  assertEquals(w.rec.commits.map((c) => c.jobId), ['job-2', 'job-3']);
+});
+
+Deno.test('batch outage (F328): after the claim is stopped no later window is called', async () => {
+  const w = await world(4);
+  const calls = scriptEmbed(w, () => outage(503));
+  // Two inputs per call: window 1 is jobs 1 and 2, window 2 is jobs 3 and 4.
+  const out = await runSuppliedBatch(w.deps, [job(1), job(2), job(3), job(4)], FAR, { ...BOUNDS, maxCount: 2 });
+  assertEquals(calls.length, 3, 'window 1: shared call and two solo calls; window 2 is never called');
+  for (const o of out) assertOutageRelease(o, 'embedding provider unavailable: server_error HTTP 503');
+});
+
+Deno.test('batch outage (F328): a job that committed a window and then meets an outage is released with progressed true', async () => {
+  const w = await world(2, { long: [1] });
+  // Job 1 is cut into several chunks, one per call: its first call succeeds, its second meets an outage, and
+  // so does job 2's, which stops the claim.
+  const calls = scriptEmbed(w, (_inputs, n) => (n === 0 ? null : outage(503)));
+  const out = await runSuppliedBatch(w.deps, [job(1), job(2)], FAR, { ...BOUNDS, maxCount: 1 });
+  assertEquals(calls.length, 3);
+  assertOutageRelease(out[0], 'embedding provider unavailable: server_error HTTP 503', 'job 1');
+  assertEquals(out[0].patch.progressed, true, 'its committed slice is progress, so its attempts are reset');
+  assertEquals(w.rec.commits.map((c) => c.jobId), ['job-1']);
+  assertEquals(out[1].patch.progressed, false);
+});
+
+Deno.test('batch outage (F328): the released job reports the spend it caused, and logs carry counts and classes only', async () => {
+  const lines: Array<[string, Record<string, unknown>]> = [];
+  const w = await world(2);
+  (w.deps as { log: (event: string, fields: Record<string, unknown>) => void }).log = (event, fields) => void lines.push([event, fields]);
+  scriptEmbed(w, () => new EmbeddingError('embeddings HTTP 503 after 3 attempts: busy', { costUsd: 6e-8, promptTokens: 3 }, 503));
+  const out = await runSuppliedBatch(w.deps, [job(1), job(2)], FAR, BOUNDS);
+  assertEquals(out.reduce((t, o) => t + o.patch.embed_tokens!, 0), 9, 'the three failed calls spent 3 tokens each, reported once');
+  const outageLogs = lines.filter(([e]) => e === 'ingest.batch_outage');
+  assertEquals(outageLogs.length, 1);
+  assertEquals(outageLogs[0][1], { released: 2, error_class: 'server_error', status: 503, stopped: true });
+  assert(!JSON.stringify(lines).includes('appeal number'), 'no document text is logged');
+  // What the job stores is the class and status, never the provider's wording.
+  for (const o of out) assertEquals(o.patch.error?.message, 'embedding provider unavailable: server_error HTTP 503');
+  const net = await world(1);
+  scriptEmbed(net, () => new EmbedNetworkError());
+  const [n] = await runSuppliedBatch(net.deps, [job(1)], FAR, BOUNDS);
+  assertEquals(n.patch.error?.message, 'embedding provider unavailable: network', 'a network error\'s text is not stored');
 });
 
 Deno.test('batch: a job whose chunks span two windows recovers in the first by its solo call and finishes in the second, each chunk embedded once', async () => {

@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
-import { EMBED_DIMS, EMBED_MODEL, EMBED_PRICE_USD_PER_TOKEN, EmbeddingError, embedTexts, planBatches } from './embed.ts';
+import { EMBED_DIMS, EMBED_MODEL, EMBED_PRICE_USD_PER_TOKEN, EmbeddingError, EmbedNetworkError, embedOutageClass, embedTexts, markNetworkErrors, planBatches } from './embed.ts';
 
 type Reply = { status: number; body: unknown };
 
@@ -98,4 +98,40 @@ Deno.test('a vector count that does not match the batch is refused; empty input 
   const r = await embedTexts({ fetch: none.fetchFn, apiKey: 'k', sleep: noSleep }, []);
   assertEquals(r.requests, 0);
   assertEquals(none.bodies.length, 0);
+});
+
+Deno.test('embedOutageClass: 429, 5xx and a failed or timed-out request are an outage; anything else is not', () => {
+  const spent = { costUsd: 0, promptTokens: 0 };
+  const err = (status?: number) => new EmbeddingError('x', spent, status);
+  assertEquals(embedOutageClass(err(429)), 'rate_limited');
+  assertEquals(embedOutageClass(err(500)), 'server_error');
+  assertEquals(embedOutageClass(err(503)), 'server_error');
+  assertEquals(embedOutageClass(err(599)), 'server_error');
+  assertEquals(embedOutageClass(err(408)), 'server_error', 'a request timeout is transient');
+  assertEquals(embedOutageClass(err(409)), null);
+  assertEquals(embedOutageClass(new EmbedNetworkError()), 'network');
+  // A bare TypeError is a programming error, not a network outage; only a marked fetch rejection is.
+  assertEquals(embedOutageClass(new TypeError('Cannot read properties of null')), null);
+  assertEquals(embedOutageClass(new DOMException('aborted', 'AbortError')), 'network');
+  assertEquals(embedOutageClass(new DOMException('timed out', 'TimeoutError')), 'network');
+  // A content or request problem is not an outage, whatever the provider's wording.
+  for (const status of [400, 401, 402, 403, 404, 413, 422]) assertEquals(embedOutageClass(err(status)), null, `HTTP ${status}`);
+  // A malformed or mismatched 200 reply, and an error with no status, are not an outage either.
+  assertEquals(embedOutageClass(err(200)), null);
+  assertEquals(embedOutageClass(err()), null);
+  assertEquals(embedOutageClass(new Error('boom')), null);
+  assertEquals(embedOutageClass('a string'), null);
+  assertEquals(embedOutageClass(undefined), null);
+});
+
+Deno.test('markNetworkErrors: a fetch that rejects is marked, without its URL; a TypeError while reading a 200 reply is not', async () => {
+  const rejecting = (() => Promise.reject(new TypeError('error sending request for url (https://x.test/?key=secret)'))) as unknown as typeof fetch;
+  const e = await assertRejects(() => embedTexts({ fetch: markNetworkErrors(rejecting), apiKey: 'k', sleep: noSleep }, ['a']), EmbedNetworkError);
+  assertEquals(embedOutageClass(e), 'network');
+  assert(!e.message.includes('secret') && !e.message.includes('x.test'));
+  // A 200 whose data holds a null item makes the parsing throw a TypeError; the fetch itself did not reject.
+  const bad = scripted([{ status: 200, body: { data: [null], model: EMBED_MODEL, usage: {} } }]);
+  const t = await assertRejects(() => embedTexts({ fetch: markNetworkErrors(bad.fetchFn), apiKey: 'k', sleep: noSleep }, ['a']));
+  assert(t instanceof TypeError, 'the parsing error is a TypeError');
+  assertEquals(embedOutageClass(t), null);
 });
