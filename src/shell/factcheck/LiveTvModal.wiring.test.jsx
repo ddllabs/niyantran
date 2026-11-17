@@ -10,6 +10,9 @@ vi.mock('./useFactCheck.js', () => ({
     return { view: seen.view, actions: { choose() {}, cancel() {}, confirm() {}, stop() {}, retry() {}, dismiss() {} } };
   },
 }));
+vi.mock('../liveTv/useYoutubePlayer.js', () => ({
+  useYoutubePlayer: () => ({ iframeRef: { current: null }, requestMute() {}, getPositionS: () => 77 }),
+}));
 const { default: LiveTvModal } = await import('../LiveTvModal.jsx');
 
 const baseSession = {
@@ -40,6 +43,12 @@ describe('wiring into the modal', () => {
     expect(a.target).toBeNull();
     expect(a.start.channelId).toBe('');
     expect(a.start).toMatchObject({ videoKind: 'live', startPositionS: null, seed: { channel: '', title: '' } });
+  });
+
+  it('ignores the player position for a live stream even when the player has one', () => {
+    render();
+    expect(seen.args[0].start.videoKind).toBe('live');
+    expect(seen.args[0].start.getStartPositionS()).toBeNull();
   });
 
   it('puts the entry button in the player controls', () => {
