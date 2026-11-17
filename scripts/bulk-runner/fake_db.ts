@@ -34,6 +34,10 @@ interface Job {
   error_code: string | null;
   attempts: number;
   spend: number;
+  /** ingest_jobs.failures_seen: counted when the worker marks the job failed (a test that sets status directly counts as one). */
+  failuresSeen: number;
+  /** ingest_jobs.failures_acknowledged: written only by resume. */
+  acknowledged: number;
 }
 interface Batch {
   id: string;
@@ -260,6 +264,8 @@ export class FakeDb implements Db {
             error_code: null,
             attempts: 0,
             spend: 0,
+            failuresSeen: 0,
+            acknowledged: 0,
           };
           b.jobs.set(job.id, job);
           item.outcome = 'admitted';
@@ -416,16 +422,24 @@ export class FakeDb implements Db {
   /** The developer's ingest_batch_resume. */
   resume(id: string) {
     const b = this.batch(id);
+    // Every resume records the failures seen so far as acknowledged; a requeue alone writes no baseline.
+    for (const j of b.jobs.values()) j.acknowledged = Math.max(j.acknowledged, this.seen(j));
     b.state = b.stopped_from ?? 'sealed';
     b.stopped_from = null;
     b.stop_reason = null;
   }
 
+  private seen(j: Job): number {
+    return j.failuresSeen || (j.status === 'failed' ? 1 : 0);
+  }
+
   /** ingest_batch_block_reason: why a batch's jobs may not be claimed. */
   private blockReason(b: Batch): string | null {
     const jobs = [...b.jobs.values()];
-    const failed = jobs.filter((j) => j.status === 'failed').length;
-    const done = jobs.filter((j) => j.status === 'failed' || j.status === 'succeeded').length;
+    // Failures ever seen and not acknowledged by a resume (a requeue does not hide one).
+    const counted = (j: Job) => this.seen(j) > j.acknowledged;
+    const failed = jobs.filter(counted).length;
+    const done = jobs.filter((j) => j.status === 'succeeded' || counted(j)).length;
     const uncertain = jobs.filter((j) => j.status === 'failed' && j.error_code === 'text_outcome_uncertain').length;
     const st = this.policy.stop_thresholds;
     if (jobs.reduce((n, j) => n + j.spend, 0) >= b.args.est_cost_usd) return 'spend_ceiling';
@@ -453,6 +467,7 @@ export class FakeDb implements Db {
         if (plan && plan.times > 0) {
           plan.times -= 1;
           job.status = 'failed';
+          job.failuresSeen += 1;
           job.error_code = plan.code;
         } else job.status = 'succeeded';
       }
