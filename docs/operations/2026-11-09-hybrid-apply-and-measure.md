@@ -467,9 +467,21 @@ From now an NCLT feature search with no document ids calls hybrid with a 2.5 s b
 with its own 4 s. The flag is cached for 15 s per isolate. **Rollback:**
 `delete from public.app_flags where key = 'hybrid_search';`
 
-**Not verified:** no signed-in NCLT question has been asked since the switch, so the app's hybrid path and its fallback
-have not been seen on NTER. The supervisor cannot sign in; the developer asks the question, and the path taken is then
-read from `messages.activity` (`retrievalPath`, `hybridMs`, `fallbackReason`).
+**Signed-in check, 2026-11-17 01:28 UTC.** The developer signed in on the live site; the supervisor then asked one
+question on the NCLT / NCLAT desk in the browser, focus "Desk", no document pinned, and read the stored trace from
+`chat_messages.activity` (timings and path only).
+
+| Search step | Path recorded | Embedding | Retrieval | Step total | Passages |
+|---|---|---|---|---|---|
+| 1, module search | `hybrid` | 469 ms | 1,718 ms | 3,194 ms | 51 |
+| 2, follow-up search | none (vector-only) | 331 ms | 1,044 ms | 2,891 ms | 50 |
+
+The answer completed with cited passages in 32.3 s in all (search 6.1 s). Step 1 is the app's hybrid path seen working
+on NTER, inside its 2.5 s budget. Step 2's stored input names no module, and a search without the NCLT module never
+reads the switch, so no path is recorded for it; why the follow-up search carries no module was not traced.
+
+**Not verified:** one question only; the fallback has still never fired on NTER, so its live behaviour rests on the
+tests and the local reproduction.
 
 ## Decisions for the developer
 
