@@ -68,4 +68,44 @@ describe('Live TV YouTube quota', () => {
     expect(out.status).toBe('recent');
     expect(out.recentVideos.map((v) => v.videoId)).toEqual(['RECENT00001']);
   });
+
+  describe('dataOrigin: where the data came from, kept through the cache', () => {
+    it('says youtube-api for a full API answer, and still says so from the cache', async () => {
+      stubYouTube({ uploads: [upload('RECENT00001', 'Recent')], videos: [video('RECENT00001', 'none')] });
+      const first = await api.fetchYouTubeChannelVideos(CHANNEL);
+      const again = await api.fetchYouTubeChannelVideos(CHANNEL);
+      expect([first.source, first.dataOrigin]).toEqual(['youtube-api', 'youtube-api']);
+      expect([again.source, again.dataOrigin]).toEqual(['cache', 'youtube-api']);
+    });
+
+    it('says fallback for the curated fallback, and for it served from the cache', async () => {
+      vi.stubEnv('YOUTUBE_API_KEY', '');
+      const first = await api.fetchYouTubeChannelVideos(CHANNEL);
+      const again = await api.fetchYouTubeChannelVideos(CHANNEL);
+      expect([first.source, first.dataOrigin]).toEqual(['curated-fallback', 'fallback']);
+      expect([again.source, again.dataOrigin]).toEqual(['cache', 'fallback']);
+    });
+
+    it('does not say youtube-api when videos.list failed, when an upload has no details, or when the list is empty', async () => {
+      stubYouTube({ uploads: [upload('RECENT00001', 'Recent')], videosFail: true });
+      expect((await api.fetchYouTubeChannelVideos(CHANNEL)).dataOrigin).toBe('fallback');
+      api.clearCache();
+      stubYouTube({ uploads: [upload('RECENT00001', 'A'), upload('RECENT00002', 'B')], videos: [video('RECENT00001', 'none')] });
+      expect((await api.fetchYouTubeChannelVideos(CHANNEL)).dataOrigin).toBe('fallback');
+      api.clearCache();
+      stubYouTube({ uploads: [], videos: [] });
+      expect((await api.fetchYouTubeChannelVideos(CHANNEL)).dataOrigin).toBe('fallback');
+    });
+
+    it('does not say youtube-api when a refresh after the cache expired finds the API failing', async () => {
+      stubYouTube({ uploads: [upload('RECENT00001', 'Recent')], videos: [video('RECENT00001', 'none')] });
+      await api.fetchYouTubeChannelVideos(CHANNEL);
+      vi.useFakeTimers();
+      vi.setSystemTime(Date.now() + 60 * 60 * 1000);
+      vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('quota'); }));
+      const stale = await api.fetchYouTubeChannelVideos(CHANNEL);
+      vi.useRealTimers();
+      expect(stale.dataOrigin).not.toBe('youtube-api');
+    });
+  });
 });

@@ -1,6 +1,6 @@
 # Plan: controlled jobs for trackable existing text
 
-> **Status: Living.** R7 follow-up; [spec](../specs/2026-10-09-trackable-corpus-jobs.md), [fresh evidence](../research/2026-10-09-trackable-corpus-inventory.md). First 25-document stage completed and owner confirmed RAG works; all 91 passing small sources completed and verified, including final 41 as 30 + 11. Broader R7 holds and medium tier remain open. No persistent service authorized. Existing branch: `task/corpus-single-pilot-20261009`; main unchanged. Sequential, no delegation.
+> **Status: Historical (2026-10-09; superseded, R7).** R7 follow-up; [spec](../specs/2026-10-09-trackable-corpus-jobs.md), [fresh evidence](../research/2026-10-09-trackable-corpus-inventory.md). First 25-document stage completed and owner confirmed RAG works; all 91 passing small sources completed and verified, including final 41 as 30 + 11. Broader R7 holds and medium tier remain open. No persistent service authorized. Existing branch: `task/corpus-single-pilot-20261009`; main unchanged. Sequential, no delegation.
 
 ## Exact first-stage release authorization — 2026-10-09
 

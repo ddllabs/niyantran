@@ -98,6 +98,7 @@
 .cu-feature + .cu-feature { border-top: 1px solid var(--line); }
 .cu-feature-icon { grid-area: icon; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); }
 .cu-feature-dictation { background: color-mix(in srgb, #0f766e 12%, var(--panel)); color: #0f766e; }
+.cu-feature-factcheck { background: color-mix(in srgb, #b45309 12%, var(--panel)); color: #b45309; }
 .cu-feature-text { grid-area: text; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .cu-feature-name { font-weight: 650; color: var(--fg); }
 .cu-feature-sub { font-size: 12px; color: var(--muted); }
@@ -161,4 +162,5 @@
 .theme-dark .cu-pill-running { background: #1c2744; color: #a9c1ff; }
 .theme-dark .cu-tip { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
 .theme-dark .cu-feature-dictation { color: #5eead4; }
+.theme-dark .cu-feature-factcheck { color: #fbbf24; }
 .theme-dark .cu-feature-free { color: #5eead4; }

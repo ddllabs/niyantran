@@ -1,6 +1,6 @@
 # Alternate bill-version mapping plan
 
-> **Status: Living.** Owner requested continuing mapping,2026-10-09; tracked only under R7. [Spec](../specs/2026-10-09-corpus-version-mapping.md). Sequential, no delegation.
+> **Status: Historical (2026-10-09; superseded, R7).** Owner requested continuing mapping,2026-10-09; tracked only under R7. [Spec](../specs/2026-10-09-corpus-version-mapping.md). Sequential, no delegation.
 
 1. Refresh production baseline/source IDs and inspect frozen broad inventory. Distinguish local bill-key mappings, exact primary PDFs, same-bill alternate versions, wrong-bill/missing/unproven links, collisions and oversize sources.
 2. Implement pure two-version proof helper with failing wrong-key/year/role/body/chamber tests. Both PDF identities use the unchanged current preflight rules; original text is preserved. Write only scripts/corpus-version-mapping.mjs and its test.

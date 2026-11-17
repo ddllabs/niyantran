@@ -6,6 +6,11 @@ import {
   fetchLiveTvArchive,
   fetchLiveTvTranscript,
 } from '../lib/liveTvClient.js';
+import { FactCheckEntry, FactCheckPanel } from './factcheck/FactCheckPanel.jsx';
+import { embedVideoId, playingTarget } from './factcheck/factCheckText.js';
+import { useFactCheck } from './factcheck/useFactCheck.js';
+import { useYoutubePlayer } from './liveTv/useYoutubePlayer.js';
+import { buildEmbedSrc, embedFrameKey } from './liveTv/embed.js';
 import './liveTv.css';
 
 export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
@@ -15,6 +20,7 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
   const [playbackMode, setPlaybackMode] = useState('live'); // 'live' | 'archive'
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
+  const nextEmbedMuted = useRef(true); // the mute a NEW embed mounts with; a mute toggle never rebuilds a mounted one
   const [streamError, setStreamError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -246,16 +252,50 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
       ? selectedArchiveItem.videoUrl
       : activeChannel?.embedUrl || '';
 
-  const embedSrc = useMemo(() => {
-    if (!currentEmbedUrl) return '';
-    try {
-      const originParam = typeof window !== 'undefined' && window.location.origin ? `&origin=${encodeURIComponent(window.location.origin)}` : '';
-      const sep = currentEmbedUrl.includes('?') ? '&' : '?';
-      return `${currentEmbedUrl}${sep}mute=${isMuted ? '1' : '0'}${originParam}`;
-    } catch {
-      return `${currentEmbedUrl}${currentEmbedUrl.includes('?') ? '&' : '?'}mute=${isMuted ? '1' : '0'}`;
-    }
-  }, [currentEmbedUrl, isMuted]);
+  // Rebuilt only when a new iframe will mount (address, Reload Feed, Pause/Play, open), so it carries
+  // the current mute then; a mute toggle alone leaves the mounted iframe's address alone.
+  const embedSrc = useMemo(
+    () => buildEmbedSrc({
+      url: currentEmbedUrl,
+      muted: nextEmbedMuted.current,
+      origin: typeof window !== 'undefined' ? window.location.origin : '',
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentEmbedUrl, reloadKey, isPlaying, open],
+  );
+
+  const player = useYoutubePlayer(open, {
+    onMutedChange: (m) => { nextEmbedMuted.current = m; setIsMuted(m); },
+    onFallback: () => setReloadKey((k) => k + 1),
+  });
+  const applyMute = (next) => {
+    nextEmbedMuted.current = next; // a fallback remount, or a later Play, mounts with this
+    setIsMuted(next);
+    player.requestMute(next);
+  };
+
+  // F344: fact-check. Added after the existing hooks; nothing above changed. What is playing is read
+  // from the embed address, so it names the video that is really on screen.
+  const factCheckVideoId = embedVideoId(currentEmbedUrl);
+  const factCheckChannelId = activeChannel?.id || '';
+  const factCheck = useFactCheck({
+    open,
+    target: playingTarget(factCheckChannelId, playbackMode, factCheckVideoId),
+    // where the player is, for shared results on recorded videos
+    getPosition: () => (playbackMode === 'live' ? null : player.getPosition()),
+    start: {
+      videoId: factCheckVideoId,
+      channelId: factCheckChannelId,
+      videoKind: playbackMode === 'live' ? 'live' : 'recorded',
+      startPositionS: null,
+      // read when the user confirms: a recorded video starts from where it is playing now
+      getStartPositionS: () => (playbackMode === 'live' ? null : player.getPositionS()),
+      seed: {
+        channel: activeChannel?.name || '',
+        title: (playbackMode === 'video' ? activeVideo?.title : playbackMode === 'archive' ? selectedArchiveItem?.title : '') || '',
+      },
+    },
+  });
 
   // After every hook: React needs the same hooks on every render.
   if (!open) return null;
@@ -410,7 +450,8 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
                 </div>
               ) : isPlaying ? (
                 <iframe
-                  key={`${activeChannelId}-${selectedBroadcastId}-${playbackMode}-${reloadKey}-${isMuted}`}
+                  key={embedFrameKey({ channelId: activeChannelId, broadcastId: selectedBroadcastId, mode: playbackMode, reloadKey })}
+                  ref={player.iframeRef}
                   className="ltv-video-frame"
                   src={embedSrc}
                   title={`${playbackMode === 'archive' ? selectedArchiveItem?.title : activeChannel?.name || 'Live TV'} Player`}
@@ -497,7 +538,7 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
                 <button
                   type="button"
                   className="ltv-action-btn"
-                  onClick={() => setIsMuted((m) => !m)}
+                  onClick={() => applyMute(!isMuted)}
                   title={isMuted ? 'Unmute Player' : 'Mute Player'}
                 >
                   {isMuted ? 'Unmute' : 'Mute'}
@@ -518,9 +559,22 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
                 >
                   Reload Feed
                 </button>
+                <FactCheckEntry view={factCheck.view} playable={isPlaying && !streamError} onChoose={factCheck.actions.choose} />
               </div>
             </div>
           </section>
+
+          <FactCheckPanel
+            view={factCheck.view}
+            isMuted={isMuted}
+            onUnmute={() => applyMute(false)}
+            onConfirm={factCheck.actions.confirm}
+            onCancel={factCheck.actions.cancel}
+            onStop={factCheck.actions.stop}
+            onRetry={factCheck.actions.retry}
+            onDismiss={factCheck.actions.dismiss}
+            onEndOrphan={factCheck.actions.endOrphan}
+          />
 
           {/* Lower Section Tabs */}
           {/* F61 (F171 B15): real tabs: one tab stop, arrows, Home and End move between them. */}

@@ -510,6 +510,7 @@ export async function fetchYouTubeChannelVideos(channel) {
           : null,
       recentVideos: (channel.fallbackVideos || []).map((v) => normalizeYouTubeVideo(v, channel.id)),
       upcomingVideos: [],
+      dataOrigin: 'fallback',
     };
     setCached(cacheKey, fallbackData);
     return { ok: true, source: 'curated-fallback', ...fallbackData };
@@ -584,6 +585,11 @@ export async function fetchYouTubeChannelVideos(channel) {
 
     const status = liveVideo ? 'live' : recentVideos.length > 0 ? 'recent' : 'offline';
 
+    // Where the DATA came from (kept with the cached payload, unlike `source`, which says how it was served):
+    // 'youtube-api' only when every recent upload came back with its details, so its live state is known.
+    // A failed playlist or videos.list, or the configured fallback list, is 'fallback'.
+    const complete = uploadIds.length > 0 && uploadIds.every((id) => details.has(id)) && uploads.length > 0;
+
     const result = {
       channelId: channel.id,
       channelName: channel.name,
@@ -591,6 +597,7 @@ export async function fetchYouTubeChannelVideos(channel) {
       liveVideo,
       recentVideos,
       upcomingVideos,
+      dataOrigin: complete ? 'youtube-api' : 'fallback',
     };
 
     setCached(cacheKey, result);
@@ -598,7 +605,7 @@ export async function fetchYouTubeChannelVideos(channel) {
   } catch (err) {
     // If YouTube API fails (quota / network), return stale cache or curated fallback
     if (cached) {
-      return { ok: true, source: 'stale-cache', ...cached.data };
+      return { ok: true, source: 'stale-cache', ...cached.data, dataOrigin: 'stale' };
     }
     const fallbackData = {
       channelId: channel.id,
@@ -607,6 +614,7 @@ export async function fetchYouTubeChannelVideos(channel) {
       liveVideo: null,
       recentVideos: (channel.fallbackVideos || []).map((v) => normalizeYouTubeVideo(v, channel.id)),
       upcomingVideos: [],
+      dataOrigin: 'fallback',
     };
     return { ok: true, source: 'curated-fallback', error: err.message, ...fallbackData };
   }

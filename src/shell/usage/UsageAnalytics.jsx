@@ -3,7 +3,7 @@
  * from the chart it renders. `state` is {status, summary, series, window} for my_usage_summary and
  * my_usage_timeseries over the selected range.
  */
-import { Mic, Sparkles } from 'lucide-react';
+import { Mic, Sparkles, Tv } from 'lucide-react';
 import { creditsText, formatCredits } from '../../lib/creditsStore.js';
 import {
   CREDITS_STARTED_AT, CREDITS_STARTED_NOTE, MEASURES, RANGES, dayText, featureLabel, formatTokens, indianNumber,
@@ -46,7 +46,7 @@ function Highlights({ summary }) {
   );
 }
 
-const FEATURE_ICONS = { research: Sparkles, dictation: Mic };
+const FEATURE_ICONS = { research: Sparkles, dictation: Mic, factcheck: Tv };
 
 /** Each feature as a row: an icon, what it did, its credits (or free) and its share of them. */
 function ByFeature({ summary }) {
