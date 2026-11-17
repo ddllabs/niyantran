@@ -97,6 +97,77 @@ describe('bad success bodies', () => {
   });
 });
 
+describe('sharing actions', () => {
+  it('videoView posts action video_view with video_id', async () => {
+    const reply = { ok: true, unlock_credits_per_minute: 100, stretches: [] };
+    const { client, calls } = make(() => json(200, reply));
+    expect(await client.videoView({ videoId: 'v1' })).toEqual(reply);
+    expect(JSON.parse(calls[0].init.body)).toEqual({ action: 'video_view', video_id: 'v1' });
+  });
+
+  it('unlock posts stretch_id and expected_credits', async () => {
+    const { client, calls } = make(() => json(200, { ok: true, charged: 300 }));
+    await client.unlock({ stretchId: 'st1', expectedCredits: 300 });
+    expect(JSON.parse(calls[0].init.body)).toEqual({ action: 'unlock', stretch_id: 'st1', expected_credits: 300 });
+  });
+
+  it('report posts claim_id and reason', async () => {
+    const { client, calls } = make(() => json(200, { ok: true }));
+    await client.report({ claimId: 'c1', reason: 'wrong' });
+    expect(JSON.parse(calls[0].init.body)).toEqual({ action: 'report', claim_id: 'c1', reason: 'wrong' });
+    await client.report({ claimId: 'c2' });
+    expect(JSON.parse(calls[1].init.body)).toEqual({ action: 'report', claim_id: 'c2', reason: '' });
+  });
+
+  it.each([
+    ['unlock', { stretchId: 's', expectedCredits: 1 }, 402, { reason: 'insufficient', needed: 300, available: 10 }, { status: 402, reason: 'insufficient', needed: 300, available: 10 }],
+    ['unlock', { stretchId: 's', expectedCredits: 1 }, 409, { reason: 'price_changed', price: 500 }, { status: 409, reason: 'price_changed', price: 500 }],
+    ['unlock', { stretchId: 's', expectedCredits: 1 }, 409, { reason: 'own' }, { status: 409, reason: 'own' }],
+    ['unlock', { stretchId: 's', expectedCredits: 1 }, 429, { reason: 'rate_limited' }, { status: 429, reason: 'rate_limited' }],
+    ['unlock', { stretchId: 's', expectedCredits: 1 }, 404, { reason: 'not_found' }, { status: 404, reason: 'not_found' }],
+    ['unlock', { stretchId: 's', expectedCredits: 1 }, 403, { reason: 'off' }, { status: 403, reason: 'off' }],
+    ['unlock', { stretchId: 's', expectedCredits: 1 }, 403, { reason: 'not_allowed' }, { status: 403, reason: 'not_allowed' }],
+    ['report', { claimId: 'c' }, 409, { reason: 'already' }, { status: 409, reason: 'already' }],
+    ['report', { claimId: 'c' }, 429, { reason: 'rate_limited' }, { status: 429, reason: 'rate_limited' }],
+    ['report', { claimId: 'c' }, 404, { reason: 'not_found' }, { status: 404, reason: 'not_found' }],
+    ['report', { claimId: 'c' }, 403, { reason: 'off' }, { status: 403, reason: 'off' }],
+    ['videoView', { videoId: 'v' }, 403, { reason: 'not_allowed' }, { status: 403, reason: 'not_allowed' }],
+    ['videoView', { videoId: 'v' }, 403, { reason: 'off' }, { status: 403, reason: 'off' }],
+  ])('%s maps HTTP %i %j to a FactCheckError', async (action, args, status, body, expected) => {
+    const { client } = make(() => json(status, body));
+    const err = await client[action](args).catch(e => e);
+    expect(err).toBeInstanceOf(FactCheckError);
+    expect(err).toMatchObject(expected);
+  });
+
+  it('transcribe sends piece_no, pos_start_s and pos_end_s when given, and returns stored', async () => {
+    const { client, calls } = make(() => json(200, { seq: 1, text: 'x', seconds_left: 9, stored: true }));
+    const out = await client.transcribe({ session_id: 's', seq: 1, file: new Blob([new Uint8Array(2)]), pieceNo: 2, posStartS: 10.5, posEndS: 21.25 });
+    expect(out.stored).toBe(true);
+    const form = calls[0].init.body;
+    expect([...form.keys()]).toEqual(['action', 'session_id', 'seq', 'file', 'piece_no', 'pos_start_s', 'pos_end_s']);
+    expect(form.get('piece_no')).toBe('2');
+    expect(form.get('pos_start_s')).toBe('10.5');
+    expect(form.get('pos_end_s')).toBe('21.25');
+  });
+
+  it('transcribe without them sends exactly the four slice 1 fields', async () => {
+    const { client, calls } = make(() => json(200, { seq: 1, text: 'x', seconds_left: 9 }));
+    await client.transcribe({ session_id: 's', seq: 1, file: new Blob([new Uint8Array(2)]) });
+    expect([...calls[0].init.body.keys()]).toEqual(['action', 'session_id', 'seq', 'file']);
+    await client.transcribe({ session_id: 's', seq: 1, file: new Blob([new Uint8Array(2)]), pieceNo: 3 });
+    expect([...calls[1].init.body.keys()]).toEqual(['action', 'session_id', 'seq', 'file', 'piece_no']);
+  });
+
+  it('extract passes a piece range turn through, and start returns shareable', async () => {
+    const { client, calls } = make(() => json(200, { shareable: true, claims: [] }));
+    const turn = { piece_from: 2, piece_to: 3, spoken_at: 'x', position_s: 5 };
+    await client.extract({ session_id: 's', turn, recent: [], ledger: null, seed: {} });
+    expect(JSON.parse(calls[0].init.body).turn).toEqual(turn);
+    expect((await client.start({ video_id: 'v' })).shareable).toBe(true);
+  });
+});
+
 describe('already_active', () => {
   it('carries the id of the session that is still active', async () => {
     const { client } = make(() => json(409, { reason: 'already_active', session_id: 'old-1' }));

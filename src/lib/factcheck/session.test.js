@@ -7,6 +7,9 @@ vi.mock('../supabaseClient.js', () => ({ accessToken: async () => 't', functions
 import { FactCheckError } from './client.js';
 import { CaptureError } from './capture.js';
 import { createFactCheckSession } from './session.js';
+import { createFactCheckClient } from './client.js';
+import { createTranscriber } from './transcriber.js';
+import { createPieceCutter } from './pieces.js';
 
 const defer = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
 const settle = async (n = 5) => { for (let i = 0; i < n; i++) await new Promise(r => setTimeout(r, 0)); };
@@ -1123,5 +1126,242 @@ describe('budget, switched off, orphan sessions', () => {
     expect(w.session.getState().claims[0].status).toBe('not_checkable');
     expect(w.session.getState().status).toBe('running');
     await w.session.stop();
+  });
+});
+
+describe('shared results: piece numbers, positions and piece ranges', () => {
+  // Pieces as the cutter makes them: from piece 1 on, 1 s of overlap before the previous cut.
+  const rp = seq => ({ seq, startMs: seq ? seq * 10000 - 1000 : 0, endMs: (seq + 1) * 10000, overlapMs: seq ? 1000 : 0, endPauseMs: 0, silent: false, wav: new Blob([new Uint8Array(4)]) });
+  const reply = (shareable = true) => ({ session_id: 's1', credits_per_minute: 500, credits_held: 2500, shareable, ends_at: new Date(1_700_000_000_000 + 300000).toISOString() });
+  function sharing({ shareable = true, withPosition = true, storedFor = () => true, position } = {}) {
+    const pos = { current: position === undefined ? { positionS: 100, playerState: 1 } : position };
+    const w = world({
+      client: { start: vi.fn(async () => reply(shareable)) },
+      transcribe: async p => ({ seq: p.seq, text: `text ${p.seq}`, secondsLeft: 250, stored: storedFor(p.seq) }),
+      session: withPosition ? { getPosition: () => (pos.current ? { ...pos.current } : null) } : {},
+    });
+    w.pos = pos;
+    // The player moves with the audio: the sample at the end of piece n is 100 + endMs / 1000.
+    w.play = async (seq, over = {}) => { pos.current = pos.current && { positionS: 100 + (seq + 1) * 10, playerState: 1, ...over }; await w.emit(rp(seq)); };
+    return w;
+  }
+  const sent = w => w.transcribe.mock.calls.map(c => c[0]);
+
+  it('sends pieceNo 1, 2, 3 ... and the position at the first and last audio sample', async () => {
+    const w = sharing();
+    await w.start();
+    await w.play(0); await w.play(1); await w.play(2);
+    expect(sent(w).map(p => [p.pieceNo, p.posStartS, p.posEndS])).toEqual([
+      [1, 100, 110], [2, 109, 120], [3, 119, 130],
+    ]);
+    expect(w.session.getState().shareable).toBe(true);
+    await w.session.stop();
+  });
+
+  it('a piece cut while the player was paused carries none of the three piece fields', async () => {
+    const w = sharing();
+    await w.start();
+    await w.play(0, { playerState: 2, positionS: 100 });
+    await w.play(1);
+    await w.play(2);
+    const [a, b, c] = sent(w);
+    expect(a).not.toHaveProperty('pieceNo'); expect(a.posStartS).toBeUndefined(); expect(a.posEndS).toBeUndefined();
+    // the next piece started from a paused sample: also without position
+    expect(b).not.toHaveProperty('pieceNo'); expect(b).not.toHaveProperty('posStartS');
+    expect(c).toMatchObject({ pieceNo: 3, posStartS: 119, posEndS: 130 });
+    await w.session.stop();
+  });
+
+  it('a piece cut while the player was buffering (not playing) loses its position even if the position advanced', async () => {
+    const w = sharing();
+    await w.start();
+    await w.play(0, { playerState: 3 });
+    expect(sent(w)[0]).not.toHaveProperty('pieceNo');
+    await w.session.stop();
+  });
+
+  it('a seek (position not advancing with the audio) removes the position of that piece', async () => {
+    const w = sharing();
+    await w.start();
+    await w.play(0);
+    await w.play(1, { positionS: 900 });
+    await w.play(2, { positionS: 910 });
+    const [, b, c] = sent(w);
+    expect(b).not.toHaveProperty('pieceNo');
+    expect(c).toMatchObject({ pieceNo: 3, posStartS: 899, posEndS: 910 });
+    await w.session.stop();
+  });
+
+  it('a length off by more than 1.5 s is not valid, by less is', async () => {
+    const w = sharing();
+    await w.start();
+    await w.play(0, { positionS: 112 });   // 12 s of position for 10 s of audio
+    await w.play(1, { positionS: 123 });   // 123 - (112 - 1) = 12 s for 11 s of audio
+    expect(sent(w)[0]).not.toHaveProperty('pieceNo');
+    expect(sent(w)[1]).toMatchObject({ posStartS: 112, posEndS: 123 });
+    await w.session.stop();
+  });
+
+  it('getPosition returning null gives plain slice-1 pieces', async () => {
+    const w = sharing({ position: null });
+    await w.start();
+    await w.emit(rp(0));
+    expect(sent(w)[0]).not.toHaveProperty('pieceNo');
+    await w.session.stop();
+  });
+
+  it('a turn made only of stored pieces is sent as a piece range, without text', async () => {
+    const w = sharing();
+    await w.start();
+    await w.play(0); await w.play(1);
+    const turn = w.client.extract.mock.calls[0][0].turn;
+    expect(turn.piece_from).toBe(1);
+    expect(turn.piece_to).toBe(2);
+    expect(turn).not.toHaveProperty('text');
+    expect(turn.spoken_at).toEqual(expect.any(String));
+    await w.session.stop();
+  });
+
+  it('a turn with one unstored piece is sent as text, exactly as before', async () => {
+    const w = sharing({ storedFor: seq => seq !== 1 });
+    await w.start();
+    await w.play(0); await w.play(1);
+    const turn = w.client.extract.mock.calls[0][0].turn;
+    expect(turn.text).toBe('text 0 text 1');
+    expect(turn).not.toHaveProperty('piece_from');
+    expect(Object.keys(turn)).toEqual(['text', 'spoken_at', 'position_s']);
+    await w.session.stop();
+  });
+
+  it('a turn is text when the server never said stored (not shareable)', async () => {
+    const w = sharing({ shareable: false });
+    await w.start();
+    await w.play(0); await w.play(1);
+    expect(w.client.extract.mock.calls[0][0].turn.text).toBe('text 0 text 1');
+    expect(w.session.getState().shareable).toBe(false);
+    for (const p of sent(w)) expect(p).not.toHaveProperty('pieceNo');
+    await w.session.stop();
+  });
+
+  it('without getPosition the pieces are not decorated and shareable stays as the server said', async () => {
+    const w = sharing({ withPosition: false });
+    await w.start();
+    await w.play(0);
+    expect(sent(w)[0]).not.toHaveProperty('pieceNo');
+    expect(w.session.getState().shareable).toBe(true);
+    await w.session.stop();
+  });
+
+  it('an absent shareable in the start answer and an absent stored in the transcribe answer count as false', async () => {
+    const w = world({ client: { start: vi.fn(async () => ({ session_id: 's1', credits_per_minute: 500, credits_held: 2500, ends_at: 'x' })) }, session: { getPosition: () => ({ positionS: 1, playerState: 1 }) } });
+    await w.start();
+    expect(w.session.getState().shareable).toBe(false);
+    await w.emit({ seq: 0, startMs: 0, endMs: 10000, overlapMs: 0, endPauseMs: 0, silent: false, wav: new Blob([]) }, { seq: 1, startMs: 9000, endMs: 20000, overlapMs: 1000, endPauseMs: 0, silent: false, wav: new Blob([]) });
+    expect(w.client.extract.mock.calls[0][0].turn).toHaveProperty('text');
+    await w.session.stop();
+  });
+
+  it('shareable is false before and without a start answer', () => {
+    expect(world().session.getState().shareable).toBe(false);
+  });
+
+  // The requests on the wire are the same with and without a position getter when the server says not shareable.
+  async function wire(getPosition) {
+    const log = [];
+    const fetchImpl = async (url, init) => {
+      const body = init.body instanceof FormData
+        ? [...init.body.entries()].map(([k, v]) => [k, typeof v === 'string' ? v : `file:${v.size}`])
+        : init.body;
+      log.push({ method: init.method, headers: init.headers, body });
+      const action = init.body instanceof FormData ? init.body.get('action') : JSON.parse(init.body).action;
+      const out = {
+        start: { session_id: 's1', credits_per_minute: 500, credits_held: 2500, shareable: false },
+        transcribe: { seq: 0, text: 'hello there', seconds_left: 250 },
+        extract: { claims: [], ledger: null },
+        stop: { minutes_used: 1, credits_charged: 500, balance: 1 },
+      }[action];
+      return new Response(JSON.stringify(out), { status: 200 });
+    };
+    const client = createFactCheckClient({ fetchImpl, getToken: async () => 't', url: 'https://x.test/f' });
+    let handlers;
+    const session = createFactCheckSession({
+      client, transcriber: createTranscriber(client), now: () => 1_700_000_000_000, extractGapMs: 0, getPosition,
+      capture: async h => { handlers = h; return { stop: async () => h.onEnded('stopped') }; },
+    });
+    await session.start({ videoId: 'v', channelId: 'c', videoKind: 'recorded', startPositionS: 30, minutes: 5, seed: { channel: 'c', title: 't' } });
+    await settle();
+    handlers.onPiece(rp(0)); handlers.onPiece(rp(1));
+    await settle();
+    await session.stop();
+    return log;
+  }
+
+  it('requests are identical with and without a position getter when the session is not shareable', async () => {
+    const without = await wire(undefined);
+    const withGetter = await wire(() => ({ positionS: 130, playerState: 1 }));
+    expect(withGetter).toEqual(without);
+    expect(JSON.stringify(withGetter)).not.toMatch(/piece_no|pos_start_s|piece_from/);
+    expect(without.length).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('positions with the real cutter (R2, R5)', () => {
+  const RATE = 16000;
+  const noise = (ms, amp = 0.3) => Float32Array.from({ length: Math.round(ms * RATE / 1000) }, (_, i) => amp * Math.sin(i / 5) * Math.cos(i / 131));
+  const gap = ms => new Float32Array(Math.round(ms * RATE / 1000));
+  const cat = parts => { const o = new Float32Array(parts.reduce((n, p) => n + p.length, 0)); let a = 0; for (const p of parts) { o.set(p, a); a += p.length; } return o; };
+
+  // A fake capture around the REAL cutter; the player advances with the audio fed.
+  async function drive(audio, { startAt = 100, playerState = () => 1 } = {}) {
+    const state = { fed: 0 };
+    const getPosition = () => ({ positionS: startAt + state.fed / RATE, playerState: playerState(state.fed / RATE) });
+    const cutter = createPieceCutter();
+    const kinds = [];
+    const w = world({
+      client: { start: vi.fn(async () => ({ session_id: 's1', credits_per_minute: 500, credits_held: 2500, shareable: true, ends_at: 'x' })) },
+      transcribe: async p => ({ seq: p.seq, text: `t${p.seq}`, secondsLeft: 250, stored: true }),
+      session: { getPosition },
+    });
+    await w.start();
+    for (let i = 0; i < audio.length; i += 2048) {
+      const chunk = audio.subarray(i, i + 2048);
+      state.fed += chunk.length;
+      for (const p of cutter.push(chunk)) { kinds.push(p.cutKind); w.capHandlers.onPiece({ ...p, samples: undefined, silent: false, wav: new Blob([]) }); }
+    }
+    await settle();
+    return { w, kinds, sent: w.transcribe.mock.calls.map(c => c[0]) };
+  }
+
+  it('every piece position is within 0.25 s of the truth and none is dropped, for pause, quiet and hard cuts', async () => {
+    const audio = cat([
+      noise(9000), gap(700), noise(8000),            // a pause cut
+      noise(3000), noise(300, 0.04), noise(9000),    // a quiet-window cut (music bed dip)
+      noise(15000),                                  // a hard cut
+      noise(6000),
+    ]);
+    const { kinds, sent } = await drive(audio);
+    expect(new Set(kinds)).toEqual(new Set(['pause', 'quiet', 'hard']));
+    expect(sent.length).toBeGreaterThanOrEqual(4);
+    for (const p of sent) {
+      expect(p.pieceNo).toBe(p.seq + 1);
+      expect(Math.abs(p.posEndS - (100 + p.endMs / 1000))).toBeLessThan(0.25);
+      expect(Math.abs(p.posStartS - (100 + p.startMs / 1000))).toBeLessThan(0.25);
+    }
+  });
+
+  it('a start slightly below 0 (within 1.5 s) is clamped to 0; one further below is sent without positions', async () => {
+    const lone = async endPos => {
+      const samples = [0, endPos];
+      const w = world({
+        client: { start: vi.fn(async () => ({ session_id: 's1', credits_per_minute: 500, credits_held: 2500, shareable: true, ends_at: 'x' })) },
+        session: { getPosition: () => ({ positionS: samples.length > 1 ? samples.shift() : samples[0], playerState: 1 }) },
+      });
+      await w.start();
+      w.capHandlers.onPiece({ seq: 0, startMs: 0, endMs: 10000, overlapMs: 0, heldMs: 0, endPauseMs: 0, silent: false, wav: new Blob([]) });
+      await settle();
+      return w.transcribe.mock.calls[0][0];
+    };
+    expect(await lone(9)).toMatchObject({ pieceNo: 1, posStartS: 0, posEndS: 9 });
+    expect(await lone(8)).not.toHaveProperty('pieceNo');
   });
 });

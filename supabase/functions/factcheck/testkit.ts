@@ -20,6 +20,8 @@ export const TOKEN = 'hdr.payload-SECRET-TOKEN.sig';
 export const KEY = 'sk-or-test-KEY-0123456789';
 export const ORIGIN = 'http://localhost:5173';
 export const NEW_CLAIM = '55555555-5555-4555-8555-555555555555';
+export const VIDEO = 'RJfqzUWZ0Bw';
+export const STRETCH = '77777777-7777-4777-8777-777777777777';
 export const NOW = Date.parse('2026-11-16T10:00:20.000Z');
 
 // ---- WAV -------------------------------------------------------------------------------------
@@ -207,11 +209,11 @@ export class MemStore implements ClaimStore {
     return this.rows.find((r) => r.id === claimId && r.session_id === sessionId && r.user_id === userId);
   }
   // deno-lint-ignore require-await
-  async updateHeld(userId: string, sessionId: string, claimId: string, patch: HeldPatch) {
+  async updateHeld(userId: string, sessionId: string, claimId: string, patch: HeldPatch, shared: boolean) {
     this.ops.push('updateHeld');
     this.scopes.push({ op: 'updateHeld', userId, sessionId, claimId });
     const row = this.find(userId, sessionId, claimId);
-    if (!row || row.status !== 'needs_context') return null;
+    if (!row || row.status !== 'needs_context' || (row.shared === true) !== shared) return null;
     Object.assign(row, patch);
     return { ...row };
   }
@@ -260,6 +262,8 @@ export class MemStore implements ClaimStore {
 
 export interface Models {
   transcribe?: (form: FormData) => unknown;
+  /** The app's own /api/livetv/videos answer. */
+  livetv?: (url: string) => unknown;
   extract?: (body: Record<string, unknown>) => unknown;
   check?: (body: Record<string, unknown>) => unknown;
 }
@@ -270,6 +274,9 @@ export interface Harness {
   events: string[];
   rpcCalls: { name: string; args: Record<string, unknown> }[];
   fetches: { url: string; model: string; body: unknown }[];
+  livetvCalls: { url: string; signal: AbortSignal | null | undefined; redirect: string | undefined }[];
+  /** Per-function overrides that see the arguments (first choice over rpcResult). */
+  rpcImpl: Record<string, (args: Record<string, unknown>) => RpcResult>;
   logRows: ModelCallRow[];
   rpcResult: Record<string, RpcResult>;
   models: Models;
@@ -281,6 +288,8 @@ export function harness(overrides: Partial<FactcheckDeps> = {}): Harness {
   const events: string[] = [];
   const rpcCalls: Harness['rpcCalls'] = [];
   const fetches: Harness['fetches'] = [];
+  const livetvCalls: Harness['livetvCalls'] = [];
+  const rpcImpl: Harness['rpcImpl'] = {};
   const logRows: ModelCallRow[] = [];
   const admin = { value: true, tokens: [] as string[] };
   const rpcResult: Record<string, RpcResult> = {
@@ -297,12 +306,43 @@ export function harness(overrides: Partial<FactcheckDeps> = {}): Harness {
     },
     factcheck_recheck_begin: { data: { ok: true, claim_id: NEW_CLAIM, recheck_credits: 100 }, error: null },
     factcheck_recheck_charge: { data: { ok: true, repeated: false, credits_charged: 100, balance: 3900 }, error: null },
+    factcheck_share_on: { data: true, error: null },
+    factcheck_mark_shareable: { data: { ok: true }, error: null },
+    factcheck_piece_store: { data: { ok: true }, error: null },
+    factcheck_turn_pieces: {
+      data: {
+        ok: true,
+        pieces: [
+          { piece_no: 4, pos_start_s: 100, pos_end_s: 110, text: 'the central bank raised the repo rate by' },
+          { piece_no: 5, pos_start_s: 109, pos_end_s: 119, text: 'raised the repo rate by 25 basis points' },
+        ],
+      },
+      error: null,
+    },
+    factcheck_video_view: { data: { ok: true, unlock_credits_per_minute: 100, stretches: [] }, error: null },
+    factcheck_unlock: { data: { ok: true, repeated: false, credits_charged: 200, balance: 3800 }, error: null },
+    factcheck_report: { data: { ok: true }, error: null },
     factcheck_settle: {
       data: { ok: true, repeated: false, minutes_used: 2, credits_charged: 1000, balance: 4000 },
       error: null,
     },
   };
+  // By default a turn_pieces answer is filtered to the requested range, so the context lookup of a range
+  // turn (the pieces before it) and the range itself can share one table of pieces.
+  rpcImpl.factcheck_turn_pieces = (args) => {
+    const base = rpcResult.factcheck_turn_pieces;
+    const d = base.data as { ok?: boolean; pieces?: { piece_no: number }[] } | null;
+    if (!d || d.ok !== true || !Array.isArray(d.pieces)) return base;
+    const keep = d.pieces.filter((p) => p.piece_no >= (args.p_from as number) && p.piece_no <= (args.p_to as number));
+    return { data: { ...d, pieces: keep }, error: null };
+  };
   const models: Models = {
+    livetv: () => ({
+      ok: true,
+      source: 'youtube-api',
+      dataOrigin: 'youtube-api',
+      recentVideos: [{ videoId: VIDEO, isLive: false, isUpcoming: false }],
+    }),
     transcribe: () => ({ text: ' नमस्ते दर्शकों ', usage: { cost: 0.0004, seconds: 10 }, id: 'gen-t' }),
     extract: () => chatPayload(extraction()),
     check: () => checkReply('Supported', 'Official data confirm it.', { citations: ['https://example.org/a'] }),
@@ -325,7 +365,7 @@ export function harness(overrides: Partial<FactcheckDeps> = {}): Harness {
     rpc: (name, args) => {
       events.push(`rpc:${name}`);
       rpcCalls.push({ name, args });
-      return Promise.resolve(rpcResult[name]);
+      return Promise.resolve(rpcImpl[name] ? rpcImpl[name](args) : rpcResult[name]);
     },
     store: new Proxy(store, {
       get(target, prop, receiver) {
@@ -339,6 +379,10 @@ export function harness(overrides: Partial<FactcheckDeps> = {}): Harness {
     }),
     apiKey: KEY,
     fetch: async (url, init) => {
+      if (url.includes('/api/livetv/videos')) {
+        livetvCalls.push({ url, signal: init.signal, redirect: init.redirect });
+        return asResponse(await models.livetv!(url));
+      }
       if (url.endsWith('/audio/transcriptions')) {
         const form = init.body as FormData;
         events.push('fetch:transcribe');
@@ -359,7 +403,7 @@ export function harness(overrides: Partial<FactcheckDeps> = {}): Harness {
     origins: [ORIGIN],
     ...overrides,
   };
-  return { deps, store, events, rpcCalls, fetches, logRows, rpcResult, models, admin };
+  return { deps, store, events, rpcCalls, fetches, livetvCalls, rpcImpl, logRows, rpcResult, models, admin };
 }
 
 /** Runs f with console.log captured, returns what was logged. */

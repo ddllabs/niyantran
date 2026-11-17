@@ -22,6 +22,16 @@ export async function transcribeAction(ctx: Ctx, form: FormData): Promise<Obj> {
     throw badRequest('seq must be a non-negative integer.');
   }
   const seq = Number(seqText);
+  // Optional, for a shareable session: where in the video this piece sits. All three, well formed, or the
+  // fields are ignored and this is a slice 1 piece: a bad position must never fail a transcription.
+  const num = (v: FormDataEntryValue | null) =>
+    typeof v === 'string' && /^\d{1,8}(\.\d{1,3})?$/.test(v) ? Number(v) : NaN;
+  const no = form.get('piece_no');
+  const start = num(form.get('pos_start_s'));
+  const end = num(form.get('pos_end_s'));
+  const place = typeof no === 'string' && /^\d{1,9}$/.test(no) && start <= 10_000_000 && end <= 10_000_000
+    ? { pieceNo: Number(no), start, end }
+    : null;
   const file = form.get('file');
   if (!(file instanceof File)) throw badRequest('An audio file is required.');
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -40,7 +50,7 @@ export async function transcribeAction(ctx: Ctx, form: FormData): Promise<Obj> {
   // still counts as activity.
   if (info.rms < SILENCE_RMS || info.seconds < MIN_WAV_SECONDS) {
     log('factcheck.transcribe', { session_id: sessionId, seq, seconds: info.seconds, silent: true });
-    return { seq, text: '', seconds_left: secondsLeft };
+    return { seq, text: '', seconds_left: secondsLeft, ...(place ? { stored: false } : {}) };
   }
 
   const body = new FormData();
@@ -71,5 +81,33 @@ export async function transcribeAction(ctx: Ctx, form: FormData): Promise<Obj> {
   }
   // The touch counted the block from its own clock; the provider call has used part of what it reported.
   const left = Math.max(0, Math.ceil(secondsLeft - (ctx.now() - touchedAt) / 1000));
-  return { seq, text: outcome.payload.text.trim().slice(0, MAX_TEXT), seconds_left: left };
+  const text = outcome.payload.text.trim().slice(0, MAX_TEXT);
+  const answer: Obj = { seq, text, seconds_left: left };
+  // Stored only when the declared length matches the audio actually sent (within 1.5 s), so a position
+  // range cannot inflate or shrink what a stretch costs to unlock.
+  const honest = place !== null && Math.abs(place.end - place.start - info.seconds) <= 1.5;
+  if (place) answer.stored = text && honest ? await storePiece(ctx, sessionId, place, text) : false;
+  return answer;
+}
+
+/** A refusal or a failure to store is not an error: the piece was transcribed, it is simply not shared. */
+async function storePiece(
+  ctx: Ctx,
+  sessionId: string,
+  place: { pieceNo: number; start: number; end: number },
+  text: string,
+): Promise<boolean> {
+  try {
+    const { data, error } = await ctx.deps.rpc('factcheck_piece_store', {
+      p_user: ctx.userId,
+      p_session: sessionId,
+      p_piece_no: place.pieceNo,
+      p_pos_start_s: place.start,
+      p_pos_end_s: place.end,
+      p_text: text,
+    });
+    return !error && !!data && typeof data === 'object' && (data as Obj).ok === true;
+  } catch {
+    return false;
+  }
 }

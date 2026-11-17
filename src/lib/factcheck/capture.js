@@ -137,7 +137,7 @@ export async function startCapture({ onPiece = () => {}, onEnded = () => {}, onE
     try {
       onPiece({
         seq: piece.seq, startMs: piece.startMs, endMs: piece.endMs, overlapMs: piece.overlapMs,
-        endPauseMs: piece.endPauseMs, silent: isSilent(piece.samples),
+        endPauseMs: piece.endPauseMs, heldMs: piece.heldMs ?? 0, silent: isSilent(piece.samples),
         wav: new d.Blob([encodeWav(piece.samples, RATE)], { type: 'audio/wav' }),
       });
     } catch (error) { onError(error); }

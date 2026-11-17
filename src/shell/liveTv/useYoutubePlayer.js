@@ -2,12 +2,14 @@
 import { useEffect, useRef } from 'react';
 import { createYoutubePlayerBridge } from './youtubePlayerBridge.js';
 import { createMuteController } from './muteController.js';
+import { positionSample } from './position.js';
 
 /**
  * active          run the bridge while true
  * onMutedChange   the player's own controls changed the mute (no command is sent back)
  * onFallback      the embed did not confirm a mute toggle: remount it with the wanted mute
- * Returns { iframeRef, requestMute(muted), getPositionS() }.
+ * Returns { iframeRef, requestMute(muted), getPositionS(), getPosition() }.
+ * getPosition() is { positionS, playerState } or null when the player's position is not known.
  */
 export function useYoutubePlayer(active, { onMutedChange, onFallback }) {
   const iframeRef = useRef(null);
@@ -45,5 +47,6 @@ export function useYoutubePlayer(active, { onMutedChange, onFallback }) {
     const p = bridgeRef.current?.getSnapshot().positionS;
     return typeof p === 'number' ? Math.floor(p) : null;
   };
-  return { iframeRef, requestMute, getPositionS };
+  const getPosition = () => positionSample(bridgeRef.current?.getSnapshot());
+  return { iframeRef, requestMute, getPositionS, getPosition };
 }

@@ -11,8 +11,11 @@ import { readFactCheckFlag } from './factCheckFlag.js';
 import {
   RECHECK_ALREADY, RECHECK_FAILED, VERDICTS, priceChangedText, recheckAnswerLost, recheckErrorText, recheckPriceChangedText,
 } from './factCheckText.js';
+import {
+  coveringPart, partModel, reportErrorText, unlockErrorText, viewErrorText,
+} from './factCheckShare.js';
 
-const OFF = { available: false, creditsPerMinute: null, recheckCredits: null, userId: null };
+const OFF = { available: false, creditsPerMinute: null, recheckCredits: null, sharing: null, userId: null };
 const IDLE = {
   status: 'idle', sessionId: null, minutesBought: 0, creditsPerMinute: null, creditsHeld: null, secondsLeft: 0,
   transcript: [], claims: [], silentFor: 0, skippedPieces: 0, droppedTurns: 0, final: null, endReason: null, error: null,
@@ -21,7 +24,7 @@ const ACTIVE = new Set(['sharing', 'starting', 'running', 'ending']);
 const FINISHED = new Set(['ended', 'error']);
 
 export const INITIAL_VIEW = Object.freeze({
-  flag: OFF, supported: false, ready: false, session: IDLE, announcement: '', priceNotice: '', orphanNotice: '', orphanFailed: false, rechecks: {}, recheckNotices: [], balance: null,
+  flag: OFF, supported: false, ready: false, session: IDLE, announcement: '', priceNotice: '', orphanNotice: '', orphanFailed: false, rechecks: {}, recheckNotices: [], shared: null, balance: null,
 });
 
 const defaultCredits = {
@@ -36,6 +39,7 @@ export function createFactCheckController({
   supported = isSupported,
   credits = defaultCredits,
   client = null,
+  getPosition = null,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   onChange = () => {},
 } = {}) {
@@ -57,6 +61,13 @@ export function createFactCheckController({
   // the feature being switched off. Cleared by the user or when a new session starts.
   let recheckNotices = [];
   let clientRef = client;
+  const getClient = () => (clientRef ??= createFactCheckClient());
+  // Shared results of a recorded video ("Checked parts"): null unless sharing is on and a recorded
+  // video is playing. unlocks and reports are keyed by stretch id and claim id.
+  let video = { videoId: null, videoKind: null };
+  let shared = null;
+  let loadEpoch = 0;   // the newest load; an older answer is ignored
+  let viewEpoch = 0;   // bumped when the video or target changes; late answers are dropped
   let announced = new Map();
   let unsubscribe = null;
   let loadId = 0;
@@ -65,7 +76,7 @@ export function createFactCheckController({
     try { return credits.available(flag.userId); } catch { return null; }
   };
   const view = () => ({
-    flag, supported: isSupportedHere, ready: Boolean(target), session: sessionState, announcement, priceNotice, orphanNotice, orphanFailed, rechecks: recheckView(), recheckNotices: [...recheckNotices], recheckActions, balance: balance(),
+    flag, supported: isSupportedHere, ready: Boolean(target), session: sessionState, announcement, priceNotice, orphanNotice, orphanFailed, rechecks: recheckView(), recheckNotices: [...recheckNotices], recheckActions, shared: sharedView(), shareActions, balance: balance(),
   });
   const recheckView = () => Object.fromEntries([...rechecks].map(([id, r]) => [id, { ...r, results: [...r.results] }]));
   const emit = () => onChange(view());
@@ -83,12 +94,15 @@ export function createFactCheckController({
     if (fresh.length) announcement = fresh.join('. ');
   }
 
+  const finished = (state, prev) => FINISHED.has(state.status) && !FINISHED.has(prev.status);
+
   function handle(state) {
     const prev = sessionState;
     noteVerdicts(state);
     sessionState = state;
     if (state.status === 'idle' || (state.status === 'sharing' && !ACTIVE.has(prev.status))) clearRechecks();
     if (state.status === 'sharing' && !ACTIVE.has(prev.status)) recheckNotices = [];
+    if (finished(state, prev) && state.sessionId) void loadShared(); // the new part is shared now
     if (state.status === 'sharing' || state.status === 'idle') { priceNotice = ''; orphanNotice = ''; orphanFailed = false; }
     // The charge is settled on the server; the header balance catches up once. A start that got no
     // answer may have created a session, so it asks too.
@@ -111,7 +125,13 @@ export function createFactCheckController({
   }
 
   function ensureSession() {
-    if (!session) session = createSession({ onChange: handle });
+    if (!session) {
+      session = createSession({
+        onChange: handle,
+        // Where the player is, for recorded videos only.
+        getPosition: () => (video.videoKind === 'recorded' ? getPosition?.() ?? null : null),
+      });
+    }
     return session;
   }
 
@@ -143,7 +163,7 @@ export function createFactCheckController({
   function setTarget(next) {
     const changed = target !== undefined && next !== target;
     target = next;
-    if (changed) clearRechecks();
+    if (changed) { clearRechecks(); resetShared(); }
     if (changed && session) {
       const status = sessionState.status;
       if (status === 'choosing') session.cancelChoice();
@@ -158,12 +178,15 @@ export function createFactCheckController({
     if (!flag.available) return;
     ensureSession().choose();
     Promise.resolve(credits.refresh()).catch(() => {});
+    void loadShared();
     const id = ++chooseId;
     let fresh;
     try { fresh = await readFlag({ fresh: true }); } catch { return; }
     if (id !== chooseId || sessionState.status !== 'choosing') return;
     flag = fresh?.available === true ? fresh : { ...OFF, userId: fresh?.userId ?? flag.userId };
     if (!flag.available) session.cancelChoice();
+    else if (flag.sharing && !shared) void loadShared();
+    else if (!flag.sharing && shared) { resetShared(); }
     emit();
   }
   function cancel() { chooseId++; session?.cancelChoice(); }
@@ -198,6 +221,8 @@ export function createFactCheckController({
     emit();
   }
   const rechecksEnabled = () => flag.available && typeof flag.recheckCredits === 'number';
+  // Only a claim of the session on screen can be checked again. A claim in a part (even the user's own)
+  // is the original row with the newest result, which the server would refuse to check again.
   const findClaim = (id) => sessionState.claims.find((c) => c.id === id);
   const settle = (id, patch) => { const r = rechecks.get(id); if (r) Object.assign(r, patch); };
 
@@ -221,8 +246,7 @@ export function createFactCheckController({
   async function recheckCall(claimId, price, epoch) {
     for (let attempt = 0; ; attempt++) {
       try {
-        clientRef ??= createFactCheckClient();
-        return await clientRef.recheck({ claimId, expectedRecheckCredits: price });
+        return await getClient().recheck({ claimId, expectedRecheckCredits: price });
       } catch (e) {
         if (e?.status === 429 && e.reason !== 'too_many_failures' && attempt === 0) {
           await sleep(Math.min(e.retryAfterMs ?? 5000, 30000));
@@ -306,6 +330,160 @@ export function createFactCheckController({
     emit();
   }
 
+
+  // ---- shared results: "Checked parts of this video" ----
+  const validStretch = (s) => s && typeof s === 'object' && typeof s.stretch_id === 'string' && Number.isFinite(s.from_s) && Number.isFinite(s.to_s);
+  const sharingNow = () => flag.available && flag.sharing && video.videoKind === 'recorded' && Boolean(video.videoId);
+  function sharedView() {
+    if (!shared) return null;
+    return {
+      ...shared,
+      stretches: [...shared.stretches],
+      unlocks: Object.fromEntries(Object.entries(shared.unlocks).map(([k, v]) => [k, { ...v }])),
+      reports: Object.fromEntries(Object.entries(shared.reports).map(([k, v]) => [k, { ...v }])),
+    };
+  }
+  function resetShared() { viewEpoch++; loadEpoch++; shared = null; }
+  function switchSharingOff(text) {
+    flag = { ...flag, sharing: null };
+    resetShared();
+    if (text) recheckNotices = [...recheckNotices, text].slice(-5);
+  }
+  function setVideo(next) {
+    const videoId = next?.videoId ?? null;
+    const videoKind = next?.videoKind ?? null;
+    if (videoId === video.videoId && videoKind === video.videoKind) return;
+    video = { videoId, videoKind };
+    resetShared();
+    emit();
+  }
+  async function loadShared() {
+    if (!sharingNow()) { if (shared) { resetShared(); emit(); } return; }
+    const epoch = ++loadEpoch;
+    const view = viewEpoch;
+    const keep = shared;
+    shared = {
+      phase: 'loading', error: null, unlockCreditsPerMinute: flag.sharing.unlockCreditsPerMinute,
+      stretches: keep?.stretches ?? [], unlocks: keep?.unlocks ?? {}, reports: keep?.reports ?? {}, covering: null,
+    };
+    emit();
+    let res;
+    try {
+      res = await getClient().videoView({ videoId: video.videoId });
+    } catch (e) {
+      if (epoch !== loadEpoch || view !== viewEpoch) return;
+      if (e?.status === 403 && (e.reason === 'off' || e.reason === 'not_allowed')) switchSharingOff();
+      else shared = { ...shared, phase: 'error', error: viewErrorText(e), stretches: [] };
+      emit();
+      return;
+    }
+    if (epoch !== loadEpoch || view !== viewEpoch) return;
+    const stretches = Array.isArray(res?.stretches) ? res.stretches.filter(validStretch) : [];
+    const here = getPosition?.()?.positionS;
+    shared = {
+      ...shared, phase: 'ready', error: null, stretches,
+      unlockCreditsPerMinute: typeof res?.unlock_credits_per_minute === 'number' ? res.unlock_credits_per_minute : shared.unlockCreditsPerMinute,
+      covering: coveringPart(stretches, typeof here === 'number' ? here : null)?.stretch_id ?? null,
+    };
+    emit();
+  }
+
+  const stretchById = (id) => shared?.stretches.find((s) => s.stretch_id === id);
+  function unlockAsk(id) {
+    const st = stretchById(id);
+    if (!st || partModel(st).readable) return;
+    const u = shared.unlocks[id];
+    if (u?.phase === 'running') return;
+    shared.unlocks[id] = { phase: 'confirming', error: null, notice: '' };
+    emit();
+  }
+  function unlockCancel(id) {
+    const u = shared?.unlocks[id];
+    if (!u || u.phase !== 'confirming') return;
+    delete shared.unlocks[id];
+    emit();
+  }
+  // shownPrice: the price in the confirmation; exactly that is sent for the server to check.
+  async function unlockConfirm(id, shownPrice) {
+    const st = stretchById(id);
+    const u = shared?.unlocks[id];
+    if (!st || !u || u.phase !== 'confirming') return;
+    const view = viewEpoch;
+    const price = typeof shownPrice === 'number' ? shownPrice : st.price;
+    Object.assign(u, { phase: 'running', error: null, notice: '' });
+    emit();
+    const refresh = () => Promise.resolve(credits.refresh()).catch(() => {});
+    try {
+      await getClient().unlock({ stretchId: id, expectedCredits: price });
+    } catch (e) {
+      if ((e?.status ?? 0) === 0 || e?.status >= 500) void refresh(); // a charge may have happened
+      if (view !== viewEpoch) return;
+      if (e?.status === 403 && (e.reason === 'off' || e.reason === 'not_allowed')) { switchSharingOff(unlockErrorText(e)); emit(); return; }
+      if (e?.reason === 'price_changed' || e?.reason === 'own' || e?.reason === 'not_found' || e?.reason === 'claim_not_found') {
+        await loadShared();
+        if (view !== viewEpoch || !shared) return;
+        const now = stretchById(id);
+        if (e.reason === 'price_changed' && now && !partModel(now).readable) {
+          shared.unlocks[id] = {
+            phase: 'confirming', notice: '',
+            error: typeof (e.price ?? now.price) === 'number'
+              ? `The price changed to ${creditsText(e.price ?? now.price)}. Review it and unlock again.` : unlockErrorText(e),
+          };
+        } else if (e.reason === 'own' && now && partModel(now).readable) delete shared.unlocks[id];
+        else shared.unlocks[id] = { phase: 'idle', notice: '', error: unlockErrorText(e) };
+        emit();
+        return;
+      }
+      shared.unlocks[id] = { phase: 'idle', notice: '', error: unlockErrorText(e) };
+      emit();
+      return;
+    }
+    void refresh();
+    if (view !== viewEpoch) return;
+    await loadShared();
+    if (view !== viewEpoch || !shared) return;
+    shared.unlocks[id] = { phase: 'idle', error: null, notice: 'Unlocked.' };
+    emit();
+  }
+
+  const reportableClaim = (claimId) => {
+    for (const st of shared?.stretches ?? []) {
+      if (!partModel(st).reportable) continue;
+      const c = (st.claims || []).find((x) => x.id === claimId);
+      if (c) return c.reported === true ? null : c;
+    }
+    return null;
+  };
+  function reportAsk(claimId) {
+    if (!reportableClaim(claimId) || shared.reports[claimId]?.phase === 'running' || shared.reports[claimId]?.phase === 'done') return;
+    shared.reports[claimId] = { phase: 'asking', error: null };
+    emit();
+  }
+  function reportCancel(claimId) {
+    if (shared?.reports[claimId]?.phase !== 'asking') return;
+    delete shared.reports[claimId];
+    emit();
+  }
+  async function reportSend(claimId, reason) {
+    const r = shared?.reports[claimId];
+    if (!r || r.phase !== 'asking') return;
+    const view = viewEpoch;
+    const text = String(reason ?? '').trim().slice(0, 300);
+    Object.assign(r, { phase: 'running', error: null });
+    emit();
+    try {
+      await getClient().report({ claimId, reason: text });
+      r.phase = 'done';
+    } catch (e) {
+      if (view !== viewEpoch) return;
+      if (e?.reason === 'already') r.phase = 'done';
+      else if (e?.status === 403 && (e.reason === 'off' || e.reason === 'not_allowed')) { switchSharingOff(reportErrorText(e)); emit(); return; }
+      else Object.assign(r, { phase: 'asking', error: reportErrorText(e) });
+    }
+    emit();
+  }
+  const shareActions = { reload: () => { void loadShared(); }, unlockAsk, unlockCancel, unlockConfirm, reportAsk, reportCancel, reportSend };
+
   // Carried in the published view so the panel needs no extra props from the modal.
   const recheckActions = {
     ask: recheckAsk, confirm: recheckConfirm, cancel: recheckCancel,
@@ -314,5 +492,7 @@ export function createFactCheckController({
 
   function retry() { session?.reset(); void choose(); }
 
-  return { load, close, setTarget, choose, cancel, start, stop, dismiss, retry, endOrphan, recheckAsk, recheckCancel, recheckConfirm };
+  return { load, close, setTarget, setVideo, choose, cancel, start, stop, dismiss, retry, endOrphan, recheckAsk, recheckCancel, recheckConfirm,
+    unlockAsk, unlockCancel, unlockConfirm, reportAsk, reportCancel, reportSend,
+  };
 }

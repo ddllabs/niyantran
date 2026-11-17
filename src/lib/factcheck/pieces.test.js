@@ -156,6 +156,26 @@ describe('quiet-window cuts (music bed: no absolute pause)', () => {
   });
 });
 
+describe('heldMs: audio still held after the cut', () => {
+  it('is the audio received after the piece last sample, at the end of the push that emitted it', () => {
+    const cutter = createPieceCutter();
+    const out = cutter.push(concat(tone(9000), quiet(600), tone(1000)));
+    expect(out).toHaveLength(1);
+    // the cut is in the middle of the pause (about 9300 ms); 10600 ms were received
+    expect(out[0].heldMs).toBe(10600 - out[0].endMs);
+    expect(out[0].heldMs).toBeGreaterThan(1000);
+  });
+  it('is 0 for the flushed tail', () => {
+    const cutter = createPieceCutter();
+    cutter.push(tone(3000));
+    expect(cutter.flush()[0].heldMs).toBe(0);
+  });
+  it('is small when the cut is a hard cut on a chunk boundary', () => {
+    const pieces = runCutter(tone(14000), 2048);
+    expect(pieces[0].heldMs).toBeLessThan(130);
+  });
+});
+
 describe('isSilent', () => {
   it('is true for zeros, an empty piece and room hiss', () => {
     expect(isSilent(quiet(1000))).toBe(true);
