@@ -3,8 +3,8 @@
 > **Status: Living (2026-11-17).** Written 2026-11-17 on branch `task/f349-findings`. Tracker: F349 in
 > [open-work](open-work.md). Findings are in the
 > [research note](../research/2026-11-17-f349-fact-check-first-sessions.md), which says what was executed and what was
-> read from code. Owner decisions D1 to D3 were made on 2026-11-17; D4 is still open. Building started 2026-11-17 on
-> branch `task/f349-fixes`; not merged, not deployed.
+> read from code. Owner decisions D1 to D3 were made on 2026-11-17; D4 is still open. Merged 2026-11-17 in
+> pull request 162 (`ac4a7726`); migration applied on NTER and function version 4 deployed the same day; proof by a real session still owed.
 
 ## What it delivers
 
