@@ -7,8 +7,16 @@ import { INITIAL_VIEW, createFactCheckController } from './factCheckController.j
 /**
  * open    the modal is open (the flag is read on open; a session ends on close)
  * target  what is playing, as one string, or null; a change ends a running session
- * start   { videoId, channelId, videoKind, startPositionS, seed } for a session started now
+ * start   { videoId, channelId, videoKind, startPositionS, seed } for a session started now;
+ *         getStartPositionS(), when given, is read at confirm time and replaces startPositionS
  */
+export function withPosition(start) {
+  const { getStartPositionS, ...rest } = start;
+  if (typeof getStartPositionS !== 'function') return start;
+  const p = getStartPositionS();
+  return { ...rest, startPositionS: Number.isInteger(p) && p >= 0 ? p : null };
+}
+
 export function useFactCheck({ open, target, start }) {
   const [view, setView] = useState(INITIAL_VIEW);
   const [controller] = useState(() => createFactCheckController({ onChange: (next) => setView(next) }));
@@ -24,7 +32,7 @@ export function useFactCheck({ open, target, start }) {
   const actions = {
     choose: () => controller.choose(),
     cancel: () => controller.cancel(),
-    confirm: (minutes, price) => { void controller.start(start, minutes, price); },
+    confirm: (minutes, price) => { void controller.start(withPosition(start), minutes, price); },
     stop: () => { void controller.stop(); },
     retry: () => controller.retry(),
     endOrphan: () => { void controller.endOrphan(); },
