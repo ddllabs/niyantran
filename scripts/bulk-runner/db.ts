@@ -105,6 +105,8 @@ export interface TextHolder {
 export interface Db {
   /** lock_timeout and statement_timeout for the session (design 5.3). */
   session(settings: { lock_timeout_ms: number; statement_timeout_ms: number }): Promise<void>;
+  /** The features that have a partition of public.document_chunks of their own: a read-only catalog query. */
+  partitionedFeatures(): Promise<string[]>;
   textHolders(hashes: string[]): Promise<TextHolder[]>;
   open(args: OpenArgs): Promise<OpenResult>;
   addItems(batch: string, items: ManifestItem[]): Promise<void>;

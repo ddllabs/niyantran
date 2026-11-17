@@ -1,6 +1,6 @@
 # Carbon v6 slice plan
 
-> **Status: Living.** 2026-10-08; owner authorized continuation. [Spec](../specs/2026-10-08-desk-v6-carbon.md). Tracked only by F88 in open-work.md.
+> **Status: Historical (2026-10-08).** 2026-10-08; owner authorized continuation. [Spec](../specs/2026-10-08-desk-v6-carbon.md). Tracked only by F88 in open-work.md.
 
 Stay on task/desk-v6-integration, preserve existing commits, leave main/remote untouched. Source contract fixed in spec. Default sequential: C1 → C2 → C3 → C4 → C5 → C6. One scoped worker may implement C2/C3 server boundary while supervisor freezes presentation; disjoint files, no shared interface edits. Independent read-only review follows; agents receive onboarding,no commits/push/delegation.
 

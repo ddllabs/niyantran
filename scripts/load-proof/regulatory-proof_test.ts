@@ -413,6 +413,14 @@ Deno.test("arguments: defaults, every option, and the refusals", () => {
     "/h/niyantran-eval-cache/reg-next-700-2026-11-15/national-regulatory.collection.json",
   );
   assertEquals(a.partsDir, null);
+  assertEquals(a.vectors, "random");
+  assertEquals(parseArgs(["--vectors", "clustered"], "/h").vectors, "clustered");
+  assertEquals(parseArgs(["--vectors", "random"], "/h").vectors, "random");
+  assertThrows(
+    () => parseArgs(["--vectors", "real"], "/h"),
+    Error,
+    "--vectors must be one of",
+  );
   assertEquals(
     parseArgs(["--parts-dir", "/x/parts-100"], "/h").partsDir,
     "/x/parts-100",

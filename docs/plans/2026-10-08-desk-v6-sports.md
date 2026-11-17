@@ -1,6 +1,6 @@
 # Sports v6 slice plan
 
-> **Status: Living.** 2026-10-08. [Spec](../specs/2026-10-08-desk-v6-sports.md); F88 is open-work tracker.
+> **Status: Historical (2026-10-08).** 2026-10-08. [Spec](../specs/2026-10-08-desk-v6-sports.md); F88 is open-work tracker.
 
 1. Read existing source adapters and exact reference groups. Freeze version1 contract in spec.
 2. Scoped task agent owns only new sports files: src/lib/sportsLandingSummary.js/tests,server/sportsLandingSummary.mjs,src/lib/sportsLandingApi.test.js; src/desks/landing/sportsPresentation.js/tests,src/desks/useSportsLanding.js/tests,src/desks/SportsLandingView.jsx/tests and scoped sportsLanding.css. No shared file edits/commits/delegation. Onboarding required.

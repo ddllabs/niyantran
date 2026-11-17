@@ -1,6 +1,6 @@
 # F93 unused landing UI removal
 
-> **Status: Living.** Sequential; no delegation. Implements [spec](../specs/2026-10-12-unused-landing-ui.md). Owner approved the exact removal inventory and local checks; no push/deployment.
+> **Status: Historical (2026-10-12).** Sequential; no delegation. Implements [spec](../specs/2026-10-12-unused-landing-ui.md). Owner approved the exact removal inventory and local checks; no push/deployment.
 
 1. Hash all 94 existing dirty files, establish the pre-removal production build, and prepare a temporary browser fixture outside the repository.
 2. Remove only the 12 spec-listed files. No runtime interface changes; active landings and corpus work remain unchanged.

@@ -1,6 +1,6 @@
 # Retire `grant_paid_plan` (F276)
 
-> **Status: Living.** Prepared and applied 2026-10-31, with the owner's approval ("approve PR 82, merge and
+> **Status: Historical (2026-10-31).** Prepared and applied 2026-10-31, with the owner's approval ("approve PR 82, merge and
 > apply the migration"). Merged in PR #82 / `c175e33b`. Open work: F276, now Done in [open-work](open-work.md).
 
 ## Current state

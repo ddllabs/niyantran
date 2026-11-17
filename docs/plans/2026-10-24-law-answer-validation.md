@@ -1,6 +1,6 @@
 # F247/F249 validation plan
 
-> **Status: Living.** Sequential implementation under the approved correction scope.
+> **Status: Historical (2026-10-24).** Sequential implementation under the approved correction scope.
 
 1. Reproduce placeholder acceptance and support/citation gaps. Read the previous partial-release receipt and source-grounded failures.
 2. Write causal tests, then shared placeholder validation; scopes research-chat answerValidation.ts/tests, agent.ts/tests, handler.ts/tests.

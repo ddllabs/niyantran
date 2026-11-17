@@ -1,6 +1,6 @@
 # F95 direct desk entry
 
-> **Status: Living.** Sequential implementation; no delegation. [Spec](../specs/2026-10-12-desk-direct-entry.md).
+> **Status: Historical (2026-10-12).** Sequential implementation; no delegation. [Spec](../specs/2026-10-12-desk-direct-entry.md).
 
 1. Commit verified cleanup separately, staging only its files and F93 tracker paragraph. Completed: `69595a5`. Create `task/desk-direct-entry` while leaving corpus changes in place.
 2. Add failing regression tests for direct defaults and landing panel dismissal.

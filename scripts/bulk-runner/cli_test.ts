@@ -1059,3 +1059,35 @@ Deno.test('prepare block: split carries the recorded block into each part, and a
   await main(['split', '--records', 'out/screened.jsonl', '--lines', '2', '--out', '/var/parts'], plain.d);
   assertEquals('prepare' in JSON.parse(plain.written.get('/var/parts/part-000.jsonl.receipt.json')!), false);
 });
+
+// F285: the partition list a run is judged against is the database's, not the collection file's.
+const OVER = { ...COLLECTION, limits: { ...COLLECTION.limits, chunksNow: { [QUESTIONS]: 100_000 } } };
+const RUN = ['run', '--collection', 'c.json', '--records', 'r.jsonl', '--receipts', '/var/receipts'];
+
+Deno.test('run: a feature with no partition in the database is refused past 100,000 chunks, naming the remedy', async () => {
+  const records = JSON.stringify(await question(1));
+  // The file claims a partition the database does not have: the database wins.
+  const claimed = { ...OVER, limits: { ...OVER.limits, partitioned: [QUESTIONS] } };
+  const { d, lines, db } = deps(await files(claimed, records));
+  db.partitions = ['Some Other Feature'];
+  assertEquals(await main(RUN, d), 1);
+  const refusal = lines.find((l) => l.startsWith('plan refused'))!;
+  assertStringIncludes(refusal, 'unpartitioned_feature_over_100k');
+  assertStringIncludes(refusal, 'create_document_chunks_partition');
+  assertEquals(db.calls.filter((c) => c.method === 'register').length, 0);
+  assertEquals(db.calls.filter((c) => c.method === 'open').length, 0);
+});
+
+Deno.test('run: a feature with a partition of its own in the database is never refused by the 100,000 rule', async () => {
+  const records = JSON.stringify(await question(1));
+  const { d, lines, db } = deps(await files(OVER, records));
+  db.partitions = [QUESTIONS];
+  assertEquals(await main(RUN, d), 0, lines.join('\n'));
+});
+
+Deno.test('plan: stays offline and judges by the collection file', async () => {
+  const records = JSON.stringify(await question(1));
+  const { d, db } = deps(await files(OVER, records));
+  assertEquals(await main(plan1, d), 1);
+  assertEquals(db.calls.length, 0);
+});

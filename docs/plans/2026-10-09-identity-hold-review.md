@@ -1,6 +1,6 @@
 # Corpus identity-hold review
 
-> **Status: Living.** Owner continued after completion of the approved medium queue. Sequential investigation, no delegation.
+> **Status: Historical (2026-10-09; superseded, R7).** Owner continued after completion of the approved medium queue. Sequential investigation, no delegation.
 
 Current state: all91 approved small sources and48 approved medium sources completed;325 small/medium identity/body holds remain. Start with54 header/title/version holds (48 small,6 medium); gazette/body disagreements and shared-key conflicts remain excluded.
 

@@ -1,6 +1,6 @@
 # Entertainment v6 slice plan
 
-> **Status: Living.** 2026-10-08. [Spec](../specs/2026-10-08-desk-v6-entertainment.md); F88 is open-work tracker.
+> **Status: Historical (2026-10-08).** 2026-10-08. [Spec](../specs/2026-10-08-desk-v6-entertainment.md); F88 is open-work tracker.
 
 1. Read existing source adapters and exact reference groups. Freeze version1 contract in spec.
 2. Scoped task agent owns only new entertainment files: src/lib/entertainmentLandingSummary.js/tests,server/entertainmentLandingSummary.mjs,src/lib/entertainmentLandingApi.test.js; src/desks/landing/entertainmentPresentation.js/tests,src/desks/useEntertainmentLanding.js/tests,src/desks/EntertainmentLandingView.jsx/tests and scoped entertainmentLanding.css. No shared file edits/commits/delegation. Onboarding required.

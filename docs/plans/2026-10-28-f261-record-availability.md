@@ -1,6 +1,6 @@
 # F261 implementation
 
-> **Status: Living.** Local implementation, supervisor integrates.
+> **Status: Historical (2026-10-28).** Local implementation, supervisor integrates.
 
 Spec: [Record availability](../specs/2026-10-28-f261-record-availability.md). Tracking: F261 in open-work.md.
 

@@ -139,6 +139,11 @@ chain() {
       chain pq_admission_links
       FILES+=("$(as_non_superuser 20261027231901_admin_corpus_readiness.sql)" "$(as_non_superuser 20261015130000_unscoped_ef_search.sql)"
               "$(as_non_superuser 20261027185840_feature_search_recovery.sql)" "$(as_non_superuser 20261101120000_document_chunks_partitioned.sql)") ;;
+    # F285: a partition of document_chunks for a feature, made by one function. document_chunks_partitions' chain
+    # (the partitioned table), then the migration, as a non-superuser. The vacuity check drops the last.
+    create_document_chunks_partition)
+      chain document_chunks_partitions
+      FILES+=("$(as_non_superuser 20261114090000_create_document_chunks_partition.sql)") ;;
     # F278 step 4 (C1): hybrid (keyword + vector) search. The partitions-and-policy pair's chain
     # (law_documents_serving_set: partitions, then the policy), then the migration, as a non-superuser.
     # The vacuity check drops the last.

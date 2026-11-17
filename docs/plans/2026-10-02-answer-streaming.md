@@ -1,6 +1,6 @@
 # Plan: stream the answer, cut TTFT, cache
 
-> **Status: Living (2026-10-02).** Implements `docs/specs/2026-10-02-answer-streaming.md`
+> **Status: Historical (2026-10-02).** Implements `docs/specs/2026-10-02-answer-streaming.md`
 > (approved). Branch: `task/answer-streaming`. Tracked as open-work F46.
 
 ## Fixed interfaces

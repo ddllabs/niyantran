@@ -62,6 +62,7 @@ export type Fault = 'ok' | 'error' | 'lost';
 export type Method =
   | 'session'
   | 'textHolders'
+  | 'partitionedFeatures'
   | 'open'
   | 'addItems'
   | 'seal'
@@ -73,6 +74,8 @@ export type Method =
 export class FakeDb implements Db {
   /** Every call that reached the fake, in order, with the arguments it was given. */
   calls: Array<{ method: Method; args: unknown[] }> = [];
+  /** The features that have a partition of document_chunks of their own. */
+  partitions: string[] = [];
   /** content_sha256 to live holders, for ingest_text_holders and the duplicate_text refusal. */
   holders = new Map<string, TextHolder[]>();
   /** source_key to a reason: registration refuses it. */
@@ -130,6 +133,10 @@ export class FakeDb implements Db {
 
   session(settings: { lock_timeout_ms: number; statement_timeout_ms: number }) {
     return this.go('session', [settings], () => undefined);
+  }
+
+  partitionedFeatures() {
+    return this.go('partitionedFeatures', [], () => [...this.partitions]);
   }
 
   textHolders(hashes: string[]) {

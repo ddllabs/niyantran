@@ -1,6 +1,6 @@
 # Pending corpus continuation
 
-> **Status: Living.** Sequential plan for [spec](../specs/2026-10-10-pending-corpus-continuation.md). No delegation.
+> **Status: Historical (2026-10-10; superseded, R7).** Sequential plan for [spec](../specs/2026-10-10-pending-corpus-continuation.md). No delegation.
 
 1. Reconcile live state/locks and pending entries; inspect every page of the two closest exact-Download sources.
 2. Finish exact hash-bound header/layout repairs with full body/table preservation review. Keep originals intact and use the existing tested source-repair contract.

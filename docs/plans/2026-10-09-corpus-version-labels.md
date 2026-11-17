@@ -1,6 +1,6 @@
 # Version labeling and uncovered-bill cohort
 
-> **Status: Living.** R7, owner continuation2026-10-09. [Spec](../specs/2026-10-09-corpus-version-labels.md). Sequential, no delegation.
+> **Status: Historical (2026-10-09; superseded, R7).** R7, owner continuation2026-10-09. [Spec](../specs/2026-10-09-corpus-version-labels.md). Sequential, no delegation.
 
 1. Confirm checkout/current retrieval and authorized caller wiring; current Supabase docs/read-only metadata. Preserve prior local corpus work.
 2. Add failing allowlist/metadata hydration/render and caller-permission/timeout tests. Implement narrow role transport and fixed evidence labels; keep unknown legacy/page behavior and original text/hash untouched.

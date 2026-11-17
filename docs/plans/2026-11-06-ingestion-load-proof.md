@@ -1,6 +1,6 @@
 # Ingestion proof on partitions: plan (F287)
 
-> **Status: Living (2026-11-06).** Implements the [spec](../specs/2026-11-06-ingestion-load-proof.md). Branch
+> **Status: Historical (2026-11-06).** Implements the [spec](../specs/2026-11-06-ingestion-load-proof.md). Branch
 > `task/ingest-load-proof`. Sequential: one task at a time, and one Docker-heavy job at a time.
 
 ## Setup facts

@@ -1,6 +1,6 @@
 # Global landing implementation
 
-> **Status: Living.** Local owner-authorized continuation. Branch `task/global-landing-redesign`, based on National checkpoint `49aef80`; no publication.
+> **Status: Historical (2026-10-05).** Local owner-authorized continuation. Branch `task/global-landing-redesign`, based on National checkpoint `49aef80`; no publication.
 
 Spec: [Global](../specs/2026-10-05-global-landing-redesign.md). Tracker F82 in [open work](open-work.md). Sequential supervisor work; no delegates.
 

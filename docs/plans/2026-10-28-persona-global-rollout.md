@@ -1,6 +1,6 @@
 # Global persona rollout
 
-> **Status: Living.** Owner-authorized implementation and production release.
+> **Status: Historical (2026-10-28).** Owner-authorized implementation and production release.
 
 Spec: [published personas for all users](../specs/2026-10-28-persona-global-rollout.md). Branch task/persona-global-rollout. Sequential; no delegation.
 

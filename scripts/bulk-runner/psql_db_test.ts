@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertRejects, assertStringIncludes } from 'jsr:@std/assert@1';
-import { dollarQuote, PsqlDb, type PsqlExec, type PsqlRun } from './psql_db.ts';
+import { dollarQuote, featuresOfBounds, PsqlDb, type PsqlExec, type PsqlRun } from './psql_db.ts';
 
 const BATCH = '0b6c2a52-6d7e-4b0e-9a55-3f2f8f0c1d11';
 
@@ -144,4 +144,29 @@ Deno.test('the client-side limit is longer than the statement timeout', async ()
   await db.session(SESSION);
   await db.status(BATCH);
   assert(seen > SESSION.statement_timeout_ms, `client limit ${seen} ms`);
+});
+
+Deno.test('featuresOfBounds: list bounds give the features, the default partition and anything else give none', () => {
+  assertEquals(
+    featuresOfBounds([
+      "FOR VALUES IN ('NCLT / NCLAT (Insolvency)')",
+      "FOR VALUES IN ('Bill Passage Probability Index'::text)",
+      "FOR VALUES IN ('It''s, a feature', 'Second')",
+      'DEFAULT',
+    ]),
+    ['NCLT / NCLAT (Insolvency)', 'Bill Passage Probability Index', "It's, a feature", 'Second'],
+  );
+  assertEquals(featuresOfBounds([]), []);
+});
+
+Deno.test('partitionedFeatures: one read-only catalog query, bounds parsed, no write', async () => {
+  const s = asIngest((sql) =>
+    sql.includes('pg_inherits') ? { stdout: `["FOR VALUES IN ('Bills')","DEFAULT"]\n` } : { stdout: '{}' }
+  );
+  const db = new PsqlDb(s.exec);
+  await db.session(SESSION);
+  assertEquals(await db.partitionedFeatures(), ['Bills']);
+  const q = s.scripts.find((x) => x.includes('pg_inherits'))!;
+  assertStringIncludes(q, "'public.document_chunks'::regclass");
+  assert(!/\b(insert|update|delete|create|alter|drop|truncate)\b/i.test(q), q);
 });

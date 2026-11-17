@@ -1,4 +1,4 @@
-import { assert, assertEquals } from 'jsr:@std/assert@1';
+import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
 import { manifestSha256 } from '../../src/lib/batchManifest.js';
 import { callEnd, MAX_CALL_BYTES, plan, type PlanLimits, splitCalls } from './plan.ts';
 import type { PreparedRequest } from './prepare.ts';
@@ -155,4 +155,16 @@ Deno.test('est_cost_usd carries headroom for estimate error and one requeue, and
   const tight = await run(reqs, { budgetUsd: raw * 1.1 });
   assertEquals(!tight.ok && tight.stop, 'over_budget');
   assertEquals((await run(reqs, { budgetUsd: raw * 1.1, costHeadroom: 1 })).ok, true);
+});
+
+Deno.test('the over-100k refusal points at the move procedure when the feature already has stored chunks, else at the function', async () => {
+  const feature = 'Proof Feature Without A Partition';
+  const stored = await run(many(1, { feature, chunks: 1 }), { chunksNow: { [feature]: 100_000 } });
+  assert(!stored.ok);
+  assertStringIncludes(stored.detail, 'Adding a partition later');
+  assertStringIncludes(stored.detail, '20261101120000_document_chunks_partitioned.sql');
+  const fresh = await run(many(1, { feature, chunks: 100_001 }), { chunksNow: { [feature]: 0 } });
+  assert(!fresh.ok);
+  assertStringIncludes(fresh.detail, 'create one first with public.create_document_chunks_partition');
+  assert(!fresh.detail.includes('Adding a partition later'));
 });

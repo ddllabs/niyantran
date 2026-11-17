@@ -1,6 +1,6 @@
 # Plan: web search streams once, with live sources and site icons (F131)
 
-> **Status: Living.** Implements the
+> **Status: Historical (2026-10-13).** Implements the
 > [spec](../specs/2026-10-13-web-search-streaming.md), approved by the owner
 > on 2026-10-13. Branch `task/web-search`, worktree
 > `.claude/worktrees/web-search`.
