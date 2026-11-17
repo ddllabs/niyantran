@@ -24,7 +24,7 @@ const ACTIVE = new Set(['sharing', 'starting', 'running', 'ending']);
 const FINISHED = new Set(['ended', 'error']);
 
 export const INITIAL_VIEW = Object.freeze({
-  flag: OFF, supported: false, ready: false, session: IDLE, announcement: '', priceNotice: '', orphanNotice: '', orphanFailed: false, rechecks: {}, recheckNotices: [], shared: null, balance: null,
+  flag: OFF, supported: false, ready: false, session: IDLE, announcement: '', priceNotice: '', orphanNotice: '', orphanFailed: false, rechecks: {}, recheckNotices: [], shared: null, balance: null, captureFailures: 0,
 });
 
 const defaultCredits = {
@@ -52,6 +52,9 @@ export function createFactCheckController({
   let priceNotice = '';
   let orphanNotice = '';
   let orphanFailed = false;
+  // Capture failures in a row (the panel stops offering the same Try again after two). Cleared by a
+  // session that really starts, another kind of error, and dismissing the panel.
+  let captureFailures = 0;
   let chooseId = 0;
   // Re-check state by claim id: { phase: 'idle'|'confirming'|'running', results (newest first), error, notice }.
   // Independent of the session; cleared with the panel.
@@ -76,7 +79,7 @@ export function createFactCheckController({
     try { return credits.available(flag.userId); } catch { return null; }
   };
   const view = () => ({
-    flag, supported: isSupportedHere, ready: Boolean(target), session: sessionState, announcement, priceNotice, orphanNotice, orphanFailed, rechecks: recheckView(), recheckNotices: [...recheckNotices], recheckActions, shared: sharedView(), shareActions, balance: balance(),
+    flag, supported: isSupportedHere, ready: Boolean(target), session: sessionState, announcement, priceNotice, orphanNotice, orphanFailed, rechecks: recheckView(), recheckNotices: [...recheckNotices], recheckActions, shared: sharedView(), shareActions, balance: balance(), captureFailures,
   });
   const recheckView = () => Object.fromEntries([...rechecks].map(([id, r]) => [id, { ...r, results: [...r.results] }]));
   const emit = () => onChange(view());
@@ -102,6 +105,13 @@ export function createFactCheckController({
     sessionState = state;
     if (state.status === 'idle' || (state.status === 'sharing' && !ACTIVE.has(prev.status))) clearRechecks();
     if (state.status === 'sharing' && !ACTIVE.has(prev.status)) recheckNotices = [];
+    if (state.status === 'running' || state.status === 'ending') captureFailures = 0;
+    else if (state.status === 'error' && prev.status !== 'error') {
+      const e = state.error;
+      // Only real failures count. A decline or no audio is the user's doing: neither adds nor resets.
+      if (e?.source === 'capture' && (e.reason === 'blocked' || e.reason === 'failed')) captureFailures += 1;
+      else if (!(e?.source === 'capture' && (e.reason === 'denied' || e.reason === 'no_audio'))) captureFailures = 0;
+    }
     if (finished(state, prev) && state.sessionId) void loadShared(); // the new part is shared now
     if (state.status === 'sharing' || state.status === 'idle') { priceNotice = ''; orphanNotice = ''; orphanFailed = false; }
     // The charge is settled on the server; the header balance catches up once. A start that got no
@@ -198,7 +208,7 @@ export function createFactCheckController({
     try { await ensureSession().start({ ...params, minutes, expectedCreditsPerMinute }); } catch { /* shown through the session's state */ }
   }
   function stop() { return session ? session.stop('user') : Promise.resolve(); }
-  function dismiss() { session?.reset(); }
+  function dismiss() { captureFailures = 0; session?.reset(); }
   // Another session of this account is still active on the server (409 already_active): end it, show
   // what it cost, and let the user choose again.
   async function endOrphan() {
@@ -229,6 +239,8 @@ export function createFactCheckController({
   function recheckAsk(id) {
     const claim = findClaim(id);
     if (!rechecksEnabled() || !claim || (claim.status !== 'checked' && claim.status !== 'error')) return;
+    const shown = rechecks.get(id)?.results?.[0] ?? claim; // the newest result on the card
+    if (shown.status === 'error' && shown.fail_reason === 'no_sources') return; // the same check would answer the same
     const r = rechecks.get(id) || { phase: 'idle', results: [], error: null, notice: '' };
     if (r.phase === 'running' || r.locked) return;
     rechecks.set(id, { ...r, phase: 'confirming', error: null, notice: '' });

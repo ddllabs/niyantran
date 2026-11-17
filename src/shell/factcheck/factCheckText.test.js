@@ -1,7 +1,10 @@
 // F344 T6: pure helpers behind the panel's words and the modal's wiring.
 import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
-import { blockOptions, confirmStart, embedVideoId, formatClock, playingTarget, priceChangedText, safeSourceUrl } from './factCheckText.js';
+import {
+  NO_SOURCES_TEXT, blockOptions, claimBadge, confirmStart, embedVideoId, endReasonText, errorMessage, formatClock, kindTag,
+  playingTarget, priceChangedText, safeSourceUrl,
+} from './factCheckText.js';
 
 describe('formatClock', () => {
   it.each([[0, '0:00'], [5, '0:05'], [65, '1:05'], [600, '10:00'], [-3, '0:00'], [Number.NaN, '0:00']])('%s -> %s', (s, out) => {
@@ -82,5 +85,95 @@ describe('confirmStart', () => {
     confirmStart({ isMuted: false, onUnmute, onConfirm }, 5, 500);
     expect(onUnmute).not.toHaveBeenCalled();
     expect(onConfirm).toHaveBeenCalledWith(5, 500);
+  });
+});
+
+describe('F349: the no-sources state', () => {
+  const err = (fail_reason) => ({ status: 'error', verdict: null, fail_reason });
+  it('is its own badge, not "Check failed"', () => {
+    expect(claimBadge(err('no_sources'))).toMatchObject({ key: 'no_sources', label: 'No sources found' });
+  });
+  it.each(['no_label', 'bad_label', 'label_conflict', null, undefined, 'something_new'])('%s stays "Check failed"', (r) => {
+    expect(claimBadge(err(r))).toMatchObject({ key: 'error', label: 'Check failed' });
+  });
+  it('only an error status counts: a verdict with a stray fail_reason is still a verdict', () => {
+    expect(claimBadge({ status: 'checked', verdict: 'supported', fail_reason: 'no_sources' })).toMatchObject({ key: 'supported' });
+  });
+  it('says what it means in one line', () => {
+    expect(NO_SOURCES_TEXT).toBe('The check found an answer but no source to show for it, so no verdict is given.');
+  });
+  it('kindTag is unaffected', () => {
+    expect(kindTag({ kind: 'claim' }, claimBadge(err('no_sources')))).toBeNull();
+  });
+});
+
+describe('F349: why the session ended', () => {
+  it('a 409 settled is "ended from another tab or window"', () => {
+    expect(endReasonText('server', 'settled')).toBe('This session was ended elsewhere: from another tab or window, or after a long pause.');
+  });
+  it('a 409 ended says it was already over', () => {
+    expect(endReasonText('server', 'ended')).toBe('This session had already ended on the server.');
+  });
+  it('a server end with no known detail keeps the generic text', () => {
+    expect(endReasonText('server')).toBe('The server ended the session.');
+    expect(endReasonText('server', null)).toBe('The server ended the session.');
+    expect(endReasonText('server', 'something_new')).toBe('The server ended the session.');
+  });
+  it('the detail is ignored for other reasons', () => {
+    expect(endReasonText('time', 'settled')).toBe('Time is up.');
+    expect(endReasonText('nonsense')).toBe('The session ended.');
+  });
+});
+
+describe('F349: capture error texts', () => {
+  const cap = (reason) => ({ source: 'capture', reason, status: 0 });
+  it('declined: says nothing was charged and what to choose in the prompt', () => {
+    const m = errorMessage(cap('denied'));
+    expect(m.text).toContain('declined');
+    expect(m.text).toContain('Nothing was charged.');
+    expect(m.text).toMatch(/This tab/);
+    expect(m.text).toMatch(/tab audio/);
+    expect(m.retry).toBe(true);
+  });
+  it('blocked by the browser is not worded as declining, and says to use Chrome on a computer', () => {
+    const m = errorMessage(cap('blocked'));
+    expect(m.text).not.toMatch(/declined/);
+    expect(m.text).toMatch(/did not allow/);
+    expect(m.text).toContain('Chrome on a computer');
+    expect(m.text).toContain('Nothing was charged.');
+    expect(m.retry).toBe(true);
+  });
+  it('unsupported: Chrome on a computer, nothing charged, no retry', () => {
+    const m = errorMessage(cap('unsupported'));
+    expect(m.text).toContain('Chrome on a computer');
+    expect(m.text).toContain('Nothing was charged.');
+    expect(m.retry).toBe(false);
+  });
+  it('no audio and a generic failure say what to do and that nothing was charged', () => {
+    for (const r of ['no_audio', 'failed', 'something_else']) {
+      const m = errorMessage(cap(r));
+      expect(m.text, r).toContain('Nothing was charged.');
+      expect(m.text, r).toMatch(/tab audio/);
+      expect(m.retry, r).toBe(true);
+    }
+  });
+  it('a failure while running is NOT "nothing was charged": the session had started', () => {
+    const m = errorMessage({ source: 'capture', reason: 'handler', status: 0 });
+    expect(m.text).not.toContain('Nothing was charged');
+    expect(m.text).toMatch(/charged only for the time used/);
+  });
+  it('after two failures in a row it explains instead of offering the same retry again', () => {
+    for (const r of ['blocked', 'failed']) {
+      const m = errorMessage(cap(r), { captureFailures: 2 });
+      expect(m.text, r).toMatch(/failed twice|more than once/);
+      expect(m.text, r).toContain('Chrome on a computer');
+      expect(m.retry, r).toBe(false);
+    }
+  });
+  it('a user who keeps declining can still try again (that is their choice, not a fault)', () => {
+    expect(errorMessage(cap('denied'), { captureFailures: 3 }).retry).toBe(true);
+  });
+  it('one failure is unchanged by the counter', () => {
+    expect(errorMessage(cap('blocked'), { captureFailures: 1 }).retry).toBe(true);
   });
 });

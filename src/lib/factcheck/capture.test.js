@@ -132,6 +132,16 @@ describe('startCapture setup', () => {
     expect(err).toMatchObject({ name: 'CaptureError', reason: 'denied' });
   });
 
+  it.each(['NotSupportedError', 'InvalidStateError', 'SecurityError', 'TypeError'])('maps %s (the browser did not allow tab sharing) to reason "blocked"', async (name) => {
+    const t = setup({ getDisplayMedia: async () => { throw new DOMException('no', name); } });
+    expect(await startCapture({ ...t.handlers, deps: t.deps }).catch(e => e)).toMatchObject({ name: 'CaptureError', reason: 'blocked' });
+  });
+
+  it('maps a TypeError that is not a DOMException to "blocked" too', async () => {
+    const t = setup({ getDisplayMedia: async () => { throw new TypeError('Permissions policy violation'); } });
+    expect(await startCapture({ ...t.handlers, deps: t.deps }).catch(e => e)).toMatchObject({ reason: 'blocked' });
+  });
+
   it('maps any other getDisplayMedia failure to reason "failed"', async () => {
     const t = setup({ getDisplayMedia: async () => { throw new Error('boom'); } });
     expect(await startCapture({ ...t.handlers, deps: t.deps }).catch(e => e)).toMatchObject({ reason: 'failed' });

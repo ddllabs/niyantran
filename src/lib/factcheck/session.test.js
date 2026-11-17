@@ -1115,7 +1115,7 @@ describe('budget, switched off, orphan sessions', () => {
     const w = world();
     const out = await w.session.stopOrphan('old-1');
     expect(out).toEqual({ minutes_used: 1, credits_charged: 500, balance: 9500 });
-    expect(w.client.stop).toHaveBeenCalledWith({ session_id: 'old-1' });
+    expect(w.client.stop).toHaveBeenCalledWith({ session_id: 'old-1', end_reason: 'user_stop' });
   });
 
   it('check on a claim that is no longer pending applies the returned status in place, not as a failure', async () => {
@@ -1363,5 +1363,139 @@ describe('positions with the real cutter (R2, R5)', () => {
     };
     expect(await lone(9)).toMatchObject({ pieceNo: 1, posStartS: 0, posEndS: 9 });
     expect(await lone(8)).not.toHaveProperty('pieceNo');
+  });
+});
+
+describe('F349: end reasons sent with stop', () => {
+  const sent = w => w.client.stop.mock.calls.map(c => c[0].end_reason);
+
+  it.each([
+    ['user', 'user_stop'], ['modal_close', 'modal_close'], ['channel_change', 'channel_change'], ['ui', 'other'],
+  ])('a stop(%s) sends end_reason %s', async (reason, wire) => {
+    const w = world();
+    await w.start();
+    await w.session.stop(reason);
+    expect(sent(w)).toEqual([wire]);
+  });
+
+  it('the default stop (the Stop button) is user_stop', async () => {
+    const w = world();
+    await w.start();
+    await w.session.stop();
+    expect(sent(w)).toEqual(['user_stop']);
+  });
+
+  it('the browser ending the share (Stop sharing, track ended) sends sharing_stopped', async () => {
+    const w = world();
+    await w.start();
+    await w.emit(piece(0));
+    w.capHandlers.onEnded('ended');
+    await vi.waitFor(() => expect(w.session.getState().status).toBe('ended'));
+    expect(sent(w)).toEqual(['sharing_stopped']);
+  });
+
+  it('the block running out sends time_up', async () => {
+    const w = world();
+    await w.start();
+    w.now += 301000;
+    w.tick();
+    await vi.waitFor(() => expect(w.session.getState().status).toBe('ended'));
+    expect(sent(w)).toEqual(['time_up']);
+  });
+
+  it('the silence limit sends silence', async () => {
+    const w = world();
+    await w.start();
+    await w.emit(piece(0));
+    for (let i = 1; i <= 9; i++) await w.emit(piece(i, { silent: true }));
+    await vi.waitFor(() => expect(w.session.getState().status).toBe('ended'));
+    expect(sent(w)).toEqual(['silence']);
+  });
+
+  it('being ended by a 409 sends server', async () => {
+    const w = world({ transcribe: async p => { if (p.seq === 1) throw new FactCheckError(409, 'settled'); return { seq: p.seq, text: 'x', secondsLeft: 100 }; } });
+    await w.start();
+    await w.emit(piece(0), piece(1));
+    await vi.waitFor(() => expect(w.session.getState().status).toBe('ended'));
+    expect(sent(w)).toEqual(['server']);
+  });
+
+  it('ending on repeated failures sends error', async () => {
+    const w = world({ transcribe: async () => { throw new FactCheckError(400, 'bad_request'); } });
+    await w.start();
+    await w.emit(piece(0), piece(1), piece(2));
+    await vi.waitFor(() => expect(w.session.getState().status).toBe('error'));
+    expect(sent(w)).toEqual(['error']);
+  });
+
+  it('a stop asked for while the server start is in flight carries its own reason', async () => {
+    const gate = defer();
+    const w = world({ client: { start: async () => { await gate.promise; return { session_id: 's1', credits_per_minute: 500, credits_held: 2500 }; } } });
+    const started = w.session.start(PARAMS);
+    await settle();
+    const stopping = w.session.stop('modal_close');
+    gate.resolve();
+    await started; await stopping;
+    expect(sent(w)).toEqual(['modal_close']);
+  });
+});
+
+describe('F349: a 409 ending the session keeps the server reason', () => {
+  it.each(['settled', 'ended'])('records endDetail %s', async (reason) => {
+    const w = world({ transcribe: async p => { if (p.seq === 1) throw new FactCheckError(409, reason); return { seq: p.seq, text: 'x', secondsLeft: 100 }; } });
+    await w.start();
+    await w.emit(piece(0), piece(1));
+    await vi.waitFor(() => expect(w.session.getState().status).toBe('ended'));
+    expect(w.session.getState()).toMatchObject({ endReason: 'server', endDetail: reason });
+  });
+  it('other endings have no endDetail', async () => {
+    const w = world();
+    await w.start();
+    await w.session.stop();
+    expect(w.session.getState().endDetail).toBeNull();
+  });
+});
+
+describe('F349: fail_reason stays on the claim', () => {
+  const claimFrom = id => ({ id, quote: 'q', claim_en: 'c', kind: 'claim', status: 'pending' });
+  it.each([['no_sources'], ['no_label'], ['bad_label'], ['label_conflict']])('a check answering error/%s keeps it', async (fail_reason) => {
+    const w = world({ client: { check: async ({ claim_id }) => ({ id: claim_id, status: 'error', verdict: null, reason: null, sources: [], checked_at: null, fail_reason }) } });
+    w.client.extract.mockResolvedValueOnce({ claims: [claimFrom('c1')], ledger: {} });
+    await w.start();
+    await w.emit(piece(0), piece(1));
+    await vi.waitFor(() => expect(w.session.getState().claims[0].status).toBe('error'));
+    expect(w.session.getState().claims[0].fail_reason).toBe(fail_reason);
+    await w.session.stop();
+  });
+  it('an older response without the field reads as null, and a thrown check has none', async () => {
+    const w = world();
+    w.client.extract.mockResolvedValueOnce({ claims: [claimFrom('c1')], ledger: {} });
+    await w.start();
+    await w.emit(piece(0), piece(1));
+    await vi.waitFor(() => expect(w.session.getState().claims[0].status).toBe('checked'));
+    expect(w.session.getState().claims[0].fail_reason).toBeNull();
+    await w.session.stop();
+    const v = world({ client: { check: async () => { throw new FactCheckError(500, 'server_error'); } } });
+    v.client.extract.mockResolvedValueOnce({ claims: [claimFrom('c1')], ledger: {} });
+    await v.start();
+    await v.emit(piece(0), piece(1));
+    await vi.waitFor(() => expect(v.session.getState().claims[0].status).toBe('error'));
+    expect(v.session.getState().claims[0].fail_reason).toBeNull();
+    await v.session.stop();
+  });
+});
+
+describe('F349 review: a later extract never overwrites a real fail_reason', () => {
+  it('extract returning the same id with fail_reason null leaves an error/no_sources claim alone', async () => {
+    const pending = { id: 'c1', quote: 'q', claim_en: 'c', kind: 'claim', status: 'pending', fail_reason: null };
+    const w = world({ client: { check: async ({ claim_id }) => ({ id: claim_id, status: 'error', verdict: null, sources: [], fail_reason: 'no_sources' }) } });
+    w.client.extract.mockResolvedValueOnce({ claims: [pending], ledger: {} }).mockResolvedValue({ claims: [{ ...pending, status: 'error', fail_reason: null }], ledger: {} });
+    await w.start();
+    await w.emit(piece(0), piece(1));
+    await vi.waitFor(() => expect(w.session.getState().claims[0].fail_reason).toBe('no_sources'));
+    await w.emit(piece(2), piece(3), piece(4));
+    await settle(10);
+    expect(w.session.getState().claims[0]).toMatchObject({ status: 'error', fail_reason: 'no_sources' });
+    await w.session.stop();
   });
 });

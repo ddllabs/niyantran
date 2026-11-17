@@ -369,7 +369,7 @@ describe('ended', () => {
   it('keeps the rate and hold in the ended summary', () => {
     expect(text(render(ended('time', { creditsPerMinute: 500, creditsHeld: 2500 })))).toContain('500 credits a minute · 2,500 credits held');
   });
-  it('offers Close and Run again', () => {
+  it('offers Close and starting a new session', () => {
     const html = render(ended('time'));
     expect(html).toMatch(/data-fc="dismiss"/);
     expect(html).toMatch(/data-fc="again"/);
@@ -470,5 +470,91 @@ describe('focus and styles', () => {
   it('a disabled option keeps its reason at full opacity', () => {
     const css = readFileSync(new URL('./factCheck.css', import.meta.url), 'utf8');
     expect(css).toMatch(/\.fc-option:disabled\s*\{[^}]*opacity:\s*1/);
+  });
+});
+
+describe('F349: no sources found', () => {
+  const noSources = (over = {}) => claim({ status: 'error', verdict: null, reason: null, sources: [], checked_at: null, fail_reason: 'no_sources', ...over });
+  const withRecheck = (c) => view({ status: 'ended', endReason: 'time', claims: [c] }, { flag: { available: true, creditsPerMinute: 500, recheckCredits: 100, userId: 'u1' } });
+  it('reads "No sources found" with the one-line explanation, not "Check failed"', () => {
+    const t = text(render(view({ status: 'ended', endReason: 'time', claims: [noSources()] })));
+    expect(t).toContain('No sources found');
+    expect(t).toContain('The check found an answer but no source to show for it, so no verdict is given.');
+    expect(t).not.toContain('Check failed');
+  });
+  it('has a neutral look: its own class, not the failure look', () => {
+    const html = render(view({ status: 'ended', endReason: 'time', claims: [noSources()] }));
+    expect(html).toMatch(/fc-card--no_sources/);
+    expect(html).not.toMatch(/fc-card--error|fc-badge--error/);
+  });
+  it('offers no Check again, even when re-checks are priced', () => {
+    const html = render(withRecheck(noSources()));
+    expect(html).not.toMatch(/data-fc="recheck"/);
+    expect(text(html)).not.toMatch(/Check again/);
+  });
+  it('other failures keep "Check failed" and keep Check again', () => {
+    for (const fail_reason of ['no_label', 'bad_label', 'label_conflict', null]) {
+      const html = render(withRecheck(noSources({ fail_reason })));
+      expect(text(html), String(fail_reason)).toContain('Check failed');
+      expect(html, String(fail_reason)).toMatch(/data-fc="recheck"/);
+      expect(text(html), String(fail_reason)).not.toContain('no source to show');
+    }
+  });
+});
+
+describe('F349: starting again is plainly a new paid session', () => {
+  const ended = view({ status: 'ended', endReason: 'time', claims: [claim()] });
+  it('the ended view says it is a new session, shows the price and that the list is cleared', () => {
+    const html = render(ended);
+    expect(html).toMatch(/<button[^>]*data-fc="again"[^>]*>Start a new session · from 2,500 credits</);
+    expect(text(html)).toContain('A new session is charged separately and clears the claims above. You choose the length first.');
+    expect(text(html)).not.toContain('Run again');
+  });
+  it('does not show the note after an error (there is no list to clear on a plain failure)', () => {
+    const html = render(view({ status: 'error', error: { source: 'capture', reason: 'failed', status: 0 } }));
+    expect(html).not.toMatch(/data-fc="again"/);
+    expect(text(html)).not.toContain('clears the claims');
+  });
+});
+
+describe('F349: consent facts and end reasons', () => {
+  it('says the feature needs Chrome on a computer', () => {
+    expect(text(render(view({ status: 'choosing' })))).toContain('Fact-check needs Chrome on a computer.');
+  });
+  it('a 409 settled shows the other-tab text; a plain server end the generic one', () => {
+    expect(text(render(view({ status: 'ended', endReason: 'server', endDetail: 'settled' })))).toContain('This session was ended elsewhere: from another tab or window, or after a long pause.');
+    expect(text(render(view({ status: 'ended', endReason: 'server', endDetail: null })))).toContain('The server ended the session.');
+  });
+  it('after two capture failures it explains and offers no Try again', () => {
+    const e = { source: 'capture', reason: 'failed', status: 0 };
+    const once = render(view({ status: 'error', error: e }, { captureFailures: 1 }));
+    expect(once).toMatch(/data-fc="retry"/);
+    const twice = render(view({ status: 'error', error: e }, { captureFailures: 2 }));
+    expect(twice).not.toMatch(/data-fc="retry"/);
+    expect(text(twice)).toContain('failed twice in a row');
+    expect(twice).toMatch(/data-fc="dismiss"/);
+  });
+  it('a blocked capture is not worded as declining', () => {
+    const t = text(render(view({ status: 'error', error: { source: 'capture', reason: 'blocked', status: 0 } })));
+    expect(t).toContain('Your browser did not allow tab sharing.');
+    expect(t).not.toContain('declined');
+  });
+});
+
+describe('F349 review: the new-session button needs a known price', () => {
+  const endedWith = (flag) => view({ status: 'ended', endReason: 'time', claims: [claim()] }, { flag });
+  it.each([
+    ['no price', { available: true, creditsPerMinute: null, userId: 'u1' }],
+    ['price undefined', { available: true, userId: 'u1' }],
+    ['price as text', { available: true, creditsPerMinute: '500', userId: 'u1' }],
+  ])('%s: only Close, no button and no note', (_n, flag) => {
+    const html = render(endedWith(flag));
+    expect(html).not.toMatch(/data-fc="again"/);
+    expect(text(html)).not.toContain('from 0 credits');
+    expect(text(html)).not.toContain('A new session is charged');
+    expect(html).toMatch(/data-fc="dismiss"/);
+  });
+  it('a known price still shows it', () => {
+    expect(render(endedWith({ available: true, creditsPerMinute: 500, userId: 'u1' }))).toMatch(/data-fc="again"/);
   });
 });
