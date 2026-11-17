@@ -195,6 +195,11 @@ chain() {
     factcheck_sharing)
       chain factcheck_recheck
       FILES+=("$(as_non_superuser 20261117090000_factcheck_sharing.sql)") ;;
+    # F349 T1: why a check ended in error. The sharing chain, then the fail_reason migration, as a non-superuser. The vacuity
+    # check drops the last.
+    factcheck_fail_reason)
+      chain factcheck_sharing
+      FILES+=("$(as_non_superuser 20261118090000_factcheck_fail_reason.sql)") ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;

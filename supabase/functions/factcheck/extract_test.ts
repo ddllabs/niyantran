@@ -42,6 +42,7 @@ Deno.test('extract touches first, calls the extraction model once with the fixed
   assertEquals(Object.keys(json.claims[0]).sort(), [
     'claim_en',
     'claimant',
+    'fail_reason',
     'id',
     'kind',
     'quote',

@@ -107,6 +107,7 @@ function shown(c: ClaimRow): Obj {
     reason: c.reason,
     sources: c.sources ?? [],
     checked_at: c.checked_at,
+    fail_reason: c.fail_reason ?? null,
   };
 }
 
@@ -116,6 +117,7 @@ const failed = (ctx: Ctx): CheckResult => ({
   reason: null,
   sources: [],
   checked_at: new Date(ctx.now()).toISOString(),
+  fail_reason: null,
 });
 
 /**
@@ -150,13 +152,15 @@ async function finish(ctx: Ctx, newId: string): Promise<Obj> {
     } catch { /* abandoned after 90 s */ }
   };
   let row: ClaimRow | null = null;
+  let citations: number | null = null;
   try {
     fresh = await store.claimById(ctx.userId, newId);
     if (!fresh) throw new Error('re-check row missing');
     const session = await store.session(ctx.userId, fresh.session_id);
     if (!session) throw new Error('re-check session missing');
-    const result = await verdictFor(ctx, { purpose: 'claim_recheck', claim: fresh, session, detached: true });
-    row = await store.finishCheck(ctx.userId, fresh.session_id, fresh.id, result);
+    const outcome = await verdictFor(ctx, { purpose: 'claim_recheck', claim: fresh, session, detached: true });
+    citations = outcome.citations;
+    row = await store.finishCheck(ctx.userId, fresh.session_id, fresh.id, outcome.result);
   } catch (error) {
     // The update may have committed with only its response lost: look before reporting a failure, so a
     // charge that is owed is never reported as not made.
@@ -175,7 +179,12 @@ async function finish(ctx: Ctx, newId: string): Promise<Obj> {
     row = await store.claimById(ctx.userId, newId);
     if (!row) throw new Error('re-check row missing');
   }
-  log('factcheck.recheck', { claim_id: row.id, status: row.status });
+  log('factcheck.recheck', {
+    claim_id: row.id,
+    status: row.status,
+    fail_reason: row.fail_reason ?? null,
+    citations,
+  });
   const paid = row.status === 'checked'
     ? await charge(ctx, row.id)
     : { credits_charged: 0, balance: null, charge_pending: false };

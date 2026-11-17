@@ -12,6 +12,8 @@ export interface RpcResult {
 
 export type ClaimKind = 'claim' | 'opinion' | 'prediction' | 'question';
 export type ClaimStatus = 'pending' | 'checked' | 'needs_context' | 'not_checkable' | 'error';
+/** Why a reply could not be saved as a verdict. Stored on an error claim (factcheck_claims.fail_reason). */
+export type FailReason = 'no_label' | 'bad_label' | 'label_conflict' | 'no_sources';
 export type Verdict = 'supported' | 'contradicted' | 'partly_true' | 'no_evidence' | 'opinion';
 
 export interface Source {
@@ -41,6 +43,8 @@ export interface ClaimRow {
   reason: string | null;
   sources: Source[];
   checked_at: string | null;
+  /** Set only on an error claim whose reply was the cause; null or absent otherwise. */
+  fail_reason?: FailReason | null;
   spoken_at: string;
   /** The earlier claim this row re-checks, if any. */
   supersedes?: string | null;
@@ -79,6 +83,8 @@ export interface CheckResult {
   reason: string | null;
   sources: Source[];
   checked_at: string;
+  /** The reason code when status is 'error' because of the reply; null otherwise. */
+  fail_reason: FailReason | null;
 }
 
 /** The claim table, every call scoped to a user and a session. */

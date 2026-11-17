@@ -361,3 +361,77 @@ describe('credits and announcements', () => {
     expect(t.last().balance).toBe(900);
   });
 });
+
+describe('F349: capture failures in a row', () => {
+  const capErr = { source: 'capture', reason: 'failed', status: 0 };
+  async function ready(t) { await t.controller.load(); t.controller.setTarget('a|live|b'); t.controller.choose(); }
+  it('counts failed captures in a row and publishes the count', async () => {
+    const t = setup();
+    await ready(t);
+    expect(t.last().captureFailures).toBe(0);
+    t.session().emit({ status: 'error', error: capErr });
+    expect(t.last().captureFailures).toBe(1);
+    t.session().emit({ status: 'choosing', error: null });
+    t.session().emit({ status: 'sharing' });
+    t.session().emit({ status: 'error', error: capErr });
+    expect(t.last().captureFailures).toBe(2);
+  });
+  it('decline, decline, then one real failure still offers Try again (declines and no-audio leave the count alone)', async () => {
+    const t = setup();
+    await ready(t);
+    for (const reason of ['denied', 'denied', 'no_audio']) {
+      t.session().emit({ status: 'sharing', error: null });
+      t.session().emit({ status: 'error', error: { source: 'capture', reason, status: 0 } });
+      expect(t.last().captureFailures).toBe(0);
+    }
+    t.session().emit({ status: 'sharing', error: null });
+    t.session().emit({ status: 'error', error: capErr });
+    expect(t.last().captureFailures).toBe(1);
+  });
+  it('a decline between two real failures neither adds nor resets', async () => {
+    const t = setup();
+    await ready(t);
+    const go = (reason) => { t.session().emit({ status: 'sharing', error: null }); t.session().emit({ status: 'error', error: { source: 'capture', reason, status: 0 } }); };
+    go('blocked'); go('denied');
+    expect(t.last().captureFailures).toBe(1);
+    go('failed');
+    expect(t.last().captureFailures).toBe(2);
+  });
+  it('a session that really starts clears the count', async () => {
+    const t = setup();
+    await ready(t);
+    t.session().emit({ status: 'error', error: capErr });
+    t.session().emit({ status: 'sharing', error: null });
+    t.session().emit({ status: 'running', error: null, sessionId: 'S' });
+    expect(t.last().captureFailures).toBe(0);
+  });
+  it('another kind of error clears it, and so does dismissing the panel', async () => {
+    const t = setup();
+    await ready(t);
+    t.session().emit({ status: 'error', error: capErr });
+    t.session().emit({ status: 'sharing', error: null });
+    t.session().emit({ status: 'error', error: { source: 'start', reason: 'insufficient', status: 402 } });
+    expect(t.last().captureFailures).toBe(0);
+    t.session().emit({ status: 'sharing', error: null });
+    t.session().emit({ status: 'error', error: capErr });
+    expect(t.last().captureFailures).toBe(1);
+    t.controller.dismiss();
+    expect(t.last().captureFailures).toBe(0);
+  });
+  it('Try again (reset, then choose) keeps the count, so the second failure is seen as the second', async () => {
+    const t = setup();
+    await ready(t);
+    t.session().emit({ status: 'error', error: capErr });
+    t.controller.retry();
+    t.session().emit({ status: 'sharing' });
+    t.session().emit({ status: 'error', error: capErr });
+    expect(t.last().captureFailures).toBe(2);
+  });
+  it('re-emitting the same error does not count it twice', async () => {
+    const t = setup();
+    await ready(t);
+    t.session().emit({ status: 'error', error: capErr });
+    t.session().emit({ status: 'error', error: capErr, announcement: 'x' });
+    expect(t.last().captureFailures).toBe(1);
+  });
+});

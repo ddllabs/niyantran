@@ -25,13 +25,22 @@ export const DISPLAY_MEDIA_OPTIONS = Object.freeze({
   systemAudio: 'include',
 });
 
-/** reason: unsupported | denied | no_audio | failed */
+/** reason: unsupported (no API) | denied (the user declined) | blocked (the browser refused) | no_audio | failed */
 export class CaptureError extends Error {
   constructor(reason, message) {
     super(message || `capture ${reason}`);
     this.name = 'CaptureError';
     this.reason = reason;
   }
+}
+
+// NotAllowedError is the user dismissing or declining the prompt. These names mean the browser itself
+// would not share (no user gesture, a policy, an unsupported combination), which choosing differently
+// in the prompt cannot fix.
+const BLOCKED = new Set(['NotSupportedError', 'InvalidStateError', 'SecurityError', 'TypeError']);
+function captureFailure(error) {
+  if (error?.name === 'NotAllowedError') return 'denied';
+  return BLOCKED.has(error?.name) ? 'blocked' : 'failed';
 }
 
 /** Chromium on a desktop, with screen-capture audio and Web Audio. */
@@ -114,7 +123,7 @@ export async function startCapture({ onPiece = () => {}, onEnded = () => {}, onE
   try {
     stream = await d.mediaDevices.getDisplayMedia(DISPLAY_MEDIA_OPTIONS);
   } catch (error) {
-    throw new CaptureError(error?.name === 'NotAllowedError' ? 'denied' : 'failed');
+    throw new CaptureError(captureFailure(error));
   }
   // Only the sound is wanted: stop the picture at once.
   stream.getVideoTracks().forEach(track => track.stop());

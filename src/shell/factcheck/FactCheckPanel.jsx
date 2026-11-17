@@ -6,12 +6,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { creditsText, formatCredits } from '../../lib/creditsStore.js';
 import {
-  blockOptions, claimBadge, confirmStart, endReasonText, errorMessage, formatClock, kindTag, safeSourceUrl, sourceLabel,
+  NO_SOURCES_TEXT, blockOptions, claimBadge, confirmStart, endReasonText, errorMessage, formatClock, kindTag, safeSourceUrl, sourceLabel,
 } from './factCheckText.js';
 import { CoveredBanner, Parts, ReportControls } from './FactCheckParts.jsx';
 import { formatPosition, partModel } from './factCheckShare.js';
 
 const SILENT_NOTICE_MS = 30000;
+// The panel stacks below the player at this width and under (factCheck.css, same number).
+const STACKED_QUERY = '(max-width: 860px)';
+
+// Brings the panel into view when it is stacked below the player, where it may open off screen.
+// Instant when the reader prefers reduced motion. Quietly nothing where the browser lacks the APIs.
+function revealPanel(el) {
+  try {
+    if (!el || typeof el.scrollIntoView !== 'function' || typeof window.matchMedia !== 'function') return;
+    if (!window.matchMedia(STACKED_QUERY).matches) return;
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ block: 'nearest', behavior: calm ? 'auto' : 'smooth' });
+  } catch { /* a missing scroll never blocks the panel */ }
+}
 
 /**
  * The "Fact-check" button with its price; a quiet note when the browser cannot do it or the video is
@@ -90,6 +103,7 @@ function Choose({ view, isMuted, onUnmute, onConfirm, onCancel, covered, onShowP
         <li>Unused whole minutes are released when the session ends.</li>
         <li>Closing Live TV ends the session.</li>
         <li>The video must be unmuted.</li>
+        <li>Fact-check needs Chrome on a computer.</li>
         {sharing ? <li>Other users of this video will be able to pay to see the transcript and verdicts of this block.</li> : null}
       </ul>
       <div className="fc-actions">
@@ -276,6 +290,7 @@ function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, shar
   const chain = priced && recheck?.results?.length ? [...recheck.results, claim] : [claim];
   const shown = chain[0];
   const badge = claimBadge(shown);
+  const noSources = badge.key === 'no_sources';
   const tag = kindTag(claim, badge);
   const by = [claim.claimant && `Claim by ${claim.claimant}`, claim.reported_by && `reported by ${claim.reported_by}`]
     .filter(Boolean).join(', ');
@@ -291,12 +306,13 @@ function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, shar
       <p className="fc-claim" dir="auto">{claim.claim_en}</p>
       {by ? <p className="fc-by">{by}</p> : null}
       {share && typeof claim.position_s === 'number' ? <p className="fc-by">{`At ${formatPosition(claim.position_s)}`}</p> : null}
+      {noSources ? <p className="fc-reason fc-nosources" dir="auto">{NO_SOURCES_TEXT}</p> : null}
       {shown.reason ? <p className="fc-reason" dir="auto">{shown.reason}</p> : null}
       <SourceList result={shown} />
       <CheckedAt result={shown} withDate={chain.length > 1 || Boolean(share)} />
       {claim.reported === true ? <p className="fc-reported">Reported</p> : null}
       {share?.report && claim.reported !== true ? <ReportControls id={claim.id} {...share.report} /> : null}
-      {priced && (shown.status === 'checked' || shown.status === 'error') ? (
+      {priced && !noSources && (shown.status === 'checked' || shown.status === 'error') ? (
         <RecheckControls id={claim.id} price={price} balance={balance} recheck={recheck} onAsk={onAsk} onConfirm={onConfirm} onCancel={onCancel} />
       ) : null}
       {chain.length > 1 ? <Earlier id={claim.id} items={chain.slice(1)} /> : null}
@@ -347,10 +363,13 @@ export function FactCheckPanel(props) {
 // entry button when it is dismissed (unless the user has already moved focus elsewhere).
 function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel }) {
   const heading = useRef(null);
+  const panel = useRef(null);
   const [openParts, setOpenParts] = useState({});
   const opensForNotice = useRef(view.session.status === 'idle'); // a late message must not take focus
   useEffect(() => {
-    if (!opensForNotice.current) heading.current?.focus();
+    // Focus without scrolling: when the panel is stacked below the player, the scroll is done on purpose below.
+    if (!opensForNotice.current) heading.current?.focus({ preventScroll: true });
+    if (!opensForNotice.current) revealPanel(panel.current);
     return () => {
       setTimeout(() => {
         const active = document.activeElement;
@@ -359,6 +378,9 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
     };
   }, []);
   const s = view.session;
+  // A failure is news: when the panel is stacked below the player it may be off screen.
+  const failedNow = s.status === 'error';
+  useEffect(() => { if (failedNow) revealPanel(panel.current); }, [failedNow]);
   // Shared results show only with sharing on and a recorded video (the controller sets view.shared).
   const sharedOn = Boolean(view.flag.sharing && view.shared);
   const shareActions = view.shareActions || {};
@@ -375,9 +397,11 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
   const hasContent = s.transcript.length > 0 || s.claims.length > 0;
   const showWork = live || s.status === 'ended' || (s.status === 'error' && hasContent);
   const gaps = s.skippedPieces > 0 || s.droppedTurns > 0;
-  const problem = s.status === 'error' ? errorMessage(s.error) : null;
+  // A new session needs a known price (the flag can be off after a failed load or an `off` ending).
+  const canRestart = s.status === 'ended' && view.flag.available === true && typeof view.flag.creditsPerMinute === 'number';
+  const problem = s.status === 'error' ? errorMessage(s.error, { captureFailures: view.captureFailures || 0 }) : null;
   return (
-    <section className="fc-panel" aria-label="Fact-check" data-status={s.status}>
+    <section className="fc-panel" aria-label="Fact-check" data-status={s.status} ref={panel}>
       <div className="fc-sr" aria-live="polite" aria-atomic="true">{view.announcement}</div>
       <header className="fc-head">
         <h3 id="fc-title" className="fc-title" tabIndex={-1} ref={heading}>Fact-check</h3>
@@ -420,7 +444,7 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
         <p className="fc-notice" role="note">Some audio could not be processed; the transcript has gaps.</p>
       ) : null}
 
-      {s.status === 'ended' ? <p className="fc-ended">{endReasonText(s.endReason)}</p> : null}
+      {s.status === 'ended' ? <p className="fc-ended">{endReasonText(s.endReason, s.endDetail)}</p> : null}
       {problem ? (
         <div className="fc-error" role="alert">
           <p>{problem.text}</p>
@@ -477,8 +501,13 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
 
       {s.status === 'ended' || s.status === 'error' ? (
         <div className="fc-actions">
-          {s.status === 'ended' ? (
-            <button type="button" className="ltv-action-btn primary fc-btn" data-fc="again" onClick={onRetry}>Run again</button>
+          {canRestart ? (
+            <p className="fc-newnote">A new session is charged separately and clears the claims above. You choose the length first.</p>
+          ) : null}
+          {canRestart ? (
+            <button type="button" className="ltv-action-btn primary fc-btn" data-fc="again" onClick={onRetry}>
+              {`Start a new session · from ${creditsText(blockOptions(view.flag.creditsPerMinute, null)[0].price)}`}
+            </button>
           ) : null}
           {problem?.retry ? (
             <button type="button" className="ltv-action-btn primary fc-btn" data-fc="retry" onClick={onRetry}>Try again</button>

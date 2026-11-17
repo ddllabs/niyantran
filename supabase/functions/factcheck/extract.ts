@@ -333,6 +333,7 @@ export async function extractAction(ctx: Ctx, body: Obj): Promise<Obj> {
       reported_by: row.reported_by,
       kind: row.kind,
       status: row.status,
+      fail_reason: row.fail_reason ?? null,
     });
   }
   log('factcheck.extract', { session_id: sessionId, claims: claims.length, held: held.length });

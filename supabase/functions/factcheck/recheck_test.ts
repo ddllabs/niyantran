@@ -47,6 +47,7 @@ Deno.test('recheck: begin, one model call, the verdict saved on the new row, the
   assertEquals(Object.keys(json).sort(), ['balance', 'charge_pending', 'claim', 'credits_charged']);
   assertEquals(Object.keys(json.claim).sort(), [
     'checked_at',
+    'fail_reason',
     'id',
     'reason',
     'sources',
@@ -396,6 +397,7 @@ Deno.test('not_recheckable with newer_claim_id returns that result in a claim; w
     reason: 'r',
     sources: [{ url: 'https://example.org/x', title: 'X' }],
     checked_at: '2026-11-16T09:30:00.000Z',
+    fail_reason: null,
   });
   assertEquals(
     h.store.scopes.filter((s) => s.op === 'claimById').every((s) => s.userId === USER && s.claimId === NEWER),
@@ -501,4 +503,39 @@ Deno.test('re-checking an error row works the same way', async () => {
   const h = setup();
   h.store.rows.find((r) => r.id === OLD)!.status = 'error';
   assertEquals((await handleFactcheck(req(), h.deps)).status, 200);
+});
+
+Deno.test('a re-check that ends in error carries its own reason code, is free, and is logged as unusable', async () => {
+  const cases: [string, () => unknown, string][] = [
+    ['no_label', () => chatPayload('plain prose', { citations: ['https://example.org/a'] }), 'no_label'],
+    ['bad_label', () => checkReply('Mostly true', 'x', { citations: ['https://example.org/a'] }), 'bad_label'],
+    [
+      'label_conflict',
+      () => chatPayload('LABEL: Supported\nLABEL: Opinion', { citations: ['https://example.org/a'] }),
+      'label_conflict',
+    ],
+    ['no_sources', () => checkReply('Supported', 'x', {}), 'no_sources'],
+  ];
+  for (const [why, model, code] of cases) {
+    const h = setup();
+    h.models.check = model;
+    const { result, lines } = await captureLogs(() => handleFactcheck(req(), h.deps));
+    const json = await result.json();
+    assertEquals([json.claim.status, json.claim.fail_reason, json.credits_charged], ['error', code, 0], why);
+    assertEquals(newRow(h).fail_reason, code, why);
+    assertEquals(calls(h, 'factcheck_recheck_charge'), [], why);
+    assertEquals([h.logRows[0].status, h.logRows[0].error_message], ['error', `unusable: ${code}`], why);
+    assertEquals(h.logRows[0].purpose, 'claim_recheck');
+    const line = JSON.parse(lines.find((l) => l.includes('"factcheck.recheck"'))!);
+    assertEquals([line.status, line.fail_reason, line.citations], ['error', code, code === 'no_sources' ? 0 : 1], why);
+  }
+});
+
+Deno.test('a checked re-check has fail_reason null, and a provider failure marks the row error with no reason', async () => {
+  const h = setup();
+  assertEquals((await (await handleFactcheck(req(), h.deps)).json()).claim.fail_reason, null);
+  const f = setup();
+  f.models.check = () => new Response('x', { status: 500 });
+  assertEquals((await handleFactcheck(req(), f.deps)).status, 502);
+  assertEquals([newRow(f).status, newRow(f).fail_reason ?? null], ['error', null]);
 });

@@ -51,6 +51,7 @@ Deno.test('every claim read and write is scoped by id AND session AND user', asy
           reason: 'r',
           sources: [],
           checked_at: 't',
+          fail_reason: null,
         }),
       () => store.releaseCheck('U', 'S', 'C'),
     ]
@@ -86,6 +87,7 @@ Deno.test('results are saved and released only while the claim is pending', asyn
     reason: 'r',
     sources: [],
     checked_at: 't',
+    fail_reason: null,
   });
   assertEquals(has(f.calls, 'eq', 'status', 'pending'), true);
   f.calls.length = 0;
@@ -142,4 +144,27 @@ Deno.test('claimById is scoped by id AND user', async () => {
   const f = fakeDb({ data: { id: 'c' }, error: null });
   await postgrestStore(() => f.db as never).claimById('U', 'C');
   assertEquals([has(f.calls, 'eq', 'id', 'C'), has(f.calls, 'eq', 'user_id', 'U')], [true, true]);
+});
+
+Deno.test('an error result is saved with its fail_reason, and every claim read selects the column', async () => {
+  const f = fakeDb({ data: null, error: null });
+  const store = postgrestStore(() => f.db as never);
+  const result = {
+    status: 'error' as const,
+    verdict: null,
+    reason: null,
+    sources: [],
+    checked_at: 't',
+    fail_reason: 'no_sources' as const,
+  };
+  await store.finishCheck('U', 'S', 'C', result);
+  assertEquals(has(f.calls, 'update', result), true);
+  for (
+    const run of [() => store.claim('U', 'S', 'C'), () => store.claimById('U', 'C'), () => store.claims('U', 'S', 5)]
+  ) {
+    f.calls.length = 0;
+    await run();
+    const cols = f.calls.find((c) => c[0] === 'select')![1] as string;
+    assertEquals(cols.split(',').includes('fail_reason'), true);
+  }
 });

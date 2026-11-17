@@ -20,6 +20,10 @@ const STATUSES = {
   error: { label: 'Check failed', glyph: '!' },
 };
 
+/** Shown on a claim whose check found an answer but no source to show for it. */
+export const NO_SOURCES_TEXT = 'The check found an answer but no source to show for it, so no verdict is given.';
+const NO_SOURCES = { label: 'No sources found', glyph: '?' };
+
 const KIND_TAGS = { opinion: 'Opinion', prediction: 'Prediction', question: 'Question' };
 
 /**
@@ -32,6 +36,7 @@ export function claimBadge(claim) {
     if (verdict) return { key: claim.verdict, ...verdict };
     return { key: 'error', ...STATUSES.error };
   }
+  if (claim?.status === 'error' && claim.fail_reason === 'no_sources') return { key: 'no_sources', ...NO_SOURCES };
   const status = Object.hasOwn(STATUSES, claim?.status) ? claim.status : 'error';
   return { key: status, ...STATUSES[status] };
 }
@@ -83,7 +88,14 @@ const END_REASONS = {
   server: 'The server ended the session.',
 };
 
-export function endReasonText(reason) {
+// A 409 that ended the session: what the server said (see touch.ts: settled, ended).
+const SERVER_END_DETAILS = {
+  settled: 'This session was ended elsewhere: from another tab or window, or after a long pause.',
+  ended: 'This session had already ended on the server.',
+};
+
+export function endReasonText(reason, detail = null) {
+  if (reason === 'server' && typeof detail === 'string' && Object.hasOwn(SERVER_END_DETAILS, detail)) return SERVER_END_DETAILS[detail];
   return Object.hasOwn(END_REASONS, reason) ? END_REASONS[reason] : 'The session ended.';
 }
 
@@ -99,8 +111,15 @@ export function confirmStart({ isMuted, onUnmute, onConfirm }, minutes, creditsP
   onConfirm(minutes, creditsPerMinute);
 }
 
-/** { text, retry } for a session error. `retry` means choosing a block again can help. */
-export function errorMessage(error) {
+const SHARE_STEPS = 'Use Chrome on a computer. When the browser asks, choose this tab and allow tab audio.';
+
+/**
+ * { text, retry } for a session error. `retry` means choosing a block again can help.
+ * captureFailures: how many capture failures in a row (the panel counts them).
+ * A capture error before the session starts never charges: the server session is started only
+ * after the browser has granted the audio (session.js begin()).
+ */
+export function errorMessage(error, { captureFailures = 0 } = {}) {
   const e = error || {};
   const status = e.status ?? 0;
   if (e.reason === 'price_changed') return { text: priceChangedText(e.creditsPerMinute), retry: true };
@@ -114,12 +133,26 @@ export function errorMessage(error) {
     return { text: 'The server could not confirm the end of the session. Check your balance before starting another.', retry: false };
   }
   if (e.source === 'capture') {
-    if (e.reason === 'denied') return { text: 'Sharing was declined. Fact-check needs this tab’s audio.', retry: true };
-    if (e.reason === 'no_audio') {
-      return { text: 'No audio was shared. In Chrome’s prompt choose “This tab” and turn tab audio on.', retry: true };
+    // The audio stopped being processed after the session had started: that session is charged for its time.
+    if (e.reason === 'handler') {
+      return { text: 'Processing the tab’s audio failed, so the session ended. You were charged only for the time used.', retry: true };
     }
-    if (e.reason === 'unsupported') return { text: 'This browser cannot share tab audio. Use Chrome on a computer.', retry: false };
-    return { text: 'Capturing the tab’s audio failed.', retry: true };
+    const free = 'Nothing was charged.';
+    if (e.reason === 'denied') {
+      return { text: `Sharing was declined. ${free} Fact-check needs this tab’s audio: when Chrome asks, choose “This tab” and allow tab audio.`, retry: true };
+    }
+    if (e.reason === 'unsupported') return { text: `This browser cannot share tab audio. Use Chrome on a computer. ${free}`, retry: false };
+    if (e.reason === 'no_audio') {
+      return { text: `No audio was shared. ${free} In Chrome’s prompt choose “This tab” and turn tab audio on.`, retry: true };
+    }
+    const twice = captureFailures >= 2;
+    const lead = e.reason === 'blocked'
+      ? 'Your browser did not allow tab sharing.'
+      : 'Capturing the tab’s audio failed.';
+    if (twice) {
+      return { text: `${lead} It has failed twice in a row, so trying again is unlikely to help. ${free} ${SHARE_STEPS}`, retry: false };
+    }
+    return { text: `${lead} ${free} ${SHARE_STEPS}`, retry: true };
   }
   if (e.reason === 'insufficient' || status === 402) {
     const needs = typeof e.needed === 'number' ? `this block needs ${creditsText(e.needed)}` : '';

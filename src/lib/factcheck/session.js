@@ -12,6 +12,8 @@
 // Claim status: pending, checked, needs_context, not_checkable, error, and
 //   unchecked (client-side: the session ended and no check came back; no check
 //   happened). A claim is never left `pending` once the run has ended.
+// endDetail (state): the server's reason when a 409 ended the session (settled: ended elsewhere), else null.
+// Claim fail_reason: null | no_label | bad_label | label_conflict | no_sources (status error only).
 // endReason: user | browser | time | silent | server | off | error | price_changed | <caller's reason>
 //   (off: the server switched the feature off; the session is stopped and charged as used)
 // budgetReached (state): the server's extract/check budget for this session was used up (429
@@ -58,6 +60,14 @@ export const LIMITS = Object.freeze({
   recentTurns: 3,
 });
 
+// What the server is told about why a session ended (the `stop` request's end_reason). The names
+// inside the browser (endReason) are older and shown to the user; this maps them to the wire set.
+const WIRE_END_REASONS = {
+  user: 'user_stop', modal_close: 'modal_close', channel_change: 'channel_change', browser: 'sharing_stopped',
+  time: 'time_up', silent: 'silence', server: 'server', error: 'error',
+};
+export const wireEndReason = reason => (Object.hasOwn(WIRE_END_REASONS, reason) ? WIRE_END_REASONS[reason] : 'other');
+
 export function createFactCheckSession({
   client = createFactCheckClient(),
   transcriber = createTranscriber(client),
@@ -77,7 +87,7 @@ export function createFactCheckSession({
     return {
       status, sessionId: null, minutesBought: 0, creditsPerMinute: null, creditsHeld: null, secondsLeft: 0,
       transcript: [], claims: [], silentFor: 0, skippedPieces: 0, droppedTurns: 0, budgetReached: false, shareable: false,
-      final: null, endReason: null, error: null,
+      final: null, endReason: null, endDetail: null, error: null,
     };
   }
   function getState() { return run ? run.snapshot() : idleState(phase); }
@@ -96,7 +106,7 @@ export function createFactCheckSession({
   }
   function stop(reason = 'user') { return run ? run.stop(reason) : Promise.resolve(); }
   /** Stops a session left active on the server (for example after 409 already_active). */
-  function stopOrphan(sessionId) { return client.stop({ session_id: sessionId }); }
+  function stopOrphan(sessionId) { return client.stop({ session_id: sessionId, end_reason: wireEndReason('user') }); }
 
   function createRun(params) {
     const { videoId, channelId, videoKind, startPositionS = null, minutes, seed = {}, expectedCreditsPerMinute } = params;
@@ -108,6 +118,7 @@ export function createFactCheckSession({
     let frozenLeft = null;
     let final = null;
     let endReason = null;
+    let endDetail = null;        // the server's reason when a 409 ended the session (settled, ended)
     let error = null;
     let skipped = 0;
     let dropped = 0;
@@ -166,7 +177,7 @@ export function createFactCheckSession({
       transcript: lines.map(l => ({ ...l })),
       claims: [...claims.values()].map(c => ({ ...c, sources: [...c.sources] })),
       silentFor: Math.max(0, latestEnd - lastAudibleEnd),
-      skippedPieces: skipped, droppedTurns: dropped, budgetReached: noMoreChecks || noMoreExtracts, shareable, final, endReason, error: error && { ...error },
+      skippedPieces: skipped, droppedTurns: dropped, budgetReached: noMoreChecks || noMoreExtracts, shareable, final, endReason, endDetail, error: error && { ...error },
     });
 
     // ---- bookkeeping for "is everything finished" ----
@@ -226,7 +237,7 @@ export function createFactCheckSession({
       if (dead || endPromise) return;
       const st = e?.status;
       if (st === 403 && e?.reason === 'off') { void end('off', { flush: false, drain: false }); return; }
-      if (st === 409) { void end('server', { flush: false }); return; }
+      if (st === 409) { void end('server', { flush: false, detail: typeof e?.reason === 'string' ? e.reason : null }); return; }
       const fatal = st === 401 || st === 403 || (st === 404 && source !== 'check' && e?.reason === 'not_found');
       if (fatal || ++failures >= LIMITS.failureLimit) void end('error', { errorInfo: describe(source, e), flush: false, drain: false });
     }
@@ -409,7 +420,7 @@ export function createFactCheckSession({
         claims.set(c.id, {
           id: c.id, quote: c.quote ?? '', claim_en: c.claim_en ?? '', claimant: c.claimant ?? null,
           reported_by: c.reported_by ?? null, kind: c.kind ?? 'claim', status: c.status,
-          verdict: null, reason: null, sources: [], checked_at: null,
+          verdict: null, reason: null, sources: [], checked_at: null, fail_reason: null,
         });
       }
       if (c.status === 'pending' && !noMoreChecks) {
@@ -437,6 +448,7 @@ export function createFactCheckSession({
           Object.assign(claim, {
             status: r.status ?? 'checked', verdict: r.verdict ?? null, reason: r.reason ?? null,
             sources: Array.isArray(r.sources) ? r.sources : [], checked_at: r.checked_at ?? null,
+            fail_reason: typeof r.fail_reason === 'string' ? r.fail_reason : null,
           });
         }
       } catch (e) {
@@ -468,7 +480,7 @@ export function createFactCheckSession({
     // ---- ending ----
     // flush: send the capture's last partial piece. drain: let in-flight work
     // finish and extract the open turn (the server allows it for 120 s).
-    function end(reason, { errorInfo = null, flush = true, drain = true } = {}) {
+    function end(reason, { errorInfo = null, flush = true, drain = true, detail = null } = {}) {
       if (endPromise) return endPromise;
       endPromise = (async () => {
         frozenLeft = left();
@@ -484,11 +496,12 @@ export function createFactCheckSession({
         if (drain) await drainWork();
         let stopFailure = null;
         try {
-          final = await retrying(signal => client.stop({ session_id: sessionId, signal }), { critical: true });
+          final = await retrying(signal => client.stop({ session_id: sessionId, end_reason: wireEndReason(reason), signal }), { critical: true });
         } catch (e) {
           if (e?.status !== 409) stopFailure = describe('stop', e);
         }
         endReason = reason;
+        endDetail = detail;
         if (stopFailure && !error) error = stopFailure;
         dead = true;
         for (const c of claims.values()) if (c.status === 'pending') c.status = 'unchecked';

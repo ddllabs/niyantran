@@ -4,12 +4,14 @@
 .fc-panel {
   --fc-bad: #b3261e;
   --fc-amber: #8a5300;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-width: 0;
   max-height: min(600px, 75vh);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 14px;
   background: var(--panel);
   color: var(--fg);
@@ -32,12 +34,19 @@
 }
 .ltv-body:has(> .fc-panel) > .ltv-player-stage { grid-column: 1; grid-row: 1; }
 .ltv-body:has(> .fc-panel) > .fc-panel { grid-column: 2; grid-row: 1; margin: 16px 18px 16px 12px; align-self: start; }
+/* Beside the player the panel has ONE height in every state (choosing, error, ended), so the grid row
+   and everything below it stay put when the panel's content changes; the panel scrolls inside. The
+   body is 90vh minus about 120px of header; the 32px is the panel's vertical margin. */
+.ltv-body:has(> .fc-panel) > .fc-panel { height: min(640px, calc(90vh - 152px)); max-height: none; }
 .ltv-body:has(> .fc-panel) > .ltv-deck-tabs,
 .ltv-body:has(> .fc-panel) > .ltv-tab-content { grid-column: 1 / -1; }
 
 @media (max-width: 860px) {
   .ltv-body:has(> .fc-panel) { display: flex; }
-  .ltv-body:has(> .fc-panel) > .fc-panel { margin: 12px 14px; max-height: none; overflow: visible; }
+  .ltv-body:has(> .fc-panel) > .fc-panel { margin: 12px 14px; height: auto; max-height: none; overflow: visible; align-self: stretch; }
+  /* Stacked: the page body scrolls, not the choose block, so the sticky buttons stick to it. */
+  .fc-choose, .fc-waiting { overflow: visible; }
+  .fc-work { flex: 0 0 auto; overflow: visible; }
 }
 
 .fc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
@@ -51,7 +60,7 @@
 .fc-empty { color: var(--muted); }
 .fc-ended { font-weight: 600; }
 .fc-note { font-size: 11px; color: var(--muted); }
-.fc-disclaimer { font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
+.fc-disclaimer { margin-top: auto; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
 
 .fc-panel button:disabled { opacity: 0.55; cursor: not-allowed; }
 .fc-actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -61,6 +70,13 @@
 
 /* Choosing */
 .fc-choose, .fc-waiting { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; min-height: 0; }
+/* Start and Cancel stay visible at the bottom of the scrolling area on a short window. */
+.fc-choose .fc-actions, .fc-waiting .fc-actions {
+  position: sticky; bottom: 0; z-index: 1;
+  padding: 8px 0 2px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
 .fc-options { display: flex; flex-wrap: wrap; gap: 8px; }
 .fc-option {
   flex: 1 1 90px;
@@ -105,7 +121,9 @@
 .fc-final dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* Transcript and claims */
-.fc-work { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; }
+.fc-work { display: flex; flex-direction: column; gap: 8px; flex: 1 0 230px; min-height: 0; overflow-y: auto; }
+/* Close and the new-session button stay in reach when the panel scrolls on a short window. */
+.fc-panel > .fc-actions { position: sticky; bottom: 0; z-index: 1; padding: 6px 0; background: var(--panel); }
 .fc-transcript-wrap { position: relative; }
 .fc-transcript {
   max-height: 9.5rem;
@@ -170,8 +188,11 @@
 .fc-card--opinion .fc-glyph { background: var(--accent); }
 .fc-card--pending,
 .fc-card--needs_context,
+.fc-card--no_sources,
 .fc-card--not_checkable,
 .fc-card--unchecked { border-left-style: dashed; }
+.fc-nosources { color: var(--muted); }
+.fc-newnote { flex: 1 0 100%; color: var(--muted); }
 .fc-card--error { border-left-color: var(--fc-bad); border-left-style: dashed; }
 .fc-card--error .fc-glyph { background: var(--fc-bad); }
 .fc-card--pending .fc-glyph { animation: fcPulse 1.4s ease-in-out infinite; }

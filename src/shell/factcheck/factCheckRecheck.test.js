@@ -81,6 +81,27 @@ describe('asking', () => {
     t.controller.recheckAsk('c1');
     expect(t.rc()?.phase ?? 'idle').toBe('idle');
   });
+  it('F349: does nothing for a no-sources claim (the same check would give the same answer)', async () => {
+    const t = setup();
+    await ready(t, { status: 'error', verdict: null, fail_reason: 'no_sources' });
+    t.controller.recheckAsk('c1');
+    expect(t.rc()?.phase ?? 'idle').toBe('idle');
+  });
+  it('F349: the guard looks at the newest result on the card; a good re-check result does not block another ask', async () => {
+    const t = setup();
+    await ready(t, { status: 'error', verdict: null, fail_reason: 'no_label' });
+    t.controller.recheckAsk('c1');
+    await t.controller.recheckConfirm('c1');
+    expect(t.rc().results).toHaveLength(1);
+    t.controller.recheckAsk('c1');
+    expect(t.rc().phase).toBe('confirming');
+  });
+  it.each(['no_label', 'bad_label', 'label_conflict', null])('F349: a failed claim with fail_reason %s can still be checked again', async (fail_reason) => {
+    const t = setup();
+    await ready(t, { status: 'error', verdict: null, fail_reason });
+    t.controller.recheckAsk('c1');
+    expect(t.rc().phase).toBe('confirming');
+  });
   it('ignores a confirm that was never asked', async () => {
     const t = setup();
     await ready(t);
