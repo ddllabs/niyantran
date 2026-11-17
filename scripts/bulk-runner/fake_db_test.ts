@@ -155,3 +155,32 @@ Deno.test('the worker does not claim a batch whose spend reached est_cost_usd', 
   assertEquals(s.stop_reason, 'spend_ceiling');
   assert(s.jobs.queued > 0, 'the rest was left unclaimed');
 });
+
+Deno.test('the failure rate counts failures ever seen; only a resume acknowledges them; a failure after that counts again', async () => {
+  const db = new FakeDb();
+  db.policy.stop_thresholds.failure_rate = 0.4;
+  db.policy.stop_thresholds.min_decided = 2;
+  const x = await sealed(db, 4);
+  await x.seal();
+  await db.register(x.id, x.b.requests.map((r) => r.request), false, false);
+  db.failJobs.set('k000002', { times: 1, code: 'embed_error' });
+  db.failJobs.set('k000003', { times: 1, code: 'embed_error' });
+  db.tick(); // k000000 and k000001 succeed; k000002 fails (1 of 3, under 0.4), then k000003 fails
+  const b = db.batches.get(x.id)!;
+  assertEquals(b.state, 'registered');
+  assertEquals((await db.requeue(x.id, ['job-k000002'])).results[0].outcome, 'requeued');
+  db.tick(); // only current statuses would say 1 of 3; ever failed is 2 of 4 (0.5): stopped before any job runs
+  assertEquals(b.state, 'stopped');
+  assertEquals(b.stop_reason, 'failure_rate');
+  assertEquals(b.jobs.get('job-k000002')!.status, 'queued');
+  db.resume(x.id);
+  assertEquals(b.state, 'registered');
+  db.tick();
+  assertEquals(b.state, 'registered', 'acknowledged by the resume, the failures no longer count');
+  assertEquals(b.jobs.get('job-k000002')!.status, 'succeeded');
+  // A job that fails again after the acknowledgement counts again.
+  const j = b.jobs.get('job-k000002')!;
+  j.status = 'failed';
+  j.failuresSeen += 1;
+  assertEquals((await db.requeue(x.id, [j.id])).results[0].reason, 'failed_after_requeue');
+});
