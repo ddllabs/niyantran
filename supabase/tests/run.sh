@@ -215,6 +215,11 @@ chain() {
     factcheck_reports_admin)
       chain factcheck_lengths
       FILES+=("$(as_non_superuser 20261121090000_factcheck_reports_admin.sql)") ;;
+    # F364: removing a video's shared results refunds the unlocks. The reports-admin chain, then the refund migration, as a
+    # non-superuser. The vacuity check drops the last: the column and the refund are missing and the fixture fails.
+    factcheck_video_remove_refund)
+      chain factcheck_reports_admin
+      FILES+=("$(as_non_superuser 20261122090000_factcheck_video_remove_refund.sql)") ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;
@@ -1423,6 +1428,7 @@ run_fixture() {
     [ "$name" = factcheck_usage ] && { factcheck_usage_checks || rc=1; }
     [ "$name" = factcheck_recheck ] && { bash "$TESTS/factcheck_recheck_concurrency.sh" || rc=1; }
     [ "$name" = factcheck_sharing ] && { bash "$TESTS/factcheck_sharing_concurrency.sh" || rc=1; }
+    [ "$name" = factcheck_video_remove_refund ] && { bash "$TESTS/factcheck_video_remove_refund_concurrency.sh" || rc=1; }
   else
     rc=1
     echo "  FAIL"

@@ -2,7 +2,8 @@
 // wait for a confirmation. The database is a fake client; nothing here calls the network.
 import { describe, expect, it, vi } from 'vitest';
 import {
-  ACTION_ERROR, LOAD_ERROR, REPORT_ACTIONS, createReportsController, loadReports, runReportAction, safeHttpUrl, shapeReportRows,
+  ACTION_ERROR, LOAD_ERROR, REPORT_ACTIONS, createReportsController, loadReports, refundNotice, runReportAction, safeHttpUrl, shapeReportRows,
+  shapeRefund,
 } from './factcheckReports.js';
 
 const raw = (over = {}) => ({
@@ -147,6 +148,86 @@ describe('runReportAction', () => {
     expect(await runReportAction(client, 'remove', { claimId: 'c' })).toEqual({ ok: false });
     expect(client.rpc).not.toHaveBeenCalled();
     expect(Object.keys(REPORT_ACTIONS).sort()).toEqual(['dismiss', 'hide', 'remove']);
+  });
+});
+
+describe('the refund counts of a removal (F364)', () => {
+  const target = { claimId: 'c-1', videoId: 'VIDEO000001' };
+  it('passes the two counts through as numbers, for a removal only', async () => {
+    const client = fakeClient({ factcheck_video_remove: ok({ ok: true, pieces_deleted: 3, sessions: 1, unlocks_refunded: 3, credits_refunded: 700 }), factcheck_claim_hide: ok({ ok: true, unlocks_refunded: 3, credits_refunded: 700 }) });
+    expect(await runReportAction(client, 'remove', target)).toEqual({ ok: true, refund: { unlocks: 3, credits: 700 } });
+    expect(await runReportAction(client, 'hide', target)).toEqual({ ok: true });
+  });
+
+  it('uses the counts only when both are finite, non-negative numbers (and the unlock count a whole number)', () => {
+    expect(shapeRefund({ unlocks_refunded: 0, credits_refunded: 0 })).toEqual({ unlocks: 0, credits: 0 });
+    expect(shapeRefund({ unlocks_refunded: 2, credits_refunded: 12.5 })).toEqual({ unlocks: 2, credits: 12.5 });
+    for (const bad of [
+      {}, null, { unlocks_refunded: 3 }, { credits_refunded: 3 }, { unlocks_refunded: '3', credits_refunded: 700 }, { unlocks_refunded: 3, credits_refunded: '700' },
+      { unlocks_refunded: -1, credits_refunded: 5 }, { unlocks_refunded: 1, credits_refunded: -5 }, { unlocks_refunded: 1.5, credits_refunded: 5 },
+      { unlocks_refunded: Infinity, credits_refunded: 5 }, { unlocks_refunded: 1, credits_refunded: NaN }, { unlocks_refunded: 1, credits_refunded: null },
+      { unlocks_refunded: '<b>x</b>', credits_refunded: '<script>' },
+    ]) expect(shapeRefund(bad)).toBeNull();
+  });
+
+  it('a removal answered by the old function (no counts) still succeeds, with no refund claim', async () => {
+    const client = fakeClient({ factcheck_video_remove: ok({ ok: true, pieces_deleted: 3, sessions: 1 }) });
+    expect(await runReportAction(client, 'remove', target)).toEqual({ ok: true });
+  });
+
+  it('the sentence is fixed words around the numbers, with the right singular and plural', () => {
+    expect(refundNotice({ unlocks: 3, credits: 700 })).toBe('Video removed. 3 unlocks refunded, 700 credits returned to the users who paid.');
+    expect(refundNotice({ unlocks: 1, credits: 1234.5 })).toBe('Video removed. 1 unlock refunded, 1,234.5 credits returned to the users who paid.');
+    expect(refundNotice({ unlocks: 0, credits: 0 })).toBe('Video removed. No unlocks needed a refund.');
+  });
+
+  it('the controller shows the sentence after a good removal, keeps it through the reload, and clears it on the next question or page change', async () => {
+    const rows = [raw()];
+    const client = fakeClient({ factcheck_reports_admin: () => ok(payload(rows, 1)), factcheck_video_remove: ok({ ok: true, pieces_deleted: 3, sessions: 1, unlocks_refunded: 2, credits_refunded: 300 }) });
+    const c = createReportsController(client, { pageSize: 25 });
+    await c.load();
+    expect(c.getState().notice).toBeNull();
+    c.ask('c-1', 'remove');
+    await c.confirm();
+    expect(c.getState().notice).toBe('Video removed. 2 unlocks refunded, 300 credits returned to the users who paid.');
+    expect(c.getState().status).toBe('ready');
+    c.ask('c-1', 'dismiss');
+    expect(c.getState().notice).toBeNull();
+    c.cancel();
+    c.ask('c-1', 'remove');
+    await c.confirm();
+    expect(c.getState().notice).not.toBeNull();
+    await c.goTo(0);
+    expect(c.getState().notice).toBeNull();
+  });
+
+  it('no sentence after a failed removal, after hide or dismiss, or when the server sent no counts', async () => {
+    for (const [kind, answer] of [
+      ['remove', ok({ ok: false, reason: 'not_found' })],
+      ['remove', ok({ ok: true, pieces_deleted: 3, sessions: 1 })],
+      ['remove', ok({ ok: true, unlocks_refunded: '3', credits_refunded: '700' })],
+      ['hide', ok({ ok: true, unlocks_refunded: 3, credits_refunded: 700 })],
+      ['dismiss', ok({ ok: true, unlocks_refunded: 3, credits_refunded: 700 })],
+    ]) {
+      const fn = { remove: 'factcheck_video_remove', hide: 'factcheck_claim_hide', dismiss: 'factcheck_report_dismiss' }[kind];
+      const client = fakeClient({ factcheck_reports_admin: () => ok(payload([raw()], 1)), [fn]: answer });
+      const c = createReportsController(client, { pageSize: 25 });
+      await c.load();
+      c.ask('c-1', kind);
+      await c.confirm();
+      expect(c.getState().notice).toBeNull();
+    }
+  });
+
+  it('a refusal shows the fixed error and no sentence, and never any server text', async () => {
+    const client = fakeClient({ factcheck_reports_admin: () => ok(payload([raw()], 1)), factcheck_video_remove: Promise.resolve({ data: null, error: { message: 'Platform administrators only secret-detail' } }) });
+    const c = createReportsController(client, { pageSize: 25 });
+    await c.load();
+    c.ask('c-1', 'remove');
+    await c.confirm();
+    expect(c.getState().notice).toBeNull();
+    expect(c.getState().actionError.text).toBe(ACTION_ERROR);
+    expect(JSON.stringify(c.getState())).not.toContain('secret-detail');
   });
 });
 
