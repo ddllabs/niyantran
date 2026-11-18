@@ -33,7 +33,7 @@ function confirmation(kind, row) {
     return { question: 'Dismiss the open reports on this claim? The claim stays visible to others.', yes: 'Yes, dismiss reports' };
   }
   return {
-    question: `Remove all shared results of video ${row.videoId}? This deletes the stored transcript of every session of this video, for every user, and stops sharing all of them. Users who paid to unlock these results lose access and are not refunded. It cannot be undone. This video's reports stay open until dismissed.`,
+    question: `Remove all shared results of video ${row.videoId}? This deletes the stored transcript of every session of this video, for every user, and stops sharing all of them. Users who paid to unlock these results lose access and their unlock credits are returned. It cannot be undone. This video's reports stay open until dismissed.`,
     yes: `Yes, remove video ${row.videoId}`,
   };
 }
@@ -122,6 +122,7 @@ export function ReportsView({ state, onAsk, onCancel, onConfirm, onRetry, onPage
         Shared fact-check claims that users have reported. Hiding a claim removes it from other users&apos; view; dismissing marks the reports handled and leaves the claim.
       </p>
       {orphanError ? <p className="adm-msg err" role="alert">{state.actionError.text}</p> : null}
+      {state.notice ? <p className="adm-msg" role="status">{state.notice}</p> : null}
       {status === 'loading' && !showList ? <p className="adm-lede" role="status">Loading reports…</p> : null}
       {status === 'error' ? (
         <div className="adm-fcr-error" role="alert">
