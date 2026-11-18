@@ -2,8 +2,8 @@
 
 > **Status: Living (2026-11-18).** Written 2026-11-18 on branch `task/f351-plan`. Tracker: F351 in
 > [open-work](open-work.md). This file is the spec and the plan together, because the change is one function and its
-> tests. Built and reviewed 2026-11-18 on branch `task/f351-check-reply-label` (see "Build record"); not merged, not
-> deployed. Each statement below says whether it was executed or read from code.
+> tests. Both parts were built, reviewed, merged and deployed on 2026-11-18 (see "Release record" at the end); the real
+> session after release is still owed. Each statement below says whether it was executed or read from code.
 
 ## Current state
 
@@ -265,3 +265,28 @@ Executed by the supervisor unless stated.
 - **Gates:** `npm run lint` clean; `npm run build` and `npm run check:bundle` pass; `npm test` 8,104 passed; the Deno
   suite 1,882 passed.
 - **Not done:** merge, the deploy of function `factcheck`, and the real session after release.
+
+## Release record (2026-11-18)
+
+Released 2026-11-18: pull request 172 merged (`286268c3`) and function `factcheck` version 6 deployed from `main` at that commit at about 10:03 UTC, with no session active; no migration. From outside it refuses a GET (405), no token (401), a malformed token (401) and a foreign origin (403).
+
+Still owed: one real session on the live site, then the counts named under "Acceptance evidence after release",
+plus the number of checks with `attempts` above 1.
+
+## Run after release without a browser (2026-11-18)
+
+Executed by the supervisor. The owner was away from the laptop, so Chrome's sharing prompt could not be accepted and
+no real session was run. Instead the function's own handler, from `main` at `286268c3` (the deployed commit), was run
+on the supervisor's machine with real model calls and the repository's in-memory test store: no production database,
+no credits. It covers extract and check, not audio capture, transcription, the browser, or the deployed copy itself.
+
+- **Input A:** the transcripts of the four recorded clips kept from the F350 measurement, as text turns of about
+  20 seconds: 19 extract calls gave 28 claims (21 to check, 5 "needs context", 2 "not checkable").
+- **Input B:** 40 claims that had been checked on the live site, put in as waiting.
+- **Result:** 61 checks, 61 verdicts, none stored as an error. No model call was logged as unusable. Every check took
+  one model call (`attempts` 1 in all 61 log lines). Median 2.6 s, slowest 4.0 s. US$0.36.
+- **What this does and does not show:** the label fix and the rest of the check step work on real replies at the
+  released commit. The re-ask did not fire, so it is proven by its tests only. How many of the 61 replies used the
+  bare-label layout is not known, because reply text is not kept.
+
+Still owed: one real session on the live site by the owner, then the counts from the log.
