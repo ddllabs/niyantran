@@ -1,7 +1,7 @@
 # F350 plan: session lengths of 1, 2, 5, 10 and 15 minutes and a listening line
 
 > **Status: Living.** Written 2026-11-17 on branch `task/f350-plan`. Gate G1 executed 2026-11-17: both shorter settings
-> failed; piece length unchanged. Reduced scope built and reviewed on 2026-11-17: server in pull request 167, browser in pull request 168; every gate run on the combined change (executed). Not merged, not applied to the live database, not deployed. Revised after the independent review and again after G1.
+> failed; piece length unchanged. Reduced scope built and reviewed on 2026-11-17: server in pull request 167, browser in pull request 168; every gate run on the combined change (executed). Released 2026-11-17; see the release record below. Revised after the independent review and again after G1.
 > Tracker: F350 in [open-work](open-work.md). Spec: [F350 spec](../specs/2026-11-17-f350-shorter-pieces-and-session-lengths.md),
 > which holds the reasons, the decisions, the G1 results, the owner's answers and the list of what is not built.
 > Code references are in the spec (read at `main` `7034e9f7`).
@@ -159,6 +159,58 @@ Each step needs the owner's explicit yes naming it.
 **Why this order.** The migration only widens what is allowed, so the old function and the old browser keep working after
 steps 3 and 4. A new browser before the new server would have 1-minute and 2-minute starts refused, so the server goes
 first. The order is kept as written.
+
+## Release record (2026-11-17)
+
+Done in the order above, each step on the owner's yes given the same day (executed unless marked).
+
+- **Step 1 (real session on the F349 fixes):** the supervisor ran two 5-minute sessions in the owner's Chrome on
+  2026-11-17 (22:25 to 22:30 and 22:32 to 22:37 UTC). This record uses them for step 1. They were run by the supervisor
+  at the owner's request, with the owner accepting Chrome's sharing prompt, and both ended before pull request 167 was
+  merged.
+- **Steps 2 and 3:** pull request 167 merged (`bdad3eef`). The live rule (`IN (5, 10, 15)`) and the active-session count
+  were read first; no session was active. Migration `20261119090000_factcheck_session_lengths.sql` applied by
+  `supabase db query --linked -f` with its header; verified afterwards (rule lists 1, 2, 5, 10 and 15; settings and
+  SECURITY DEFINER unchanged; service role may execute, anon and authenticated may not). History row written by hand.
+- **Step 4:** function `factcheck` version 5 deployed from `bdad3eef`.
+- **Step 5:** outside checks as in the F349 release: GET 405, no token 401, bad token 401, foreign origin 403. No paid start.
+- **Step 6:** pull request 168 merged (`c76e0b58`); main CI passed and the production deployment completed. Pull request 166
+  (spec and plan) merged as `246e934e`.
+- **Step 7 (1-minute part done; 2-minute part not run):** a real 1-minute session ran on 2026-11-17 (block below). Two
+  earlier attempts stopped because Chrome's sharing prompt was not accepted; the panel showed
+  (nobody was at the browser). The panel showed "Your browser did not allow tab sharing" and "Nothing was
+  charged", then offered only "Close". The server has no session row for these attempts (checked). The "Listening…"
+  line was not seen before the 1-minute session below.
+
+**1-minute session (executed 2026-11-17, 23:35:26 to 23:36:30 UTC; after a page reload; the owner accepted the sharing
+prompt; run by the supervisor in the owner's Chrome on the live site).** The start button read "Unmute and start 1 minute ·
+500 credits". 500 credits were held, 1 minute was used, 500 credits were charged, and the session settled with no session
+left active. While running, transcript lines arrived and "Listening…" showed as the last element under them; the panel was
+603 px high. After the end: "Time is up.", 1 minute used, 500 credits charged, the new balance, the buttons "Start a new
+session · from 500 credits" and "Close"; the listening line was gone; the panel was 640 px high. Five claims: 3 checked
+(supported) and 2 `error` with `fail_reason` `no_label`. Provider calls: 7 transcriptions (median 1.0 s, worst 1.3 s);
+2 extractions (median 3.8 s, worst 3.9 s); 6 check calls (3 usable, median 2.2 s, worst 2.3 s; 3 unusable `no_label`,
+median 1.3 s). The panel height changed from 603 px to 640 px at the end; the F349 plan records the same range for the
+5-minute session, so the one-height part of the F349 fix is not confirmed.
+
+**Not part of this test:** the live database also holds another 1-minute session, started 23:30:40 UTC (1 minute used,
+500 credits charged). The supervisor did not start it.
+
+**Still not run:** a real 2-minute session.
+
+**Observed on the live site (executed):** five length options, 5 minutes selected by default; 1 minute changes the start
+button to "Start 1 minute · 500 credits".
+
+**Open question: the "failed twice in a row" count.** The F349 plan has no wording on this count. The design is in code:
+`captureFailures` counts `blocked` and `failed` and not `denied` ([factCheckController.js](../../src/shell/factcheck/factCheckController.js)
+lines 55 to 56). The browser's `NotAllowedError` (the user dismissing or declining the prompt) maps to `denied` and does
+not count ([capture.js](../../src/lib/factcheck/capture.js) lines 37 to 43). The text the panel showed is the `blocked`
+text ([factCheckText.js](../../src/shell/factcheck/factCheckText.js) line 169), so by the code's own mapping these
+attempts were `blocked`, not `denied`. What the browser reported is not established, and this record does not guess it.
+A real session on the new code is the way to settle it.
+
+**Not released or changed by this record:** 20 and 30 minutes stay held; the transcript is not faster (G1 failed; the
+three untested routes are in the spec, "Not built after G1" and the options list).
 
 ## Rollback
 
