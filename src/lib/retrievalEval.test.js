@@ -477,6 +477,66 @@ describe('judgeNoWorse', () => {
       expect.stringMatching(/^latency: no measurements/),
     ]));
   });
+
+  describe('a run of one mode, judged against a baseline of the same mode', () => {
+    const featureOnly = () => {
+      const x = input();
+      x.baseline = { feature: hitsEverywhere() };
+      x.candidate = { feature: hitsEverywhere() };
+      x.latency = { feature: { baseline: Array(20).fill(90), candidate: Array(20).fill(90) } };
+      return x;
+    };
+
+    it('passes a feature run that matches a feature baseline, and records nothing lost', () => {
+      expect(judgeNoWorse({ ...featureOnly(), required: ['feature'] })).toMatchObject({ pass: true, failures: [], lost: [] });
+    });
+
+    it('fails a feature run that lost a question the feature baseline had in the first 10, and lists it with its mode', () => {
+      const x = featureOnly();
+      lose(x.candidate.feature, idsOf(REG).slice(0, 1));
+      const got = judgeNoWorse({ ...x, required: ['feature'] });
+      expect(got.pass).toBe(false);
+      expect(got.failures).toEqual([expect.stringMatching(/^feature: 1 question\(s\) lost document hit@10 against the feature baseline: q06 \(rank 3 → 25\)/)]);
+      expect(got.lost).toEqual([{ id: 'q06', desk_feature: REG, before: 3, after: 25, mode: 'feature' }]);
+    });
+
+    it('does not let a gain hide a loss in feature mode', () => {
+      const x = featureOnly();
+      lose(x.candidate.feature, idsOf(REG).slice(0, 1));
+      x.baseline.feature.set(idsOf(PQ)[0], at(30));
+      const got = judgeNoWorse({ ...x, required: ['feature'] });
+      expect(got.pass).toBe(false);
+      expect(got.lost.map((q) => q.id)).toEqual(['q06']);
+    });
+
+    it('fails when the feature baseline and broad candidate have nothing in common to compare', () => {
+      const x = featureOnly();
+      x.candidate = { broad: hitsEverywhere() };
+      x.latency = { broad: { baseline: [], candidate: Array(20).fill(90) } };
+      const got = judgeNoWorse({ ...x, required: ['broad'] });
+      expect(got.pass).toBe(false);
+      expect(got.failures).toEqual(expect.arrayContaining([
+        expect.stringMatching(/^broad: not run/),
+        expect.stringMatching(/nothing was compared/),
+      ]));
+    });
+
+    it('fails, saying nothing was compared, when no required mode has data in both runs', () => {
+      const x = featureOnly();
+      x.baseline = { focused: hitsEverywhere() };
+      const got = judgeNoWorse({ ...x, required: ['feature'] });
+      expect(got.pass).toBe(false);
+      expect(got.failures).toEqual(expect.arrayContaining([expect.stringMatching(/nothing was compared/)]));
+    });
+
+    it('still compares a feature run with a broad baseline, as before', () => {
+      const x = featureOnly();
+      x.baseline = { broad: hitsEverywhere() };
+      x.candidate.feature.set(idsOf(PQ)[0], at(12));
+      const got = judgeNoWorse({ ...x, required: ['feature'] });
+      expect(got.failures).toEqual([expect.stringMatching(/^feature: Parliamentary Question Database document hit@10 3 < broad baseline 4/)]);
+    });
+  });
 });
 
 describe('renderReport', () => {
@@ -776,6 +836,27 @@ describe('developer questions have their own figures and their own "no worse" ju
       });
       expect(out).toContain('Lost developer questions (broad document hit@10): 1');
       expect(out).toContain(`| d01 | ${BILLS} | 3 | 25 |`);
+    });
+
+    it('lists a feature loss under its own heading, apart from the broad ones', () => {
+      const verdict = {
+        pass: false,
+        failures: ['feature: 1 question(s) lost document hit@10 against the feature baseline: g1 (rank 3 → miss)'],
+        flags: [],
+        lost: [
+          { id: 'g2', desk_feature: 'Bills', before: 2, after: 14 },
+          { id: 'g1', desk_feature: 'Bills', before: 3, after: null, mode: 'feature' },
+        ],
+      };
+      const out = renderReport({
+        setVersion: 'questions.v2', commit: 'abc', fingerprint: {}, verdict,
+        modes: { broad: { lines, outcomes, latencyMs: [1], networkMs: [1], responseBytes: [1] } },
+      });
+      expect(out).toContain('Lost questions (broad document hit@10): 1');
+      expect(out).toContain('Lost questions (feature document hit@10): 1');
+      const feature = out.slice(out.indexOf('Lost questions (feature document hit@10)'));
+      expect(feature).toContain('| g1 | Bills | 3 |');
+      expect(feature).not.toContain('| g2 |');
     });
   });
 });

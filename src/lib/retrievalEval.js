@@ -246,10 +246,14 @@ function changedOutcomes(lines, before, after) {
  * questions are `lostDeveloper`. Owner questions are never counted. The call checks in bar 3 and
  * bar 5 are made once, over every call. The verdict fails when either set fails.
  *
- * `baseline` holds outcomes for broad, focused and focused-multi; `candidate`
- * adds feature. Outcomes are best passed as Maps keyed by question id, since
+ * `baseline` holds outcomes for broad, focused and focused-multi, and feature when it was run;
+ * `candidate` adds feature. Outcomes are best passed as Maps keyed by question id, since
  * focused-multi skips questions without distractors. A mode in `required`
- * (default: all four) that was not run fails, as does missing latency data.
+ * (default: all four) that was not run fails, as does missing latency data, and so
+ * does a verdict that compared nothing (no required mode has outcomes in both runs).
+ * Feature mode is compared with the broad baseline (bar 3) and, when the baseline has
+ * feature outcomes, with those too: any question that left the first 10 is lost.
+ * Broad losses keep their shape (the pinned v1 output); a loss in any other mode carries `mode`.
  */
 export function judgeNoWorse({ lines, baseline: rawBaseline = {}, candidate: rawCandidate = {}, featureCalls = [], latency, required = REQUIRED_MODES }) {
   const normalise = (runs) => Object.fromEntries(Object.entries(runs).map(([mode, o]) => [mode, byId(lines, o)]));
@@ -259,8 +263,14 @@ export function judgeNoWorse({ lines, baseline: rawBaseline = {}, candidate: raw
   const flags = [];
   const ran = (mode) => candidate[mode] && (mode === 'feature' || baseline[mode]);
   for (const mode of required) if (!ran(mode)) failures.push(`${mode}: not run (candidate or baseline outcomes missing)`);
+  // A mode is compared when the candidate has it and the baseline has the same mode (feature
+  // may also be compared with the broad baseline, bar 3).
+  const compared = (mode) => candidate[mode] && (baseline[mode] || (mode === 'feature' && baseline.broad));
+  if (!required.some(compared)) {
+    failures.push(`nothing was compared: no required mode (${required.join(', ') || 'none'}) has outcomes in both the baseline and the candidate`);
+  }
 
-  /** Bars 1 to 4 for the non-ambiguous questions of one source; returns the broad hit@10 losses. */
+  /** Bars 1 to 4 for the non-ambiguous questions of one source; returns the hit@10 losses (broad, and feature against a feature baseline). */
   function judgeSource(source, { checkCalls }) {
     const prefix = source === 'generated' ? '' : `${source} `;
     const fail = (message) => failures.push(`${prefix}${message}`);
@@ -281,6 +291,14 @@ export function judgeNoWorse({ lines, baseline: rawBaseline = {}, candidate: raw
       }
     }
 
+    // Feature against its own baseline, question by question: a loss is not offset by a gain.
+    if (candidate.feature && baseline.feature) {
+      const c = compareRuns(counted, baseline.feature, candidate.feature, { source });
+      if (c.lost.length) {
+        lost = [...lost, ...c.lost.map((q) => ({ ...q, mode: 'feature' }))];
+        fail(`feature: ${c.lost.length} question(s) lost document hit@10 against the feature baseline: ${c.lost.map((q) => `${q.id} (rank ${fmtRank(q.before)} → ${fmtRank(q.after)})`).join(', ')}`);
+      }
+    }
     if (candidate.feature && baseline.broad) {
       for (const feature of sortedFeatures(counted)) {
         const inFeature = counted.filter((l) => l.desk_feature === feature);
@@ -537,19 +555,23 @@ export function renderReport(run) {
     out.push('', '## Comparison with the baseline', '', `Verdict: **${v.pass ? 'PASS' : 'FAIL'}**`, '');
     out.push('Failures:', ...(v.failures.length ? v.failures.map((f) => `- ${f}`) : ['- none']), '');
     out.push('Flags:', ...(v.flags.length ? v.flags.map((f) => `- ${f}`) : ['- none']), '');
-    out.push(`Lost questions (broad document hit@10): ${v.lost.length}`, '');
-    if (v.lost.length) {
-      out.push('| Question | Feature | Before | After |', '| --- | --- | --- | --- |');
-      const lost = [...v.lost].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-      for (const q of lost) out.push(`| ${q.id} | ${q.desk_feature} | ${fmtRank(q.before)} | ${fmtRank(q.after)} |`);
-    }
-    if (v.lostDeveloper) {
-      out.push('', `Lost developer questions (broad document hit@10): ${v.lostDeveloper.length}`, '');
-      if (v.lostDeveloper.length) {
+    // Broad losses keep their own section; a loss in another mode (it carries `mode`) is listed under that mode's name.
+    const lostSection = (label, all) => {
+      const byId = (x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0);
+      const modes = ['broad', ...new Set(all.filter((q) => q.mode).map((q) => q.mode))];
+      for (const mode of modes) {
+        const rows = all.filter((q) => (q.mode ?? 'broad') === mode).sort(byId);
+        if (mode !== 'broad') out.push('');
+        out.push(`${label} (${mode} document hit@10): ${rows.length}`, '');
+        if (!rows.length) continue;
         out.push('| Question | Feature | Before | After |', '| --- | --- | --- | --- |');
-        const lostDeveloper = [...v.lostDeveloper].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-        for (const q of lostDeveloper) out.push(`| ${q.id} | ${q.desk_feature} | ${fmtRank(q.before)} | ${fmtRank(q.after)} |`);
+        for (const q of rows) out.push(`| ${q.id} | ${q.desk_feature} | ${fmtRank(q.before)} | ${fmtRank(q.after)} |`);
       }
+    };
+    lostSection('Lost questions', v.lost);
+    if (v.lostDeveloper) {
+      out.push('');
+      lostSection('Lost developer questions', v.lostDeveloper);
     }
   }
   return `${out.join('\n')}\n`;

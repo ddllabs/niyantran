@@ -31,6 +31,8 @@
  * an earlier one with the spec's "no worse" bar: on the generated questions, and separately,
  * with the same rules, on developer-written ones (`source: 'developer'`); the verdict fails when
  * either fails. Owner questions are reported but never judged.
+ * A mode that was run is compared with the same mode in the baseline (feature also with the broad
+ * baseline); a verdict that compared no required mode fails and says nothing was compared.
  *
  * Exit codes: 0 = the run finished (and, with --compare, the verdict is "no worse"); 1 = error;
  * 2 = the corpus fingerprint check failed (no scores reported); 3 = --compare's verdict is "worse".
