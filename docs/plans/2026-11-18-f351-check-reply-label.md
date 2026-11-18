@@ -243,3 +243,25 @@ building this before the deploy so that one deploy carries both parts.
 
 One deploy of function `factcheck` from `main` carries Part 1 and Part 2. No migration. The owner's exact yes is
 needed for the merge and for the deploy.
+
+### Build record for Part 2 (2026-11-18)
+
+Executed by the supervisor unless stated.
+
+- **T5.** Built by a task agent in `check.ts`, with seven tests added (six in `check_test.ts`, one in
+  `recheck_test.ts`), all failing before the change. The builder stopped at three older assertions that expected one
+  model-call log row for an unreadable reply; three is now correct (R3, R8), and the supervisor changed those three
+  counts. `recheck.ts` is not edited.
+- **T6.** Independent review: accept, no required change. It removed or altered the rule seven ways in a scratch copy
+  (no re-ask, four calls, the 15-second boundary, no time limit, re-asking `no_sources`, skipping `label_conflict`,
+  keeping the first error) and each was caught by a test. Charging: one charge, only for a saved verdict, checked by
+  test. The lease and release behaviour is unchanged.
+- **Known and accepted:**
+  - worst case about 40 seconds of model calls against the browser's 45-second limit for a first check; typical
+    calls take 3 seconds, so three fit in about 9;
+  - if unreadable replies are followed by an outright provider failure, the browser's own retries start again, so one
+    check can reach about nine model calls (about US$0.05) in that rare combination;
+  - a paid "Check again" does not log `attempts` in its own log line; the model-call log has one row per call.
+- **Gates:** `npm run lint` clean; `npm run build` and `npm run check:bundle` pass; `npm test` 8,104 passed; the Deno
+  suite 1,882 passed.
+- **Not done:** merge, the deploy of function `factcheck`, and the real session after release.
