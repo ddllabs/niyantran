@@ -26,8 +26,23 @@ const VERDICTS = new Map<string, Verdict>([
 const norm = (label: string) => label.replace(/[*_`"'.]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
 const BY_NORMALISED = new Map([...VERDICTS].map(([label, v]) => [norm(label), v]));
 
-const readLabels = (reply: string) =>
-  [...reply.matchAll(/^[\s*_#>-]*label[\s*_]*:[\s*_]*(.+)$/gim)].map((m) => BY_NORMALISED.get(norm(m[1])));
+/**
+ * The one label reader, shared by replyFailure and parseVerdict. Every "LABEL:" line counts, as before. Only
+ * when the reply has none, its first non-empty line may be a bare label: one of the five labels alone, or
+ * followed by a colon and anything (the word "LABEL:" is sometimes dropped). Prose that merely starts with a
+ * label word, and a dash after the label, are not labels. `rest` is the text after a bare label.
+ */
+const readLabels = (reply: string): { labels: (Verdict | undefined)[]; rest?: string } => {
+  const labels = [...reply.matchAll(/^[\s*_#>-]*label[\s*_]*:[\s*_]*(.+)$/gim)].map((m) =>
+    BY_NORMALISED.get(norm(m[1]))
+  );
+  if (labels.length) return { labels };
+  const lines = reply.split(/\r?\n/);
+  const at = lines.findIndex((l) => l.trim());
+  const m = at < 0 ? null : /^[\s*_#>-]*([^:]*)(?::[\s*_]*(.*))?$/.exec(lines[at]);
+  const verdict = m && BY_NORMALISED.get(norm(m[1]));
+  return verdict ? { labels: [verdict], rest: [m[2] ?? '', ...lines.slice(at + 1)].join('\n') } : { labels: [] };
+};
 
 /**
  * Why a reply cannot be saved as a verdict, as exactly one code (null when it can). Beside parseVerdict and
@@ -35,7 +50,7 @@ const readLabels = (reply: string) =>
  * Looks at the reply only; nothing of it is returned.
  */
 export function replyFailure(reply: string | null, sourceCount: number): FailReason | null {
-  const labels = readLabels(reply ?? '');
+  const { labels } = readLabels(reply ?? '');
   if (!labels.length) return 'no_label';
   if (labels.some((l) => l === undefined)) return 'bad_label';
   if (new Set(labels).size !== 1) return 'label_conflict';
@@ -44,16 +59,18 @@ export function replyFailure(reply: string | null, sourceCount: number): FailRea
 
 /**
  * The label and reason from the fixed two-line reply. Read leniently (case, markdown, a trailing full stop,
- * "[1]" citation marks, an extra SOURCES line) but accepted only when every LABEL line names the same one of
- * the five labels. Anything else is undefined.
+ * "[1]" citation marks and "**" bold marks, an extra SOURCES line, a bare label with no "LABEL:" word) but
+ * accepted only when every LABEL line names the same one of the five labels. Anything else is undefined.
  */
 export function parseVerdict(reply: string): { verdict: Verdict; reason: string | null } | undefined {
-  const labels = readLabels(reply);
+  const { labels, rest } = readLabels(reply);
   if (!labels.length || labels.some((l) => l === undefined) || new Set(labels).size !== 1) return undefined;
   const m = /^[\s*_#>-]*reason[\s*_]*:[\s*_]*([\s\S]*?)(?=^[\s*_#>-]*(?:sources?|label)[\s*_]*:|$(?![\s\S]))/im.exec(
     reply,
   );
-  const reason = m ? clip(m[1].replace(/\[\d+\]/g, '').replace(/\s{2,}/g, ' '), 400) : '';
+  // With no REASON line, a bare label's reason is the text after it, up to a SOURCES or LABEL line.
+  const text = m ? m[1] : (rest ?? '').split(/^[\s*_#>-]*(?:sources?|label)[\s*_]*:/im)[0];
+  const reason = clip(text.replace(/\[\d+\]/g, '').replace(/\*\*/g, '').replace(/\s{2,}/g, ' '), 400);
   return { verdict: labels[0]!, reason: reason || null };
 }
 

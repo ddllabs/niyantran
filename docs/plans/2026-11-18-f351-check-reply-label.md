@@ -2,7 +2,8 @@
 
 > **Status: Living (2026-11-18).** Written 2026-11-18 on branch `task/f351-plan`. Tracker: F351 in
 > [open-work](open-work.md). This file is the spec and the plan together, because the change is one function and its
-> tests. Nothing here is built. Each statement below says whether it was executed or read from code.
+> tests. Built and reviewed 2026-11-18 on branch `task/f351-check-reply-label` (see "Build record"); not merged, not
+> deployed. Each statement below says whether it was executed or read from code.
 
 ## Current state
 
@@ -163,3 +164,23 @@ no stored data changes shape.
 | The model writes "Opinion: I cannot verify this" or "No evidence found: but reports suggest ..." as ordinary English | Shown as Opinion or No evidence found, which need no source | Accepted: both are the cautious labels, and the same words after `LABEL:` are accepted today |
 | Sonar starts using a third layout | Some checks still fail | Counted after release; the replay script shows the layout |
 | The fix hides the instability in F352 | A verdict looks more certain than it is | F352 is tracked separately and is not closed by this plan |
+
+## Build record (2026-11-18)
+
+Executed by the supervisor unless stated.
+
+- **T1.** Built by a task agent in `check.ts` and `check_test.ts` only. Five tests added, none edited. Two failed
+  before the change (a bare label is a verdict; a bare label and the source rule); three passed before it by design,
+  because they guard what must not change (the rejection table, "a LABEL line still wins", the agreement test).
+- **T2.** The real `replyFailure` and `parseVerdict` over the 45 saved replies: all 14 rejected replies are accepted
+  (10 Partly true or Supported with a label alone, 4 with `Supported: reason`), the 31 accepted replies keep their
+  verdicts, and no reason is empty.
+- **T3.** Independent review: accept, with one fix. The first form of the bare-label pattern took 1.9 s on a first
+  line of a label, 50,000 spaces and one letter (a reply is capped at 700 tokens, so not reachable in practice). The
+  pattern was simplified; the same input now takes under 1 ms, and T2 was run again with the same result. The reviewer
+  tried about 40 hostile strings; none became a verdict outside S1, and the two functions never disagreed.
+- **Known and accepted:** `Supported: but actually contradicted` reads as Supported, as the same words after `LABEL:`
+  do today. A single `*` or `_` stays in a reason; only `**` is removed (S5).
+- **Gates:** `npm run lint` clean; `npm run build` and `npm run check:bundle` pass; `npm test` 8,104 passed;
+  the Deno suite 1,874 passed (1,869 before).
+- **Not done:** merge, deploy of function `factcheck`, and the real session after release.
