@@ -14,19 +14,21 @@ const PARAMS = { videoId: 'vid1', channelId: 'ch1', videoKind: 'live', startPosi
 const defer = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
 const settle = async (n = 6) => { for (let i = 0; i < n; i++) await new Promise((r) => setTimeout(r, 0)); };
 
-function flow({ startGate = null, captureGate = null, start = null } = {}) {
+function flow({ startGate = null, captureGate = null, start = null, extract = null, check = null } = {}) {
+  const handlers = {};
   const client = {
     start: vi.fn(async (body) => {
       if (startGate) await startGate.promise;
       if (start) return start(body);
       return { session_id: 's1', credits_per_minute: 500, credits_held: 2500 };
     }),
-    extract: vi.fn(async () => ({ claims: [], ledger: null })),
-    check: vi.fn(),
+    extract: vi.fn(extract || (async () => ({ claims: [], ledger: null }))),
+    check: vi.fn(check || (() => {})),
     stop: vi.fn(async () => ({ minutes_used: 1, credits_charged: 500, balance: 9500 })),
   };
   const capStop = vi.fn(async () => {});
-  const capture = vi.fn(async () => {
+  const capture = vi.fn(async (h) => {
+    Object.assign(handlers, h);
     if (captureGate) await captureGate.promise;
     return { stop: capStop };
   });
@@ -38,7 +40,7 @@ function flow({ startGate = null, captureGate = null, start = null } = {}) {
     }),
     readFlag: async () => ON, supported: () => true, credits, onChange: (v) => changes.push(v),
   });
-  return { client, capture, capStop, credits, controller, changes, view: () => changes.at(-1) };
+  return { handlers, client, capture, capStop, credits, controller, changes, view: () => changes.at(-1) };
 }
 
 async function ready(f) {
@@ -189,5 +191,42 @@ describe('closing the modal mid-session', () => {
     await f.controller.close();
     expect(f.view().session.status).toBe('error');
     expect(f.view().session.error).toMatchObject({ source: 'stop' });
+  });
+});
+
+// F359 task 4: Live TV is a page now, and a user can leave and come back at once. Leaving while a check is
+// still running puts the session in `ending`; coming back must not clear it or the claim (the verdict
+// still arrives). This guard was written after the fact: it passed on first run, since load() only re-reads the flag.
+describe('reopening while a session is finishing', () => {
+  it('keeps the session ending and the claim pending, then shows the verdict', async () => {
+    const gate = defer();
+    const f = flow({
+      extract: async () => ({ claims: [{ id: 'c1', quote: 'q', claim_en: 'Tax is 18 percent', claimant: null, reported_by: null, kind: 'claim', status: 'pending' }], ledger: {} }),
+      check: async ({ claim_id }) => { await gate.promise; return { id: claim_id, status: 'checked', verdict: 'supported', reason: 'r', sources: [], checked_at: 'now' }; },
+    });
+    await ready(f);
+    await f.controller.start(PARAMS, 5, 500);
+    await settle();
+    const piece = (seq) => ({ seq, startMs: seq * 10000, endMs: seq * 10000 + 10000, overlapMs: 0, endPauseMs: 0, silent: false, wav: new Blob([new Uint8Array(4)]) });
+    f.handlers.onPiece(piece(0));
+    f.handlers.onPiece(piece(1));
+    await settle(12);
+    expect(f.view().session.claims.map((c) => c.status)).toEqual(['pending']);
+
+    const closing = f.controller.close(); // the user leaves the page
+    await settle();
+    expect(f.view().session.status).toBe('ending');
+
+    await f.controller.load(); // and comes straight back
+    expect(f.view().session.status).toBe('ending');
+    expect(f.view().session.claims[0].status).toBe('pending');
+    expect(f.client.stop).not.toHaveBeenCalled();
+
+    gate.resolve();
+    await closing;
+    await settle();
+    expect(f.view().session.status).toBe('ended');
+    expect(f.view().session.claims[0]).toMatchObject({ status: 'checked', verdict: 'supported' });
+    expect(f.client.stop).toHaveBeenCalledTimes(1);
   });
 });

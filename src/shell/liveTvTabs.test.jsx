@@ -3,10 +3,10 @@
 // buttons; the lower tabs are real tabs with one tab stop and a labelled panel.
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import LiveTvModal from './LiveTvModal.jsx';
+import LiveTvPage from './LiveTvPage.jsx';
 
 describe('Live TV keyboard roles (F61)', () => {
-  const html = renderToStaticMarkup(<LiveTvModal open onClose={() => {}} />);
+  const html = renderToStaticMarkup(<LiveTvPage open onClose={() => {}} />);
 
   it('category filters are pressed buttons, not a fake tab list', () => {
     expect(html).not.toMatch(/class="ltv-category-bar" role="tablist"/);

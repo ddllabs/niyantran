@@ -420,6 +420,7 @@ button, input, textarea { font-family: inherit; }
 }
 .icon-btn:hover, .tv-btn:hover { background: var(--bg); }
 .icon-btn:disabled, .tv-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.tv-btn[aria-current="page"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .icon-btn.ghost { color: var(--muted); }
 
 .tv-btn {

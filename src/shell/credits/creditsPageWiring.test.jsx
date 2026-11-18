@@ -14,7 +14,7 @@ it('renders the page for #/account/<section> inside the themed terminal root, ov
   expect(shell.indexOf('<CreditsPage')).toBeGreaterThan(shell.indexOf('theme-${theme}'));
   // Review (2026-10-15): the desk, and the AI panel in it, stay mounted so a draft or a running answer
   // survives a visit to the credits page; the workspace is hidden, not removed.
-  expect(shell).toMatch(/<div className=\{`workspace[^\n]*hidden=\{account \? true : undefined\}>/);
+  expect(shell).toMatch(/<div className=\{`workspace[^\n]*hidden=\{account \|\| liveTvOpen \? true : undefined\}>/); // the credits page or Live TV (F359)
   expect(shell).toContain('{moduleNavigation && !account && <DeskNav');
   expect(shell).not.toMatch(/\{account \? \(\s*<CreditsPage[^]*?\) : \(/);
   expect(read('./creditsPage.css')).toContain('.with-credits-page > .workspace[hidden] { display: none; }');

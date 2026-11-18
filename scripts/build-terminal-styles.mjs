@@ -24,7 +24,7 @@ export const LAZY_ROOTS = ['src/shell/TerminalShell.jsx', 'src/admin/AdminApp.js
 // independent stylesheet. Position in the source preserves the existing cascade.
 const DEFERRED_STYLE_ROOTS = new Set([
   'src/desks/HomeDesk.jsx', 'src/desks/DeskView.jsx', 'src/desks/DeskLandingView.jsx',
-  'src/shell/credits/CreditsPage.jsx', 'src/shell/LiveTvModal.jsx', 'src/ai/AiPanel.jsx',
+  'src/shell/credits/CreditsPage.jsx', 'src/shell/LiveTvPage.jsx', 'src/ai/AiPanel.jsx',
 ]);
 
 const IMPORT = /^\s*(?:import|export)(?:\s+[\w$*{}\s,]+?\s+from)?\s*['"]([^'"\n]+)['"]/gm;

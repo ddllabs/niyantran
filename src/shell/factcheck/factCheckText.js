@@ -103,7 +103,7 @@ const END_REASONS = {
   browser: 'Sharing ended in the browser.',
   silent: 'No speech for 90 seconds, so the session ended.',
   channel_change: 'The channel or video changed.',
-  modal_close: 'Live TV was closed.',
+  modal_close: 'You left Live TV.',
   off: 'Fact-check was switched off. You were charged only for the time used.',
   server: 'The server ended the session.',
 };
