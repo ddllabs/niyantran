@@ -172,6 +172,5 @@ latency at size (F292, deferred by the developer).
 
 ## Tracker
 
-Items with numbers keep them (F279, F285, F307, F311, F314, F325, F333, F334, F336, F337, F338, F346). E2, B1, B3
-and E3 have no line yet; their lines and numbers are added when this plan is pushed, taken from `main` at that time
-so they do not collide with other work in progress.
+Items with earlier numbers keep them (F279, F285, F307, F311, F314, F325, F333, F334, F336, F337, F338, F346). New
+on 2026-11-18: F354 (E2), F355 (E1's finding and B0), F356 (B1), F357 (B3) and F358 (E3).
