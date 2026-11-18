@@ -7,6 +7,7 @@ import {
   fetchLiveTvTranscript,
 } from '../lib/liveTvClient.js';
 import { FactCheckEntry, FactCheckPanel } from './factcheck/FactCheckPanel.jsx';
+import { PastSessions } from './factcheck/PastSessions.jsx';
 import { embedVideoId, playingTarget } from './factcheck/factCheckText.js';
 import { useFactCheck } from './factcheck/useFactCheck.js';
 import { useYoutubePlayer } from './liveTv/useYoutubePlayer.js';
@@ -409,7 +410,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
         )}
       </nav>
 
-      {/* Scrollable page body */}
+      {/* Scrollable page body; the wrapper lets the past-sessions section sit below it (factCheck.css) */}
+      <div className="ltv-main">
       <div className="ltv-body">
         {/* Player Stage */}
         <section className="ltv-player-stage">
@@ -856,6 +858,9 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
             </div>
           )}
         </div>
+      </div>
+      {/* F360: the user's finished fact-check sessions, below the body so the player and panel keep their size */}
+      <PastSessions userId={factCheck.view?.flag?.userId} enabled={factCheck.view?.flag?.available === true} sessionStatus={factCheck.view?.session?.status} channels={channels} />
       </div>
     </section>
   );
