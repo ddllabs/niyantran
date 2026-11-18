@@ -88,6 +88,20 @@ A reviewer gets the code, the data and the rules, never the writer's conclusions
 | E3. Inventory by entry. Manifest counts are done (above). Remaining: per entry of v1.3 to v1.6, servable, licence class, characters and the desk name as spelled | documentation agent, with `pack.ts select` | none (receipts outside the repository) | one row per entry; chunk estimate from characters |
 | E4. Capacity figures for F279 | supervisor (NTER read-only), then engineering agent on the local load copy | none | per partition: bytes per chunk for table, vector index and keyword index; buffer hit rates; projected size and memory at 2, 4 and 6 million chunks for each §5.4 option that needs no new vendor |
 
+### Phase 0 results (2026-11-18)
+
+- **E1, done.** Read-only on NTER, the ten lost questions were searched again and, for each, the reference passage
+  and the three passages now ranked first were judged blind by an independent reviewer (excerpts of 1,800
+  characters). In 7 of 10 the reference passage answers the question and none of the three does: they are the same
+  regulator on another matter. In 3 a newly loaded passage answers at least as well. So the fall is real. The same
+  questions through `match_documents_hybrid` scored the same 40 of 55, because that function applies keyword search
+  to the NCLT desk only and returns the vector result for every other desk.
+- **E2, done locally** (`task/eval-compare-mode`): the cause was that two feature-only runs compared nothing. Run
+  against the pre-load baseline it now reports "worse" and names the lost questions.
+- **E3, manifest counts done** (above); the per-entry profile remains.
+- **E4, first figures.** Per chunk on NTER: 14 kB in all, of which stored text and vector 7.9 kB, vector index
+  4.0 kB, row 1.1 kB, keyword index 0.3 kB. Vector indexes total 3.2 GB against 2 GB of shared buffers.
+
 **Gate 0 (developer):** accept the Regulatory load or name the correction; choose the F279 option; say whether the
 5.3 GB backup table may be dropped (a deletion, so its own specific yes).
 
@@ -95,6 +109,7 @@ A reviewer gets the code, the data and the rules, never the writer's conclusions
 
 | Task | Who | Depends on | Write scope |
 |---|---|---|---|
+| B0. Spec, measure on the local copy, then build: keyword and vector search together for Regulatory, judged on the 55 questions and a fresh set written after the load | senior builder | Gate 0 | new spec; one migration; fixtures |
 | B1. Runner keeps acceptance error text, and resumes acceptance alone after an interrupted run | engineering agent | none | `scripts/bulk-runner/run.ts`, `acceptance.ts`, `cli.ts` and tests |
 | B2. Screen configurations for the other v1.1 collections, on the search-only screen | engineering agent | E3 | `scripts/bulk-runner/screens/*.json`, `screens/index.ts` and tests |
 | B3. Spec, then build: replacing a document's text through the runner, with the old text recoverable | senior builder | Gate 0 | new spec; `supabase/migrations/` (one file), `scripts/bulk-runner/prepare.ts`, a fixture |
@@ -103,7 +118,7 @@ A reviewer gets the code, the data and the rules, never the writer's conclusions
 | B6. Parliamentary Questions screen spec | senior builder as planner | owner's Rajya Sabha key | `docs/specs/` only |
 | B7. The chosen F279 option | senior builder | Gate 0 | set by its decision record |
 
-B1, B2 and B5 may run together. B3 and B4 both touch `prepare.ts`, so B4 follows B3. Each build gets an independent
+B0 comes first: no further Regulatory load until it passes. B1, B2 and B5 may run together. B3 and B4 both touch `prepare.ts`, so B4 follows B3. Each build gets an independent
 review before the supervisor commits.
 
 Production steps in this phase, each with a rolled-back dry run and the developer's yes: apply
