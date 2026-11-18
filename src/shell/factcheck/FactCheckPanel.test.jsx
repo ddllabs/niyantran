@@ -72,8 +72,8 @@ describe('entry point', () => {
 });
 
 describe('choosing a block', () => {
-  it('lists 1, 2, 5, 10 and 15 minutes with prices and the balance', () => {
-    const html = render(view({ status: 'choosing' }, { balance: 10000 }));
+  it('lists 1, 2, 5, 10, 15, 20 and 30 minutes with prices and the balance', () => {
+    const html = render(view({ status: 'choosing' }, { balance: 20000 }));
     const t = text(html);
     expect(t).toMatch(/1 minute\s*500 credits/);
     expect(t).not.toContain('1 minutes');
@@ -81,17 +81,20 @@ describe('choosing a block', () => {
     expect(t).toMatch(/5 minutes\s*2,500 credits/);
     expect(t).toMatch(/10 minutes\s*5,000 credits/);
     expect(t).toMatch(/15 minutes\s*7,500 credits/);
-    expect(t).toContain('10,000');
+    expect(t).toMatch(/20 minutes\s*10,000 credits/);
+    expect(t).toMatch(/30 minutes\s*15,000 credits/);
+    expect(t).toContain('20,000');
     expect(html).toMatch(/aria-label="Fact-check"/);
   });
   it('disables options the balance cannot cover, with the reason', () => {
     const html = render(view({ status: 'choosing' }, { balance: 5000 }));
     const buttons = html.match(/<button[^>]*data-minutes="\d+"[^>]*>/g);
-    expect(buttons).toHaveLength(5);
+    expect(buttons).toHaveLength(7);
     for (const b of buttons.slice(0, 4)) expect(b).not.toMatch(/disabled/);
-    expect(buttons[4]).toMatch(/disabled/);
+    for (const b of buttons.slice(4)) expect(b).toMatch(/disabled/);
     expect(text(html)).toMatch(/Needs 7,500 credits; you have 5,000/);
     expect(buttons[4]).not.toMatch(/style=/);
+    expect(text(html)).toMatch(/Needs 15,000 credits; you have 5,000/);
   });
   it('has Start and Cancel; Start names the selected block, and is disabled when nothing is affordable', () => {
     const html = render(view({ status: 'choosing' }, { balance: 10000 }));
