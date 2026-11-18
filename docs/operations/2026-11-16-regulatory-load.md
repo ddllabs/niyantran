@@ -63,6 +63,10 @@ E2. Its comparison counts lost questions in broad mode only; these runs were fea
 nothing. The record of 2026-11-15 quotes that verdict for E1; E1's figures were in fact equal to E0's, as the table
 shows. Read the figures, not the verdict, until the script compares the mode it ran.
 
+*Correction, 2026-11-18:* the cause given above is incomplete. With a feature-only baseline and a feature-only run the
+script compared no mode at all (F354). It is fixed in pull request #174 (`5204ed30`): run against E0 it now reports
+"worse" and names the lost questions. The fall itself is judged under F355.
+
 ## What went wrong
 
 - **Acceptance ended without a report three times** (part 008 once, part 019 twice); the batches themselves were
