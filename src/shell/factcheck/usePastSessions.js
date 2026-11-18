@@ -90,7 +90,10 @@ export function usePastSessions({ client = supabase, sessionStatus = 'idle' } = 
 
   const toggle = useCallback((id) => {
     setNotice('');
-    if (state.current.openId === id) { setOpenId(null); return; }
+    // A question left open on the row being closed (or left for another row) is dropped; a running delete is not.
+    const { openId: was, removal: asked } = state.current;
+    if (asked && asked.id === was && asked.phase !== 'busy') setRemoval(null);
+    if (was === id) { setOpenId(null); return; }
     setOpenId(id);
     const have = state.current.details[id];
     if (!have || have.phase === 'error') loadDetail(id);

@@ -267,4 +267,7 @@ Built on `task/livetv-past-sessions` by a task agent, reviewed independently, fi
   sideways scroll at any width.
 - **Not verified.** The section inside the signed-in app, the row-level policies against the live database, and a
   delete of a real session. Edge Function tests were not run because nothing under `supabase/` changed.
-
+- **After release (2026-11-18).** Seen signed in on the live site: 14 settled sessions listed, an opened session showed
+  its results, no console errors. Every collapsed row showed its own Delete button, so D7 is amended: the Delete
+  control and the recorded-video note appear only inside an opened session, below its results, in every detail state;
+  closing the row drops an unanswered confirmation. `npm test` 8,249 pass, lint, build and bundle check pass.
