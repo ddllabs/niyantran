@@ -101,6 +101,35 @@ A reviewer gets the code, the data and the rules, never the writer's conclusions
 - **E3, manifest counts done** (above); the per-entry profile remains.
 - **E4, first figures.** Per chunk on NTER: 14 kB in all, of which stored text and vector 7.9 kB, vector index
   4.0 kB, row 1.1 kB, keyword index 0.3 kB. Vector indexes total 3.2 GB against 2 GB of shared buffers.
+- **E4, smaller vector indexes measured (2026-11-18, local copy).** 392,945 real embeddings, one index at a time,
+  pgvector 0.8.6 on PostgreSQL 17. Each smaller index returns its first N candidates, which are then re-ordered by
+  the full stored vector. Agreement is the share of the exact first 10 (a full scan) that the method returns, over
+  195 question vectors; a second group of 200 stored-chunk vectors scored 0.98 to 0.99 on every row below. Raw
+  output is outside the repository.
+
+  | Index | Bytes per chunk | N | Agreement with exact, mean | Warm median |
+  |---|---|---|---|---|
+  | Today's: half-precision, 1,536 dimensions | 4,051 | search width 100 | 0.964 | 4.4 ms |
+  | One bit per dimension, re-ranked | 490 | 100 | 0.960 | 1.6 ms |
+  | | | 200 | 0.978 | 4.7 ms |
+  | | | 400 | 0.989 | 9.8 ms |
+  | First 512 dimensions, re-ranked | 1,351 | 200 | 0.983 | 7.7 ms |
+  | First 768 dimensions, re-ranked | 2,025 | 100 | 0.977 | 6.1 ms |
+
+  The supervisor rebuilt the one-bit index and recomputed with separate SQL: 490 bytes per chunk, 0.977 at N=200,
+  and 0.71 with the re-ranking removed, so the measure is not empty. By document rather than passage the agreement
+  is 0.981. Projection, from NTER's 13.5 kB per chunk with only the vector index swapped (arithmetic, not measured):
+
+  | Chunks | Today's index: index / all | One-bit: index / all | 512 dimensions: index / all |
+  |---|---|---|---|
+  | 2 million | 8.1 GB / 27 GB | 1.0 GB / 20 GB | 2.7 GB / 22 GB |
+  | 4 million | 16 GB / 54 GB | 2.0 GB / 40 GB | 5.4 GB / 43 GB |
+  | 6 million | 24 GB / 81 GB | 2.9 GB / 60 GB | 8.1 GB / 65 GB |
+
+  NTER has 8 GB of memory, 2 GB of shared buffers and a 40 GB disk; other tables add about 1.5 GB and the backup
+  table 5.3 GB. Not measured: agreement above 393,000 chunks; the re-ranking read of N full vectors from a cold
+  cache on NTER; the search functions' desk and document filters on a one-bit index; latency under load (the local
+  figures were taken while another job ran). The disk is too small for the packs under every option.
 
 **Gate 0 (developer):** accept the Regulatory load or name the correction; choose the F279 option; say whether the
 5.3 GB backup table may be dropped (a deletion, so its own specific yes).
