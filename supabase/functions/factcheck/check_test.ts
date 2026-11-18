@@ -1,7 +1,17 @@
 import { assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
 import { handleFactcheck } from './handler.ts';
 import { CHECK_SYSTEM } from './prompts.ts';
-import { captureLogs, chatPayload, checkReply, type Harness, harness, jsonRequest, SESSION, USER } from './testkit.ts';
+import {
+  captureLogs,
+  chatPayload,
+  checkReply,
+  type Harness,
+  harness,
+  jsonRequest,
+  NOW,
+  SESSION,
+  USER,
+} from './testkit.ts';
 import { parseSources, parseVerdict, replyFailure } from './check.ts';
 
 const fixture = async (name: string) =>
@@ -444,7 +454,7 @@ Deno.test('an error verdict still logs the model call it cost', async () => {
   const h = withClaim();
   verdict(h, 'Gibberish');
   await handleFactcheck(req(), h.deps);
-  assertEquals(h.logRows.length, 1);
+  assertEquals(h.logRows.length, 3, 'an unreadable reply is asked three times, one row each');
   assertEquals(h.logRows[0].status, 'error');
   assertEquals(h.logRows[0].cost_usd, 0.0054, 'the cost it incurred is kept');
 });
@@ -496,8 +506,9 @@ Deno.test('a check that ends in error stores, returns and logs its reason code, 
     const json = await result.json();
     assertEquals([json.status, json.verdict, json.fail_reason], ['error', null, code], why);
     assertEquals([h.store.rows[0].status, h.store.rows[0].fail_reason], ['error', code], why);
-    assertEquals(h.logRows.length, 1, why);
-    const row = h.logRows[0];
+    // An unreadable reply is asked three times (one row each); a sourceless label is an answer, asked once.
+    assertEquals(h.logRows.length, code === 'no_sources' ? 1 : 3, why);
+    const row = h.logRows[h.logRows.length - 1];
     assertEquals([row.status, row.error_message], ['error', `unusable: ${code}`], why);
     assertEquals(
       [row.cost_usd, row.prompt_tokens, row.completion_tokens, row.total_tokens],
@@ -610,4 +621,101 @@ Deno.test('replyFailure and parseVerdict agree on every reply string tested', ()
     '{"label":"Supported"}',
   ];
   for (const s of all) assertEquals(replyFailure(s, 1) === null, parseVerdict(s) !== undefined, s);
+});
+
+// ---- Part 2 (F351): ask again when a reply cannot be read -------------------------------------
+
+const OK_SOURCES = { citations: ['https://example.org/a'] };
+const UNREADABLE = 'SECRET-REPLY-TEXT-9f3 prose without a label';
+/** The check model answers with these in turn; the last one repeats. */
+const replies = (h: Harness, ...answers: unknown[]) => {
+  let n = 0;
+  h.models.check = () => {
+    const a = answers[Math.min(n++, answers.length - 1)];
+    return typeof a === 'string' ? chatPayload(a, OK_SOURCES) : a;
+  };
+};
+const attemptsLogged = (lines: string[]) => JSON.parse(lines.find((l) => l.includes('"factcheck.check"'))!).attempts;
+
+Deno.test('an unreadable reply then a readable one: two calls, the verdict is stored, the claim is checked, attempts 2', async () => {
+  const h = withClaim();
+  replies(h, UNREADABLE, 'LABEL: Supported\nREASON: Official data confirm it.');
+  const { result, lines } = await captureLogs(() => handleFactcheck(req(), h.deps));
+  const json = await result.json();
+  assertEquals([json.status, json.verdict, json.fail_reason], ['checked', 'supported', null]);
+  assertEquals(sonar(h).length, 2);
+  assertEquals([h.store.rows[0].status, h.store.rows[0].verdict], ['checked', 'supported']);
+  assertEquals(attemptsLogged(lines), 2);
+});
+
+Deno.test('an unreadable reply three times: exactly three calls, stored as error with the last reason', async () => {
+  const h = withClaim();
+  replies(
+    h,
+    UNREADABLE,
+    `LABEL: Mostly true ${UNREADABLE}\nREASON: x`,
+    `LABEL: Supported\nLABEL: Contradicted\nREASON: ${UNREADABLE}`,
+  );
+  const { result, lines } = await captureLogs(() => handleFactcheck(req(), h.deps));
+  const json = await result.json();
+  assertEquals([json.status, json.verdict, json.fail_reason], ['error', null, 'label_conflict']);
+  assertEquals(sonar(h).length, 3);
+  assertEquals([h.store.rows[0].status, h.store.rows[0].fail_reason], ['error', 'label_conflict']);
+  assertEquals(attemptsLogged(lines), 3);
+  assertEquals(
+    [...lines, JSON.stringify(h.logRows), JSON.stringify(json)].some((t) => t.includes('SECRET-REPLY')),
+    false,
+  );
+});
+
+Deno.test('a readable reply the first time: exactly one call, attempts 1', async () => {
+  const h = withClaim();
+  const { result, lines } = await captureLogs(() => handleFactcheck(req(), h.deps));
+  assertEquals((await result.json()).status, 'checked');
+  assertEquals(sonar(h).length, 1);
+  assertEquals(attemptsLogged(lines), 1);
+});
+
+Deno.test('no_sources is an answer, not an unreadable reply: exactly one call', async () => {
+  const h = withClaim();
+  h.models.check = () => checkReply('Supported', 'x', {});
+  const json = await (await handleFactcheck(req(), h.deps)).json();
+  assertEquals([json.status, json.fail_reason], ['error', 'no_sources']);
+  assertEquals(sonar(h).length, 1);
+});
+
+Deno.test('a provider failure on the first or the second call: no further call, the same 502, the claim released', async () => {
+  for (const failAt of [0, 1]) {
+    const h = withClaim();
+    let n = 0;
+    h.models.check = () => {
+      const i = n++;
+      return i === failAt ? new Response('provider-secret', { status: 500 }) : chatPayload(UNREADABLE, OK_SOURCES);
+    };
+    const res = await handleFactcheck(req(), h.deps);
+    assertEquals(res.status, 502, `fail at ${failAt}`);
+    assertEquals((await res.text()).includes('provider-secret'), false);
+    assertEquals(sonar(h).length, failAt + 1, `fail at ${failAt}`);
+    assertEquals([h.store.rows[0].status, h.store.rows[0].checked_at], ['pending', null]);
+  }
+});
+
+Deno.test('no further call starts once 15 seconds have passed since the first began; just under still asks again', async () => {
+  for (const [gap, calls, status] of [[15_000, 1, 'error'], [14_999, 2, 'checked']] as const) {
+    const h = withClaim();
+    replies(h, UNREADABLE, 'LABEL: Supported\nREASON: ok');
+    h.deps.now = () => (sonar(h).length >= 1 ? NOW + gap : NOW);
+    const json = await (await handleFactcheck(req(), h.deps)).json();
+    assertEquals([sonar(h).length, json.status], [calls, status], `gap ${gap}`);
+  }
+});
+
+Deno.test('one model-call log row per call: unusable rows, then the success', async () => {
+  const h = withClaim();
+  replies(h, UNREADABLE, `LABEL: Mostly true\nREASON: x`, 'LABEL: Supported\nREASON: ok');
+  await handleFactcheck(req(), h.deps);
+  assertEquals(
+    h.logRows.map((r) => [r.status, r.error_message ?? null]),
+    [['error', 'unusable: no_label'], ['error', 'unusable: bad_label'], ['success', null]],
+  );
 });
