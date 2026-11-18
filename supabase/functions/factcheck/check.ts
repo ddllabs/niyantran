@@ -14,6 +14,10 @@ const MAX_SOURCES = 8;
 const MAX_URL = 2000;
 const IN_PROGRESS_RETRY_S = 3;
 const IST_OFFSET_MS = 5.5 * 3_600_000;
+/** At most this many model calls for one check: the first and up to two more when a reply cannot be read. */
+const MAX_ATTEMPTS = 3;
+/** A further call starts only if less than this has passed since the first began (a call can take 25 s). */
+const REASK_WINDOW_MS = 15_000;
 
 const VERDICTS = new Map<string, Verdict>([
   ['Supported', 'supported'],
@@ -123,52 +127,68 @@ const stored = (c: ClaimRow): Obj => ({
 
 /**
  * The model call, parsing and source rules shared by check and recheck: asks sonar about the claim's stored
- * text and returns what to save. Throws ProviderError (502) when the provider fails, times out or the client
- * goes away; every other outcome is a result. `citations` is how many sources the provider gave (kept for the
- * log: an error result stores none).
+ * text and returns what to save. A reply that cannot be read as a verdict (no_label, bad_label or
+ * label_conflict) is asked again, same prompt, up to MAX_ATTEMPTS calls and only within REASK_WINDOW_MS of the
+ * first; the first readable reply is kept, else the last attempt's error. Throws ProviderError (502) when the
+ * provider fails, times out or the client goes away (not retried here: the browser retries). `citations` is
+ * how many sources the provider gave (kept for the log: an error result stores none); `attempts` is the
+ * number of model calls made.
  */
 export async function verdictFor(
   ctx: Ctx,
   p: { purpose: 'claim_check' | 'claim_recheck'; claim: ClaimRow; session: SessionRow; detached?: boolean },
-): Promise<{ result: CheckResult; citations: number }> {
+): Promise<{ result: CheckResult; citations: number; attempts: number }> {
   const now = ctx.now();
-  const { payload, text } = await chatCompletion(ctx, {
-    purpose: p.purpose,
-    detached: p.detached,
-    model: CHECK_MODEL,
-    sessionId: p.session.id,
-    system: CHECK_SYSTEM,
-    user: checkUser({
-      date: new Date(now + IST_OFFSET_MS).toISOString().slice(0, 10),
-      claim: p.claim.claim_en,
-      claimant: p.claim.claimant,
-      reportedBy: p.claim.reported_by,
-      channel: channelName(p.session.channel_id),
-      kind: p.session.video_kind,
-    }),
-    maxTokens: 700,
-    // The call is logged as an error row ("unusable: <code>") when the reply cannot be saved, not as a success.
-    unusable: (payload, reply) => replyFailure(reply, parseSources(payload).length),
-    // No provider block: perplexity/sonar returns 404 under require_parameters (live probe 2026-11-16),
-    // and data_collection: 'deny' for it was not probed. The claim text sent is already public speech.
-  });
-  const parsed = text === null ? undefined : parseVerdict(text);
-  const sources = parseSources(payload);
-  const at = new Date(now).toISOString();
-  // Anything but one of the five labels is an error, never a verdict, and its text is not kept. So is a
-  // verdict with no source, unless it says no evidence was found. The error carries one reason code.
-  const fail = replyFailure(text, sources.length);
-  const result: CheckResult = parsed && !fail
-    ? { status: 'checked', verdict: parsed.verdict, reason: parsed.reason, sources, checked_at: at, fail_reason: null }
-    : {
-      status: 'error',
-      verdict: null,
-      reason: null,
-      sources: [],
-      checked_at: at,
-      fail_reason: fail ?? 'no_label',
-    };
-  return { result, citations: sources.length };
+  for (let attempts = 1;; attempts++) {
+    const { payload, text } = await chatCompletion(ctx, {
+      purpose: p.purpose,
+      detached: p.detached,
+      model: CHECK_MODEL,
+      sessionId: p.session.id,
+      system: CHECK_SYSTEM,
+      user: checkUser({
+        date: new Date(now + IST_OFFSET_MS).toISOString().slice(0, 10),
+        claim: p.claim.claim_en,
+        claimant: p.claim.claimant,
+        reportedBy: p.claim.reported_by,
+        channel: channelName(p.session.channel_id),
+        kind: p.session.video_kind,
+      }),
+      maxTokens: 700,
+      // The call is logged as an error row ("unusable: <code>") when the reply cannot be saved, not as a success.
+      unusable: (payload, reply) => replyFailure(reply, parseSources(payload).length),
+      // No provider block: perplexity/sonar returns 404 under require_parameters (live probe 2026-11-16),
+      // and data_collection: 'deny' for it was not probed. The claim text sent is already public speech.
+    });
+    const parsed = text === null ? undefined : parseVerdict(text);
+    const sources = parseSources(payload);
+    const at = new Date(now).toISOString();
+    // Anything but one of the five labels is an error, never a verdict, and its text is not kept. So is a
+    // verdict with no source, unless it says no evidence was found. The error carries one reason code.
+    const fail = replyFailure(text, sources.length);
+    const result: CheckResult = parsed && !fail
+      ? {
+        status: 'checked',
+        verdict: parsed.verdict,
+        reason: parsed.reason,
+        sources,
+        checked_at: at,
+        fail_reason: null,
+      }
+      : {
+        status: 'error',
+        verdict: null,
+        reason: null,
+        sources: [],
+        checked_at: at,
+        fail_reason: fail ?? 'no_label',
+      };
+    const unreadable = result.fail_reason === 'no_label' || result.fail_reason === 'bad_label' ||
+      result.fail_reason === 'label_conflict';
+    if (!unreadable || attempts >= MAX_ATTEMPTS || ctx.now() - now >= REASK_WINDOW_MS) {
+      return { result, citations: sources.length, attempts };
+    }
+  }
 }
 
 /**
@@ -205,9 +225,11 @@ export async function checkAction(ctx: Ctx, body: Obj): Promise<Obj> {
 
   let row: ClaimRow | null;
   let citations: number | null = null;
+  let attempts: number | null = null;
   try {
     const outcome = await verdictFor(ctx, { purpose: 'claim_check', claim, session });
     citations = outcome.citations;
+    attempts = outcome.attempts;
     row = await store.finishCheck(ctx.userId, sessionId, claimId, outcome.result);
   } catch (error) {
     // A client that went away keeps the lease: the provider may well have been paid, and a retry within
@@ -226,6 +248,7 @@ export async function checkAction(ctx: Ctx, body: Obj): Promise<Obj> {
     status: row?.status ?? 'unknown',
     fail_reason: row?.fail_reason ?? null,
     citations,
+    attempts,
   });
   if (row) return stored(row);
   const current = await store.claim(ctx.userId, sessionId, claimId);
