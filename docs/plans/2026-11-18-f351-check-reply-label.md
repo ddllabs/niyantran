@@ -1,0 +1,165 @@
+# F351 plan: accept a verdict whose reply leaves out the word "LABEL"
+
+> **Status: Living (2026-11-18).** Written 2026-11-18 on branch `task/f351-plan`. Tracker: F351 in
+> [open-work](open-work.md). This file is the spec and the plan together, because the change is one function and its
+> tests. Nothing here is built. Each statement below says whether it was executed or read from code.
+
+## Current state
+
+The check step sends one claim to `perplexity/sonar` and asks for exactly two lines, `LABEL: <one of five labels>` and
+`REASON: <one sentence>` (`CHECK_SYSTEM` in `supabase/functions/factcheck/prompts.ts`). The reply is plain text because
+Sonar does not accept a structured-output request through OpenRouter (F344 spec, G2b).
+
+`readLabels` in `supabase/functions/factcheck/check.ts` looks only for lines that begin with `LABEL:`. A reply with no
+such line is stored as `error` with `fail_reason` `no_label`, the panel shows "Check failed", and "Check again" costs
+100 credits (read from code).
+
+## Problem
+
+Executed 2026-11-18, read-only, on NTER: of 78 check calls so far, 69 succeeded, 8 were `unusable: no_label` and 1 failed
+before reaching the provider (see F353). The 8 rejected replies were 30 to 65 completion tokens long, the same range as
+the accepted ones (32 to 75), so they were not empty and not cut off. All 8 re-checks that have been run succeeded.
+(The tracker's first figure, 9 of 48, covered the first three sessions only and counted the F353 call as a ninth.)
+
+Executed 2026-11-18: the 9 distinct claims whose checks had failed were sent again 5 times each (45 calls, US$0.24) with
+the repository's own prompt, model, temperature and reader. 14 of the 45 replies were rejected as `no_label`. Every one
+of the 14 was a well-formed verdict in a slightly different layout:
+
+| Layout of the rejected reply | Count |
+|---|---|
+| First line is the label alone, then a `REASON:` line | 8 |
+| First line is `<label>: <reason>`, nothing else | 4 |
+| First line is the label alone, then the reason with no `REASON:` | 2 |
+
+The label was sometimes in capitals (`PARTLY TRUE`, `SUPPORTED`). The other 31 replies had the asked-for layout. No reply
+was empty, cut off (`finish_reason` was `stop` in all 45) or without sources (8 sources in all 45).
+
+So the cause is established: Sonar sometimes drops the word `LABEL:`, and the reader requires it. The tracker's earlier
+guess that "Check again" would repeat the same reply is wrong: the same claim gave both layouts across runs at
+temperature 0.
+
+The raw replies are kept outside the repository, with the script that produced them.
+
+## Expected outcome
+
+A reply that opens with one of the five labels is accepted as that verdict. The owner stops seeing "Check failed" for a
+check that in fact succeeded, and stops paying 100 credits to retry it.
+
+## Decisions
+
+- **S1. Read a bare opening label.** Only when the reply has no `LABEL:` line at all, the first non-empty line is read.
+  The same line prefix that `readLabels` allows today (spaces, `*`, `_`, `#`, `>`, `-`) is skipped, so "## Supported"
+  and "> Supported" count. The line is accepted when what remains, after the existing normalisation (case, markdown
+  marks, a trailing full stop), is exactly one of the five labels, or one of the five labels followed by a colon and
+  then anything. Bold marks may sit on either side of the colon. A colon with nothing after it is the label alone.
+  Anything else stays `no_label`.
+- **S2. A `LABEL:` line still wins.** When the reply has one or more `LABEL:` lines, today's rules apply unchanged
+  (`bad_label`, `label_conflict`). The new rule cannot change the outcome of a reply that is accepted or rejected for
+  those reasons today. This includes a reply whose first line is a bare label and whose later `LABEL:` line names a
+  different one: the `LABEL:` line is used, as today, and the bare line is ignored.
+- **S3. The label must stand alone.** A first line such as "Supported by three sources, the claim..." is not a label and
+  stays `no_label`. The only separator after the label is a colon. A dash is not accepted: no reply in the replay used
+  one, and a dash would let "Supported-by official data" through.
+- **S4. The reason.** The `REASON:` line when there is one. Otherwise the text after the label: the rest of the first
+  line after the colon, or else the following lines up to a `SOURCES:` or `LABEL:` line, the same stop rule as today.
+  Cleaned and clipped to 400 characters as today.
+- **S5. Bold marks are removed from the reason.** Replies in the replay contained `**11.63%**`. The panel shows the
+  reason as plain text (`FactCheckPanel.jsx`, read from code), so the asterisks would be visible. `**` is removed from
+  the reason in both the old and the new path. Whether a stored reason already shows asterisks was not looked up.
+- **S6. One reader.** `replyFailure` and `parseVerdict` must keep agreeing, so both use the same label reader. The source
+  rule (a label other than "No evidence found" needs at least one source) is unchanged.
+- **S7. No prompt change and no second model call.** The prompt decides the verdicts; changing it would need a new
+  accuracy measurement. A second call would add about 3 seconds and US$0.005 to cover a case S1 already covers.
+- **S8. Nothing else is logged.** The reply text is still never stored or logged.
+
+Security note: the claim is untrusted speech. A spoken sentence that could make the model answer with a bare label could
+equally make it answer with a `LABEL:` line today, so S1 opens nothing new. The reason is still clipped and shown as
+plain text.
+
+## Owner decision
+
+- **OD1. Should "Check again" stay at 100 credits when the failure was only the reply's layout?** Recommendation: leave
+  the price alone now. After S1 the layout failures seen so far all become verdicts, so there may be nothing left to
+  price. Look at the failure count after the next sessions and decide then. Making a retry free would change billing
+  code, which is a sensitive scope.
+
+## Not in this plan
+
+- Verdicts that differ between runs of the same claim (F352).
+- The check call that failed in 3 ms before reaching the provider (F353).
+- Any browser change, migration, flag change or price change.
+- Changing the model, the prompt, the temperature or the token limit.
+
+## Fixed interface
+
+No signature changes. `replyFailure(reply, sourceCount)` and `parseVerdict(reply)` keep their types; `verdictFor`,
+`checkAction` and `recheck.ts` are not edited. `FailReason` keeps its four values.
+
+## Tasks
+
+Sequential, one builder, one write scope.
+
+### T1. Bare-label reading (builder)
+
+- **Write scope:** `supabase/functions/factcheck/check.ts`, `supabase/functions/factcheck/check_test.ts`.
+- **Tests first, seen failing before the change:**
+  - label alone on line 1, `REASON:` on line 2: accepted, reason from the `REASON:` line;
+  - `<label>: <reason>` on one line: accepted, reason is the text after the colon;
+  - label alone on line 1, reason on line 2 with no `REASON:`: accepted, reason is line 2;
+  - capitals, bold marks, a trailing full stop and trailing spaces on the bare label: accepted;
+  - each of the five labels in bare form, including "No evidence found" with zero sources (accepted) and "Supported"
+    with zero sources (`no_sources`);
+  - `**Supported:** reason`, `**Supported**: reason`, `## Supported` and `> Supported`: accepted;
+  - `Supported:` with nothing after it, reason on the next line: accepted;
+  - a bare label followed by reason lines and then a `SOURCES:` line: the reason stops before `SOURCES:`;
+  - `[1]` citation marks and `**` removed from the reason in both paths.
+- **Tests that must stay rejected (`no_label`):** prose that begins with a label word ("Supported by ...", "Opinion
+  polls show ..."); a dash or a hyphen after the label (`Supported - reason`, `Supported — reason`, `Supported-by ...`,
+  `Opinion-based ...`); a label on the second non-empty line only; an empty reply; `null`.
+- **Tests that must not change:** a reply with a `LABEL:` line naming no label stays `bad_label` even when its first
+  line is a bare label; a bare "Supported" first line with a later `LABEL: Contradicted` is Contradicted; two `LABEL:` lines that differ stay `label_conflict`; every existing test in
+  `check_test.ts` and `recheck_test.ts` passes unedited, apart from additions.
+- **Agreement test:** for every string in the test table, `replyFailure(s, 1) === null` exactly when
+  `parseVerdict(s)` is defined.
+- **Acceptance:** all of the above, and no line of `check.ts` outside the label reader, the reason reader and their
+  comments is changed.
+- **Verify:** `deno test -A --config supabase/functions/deno.json supabase/functions`.
+
+### T2. Replay against the saved replies (supervisor)
+
+- Run the real patched `replyFailure` and `parseVerdict`, imported from the checkout, over the 45 saved replies with a
+  script kept beside them outside the repository (the earlier `shapes.ts` there used a prototype rule, not the reader).
+- **Acceptance:** the 14 rejected replies are accepted with the label a person reads in them; the verdicts of the 31
+  accepted replies are identical before and after; reasons are non-empty for all 45.
+
+### T3. Review (independent reviewer, then supervisor)
+
+- Review T1 for correctness and for any way S1 could turn prose into a verdict. Findings fixed and re-verified.
+- **Gates (supervisor reproduces):** `npm run lint`, `npm run build`, `npm test` and the Deno suite above. No SQL changed, so the SQL
+  fixtures run in CI only.
+
+### T4. Tracker and pull request (supervisor)
+
+- Record the result in this file and in F351. Open the pull request. Merge only on the owner's yes naming the number.
+
+## Release
+
+Needs the owner's exact yes for each: merging the pull request, then deploying function `factcheck` (version 6) from
+`main`. No migration. Deploy only when no session is active. Rollback: redeploy the previous commit of the function;
+no stored data changes shape.
+
+## Acceptance evidence after release
+
+- Outside checks on the function as before (405, 401, 401, 403).
+- One real session on the live site. Afterwards, read from the log: count of `unusable: no_label` among the check
+  calls of that session. Expected 0; any that remain are looked at with the replay script, and OD1 is decided on the
+  figure.
+
+## Risks
+
+| Risk | Effect | Handling |
+|---|---|---|
+| A prose reply that opens with a label word is taken as a verdict | A wrong verdict is shown | S3 and the rejection tests; every label but "No evidence found" still needs a source |
+| The model writes "Opinion: I cannot verify this" or "No evidence found: but reports suggest ..." as ordinary English | Shown as Opinion or No evidence found, which need no source | Accepted: both are the cautious labels, and the same words after `LABEL:` are accepted today |
+| Sonar starts using a third layout | Some checks still fail | Counted after release; the replay script shows the layout |
+| The fix hides the instability in F352 | A verdict looks more certain than it is | F352 is tracked separately and is not closed by this plan |
