@@ -23,16 +23,36 @@ National ingestion cannot continue at scale today, for five reasons:
 1. **The search gate is unresolved.** Spec §7 allows no desk's result to fall after a load. Regulatory fell from 50
    to 40 of 55 ([record](../operations/2026-11-16-regulatory-load.md)); nobody has judged whether the newer documents
    answer the ten lost questions equally well, and the script's verdict line compares the wrong mode.
-2. **Capacity arrives inside v1.4.** Regulatory v1.4 is estimated at 570,000 chunks and Parliamentary Questions v1.4
-   at roughly 300,000 (by character count, not measured). That is about 1.7 million chunks, about 30 GB on a 40 GB
-   disk, and vector indexes of about 6.6 GB against 8 GB of memory. F279 was planned for 1 million documents; it is
-   needed at about 100,000.
-3. **Most remaining entries have no path.** No screen configuration for the other v1.1 collections; no partition for
-   Parliamentary Questions or any new desk (F285's function is built, not applied); no way to replace existing text
-   (v1.2's 1,819, v1.4's 7,801 RBI fixes, v1.6's 7,068); RBI's official files cannot be page-checked (F338).
-4. **The inventory is incomplete.** v1.3, v1.5 and v1.6 are not read by collection, and five v1.1 collections are
-   not counted.
+2. **Capacity is short by several times.** The packs' own manifests (read 2026-11-18, see "What the packs hold")
+   list about 210,000 servable, in-scope documents not yet loaded, with about 1.5 million pages. At roughly two chunks
+   a page (the v1.4 questions: 148,224 pages, 238.6 million characters) that is 3 to 4 million more chunks: an
+   estimate, not a measurement. At today's 14 kB a chunk that is 45 to 60 GB on a 40 GB disk, and vector indexes of
+   15 to 20 GB against 8 GB of memory. F279 was planned for 1 million documents; it is needed before v1.4.
+3. **Most remaining entries have no path.** The packs feed 16 desks. Three have a partition and an admission path
+   (Bills, Parliamentary Questions without a partition, Regulatory). The others, among them Statement & Quote
+   Tracker, National Morning Brief, Policy Intelligence Graph, Budget and Cabinet Decisions, have no screen
+   configuration, no partition (F285's function is built, not applied) and no approved policy. Existing text cannot
+   be replaced through the runner (v1.2's 1,819, v1.4's 7,801 RBI fixes, v1.6's 7,068), and RBI's official files
+   cannot be page-checked (F338).
+4. **The inventory is by manifest only.** v1.4 does not state `servable` in its manifest, and licence classes, desk
+   names and character counts per entry are read for Bills, questions and part of Regulatory only.
 5. **The runner depends on a laptop staying awake.** Acceptance ended without a report three times in the last load.
+
+## What the packs hold (manifests, read 2026-11-18; counts only)
+
+| Pack | Records | Pages | Not servable | Main contents |
+|---|---|---|---|---|
+| v1.1 | 24,821 | not stated | not stated | Bills 9,709, questions 6,840, Regulatory 3,319, MP profiles 3,157, cabinet 868, budget 486, corrigenda 365, transfer orders 29, industry 28 |
+| v1.2 | a delta | | | text replacements, recovered bills; affidavits (out of scope) |
+| v1.3 | 8,359 new | 3,415 | not stated | Regulatory 8,311 (RBI releases and notifications, SEBI), industry 37; also page boxes for 14,959 earlier documents |
+| v1.4 | 117,631 | 1,115,897 | not stated | questions 49,330, Regulatory 38,091, Morning Brief 8,939, Budget 7,091, Policy Intelligence Graph 6,352, Cabinet 4,100, statements 1,501, library bills 1,104 |
+| v1.5 | 108,217 | 1,664,405 | 42,974 | Regulatory 36,071 (IBBI orders 10,056, SEBI orders 13,709, RBI 12,305), statements 21,079, library items 19,541, Morning Brief 12,525, Policy Intelligence Graph 12,096, affidavits 5,248 (out) |
+| v1.6 | 204,975 | 1,128,303 | 175,669 | library questions 144,694 (not servable), Regulatory 21,669 (IBBI 17,976, CCI 3,690), library items 17,018, statements 12,373, 7,068 replacements |
+
+Not yet loaded, servable and in scope, by subtraction: v1.1 about 4,900, v1.3 8,359, v1.4 up to 117,631, v1.5 about
+60,900, v1.6 about 26,800. The Parliament Library entries wait on the owner's permission; if it arrives it adds about
+190,000 documents. Open scope question for the owner: the 28,032 IBBI insolvency orders sit under Regulatory in the
+packs while legal is on hold.
 
 ## Outcome
 
@@ -64,9 +84,9 @@ A reviewer gets the code, the data and the rules, never the writer's conclusions
 | Task | Who | Write scope | Done when |
 |---|---|---|---|
 | E1. Search-check evidence: for the ten lost questions, the reference document and the documents now ranked above it, judged blind for whether each answers the question | supervisor extracts (NTER read-only); senior reviewer judges without knowing which document is the reference | none (results outside the repository) | a count of the ten where a newer document answers at least as well; the index miss (`q-0133`) listed apart |
-| E2. `eval-retrieval.mjs --compare` judges the mode that ran | engineering agent | `scripts/eval-retrieval.mjs` and its test | a test fails on today's code for a feature-mode loss, then passes; `npm test`, lint |
-| E3. Inventory: v1.1's uncounted collections, and v1.3, v1.5 and v1.6 by entry | documentation agent, with `pack.ts select` | none (receipts outside the repository) | per entry: records, servable, licence class, characters, desk name, replacements |
-| E4. Capacity figures for F279 | supervisor (NTER read-only), then engineering agent on the local load copy | none | per partition: bytes per chunk for table, vector index and keyword index; buffer hit rates; projected size and memory at 1.7 and 3 million chunks for each §5.4 option that needs no new vendor |
+| E2. `eval-retrieval.mjs --compare` judges the mode that ran | engineering agent | `src/lib/retrievalEval.js` and its test; the script's header | a test fails on today's code for a feature-mode loss, then passes; `npm test`, lint |
+| E3. Inventory by entry. Manifest counts are done (above). Remaining: per entry of v1.3 to v1.6, servable, licence class, characters and the desk name as spelled | documentation agent, with `pack.ts select` | none (receipts outside the repository) | one row per entry; chunk estimate from characters |
+| E4. Capacity figures for F279 | supervisor (NTER read-only), then engineering agent on the local load copy | none | per partition: bytes per chunk for table, vector index and keyword index; buffer hit rates; projected size and memory at 2, 4 and 6 million chunks for each §5.4 option that needs no new vendor |
 
 **Gate 0 (developer):** accept the Regulatory load or name the correction; choose the F279 option; say whether the
 5.3 GB backup table may be dropped (a deletion, so its own specific yes).
@@ -98,11 +118,11 @@ Order, smallest risk first; each is policy, rehearsal on the local copy, a 100-d
 the §7 search gate, and a record:
 
 1. the other v1.1 collections that need no owner answer;
-2. Regulatory v1.4 (about 38,000 new records), after F338 is decided for RBI;
+2. Regulatory v1.3 and v1.4 (about 46,000 new records), after F338 is decided for RBI;
 3. v1.2 and v1.4 replacements, through B3;
 4. Parliamentary Questions v1.4 (49,330), after listing rows, the key and the partition;
 5. MP profiles (3,157), after the personal-data note; then the 122,776 handover records as their own collection;
-6. v1.6's servable entries.
+6. the desks that are new to the corpus, one policy each, v1.4 to v1.6 together per desk.
 
 **Gate 2 (phase-gate review):** after the first v1.4 collection, whether it loaded with no hand steps and whether
 size and memory match E4's projection. Only then do the remaining loads run back to back.
