@@ -205,6 +205,11 @@ chain() {
     factcheck_lengths)
       chain factcheck_fail_reason
       FILES+=("$(as_non_superuser 20261119090000_factcheck_session_lengths.sql)") ;;
+    # F362: the administrator's list of open reports. The session-lengths chain, then the reports-admin migration, as a
+    # non-superuser. The vacuity check drops the last: the function is missing and the first assertion fails.
+    factcheck_reports_admin)
+      chain factcheck_lengths
+      FILES+=("$(as_non_superuser 20261121090000_factcheck_reports_admin.sql)") ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;

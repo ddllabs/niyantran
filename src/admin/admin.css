@@ -1221,3 +1221,20 @@ a.adm-btn {
     animation: none !important;
   }
 }
+
+/* F362: Fact-check reports. */
+.adm-fcr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.adm-fcr-item { margin-bottom: 0; overflow-wrap: anywhere; }
+.adm-fcr-claim { margin: 0 0 6px; font-size: 16px; letter-spacing: 0; text-transform: none; line-height: 1.35; }
+.adm-fcr-meta { margin: 0 0 8px; font: 12px var(--adm-mono); color: var(--adm-muted); }
+.adm-fcr-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.adm-fcr-reason { margin: 0 0 8px; font-size: 13px; }
+.adm-fcr-sources, .adm-fcr-reasons { margin: 0 0 8px; padding-left: 18px; font-size: 13px; }
+.adm-fcr-sources a { color: var(--adm-blue); }
+.adm-fcr-sub { margin: 12px 0 6px; font-size: 13px; color: var(--adm-black); }
+.adm-fcr-when { font-weight: 400; color: var(--adm-muted); }
+.adm-fcr-confirm { margin-top: 10px; padding: 12px; border: 1px solid var(--adm-red); border-radius: 10px; background: #fdf3f4; font-size: 13px; }
+.adm-fcr-confirm p { margin: 0 0 8px; }
+.adm-fcr-confirm:focus-visible, .adm-fcr .adm-btn:focus-visible { outline: 2px solid var(--adm-blue); outline-offset: 2px; }
+.adm-fcr-error { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
+.adm-fcr-error .adm-msg { margin: 0; font-size: 13px; }

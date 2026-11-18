@@ -6,6 +6,7 @@ import { ApisPage, OverviewPage, UsersPage } from './AdminPages.jsx';
 import { AiModelsPage } from './AiModelsPage.jsx';
 import { AiPersonasPage } from './AiPersonasPage.jsx';
 import { SiteSettingsPage } from './AdminSitePages.jsx';
+import { FactcheckReportsPage } from './FactcheckReportsPage.jsx';
 import { hydrateUsersFromServer, loadUsers, usersPaging } from '../lib/userStore.js';
 import { isDue, loadRefreshCfg, refreshProgress } from '../lib/refreshStore.js';
 import { sweepApis } from '../lib/refreshFeeds.js';
@@ -22,6 +23,7 @@ const NAV = [
   { id: 'ai', label: 'AI models' },
   { id: 'personas', label: 'AI personas' },
   { id: 'documents', label: 'Documents' },
+  { id: 'factcheck', label: 'Fact-check reports' },
   { id: 'site', label: 'Website' },
 ];
 
@@ -209,6 +211,7 @@ export default function AdminApp() {
               <DocumentsPage />
             </Suspense>
           )}
+          {view === 'factcheck' && <FactcheckReportsPage />}
           {view === 'site' && <SiteSettingsPage />}
         </div>
       </div>
