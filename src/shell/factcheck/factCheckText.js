@@ -2,7 +2,7 @@
 // the network or the browser, so every sentence can be tested.
 import { creditsText } from '../../lib/creditsStore.js';
 
-export const MINUTE_CHOICES = [1, 2, 5, 10, 15];
+export const MINUTE_CHOICES = [1, 2, 5, 10, 15, 20, 30];
 
 /** Measured on 2026-11-17: the transcript runs a median 13.2 s behind the speaker, rounded up. */
 export const DELAY_SECONDS = 14;

@@ -144,8 +144,10 @@ Deno.test('invalid start input is a 400 and never reaches the database', async (
     { minutes: 7 },
     { minutes: 3 },
     { minutes: 4 },
-    { minutes: 20 },
-    { minutes: 30 },
+    { minutes: 25 },
+    { minutes: 31 },
+    { minutes: 45 },
+    { minutes: 60 },
     { minutes: '5' },
     { minutes: 5.5 },
     { minutes: 0 },
@@ -165,7 +167,7 @@ Deno.test('invalid start input is a 400 and never reaches the database', async (
 });
 
 Deno.test('start_position_s may be null or absent, and every block size is accepted', async () => {
-  for (const minutes of [1, 2, 5, 10, 15]) {
+  for (const minutes of [1, 2, 5, 10, 15, 20, 30]) {
     const h = harness();
     assertEquals((await handleFactcheck(jsonRequest(body({ minutes })), h.deps)).status, 200);
     assertEquals(h.rpcCalls[0].args.p_minutes, minutes);
@@ -177,7 +179,7 @@ Deno.test('start_position_s may be null or absent, and every block size is accep
 });
 
 Deno.test('the refusal text names every length, for a bad request and for the SQL bad_minutes answer', async () => {
-  const text = 'minutes must be 1, 2, 5, 10 or 15.';
+  const text = 'minutes must be 1, 2, 5, 10, 15, 20 or 30.';
   const h = harness();
   const res = await handleFactcheck(jsonRequest(body({ minutes: 3 })), h.deps);
   assertEquals(res.status, 400);
