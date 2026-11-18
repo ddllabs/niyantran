@@ -256,7 +256,9 @@ Deno.test('the charge is made only after a saved checked verdict: not for a prov
       const json = await res.json();
       assertEquals([json.claim.status, json.claim.verdict, json.credits_charged], ['error', null, 0], why);
     } else assertEquals((await res.text()).includes('provider-secret'), false);
-    assertEquals(h.logRows.length, 1, `${why}: the call is still logged`);
+    // An unreadable reply (prose, a label outside the five) is asked three times; every call is logged.
+    const asked = why === 'prose' || why === 'out-of-enum label' ? 3 : 1;
+    assertEquals(h.logRows.length, asked, `${why}: every call is still logged`);
   }
 });
 
@@ -538,4 +540,20 @@ Deno.test('a checked re-check has fail_reason null, and a provider failure marks
   f.models.check = () => new Response('x', { status: 500 });
   assertEquals((await handleFactcheck(req(), f.deps)).status, 502);
   assertEquals([newRow(f).status, newRow(f).fail_reason ?? null], ['error', null]);
+});
+
+Deno.test('F351: a re-check whose first reply is unreadable asks again, makes two calls and is charged once', async () => {
+  const h = setup();
+  let n = 0;
+  h.models.check = () =>
+    n++ === 0
+      ? chatPayload('prose without a label', { citations: ['https://example.org/a'] })
+      : checkReply('Supported', 'Official data confirm it.', { citations: ['https://example.org/a'] });
+  const res = await handleFactcheck(req(), h.deps);
+  assertEquals(res.status, 200);
+  const json = await res.json();
+  assertEquals([json.claim.status, json.claim.verdict, json.credits_charged], ['checked', 'supported', 100]);
+  assertEquals(h.fetches.length, 2);
+  assertEquals(calls(h, 'factcheck_recheck_charge').length, 1);
+  assertEquals(h.logRows.map((r) => r.error_message ?? null), ['unusable: no_label', null]);
 });
