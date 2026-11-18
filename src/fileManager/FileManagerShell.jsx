@@ -23,8 +23,6 @@ import {
   Loader2,
   X,
   Building2,
-  Database,
-  FileText,
   AlertCircle,
   Filter,
 } from 'lucide-react';
@@ -35,7 +33,9 @@ import DriveBreadcrumbs from './DriveBreadcrumbs.jsx';
 import DriveBrowser from './DriveBrowser.jsx';
 import DriveBulkBar from './DriveBulkBar.jsx';
 import DriveJobsDrawer from './DriveJobsDrawer.jsx';
-import PdfPreviewModal from './PdfPreviewModal.jsx';
+import FilePreviewModal from './FilePreviewModal.jsx';
+import IndexConfirmationModal from './IndexConfirmationModal.jsx';
+import MoveItemsModal from './MoveItemsModal.jsx';
 import UploadQueuePanel from './UploadQueuePanel.jsx';
 
 export default function FileManagerShell({ onClose } = {}) {
@@ -93,8 +93,6 @@ export default function FileManagerShell({ onClose } = {}) {
     // Actions
     refresh,
     clearFilters,
-    handleNewBase,
-    handleNewDoc,
     navigateToFolder,
     handleSelectFolder,
     handleSelectFile,
@@ -123,6 +121,9 @@ export default function FileManagerShell({ onClose } = {}) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [folderNameInput, setFolderNameInput] = useState('');
   const [renameInput, setRenameInput] = useState('');
+  const [indexConfirmTarget, setIndexConfirmTarget] = useState(null);
+  const [isBulkIndexConfirmOpen, setIsBulkIndexConfirmOpen] = useState(false);
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
 
   // Drag and Drop files onto workspace
   const handleDragEnter = (e) => {
@@ -402,28 +403,6 @@ export default function FileManagerShell({ onClose } = {}) {
                 <span>New Folder</span>
               </button>
 
-              {/* New Base Action */}
-              <button
-                type="button"
-                className="fm-btn fm-btn-toolbar"
-                onClick={handleNewBase}
-                title="Configure Knowledge Base"
-              >
-                <Database size={14} />
-                <span>New Base</span>
-              </button>
-
-              {/* New Doc Action */}
-              <button
-                type="button"
-                className="fm-btn fm-btn-toolbar"
-                onClick={handleNewDoc}
-                title="Create new document in Terminal Editor"
-              >
-                <FileText size={14} />
-                <span>New Doc</span>
-              </button>
-
               {/* Upload Here Action (Primary Accent) */}
               <button
                 type="button"
@@ -525,7 +504,7 @@ export default function FileManagerShell({ onClose } = {}) {
           onOpenFolder={(f) => navigateToFolder(f.id)}
           onPreviewFile={(f) => setPreviewFile(f)}
           onDownloadFile={handleDownload}
-          onIndexFile={handleIndex}
+          onIndexFile={(f) => setIndexConfirmTarget(f)}
           onChatWithFile={handleChatWithFile}
           onRenameItem={openRenameModal}
           onTrashItem={(item, kind) => handleSoftDelete([item.id], kind)}
@@ -541,13 +520,8 @@ export default function FileManagerShell({ onClose } = {}) {
         totalSizeBytes={totalSelectedSizeBytes}
         view={view}
         hasPdfFiles={hasSelectedPdf}
-        onIndex={handleBulkIndex}
-        onMove={() => {
-          const target = prompt('Enter target folder ID (or leave empty for root):');
-          if (target !== null) {
-            handleMove(target.trim() || null);
-          }
-        }}
+        onIndex={() => setIsBulkIndexConfirmOpen(true)}
+        onMove={() => setIsMoveModalOpen(true)}
         onDownload={handleBulkDownload}
         onTrash={() => {
           if (selectedFileIds.length > 0) handleSoftDelete(selectedFileIds, 'file');
@@ -581,12 +555,43 @@ export default function FileManagerShell({ onClose } = {}) {
       />
 
       {/* ─── Preview Modal ───────────────────────────────────────────────────── */}
-      <PdfPreviewModal
+      <FilePreviewModal
         file={previewFile}
         isOpen={!!previewFile}
         onClose={() => setPreviewFile(null)}
         onDownload={handleDownload}
         onChatWithFile={handleChatWithFile}
+      />
+
+      {/* ─── AI Indexing Confirmation Modal (Single File) ────────────────────── */}
+      <IndexConfirmationModal
+        file={indexConfirmTarget}
+        isOpen={!!indexConfirmTarget}
+        onClose={() => setIndexConfirmTarget(null)}
+        onConfirm={() => {
+          if (indexConfirmTarget) {
+            handleIndex(indexConfirmTarget);
+          }
+        }}
+      />
+
+      {/* ─── AI Indexing Confirmation Modal (Batch) ──────────────────────────── */}
+      <IndexConfirmationModal
+        isBatch
+        batchFiles={files.filter((f) => selectedFileIds.includes(f.id) && f.mime_type === 'application/pdf')}
+        isOpen={isBulkIndexConfirmOpen}
+        onClose={() => setIsBulkIndexConfirmOpen(false)}
+        onConfirm={handleBulkIndex}
+      />
+
+      {/* ─── Move Items Modal ────────────────────────────────────────────────── */}
+      <MoveItemsModal
+        isOpen={isMoveModalOpen}
+        onClose={() => setIsMoveModalOpen(false)}
+        folders={folders}
+        selectedFolderIds={selectedFolderIds}
+        selectedFileIds={selectedFileIds}
+        onConfirmMove={handleMove}
       />
 
       {/* ─── Create Folder Modal ─────────────────────────────────────────────── */}

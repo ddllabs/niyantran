@@ -22,6 +22,7 @@ import {
   listFilesAndFolders,
   getDownloadUrl,
   formatBytes,
+  setIndexingBillingDeployedForTesting,
 } from './fileManagerService.js';
 import { resolvePreviewKind, STORAGE_TIER_QUOTA_BYTES } from '../types/fileManager.ts';
 import { supabase } from '../lib/supabaseClient.js';
@@ -294,8 +295,14 @@ describe('Feature F341 — Full Multi-Tenant E2E User Journey & Release Gate', (
     const dl = await getDownloadUrl(storedFile.id);
     expect(dl).toContain('Corporate_Audit_2026.pdf');
 
-    // 5. User A explicitly triggers AI indexing
-    const indexRes = await indexForAi(storedFile.id);
+    // 5. User A explicitly triggers AI indexing (under billing flag)
+    setIndexingBillingDeployedForTesting(true);
+    let indexRes;
+    try {
+      indexRes = await indexForAi(storedFile.id);
+    } finally {
+      setIndexingBillingDeployedForTesting(false);
+    }
     expect(indexRes.success).toBe(true);
     expect(indexRes.status).toBe('indexing_queued');
     expect(storedFile.index_status).toBe('indexing_queued');

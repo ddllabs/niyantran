@@ -226,6 +226,11 @@ export default function DriveJobsDrawer({ isOpen, onClose, onJobUpdated }) {
                         {fileSize && <span>{formatBytes(fileSize)}</span>}
                         {job.created_at && <span>· {formatRelativeDate(job.created_at)}</span>}
                         {job.attempt_count > 0 && <span>· Attempt {job.attempt_count}/3</span>}
+                        {job.credits_settled_paise > 0 ? (
+                          <span>· Settled: {job.credits_settled_paise} credits (₹{(job.credits_settled_paise / 100).toFixed(2)})</span>
+                        ) : job.credits_hold_paise > 0 && job.status !== 'completed' ? (
+                          <span>· Reserved: {job.credits_hold_paise} credits</span>
+                        ) : null}
                       </div>
                     </div>
 

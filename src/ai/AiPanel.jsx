@@ -1,6 +1,8 @@
 import DictationButton from '../components/DictationButton.jsx';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
+import { HardDrive, Upload } from 'lucide-react';
+import FileManagerPickerModal from './FileManagerPickerModal.jsx';
 import { setChatAttachments } from '../lib/aiThreads.js';
 import { filesFromDrop, handOffAiDrop, materializeAiDrop, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
@@ -176,19 +178,31 @@ export function researchSelection(row) {
  */
 export function requestAttachments(pins) {
   return (pins || [])
-    .map((a) => a.kind === 'document' ? {
-      kind: 'document',
-      title: String(a.title || 'Document'),
-      document_id: String(a.document_id || ''),
-    } : ({
-      kind: a.kind === 'row' || a.kind === 'record' ? a.kind : 'file',
-      title: String(a.title || a.feature || 'Attachment'),
-      text: String(a.text || a.preview?.record_text || ''),
-      ...(a.feature ? {feature:a.feature} : {}),
-      ...(a.tab || a.tier ? {tier:a.tab || a.tier} : {}),
-      ...(recordAttachmentIdentity(a) || {}),
-    }))
-    .filter((a) => (a.kind === 'document' ? a.document_id : a.text));
+    .map((a) => {
+      if (a.kind === 'document') {
+        return {
+          kind: 'document',
+          title: String(a.title || 'Document'),
+          document_id: String(a.document_id || ''),
+        };
+      }
+      if (a.kind === 'private_file') {
+        return {
+          kind: 'private_file',
+          title: String(a.title || 'File'),
+          file_id: String(a.file_id || ''),
+        };
+      }
+      return {
+        kind: a.kind === 'row' || a.kind === 'record' ? a.kind : 'file',
+        title: String(a.title || a.feature || 'Attachment'),
+        text: String(a.text || a.preview?.record_text || ''),
+        ...(a.feature ? { feature: a.feature } : {}),
+        ...(a.tab || a.tier ? { tier: a.tab || a.tier } : {}),
+        ...(recordAttachmentIdentity(a) || {}),
+      };
+    })
+    .filter((a) => (a.kind === 'document' ? a.document_id : a.kind === 'private_file' ? a.file_id : a.text));
 }
 
 /**
@@ -466,6 +480,36 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const modelRef = useRef(null);
   const focusRef = useRef(null);
   const historyRef = useRef(null);
+  const attachMenuRef = useRef(null);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [isFmPickerOpen, setIsFmPickerOpen] = useState(false);
+
+  useEffect(() => {
+    if (!attachMenuOpen) return;
+    const handleOutside = (e) => {
+      if (attachMenuRef.current && !attachMenuRef.current.contains(e.target)) {
+        setAttachMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleOutside);
+    return () => document.removeEventListener('pointerdown', handleOutside);
+  }, [attachMenuOpen]);
+
+  const handleAttachFromFM = useCallback((chosenFiles) => {
+    research.actions.attach(async () => {
+      return (chosenFiles || []).map((file) => ({
+        kind: 'private_file',
+        file_id: file.id,
+        title: file.name,
+        mime_type: file.mime_type,
+        size_bytes: file.size_bytes,
+      }));
+    }).then(() => {
+      setFocus('attached');
+      setScopeNotice('Attached private files — AI research will query context from your documents.');
+    });
+  }, [research.actions]);
+
   usePanelPopovers({ focusOpen, focusRef, focus, setFocusOpen, historyOpen, historyRef, pendingDelete, setHistoryOpen,
     modelOpen, modelRef, setModelOpen });
 
@@ -604,8 +648,18 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     seedOwner.current = { seed, version: research.identityVersion };
     const version = research.identityVersion;
     if (seed.prompt) research.actions.setDraft(seed.prompt);
+    if (seed.promptSeed) research.actions.setDraft(seed.promptSeed);
     void research.actions.attach(async () => {
       const bits = [...(seed.droppedFiles || [])];
+      if (seed.file) {
+        bits.push({
+          kind: 'private_file',
+          file_id: seed.file.id,
+          title: seed.file.name,
+          mime_type: seed.file.mime_type,
+          size_bytes: seed.file.size_bytes,
+        });
+      }
       const payload = seed.drop || (seed.row ? { kind: 'row', row: seed.row, feature: featureName, tab }
         : seed.attachFeed && feed ? { kind: 'feed', feature: feed.feature, tab }
         : selected ? { kind: 'row', row: selected, feature: featureName, tab } : null);
@@ -613,7 +667,10 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       return bits;
     }).then(applied => {
       if (!applied || research.actions.getSnapshot().identityVersion !== version) return;
-      if (seed.row || seed.drop?.kind === 'row' || (!seed.attachFeed && selected)) { setFocus('attached'); setScopeNotice('Attached only — searches stay within these records.'); }
+      if (seed.file || seed.row || seed.drop?.kind === 'row' || (!seed.attachFeed && selected)) {
+        setFocus('attached');
+        setScopeNotice(seed.file ? 'Attached file — AI research will query context from your private file.' : 'Attached only — searches stay within these records.');
+      }
       onSeedConsumed?.();
     });
     return undefined;
@@ -1200,16 +1257,92 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               on the left, do-it on the right. */}
           <div className="ai-v2-comp-bar">
             <div className="ai-v2-comp-tools">
-              <button
-                type="button"
-                className="ai-v2-comp-clip"
-                disabled={busy}
-                onClick={() => fileRef.current?.click()}
-                aria-label={hi ? 'फ़ाइल जोड़ें' : 'Attach a file'}
-                title={hi ? 'फ़ाइल जोड़ें' : 'Attach a file'}
-              >
-                <Ico name="clip" size={16} />
-              </button>
+              <div style={{ position: 'relative' }} ref={attachMenuRef}>
+                <button
+                  type="button"
+                  className="ai-v2-comp-clip"
+                  disabled={busy}
+                  onClick={() => setAttachMenuOpen((v) => !v)}
+                  aria-label={hi ? 'फ़ाइल जोड़ें' : 'Attach a file'}
+                  title={hi ? 'फ़ाइल जोड़ें' : 'Attach a file'}
+                >
+                  <Ico name="clip" size={16} />
+                </button>
+
+                {attachMenuOpen && (
+                  <div
+                    className="ai-v2-attach-menu"
+                    style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      left: 0,
+                      marginBottom: 6,
+                      background: 'var(--panel, #ffffff)',
+                      border: '1px solid var(--line, #e4ddd4)',
+                      borderRadius: 8,
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                      padding: 4,
+                      zIndex: 100,
+                      minWidth: 190,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 2,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="ai-v2-menu-item"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 10px',
+                        border: 0,
+                        background: 'transparent',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        color: 'var(--text, #3d3a36)',
+                      }}
+                      onClick={() => {
+                        setAttachMenuOpen(false);
+                        setIsFmPickerOpen(true);
+                      }}
+                    >
+                      <HardDrive size={14} style={{ color: 'var(--accent, #012ea1)' }} />
+                      <span>{hi ? 'फ़ाइल मैनेजर से चुनें' : 'File Manager'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="ai-v2-menu-item"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 10px',
+                        border: 0,
+                        background: 'transparent',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        color: 'var(--text, #3d3a36)',
+                      }}
+                      onClick={() => {
+                        setAttachMenuOpen(false);
+                        fileRef.current?.click();
+                      }}
+                    >
+                      <Upload size={14} style={{ color: 'var(--muted, #6d675f)' }} />
+                      <span>{hi ? 'कंप्यूटर से अपलोड करें' : 'Upload from Computer'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
               <WebSearchToggle
                 override={research.webSearch}
                 predicted={webPrediction}
@@ -1256,6 +1389,11 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       </div>
     </div>
     {evidence && viewerSlot === undefined ? evidence : null}
+    <FileManagerPickerModal
+      isOpen={isFmPickerOpen}
+      onClose={() => setIsFmPickerOpen(false)}
+      onSelectFiles={handleAttachFromFM}
+    />
     </>
   );
 }

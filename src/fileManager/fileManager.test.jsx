@@ -14,6 +14,10 @@ import {
   prepareUpload,
   completeUpload,
   indexForAi,
+  retryIndexJob,
+  cancelIndexJob,
+  setIndexingBillingDeployedForTesting,
+  IS_INDEXING_BILLING_DEPLOYED,
   createFolder,
   softDelete,
   restore,
@@ -32,6 +36,9 @@ import {
 import { supabase } from '../lib/supabaseClient.js';
 import DriveBrowser from './DriveBrowser.jsx';
 import FileManagerShell from './FileManagerShell.jsx';
+import FilePreviewModal, { resolveFilePreviewKind } from './FilePreviewModal.jsx';
+import IndexConfirmationModal from './IndexConfirmationModal.jsx';
+import MoveItemsModal from './MoveItemsModal.jsx';
 import * as useFileManagerModule from './useFileManager.js';
 import {
   filterDisplayFolders,
@@ -164,20 +171,104 @@ describe('fileManagerService — Upload Lifecycle & Quota (Capability 3 & 5)', (
   });
 });
 
-describe('fileManagerService — Explicit AI Indexing (Capability 7 & 10)', () => {
-  it('enqueues indexing via user_file_enqueue_indexing RPC', async () => {
-    const mockRpc = vi.spyOn(supabase, 'rpc').mockResolvedValueOnce({
-      data: { job_id: 'job-123', status: 'indexing_queued' },
+describe('fileManagerService — Explicit AI Indexing & Billing Safety (Capability 7 & 10)', () => {
+  it('1. rejects unbilled indexing when server billing is pending (Release A default)', async () => {
+    expect(IS_INDEXING_BILLING_DEPLOYED).toBe(false);
+    await expect(indexForAi('test-file-uuid')).rejects.toThrow(
+      /AI indexing is temporarily unavailable pending server billing deployment/
+    );
+  });
+
+  it('2. handles missing billing RPC without falling back to client table insert', async () => {
+    setIndexingBillingDeployedForTesting(true);
+    try {
+      vi.spyOn(supabase, 'rpc').mockResolvedValueOnce({
+        data: null,
+        error: { code: '42883', message: 'function user_file_enqueue_indexing does not exist' },
+      });
+      const insertSpy = vi.fn();
+      vi.spyOn(supabase, 'from').mockReturnValue({ insert: insertSpy });
+
+      await expect(indexForAi('test-file-uuid')).rejects.toThrow(/does not exist/);
+      expect(insertSpy).not.toHaveBeenCalled();
+    } finally {
+      setIndexingBillingDeployedForTesting(false);
+    }
+  });
+
+  it('3. propagates insufficient credits error and prevents execution', async () => {
+    setIndexingBillingDeployedForTesting(true);
+    try {
+      vi.spyOn(supabase, 'rpc').mockResolvedValueOnce({
+        data: null,
+        error: { code: '54000', message: 'credits_exhausted: insufficient balance in credit wallet' },
+      });
+
+      await expect(indexForAi('test-file-uuid')).rejects.toThrow(/credits_exhausted/);
+    } finally {
+      setIndexingBillingDeployedForTesting(false);
+    }
+  });
+
+  it('4. propagates business error (duplicate_job, file_trashed) without masking', async () => {
+    setIndexingBillingDeployedForTesting(true);
+    try {
+      vi.spyOn(supabase, 'rpc').mockResolvedValueOnce({
+        data: null,
+        error: { code: '23505', message: 'duplicate_job: active indexing job exists' },
+      });
+
+      await expect(indexForAi('test-file-uuid')).rejects.toThrow(/duplicate_job/);
+    } finally {
+      setIndexingBillingDeployedForTesting(false);
+    }
+  });
+
+  it('5. enqueues indexing authoritatively when billing is deployed and balance is verified', async () => {
+    setIndexingBillingDeployedForTesting(true);
+    try {
+      const mockRpc = vi.spyOn(supabase, 'rpc').mockResolvedValueOnce({
+        data: { job_id: 'job-123', status: 'indexing_queued' },
+        error: null,
+      });
+
+      const res = await indexForAi('test-file-uuid');
+      expect(mockRpc).toHaveBeenCalledWith('user_file_enqueue_indexing', {
+        p_file_id: 'test-file-uuid',
+      });
+      expect(res.success).toBe(true);
+      expect(res.job_id).toBe('job-123');
+      expect(res.status).toBe('indexing_queued');
+    } finally {
+      setIndexingBillingDeployedForTesting(false);
+    }
+  });
+
+  it('6. upload and preview still work completely normally when indexing is disabled', async () => {
+    expect(IS_INDEXING_BILLING_DEPLOYED).toBe(false);
+    vi.spyOn(supabase, 'rpc').mockResolvedValueOnce({
+      data: {
+        file_id: 'file-uploaded-1',
+        storage_path: 'user-files/tenant/file.pdf',
+        signed_upload_url: 'https://storage.mock/upload',
+        expires_in: 3600,
+      },
       error: null,
     });
 
-    const res = await indexForAi('test-file-uuid');
-    expect(mockRpc).toHaveBeenCalledWith('user_file_enqueue_indexing', {
-      p_file_id: 'test-file-uuid',
+    const prep = await prepareUpload({
+      name: 'annual_report.pdf',
+      size_bytes: 50000,
+      mime_type: 'application/pdf',
+      sha256: 'a'.repeat(64),
     });
-    expect(res.success).toBe(true);
-    expect(res.job_id).toBe('job-123');
-    expect(res.status).toBe('indexing_queued');
+    expect(prep.file_id).toBe('file-uploaded-1');
+  });
+
+  it('7. retry and cancellation fail safely without direct table insert bypass', async () => {
+    expect(IS_INDEXING_BILLING_DEPLOYED).toBe(false);
+    await expect(retryIndexJob('job-1', 'file-1')).rejects.toThrow(/temporarily unavailable/);
+    await expect(cancelIndexJob('job-1', 'file-1')).rejects.toThrow(/temporarily unavailable/);
   });
 });
 
@@ -660,6 +751,19 @@ describe('FileManager UI/UX — Navigation Tabs & Workspaces', () => {
     expect(html).toContain('Enterprise');
     expect(html).toContain('AI Artifacts');
     expect(html).toContain('Trash');
+  });
+
+  it("renders toolbar with only supported actions (Index Queue, New Folder, Upload Here) and excludes New Base and New Doc", () => {
+    vi.spyOn(useFileManagerModule, 'useFileManager').mockReturnValue({
+      ...baseHookState,
+      view: 'all',
+    });
+    const html = renderToStaticMarkup(<FileManagerShell />);
+    expect(html).toContain('Index Queue');
+    expect(html).toContain('New Folder');
+    expect(html).toContain('Upload Here');
+    expect(html).not.toContain('New Base');
+    expect(html).not.toContain('New Doc');
   });
 
   it("marks 'My Files' tab as active when view is 'all'", () => {
@@ -1212,5 +1316,155 @@ describe('FileManager UI/UX — Table Columns & Dual Status Pills', () => {
     expect(html).toContain('fm-pill-failed');
     expect(html).toContain('Failed');
     expect(html).toContain('OCR extraction timed out after 30 seconds');
+  });
+});
+
+
+describe('FilePreviewModal & Multi-Format Resolution (Phase 3)', () => {
+  it('accurately resolves preview kinds from MIME type and filename extensions', () => {
+    expect(resolveFilePreviewKind('application/pdf', 'doc.pdf')).toBe('pdf');
+    expect(resolveFilePreviewKind('', 'report.pdf')).toBe('pdf');
+    expect(resolveFilePreviewKind('image/png', 'photo.png')).toBe('image');
+    expect(resolveFilePreviewKind('', 'photo.webp')).toBe('image');
+    expect(resolveFilePreviewKind('text/csv', 'data.csv')).toBe('csv');
+    expect(resolveFilePreviewKind('', 'dataset.tsv')).toBe('csv');
+    expect(resolveFilePreviewKind('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'sheet.xlsx')).toBe('spreadsheet');
+    expect(resolveFilePreviewKind('', 'financials.xls')).toBe('spreadsheet');
+    expect(resolveFilePreviewKind('text/markdown', 'notes.md')).toBe('markdown');
+    expect(resolveFilePreviewKind('', 'script.py')).toBe('code');
+    expect(resolveFilePreviewKind('text/javascript', 'app.js')).toBe('code');
+    expect(resolveFilePreviewKind('text/plain', 'log.txt')).toBe('text');
+    expect(resolveFilePreviewKind('application/zip', 'archive.zip')).toBe('unsupported');
+    expect(resolveFilePreviewKind('image/svg+xml', 'diagram.svg')).toBe('unsupported');
+    expect(resolveFilePreviewKind('', 'vector.svg')).toBe('unsupported');
+  });
+
+  it('renders modal with title, size, and download button when open', () => {
+    const file = {
+      id: 'f-preview',
+      name: 'financial_model.xlsx',
+      mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      size_bytes: 45000,
+    };
+    const html = renderToStaticMarkup(
+      <FilePreviewModal
+        file={file}
+        isOpen={true}
+        onClose={vi.fn()}
+        onDownload={vi.fn()}
+        onChatWithFile={vi.fn()}
+      />
+    );
+    expect(html).toContain('financial_model.xlsx');
+    expect(html).toContain('43.9 KB');
+    expect(html).toContain('Download');
+    expect(html).toContain('✦ Ask AI');
+  });
+
+  it('safely disables inline preview for SVG files and shows security disclosure', () => {
+    const svgFile = {
+      id: 'f-svg-preview',
+      name: 'architecture.svg',
+      mime_type: 'image/svg+xml',
+      size_bytes: 8500,
+    };
+    const html = renderToStaticMarkup(
+      <FilePreviewModal
+        file={svgFile}
+        isOpen={true}
+        onClose={vi.fn()}
+        onDownload={vi.fn()}
+      />
+    );
+    expect(html).toContain('architecture.svg');
+    expect(html).toContain('SVG Preview Disabled for Security');
+    expect(html).toContain('Download architecture.svg');
+  });
+});
+
+describe('IndexConfirmationModal & AI Credits Calculation (Phase 10)', () => {
+  it('calculates estimated pages and credits accurately (40 credits / ₹0.40 per page)', () => {
+    const pdfFile = {
+      id: 'f-pdf-index',
+      name: 'quarterly_report.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 300000, // ~5 pages
+      page_count: 5,
+    };
+    const html = renderToStaticMarkup(
+      <IndexConfirmationModal
+        file={pdfFile}
+        isOpen={true}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />
+    );
+    expect(html).toContain('Index Document for AI');
+    expect(html).toContain('quarterly_report.pdf');
+    expect(html).toContain('~5 pages');
+    expect(html).toContain('₹0.40 / page');
+    expect(html).toContain('200 credits'); // 5 * 40
+    expect(html).toContain('(₹2.00)');
+    expect(html).toContain('Indexing Temporarily Unavailable');
+    expect(html).toContain('AI Indexing Temporarily Unavailable');
+
+    // When billing is enabled, confirm button appears
+    setIndexingBillingDeployedForTesting(true);
+    const enabledHtml = renderToStaticMarkup(
+      <IndexConfirmationModal
+        file={pdfFile}
+        isOpen={true}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />
+    );
+    setIndexingBillingDeployedForTesting(false);
+    expect(enabledHtml).toContain('Confirm &amp; Index');
+  });
+
+  it('renders batch indexing confirmation with aggregated page and credit count', () => {
+    const batch = [
+      { id: 'f-1', name: 'doc1.pdf', size_bytes: 120000, page_count: 2 },
+      { id: 'f-2', name: 'doc2.pdf', size_bytes: 180000, page_count: 3 },
+    ];
+    const html = renderToStaticMarkup(
+      <IndexConfirmationModal
+        isBatch={true}
+        batchFiles={batch}
+        isOpen={true}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />
+    );
+    expect(html).toContain('Index 2 PDF Documents');
+    expect(html).toContain('~5 pages');
+    expect(html).toContain('200 credits');
+  });
+});
+
+describe('MoveItemsModal (Phase 5 Action Hardening)', () => {
+  it('renders root directory option and available target folders', () => {
+    const folders = [
+      { id: 'f-1', name: 'Research Docs', deleted_at: null },
+      { id: 'f-2', name: 'Financials', deleted_at: null },
+      { id: 'f-selected', name: 'Folder Being Moved', deleted_at: null },
+    ];
+    const html = renderToStaticMarkup(
+      <MoveItemsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        folders={folders}
+        selectedFolderIds={['f-selected']}
+        selectedFileIds={['file-1']}
+        onConfirmMove={vi.fn()}
+      />
+    );
+    expect(html).toContain('Move 2 items to...');
+    expect(html).toContain('My Files (Root directory)');
+    expect(html).toContain('Research Docs');
+    expect(html).toContain('Financials');
+    // Folder being moved must be excluded to prevent cycle
+    expect(html).not.toContain('Folder Being Moved');
+    expect(html).toContain('Move Here');
   });
 });

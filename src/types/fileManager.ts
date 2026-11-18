@@ -232,8 +232,11 @@ export interface FileDownloadPayload {
 export type PreviewKind =
   | 'pdf'
   | 'image'
-  | 'text'
+  | 'spreadsheet'
+  | 'csv'
   | 'markdown'
+  | 'code'
+  | 'text'
   | 'unsupported';
 
 export interface FilePreviewState {
@@ -447,11 +450,39 @@ export function isSafePreviewableMimeType(mime: string): boolean {
   return SAFE_PREVIEW_MIME_TYPES.includes(mime.toLowerCase());
 }
 
-export function resolvePreviewKind(mime: string): PreviewKind {
-  const m = mime.toLowerCase();
-  if (m === 'application/pdf') return 'pdf';
-  if (m.startsWith('image/') && (m === 'image/jpeg' || m === 'image/png' || m === 'image/webp')) return 'image';
-  if (m === 'text/markdown') return 'markdown';
-  if (m === 'text/plain') return 'text';
+export function resolvePreviewKind(mime: string, fileName = ''): PreviewKind {
+  const m = (mime || '').toLowerCase();
+  const ext = (fileName.split('.').pop() || '').toLowerCase();
+
+  if (m === 'application/pdf' || ext === 'pdf') return 'pdf';
+  if (
+    m === 'image/jpeg' ||
+    m === 'image/png' ||
+    m === 'image/webp' ||
+    ['png', 'jpg', 'jpeg', 'webp'].includes(ext)
+  ) {
+    return 'image';
+  }
+  if (m === 'text/markdown' || ext === 'md' || ext === 'markdown') return 'markdown';
+  if (m === 'text/plain' || ext === 'txt') return 'text';
+  if (
+    m === 'text/csv' ||
+    m === 'text/tab-separated-values' ||
+    ext === 'csv' ||
+    ext === 'tsv'
+  ) {
+    return 'csv';
+  }
+  if (
+    m === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    m === 'application/vnd.ms-excel' ||
+    ext === 'xlsx' ||
+    ext === 'xls'
+  ) {
+    return 'spreadsheet';
+  }
+  if (['json', 'js', 'py', 'sql', 'sh'].includes(ext)) {
+    return 'code';
+  }
   return 'unsupported';
 }

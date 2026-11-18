@@ -25,6 +25,7 @@ export default function AttachmentTray({ attachments, indexedKeys, locked, onRem
         : name}
       {a.kind === 'file' && a.error ? <em className="ai-v2-file-cover not-sent">{hi ? 'नहीं भेजा' : 'Not sent'}</em> : null}
       {a.kind === 'document' ? <em className="ai-v2-file-cover document" title={hi ? 'केवल संलग्न या चयन फोकस में खोज इस दस्तावेज़ तक सीमित है' : 'Under Attached or Selection focus, searches are limited to attached documents'}>{hi ? 'दस्तावेज़' : 'Document'}</em> : null}
+      {a.kind === 'private_file' ? <em className="ai-v2-file-cover private" title={hi ? 'निजी फ़ाइल — AI खोज आपके दस्तावेज़ से उद्धृत करेगी' : 'Private File — AI search will retrieve context from this file'}>{hi ? 'निजी फ़ाइल' : 'Private'}</em> : null}
       {module ? <em className="ai-v2-file-cover module" title={hi ? 'मॉड्यूल की नमूना पंक्तियाँ, पूरा दस्तावेज़ नहीं' : 'A sample of module rows, not the full document text'}>{hi ? 'मॉड्यूल' : 'Module'}</em> : null}
       {['row', 'record', 'document'].includes(a.kind) && !module ? <CorpusCapability attachment={a} lang={lang} /> : null}
       <button type="button" aria-label={`${hi ? 'हटाएँ' : 'Remove'} ${title}`} aria-describedby={notSent || note ? messageId : undefined} disabled={locked} onClick={() => onRemove(a.id)}><X size={14} aria-hidden="true" /></button>

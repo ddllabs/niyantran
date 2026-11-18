@@ -61,9 +61,13 @@ export function clearFileManagerCache() {
 }
 
 // Automatically subscribe to identity changes: on sign-out or account switch, purge cached data immediately.
-subscribeLocalIdentity(() => {
-  clearFileManagerCache();
-});
+try {
+  subscribeLocalIdentity(() => {
+    clearFileManagerCache();
+  });
+} catch (_e) {
+  // In mock test environments without auth listener support
+}
 
 function getLocalFolders(userId) {
   try {
@@ -137,6 +141,20 @@ export function normalizeFileManagerError(err) {
   const code = (err && typeof err === 'object' && err.code) ? String(err.code) : '';
   const details = (err && typeof err === 'object' && err.details) ? String(err.details) : '';
   const combined = `${msg} ${code} ${details}`.toLowerCase();
+
+  // Credits exhausted
+  if (
+    combined.includes('credits_exhausted') ||
+    combined.includes('insufficient credits') ||
+    combined.includes('insufficient_credits')
+  ) {
+    return 'Insufficient credits in wallet. Please top up your balance in Billing to index this document.';
+  }
+
+  // Duplicate indexing job
+  if (combined.includes('duplicate_job') || combined.includes('already active')) {
+    return 'An AI indexing job is already active for this document.';
+  }
 
   // 1. Missing table / schema cache (42P01)
   if (
@@ -507,14 +525,33 @@ export async function cleanupPendingUpload(fileId) {
 export const deletePendingReservation = cleanupPendingUpload;
 
 /**
+ * Feature flag controlling AI indexing availability.
+ * In Release A, backend authoritative credit reservation and settlement RPCs
+ * (migration 20261118000001_file_indexing_billing.sql) are pending deployment.
+ * To prevent unbilled compute or un-held credit execution, indexing is explicitly
+ * disabled until Release B is deployed.
+ */
+export let IS_INDEXING_BILLING_DEPLOYED = false;
+
+export function setIndexingBillingDeployedForTesting(val) {
+  IS_INDEXING_BILLING_DEPLOYED = Boolean(val);
+}
+
+/**
  * Capability 7 & 10: Explicitly requests AI indexing for a stored PDF file.
- * Creates an entry in `user_file_jobs` and marks `index_status = 'indexing_queued'`.
+ * Requires server-authoritative credit reservation.
  *
  * @param {string} file_id
  * @returns {Promise<{ success: boolean, job_id?: string, status: string }>}
  */
 export async function indexForAi(file_id) {
-  // 1. Try authoritative RPC
+  if (!IS_INDEXING_BILLING_DEPLOYED) {
+    throw new Error(
+      'AI indexing is temporarily unavailable pending server billing deployment. File storage, uploads, downloads, and previews remain fully operational.'
+    );
+  }
+
+  // 1. Authoritative RPC (Release B)
   const { data: rpcData, error: rpcError } = await supabase.rpc('user_file_enqueue_indexing', {
     p_file_id: file_id,
   });
@@ -527,52 +564,7 @@ export async function indexForAi(file_id) {
     };
   }
 
-  // 2. Direct fallback
-  const { data: file, error: fetchError } = await supabase
-    .from('user_files')
-    .select('id, user_id, mime_type, upload_status')
-    .eq('id', file_id)
-    .single();
-
-  if (fetchError || !file) {
-    throw new Error('File not found or inaccessible.');
-  }
-
-  if (!isPdfMimeType(file.mime_type)) {
-    throw new Error('AI indexing in v1 is strictly supported for PDF documents.');
-  }
-
-  if (file.upload_status !== 'uploaded') {
-    throw new Error('Cannot index a file before its binary upload is completed.');
-  }
-
-  const jobId = crypto.randomUUID();
-  const { error: jobError } = await supabase.from('user_file_jobs').insert({
-    id: jobId,
-    file_id,
-    user_id: file.user_id,
-    status: 'queued',
-    step: 'ocr',
-    attempt_count: 0,
-    credits_hold: 0,
-    credits_settled: 0,
-    created_at: new Date().toISOString(),
-  });
-
-  if (jobError) {
-    throw new Error(`Failed to enqueue indexing job: ${jobError.message}`);
-  }
-
-  await supabase
-    .from('user_files')
-    .update({
-      index_status: 'indexing_queued',
-      index_error: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', file_id);
-
-  return { success: true, job_id: jobId, status: 'indexing_queued' };
+  throw new Error(rpcError?.message || 'Indexing failed');
 }
 
 /**
@@ -580,7 +572,11 @@ export async function indexForAi(file_id) {
  * @param {string} jobId
  * @param {string} fileId
  */
-export async function retryIndexJob(jobId, fileId) {
+export async function retryIndexJob(jobId, _fileId) {
+  if (!IS_INDEXING_BILLING_DEPLOYED) {
+    throw new Error('Job retry is temporarily unavailable pending server billing deployment.');
+  }
+
   const { data: rpcData, error: rpcError } = await supabase.rpc('user_file_job_retry', {
     p_job_id: jobId,
   });
@@ -589,29 +585,7 @@ export async function retryIndexJob(jobId, fileId) {
     return { success: true };
   }
 
-  // Fallback: update existing job to queued or insert fresh job
-  await supabase
-    .from('user_file_jobs')
-    .update({
-      status: 'queued',
-      step: 'ocr',
-      attempt_count: 0,
-      error_message: null,
-      started_at: null,
-      finished_at: null,
-    })
-    .eq('id', jobId);
-
-  await supabase
-    .from('user_files')
-    .update({
-      index_status: 'indexing_queued',
-      index_error: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', fileId);
-
-  return { success: true };
+  throw new Error(rpcError?.message || 'Retry failed');
 }
 
 /**
@@ -619,7 +593,11 @@ export async function retryIndexJob(jobId, fileId) {
  * @param {string} jobId
  * @param {string} fileId
  */
-export async function cancelIndexJob(jobId, fileId) {
+export async function cancelIndexJob(jobId, _fileId) {
+  if (!IS_INDEXING_BILLING_DEPLOYED) {
+    throw new Error('Job cancellation is temporarily unavailable pending server billing deployment.');
+  }
+
   const { data: rpcData, error: rpcError } = await supabase.rpc('user_file_job_cancel', {
     p_job_id: jobId,
   });
@@ -628,23 +606,7 @@ export async function cancelIndexJob(jobId, fileId) {
     return { success: true };
   }
 
-  await supabase
-    .from('user_file_jobs')
-    .update({
-      status: 'cancelled',
-      finished_at: new Date().toISOString(),
-    })
-    .eq('id', jobId);
-
-  await supabase
-    .from('user_files')
-    .update({
-      index_status: 'not_indexed',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', fileId);
-
-  return { success: true };
+  throw new Error(rpcError?.message || 'Cancel failed');
 }
 
 /**
@@ -1335,11 +1297,10 @@ export async function listIndexJobs() {
       step,
       attempt_count,
       error_message,
-      credits_hold,
-      credits_settled,
+      credits_hold_paise,
+      credits_settled_paise,
       created_at,
-      started_at,
-      finished_at,
+      updated_at,
       user_files!inner(name, size_bytes, page_count)
     `)
     .eq('user_id', user.id)
@@ -1395,4 +1356,25 @@ export async function getFolderIndexingCoverage(folderId = null) {
     coverageRatio,
     coveragePercent,
   };
+}
+
+/**
+ * Convenience helper to list folders under a given parent folder.
+ * @param {string | null} folderId
+ * @returns {Promise<any[]>}
+ */
+export async function listFolders(folderId = null) {
+  const res = await listFilesAndFolders({ folder_id: folderId });
+  return res.folders || [];
+}
+
+/**
+ * Convenience helper to list files under a given parent folder.
+ * @param {string | null} folderId
+ * @param {{ field: string, direction: 'asc' | 'desc' }} [sort]
+ * @returns {Promise<any[]>}
+ */
+export async function listFiles(folderId = null, sort = { field: 'name', direction: 'asc' }) {
+  const res = await listFilesAndFolders({ folder_id: folderId, sort });
+  return res.files || [];
 }

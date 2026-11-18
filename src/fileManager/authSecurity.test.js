@@ -19,6 +19,7 @@ import {
   indexForAi,
   listFilesAndFolders,
   getDownloadUrl,
+  setIndexingBillingDeployedForTesting,
 } from './fileManagerService.js';
 import { supabase } from '../lib/supabaseClient.js';
 import { invalidateLocalSession, setSessionUser } from '../lib/userStore.js';
@@ -134,19 +135,24 @@ describe('Feature F341 — Authentication Security Invariants & Defense-in-Depth
   });
 
   it('Invariant 4: indexForAi RPC relies on auth.uid() and rejects client user_id override', async () => {
-    const mockRpc = vi.spyOn(supabase, 'rpc').mockResolvedValue({
-      data: { job_id: 'job-999', status: 'indexing_queued' },
-      error: null,
-    });
+    setIndexingBillingDeployedForTesting(true);
+    try {
+      const mockRpc = vi.spyOn(supabase, 'rpc').mockResolvedValue({
+        data: { job_id: 'job-999', status: 'indexing_queued' },
+        error: null,
+      });
 
-    await indexForAi('file-xyz');
+      await indexForAi('file-xyz');
 
-    expect(mockRpc).toHaveBeenCalledWith('user_file_enqueue_indexing', {
-      p_file_id: 'file-xyz',
-    });
+      expect(mockRpc).toHaveBeenCalledWith('user_file_enqueue_indexing', {
+        p_file_id: 'file-xyz',
+      });
 
-    const rpcArgs = mockRpc.mock.calls[0][1];
-    expect(rpcArgs).not.toHaveProperty('p_user_id');
+      const rpcArgs = mockRpc.mock.calls[0][1];
+      expect(rpcArgs).not.toHaveProperty('p_user_id');
+    } finally {
+      setIndexingBillingDeployedForTesting(false);
+    }
   });
 
   // ─── Invariant 5: LocalStorage Partitioning is NOT a Security Boundary ─────

@@ -13,7 +13,7 @@
  * - Loading skeletons, empty states (Empty folder, Search, Filters, Organisation, Trash, Artifacts)
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Folder,
   FileText,
@@ -140,7 +140,30 @@ export default function DriveBrowser({
     setActiveMenuId((prev) => (prev === id ? null : id));
   };
 
-  // Close menus when clicking anywhere
+  // Close menus when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!activeMenuId) return;
+
+    const onPointerDown = (e) => {
+      if (!e.target.closest('.fm-context-menu') && !e.target.closest('.fm-btn-icon')) {
+        setActiveMenuId(null);
+      }
+    };
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setActiveMenuId(null);
+      }
+    };
+
+    document.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [activeMenuId]);
+
   const handleContainerClick = () => {
     if (activeMenuId) setActiveMenuId(null);
   };
@@ -695,76 +718,78 @@ export default function DriveBrowser({
                   onChange={() => onSelectFolder(folder.id, false, true)}
                   aria-label={`Select folder ${folder.name}`}
                 />
-                <button
-                  type="button"
-                  className="fm-btn fm-btn-icon"
-                  onClick={(e) => toggleMenu(e, `grid-folder-${folder.id}`)}
-                  aria-label={`Actions for folder ${folder.name}`}
-                >
-                  <MoreVertical size={13} />
-                </button>
+                <div style={{ position: 'relative', display: 'inline-block' }}>
+                  <button
+                    type="button"
+                    className="fm-btn fm-btn-icon"
+                    onClick={(e) => toggleMenu(e, `grid-folder-${folder.id}`)}
+                    aria-label={`Actions for folder ${folder.name}`}
+                  >
+                    <MoreVertical size={13} />
+                  </button>
 
-                {isMenuOpen && (
-                  <div className="fm-context-menu">
-                    {!isTrash ? (
-                      <>
-                        <button
-                          type="button"
-                          className="fm-nav-btn"
-                          onClick={() => {
-                            setActiveMenuId(null);
-                            onOpenFolder(folder);
-                          }}
-                        >
-                          <Folder size={13} /> Open
-                        </button>
-                        <button
-                          type="button"
-                          className="fm-nav-btn"
-                          onClick={() => {
-                            setActiveMenuId(null);
-                            onRenameItem(folder, 'folder');
-                          }}
-                        >
-                          <Pencil size={13} /> Rename
-                        </button>
-                        <button
-                          type="button"
-                          className="fm-nav-btn text-danger"
-                          onClick={() => {
-                            setActiveMenuId(null);
-                            onTrashItem(folder, 'folder');
-                          }}
-                        >
-                          <Trash2 size={13} /> Move to Trash
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="fm-nav-btn"
-                          onClick={() => {
-                            setActiveMenuId(null);
-                            onRestoreItem?.(folder, 'folder');
-                          }}
-                        >
-                          <RotateCcw size={13} /> Restore
-                        </button>
-                        <button
-                          type="button"
-                          className="fm-nav-btn text-danger"
-                          onClick={() => {
-                            setActiveMenuId(null);
-                            onPermanentDeleteItem?.(folder, 'folder');
-                          }}
-                        >
-                          <Trash2 size={13} /> Delete Permanently
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
+                  {isMenuOpen && (
+                    <div className="fm-context-menu">
+                      {!isTrash ? (
+                        <>
+                          <button
+                            type="button"
+                            className="fm-nav-btn"
+                            onClick={() => {
+                              setActiveMenuId(null);
+                              onOpenFolder(folder);
+                            }}
+                          >
+                            <Folder size={13} /> Open
+                          </button>
+                          <button
+                            type="button"
+                            className="fm-nav-btn"
+                            onClick={() => {
+                              setActiveMenuId(null);
+                              onRenameItem(folder, 'folder');
+                            }}
+                          >
+                            <Pencil size={13} /> Rename
+                          </button>
+                          <button
+                            type="button"
+                            className="fm-nav-btn text-danger"
+                            onClick={() => {
+                              setActiveMenuId(null);
+                              onTrashItem(folder, 'folder');
+                            }}
+                          >
+                            <Trash2 size={13} /> Move to Trash
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            className="fm-nav-btn"
+                            onClick={() => {
+                              setActiveMenuId(null);
+                              onRestoreItem?.(folder, 'folder');
+                            }}
+                          >
+                            <RotateCcw size={13} /> Restore
+                          </button>
+                          <button
+                            type="button"
+                            className="fm-nav-btn text-danger"
+                            onClick={() => {
+                              setActiveMenuId(null);
+                              onPermanentDeleteItem?.(folder, 'folder');
+                            }}
+                          >
+                            <Trash2 size={13} /> Delete Permanently
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="fm-grid-card-body">
@@ -804,108 +829,110 @@ export default function DriveBrowser({
                   onChange={() => onSelectFile(file.id, false, true)}
                   aria-label={`Select file ${file.name}`}
                 />
-                <button
-                  type="button"
-                  className="fm-btn fm-btn-icon"
-                  onClick={(e) => toggleMenu(e, `grid-file-${file.id}`)}
-                  aria-label={`Actions for file ${file.name}`}
-                >
-                  <MoreVertical size={13} />
-                </button>
+                <div style={{ position: 'relative', display: 'inline-block' }}>
+                  <button
+                    type="button"
+                    className="fm-btn fm-btn-icon"
+                    onClick={(e) => toggleMenu(e, `grid-file-${file.id}`)}
+                    aria-label={`Actions for file ${file.name}`}
+                  >
+                    <MoreVertical size={13} />
+                  </button>
 
-                {isMenuOpen && (
-                  <div className="fm-context-menu">
-                    {!isTrash ? (
-                      <>
-                        <button
-                          type="button"
-                          className="fm-nav-btn"
-                          onClick={() => {
-                            setActiveMenuId(null);
-                            onPreviewFile(file);
-                          }}
-                        >
-                          <Eye size={13} /> Preview
-                        </button>
-                        <button
-                          type="button"
-                          className="fm-nav-btn"
-                          onClick={() => {
-                            setActiveMenuId(null);
-                            onDownloadFile(file);
-                          }}
-                        >
-                          <Download size={13} /> Download
-                        </button>
-                        <button
-                          type="button"
-                          className="fm-nav-btn"
-                          onClick={() => {
-                            setActiveMenuId(null);
-                            onChatWithFile(file);
-                          }}
-                        >
-                          <Sparkles size={13} /> ✦ Ask AI
-                        </button>
-                        {isPdf && file.index_status !== 'indexed' && (
+                  {isMenuOpen && (
+                    <div className="fm-context-menu">
+                      {!isTrash ? (
+                        <>
                           <button
                             type="button"
                             className="fm-nav-btn"
                             onClick={() => {
                               setActiveMenuId(null);
-                              onIndexFile(file);
+                              onPreviewFile(file);
                             }}
                           >
-                            <Sparkles size={13} /> Index for AI
+                            <Eye size={13} /> Preview
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          className="fm-nav-btn"
-                          onClick={() => {
-                            setActiveMenuId(null);
-                            onRenameItem(file, 'file');
-                          }}
-                        >
-                          <Pencil size={13} /> Rename
-                        </button>
-                        <button
-                          type="button"
-                          className="fm-nav-btn text-danger"
-                          onClick={() => {
-                            setActiveMenuId(null);
-                            onTrashItem(file, 'file');
-                          }}
-                        >
-                          <Trash2 size={13} /> Move to Trash
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="fm-nav-btn"
-                          onClick={() => {
-                            setActiveMenuId(null);
-                            onRestoreItem?.(file, 'file');
-                          }}
-                        >
-                          <RotateCcw size={13} /> Restore
-                        </button>
-                        <button
-                          type="button"
-                          className="fm-nav-btn text-danger"
-                          onClick={() => {
-                            setActiveMenuId(null);
-                            onPermanentDeleteItem?.(file, 'file');
-                          }}
-                        >
-                          <Trash2 size={13} /> Delete Permanently
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
+                          <button
+                            type="button"
+                            className="fm-nav-btn"
+                            onClick={() => {
+                              setActiveMenuId(null);
+                              onDownloadFile(file);
+                            }}
+                          >
+                            <Download size={13} /> Download
+                          </button>
+                          <button
+                            type="button"
+                            className="fm-nav-btn"
+                            onClick={() => {
+                              setActiveMenuId(null);
+                              onChatWithFile(file);
+                            }}
+                          >
+                            <Sparkles size={13} /> ✦ Ask AI
+                          </button>
+                          {isPdf && file.index_status !== 'indexed' && (
+                            <button
+                              type="button"
+                              className="fm-nav-btn"
+                              onClick={() => {
+                                setActiveMenuId(null);
+                                onIndexFile(file);
+                              }}
+                            >
+                              <Sparkles size={13} /> Index for AI
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="fm-nav-btn"
+                            onClick={() => {
+                              setActiveMenuId(null);
+                              onRenameItem(file, 'file');
+                            }}
+                          >
+                            <Pencil size={13} /> Rename
+                          </button>
+                          <button
+                            type="button"
+                            className="fm-nav-btn text-danger"
+                            onClick={() => {
+                              setActiveMenuId(null);
+                              onTrashItem(file, 'file');
+                            }}
+                          >
+                            <Trash2 size={13} /> Move to Trash
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            className="fm-nav-btn"
+                            onClick={() => {
+                              setActiveMenuId(null);
+                              onRestoreItem?.(file, 'file');
+                            }}
+                          >
+                            <RotateCcw size={13} /> Restore
+                          </button>
+                          <button
+                            type="button"
+                            className="fm-nav-btn text-danger"
+                            onClick={() => {
+                              setActiveMenuId(null);
+                              onPermanentDeleteItem?.(file, 'file');
+                            }}
+                          >
+                            <Trash2 size={13} /> Delete Permanently
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="fm-grid-card-body">
