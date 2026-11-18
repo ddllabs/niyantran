@@ -13,14 +13,14 @@ describe('formatClock', () => {
 });
 
 describe('blockOptions', () => {
-  it('prices 1, 2, 5, 10 and 15 minutes and marks what the balance cannot cover', () => {
+  it('prices 1, 2, 5, 10, 15, 20 and 30 minutes and marks what the balance cannot cover', () => {
     const o = blockOptions(500, 5000);
-    expect(o.map((x) => [x.minutes, x.price, x.affordable])).toEqual([[1, 500, true], [2, 1000, true], [5, 2500, true], [10, 5000, true], [15, 7500, false]]);
+    expect(o.map((x) => [x.minutes, x.price, x.affordable])).toEqual([[1, 500, true], [2, 1000, true], [5, 2500, true], [10, 5000, true], [15, 7500, false], [20, 10000, false], [30, 15000, false]]);
     expect(blockOptions(500, null).every((x) => x.affordable)).toBe(true);
     expect(blockOptions(0.5, 0).every((x) => !x.affordable)).toBe(true);
   });
   it('keeps fractional prices exact enough to display', () => {
-    expect(blockOptions(0.5, 100).map((x) => x.price)).toEqual([0.5, 1, 2.5, 5, 7.5]);
+    expect(blockOptions(0.5, 100).map((x) => x.price)).toEqual([0.5, 1, 2.5, 5, 7.5, 10, 15]);
   });
 });
 
@@ -29,6 +29,7 @@ describe('minutesText', () => {
     expect(minutesText(1)).toBe('1 minute');
     expect(minutesText(2)).toBe('2 minutes');
     expect(minutesText(15)).toBe('15 minutes');
+    expect(minutesText(30)).toBe('30 minutes');
   });
 });
 

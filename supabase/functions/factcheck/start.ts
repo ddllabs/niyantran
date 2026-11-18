@@ -5,7 +5,7 @@ import { badRequest, isObject, type Obj, position } from './validate.ts';
 const VIDEO_ID = /^[A-Za-z0-9_-]{1,32}$/;
 const CHANNEL_ID = /^[A-Za-z0-9_.:-]{1,64}$/;
 /** The session lengths, in minutes, that a user may buy (the same list as the SQL function and the table CHECK). */
-const SESSION_MINUTES: readonly number[] = [1, 2, 5, 10, 15];
+const SESSION_MINUTES: readonly number[] = [1, 2, 5, 10, 15, 20, 30];
 
 const CONFIRM_TIMEOUT_MS = 4000;
 const MAX_CONFIRM_BYTES = 1_000_000;
@@ -101,7 +101,7 @@ export async function startAction(ctx: Ctx, body: Obj): Promise<Obj> {
   if (typeof channel_id !== 'string' || !CHANNEL_ID.test(channel_id)) throw badRequest('channel_id is not valid.');
   if (video_kind !== 'live' && video_kind !== 'recorded') throw badRequest('video_kind must be live or recorded.');
   if (typeof minutes !== 'number' || !SESSION_MINUTES.includes(minutes)) {
-    throw badRequest('minutes must be 1, 2, 5, 10 or 15.');
+    throw badRequest('minutes must be 1, 2, 5, 10, 15, 20 or 30.');
   }
   const startPosition = position(body.start_position_s, 'start_position_s');
   // The price the browser showed; the SQL function refuses with price_changed if the flag now differs.
@@ -155,7 +155,7 @@ export async function startAction(ctx: Ctx, body: Obj): Promise<Obj> {
     case 'not_allowed':
       throw new ApiError(403, 'Fact-check is not available for this account.', { reason: 'not_allowed' });
     case 'bad_minutes':
-      throw new ApiError(400, 'minutes must be 1, 2, 5, 10 or 15.', { reason: 'bad_minutes' });
+      throw new ApiError(400, 'minutes must be 1, 2, 5, 10, 15, 20 or 30.', { reason: 'bad_minutes' });
     case 'already_active':
       throw new ApiError(409, 'A fact-check session is already running.', {
         reason: 'already_active',
