@@ -103,10 +103,14 @@ function Row({ session, channels, past }) {
         {used ? <span className="pst-used">{used}</span> : null}
         {charged ? <span className="pst-charged">{charged}</span> : null}
       </button>
-      {open ? <Detail session={session} state={past.details[session.id]} past={past} /> : null}
-      {live
-        ? <DeleteControl session={session} removal={past.removal} onAsk={past.askDelete} onCancel={past.cancelDelete} onConfirm={past.confirmDelete} />
-        : <p className="pst-note">{PAST_TEXT.recordedKept}</p>}
+      {open ? (
+        <>
+          <Detail session={session} state={past.details[session.id]} past={past} />
+          {live
+            ? <DeleteControl session={session} removal={past.removal} onAsk={past.askDelete} onCancel={past.cancelDelete} onConfirm={past.confirmDelete} />
+            : <p className="pst-note">{PAST_TEXT.recordedKept}</p>}
+        </>
+      ) : null}
     </li>
   );
 }
