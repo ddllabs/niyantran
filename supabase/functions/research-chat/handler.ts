@@ -81,6 +81,7 @@ import {
   documentIdsOf,
   documentKeysOf,
   type Focus,
+  privateFileIdsOf,
   type ResearchRequest,
   validateRequest,
 } from './validate.ts';
@@ -216,6 +217,7 @@ export interface RetrievalContext {
   signal: AbortSignal;
   /** Passages to ask for; set on a widened search only (agent WIDENED_TOP_K), else retrieval's default. */
   topK?: number;
+  privateFileIds?: string[];
   onTiming?: (phase: 'embeddingMs' | 'retrievalMs', ms: number) => void;
   /** F288: how a search that consulted the hybrid switch was served. Not called for a plain vector search. */
   onPath?: (info: RetrievalPathInfo) => void;
@@ -996,6 +998,7 @@ async function runTurnBody(
   //    to the reader. Every lookup here is best-effort; none can fail the turn.
   const documentKeys = documentKeysOf(mappedRequest);
   const documentIds = documentIdsOf(request);
+  const privateFileIds = privateFileIdsOf(request);
   const [resolution, webOverride] = await Promise.all([
     deps.db.resolveDocumentScope({ keys: documentKeys, ids: documentIds, signal }),
     // A failed read falls back to off, not automatic: "off" may be the reader's privacy choice.
@@ -1335,6 +1338,7 @@ async function runTurnBody(
               onTiming,
               onPath,
               ...(topK === undefined ? {} : { topK }),
+              ...(privateFileIds.length ? { privateFileIds } : {}),
               beginEmbeddingAttempt: (model) => attempts.beginEmbeddingAttempt(model, signal),
             }),
           searchDeskRows: (args) => deps.searchDeskRows(args, { signal }),

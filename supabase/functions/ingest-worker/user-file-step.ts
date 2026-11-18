@@ -112,7 +112,7 @@ export async function executeUserFileJob(
   const startTime = now();
   const budgetMs = deps.budgetMs ?? INGEST.budgetMs;
   const reserveMs = deps.reserveMs ?? Math.min(1000, budgetMs > 0 ? Math.max(10, budgetMs / 4) : 1000);
-  const claimToken = deps.claimToken ?? job.claim_token ?? '';
+  const claimToken = deps.claimToken ?? deps.workerId ?? (job as unknown as Record<string, unknown>).claimed_by as string ?? job.claim_token ?? '';
 
   const loadPages = async (): Promise<UserFileOcrPageCheckpoint[]> => {
     if (deps.getOcrPages) return await deps.getOcrPages(job.file_id);
@@ -160,6 +160,15 @@ export async function executeUserFileJob(
       };
       await deps.db.advance(job.id, claimToken, patch);
       await deps.db.updateFileIndexStatus?.(job.file_id, 'indexing_failed', errMsg);
+      if (deps.db.settleCredits) {
+        await deps.db.settleCredits({
+          p_job_id: job.id,
+          p_final_status: 'failed',
+          p_ocr_pages: 0,
+          p_actual_cost_usd: 0,
+          p_actual_cost_paise: 0,
+        });
+      }
       return {
         status: 'failed',
         patch,
@@ -230,13 +239,13 @@ export async function executeUserFileJob(
         };
         await deps.db.advance(job.id, claimToken, patch);
         await deps.db.updateFileIndexStatus?.(job.file_id, 'indexing_failed', errMsg);
-        if (ocrCost > 0) {
+        if (deps.db.settleCredits) {
           await deps.db.settleCredits({
             p_job_id: job.id,
             p_final_status: 'failed',
             p_ocr_pages: storedPages.length,
             p_actual_cost_usd: ocrCost,
-            p_actual_cost_paise: Math.round(ocrCost * 8500),
+            p_actual_cost_paise: Math.round(ocrCost * 9500),
           });
         }
         return {
@@ -320,14 +329,16 @@ export async function executeUserFileJob(
       };
       await deps.db.advance(job.id, claimToken, patch);
       await deps.db.updateFileIndexStatus?.(job.file_id, 'indexing_failed', errMsg);
-      await deps.db.settleCredits({
-        p_job_id: job.id,
-        p_final_status: 'failed',
-        p_ocr_pages: storedPages.length,
-        p_embed_tokens: spentTokens,
-        p_actual_cost_usd: totalSpentUsd,
-        p_actual_cost_paise: Math.round(totalSpentUsd * 8500),
-      });
+      if (deps.db.settleCredits) {
+        await deps.db.settleCredits({
+          p_job_id: job.id,
+          p_final_status: 'failed',
+          p_ocr_pages: storedPages.length,
+          p_embed_tokens: spentTokens,
+          p_actual_cost_usd: totalSpentUsd,
+          p_actual_cost_paise: Math.round(totalSpentUsd * 9500),
+        });
+      }
 
       return {
         status: 'failed',
@@ -387,6 +398,16 @@ export async function executeUserFileJob(
       };
       await deps.db.advance(job.id, claimToken, patch);
       await deps.db.updateFileIndexStatus?.(job.file_id, 'indexing_failed', errMsg);
+      if (deps.db.settleCredits) {
+        await deps.db.settleCredits({
+          p_job_id: job.id,
+          p_final_status: 'failed',
+          p_ocr_pages: storedPages.length,
+          p_embed_tokens: embedTokens,
+          p_actual_cost_usd: ocrCost + embedCost,
+          p_actual_cost_paise: Math.round((ocrCost + embedCost) * 9500),
+        });
+      }
       return {
         status: 'failed',
         patch,
@@ -399,9 +420,9 @@ export async function executeUserFileJob(
 
   // ─── Stage 5: Settle Credits & Advance to Completed ────────────────────────
   const totalCostUsd = ocrCost + embedCost;
-  const actualCostPaise = Math.round(totalCostUsd * 8500);
+  const actualCostPaise = Math.round(totalCostUsd * 9500);
 
-  await deps.db.settleCredits({
+  const settleRes = await deps.db.settleCredits({
     p_job_id: job.id,
     p_final_status: 'completed',
     p_ocr_pages: storedPages.length,
@@ -410,12 +431,14 @@ export async function executeUserFileJob(
     p_actual_cost_paise: actualCostPaise,
   });
 
+  const settledAmount = settleRes?.credits_settled ?? actualCostPaise;
+
   const patch: UserFileAdvancePatch = {
     step: 'commit',
     status: 'completed',
     page_count: storedPages.length,
     extract_hash: extractHashVal,
-    credits_settled: actualCostPaise,
+    credits_settled: settledAmount,
   };
 
   await deps.db.advance(job.id, claimToken, patch);

@@ -25,6 +25,17 @@ import {
   type IngestStorage,
   type StoredOcrPage,
 } from './types.ts';
+import {
+  USER_FILES_BUCKET,
+  type UserFileAdvancePatch,
+  type UserFileChunkCommitRow,
+  type UserFileClaimedJob,
+  type UserFileIndexStatus,
+  type UserFileIngestDb,
+  type UserFileSettleCreditsParams,
+  type UserFileSettleCreditsResult,
+} from '../_shared/userFiles.types.ts';
+import { executeUserFileJob } from './user-file-step.ts';
 
 type Env = (name: string) => string | undefined;
 
@@ -190,6 +201,79 @@ export function supabaseIngestDb(client: SupabaseClient): IngestDb {
   };
 }
 
+/** UserFileIngestDb over PostgREST with the service client. */
+export function supabaseUserFileDb(client: SupabaseClient): UserFileIngestDb {
+  async function rpc<T>(name: string, args: Record<string, unknown>): Promise<T> {
+    const { data, error } = await client.rpc(name, args);
+    fail(name, error);
+    return data as T;
+  }
+
+  return {
+    async claim(workerId: string, limit: number, leaseSeconds: number) {
+      return (await rpc<UserFileClaimedJob[] | null>('user_file_claim', {
+        p_worker_id: workerId,
+        p_limit: limit,
+        p_lease_seconds: leaseSeconds,
+      })) ?? [];
+    },
+    async advance(jobId: string, claimToken: string, patch: UserFileAdvancePatch) {
+      await rpc('user_file_advance', {
+        p_job_id: jobId,
+        p_worker_id: claimToken,
+        p_step: patch.step ?? 'commit',
+        p_status: patch.status ?? 'completed',
+        p_error: patch.error_message ?? null,
+        p_page_count: patch.page_count ?? null,
+        p_extract_hash: patch.extract_hash ?? null,
+      });
+    },
+    async commitChunks(userId: string, fileId: string, chunks: UserFileChunkCommitRow[]) {
+      if (!chunks.length) return { inserted: 0, deleted: 0 };
+      const rows = chunks.map((c) => ({
+        user_id: userId,
+        file_id: fileId,
+        chunk_hash: c.chunk_hash,
+        chunk_index: c.chunk_index,
+        page_number: c.page_number,
+        char_from: c.char_from,
+        char_to: c.char_to,
+        content: c.content,
+        token_count: c.token_count,
+        text_hash: c.text_hash,
+        extract_hash: c.extract_hash,
+        embedding: c.embedding,
+        metadata: c.metadata,
+        block_ids: c.block_ids,
+        image_ids: c.image_ids,
+      }));
+      const { error: delError } = await client.from('user_file_chunks').delete().eq('file_id', fileId);
+      fail('user_file_chunks delete', delError);
+      const { error: insError } = await client.from('user_file_chunks').insert(rows);
+      fail('user_file_chunks insert', insError);
+      return { inserted: rows.length, deleted: 0 };
+    },
+    async settleCredits(params: UserFileSettleCreditsParams) {
+      return await rpc<UserFileSettleCreditsResult>('user_file_settle_credits', params as unknown as Record<string, unknown>);
+    },
+    async recordCallLog(row: Record<string, unknown>) {
+      const { error } = await client.from('model_call_logs').insert(row);
+      fail('model_call_logs insert (user file)', error);
+    },
+    async updateFileIndexStatus(fileId: string, status: UserFileIndexStatus, error?: string | null) {
+      const updateData: Record<string, unknown> = {
+        index_status: status,
+        updated_at: new Date().toISOString(),
+      };
+      if (error !== undefined) {
+        updateData.index_error = error;
+      }
+      const { error: updateError } = await client.from('user_files').update(updateData).eq('id', fileId);
+      fail('user_files update', updateError);
+    },
+  };
+}
+
 // ─── Storage ─────────────────────────────────────────────────────────────────
 
 interface StorageErrorShape {
@@ -240,6 +324,20 @@ export function supabaseIngestStorage(client: SupabaseClient): IngestStorage {
       const { error } = await bucket().upload(path, bytes, { upsert: false, contentType });
       if (!error || alreadyExists(error as StorageErrorShape)) return;
       throw new Error(`storage upload ${path}: ${error.message}`);
+    },
+  };
+}
+
+/** The user-files private bucket through the service client. */
+export function supabaseUserFileStorage(client: SupabaseClient) {
+  const bucket = () => client.storage.from(USER_FILES_BUCKET);
+  return {
+    async signedUrl(path: string, expiresInSeconds: number): Promise<string> {
+      const { data, error } = await bucket().createSignedUrl(path, expiresInSeconds);
+      if (error || !data?.signedUrl) {
+        throw new Error(`user-files storage sign ${path}: ${error?.message ?? 'no signed URL returned'}`);
+      }
+      return data.signedUrl;
     },
   };
 }
@@ -301,6 +399,13 @@ export function buildWorkerDeps(client: SupabaseClient, env: Env): RunDeps {
       ocr: ocrStep,
       index: (deps, job, deadline) => job.input_kind === 'supplied_text' ? suppliedTextStep(deps, job, deadline) : indexStep(deps, job, deadline),
       suppliedBatch: suppliedBatchStep,
+    },
+    userFiles: {
+      db: supabaseUserFileDb(client),
+      storage: supabaseUserFileStorage(client),
+      step: (job, stepDeps) => executeUserFileJob(job, stepDeps),
+      mistralApiKey: mistralKey,
+      openRouterApiKey: openrouterKey,
     },
     secrets: [mistralKey, openrouterKey, env('INGEST_WORKER_SECRET') ?? ''].filter(Boolean),
   };
