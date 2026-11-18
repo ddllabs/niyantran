@@ -172,9 +172,33 @@ describe('the confirmations', () => {
     expect(words).toContain('VIDEO000002');
     expect(words).toMatch(/deletes the stored transcript of every session of this video, for every user/i);
     expect(words).toMatch(/stops sharing all of them/i);
-    expect(words).toMatch(/paid to unlock these results lose access and are not refunded/i);
+    expect(words).toMatch(/paid to unlock these results lose access and their unlock credits are returned/i);
+    expect(words).not.toMatch(/not refunded/i);
     expect(words).toMatch(/cannot be undone/i);
     expect(words).toMatch(/this video's reports stay open until dismissed/i);
+  });
+
+  it('after a removal the page says how many unlocks were refunded, as a status, in fixed words', async () => {
+    const client = fakeClient([raw()], { factcheck_video_remove: ok({ ok: true, pieces_deleted: 12, sessions: 2, unlocks_refunded: 4, credits_refunded: 700 }) });
+    const { ctl, tree, markup } = wired(client);
+    await ctl.load();
+    expect(markup()).not.toMatch(/Video removed/);
+    buttons(card(tree(), 'c-1'), "Remove this video's shared results")[0].props.onClick();
+    await buttons(card(tree(), 'c-1'), /^Yes/)[0].props.onClick();
+    expect(markup()).toMatch(/<p class="adm-msg" role="status">Video removed\. 4 unlocks refunded, 700 credits returned to the users who paid\.<\/p>/);
+  });
+
+  it('no counts from the server, no sentence; and text sent in place of the counts is never shown', async () => {
+    const old = wired(fakeClient([raw()], { factcheck_video_remove: ok({ ok: true, pieces_deleted: 12, sessions: 2 }) }));
+    await old.ctl.load();
+    buttons(card(old.tree(), 'c-1'), "Remove this video's shared results")[0].props.onClick();
+    await buttons(card(old.tree(), 'c-1'), /^Yes/)[0].props.onClick();
+    expect(old.markup()).not.toMatch(/Video removed/);
+    const hostile = wired(fakeClient([raw()], { factcheck_video_remove: ok({ ok: true, unlocks_refunded: '<img src=x onerror=alert(1)>', credits_refunded: '<script>alert(2)</script>' }) }));
+    await hostile.ctl.load();
+    buttons(card(hostile.tree(), 'c-1'), "Remove this video's shared results")[0].props.onClick();
+    await buttons(card(hostile.tree(), 'c-1'), /^Yes/)[0].props.onClick();
+    expect(hostile.markup()).not.toMatch(/Video removed|<img|<script|alert\(/);
   });
 
   it('opens one confirmation at a time and marks it for assistive technology', async () => {
