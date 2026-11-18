@@ -292,6 +292,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     target: playingTarget(factCheckChannelId, playbackMode, factCheckVideoId),
     // where the player is, for shared results on recorded videos
     getPosition: () => (playbackMode === 'live' ? null : player.getPosition()),
+    // F363: "Re-analyze this block" moves a recorded video to the block's start
+    seek: (s) => (playbackMode === 'live' ? false : player.seekS(s)),
     start: {
       videoId: factCheckVideoId,
       channelId: factCheckChannelId,

@@ -9,11 +9,19 @@ import { isSupported } from '../../lib/factcheck/capture.js';
 import { creditsText, refreshCredits, serverCredits, subscribeCredits } from '../../lib/creditsStore.js';
 import { readFactCheckFlag } from './factCheckFlag.js';
 import {
-  RECHECK_ALREADY, RECHECK_FAILED, VERDICTS, priceChangedText, recheckAnswerLost, recheckErrorText, recheckPriceChangedText,
+  RECHECK_ALREADY, RECHECK_FAILED, VERDICTS, errorMessage, priceChangedText, reanalyzeLength, recheckAnswerLost, recheckErrorText, recheckPriceChangedText,
 } from './factCheckText.js';
 import {
   coveringPart, partModel, reportErrorText, unlockErrorText, viewErrorText,
 } from './factCheckShare.js';
+
+// F363: after "Re-analyze this block" moves the player, it must report a position this close to the
+// block's start within this time, or the start screen asks the user to move the video themselves.
+export const SEEK_WAIT_MS = 3000;
+export const SEEK_POLL_MS = 250;
+export const SEEK_TOLERANCE_S = 5;
+// Pressing Start seeks again, then waits at most this long for a position read after that seek.
+export const PREPARE_WAIT_MS = 1500;
 
 const OFF = { available: false, creditsPerMinute: null, recheckCredits: null, sharing: null, userId: null };
 const IDLE = {
@@ -40,6 +48,7 @@ export function createFactCheckController({
   credits = defaultCredits,
   client = null,
   getPosition = null,
+  seek = null,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   onChange = () => {},
 } = {}) {
@@ -74,6 +83,14 @@ export function createFactCheckController({
   let announced = new Map();
   let unsubscribe = null;
   let loadId = 0;
+  // F363: set while the start screen was opened by "Re-analyze this block":
+  // { stretchId, minutes (preselected length), fromS, seek: 'pending'|'ok'|'late', token }.
+  let reanalysis = null;
+  let reanalysisToken = 0;
+  let seekPoll = null;
+  let seekDeadline = null;
+  let seekSentAt = 0;
+  let startedFor = null; // the stretch whose re-analysis the last start came from (kept across a price change)
 
   const balance = () => {
     try { return credits.available(flag.userId); } catch { return null; }
@@ -84,6 +101,14 @@ export function createFactCheckController({
   const recheckView = () => Object.fromEntries([...rechecks].map(([id, r]) => [id, { ...r, results: [...r.results] }]));
   const emit = () => onChange(view());
   function clearRechecks() { recheckEpoch++; rechecks.clear(); }
+
+  function stopSeekTimers() {
+    if (seekPoll !== null) clearInterval(seekPoll);
+    if (seekDeadline !== null) clearTimeout(seekDeadline);
+    seekPoll = null;
+    seekDeadline = null;
+  }
+  function clearReanalysis() { stopSeekTimers(); reanalysis = null; }
 
   function noteVerdicts(state) {
     if (state.status === 'sharing' && !ACTIVE.has(sessionState.status)) { announced = new Map(); announcement = ''; }
@@ -103,6 +128,7 @@ export function createFactCheckController({
     const prev = sessionState;
     noteVerdicts(state);
     sessionState = state;
+    if (state.status !== 'choosing') clearReanalysis(); // the start screen is gone
     if (state.status === 'idle' || (state.status === 'sharing' && !ACTIVE.has(prev.status))) clearRechecks();
     if (state.status === 'sharing' && !ACTIVE.has(prev.status)) recheckNotices = [];
     if (state.status === 'running' || state.status === 'ending') captureFailures = 0;
@@ -129,6 +155,8 @@ export function createFactCheckController({
       flag = { ...flag, creditsPerMinute: e.creditsPerMinute };
       session.reset();
       session.choose();
+      const again = startedFor ? stretchById(startedFor) : null;
+      if (again) openReanalysis(again);
       priceNotice = priceChangedText(e.creditsPerMinute);
       emit();
     }
@@ -161,6 +189,7 @@ export function createFactCheckController({
   async function close() {
     loadId++; // a flag read still in flight is dropped
     chooseId++;
+    clearReanalysis();
     if (unsubscribe) { unsubscribe(); unsubscribe = null; }
     if (!session) return;
     const status = sessionState.status;
@@ -204,6 +233,7 @@ export function createFactCheckController({
   async function start(params, minutes, expected) {
     if (!flag.available) return;
     chooseId++;
+    startedFor = reanalysis?.stretchId ?? null;
     const expectedCreditsPerMinute = typeof expected === 'number' ? expected : flag.creditsPerMinute;
     try { await ensureSession().start({ ...params, minutes, expectedCreditsPerMinute }); } catch { /* shown through the session's state */ }
   }
@@ -350,12 +380,13 @@ export function createFactCheckController({
     if (!shared) return null;
     return {
       ...shared,
+      ...(reanalysis ? { reanalysis: { ...reanalysis } } : {}),
       stretches: [...shared.stretches],
       unlocks: Object.fromEntries(Object.entries(shared.unlocks).map(([k, v]) => [k, { ...v }])),
       reports: Object.fromEntries(Object.entries(shared.reports).map(([k, v]) => [k, { ...v }])),
     };
   }
-  function resetShared() { viewEpoch++; loadEpoch++; shared = null; }
+  function resetShared() { viewEpoch++; loadEpoch++; shared = null; clearReanalysis(); }
   function switchSharingOff(text) {
     flag = { ...flag, sharing: null };
     resetShared();
@@ -494,7 +525,77 @@ export function createFactCheckController({
     }
     emit();
   }
-  const shareActions = { reload: () => { void loadShared(); }, unlockAsk, unlockCancel, unlockConfirm, reportAsk, reportCancel, reportSend };
+
+  // ---- F363: re-analyze a block ----
+  // true / false when the player reports a position (near the block start, allowing for the video playing
+  // on since the seek was sent); null when there is no reading. A reading taken before the seek was sent
+  // is never offered: the bridge drops it when it sends the command.
+  const nearTarget = (fromS) => {
+    let p = null;
+    try { p = getPosition?.()?.positionS; } catch { p = null; }
+    if (typeof p !== 'number' || !Number.isFinite(p)) return null;
+    const played = Math.max(0, Date.now() - seekSentAt) / 1000;
+    return p >= fromS - SEEK_TOLERANCE_S && p <= fromS + 2 * played + SEEK_TOLERANCE_S;
+  };
+  const sendSeek = (fromS) => {
+    seekSentAt = Date.now();
+    try { seek?.(fromS); } catch { /* the check below tells the user */ }
+  };
+  // Opens the re-analysis state for a stretch and moves the player. Starts nothing, charges nothing.
+  function openReanalysis(st) {
+    stopSeekTimers();
+    const token = ++reanalysisToken;
+    reanalysis = { stretchId: st.stretch_id, minutes: reanalyzeLength(st.minutes), fromS: st.from_s, seek: 'pending', token };
+    sendSeek(st.from_s);
+    const check = (final) => {
+      if (!reanalysis || reanalysis.token !== token) return;
+      const near = nearTarget(st.from_s);
+      let next = reanalysis.seek;
+      if (near === true) next = 'ok';
+      else if (near === false && reanalysis.seek === 'ok') next = 'late';
+      else if (final && reanalysis.seek === 'pending') next = 'late';
+      if (next !== reanalysis.seek) { reanalysis.seek = next; emit(); }
+    };
+    seekPoll = setInterval(() => check(false), SEEK_POLL_MS);
+    seekDeadline = setTimeout(() => { seekDeadline = null; check(true); }, SEEK_WAIT_MS);
+    const first = nearTarget(st.from_s);
+    if (first === true) { reanalysis.seek = 'ok'; clearTimeout(seekDeadline); seekDeadline = null; }
+    emit();
+  }
+  // The user pressed "Re-analyze this block" on a part they can read. This moves the player and opens the
+  // ordinary start screen with the length preselected. It starts nothing and charges nothing: the start
+  // is the unchanged start() above, called by the confirm control.
+  function reanalyze(id) {
+    const st = stretchById(id);
+    const status = sessionState.status;
+    if (!st || !shared || !sharingNow() || !partModel(st).readable) return false;
+    if (status !== 'choosing' && !FINISHED.has(status)) return false;
+    // After an error the panel offers a new start only where it offers Try again; the rest keep their warning.
+    if (status === 'error' && !errorMessage(sessionState.error, { captureFailures }).retry) return false;
+    if (typeof flag.creditsPerMinute !== 'number') return false;
+    clearReanalysis();
+    if (status !== 'choosing') { session.reset(); void choose(); }
+    openReanalysis(st);
+    return true;
+  }
+  // Called by the confirm control just before start(): moves the video to the block start again and waits
+  // (briefly) for a position read after that, so the start position is not the one from before. null when
+  // the start screen was not opened by "Re-analyze this block".
+  function prepareStart() {
+    if (!reanalysis || sessionState.status !== 'choosing') return null;
+    const { fromS } = reanalysis;
+    sendSeek(fromS);
+    return new Promise((resolve) => {
+      const began = Date.now();
+      const tick = () => {
+        if (nearTarget(fromS) === true || Date.now() - began >= PREPARE_WAIT_MS) resolve();
+        else setTimeout(tick, 50);
+      };
+      tick();
+    });
+  }
+
+  const shareActions = { reload: () => { void loadShared(); }, reanalyze, unlockAsk, unlockCancel, unlockConfirm, reportAsk, reportCancel, reportSend };
 
   // Carried in the published view so the panel needs no extra props from the modal.
   const recheckActions = {
@@ -505,6 +606,6 @@ export function createFactCheckController({
   function retry() { session?.reset(); void choose(); }
 
   return { load, close, setTarget, setVideo, choose, cancel, start, stop, dismiss, retry, endOrphan, recheckAsk, recheckCancel, recheckConfirm,
-    unlockAsk, unlockCancel, unlockConfirm, reportAsk, reportCancel, reportSend,
+    unlockAsk, unlockCancel, unlockConfirm, reportAsk, reportCancel, reportSend, reanalyze, prepareStart,
   };
 }

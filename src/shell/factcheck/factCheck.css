@@ -391,3 +391,9 @@
 .pst-danger { border-color: var(--fc-bad); color: var(--fc-bad); }
 .pst button:disabled { opacity: 0.55; cursor: not-allowed; }
 .pst :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* F363: "Re-analyze this block" */
+.fc-reanalyze-btn { margin: 6px 0; }
+.fc-reanalyze-intro { margin: 0 0 8px; }
+.fc-reanalyze-intro:focus-visible { outline: 2px solid var(--fc-amber); outline-offset: 2px; }
+.fc-kind--earlier { color: var(--fc-amber); }

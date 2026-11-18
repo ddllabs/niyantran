@@ -207,22 +207,15 @@ Each item is a unit test unless it says otherwise. Each new test must fail befor
 - **Flag off renders nothing new:** with the flag off or sharing off, the panel and parts render exactly as before (a
   snapshot or markup-equality test against the current output). Test in `FactCheckPanel.test.jsx` and
   `LiveTvPage.wiring.test.jsx`.
-- **Seek lands before confirm:** the start reads a position within a set tolerance of `from_s` before Start is enabled, or
-  the start uses the stretch's `from_s` and the test proves the playhead was there. Test in
-  `factCheckStartPosition.test.js` (new cases).
-- **Existing tests:** `factCheckStartPosition.test.js`, `LiveTvPage.wiring.test.jsx`, `factCheckShare.test.js` and the
-  rest of `src/shell/factcheck` keep passing.
-- **Commands:** `npm run lint` (must pass with zero warnings), `npm run build`, `npm run check:bundle`, `npm test`. The
-  change is under `src/shell`, so the SQL fixtures and Deno tests are not required. If a migration were added (it is not
-  planned), also run `npm run test:sql` and `deno test -A --config supabase/functions/deno.json supabase/functions`, and
-  prove the fixture non-vacuous.
-- **No type check is claimed.** The repository has no standalone type-check (`AGENTS.md`).
+- **Seek lands before the start:** when Start is pressed on a re-analysis, the player is moved to `from_s` again and
+  the start position is read only from a reading taken after that move (D12 keeps Start available once the first
+  3 seconds have passed). Tests in `useFactCheck.test.js` and `factCheckReanalyze.controller.test.js`.
 
 ## Risks
 
 - **Seek lands late or not at all.** The start reads the playhead at confirm time (`useFactCheck.js:15` to `:18`). A
-  stale read would label pieces with the wrong positions. Mitigation: the acceptance test above; Start stays disabled until
-  the playhead is within tolerance of `from_s`.
+  stale read would label pieces with the wrong positions. Mitigation: the player is moved again when Start is pressed, a
+  reading from before a move is never used, and Start is disabled only while the first move is pending (D12).
 - **Seek command untested in this environment.** `seekTo` is not in the code. Whether the embed accepts it through this
   bridge is **not established**. Mitigation: a manual check in the browser by the owner before release.
 - **Order relied on, not stated.** The browser depends on array order (`factCheckShare.js:65`). A later change to the view
@@ -279,3 +272,23 @@ T1 and T3 before T2, T4 and T5 start, so the work stays sequential.
 - Whether `from_s` equals the session's `start_position_s` exactly. It is the playhead reading (`session.js:267` to `:271`).
 - Whether the SQL fixtures pin the order of `factcheck_video_view` (not checked).
 - Whether the open-work F363 line and the closeout W4 text describe the old design (they were not read in full; they are outside this write scope).
+
+## Build record (2026-11-18)
+
+Built browser-only on `task/f363-reanalyze` by a task agent, reviewed independently, fixed, and reproduced by the
+supervisor. No migration, no function change.
+
+- **What was added.** A `seekTo` command on the existing YouTube bridge (same origin checks as mute); "Re-analyze this
+  block" on readable stretches; the preselect rule; the start screen opened without the covered banner; an "Earlier
+  analysis" mark on an older stretch that overlaps a newer one.
+- **Review.** Accept with fixes, nothing critical; no path starts a session or holds credits without the Start click.
+  Fixed: the button no longer bypasses the errors that deliberately offer only Close; the player is moved again when
+  Start is pressed, so the re-run begins at the block's start; the "could not be moved" message updates while the
+  screen is open; a price change keeps the re-analysis; distinct accessible names.
+- **Executed.** `npm run lint` clean; `npm run build` passes; `npm run check:bundle` ok; `npm test` 497 files, 8,416
+  tests pass. The task agent reported each rule's test failing with the rule removed.
+- **Not verified, and cannot be without a person and sharing switched on:** that the YouTube embed accepts `seekTo`
+  through the bridge and reports the new position within 3 seconds; the position a session records after the move;
+  that Chrome's tab-sharing prompt still opens after the short wait (up to 1.5 seconds) that follows Start on a
+  re-analysis.
+

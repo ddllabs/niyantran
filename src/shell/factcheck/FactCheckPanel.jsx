@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { creditsText, formatCredits } from '../../lib/creditsStore.js';
 import {
-  DELAY_SECONDS, NO_SOURCES_TEXT, blockOptions, claimBadge, confirmStart, defaultBlock, endReasonText, errorMessage, formatClock, kindTag, minutesText, safeSourceUrl, sourceLabel,
+  DELAY_SECONDS, NO_SOURCES_TEXT, blockOptions, claimBadge, confirmStart, defaultBlock, endReasonText, errorMessage, formatClock, kindTag, minutesText, reanalyzeIntroText, safeSourceUrl, seekLateText, seekPendingText, sourceLabel,
 } from './factCheckText.js';
 import { CoveredBanner, Parts, ReportControls } from './FactCheckParts.jsx';
 import { formatPosition, partModel } from './factCheckShare.js';
@@ -59,21 +59,38 @@ function MutedWarning({ onUnmute }) {
   );
 }
 
-function Choose({ view, isMuted, onUnmute, onConfirm, onCancel, covered, onShowPart, sharing }) {
-  const [preferred, setPreferred] = useState(null);
+// `reanalysis` is set when "Re-analyze this block" opened this screen (F363): the length is preselected,
+// the already-covered banner is skipped, and focus moves here. The panel mounts it again for each press.
+export function Choose({ view, isMuted, onUnmute, onConfirm, onCancel, covered, onShowPart, sharing, reanalysis = null }) {
+  const [preferred, setPreferred] = useState(reanalysis?.minutes ?? null);
+  const intro = useRef(null);
+  const pressToken = reanalysis?.token;
+  useEffect(() => { if (pressToken !== undefined) intro.current?.focus(); }, [pressToken]);
   const [anyway, setAnyway] = useState(false);
   const balance = typeof view.balance === 'number' ? view.balance : null;
   const options = blockOptions(view.flag.creditsPerMinute, balance);
-  const chosen = options.find((o) => o.minutes === preferred && o.affordable) || defaultBlock(options);
+  // A re-analysis keeps its preselected length even when it is not affordable (D11): it shows the
+  // "Needs ..." line and Start is disabled until the user picks a length they can pay for.
+  const keepsPreselect = (o) => o.affordable || (reanalysis != null && o.minutes === reanalysis.minutes);
+  const chosen = options.find((o) => o.minutes === preferred && keepsPreselect(o)) || defaultBlock(options);
   return (
     <div className="fc-choose">
+      {reanalysis ? (
+        <>
+          <p className="fc-reanalyze-intro" tabIndex={-1} ref={intro}>{reanalyzeIntroText(formatPosition(reanalysis.fromS))}</p>
+          <div className="fc-reanalyze-status" role="status" aria-live="polite">
+            {reanalysis.seek === 'late' ? <p className="fc-notice">{seekLateText(formatPosition(reanalysis.fromS))}</p> : null}
+            {reanalysis.seek === 'pending' ? <p>{seekPendingText(formatPosition(reanalysis.fromS))}</p> : null}
+          </div>
+        </>
+      ) : null}
       <p className="fc-balance">
         {balance === null ? 'Your balance could not be read.' : `Available credits: ${formatCredits(balance)}`}
       </p>
       {view.priceNotice ? <p className="fc-notice" role="status">{view.priceNotice}</p> : null}
       {view.orphanNotice ? <p className="fc-notice" role="status">{view.orphanNotice}</p> : null}
       {isMuted ? <MutedWarning onUnmute={onUnmute} /> : null}
-      {covered && !anyway ? (
+      {covered && !anyway && !reanalysis ? (
         <CoveredBanner model={covered} onShow={(id) => { setAnyway(true); onShowPart(id); }} onAnyway={() => setAnyway(true)} onCancel={onCancel} />
       ) : (
       <>
@@ -111,8 +128,8 @@ function Choose({ view, isMuted, onUnmute, onConfirm, onCancel, covered, onShowP
           type="button"
           className="ltv-action-btn primary fc-btn"
           data-fc="confirm"
-          disabled={!chosen}
-          onClick={() => chosen && confirmStart({ isMuted, onUnmute, onConfirm }, chosen.minutes, view.flag.creditsPerMinute)}
+          disabled={!chosen || !chosen.affordable || reanalysis?.seek === 'pending'}
+          onClick={() => chosen && chosen.affordable && confirmStart({ isMuted, onUnmute, onConfirm }, chosen.minutes, view.flag.creditsPerMinute)}
         >
           {chosen ? `${isMuted ? 'Unmute and start' : 'Start'} ${minutesText(chosen.minutes)} · ${creditsText(chosen.price)}` : 'Start'}
         </button>
@@ -365,7 +382,7 @@ export function FactCheckPanel(props) {
 
 // Mounted while a session is on screen: focus moves to the heading when it opens, and back to the
 // entry button when it is dismissed (unless the user has already moved focus elsewhere).
-function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel }) {
+export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel }) {
   const heading = useRef(null);
   const panel = useRef(null);
   const [openParts, setOpenParts] = useState({});
@@ -392,6 +409,11 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
   const coveringStretch = sharedOn && view.shared.covering
     ? view.shared.stretches.find((x) => x.stretch_id === view.shared.covering) : null;
   const covered = coveringStretch ? partModel(coveringStretch) : null;
+  const reanalysis = sharedOn ? view.shared.reanalysis ?? null : null;
+  // A new press mounts a new start screen. When the re-analysis goes away under it (sharing switched off),
+  // the same screen stays, so the length the user chose is not lost.
+  const screenKey = useRef('plain');
+  if (reanalysis) screenKey.current = reanalysis.token;
   const showPart = (id) => {
     setOpenParts((o) => ({ ...o, [id]: true }));
     const st = view.shared.stretches.find((x) => x.stretch_id === id);
@@ -404,6 +426,9 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
   // A new session needs a known price (the flag can be off after a failed load or an `off` ending).
   const canRestart = s.status === 'ended' && view.flag.available === true && typeof view.flag.creditsPerMinute === 'number';
   const problem = s.status === 'error' ? errorMessage(s.error, { captureFailures: view.captureFailures || 0 }) : null;
+  // "Re-analyze this block" starts a new session, so it is offered only where a new session is: the choose
+  // step, an ended session with a known price, and an error that offers Try again.
+  const partActions = s.status === 'choosing' || canRestart || problem?.retry ? shareActions : { ...shareActions, reanalyze: undefined };
   return (
     <section className="fc-panel" aria-label="Fact-check" data-status={s.status} ref={panel}>
       <div className="fc-sr" aria-live="polite" aria-atomic="true">{view.announcement}</div>
@@ -431,7 +456,10 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
       ) : null}
 
       {s.status === 'choosing' ? (
-        <Choose view={view} isMuted={isMuted} onUnmute={onUnmute} onConfirm={onConfirm} onCancel={onCancel} covered={covered} onShowPart={showPart} sharing={sharedOn} />
+        <Choose
+          key={screenKey.current} view={view} isMuted={isMuted} onUnmute={onUnmute} onConfirm={onConfirm} onCancel={onCancel}
+          covered={covered} onShowPart={showPart} sharing={sharedOn} reanalysis={reanalysis}
+        />
       ) : null}
       {s.status === 'sharing' || s.status === 'starting' ? <Waiting status={s.status} onStop={onStop} /> : null}
 
@@ -485,7 +513,7 @@ function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRet
 
       {partsShown ? (
         <Parts
-          shared={view.shared} balance={view.balance} openIds={openParts} actions={shareActions}
+          shared={view.shared} balance={view.balance} openIds={openParts} actions={partActions}
           onToggle={(id) => setOpenParts((o) => ({ ...o, [id]: !o[id] }))}
           renderCard={(c, part) => (
             <Card

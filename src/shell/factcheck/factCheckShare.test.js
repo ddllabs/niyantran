@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('../../lib/supabaseClient.js', () => ({ supabase: {}, accessToken: async () => null, functionsUrl: () => '' }));
 import { FactCheckError } from '../../lib/factcheck/client.js';
 import {
-  claimsLabel, coveringPart, dateLabel, formatPosition, formatRange, minutesLabel, partModel, reportErrorText, unlockErrorText, viewErrorText,
+  claimsLabel, coveringPart, dateLabel, earlierAnalysisIds, formatPosition, formatRange, minutesLabel, partModel, reportErrorText, unlockErrorText, viewErrorText,
 } from './factCheckShare.js';
 
 describe('formatPosition / formatRange', () => {
@@ -91,6 +91,48 @@ describe('coveringPart', () => {
   });
   it('the first (newest) wins when two overlap', () => {
     expect(coveringPart([stretch({ stretch_id: 'n', from_s: 0, to_s: 100 }), stretch({ stretch_id: 'o', from_s: 0, to_s: 100 })], 50)?.stretch_id).toBe('n');
+  });
+});
+
+// F363: two runs over overlapping stretches. The server lists the newer one first (fail_reason.sql:44).
+describe('overlapping stretches (newest first)', () => {
+  const newer = stretch({ stretch_id: 'new', from_s: 100, to_s: 400, checked_on: '2026-11-18' });
+  const older = stretch({ stretch_id: 'old', from_s: 150, to_s: 450, checked_on: '2026-11-10' });
+  const apart = stretch({ stretch_id: 'apart', from_s: 900, to_s: 1000, checked_on: '2026-11-01' });
+  it('the covering part is the newer one where both cover the position', () => {
+    expect(coveringPart([newer, older], 200)?.stretch_id).toBe('new');
+    expect(coveringPart([newer, older], 420)?.stretch_id).toBe('old'); // only the older one reaches here
+  });
+  it('marks the older stretch as earlier, never the newer one, and keeps both in the list', () => {
+    const list = [newer, older, apart];
+    const earlier = earlierAnalysisIds(list);
+    expect([...earlier]).toEqual(['old']);
+    expect(list.map((s) => s.stretch_id)).toEqual(['new', 'old', 'apart']);
+    expect(partModel(older).date).toBe(dateLabel('2026-11-10'));
+  });
+  it('a stretch that only touches the end of a newer one is not an earlier analysis', () => {
+    const touching = stretch({ stretch_id: 't', from_s: 400, to_s: 700 });
+    expect(earlierAnalysisIds([newer, touching]).size).toBe(0);
+  });
+  it('a locked newer stretch still makes the older readable one earlier', () => {
+    expect(earlierAnalysisIds([stretch({ stretch_id: 'l', access: 'locked', from_s: 120, to_s: 380 }), older]).has('old')).toBe(true);
+  });
+  it('handles nested, identical and chained stretches', () => {
+    const r = (id, from_s, to_s) => stretch({ stretch_id: id, from_s, to_s });
+    expect([...earlierAnalysisIds([r('in', 120, 140), r('out', 100, 200)])]).toEqual(['out']); // a newer one inside an older one
+    expect([...earlierAnalysisIds([r('out', 100, 200), r('in', 120, 140)])]).toEqual(['in']);
+    expect([...earlierAnalysisIds([r('n', 100, 200), r('o', 100, 200)])]).toEqual(['o']);
+    // A [0,100] newest, B [50,150], C [120,200]: C does not touch A but B is newer than C
+    expect([...earlierAnalysisIds([r('A', 0, 100), r('B', 50, 150), r('C', 120, 200)])]).toEqual(['B', 'C']);
+    // a newer run far away in between does not hide the overlap with an even newer one
+    expect([...earlierAnalysisIds([r('A', 0, 100), r('far', 500, 600), r('C', 50, 80)])]).toEqual(['C']);
+    // three identical runs: only the newest is not earlier
+    expect([...earlierAnalysisIds([r('1', 10, 20), r('2', 10, 20), r('3', 10, 20)])]).toEqual(['2', '3']);
+  });
+  it('is empty for no stretches, one stretch, or bad ranges', () => {
+    expect(earlierAnalysisIds([]).size).toBe(0);
+    expect(earlierAnalysisIds([newer]).size).toBe(0);
+    expect(earlierAnalysisIds(undefined).size).toBe(0);
   });
 });
 

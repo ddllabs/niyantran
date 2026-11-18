@@ -97,6 +97,27 @@ export function defaultBlock(options) {
     || null;
 }
 
+/**
+ * F363: the length a re-analysis of a stretch starts with: the shortest offered length that covers the
+ * stretch's minutes, or the longest offered one when the stretch is longer. null (no preselection) when
+ * the minutes are not a positive number or nothing is offered.
+ */
+export function reanalyzeLength(minutes, choices = MINUTE_CHOICES) {
+  if (typeof minutes !== 'number' || Number.isNaN(minutes) || minutes <= 0 || !Array.isArray(choices) || choices.length === 0) return null;
+  const sorted = [...choices].sort((a, b) => a - b);
+  return sorted.find((c) => c >= minutes) ?? sorted[sorted.length - 1];
+}
+
+export const REANALYZE_LABEL = 'Re-analyze this block';
+/** Shown at the top of the start screen when it was opened from "Re-analyze this block". */
+export const reanalyzeIntroText = (position) => `Re-analyzing the block that starts at ${position}. The check starts where the video is when audio sharing begins, and the video is moved to ${position} again when you press Start. Choose how much to check.`;
+/** While the player is being moved (Start waits, at most 3 seconds). */
+export const seekPendingText = (position) => `Moving the video to ${position}…`;
+/** The video did not move to the block's start in time (3 seconds). Start stays available. */
+export const seekLateText = (position) => `The video could not be moved. Move it to ${position} yourself, then press Start.`;
+/** The mark on a stretch that a newer analysis overlaps. */
+export const earlierAnalysisText = (date) => (date ? `Earlier analysis, checked on ${date}` : 'Earlier analysis');
+
 const END_REASONS = {
   time: 'Time is up.',
   user: 'You stopped the session.',
