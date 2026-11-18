@@ -41,7 +41,8 @@ import LazyView from './LazyView.jsx';
 import ProfileCredits from './credits/BalancePill.jsx';
 import { ACCOUNT_SECTIONS, deskRouteFor, goAccount, parseAccountHash } from './credits/accountRoute.js';
 import { OPEN_BILLING_EVENT } from '../ai/CreditBalance.jsx';
-const LiveTvModal = lazy(() => import('./LiveTvModal.jsx'));
+const LiveTvPage = lazy(() => import('./LiveTvPage.jsx'));
+import { backFromLiveTv, goLiveTv, parseLiveTvHash, watchLiveTv } from './liveTvRoute.js';
 import { clearPersonaPrefs } from '../lib/personas.js';
 import { hydrateUserPrefs, startUserPrefsSync } from '../lib/userPrefsSync.js';
 import './upgrade.css';
@@ -68,8 +69,10 @@ export default function TerminalShell({ onLogout }) {
   const [reload, setReload] = useState(0);
   const [loading, setLoading] = useState(false);
   const [vizFilter, setVizFilter] = useState(null);
-  const [liveTvOpen, setLiveTvOpen] = useState(false);
-  const [liveTvVisited, setLiveTvVisited] = useState(false);
+  // Live TV (F359) is a page at #/livetv: open exactly while the address names it. Once visited it stays
+  // mounted (drawing nothing while closed) so the chosen channel is kept.
+  const [liveTvOpen, setLiveTvOpen] = useState(() => parseLiveTvHash());
+  const [liveTvVisited, setLiveTvVisited] = useState(() => parseLiveTvHash());
   const [profileOpen, setProfileOpen] = useState(false);
   const [planPickerOpen, setPlanPickerOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
@@ -148,7 +151,8 @@ export default function TerminalShell({ onLogout }) {
   const guideMode = tab !== 'home' && !String(featureName || '').trim();
   const v6Landing = guideMode && ['national', 'global', 'law', 'economics', 'carbon', 'sports', 'entertainment', 'state'].includes(tab);
   // Home is the default view: like a desk landing, it has no module row.
-  const moduleNavigation = !v6Landing && tab !== 'home';
+  // Live TV (F359) takes the work area as the credits page does: no module row, no rail.
+  const moduleNavigation = !v6Landing && tab !== 'home' && !liveTvOpen;
   // F195 review: any change of page closes the rail, however it came (back, a category, search, the
   // credits page); an open overlay is not carried to the next page.
   const railRoute = `${tab}|${featureName || ''}|${account || ''}`;
@@ -258,6 +262,10 @@ export default function TerminalShell({ onLogout }) {
   }, []);
 
   useEffect(() => {
+    if (liveTvOpen) {
+      setPageTitle('Live TV');
+      return;
+    }
     if (account) {
       setPageTitle(`${ACCOUNT_SECTIONS.find((s) => s.id === account)?.label || 'Overview'} · Credits`);
       return;
@@ -265,44 +273,14 @@ export default function TerminalShell({ onLogout }) {
     const desk = active?.label || tab || 'Terminal';
     const feat = String(featureName || '').trim();
     setPageTitle(feat ? `${feat} · ${desk}` : desk === 'Home' ? 'Terminal' : desk);
-  }, [account, tab, featureName, active?.label]);
+  }, [liveTvOpen, account, tab, featureName, active?.label]);
 
-  useEffect(() => {
-    function onOpenLiveTv() {
-      setLiveTvVisited(true);
-      setLiveTvOpen(true);
-    }
-    function checkLiveTvHash() {
-      if (typeof window !== 'undefined' && window.location.hash === '#livetv') {
-        setLiveTvVisited(true);
-        setLiveTvOpen(true);
-      }
-    }
-    window.addEventListener('nter:open-livetv', onOpenLiveTv);
-    window.addEventListener('hashchange', checkLiveTvHash);
-    checkLiveTvHash();
-    return () => {
-      window.removeEventListener('nter:open-livetv', onOpenLiveTv);
-      window.removeEventListener('hashchange', checkLiveTvHash);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!liveTvOpen) return undefined;
-    function onDoc(e) {
-      if (e.target?.closest?.('.tv-wrap') || e.target?.closest?.('.ltv-modal')) return;
-      setLiveTvOpen(false);
-    }
-    function onKey(e) {
-      if (e.key === 'Escape') setLiveTvOpen(false);
-    }
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [liveTvOpen]);
+  // The address #/livetv (or the old #livetv, or the nter:open-livetv event) opens the page; any other
+  // address closes it. Leaving ends a running fact-check session (the hook sees open go false).
+  useEffect(() => watchLiveTv((open) => {
+    if (open) { setLiveTvVisited(true); setRailOpen(false); }
+    setLiveTvOpen(open);
+  }), []);
 
   useEffect(() => {
     const land = sessionStorage.getItem('niyantranLand');
@@ -313,6 +291,7 @@ export default function TerminalShell({ onLogout }) {
     // On the credits page the desk underneath keeps what it had, whatever re-runs this (F184 review).
     if (parseAccountHash(hash)) return;
     const emptyHash = !hash || hash === '#' || hash === '#/';
+    if (parseLiveTvHash(hash)) return; // likewise on Live TV
     let r = parseDeskHash();
     if (land && canAccessDesk(user, land) && emptyHash) {
       r = resolveDeskRoute(land, intendedFeat || '');
@@ -326,9 +305,10 @@ export default function TerminalShell({ onLogout }) {
 
   useEffect(() => {
     function onPop() {
-      // The credits page has its own address; the desk underneath keeps what it had (F184).
+      // The credits page and Live TV have their own addresses; the desk underneath keeps what it had (F184, F359).
       const r = deskRouteFor();
       if (!r) return;
+      if (parseLiveTvHash()) return; // Live TV is no desk either
       setTab(r.tab);
       setFeatureName(r.feature);
       setSelected(null);
@@ -346,6 +326,7 @@ export default function TerminalShell({ onLogout }) {
 
   function onDesk(id) {
     setAccount(null);
+    setLiveTvOpen(false);
     panel.act({ type: 'landing' });
     const r = resolveDeskRoute(id, '');
     setTab(r.tab);
@@ -356,6 +337,7 @@ export default function TerminalShell({ onLogout }) {
 
   function onFeature(name) {
     setAccount(null);
+    setLiveTvOpen(false);
     const r = resolveDeskRoute(tab, name);
     setTab(r.tab);
     setFeatureName(r.feature);
@@ -365,6 +347,7 @@ export default function TerminalShell({ onLogout }) {
 
   function onOpen({ tab: nextTab, feature }) {
     setAccount(null);
+    setLiveTvOpen(false);
     const r = resolveDeskRoute(nextTab, feature);
     setTab(r.tab);
     setFeatureName(r.feature);
@@ -397,6 +380,9 @@ export default function TerminalShell({ onLogout }) {
   const planLabel = planMeta?.name || String(ent.plan || 'free').toUpperCase();
   const statusLabel = ent.inGrace ? 'Renewal grace' : ent.status === 'active' ? 'Active' : 'Free';
 
+  // Back from Live TV: one step back in history when the page was entered from inside the app, else the default desk.
+  const onLiveTvBack = () => backFromLiveTv(() => onDesk('home'));
+
   function doLogout() {
     clearWorkspace();
     clearSessionUser();
@@ -408,7 +394,7 @@ export default function TerminalShell({ onLogout }) {
   }
 
   return (
-    <div className={`terminal with-v6-directory${moduleNavigation && !account ? ' with-module-navigation with-desk-rail' : ''}${account ? ' with-credits-page' : ''} theme-${theme}`}>
+    <div className={`terminal with-v6-directory${moduleNavigation && !account ? ' with-module-navigation with-desk-rail' : ''}${account ? ' with-credits-page' : ''}${liveTvOpen ? ' with-livetv-page' : ''} theme-${theme}`}>
       <div className={`load-bar${loading ? ' on' : ''}`} />
       <header className="topbar">
         <div className="brand" title="Niyantran Terminal">
@@ -416,9 +402,9 @@ export default function TerminalShell({ onLogout }) {
           <span>TERMINAL</span>
         </div>
         {/* F195: inside a desk the desks are the left rail; the header keeps them everywhere else. */}
-        {moduleNavigation && !account ? null : <DeskLandingTabs tab={tab} lang={lang} tabs={deskTabs} onDesk={onDesk}/>}
+        {moduleNavigation && !account ? null : <DeskLandingTabs tab={liveTvOpen ? null : tab} lang={lang} tabs={deskTabs} onDesk={onDesk}/>}
         <div className="shell-header-utilities">
-        <DeskDirectory tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/>
+        <DeskDirectory tab={liveTvOpen ? null : tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/>
         <LazyView><DeskCatalogueSearch key={`${user?.id || user?.email || ""}:${userTick}`} tabs={deskTabs} recordTabs={searchTabs} lockedIds={[...lockedIds]}
           identity={`${user?.id || user?.email || ''}:${userTick}`} lang={lang}
           onOpen={hit => {
@@ -444,20 +430,14 @@ export default function TerminalShell({ onLogout }) {
               className="tv-btn"
               onClick={() => {
                 setProfileOpen(false);
-                setLiveTvVisited(true);
-                setLiveTvOpen((v) => !v);
+                goLiveTv();
               }}
               title="Open Live TV Intelligence Stream & Broadcasts"
-              aria-expanded={liveTvOpen}
+              aria-current={liveTvOpen ? 'page' : undefined}
             >
               <span className="live-dot" />
               LIVE TV
             </button>
-            {liveTvVisited ? <LazyView><LiveTvModal
-              open={liveTvOpen}
-              onClose={() => setLiveTvOpen(false)}
-              onNavigateDesk={(deskTab, feature) => onOpen({ tab: deskTab, feature: feature || '' })}
-            /></LazyView> : null}
           </div>
           {/* Owner 2026-10-13: the same header on every page. A landing's refresh remounts it, so its
               summaries are requested again. */}
@@ -479,7 +459,7 @@ export default function TerminalShell({ onLogout }) {
           >
             {theme === 'light' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
           </button>
-          <ProfileCredits user={user} open={profileOpen} setOpen={setProfileOpen} onToggle={() => setLiveTvOpen(false)} activePlan={ent.status === 'active' && !ent.lapsed ? ent.plan : null}>
+          <ProfileCredits user={user} open={profileOpen} setOpen={setProfileOpen} activePlan={ent.status === 'active' && !ent.lapsed ? ent.plan : null}>
             {(glance) => <>
                 <div className="profile-pop-head">
                   <span className="avatar lg">{(user?.name || user?.email || 'A').charAt(0).toUpperCase()}</span>
@@ -558,6 +538,13 @@ export default function TerminalShell({ onLogout }) {
       {/* F184: the credits page takes the work area; the desk stays mounted underneath, hidden, so the
           AI panel keeps its thread, draft and any answer still streaming (SidePanel.jsx). */}
       {account ? <LazyView><CreditsPage section={account} user={user} ent={ent} /></LazyView> : null}
+      {/* F359: Live TV takes the work area the same way; once visited it stays mounted and draws nothing
+          while another page is open, so the video stops and the chosen channel is kept. */}
+      {liveTvVisited ? <LazyView><LiveTvPage
+        open={liveTvOpen}
+        onClose={onLiveTvBack}
+        onNavigateDesk={(deskTab, feature) => onOpen({ tab: deskTab, feature: feature || '' })}
+      /></LazyView> : null}
       {moduleNavigation && !account && <DeskRail tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}
         open={railOpen} onOpenChange={setRailOpen} />}
       {moduleNavigation && !account && <DeskNav
@@ -571,7 +558,7 @@ export default function TerminalShell({ onLogout }) {
         desksOpen={railOpen}
         onOpenDesks={() => setRailOpen((open) => !open)}
       />}
-      <div className={`workspace${restricted ? ' restricted-workspace' : ''}${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`} style={panel.width ? { '--panel-chosen': `${panel.width}px` } : undefined} hidden={account ? true : undefined}>
+      <div className={`workspace${restricted ? ' restricted-workspace' : ''}${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`} style={panel.width ? { '--panel-chosen': `${panel.width}px` } : undefined} hidden={account || liveTvOpen ? true : undefined}>
         <main className="main-col">
           {restricted ? (
             <RestrictedDeskRoute desk={hi ? active.labelHi : active.label} feature={featureName} lang={lang}
@@ -618,7 +605,7 @@ export default function TerminalShell({ onLogout }) {
           featureName={featureName}
         />}
       </div>
-      {!restricted && !account && (tab === 'home' ? <OnboardingTour kind="home" /> : <OnboardingTour kind="desk" deskId={tab} />)}
+      {!restricted && !account && !liveTvOpen && (tab === 'home' ? <OnboardingTour kind="home" /> : <OnboardingTour kind="desk" deskId={tab} />)}
       {personaOpen ? (
         <PersonaChooser
           onCancel={() => setPersonaOpen(false)}

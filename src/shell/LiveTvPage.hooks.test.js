@@ -1,4 +1,4 @@
-// React requires the same hooks in the same order on every render. LiveTvModal
+// React requires the same hooks in the same order on every render. LiveTvPage
 // stays mounted with open=false and returned early before two useMemo calls,
 // so opening Live TV threw "Rendered more hooks than during the previous
 // render" and blanked the terminal. Count the hook calls in both states.
@@ -19,15 +19,15 @@ vi.mock('react', async (importOriginal) => {
   };
 });
 
-const { default: LiveTvModal } = await import('./LiveTvModal.jsx');
+const { default: LiveTvPage } = await import('./LiveTvPage.jsx');
 
 function hookCount(props) {
   calls.n = 0;
-  LiveTvModal(props);
+  LiveTvPage(props);
   return calls.n;
 }
 
-describe('LiveTvModal hook order', () => {
+describe('LiveTvPage hook order', () => {
   it('calls the same hooks whether it is closed or open', () => {
     const closed = hookCount({ open: false, onClose: () => {} });
     const open = hookCount({ open: true, onClose: () => {} });

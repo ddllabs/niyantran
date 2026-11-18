@@ -4,12 +4,12 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import LiveTvModal from '../LiveTvModal.jsx';
+import LiveTvPage from '../LiveTvPage.jsx';
 
 const region = (html) => html.slice(html.indexOf('<div class="ltv-body'), html.indexOf('<div class="ltv-deck-tabs"'));
 
 describe('Live TV with fact-check off', () => {
-  const html = renderToStaticMarkup(<LiveTvModal open onClose={() => {}} />);
+  const html = renderToStaticMarkup(<LiveTvPage open onClose={() => {}} />);
 
   it('renders the player region exactly as before', () => {
     const expected = readFileSync(new URL('./fixtures/ltv-body-player-region.html', import.meta.url), 'utf8').trimEnd();

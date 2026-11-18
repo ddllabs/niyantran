@@ -121,23 +121,27 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
     }
   });
 
-  it('renders LiveTvModal closed when open=false and renders dialog structure when open=true', async () => {
+  it('renders LiveTvPage closed when open=false and as a labelled page region (no dialog) when open=true', async () => {
     const React = await import('react');
     const { renderToStaticMarkup } = await import('react-dom/server');
-    const LiveTvModal = (await import('../shell/LiveTvModal.jsx')).default;
+    const LiveTvPage = (await import('../shell/LiveTvPage.jsx')).default;
 
     // When closed, renders null
     const closedHtml = renderToStaticMarkup(
-      React.createElement(LiveTvModal, { open: false, onClose: () => {} })
+      React.createElement(LiveTvPage, { open: false, onClose: () => {} })
     );
     expect(closedHtml).toBe('');
 
     // When open, renders full player container, tabs, and controls
     const openHtml = renderToStaticMarkup(
-      React.createElement(LiveTvModal, { open: true, onClose: () => {} })
+      React.createElement(LiveTvPage, { open: true, onClose: () => {} })
     );
     expect(openHtml).toContain('NIYANTRAN LIVE TV');
-    expect(openHtml).toContain('ltv-modal');
+    // F359: a page, not a pop-up: a labelled region, no dialog role, no backdrop, a visible Back control.
+    expect(openHtml).toMatch(/<section[^>]*class="ltv-page"[^>]*aria-label="Live TV"|<section[^>]*aria-label="Live TV"[^>]*class="ltv-page"/);
+    expect(openHtml).not.toContain('role="dialog"');
+    expect(openHtml).not.toContain('ltv-modal');
+    expect(openHtml).toMatch(/<button[^>]*class="ltv-back-btn"[^>]*>.*?Back<\/button>/);
     expect(openHtml).toContain('ltv-video-container');
     expect(openHtml).toContain('Broadcast Schedule');
     expect(openHtml).toContain('Archived Segments');
@@ -195,13 +199,13 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
     expect(missing.error).toContain('channelId required');
   });
 
-  it('renders category filter bar, video cards, and status chips in LiveTvModal', async () => {
+  it('renders category filter bar, video cards, and status chips in LiveTvPage', async () => {
     const React = await import('react');
     const { renderToStaticMarkup } = await import('react-dom/server');
-    const LiveTvModal = (await import('../shell/LiveTvModal.jsx')).default;
+    const LiveTvPage = (await import('../shell/LiveTvPage.jsx')).default;
 
     const html = renderToStaticMarkup(
-      React.createElement(LiveTvModal, { open: true, onClose: () => {} })
+      React.createElement(LiveTvPage, { open: true, onClose: () => {} })
     );
 
     expect(html).toContain('ltv-category-bar');

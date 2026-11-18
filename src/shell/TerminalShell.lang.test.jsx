@@ -15,7 +15,7 @@ vi.mock('../desks/DeskLandingView.jsx', () => ({ default: () => null }));
 vi.mock('../desks/HomeDesk.jsx', () => ({ default: () => null }));
 vi.mock('./OnboardingTour.jsx', () => ({ default: () => null }));
 vi.mock('./CommandSearch.jsx', () => ({ default: () => null }));
-vi.mock('./LiveTvModal.jsx', () => ({ default: () => null }));
+vi.mock('./LiveTvPage.jsx', () => ({ default: () => null }));
 const { default: TerminalShell } = await import('./TerminalShell.jsx');
 
 describe('TerminalShell document language', () => {

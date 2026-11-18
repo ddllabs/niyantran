@@ -25,28 +25,35 @@
   --fc-amber: #ead0af;
 }
 
-/* Beside the player on wide screens, below it on narrow ones. Only when the panel exists, so Live TV
-   looks exactly as before with the feature off. */
-.ltv-body:has(> .fc-panel) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-  align-content: start;
-}
-.ltv-body:has(> .fc-panel) > .ltv-player-stage { grid-column: 1; grid-row: 1; }
-.ltv-body:has(> .fc-panel) > .fc-panel { grid-column: 2; grid-row: 1; margin: 16px 18px 16px 12px; align-self: start; }
-/* Beside the player the panel has ONE height in every state (choosing, error, ended), so the grid row
-   and everything below it stay put when the panel's content changes; the panel scrolls inside. The
-   body is 90vh minus about 120px of header; the 32px is the panel's vertical margin. */
-.ltv-body:has(> .fc-panel) > .fc-panel { height: min(640px, calc(90vh - 152px)); max-height: none; }
-.ltv-body:has(> .fc-panel) > .ltv-deck-tabs,
-.ltv-body:has(> .fc-panel) > .ltv-tab-content { grid-column: 1 / -1; }
-
-@media (max-width: 860px) {
-  .ltv-body:has(> .fc-panel) { display: flex; }
-  .ltv-body:has(> .fc-panel) > .fc-panel { margin: 12px 14px; height: auto; max-height: none; overflow: visible; align-self: stretch; }
+/* F359: Live TV is a page. From 1100px the panel is a second column, exactly the visible height of the page
+   body in every state (choosing, running, error, ended), so nothing moves when its content changes; it
+   scrolls inside. Only when the panel exists: with fact-check
+   off or not opened there is no right column. Below 1100px it stacks under the player, and the page body
+   scrolls, not the panel. */
+.ltv-body:has(> .fc-panel) > .fc-panel { margin: 12px 14px; max-height: none; overflow: visible; align-self: stretch; flex: 0 0 auto; }
+@media (max-width: 1099px) {
   /* Stacked: the page body scrolls, not the choose block, so the sticky buttons stick to it. */
   .fc-choose, .fc-waiting { overflow: visible; }
   .fc-work { flex: 0 0 auto; overflow: visible; }
+}
+@media (min-width: 1100px) {
+  /* The body is a size container (its height comes from the page, not from its content), so the panel can
+     be exactly the visible height of the body: 100cqh minus its two 16px margins. */
+  .ltv-body:has(> .fc-panel) {
+    container-type: size;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+    grid-template-rows: auto auto 1fr;
+  }
+  .ltv-body:has(> .fc-panel) > .ltv-player-stage { grid-column: 1; grid-row: 1; }
+  .ltv-body:has(> .fc-panel) > .ltv-deck-tabs { grid-column: 1; grid-row: 2; }
+  .ltv-body:has(> .fc-panel) > .ltv-tab-content { grid-column: 1; grid-row: 3; }
+  /* Sticky, so it stays in view while the left column scrolls; the height is the same in every state. */
+  .ltv-body:has(> .fc-panel) > .fc-panel {
+    grid-column: 2; grid-row: 1 / -1; margin: 16px 18px 16px 12px;
+    position: sticky; top: 16px; align-self: start;
+    height: calc(100cqh - 32px); min-height: 0; overflow-x: hidden; overflow-y: auto;
+  }
 }
 
 .fc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
