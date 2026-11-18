@@ -319,7 +319,7 @@ export default function IndexConfirmationModal({
           <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.4, marginBottom: 16 }}>
             ✦ <strong>Zero-charge rule:</strong> Attaching an indexed file to future AI Research conversations costs <strong>0 additional indexing credits</strong>.
             <br />
-            ✦ <strong>Billing policy:</strong> Page count is an estimate based on file size. Final charges are calculated during server-side processing based on actual pages and tokens extracted.
+            ✦ <strong>Reservation & Settlement:</strong> The 40 credits/page is an upfront reservation hold. At completion, your account is settled on exact provider cost (Mistral OCR + OpenRouter embedding) and any unused reservation is immediately refunded to your available balance.
           </div>
 
           {/* Action buttons */}

@@ -245,7 +245,6 @@ export async function executeUserFileJob(
             p_final_status: 'failed',
             p_ocr_pages: storedPages.length,
             p_actual_cost_usd: ocrCost,
-            p_actual_cost_paise: Math.round(ocrCost * 9500),
           });
         }
         return {
@@ -336,7 +335,6 @@ export async function executeUserFileJob(
           p_ocr_pages: storedPages.length,
           p_embed_tokens: spentTokens,
           p_actual_cost_usd: totalSpentUsd,
-          p_actual_cost_paise: Math.round(totalSpentUsd * 9500),
         });
       }
 
@@ -405,7 +403,6 @@ export async function executeUserFileJob(
           p_ocr_pages: storedPages.length,
           p_embed_tokens: embedTokens,
           p_actual_cost_usd: ocrCost + embedCost,
-          p_actual_cost_paise: Math.round((ocrCost + embedCost) * 9500),
         });
       }
       return {
@@ -418,9 +415,36 @@ export async function executeUserFileJob(
     }
   }
 
+  // Record embedding provider telemetry in model_call_logs for auditability
+  if (embedTokens > 0 && deps.db.recordCallLog) {
+    try {
+      await deps.db.recordCallLog({
+        user_id: job.user_id,
+        caller: 'ingest-worker',
+        purpose: 'embedding',
+        model_requested: 'openai/text-embedding-3-small',
+        model_served: 'openai/text-embedding-3-small',
+        provider: 'openrouter',
+        status: 'success',
+        prompt_tokens: embedTokens,
+        total_tokens: embedTokens,
+        cost_usd: embedCost,
+        raw_usage: {
+          job_id: job.id,
+          file_id: job.file_id,
+          chunks_count: chunkRows.length,
+          stage: 'user_file_indexing',
+        },
+      });
+    } catch {
+      // Non-fatal telemetry recording failure
+    }
+  }
+
   // ─── Stage 5: Settle Credits & Advance to Completed ────────────────────────
+  // Authoritative credit debit is calculated by database credit_config() using (usd_to_inr / inr_per_credit).
+  // No hardcoded multiplier is used in the worker.
   const totalCostUsd = ocrCost + embedCost;
-  const actualCostPaise = Math.round(totalCostUsd * 9500);
 
   const settleRes = await deps.db.settleCredits({
     p_job_id: job.id,
@@ -428,10 +452,9 @@ export async function executeUserFileJob(
     p_ocr_pages: storedPages.length,
     p_embed_tokens: embedTokens,
     p_actual_cost_usd: totalCostUsd,
-    p_actual_cost_paise: actualCostPaise,
   });
 
-  const settledAmount = settleRes?.credits_settled ?? actualCostPaise;
+  const settledAmount = settleRes?.credits_settled ?? 0;
 
   const patch: UserFileAdvancePatch = {
     step: 'commit',

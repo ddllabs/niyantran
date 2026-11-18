@@ -83,7 +83,7 @@ function createFakeDb(): { db: UserFileIngestDb; state: FakeDbState } {
       state.settlements.push(params);
       return Promise.resolve({
         success: true,
-        credits_settled: params.p_actual_cost_paise ?? 0,
+        credits_settled: params.p_actual_cost_paise ?? Math.round((params.p_actual_cost_usd ?? 0) * 9500),
         credits_refunded: 0,
         ledger_entry_id: 'ledger-mock-1',
       });

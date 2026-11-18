@@ -30,6 +30,11 @@ BEGIN
     RAISE EXCEPTION 'not_authenticated: authentication required' USING ERRCODE = '42501';
   END IF;
 
+  -- Server-side feature gate: Fail-closed if indexing & billing is not explicitly activated
+  IF NOT COALESCE((SELECT (value = 'true'::jsonb) FROM public.app_flags WHERE key = 'file_indexing_billing'), false) THEN
+    RAISE EXCEPTION 'feature_disabled: AI indexing and billing is temporarily disabled pending production rollout' USING ERRCODE = '55000';
+  END IF;
+
   -- Verify file ownership and upload readiness
   SELECT * INTO v_file
   FROM public.user_files
@@ -311,6 +316,11 @@ BEGIN
     RAISE EXCEPTION 'not_authenticated: authentication required' USING ERRCODE = '42501';
   END IF;
 
+  -- Server-side feature gate: Fail-closed if indexing & billing is not explicitly activated
+  IF NOT COALESCE((SELECT (value = 'true'::jsonb) FROM public.app_flags WHERE key = 'file_indexing_billing'), false) THEN
+    RAISE EXCEPTION 'feature_disabled: AI indexing and billing is temporarily disabled pending production rollout' USING ERRCODE = '55000';
+  END IF;
+
   SELECT * INTO v_job
   FROM public.user_file_jobs
   WHERE id = p_job_id AND user_id = v_user_id
@@ -461,7 +471,6 @@ $$;
 REVOKE ALL ON FUNCTION public.user_file_settle_credits(bigint, bigint, text, int, int, numeric) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.user_file_settle_credits(bigint, bigint, text, int, int, numeric) TO service_role;
 
-REVOKE ALL ON FUNCTION public.user_file_claim(text, int) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.user_file_claim(text, int, int) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.user_file_claim(text, int, int) TO service_role;
 
