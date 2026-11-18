@@ -312,3 +312,37 @@ describe('fix round (I2, M1 to M3)', () => {
     expect(w.client.log.filter((e) => e.table === 'factcheck_claims')).toHaveLength(2);
   });
 });
+
+describe('closing a row cancels its delete confirmation', () => {
+  it('closing the row, or opening another, drops a pending question', async () => {
+    const w = world({ sessions: [session(1), session(2)] }); props = { client: w.client };
+    let s = await settle();
+    s.toggle('s1');
+    s = await settle();
+    s.askDelete('s1');
+    expect(render().removal).toEqual({ id: 's1', phase: 'confirm' });
+    render().toggle('s1');
+    s = render();
+    expect(s.openId).toBe(null);
+    expect(s.removal).toBe(null);
+    s.toggle('s1');
+    await settle();
+    render().askDelete('s1');
+    render().toggle('s2');
+    expect(render().removal).toBe(null);
+    expect(w.deleted).toEqual([]);
+  });
+  it('does not drop a delete that is already running', async () => {
+    let release;
+    const w = world({ deleteGate: new Promise((r) => { release = r; }) }); props = { client: w.client };
+    let s = await settle();
+    s.toggle('s1');
+    await settle();
+    render().askDelete('s1');
+    render().confirmDelete('s1');
+    render().toggle('s1');
+    expect(render().removal).toEqual({ id: 's1', phase: 'busy' });
+    release();
+    await settle();
+  });
+});

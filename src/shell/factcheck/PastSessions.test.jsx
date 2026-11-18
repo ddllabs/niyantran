@@ -113,37 +113,55 @@ describe('the detail (D5)', () => {
   });
 });
 
-describe('delete (D7)', () => {
-  it('a live session has a Delete button outside the row button', () => {
-    const html = view();
-    expect(html).toMatch(/<button[^>]*data-pst="delete"[^>]*>Delete<\/button>/);
+describe('delete (D7): only inside an opened session', () => {
+  const READY = { phase: 'ready', claims: [claim('a')], capped: false };
+  const opened = (over = {}, state = READY) => view({ openId: 's1', details: { s1: state }, ...over });
+  const count = (html, key) => (html.match(new RegExp(`data-pst="${key}"`, 'g')) || []).length;
+
+  it('a collapsed live row has no Delete button, however many rows there are', () => {
+    const html = view({ rows: [session(1), session(2), session(3)] });
+    expect(count(html, 'delete')).toBe(0);
+  });
+  it('the opened row has exactly one, below its results, and not inside the row button', () => {
+    const html = opened({ rows: [session(1), session(2)] });
+    expect(count(html, 'delete')).toBe(1);
+    expect(html.indexOf('data-pst="delete"')).toBeGreaterThan(html.indexOf('Claim a'));
     const row = html.slice(html.indexOf('data-pst="row"'), html.indexOf('</button>', html.indexOf('data-pst="row"')));
     expect(row).not.toContain('data-pst="delete"');
   });
-  it('a recorded session has no Delete and says results are kept', () => {
-    const html = view({ rows: [session(2, { video_kind: 'recorded' })] });
-    expect(html).not.toContain('data-pst="delete"');
-    expect(text(html)).toContain('Results on recorded videos are kept.');
+  it('is available whatever the detail state is: loading, error, empty, loaded', () => {
+    for (const state of [{ phase: 'loading', claims: [], capped: false }, { phase: 'error', claims: [], capped: false }, { phase: 'ready', claims: [], capped: false }, READY]) {
+      expect(count(opened({}, state), 'delete')).toBe(1);
+    }
+  });
+  it('a recorded session has no Delete; the kept-results note shows only when it is opened', () => {
+    const rows = [session(2, { video_kind: 'recorded' })];
+    const closed = view({ rows });
+    expect(text(closed)).not.toContain('Results on recorded videos are kept.');
+    const open = view({ rows, openId: 's2', details: { s2: READY } });
+    expect(count(open, 'delete')).toBe(0);
+    expect(text(open)).toContain('Results on recorded videos are kept.');
   });
   it('the first step shows only the Delete button; the second asks, with Delete and Keep', () => {
-    expect(text(view())).not.toContain('This cannot be undone');
-    const html = view({ removal: { id: 's1', phase: 'confirm' } });
+    expect(text(opened())).not.toContain('This cannot be undone');
+    const html = opened({ removal: { id: 's1', phase: 'confirm' } });
     expect(text(html)).toContain('Delete this session and its verdicts? This cannot be undone.');
     expect(html).toMatch(/data-pst="confirm"/);
     expect(html).toMatch(/data-pst="keep"/);
     expect(html).not.toMatch(/data-pst="delete"/);
   });
-  it('shows progress while deleting and a plain error when it failed', () => {
-    expect(text(view({ removal: { id: 's1', phase: 'busy' } }))).toContain(PAST_TEXT.deleting);
-    const failed = text(view({ removal: { id: 's1', phase: 'error' } }));
-    expect(failed).toContain(PAST_TEXT.deleteError);
+  it('shows progress while deleting and a plain alert when it failed', () => {
+    expect(text(opened({ removal: { id: 's1', phase: 'busy' } }))).toContain(PAST_TEXT.deleting);
+    const failed = opened({ removal: { id: 's1', phase: 'error' } });
+    expect(text(failed)).toContain(PAST_TEXT.deleteError);
+    expect(failed).toMatch(/role="alert"/);
   });
 });
 
 describe('fix round (M4, M5, claim states)', () => {
   it('M5: error paragraphs are alerts', () => {
     expect(view({ phase: 'error', rows: [] })).toMatch(/<p[^>]*role="alert"[^>]*class="pst-error"|<p[^>]*class="pst-error"[^>]*role="alert"/);
-    expect(view({ removal: { id: 's1', phase: 'error' } })).toMatch(/role="alert"/);
+    expect(view({ openId: 's1', details: { s1: { phase: 'ready', claims: [], capped: false } }, removal: { id: 's1', phase: 'error' } })).toMatch(/role="alert"/);
   });
 
   it('M4: the body is keyed on the signed-in user id the page already holds', () => {
