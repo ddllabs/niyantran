@@ -321,6 +321,9 @@ function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, shar
   );
 }
 
+/** The claim card, for read-only reuse (no price, no share: no Check again, share or report controls). */
+export { Card as ClaimCard };
+
 function Claims({ claims, emptyText, recheck }) {
   return (
     <>
