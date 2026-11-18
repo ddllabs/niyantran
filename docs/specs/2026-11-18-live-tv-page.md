@@ -2,7 +2,7 @@
 
 > **Status: Living.** Written 2026-11-18 from code read at `main` `5204ed30`. Tracked as F359 in `docs/plans/open-work.md`.
 > Builds on the [F344 spec](2026-11-15-live-tv-fact-check.md), the [F350 spec](2026-11-17-f350-shorter-pieces-and-session-lengths.md)
-> and the F349 fixes. Nothing in this spec is built yet.
+> and the F349 fixes. Built and reviewed 2026-11-18 on `task/livetv-page` (see "Build record"); not merged.
 
 Evidence marks: **read** = seen in this checkout (file:line); **executed** = run, with the date; **unverified** = neither.
 Every code reference below was opened and read on 2026-11-18. 
@@ -177,3 +177,30 @@ gates and commits.
 
 Verification after each task: the focused tests; at the end `npm run lint`, `npm run build`, `npm run check:bundle`,
 `npm test`, then the browser checks under "Acceptance evidence".
+
+## Build record (2026-11-18)
+
+- Built on `task/livetv-page` by a task agent, then reviewed independently (verdict: accept with fixes; no critical
+  finding) and the fixes applied. Review findings fixed: on a restricted desk the desk was drawn over Live TV, and
+  Escape on Live TV closed the hidden AI panel (both fixed by hiding the workspace with the `hidden` attribute, as the
+  account page does); the header button had no visible active style and the desk tab still showed as current; the path
+  that closes the page on desk navigation had no test; the old `#livetv` hash left a history entry that led back to
+  Live TV; on wide screens the panel took the height of the left column and its action row fell below the fold.
+- Gates reproduced by the supervisor (**executed**): `npm run lint` clean; `npm run build` built; `npm run check:bundle`
+  ok (main entry 121,674 bytes gzip, limit 182,446); `npm test` 485 files, 8,160 tests passed.
+- Tests seen failing first (**executed** by the task agent, each with its failing line reported): the route
+  (`liveTvRoute.test.js`), the shell markup, the load boundaries, the page markup, the wiring, the `modal_close` text,
+  the hidden workspace, the active state, the old hash, the layout rules and focus. The shell test that a desk tab
+  closes the page, and the hook test that closing calls `controller.close` once, pass on the finished code and were
+  proved by removing the line each guards and seeing the test fail. The test for reopening while a session is finishing
+  passed at once; it is a guard, not proof of a fault.
+- Layout measured in a browser (**executed**, a static page built from the repository's markup fixtures and the real
+  stylesheets, not the signed-in app): at 1280 px wide the panel is the visible height of the page body less its
+  margins (717 px in a 749 px body at an 860 px window; 557 px in a 589 px body at a 700 px window), the same in the
+  choosing, running and ended states, it stays in view when the left column scrolls, and its action row is in view; with
+  no panel the player takes the full width. At 1099 px and at 390 px the parts stack and the page has no sideways scroll.
+- Not done: the page was not seen inside the signed-in app (route, header button, Back, title, restricted desk), because
+  the development server signs in against the live project; a real fact-check session on the page. Both are owed
+  before or right after release.
+- Test support added: `src/shell/fakeBrowser.js` and `src/shell/hookHarness.js` run the real shell and hook with state
+  and effects over a simulated browser, because the repository has no DOM test environment.
