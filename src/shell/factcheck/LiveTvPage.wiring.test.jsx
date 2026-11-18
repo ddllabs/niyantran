@@ -3,7 +3,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const seen = { args: [], view: null };
+const seen = { args: [], view: null, seeks: [] };
 vi.mock('./useFactCheck.js', () => ({
   useFactCheck: (args) => {
     seen.args.push(args);
@@ -11,7 +11,7 @@ vi.mock('./useFactCheck.js', () => ({
   },
 }));
 vi.mock('../liveTv/useYoutubePlayer.js', () => ({
-  useYoutubePlayer: () => ({ iframeRef: { current: null }, requestMute() {}, getPositionS: () => 77 }),
+  useYoutubePlayer: () => ({ iframeRef: { current: null }, requestMute() {}, getPositionS: () => 77, seekS: (s) => { seen.seeks.push(s); return true; } }),
 }));
 const { default: LiveTvPage } = await import('../LiveTvPage.jsx');
 
@@ -25,7 +25,7 @@ const viewWith = (session = {}, extra = {}) => ({
 });
 const render = (props = {}) => renderToStaticMarkup(<LiveTvPage open onClose={() => {}} {...props} />);
 
-beforeEach(() => { seen.args = []; seen.view = viewWith(); });
+beforeEach(() => { seen.args = []; seen.seeks = []; seen.view = viewWith(); });
 
 describe('wiring into the page', () => {
   it('calls the hook on every render, open or closed, with the same shape', () => {
@@ -43,6 +43,12 @@ describe('wiring into the page', () => {
     expect(a.target).toBeNull();
     expect(a.start.channelId).toBe('');
     expect(a.start).toMatchObject({ videoKind: 'live', startPositionS: null, seed: { channel: '', title: '' } });
+  });
+
+  it('hands the hook a seek that moves the player (F363)', () => {
+    render();
+    expect(seen.args[0].seek(130)).toBe(false); // nothing recorded is playing: a live stream is never moved
+    expect(seen.seeks).toEqual([]);
   });
 
   it('ignores the player position for a live stream even when the player has one', () => {

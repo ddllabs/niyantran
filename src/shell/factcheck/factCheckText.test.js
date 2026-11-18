@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
 import {
   DELAY_SECONDS, NO_SOURCES_TEXT, blockOptions, defaultBlock, minutesText, claimBadge, confirmStart, embedVideoId, endReasonText, errorMessage, formatClock, kindTag,
-  playingTarget, priceChangedText, safeSourceUrl,
+  playingTarget, priceChangedText, safeSourceUrl, MINUTE_CHOICES, reanalyzeLength, seekLateText, seekPendingText, earlierAnalysisText, REANALYZE_LABEL,
 } from './factCheckText.js';
 
 describe('formatClock', () => {
@@ -209,5 +209,41 @@ describe('F349: capture error texts', () => {
   });
   it('one failure is unchanged by the counter', () => {
     expect(errorMessage(cap('blocked'), { captureFailures: 1 }).retry).toBe(true);
+  });
+});
+
+// F363: the length a re-analysis starts with, and its fixed sentences.
+describe('reanalyzeLength', () => {
+  it.each([[0.5, 1], [1, 1], [1.2, 2], [2, 2], [3, 5], [5, 5], [6, 10], [10, 10], [11, 15], [15, 15], [16, 20], [20, 20], [21, 30], [30, 30]])(
+    'a stretch of %s minutes starts at %s',
+    (minutes, out) => { expect(reanalyzeLength(minutes)).toBe(out); },
+  );
+  it('is the longest offered length when the stretch is longer than all of them', () => {
+    expect(reanalyzeLength(31)).toBe(30);
+    expect(reanalyzeLength(500)).toBe(30);
+    expect(reanalyzeLength(Number.POSITIVE_INFINITY)).toBe(30);
+  });
+  it('follows the choices it is given, not a copy of the list', () => {
+    expect(reanalyzeLength(3, [1, 4, 8])).toBe(4);
+    expect(reanalyzeLength(9, [1, 4, 8])).toBe(8);
+    expect(reanalyzeLength(3, [8, 1, 4])).toBe(4);
+  });
+  it('is null (no preselection) for 0, negative, NaN and non-numbers, and for no choices', () => {
+    for (const v of [0, -1, -0.5, Number.NaN, null, undefined, '5', {}]) expect(reanalyzeLength(v)).toBeNull();
+    expect(reanalyzeLength(3, [])).toBeNull();
+    expect(reanalyzeLength(3, undefined)).toBe(5);
+  });
+  it('only ever returns a length that MINUTE_CHOICES holds', () => {
+    for (let m = 0.1; m < 40; m += 0.37) expect(MINUTE_CHOICES).toContain(reanalyzeLength(m));
+  });
+});
+
+describe('re-analysis words', () => {
+  it('has the button label and the fixed sentences', () => {
+    expect(REANALYZE_LABEL).toBe('Re-analyze this block');
+    expect(seekLateText('02:10')).toBe('The video could not be moved. Move it to 02:10 yourself, then press Start.');
+    expect(seekPendingText('02:10')).toBe('Moving the video to 02:10…');
+    expect(earlierAnalysisText('16 Nov 2026')).toBe('Earlier analysis, checked on 16 Nov 2026');
+    expect(earlierAnalysisText('')).toBe('Earlier analysis');
   });
 });

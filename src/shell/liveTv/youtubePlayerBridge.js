@@ -28,7 +28,9 @@ export function createYoutubePlayerBridge({ getIframe, win = window, onMutedChan
 
   const post = (iframe, payload) => {
     const origin = originOf(iframe);
-    if (origin && iframe.contentWindow) iframe.contentWindow.postMessage(JSON.stringify(payload), origin);
+    if (!origin || !iframe.contentWindow) return false;
+    iframe.contentWindow.postMessage(JSON.stringify(payload), origin);
+    return true;
   };
   const sendMute = (iframe, muted) => post(iframe, { event: 'command', func: muted ? 'mute' : 'unMute', args: [] });
 
@@ -80,6 +82,16 @@ export function createYoutubePlayerBridge({ getIframe, win = window, onMutedChan
     setMuted(muted) {
       if (current && snap.ready) sendMute(current, !!muted);
       else pendingMuted = !!muted;
+    },
+    // F363: moves the player to a second in the video. Only to the trusted YouTube origin, only once the
+    // player is taking commands. Returns whether a command was sent (it does not say the player moved).
+    seekTo(seconds) {
+      if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) return false;
+      if (!current || !snap.ready || getIframe() !== current) return false;
+      const sent = post(current, { event: 'command', func: 'seekTo', args: [Math.floor(seconds), true] });
+      // The position held so far is from before the move: forget it until the player reports a new one.
+      if (sent) snap = { ...snap, positionS: null };
+      return sent;
     },
     // Empty as soon as the iframe is another element, without waiting for the next tick.
     getSnapshot: () => (current !== null && getIframe() === current ? snap : EMPTY),
