@@ -184,3 +184,62 @@ Executed by the supervisor unless stated.
 - **Gates:** `npm run lint` clean; `npm run build` and `npm run check:bundle` pass; `npm test` 8,104 passed;
   the Deno suite 1,874 passed (1,869 before).
 - **Not done:** merge, deploy of function `factcheck`, and the real session after release.
+
+## Part 2: ask again when a reply cannot be read (added 2026-11-18)
+
+Part 1 was merged on 2026-11-18 in pull requests 171 and 170 (`71aca0f9`); it is not deployed. The owner asked the same
+day that a failed check be retried on our side, up to three times, before the panel says "Check failed", and approved
+building this before the deploy so that one deploy carries both parts.
+
+### Current state (read from code)
+
+- A call that fails outright (network, timeout, server error) is already tried three times by the browser, waiting
+  0.5 s and 1 s (`retriesTransient` in `src/lib/factcheck/session.js`).
+- A reply that arrives but cannot be read as a verdict is stored as an error at once, with no second attempt
+  (`verdictFor` in `check.ts`). Part 1 removes the one layout seen so far; any other unreadable reply still fails
+  on the first attempt.
+
+### Decisions
+
+- **R1. Where.** In `verdictFor`, which the first check and the paid "Check again" share.
+- **R2. When.** Only when the reply cannot be read: `no_label`, `bad_label` or `label_conflict`. Not for `no_sources`:
+  the owner decided on 2026-11-17 (F349, D1) that it is shown as "No sources found", and the panel treats it as an
+  answer.
+- **R3. How many.** At most 3 model calls for one check: the first and up to 2 more. The same prompt each time; the
+  replay showed the layout varies between runs of the same prompt.
+- **R4. Time limit.** A further call starts only if less than 15 seconds have passed since the first one began. A call
+  can take up to 25 seconds, so the whole check stays under 40 seconds, inside the browser's 45-second limit and the
+  90-second lease. Typical calls take about 3 seconds.
+- **R5. Provider failures are not retried here.** A call that fails outright still ends the check as today, and the
+  browser's own three tries cover it. Retrying in both places would multiply to nine.
+- **R6. What is stored.** The first readable reply. If none of the attempts can be read, the error of the last attempt.
+- **R7. Cost and charges.** Each extra call costs us about US$0.005. The user is charged nothing extra: the first check
+  is part of the session, and "Check again" is still one charge of 100 credits however many calls it makes.
+- **R8. Logging.** Each call already writes its own row in the model-call log (an unreadable one as
+  `unusable: <code>`), so the number of re-asks can be counted there. The `factcheck.check` log line gains `attempts`.
+  No reply text is logged.
+
+### Fixed interface
+
+`verdictFor` returns `{ result, citations, attempts }`; nothing else changes shape. `checkAction` logs `attempts`.
+`recheck.ts` is not edited unless its log line needs the new field.
+
+### Tasks
+
+- **T5. Build (builder).** Write scope: `supabase/functions/factcheck/check.ts`, `check_test.ts`, and additions only
+  to `recheck_test.ts`. Tests first, seen failing:
+  - unreadable then readable: 2 provider calls, the verdict is stored, the claim is `checked`;
+  - unreadable three times: exactly 3 calls, stored as `error` with the last reason;
+  - readable first time: exactly 1 call (as today);
+  - `no_sources`: exactly 1 call;
+  - a provider failure on the first or the second call: no further call, the same 502 as today, the claim released;
+  - the clock past 15 seconds after the first call: no further call;
+  - a paid "Check again" with an unreadable then a readable reply: 2 calls, one charge of 100 credits;
+  - one model-call log row per call.
+- **T6. Review (independent), then the supervisor's gates** as in T3.
+- **T7. Tracker and pull request.** Merge only on the owner's yes naming the number.
+
+### Release
+
+One deploy of function `factcheck` from `main` carries Part 1 and Part 2. No migration. The owner's exact yes is
+needed for the merge and for the deploy.
