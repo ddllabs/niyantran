@@ -530,3 +530,84 @@ Deno.test('a stored error is returned with its fail_reason, and a stored claim w
   const old = withClaim({ status: 'error', checked_at: '2026-11-16T09:00:00.000Z' });
   assertEquals((await (await handleFactcheck(req(), old.deps)).json()).fail_reason, null);
 });
+
+// F351: a reply that opens with a bare label (no "LABEL:" word) is read as that verdict.
+const BARE_OK: [string, string, string | null][] = [
+  ['Supported\nREASON: Data confirm it.', 'supported', 'Data confirm it.'],
+  ['Partly true: Only half of it holds.', 'partly_true', 'Only half of it holds.'],
+  ['Contradicted\nOfficial data show the opposite.', 'contradicted', 'Official data show the opposite.'],
+  ['SUPPORTED\nREASON: x', 'supported', 'x'],
+  ['PARTLY TRUE.  \nREASON: x', 'partly_true', 'x'],
+  ['**Supported**\nREASON: x', 'supported', 'x'],
+  ['Opinion\nREASON: x', 'opinion', 'x'],
+  ['No evidence found\nREASON: x', 'no_evidence', 'x'],
+  ['**Supported:** reason here', 'supported', 'reason here'],
+  ['**Supported**: reason here', 'supported', 'reason here'],
+  ['## Supported\nREASON: x', 'supported', 'x'],
+  ['> Supported\nREASON: x', 'supported', 'x'],
+  ['\n\nSupported\nREASON: x', 'supported', 'x'],
+  ['Supported:\nThe reason is on the next line.', 'supported', 'The reason is on the next line.'],
+  ['Supported\nFirst line.\nSecond line.\nSOURCES: https://a.example', 'supported', 'First line. Second line.'],
+  ['Supported: Fact [1][2] is **11.63%** now.', 'supported', 'Fact is 11.63% now.'],
+  ['Supported\nREASON: Fact [1] is **11.63%**.', 'supported', 'Fact is 11.63%.'],
+  ['LABEL: Supported\nREASON: Fact [1] is **11.63%**.', 'supported', 'Fact is 11.63%.'],
+  ['Supported', 'supported', null],
+  ['Supported\nLABEL: Contradicted\nREASON: x', 'contradicted', 'x'],
+];
+const BARE_NO_LABEL = [
+  'Supported by three sources, the claim holds.',
+  'Opinion polls show a split.',
+  'Supported - reason',
+  'Supported — reason',
+  'Supported-by official data',
+  'Opinion-based claim',
+  'Intro line\nSupported\nREASON: x',
+  '',
+  '   \n  ',
+];
+const BARE_OTHER: [string, string][] = [
+  ['Supported\nLABEL: Mostly true\nREASON: x', 'bad_label'],
+  ['Supported\nLABEL: Supported\nLABEL: Contradicted\nREASON: x', 'label_conflict'],
+  ['LABEL: Supported\nLABEL: Contradicted\nREASON: two', 'label_conflict'],
+];
+
+Deno.test('a reply that opens with a bare label is a verdict, with the reason cleaned', () => {
+  for (const [reply, verdictCode, reason] of BARE_OK) {
+    assertEquals(parseVerdict(reply), { verdict: verdictCode, reason }, reply);
+    assertEquals(replyFailure(reply, 1), null, reply);
+  }
+  assertEquals(parseVerdict('LABEL: Supported\nREASON: x')?.reason, 'x');
+});
+
+Deno.test('a bare label needs a source unless it says no evidence was found', () => {
+  assertEquals(replyFailure('No evidence found\nREASON: x', 0), null);
+  assertEquals(replyFailure('Supported\nREASON: x', 0), 'no_sources');
+  assertEquals(replyFailure('Opinion: x', 0), 'no_sources');
+});
+
+Deno.test('prose, a dash, a later line and an empty reply stay no_label', () => {
+  for (const reply of BARE_NO_LABEL) {
+    assertEquals(parseVerdict(reply), undefined, reply);
+    assertEquals(replyFailure(reply, 1), 'no_label', reply);
+  }
+  assertEquals(replyFailure(null, 1), 'no_label');
+});
+
+Deno.test('a LABEL line still wins over a bare first line', () => {
+  for (const [reply, code] of BARE_OTHER) assertEquals(replyFailure(reply, 1), code, reply);
+  assertEquals(parseVerdict('Supported\nLABEL: Contradicted\nREASON: x')?.verdict, 'contradicted');
+  assertEquals(parseVerdict('Supported\nLABEL: Mostly true\nREASON: x'), undefined);
+});
+
+Deno.test('replyFailure and parseVerdict agree on every reply string tested', () => {
+  const all = [
+    ...BARE_OK.map((r) => r[0]),
+    ...BARE_NO_LABEL,
+    ...BARE_OTHER.map((r) => r[0]),
+    'LABEL: Supported\nREASON: x',
+    'LABEL: Mostly true\nREASON: x',
+    'plain prose',
+    '{"label":"Supported"}',
+  ];
+  for (const s of all) assertEquals(replyFailure(s, 1) === null, parseVerdict(s) !== undefined, s);
+});
