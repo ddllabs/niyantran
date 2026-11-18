@@ -22,7 +22,7 @@ National ingestion cannot continue at scale today, for five reasons:
 
 1. **The search gate is unresolved.** Spec §7 allows no desk's result to fall after a load. Regulatory fell from 50
    to 40 of 55 ([record](../operations/2026-11-16-regulatory-load.md)); nobody has judged whether the newer documents
-   answer the ten lost questions equally well, and the script's verdict line compares the wrong mode.
+   answer the ten lost questions equally well, and the script's verdict line compared nothing (fixed since, F354).
 2. **Capacity is short by several times.** The packs' own manifests (read 2026-11-18, see "What the packs hold")
    list about 210,000 servable, in-scope documents not yet loaded, with about 1.5 million pages. At roughly two chunks
    a page (the v1.4 questions: 148,224 pages, 238.6 million characters) that is 3 to 4 million more chunks: an
@@ -96,7 +96,7 @@ A reviewer gets the code, the data and the rules, never the writer's conclusions
   regulator on another matter. In 3 a newly loaded passage answers at least as well. So the fall is real. The same
   questions through `match_documents_hybrid` scored the same 40 of 55, because that function applies keyword search
   to the NCLT desk only and returns the vector result for every other desk.
-- **E2, done locally** (`task/eval-compare-mode`): the cause was that two feature-only runs compared nothing. Run
+- **E2, done** (F354, pull request #174, `5204ed30`): the cause was that two feature-only runs compared nothing. Run
   against the pre-load baseline it now reports "worse" and names the lost questions.
 - **E3, manifest counts done** (above); the per-entry profile remains.
 - **E4, first figures.** Per chunk on NTER: 14 kB in all, of which stored text and vector 7.9 kB, vector index
