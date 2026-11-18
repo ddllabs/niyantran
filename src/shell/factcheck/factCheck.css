@@ -25,28 +25,35 @@
   --fc-amber: #ead0af;
 }
 
-/* Beside the player on wide screens, below it on narrow ones. Only when the panel exists, so Live TV
-   looks exactly as before with the feature off. */
-.ltv-body:has(> .fc-panel) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-  align-content: start;
-}
-.ltv-body:has(> .fc-panel) > .ltv-player-stage { grid-column: 1; grid-row: 1; }
-.ltv-body:has(> .fc-panel) > .fc-panel { grid-column: 2; grid-row: 1; margin: 16px 18px 16px 12px; align-self: start; }
-/* Beside the player the panel has ONE height in every state (choosing, error, ended), so the grid row
-   and everything below it stay put when the panel's content changes; the panel scrolls inside. The
-   body is 90vh minus about 120px of header; the 32px is the panel's vertical margin. */
-.ltv-body:has(> .fc-panel) > .fc-panel { height: min(640px, calc(90vh - 152px)); max-height: none; }
-.ltv-body:has(> .fc-panel) > .ltv-deck-tabs,
-.ltv-body:has(> .fc-panel) > .ltv-tab-content { grid-column: 1 / -1; }
-
-@media (max-width: 860px) {
-  .ltv-body:has(> .fc-panel) { display: flex; }
-  .ltv-body:has(> .fc-panel) > .fc-panel { margin: 12px 14px; height: auto; max-height: none; overflow: visible; align-self: stretch; }
+/* F359: Live TV is a page. From 1100px the panel is a second column, exactly the visible height of the page
+   body in every state (choosing, running, error, ended), so nothing moves when its content changes; it
+   scrolls inside. Only when the panel exists: with fact-check
+   off or not opened there is no right column. Below 1100px it stacks under the player, and the page body
+   scrolls, not the panel. */
+.ltv-body:has(> .fc-panel) > .fc-panel { margin: 12px 14px; max-height: none; overflow: visible; align-self: stretch; flex: 0 0 auto; }
+@media (max-width: 1099px) {
   /* Stacked: the page body scrolls, not the choose block, so the sticky buttons stick to it. */
   .fc-choose, .fc-waiting { overflow: visible; }
   .fc-work { flex: 0 0 auto; overflow: visible; }
+}
+@media (min-width: 1100px) {
+  /* The body is a size container (its height comes from the page, not from its content), so the panel can
+     be exactly the visible height of the body: 100cqh minus its two 16px margins. */
+  .ltv-body:has(> .fc-panel) {
+    container-type: size;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+    grid-template-rows: auto auto 1fr;
+  }
+  .ltv-body:has(> .fc-panel) > .ltv-player-stage { grid-column: 1; grid-row: 1; }
+  .ltv-body:has(> .fc-panel) > .ltv-deck-tabs { grid-column: 1; grid-row: 2; }
+  .ltv-body:has(> .fc-panel) > .ltv-tab-content { grid-column: 1; grid-row: 3; }
+  /* Sticky, so it stays in view while the left column scrolls; the height is the same in every state. */
+  .ltv-body:has(> .fc-panel) > .fc-panel {
+    grid-column: 2; grid-row: 1 / -1; margin: 16px 18px 16px 12px;
+    position: sticky; top: 16px; align-self: start;
+    height: calc(100cqh - 32px); min-height: 0; overflow-x: hidden; overflow-y: auto;
+  }
 }
 
 .fc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
@@ -315,3 +322,72 @@
   .fc-part, .fc-covered { padding: 8px; }
   .fc-part-lines { max-height: 7rem; }
 }
+
+/* F360: Past sessions. A section below the page body (.ltv-body), outside its size container, so the player
+   and the fact-check panel keep their size. The wrapper .ltv-main holds the body and, when the section
+   exists, scrolls so the section can be reached. With no section the wrapper changes nothing. */
+.ltv-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.ltv-main:has(> .pst) { overflow-y: auto; }
+/* With the section present the wrapper is the only scroller and the body flows. */
+.ltv-main:has(> .pst) > .ltv-body { flex: 0 0 auto; overflow: visible; }
+/* From 1100px with the panel there, the body keeps exactly the height it had (the whole wrapper), so the
+   sticky panel stays the same height. Without the panel the body flows at every width. */
+@media (min-width: 1100px) {
+  .ltv-main:has(> .pst):has(> .ltv-body > .fc-panel) > .ltv-body { flex: 0 0 100%; overflow-y: auto; }
+}
+
+.pst {
+  --fc-bad: #b3261e;
+  --fc-amber: #8a5300;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px 18px 24px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--fg);
+  font-size: 13px;
+}
+.theme-dark .pst { --fc-bad: #ff9a92; --fc-amber: #ead0af; }
+.pst p { margin: 0; line-height: 1.45; }
+.pst > * { max-width: 100%; }
+.pst-heading { margin: 0; font-size: 14px; font-weight: 700; outline: none; }
+.pst-note { font-size: 12px; color: var(--muted); }
+.pst-status { min-height: 0; font-size: 12px; color: var(--fg); }
+.pst-status:empty { display: none; }
+.pst-error { padding: 8px 10px; background: var(--crit); border-left: 3px solid var(--fc-bad); border-radius: 4px; }
+.pst-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.pst-row {
+  display: flex; flex-direction: column; gap: 8px; min-width: 0;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.pst-toggle {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
+  width: 100%; padding: 4px 0;
+  background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.pst-toggle::before { content: "▸"; color: var(--muted); }
+.pst-toggle[aria-expanded="true"]::before { content: "▾"; }
+.pst-when { font-weight: 600; }
+.pst-kind { color: var(--muted); }
+.pst-used, .pst-charged { color: var(--muted); font-variant-numeric: tabular-nums; }
+.pst-detail { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
+.pst-detail .fc-claims { width: 100%; }
+.pst-delete { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.pst-confirm {
+  display: flex; flex-direction: column; gap: 6px; align-self: stretch;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.pst-danger { border-color: var(--fc-bad); color: var(--fc-bad); }
+.pst button:disabled { opacity: 0.55; cursor: not-allowed; }
+.pst :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

@@ -1,4 +1,4 @@
-// F344 T6: how the modal feeds the fact-check hook and where it puts the entry and the panel.
+// F344 T6: how the page feeds the fact-check hook and where it puts the entry and the panel.
 // The hook is replaced by a recorder; its own logic is covered by the controller tests.
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,7 +13,7 @@ vi.mock('./useFactCheck.js', () => ({
 vi.mock('../liveTv/useYoutubePlayer.js', () => ({
   useYoutubePlayer: () => ({ iframeRef: { current: null }, requestMute() {}, getPositionS: () => 77 }),
 }));
-const { default: LiveTvModal } = await import('../LiveTvModal.jsx');
+const { default: LiveTvPage } = await import('../LiveTvPage.jsx');
 
 const baseSession = {
   status: 'idle', sessionId: null, minutesBought: 0, creditsPerMinute: null, creditsHeld: null, secondsLeft: 0,
@@ -23,11 +23,11 @@ const viewWith = (session = {}, extra = {}) => ({
   flag: { available: true, creditsPerMinute: 500, userId: 'u1' }, supported: true, ready: true,
   session: { ...baseSession, ...session }, announcement: '', balance: 10000, ...extra,
 });
-const render = (props = {}) => renderToStaticMarkup(<LiveTvModal open onClose={() => {}} {...props} />);
+const render = (props = {}) => renderToStaticMarkup(<LiveTvPage open onClose={() => {}} {...props} />);
 
 beforeEach(() => { seen.args = []; seen.view = viewWith(); });
 
-describe('wiring into the modal', () => {
+describe('wiring into the page', () => {
   it('calls the hook on every render, open or closed, with the same shape', () => {
     render({ open: false });
     render();
@@ -82,5 +82,18 @@ describe('wiring into the modal', () => {
     const tabs = html.match(/<button[^>]*role="tab"[^>]*>/g) || [];
     expect(tabs).toHaveLength(4);
     expect(tabs.filter((t) => /tabindex="0"/.test(t))).toHaveLength(1);
+  });
+});
+
+// F359: opening a desk from the page navigates once; the shell's navigation closes the page (the address
+// changes), so the page must not also call onClose, which is "Back" and would navigate a second time.
+describe('leaving the page', () => {
+  it('puts Back on onClose and nothing else, and does not call onClose when opening a desk', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('../LiveTvPage.jsx', import.meta.url), 'utf8');
+    const fn = source.slice(source.indexOf('function handleOpenDesk'), source.indexOf('function handlePlayArchive'));
+    expect(fn).toContain('onNavigateDesk(deskId, feature)');
+    expect(fn).not.toContain('onClose');
+    expect(source.match(/onClick=\{onClose\}/g)).toHaveLength(1);
   });
 });

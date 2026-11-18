@@ -103,7 +103,7 @@ const END_REASONS = {
   browser: 'Sharing ended in the browser.',
   silent: 'No speech for 90 seconds, so the session ended.',
   channel_change: 'The channel or video changed.',
-  modal_close: 'Live TV was closed.',
+  modal_close: 'You left Live TV.',
   off: 'Fact-check was switched off. You were charged only for the time used.',
   server: 'The server ended the session.',
 };
@@ -238,3 +238,32 @@ export function recheckErrorText(error) {
 export function recheckPriceChangedText(price) {
   return `The price changed to ${creditsText(price)}. Check again to confirm.`;
 }
+
+// F360: "Past sessions" on the Live TV page. Server error text is never shown: every failure is one of these.
+export const PAST_TEXT = {
+  heading: 'Past sessions',
+  intro: 'Your finished fact-check sessions. A live-stream session keeps its verdicts only; no transcript is stored.',
+  loading: 'Loading past sessions…',
+  empty: 'No past sessions yet.',
+  loadError: 'Could not load your past sessions.',
+  tryAgain: 'Try again',
+  showMore: 'Show more',
+  showingMore: 'Loading…',
+  moreError: 'Could not load more sessions.',
+  detailLoading: 'Loading verdicts…',
+  detailError: 'Could not load the verdicts for this session.',
+  detailEmpty: 'No verdicts were saved for this session.',
+  capped: (n) => `Showing the first ${n} results of this session.`,
+  live: 'Live',
+  recorded: 'Recorded',
+  recordedKept: 'Results on recorded videos are kept.',
+  delete: 'Delete',
+  deleteAsk: 'Delete this session and its verdicts? This cannot be undone.',
+  deleteNoRefund: 'Credits already charged are not refunded.',
+  deleteConfirm: 'Delete',
+  deleteKeep: 'Keep',
+  deleting: 'Deleting…',
+  deleteError: 'Could not delete this session. Nothing was changed.',
+  deleted: 'Session deleted.',
+  unknownChannel: 'Unknown channel',
+};

@@ -407,7 +407,7 @@ describe('ended', () => {
     ['browser', /sharing ended in the browser/i],
     ['silent', /no speech for 90 seconds/i],
     ['channel_change', /channel or video changed/i],
-    ['modal_close', /closed/i],
+    ['modal_close', /you left live tv\./i],
     ['server', /server ended the session/i],
   ])('explains end reason %s', (reason, pattern) => {
     expect(text(render(ended(reason)))).toMatch(pattern);
