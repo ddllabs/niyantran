@@ -1,0 +1,36 @@
+{
+  "collection": "national-transfers",
+  "mapping_version": "search-only-screen-v1",
+  "desk_tier": "national",
+  "desk_feature": "Bureaucratic Transfers \u2014 AGMUT Cadre",
+  "desk_rows_feature": "Bureaucratic Transfers \u2014 AGMUT Cadre",
+  "doc_type": "transfer_order",
+  "citation_required": [
+    "kind",
+    "source"
+  ],
+  "extraction_allowed": [
+    "pdf_text"
+  ],
+  "source_hosts": [
+    "mha.gov.in"
+  ],
+  "url_hosts": [
+    "mha.gov.in"
+  ],
+  "pdf_url_rule": "^https://mha\\.gov\\.in/[^?#]+\\.pdf$",
+  "min_chars": 300,
+  "max_chars": 600000,
+  "replacement_fields": [
+    "delta_patch",
+    "replaces_text"
+  ],
+  "replacement_flags": [
+    "v16_replaces"
+  ],
+  "allow_density_only": true,
+  "ignore_pack_links": true,
+  "spelling_rewrites": {
+    "Bureaucratic Transfers - AGMUT Cadre": "Bureaucratic Transfers \u2014 AGMUT Cadre"
+  }
+}

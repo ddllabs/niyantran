@@ -6,7 +6,7 @@
 import type { CitationSection } from './citation.types.ts';
 import { documentFacts, FACTS_MAX_CHARS } from './documentFacts.ts';
 import { EMBED_DIMS, servedModelMatches } from './embed.ts';
-import { documentPublisher, isPublisherName, isRegulatoryFeature } from './publisher.ts';
+import { documentPublisher, isPublisherFor } from './publisher.ts';
 import { normalise, sha256Hex } from './textNormalise.ts';
 
 export const DOCUMENT_ROLE_LABELS = {
@@ -94,7 +94,7 @@ export interface Chunk {
   document_role?: DocumentRole;
   /** The document's catalogue line (documentFacts): never embedded, never cited, one line of at most 160 characters. */
   document_facts?: string;
-  /** Who published the document (publisher.ts): one of a closed set of names, Regulatory only; never embedded. */
+  /** Who published the document (publisher.ts): one of a closed set of names, kept only on a desk that can have it (Regulatory, the five National desks); never embedded. */
   publisher?: string;
   /** sha256(normalise(content)) — what a citation carries and the reader recomputes. */
   text_hash: string;
@@ -236,8 +236,8 @@ export async function rowToChunk(raw: unknown): Promise<Chunk> {
   const facts = r.document_facts;
   if (typeof facts === 'string' && facts && facts.length <= FACTS_MAX_CHARS && !/[\r\n\u2028\u2029]/.test(facts)) chunk.document_facts = facts;
   const publisher = r.publisher;
-  // Only one of the four names, and only on the row's own national Regulatory desk.
-  if (isPublisherName(publisher) && isRegulatoryFeature(chunk.desk_tier, chunk.desk_feature)) chunk.publisher = publisher as string;
+  // Only a table name the row's own desk can have (a regulator on Regulatory, a ministry on its own desk).
+  if (isPublisherFor(chunk.desk_tier, chunk.desk_feature, publisher)) chunk.publisher = publisher as string;
   return chunk;
 }
 

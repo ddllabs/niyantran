@@ -25,18 +25,36 @@ const BILL_URL = /^https:\/\/sansad\.in\/getFile\/(BillsTexts|BillsPDFFiles)\//;
  * a document_key_suggested that a document of the feature already holds, and writes no link. ingest_register_text
  * refuses them.
  */
-export const NATIONAL_SEARCH_ONLY = Object.freeze([
-  Object.freeze({ tier: 'national', feature: 'Regulatory Body Watch (RBI SEBI TRAI CCI)' }),
-]);
-/** The hosts a search-only file_url may name, exactly (public.ingest_admit_document holds the same list). */
-export const SEARCH_ONLY_HOSTS = Object.freeze(['rbidocs.rbi.org.in', 'www.rbi.org.in', 'www.sebi.gov.in']);
+const REGULATORY_SEARCH_ONLY = 'Regulatory Body Watch (RBI SEBI TRAI CCI)';
+/**
+ * The hosts each search-only desk's file_url may name, exactly, per desk: one desk's record carrying another desk's host
+ * is refused. public.ingest_search_only_desks() holds the same table (20261123090000_national_search_only_five_desks.sql).
+ * The Transfers desk is spelt with an em dash (U+2014).
+ */
+export const SEARCH_ONLY_HOSTS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  [REGULATORY_SEARCH_ONLY]: Object.freeze(['rbidocs.rbi.org.in', 'www.rbi.org.in', 'www.sebi.gov.in']),
+  'Budget Utilisation & Schemes': Object.freeze(['www.indiabudget.gov.in']),
+  'Cabinet Decisions': Object.freeze(['www.pib.gov.in']),
+  'Bureaucratic Transfers — AGMUT Cadre': Object.freeze(['mha.gov.in']),
+  'Industry Updates (Ministry Data)': Object.freeze(['www.dpiit.gov.in', 'eaindustry.nic.in', 'www.mospi.gov.in', 'mospi.gov.in']),
+  'MP Profiles & Performance (MPLAD attendance debates)': Object.freeze(['sansad.in']),
+});
+export const NATIONAL_SEARCH_ONLY: readonly Readonly<{ tier: string; feature: string }>[] = Object.freeze(
+  Object.keys(SEARCH_ONLY_HOSTS).map((feature) => Object.freeze({ tier: 'national', feature })),
+);
 /** What showed a search-only text complete: the page check against the official PDF, or the density rule alone. */
 export const COMPLETENESS_BASES = Object.freeze(['page_check', 'density_only']);
 const utf8Bytes = (s: string) => new TextEncoder().encode(s).length;
-/** A search-only file_url: https, a configured host exactly (no user, no port), and the segment rule of a bill's URL. */
-export function searchOnlyUrlOk(url: string): boolean {
+/**
+ * A search-only file_url of desk `feature`: https, one of that desk's hosts exactly (no user, no port), the segment rule
+ * of a bill's URL, and not a file a linked adapter owns: a question answer (pqAnswerKey) or a bill file (the Bills
+ * adapter's URL rule). sansad.in serves all three. Mirrors the search-only branch of public.ingest_admit_document.
+ */
+export function searchOnlyUrlOk(url: string, feature: string): boolean {
+  const hosts = Object.hasOwn(SEARCH_ONLY_HOSTS, feature) ? SEARCH_ONLY_HOSTS[feature] : undefined;
   const host = /^https:\/\/([^/]*)\//.exec(url)?.[1];
-  return host !== undefined && SEARCH_ONLY_HOSTS.includes(host) && billUrlSegmentsOk(url);
+  return hosts !== undefined && host !== undefined && hosts.includes(host) && billUrlSegmentsOk(url) &&
+    pqAnswerKey(url) === null && !(BILL_URL.test(url) && billUrlSegmentsOk(url));
 }
 
 /**
@@ -133,9 +151,9 @@ export async function prepareSuppliedText(value: unknown, options: { batch?: boo
     // At most 2,000 UTF-8 bytes (octet_length in admission), so the unique file_url index can always hold it.
     if (
       r.file_url != null &&
-      (typeof r.file_url !== 'string' || utf8Bytes(r.file_url) > 2000 || !searchOnlyUrlOk(r.file_url))
+      (typeof r.file_url !== 'string' || utf8Bytes(r.file_url) > 2000 || !searchOnlyUrlOk(r.file_url, String(r.desk_feature)))
     ) {
-      throw new Error('a search-only file_url must be an official https file on a configured host, at most 2,000 bytes');
+      throw new Error("a search-only file_url must be an official https file on one of its desk's hosts, at most 2,000 bytes");
     }
     // Absent or null is no key; else a string, non-blank after trim(), of at most 500 UTF-8 bytes (as admission).
     const key = r.document_key_suggested;

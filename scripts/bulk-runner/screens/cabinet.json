@@ -1,0 +1,35 @@
+{
+  "collection": "national-cabinet",
+  "mapping_version": "search-only-screen-v1",
+  "desk_tier": "national",
+  "desk_feature": "Cabinet Decisions",
+  "desk_rows_feature": "Cabinet Decisions",
+  "doc_type": "cabinet_record",
+  "citation_required": [
+    "kind",
+    "issuer",
+    "prid",
+    "source"
+  ],
+  "extraction_allowed": [
+    "html"
+  ],
+  "source_hosts": [
+    "pib.gov.in"
+  ],
+  "url_hosts": [
+    "www.pib.gov.in"
+  ],
+  "min_chars": 300,
+  "max_chars": 600000,
+  "replacement_fields": [
+    "delta_patch",
+    "replaces_text"
+  ],
+  "replacement_flags": [
+    "v16_replaces"
+  ],
+  "allow_density_only": true,
+  "ignore_pack_links": true,
+  "unpaged_text": true
+}

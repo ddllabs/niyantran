@@ -4,7 +4,14 @@
 //
 //   deno run -A --config supabase/functions/deno.json scripts/bulk-runner/screen.ts --screen <name>
 //     --collection <collection.json> --records <reader output .jsonl> --out <dir outside the repository>
-//     [--patches <reader output .jsonl>] [--no-live] [--no-pages] [--service <libpq service>] [--psql <path>]
+//     [--patches <reader output .jsonl>] [--no-live] [--no-pages] [--first-load] [--service <libpq service>]
+//     [--psql <path>]
+//
+// --first-load declares that the screen's desk has no documents yet (its first load). The live identity check then
+// accepts 0 documents for that desk, still reads the database and server, still needs listing rows where the screen
+// needs them, refuses the option when the desk already holds documents or with --no-live, and the receipt records
+// first_load: true. Without it, a desk with 0 documents is refused. The identity is asked under the screen's own desk
+// (Screen.desk: the spelling the screen writes), else under the desk the records name.
 //
 // Holds, logs and the receipt hold names, counts and hashes, never record text.
 import { createHash } from 'node:crypto';
@@ -26,7 +33,9 @@ import {
 } from './screen_types.ts';
 
 const USAGE = 'usage: screen.ts --screen <name> --collection <file> --records <file> --out <dir> [--patches <file>] ' +
-  '[--no-live] [--no-pages] [--service <name>] [--psql <path>] (see the header of scripts/bulk-runner/screen.ts)';
+  '[--no-live] [--no-pages] [--first-load] [--service <name>] [--psql <path>] (see the header of scripts/bulk-runner/screen.ts)';
+/** The only fields a projection may be declared to rewrite (a desk's accepted spelling). */
+const REWRITABLE: readonly string[] = ['desk_feature', 'desk_rows_feature'];
 const HEX64 = /^[0-9a-f]{64}$/;
 const MAX_FIELD = 1_000;
 const REPORT_NAME = /^[a-z][a-z0-9_]{0,59}$/;
@@ -46,6 +55,8 @@ export interface Command {
   patches: string | null;
   noLive: boolean;
   noPages: boolean;
+  /** The screen's desk is declared to hold no documents yet (its first load). */
+  firstLoad: boolean;
   psql: string;
   /** The libpq service the live reader connects through (default nter-accept). */
   service: string;
@@ -59,7 +70,7 @@ export function parseArgs(argv: string[]): Command {
   const switches = new Set<string>();
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
-    if (k === '--no-live' || k === '--no-pages') {
+    if (k === '--no-live' || k === '--no-pages' || k === '--first-load') {
       if (switches.has(k)) throw new Error(`${k} given twice`);
       switches.add(k);
       continue;
@@ -90,6 +101,7 @@ export function parseArgs(argv: string[]): Command {
     patches: values.get('--patches') ?? null,
     noLive: switches.has('--no-live'),
     noPages: switches.has('--no-pages'),
+    firstLoad: switches.has('--first-load'),
     psql: values.get('--psql') ?? 'psql',
     service,
   };
@@ -147,6 +159,21 @@ export function validateScreen(screen: Screen): void {
     }
   }
   if (screen.project !== undefined && typeof screen.project !== 'function') fail('project must be a function');
+  if (screen.projectRewrites !== undefined) {
+    const names = screen.projectRewrites;
+    if (
+      screen.project === undefined || !Array.isArray(names) ||
+      !names.every((n, i) => REWRITABLE.includes(n) && names.indexOf(n) === i)
+    ) {
+      fail('projectRewrites must list desk_feature and/or desk_rows_feature, each once, and needs project');
+    }
+  }
+  if (
+    screen.desk !== undefined &&
+    (!isRec(screen.desk) || !text1000(screen.desk.tier) || !text1000(screen.desk.feature))
+  ) {
+    fail('desk must hold a tier and a feature');
+  }
   if (screen.listingRows !== undefined && screen.listingRows !== 'required' && screen.listingRows !== 'none') {
     fail('listingRows must be "required" or "none"');
   }
@@ -294,7 +321,11 @@ function applyProject(screen: Screen, rec: Rec): { record: Rec } | { error: stri
     if (!isRec(out)) return { error: 'project did not return an object' };
     for (const k of Object.keys(before)) {
       if (!Object.hasOwn(out, k)) return { error: `project removed ${k}` };
-      if (!deepEqual(before[k], out[k])) return { error: `project changed ${k}` };
+      if (!deepEqual(before[k], out[k])) {
+        const may = screen.projectRewrites?.includes(k) === true && typeof before[k] === 'string' &&
+          typeof out[k] === 'string';
+        if (!may) return { error: `project changed ${k}` };
+      }
     }
     if (Object.hasOwn(out, 'review') || Object.hasOwn(out, 'text_sha256')) {
       // `before` never has these (a record that carried them was held), so they would be added by the projection.
@@ -877,15 +908,26 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
   const live = c.noLive ? switchedOff : deps.live(c.service, c.psql);
   // Which database this is, before anything is judged against it: an empty or wrong one would pass every "not live".
   let liveIdentity: Record<string, unknown> | null = null;
+  if (c.firstLoad && (c.noLive || !hasNeeds('live'))) {
+    throw new Error('--first-load needs the live identity check: it cannot be combined with --no-live');
+  }
   if (!c.noLive && hasNeeds('live')) {
-    const desk = deskOf([inputs.records.records, ...(patchInput ? [patchInput.records] : [])]);
+    // The records must name one desk; the question is about the screen's own (the spelling it writes), when it has one.
+    const named = deskOf([inputs.records.records, ...(patchInput ? [patchInput.records] : [])]);
+    const desk = screen.desk ?? named;
     const id = await live.identity(desk);
     const count = (v: unknown) => Number.isSafeInteger(v) && (v as number) >= 0;
     if (!text1000(id?.database) || !text1000(id?.server) || !count(id?.documents) || !count(id?.deskRows)) {
       throw new Error('the live reader gave no usable database identity');
     }
     // A desk whose listing rows sit under another spelling (listingRows 'none') needs documents, not rows.
-    if (id.documents === 0 || (listingRows === 'required' && id.deskRows === 0)) {
+    if (c.firstLoad && id.documents !== 0) {
+      throw new Error(
+        `--first-load was given but database ${id.database} (${id.server}) already holds ${id.documents} documents for ` +
+          `${desk.tier} / ${desk.feature}; run without --first-load`,
+      );
+    }
+    if ((id.documents === 0 && !c.firstLoad) || (listingRows === 'required' && id.deskRows === 0)) {
       throw new Error(
         `database ${id.database} (${id.server}) holds ${id.documents} documents and ${id.deskRows} listing rows for ` +
           `${desk.tier} / ${desk.feature}; this is not the database to screen against, so nothing was written`,
@@ -899,7 +941,10 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
       documents: id.documents,
       desk_rows: id.deskRows,
     };
-    deps.log(`live database ${id.database} (${id.server}): ${id.documents} documents, ${id.deskRows} listing rows`);
+    deps.log(
+      `live database ${id.database} (${id.server}): ${id.documents} documents, ${id.deskRows} listing rows` +
+        (c.firstLoad ? ' (first load declared: the desk holds none yet)' : ''),
+    );
   }
   // The prepare block is the runner's own (the same object `plan` and `run` read from this file): one chunk limit.
   const ctx: ScreenContext = {
@@ -1005,6 +1050,7 @@ export async function main(argv: string[], deps: ScreenDeps): Promise<number> {
       screened_from_patches: counts.patches.out,
       screened_from_patches_keys_sha256: sha256([...patchKeys].sort().join('\n')),
       live_identity: liveIdentity,
+      first_load: c.firstLoad,
       listing_rows: listingRows,
       live_reads_ran: !c.noLive && hasNeeds('live'),
       page_check_ran: !c.noPages && hasNeeds('pages'),

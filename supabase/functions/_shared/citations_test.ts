@@ -328,6 +328,24 @@ Deno.test('a citation copies a publisher only when it is a table name on a natio
     assert(!('publisher' in cite({ ...other, publisher: 'Reserve Bank of India' })));
   }
   // A Regulatory chunk with a clean string outside the table: none.
-  assert(!('publisher' in cite({ ...reg, publisher: 'Parliament of India' })));
+  assert(!('publisher' in cite({ ...reg, publisher: 'Some Body' })));
   assert(!('publisher' in cite({ ...reg, publisher: 'reserve bank of india' })));
+  // A name of another desk is foreign: a Regulatory chunk with Parliament of India, a Cabinet chunk with a regulator.
+  const cabinet = { desk_tier: 'national', desk_feature: 'Cabinet Decisions' };
+  assert(!('publisher' in cite({ ...reg, publisher: 'Parliament of India' })));
+  assert(!('publisher' in cite({ ...reg, publisher: 'Press Information Bureau, Government of India' })));
+  assert(!('publisher' in cite({ ...cabinet, publisher: 'Reserve Bank of India' })));
+  assert(!('publisher' in cite({ ...cabinet, publisher: 'Parliament of India' })));
+  assert(!('publisher' in cite({ ...cabinet, desk_tier: 'law', publisher: 'Press Information Bureau, Government of India' })));
+  // Each desk keeps its own name.
+  const own: Array<[string, string]> = [
+    ['Budget Utilisation & Schemes', 'Ministry of Finance, Government of India'],
+    ['Cabinet Decisions', 'Press Information Bureau, Government of India'],
+    ['Bureaucratic Transfers \u2014 AGMUT Cadre', 'Ministry of Home Affairs, Government of India'],
+    ['MP Profiles & Performance (MPLAD attendance debates)', 'Parliament of India'],
+    ['Industry Updates (Ministry Data)', 'Office of the Economic Adviser, DPIIT'],
+  ];
+  for (const [desk_feature, publisher] of own) {
+    assertEquals(cite({ desk_tier: 'national', desk_feature, publisher }).publisher, publisher, desk_feature);
+  }
 });

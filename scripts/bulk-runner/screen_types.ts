@@ -164,4 +164,17 @@ export interface Screen {
    * remove one. Absent: nothing is added.
    */
   project?(record: Rec): Rec;
+  /**
+   * Top-level fields `project` may change (F374: a desk's accepted spelling is rewritten to the one the adapter knows).
+   * A change is allowed only to a field named here and only from a string to a string; removal, any other change, and
+   * `review` and `text_sha256` stay refused. Absent: no change is allowed, as before. Needs `project`.
+   * Only `desk_feature` and `desk_rows_feature` may be named, each once.
+   */
+  projectRewrites?: readonly string[];
+  /**
+   * The desk the screen writes (tier and feature as the screened records carry them, after any spelling rewrite). The
+   * live identity check asks about this desk, not about the spelling a pack record happens to use. Absent: the desk the
+   * records name (Bills).
+   */
+  desk?: { tier: string; feature: string };
 }

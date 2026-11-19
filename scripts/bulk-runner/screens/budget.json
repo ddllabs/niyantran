@@ -1,0 +1,37 @@
+{
+  "collection": "national-budget",
+  "mapping_version": "search-only-screen-v1",
+  "desk_tier": "national",
+  "desk_feature": "Budget Utilisation & Schemes",
+  "desk_rows_feature": "Budget Utilisation & Schemes",
+  "doc_type": "budget_document",
+  "doc_type_also": [
+    "budget_doc"
+  ],
+  "suggested_key_prefix": "budget:",
+  "citation_required": [
+    "kind",
+    "issuer",
+    "source"
+  ],
+  "extraction_allowed": [
+    "pdf_text"
+  ],
+  "source_hosts": [
+    "indiabudget.gov.in"
+  ],
+  "url_hosts": [
+    "www.indiabudget.gov.in"
+  ],
+  "pdf_url_rule": "^https://www\\.indiabudget\\.gov\\.in/[^?#]+\\.pdf$",
+  "min_chars": 300,
+  "max_chars": 600000,
+  "replacement_fields": [
+    "delta_patch",
+    "replaces_text"
+  ],
+  "replacement_flags": [
+    "v16_replaces"
+  ],
+  "allow_density_only": false
+}

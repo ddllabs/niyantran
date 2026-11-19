@@ -1,0 +1,41 @@
+{
+  "collection": "national-mp-profiles",
+  "mapping_version": "search-only-screen-v1",
+  "desk_tier": "national",
+  "desk_feature": "MP Profiles & Performance (MPLAD attendance debates)",
+  "desk_rows_feature": "MP Profiles & Performance (MPLAD attendance debates)",
+  "doc_type": "mp_profile",
+  "doc_type_also": [
+    "mp_record_profile"
+  ],
+  "suggested_key_prefix": "mp:",
+  "citation_required": [
+    "kind",
+    "house",
+    "mp_name",
+    "mpsno",
+    "source"
+  ],
+  "extraction_allowed": [
+    "html",
+    "dataset"
+  ],
+  "source_hosts": [
+    "sansad.in"
+  ],
+  "url_hosts": [
+    "sansad.in"
+  ],
+  "min_chars": 300,
+  "max_chars": 600000,
+  "replacement_fields": [
+    "delta_patch",
+    "replaces_text"
+  ],
+  "replacement_flags": [
+    "v16_replaces"
+  ],
+  "allow_density_only": true,
+  "ignore_pack_links": true,
+  "unpaged_text": true
+}

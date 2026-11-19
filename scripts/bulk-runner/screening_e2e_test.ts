@@ -683,8 +683,9 @@ Deno.test('rules_sha256: the Regulatory screen moves with each of its rule files
   }
 });
 
-// Each row: the URL, what the screen says, and what admission says (the SQL branch in 20261113090000_national_search_only.sql
-// and searchOnlyUrlOk in suppliedText.ts). A change to either side that opens a gap between them shows here.
+// Each row: the URL, what the screen says, and what admission says for the Regulatory desk (the search-only branch of
+// ingest_admit_document, last defined in 20261123090000_national_search_only_five_desks.sql, and searchOnlyUrlOk in
+// suppliedText.ts). A change to either side that opens a gap between them shows here.
 const URL_CASES: Array<[label: string, url: string, screenAccepts: boolean, sqlAccepts: boolean]> = [
   ['RBI document PDF', 'https://rbidocs.rbi.org.in/rdocs/x/N1.pdf', true, true],
   ['RBI site page with a query', 'https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=4', true, true],
@@ -735,7 +736,11 @@ Deno.test('URL rule: the screen and admission agree on every row of the table, e
     const found = (await check.one!(await reg(1, { file_url: url }), ctx)).map((f) => f.reason);
     assertEquals(!found.includes('not_official_url'), screenAccepts, `screen: ${label}`);
     // The adapter's own function stands for the SQL rule (the two are written to match; the table pins both).
-    assertEquals(bytesOf(url) <= 2000 && searchOnlyUrlOk(url), sqlAccepts, `admission: ${label}`);
+    assertEquals(
+      bytesOf(url) <= 2000 && searchOnlyUrlOk(url, REGULATORY.desk_feature),
+      sqlAccepts,
+      `admission: ${label}`,
+    );
     assertEquals(screenAccepts, sqlAccepts, `the screen and admission differ: ${label}`);
   }
 });
