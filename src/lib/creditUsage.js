@@ -34,6 +34,11 @@ export const FACTCHECK_LABEL = 'Live TV fact-check';
 
 export const isFactcheck = (row) => row?.feature === FACTCHECK;
 
+/** The feature of a refund of unlock credits (an administrator removed the video's shared results); a positive line, not a charge. */
+export const FACTCHECK_REFUND = 'factcheck_refund';
+export const REFUND_LABEL = 'Refund: shared fact-check results removed';
+export const isRefund = (row) => row?.feature === FACTCHECK_REFUND;
+
 function num(value) {
   const n = Number(value);
   return value === null || value === undefined || value === '' || !Number.isFinite(n) ? 0 : n;
@@ -116,6 +121,8 @@ export function shapeActivity(data) {
       credits: num(r?.credits),
       // Only a fact-check row carries these (F347); a chat or dictation row keeps its old shape.
       ...(r?.feature === FACTCHECK ? { feature: FACTCHECK, channel: text(r.channel), minutesUsed: r.minutes_used == null ? null : num(r.minutes_used), videoKind: text(r.video_kind) } : {}),
+      // A refund of unlock credits carries the video it came from (null once the session is deleted).
+      ...(r?.feature === FACTCHECK_REFUND ? { feature: FACTCHECK_REFUND, channel: text(r.channel), videoKind: text(r.video_kind), videoId: text(r.video_id) } : {}),
       detail: Array.isArray(r?.detail)
         ? r.detail.map((d) => ({
           role: text(d?.role) || 'other',
@@ -281,6 +288,7 @@ export function dayText(iso) {
  * call, which belongs to no chat; "Live TV fact-check" for a fact-check charge, which is neither.
  */
 export function rowChat(row) {
+  if (isRefund(row)) return REFUND_LABEL;
   if (isFactcheck(row)) return FACTCHECK_LABEL;
   if (row.title) return row.title;
   if (row.conversationId) return 'Untitled';

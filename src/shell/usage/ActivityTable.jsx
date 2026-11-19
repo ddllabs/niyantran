@@ -6,7 +6,7 @@
  */
 import { formatCredits } from '../../lib/creditsStore.js';
 import {
-  CREDITS_STARTED_NOTE, beforeCredits, effortLabel, factcheckDetails, indianNumber, isFactcheck, modelLabel, roleLabel, rowChat, whenText,
+  CREDITS_STARTED_NOTE, beforeCredits, channelName, effortLabel, factcheckDetails, indianNumber, isFactcheck, isRefund, modelLabel, roleLabel, rowChat, whenText,
 } from '../../lib/creditUsage.js';
 import { roleSegments } from '../../lib/creditsVisual.js';
 import { StatusPill, Tokens } from './usageParts.jsx';
@@ -136,7 +136,29 @@ function FactcheckRow({ row, max }) {
   );
 }
 
+/** Credits given back when a video's shared results were removed: a positive line with no bar, model, calls or chat. */
+export function RefundRow({ row, compact = false }) {
+  const parts = [channelName(row.channel), { live: 'Live', recorded: 'Recorded' }[row.videoKind] || '', row.videoId ? `Video ${row.videoId}` : ''].filter(Boolean);
+  return (
+    <li className="cp-row">
+      <div className="cp-row-main">
+        {compact ? null : <span className="cu-expand-gap" aria-hidden="true" />}
+        <div className="cp-row-text">
+          <p className="cp-row-q">{rowChat(row)}</p>
+          <p className="cp-row-meta">
+            <span>{whenText(row.createdAt)}</span>
+            {parts.map((d) => <span key={d}>{d}</span>)}
+          </p>
+        </div>
+        <span className="cp-mini" aria-hidden="true" />
+        <span className="cp-row-credits cp-row-refund">+{formatCredits(row.credits)}<span className="cu-sr"> credits returned</span></span>
+      </div>
+    </li>
+  );
+}
+
 function Row({ row, index, max, expanded, onToggleRow, onOpenChat, grouped }) {
+  if (isRefund(row)) return <RefundRow row={row} />;
   if (isFactcheck(row)) return <FactcheckRow row={row} max={max} />;
   const key = rowKey(row, index);
   const chat = rowChat(row);
@@ -209,7 +231,7 @@ export default function ActivityTable({
   const rows = state?.rows || [];
   const total = state?.total || 0;
   const early = rows.some(uncharged);
-  const max = Math.max(0, ...rows.map((r) => r.credits || 0));
+  const max = Math.max(0, ...rows.map((r) => (isRefund(r) ? 0 : r.credits || 0)));
   return (
     <div className="cu-activity">
       <Filters filters={filters} models={models} onFilter={onFilter} onExport={onExport} exporting={exporting}

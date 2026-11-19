@@ -13,7 +13,7 @@ vi.mock('./supabaseClient.js', () => ({
 import { activityCsv } from './usageCsv.js';
 import {
   beforeCredits, formatTokens, indianNumber, loadAllActivity, loadUsageActivity, loadUsageSeries, loadUsageSummary,
-  channelName, factcheckDetails, featureLabel, modelLabel, modelName, providerOf, rangeWindow, rowChat, shapeActivity, shapeSeries, shapeSummary,
+  channelName, factcheckDetails, featureLabel, isRefund, REFUND_LABEL, modelLabel, modelName, providerOf, rangeWindow, rowChat, shapeActivity, shapeSeries, shapeSummary,
 } from './creditUsage.js';
 
 beforeEach(() => {
@@ -192,5 +192,37 @@ describe('fact-check charges', () => {
     state.rpc = vi.fn(async () => ({ data: { total: 0, rows: [] }, error: null }));
     await loadUsageActivity({ kind: 'factcheck' });
     expect(state.rpc).toHaveBeenCalledWith('my_usage_activity', expect.objectContaining({ p_kind: 'factcheck' }));
+  });
+});
+
+// Live TV phase 2: a refund of unlock credits is its own line in the history, positive and apart from every charge.
+describe('refund lines', () => {
+  const raw = { turn_key: null, created_at: '2026-11-23T06:30:00Z', conversation_id: null, title: null, question: null, model: null,
+    status: 'succeeded', calls: 0, tokens: 0, credits: 200, detail: [], feature: 'factcheck_refund', channel: 'aaj-tak', video_kind: 'recorded', video_id: 'abc123' };
+
+  it('keeps the refund keys, and adds none to a chat, dictation or fact-check charge row', () => {
+    const { rows } = shapeActivity({ total: 3, rows: [raw, { ...raw, feature: 'factcheck', minutes_used: 2, video_id: 'zzz' }, { ...raw, feature: undefined }] });
+    expect(rows[0]).toMatchObject({ feature: 'factcheck_refund', channel: 'aaj-tak', videoKind: 'recorded', videoId: 'abc123', credits: 200 });
+    expect(rows[1]).not.toHaveProperty('videoId');
+    expect(rows[2]).not.toHaveProperty('feature');
+    expect(rows[2]).not.toHaveProperty('videoId');
+  });
+
+  it('is recognised only by its feature, and reads as a refund, never as a charge, dictation or a deleted chat', () => {
+    expect(isRefund({ feature: 'factcheck_refund' })).toBe(true);
+    expect(isRefund({ feature: 'factcheck' })).toBe(false);
+    expect(isRefund({})).toBe(false);
+    expect(isRefund(null)).toBe(false);
+    expect(REFUND_LABEL).toBe('Refund: shared fact-check results removed');
+    expect(rowChat({ feature: 'factcheck_refund', title: null, conversationId: null, turnKey: null })).toBe(REFUND_LABEL);
+  });
+
+  it('exports a refund as a Refund line with positive credits, not as a Row', () => {
+    const { rows } = shapeActivity({ total: 1, rows: [raw] });
+    const lines = activityCsv(rows).trim().split('\r\n');
+    expect(lines[1]).toContain('Refund: shared fact-check results removed');
+    expect(lines[1].split(',').slice(-1)[0]).toBe('200');
+    expect(lines[1]).toContain(',Refund,');
+    expect(lines[1]).not.toContain(',Row,');
   });
 });

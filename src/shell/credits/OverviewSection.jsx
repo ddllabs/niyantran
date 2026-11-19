@@ -4,9 +4,10 @@
  * latest answers and the credits by expiry. Hook-free: CreditsPage reads the reports.
  */
 import { creditsText, formatCredits } from '../../lib/creditsStore.js';
-import { indianNumber, isFactcheck, modelLabel, rowChat, whenText } from '../../lib/creditUsage.js';
+import { indianNumber, isFactcheck, isRefund, modelLabel, rowChat, whenText } from '../../lib/creditUsage.js';
 import { periodLine } from '../../lib/creditsVisual.js';
 import CreditLots from '../CreditLots.jsx';
+import { RefundRow } from '../usage/ActivityTable.jsx';
 import { Tokens } from '../usage/usageParts.jsx';
 import { daysLeftText } from './BalancePill.jsx';
 import { PaceChart, PeriodBar, WhereCreditsWent } from './CreditsVisuals.jsx';
@@ -16,10 +17,10 @@ function RecentAnswers({ state, onOpenChat }) {
   if (state.status === 'loading') return <p className="cu-note" role="status">Loading your latest answers…</p>;
   if (state.status === 'error') return <p className="cu-note cu-error" role="alert">Your latest answers could not be loaded just now.</p>;
   if (!state.rows.length) return <p className="cu-note">No answers yet. Ask the research assistant anything about a record.</p>;
-  const max = Math.max(...state.rows.map((r) => r.credits || 0), 0);
+  const max = Math.max(...state.rows.map((r) => (isRefund(r) ? 0 : r.credits || 0)), 0);
   return (
     <ul className="cp-rows cp-rows-compact">
-      {state.rows.map((r, i) => (
+      {state.rows.map((r, i) => (isRefund(r) ? <RefundRow key={`refund-${i}`} row={r} compact /> : (
         <li key={r.turnKey || i} className="cp-row">
           <div className="cp-row-main">
             <div className="cp-row-text">
@@ -32,7 +33,7 @@ function RecentAnswers({ state, onOpenChat }) {
             <span className="cp-row-credits">{formatCredits(r.credits)}<span className="cu-sr"> credits</span></span>
           </div>
         </li>
-      ))}
+      )))}
     </ul>
   );
 }

@@ -2,7 +2,7 @@
  * The All AI activity export (F153): CSV in credits only (F184, owner 2026-10-15: users buy and
  * spend credits). Split from creditUsage.js, which reads the reports.
  */
-import { roleLabel, rowChat, statusLabel } from './creditUsage.js';
+import { isRefund, roleLabel, rowChat, statusLabel } from './creditUsage.js';
 
 function num(value) {
   const n = Number(value);
@@ -31,7 +31,7 @@ export function activityCsv(rows, { withCalls = true } = {}) {
     const at = Date.parse(row.createdAt || '');
     lines.push([
       Number.isFinite(at) ? IST_STAMP.format(at).replace(',', '') : '',
-      rowChat(row), row.question || '', 'Row', row.model || '', '', statusLabel(row.status),
+      rowChat(row), row.question || '', isRefund(row) ? 'Refund' : 'Row', row.model || '', '', statusLabel(row.status),
       row.calls, row.tokens, credits(row.credits),
     ]);
     if (withCalls) {
