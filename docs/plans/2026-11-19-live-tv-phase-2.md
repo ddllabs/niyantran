@@ -3,7 +3,7 @@
 > **Status: Living (2026-11-19).** Orders the development left on Live TV after the close-out
 > ([2026-11-18-live-tv-closeout.md](2026-11-18-live-tv-closeout.md)) and the layout
 > ([2026-11-19-live-tv-layout.md](2026-11-19-live-tv-layout.md)). The only list of open work is
-> [open-work.md](open-work.md). Nothing here is built until the owner confirms the plan and answers the decisions below.
+> [open-work.md](open-work.md). The owner confirmed the plan on 2026-11-19 and reserved every merge to `main`.
 
 ## Purpose
 
@@ -51,7 +51,7 @@ stay. The transcript is part of a paid session. Nothing in this plan changes a p
 
 - **C1 (F352, F365). Unsteady verdicts and rounding.** The user gets the same verdict for the same claim. Measure a
   second-step judge for numeric claims against the reference answers, with the pass rule fixed before the runs.
-  Build only if it passes.
+  Build only if it passes. The pass rule was written before the analysis and is kept outside the repository with the raw results.
 
 ### Left out, with the reason
 
@@ -81,16 +81,29 @@ Three tracks run at the same time, each in its own worktree, with write scopes t
 Two read-only tracks run beside them: the channel inventory for B6 (each channel's YouTube identity and whether it has
 a 24-hour stream, as a file the supervisor checks before track 1 reaches B6), and the measurement C1.
 
-Each item is its own pull request. Gates for every one: `npm test`, `npm run lint`, `npm run build`,
-`npm run check:bundle`; the router import for track 1; `npm run test:sql` for track 3. A migration is applied on NTER
-only with no session running, by the documented method, before its merge.
+Each track is one pull request against `feature/livetv-phase-2`, with one commit per item. Gates for every one: `npm test`, `npm run lint`, `npm run build`,
+`npm run check:bundle`; the router import for track 1; `npm run test:sql` for track 3. A migration is applied on NTER only after the owner has approved
+the whole branch, with no session running, by the documented method, before the merge to `main`.
 
-## Decisions needed from the owner
+## Branches and merges (owner, 2026-11-19)
 
-1. F378: accept the worst-case cost as it is, or tighten the limits.
-2. B4: any YouTube video may be pasted and checked at the normal price.
-3. B6: "My list" kept in the browser first, or in the account from the start (a new table).
-4. C1: a budget for the measurement runs.
-5. The left-out list above is agreed.
+All phase 2 work lives on the branch `feature/livetv-phase-2`. Each track builds on its own branch cut from it:
+`task/p2-player`, `task/p2-panel` and `task/p2-usage`. The supervisor merges each track into
+`feature/livetv-phase-2` after the independent review and after the supervisor's own re-run of the gates and of CI on
+the track's pull request. Pull requests for the tracks target `feature/livetv-phase-2`, never `main`. Nothing is
+merged to `main`. No migration is applied on NTER and no function is deployed until the owner has seen the whole
+branch and approved. The reason is that another line of work, corpus ingestion, is releasing to `main` at the same
+time. One pull request per track, with one commit per item, replaces "each item is its own pull request".
+
+## Owner decisions (answered 2026-11-19)
+
+1. F378: accept the worst-case cost as it is, or tighten the limits. Answer: accepted as it is for now.
+2. B4: any YouTube video may be pasted and checked at the normal price. Answer: yes.
+3. B6: "My list" kept in the browser first, or in the account from the start (a new table). Answer: in the browser
+   first.
+4. C1: a budget for the measurement runs. Answer: up to US$10. Step 1 uses only replies already collected, so it
+   costs nothing.
+5. The left-out list above is agreed. Answer: agreed.
 6. Whether merges, migrations and deploys inside this plan may proceed after review, the supervisor's re-run and CI,
-   without asking each time.
+   without asking each time. Answer: the owner granted pull-request and merge permissions for the working branch, and
+   reserved `main`.
