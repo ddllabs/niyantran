@@ -1,10 +1,10 @@
-// F366 slice B: the newest verdict over the video, bottom-left, above the player's own controls. A polite
-// live region: its text changes only when a different claim (or a new result for it) is the newest, so
-// the same claim is not announced again. "See why" hands the claim id to the page, which asks the panel
-// to show that card. The page draws it only while a session runs.
+// F366 slice B: the newest verdict over the video, bottom-left, above the player's own controls. Not a live
+// region: the panel's own announcer (fc-sr) already speaks each verdict, and a second region would say it
+// twice. "See why" hands the claim id to the page, which asks the panel to show that card. The page draws it
+// only while a session runs.
 export function LatestClaimStrip({ latest, onSee }) {
   return (
-    <div className="ltv-claimstrip-live" aria-live="polite">
+    <div className="ltv-claimstrip-live">
       {latest ? (
         <div className="ltv-claimstrip">
           <span className={`fc-badge fc-badge--${latest.badge.key}`}>

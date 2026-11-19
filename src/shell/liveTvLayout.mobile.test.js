@@ -35,6 +35,9 @@ describe('phone layout (up to 600px)', () => {
   it('keeps a focused control from hiding under the sticky video', () => {
     expect(rule(phone, '.ltv-main')).toMatch(/scroll-padding-top:\s*calc\(\(100vw - 24px\) \* 9 \/ 16/);
   });
+  it('hides the channel strip arrows: the strip scrolls by touch', () => {
+    expect(rule(phone, '.ltv-strip-arrows')).toMatch(/display:\s*none/);
+  });
   it('is not sticky anywhere else', () => {
     expect(page.replace(phone, '')).not.toMatch(/position:\s*sticky/);
   });
@@ -57,7 +60,7 @@ describe('nothing scrolls sideways', () => {
   it('wraps long titles, claims and reasons (Hindi has no spaces to break at in some runs)', () => {
     expect(page).toMatch(/\.ltv-np-line[^{]*\{\s*overflow-wrap:\s*anywhere/);
     expect(rule(panelCss, '.fc-card')).toMatch(/overflow-wrap:\s*anywhere/);
-    expect(rule(panelCss, '.fc-tile-label') + rule(panelCss, '.fc-sources--pills a, .fc-sources--pills span')).toMatch(/overflow-wrap:\s*anywhere[\s\S]*overflow-wrap:\s*anywhere/);
+    expect(rule(panelCss, '.fc-sources--pills a, .fc-sources--pills span')).toMatch(/overflow-wrap:\s*anywhere/);
   });
   it('lets the panel tabs and the deck tabs scroll inside themselves', () => {
     expect(rule(panelCss, '.fc-tabs')).toMatch(/overflow-x:\s*auto/);
@@ -76,6 +79,38 @@ describe('touch targets', () => {
   });
   it('the verdict tiles and the strip button are tall enough by themselves', () => {
     expect(Number(rule(panelCss, '.fc-tile').match(/min-height:\s*(\d+)px/)[1])).toBeGreaterThanOrEqual(40);
+  });
+});
+
+describe('verdict tiles', () => {
+  it('never break a word in the middle, and wrap 3 + 2 when five do not fit', () => {
+    expect(rule(panelCss, '.fc-tile-label')).toMatch(/overflow-wrap:\s*normal/);
+    expect(rule(panelCss, '.fc-tile-label')).not.toMatch(/anywhere|break-all|break-word/);
+    expect(rule(panelCss, '.fc-tiles')).toMatch(/minmax\((9\d|1\d\d)px, 1fr\)/);
+    expect(media(panelCss, '(max-width: 600px)')).not.toMatch(/\.fc-tiles/);
+  });
+});
+
+describe('the panel scrolls in one place', () => {
+  it('wide: the panel clips, the body between the fixed head and foot is the one scroller', () => {
+    const wide = media(panelCss, '(min-width: 1081px)');
+    expect(rule(wide, '.ltv-panelcol > .fc-panel')).toMatch(/overflow:\s*hidden/);
+    expect(rule(panelCss, '.fc-body')).toMatch(/overflow-y:\s*auto/);
+    expect(rule(panelCss, '.fc-body')).toMatch(/min-height:\s*0/);
+    expect(rule(panelCss, '.fc-head')).toMatch(/flex:\s*none/);
+    expect(rule(panelCss, '.fc-foot')).toMatch(/flex:\s*none/);
+  });
+  it('nothing inside the body scrolls on its own, apart from the live transcript box', () => {
+    expect(rule(panelCss, '.fc-work')).toMatch(/overflow:\s*visible/);
+    expect(rule(panelCss, '.fc-work')).not.toMatch(/overflow-y:\s*auto/);
+    expect(rule(panelCss, '.fc-choose, .fc-waiting')).toMatch(/overflow:\s*visible/);
+    expect(rule(panelCss, '.fc-transcript')).toMatch(/max-height:\s*min\(/);
+  });
+  it('stacked: no height limit and no inner scrolling, the page scrolls', () => {
+    const stacked = media(panelCss, '(max-width: 1080px)');
+    expect(rule(stacked, '.ltv-panelcol > .fc-panel')).toMatch(/max-height:\s*none/);
+    expect(rule(stacked, '.ltv-panelcol > .fc-panel')).toMatch(/overflow:\s*visible/);
+    expect(rule(stacked, '.fc-body')).toMatch(/overflow:\s*visible/);
   });
 });
 

@@ -10,8 +10,8 @@ import { FactCheckPanel } from './factcheck/FactCheckPanel.jsx';
 import { PastSessions } from './factcheck/PastSessions.jsx';
 import { LatestClaimStrip } from './factcheck/LatestClaimStrip.jsx';
 import { latestVerdictClaim } from './factcheck/claimFilter.js';
+import { leaveFullscreenThen } from './factcheck/leaveFullscreen.js';
 import { ChannelCard } from './liveTv/ChannelCard.jsx';
-import { shouldAutoChoose } from './liveTv/autoChoose.js';
 import { nowPlayingLine } from './liveTv/channelView.js';
 import { embedVideoId, playingTarget } from './factcheck/factCheckText.js';
 import { useFactCheck } from './factcheck/useFactCheck.js';
@@ -314,17 +314,9 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     },
   });
 
-  // F366: the panel is open by default, so its start screen opens by itself, once for each thing played
-  // (the same conditions as the old entry button; Cancel is respected). A new visit starts afresh.
+  // F366: the panel is open by default and shows an idle state; the start screen opens only when the user
+  // presses its entry button (nothing here asks the controller to do anything on its own).
   const playable = isPlaying && !streamError;
-  const autoChosen = useRef(null);
-  useEffect(() => {
-    if (!open) { autoChosen.current = null; return; }
-    if (shouldAutoChoose({ view: factCheck.view, playable, key: factCheckTarget, done: autoChosen.current })) {
-      autoChosen.current = factCheckTarget;
-      factCheck.actions.choose();
-    }
-  });
 
   // F366: "See why" on the latest-claim strip asks the panel to show that claim's card (the token makes a
   // second press on the same claim count).
@@ -346,6 +338,9 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     ['transcript', 'Transcript'],
     ...(factCheckOffered ? [['sessions', 'My sessions']] : []),
   ];
+  // My sessions can stop being offered while it is the chosen tab: show Channel Videos then, so one tab stays
+  // the tab stop and the panel is not empty.
+  const shownTab = tabs.some(([id]) => id === activeTab) ? activeTab : 'videos';
   const programTitle = playbackMode === 'archive'
     ? selectedArchiveItem?.title || 'Archived Recording'
     : (playbackMode === 'video' && activeVideo?.title) || activeChannel?.name || '';
@@ -494,7 +489,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
             {sessionRunning ? (
               <>
                 <span className="ltv-fcpill"><span className="ltv-fcpill-dot" aria-hidden="true" />Fact-check on</span>
-                <LatestClaimStrip latest={latestClaim} onSee={(claimId) => setSeeWhy((r) => ({ claimId, token: (r?.token || 0) + 1 }))} />
+                <LatestClaimStrip latest={latestClaim} onSee={(claimId) => leaveFullscreenThen(document, () => setSeeWhy((r) => ({ claimId, token: (r?.token || 0) + 1 })))} />
               </>
             ) : null}
           </div>
@@ -617,10 +612,10 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               key={id}
               id={`ltv-tab-${id}`}
               role="tab"
-              aria-selected={activeTab === id}
+              aria-selected={shownTab === id}
               aria-controls="ltv-tab-panel"
-              tabIndex={activeTab === id ? 0 : -1}
-              className={`ltv-tab-btn${activeTab === id ? ' active' : ''}`}
+              tabIndex={shownTab === id ? 0 : -1}
+              className={`ltv-tab-btn${shownTab === id ? ' active' : ''}`}
               onClick={() => setActiveTab(id)}
               onKeyDown={(e) => {
                 const keys = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: all.length - 1 };
@@ -637,8 +632,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
         </div>
 
         {/* Tab Content */}
-        <div className="ltv-tab-content" id="ltv-tab-panel" role="tabpanel" aria-labelledby={`ltv-tab-${activeTab}`}>
-          {activeTab === 'schedule' && (
+        <div className="ltv-tab-content" id="ltv-tab-panel" role="tabpanel" aria-labelledby={`ltv-tab-${shownTab}`}>
+          {shownTab === 'schedule' && (
             <div className="ltv-schedule-list">
               {scheduleLoading ? (
                 <div className="ltv-loading-spinner">
@@ -679,7 +674,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
             </div>
           )}
 
-          {activeTab === 'videos' && (
+          {shownTab === 'videos' && (
             <div className="ltv-videos-grid">
               {videosLoading ? (
                 <div className="ltv-loading-spinner">
@@ -757,7 +752,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
           </div>
           )}
 
-          {activeTab === 'archive' && (
+          {shownTab === 'archive' && (
             <div className="ltv-archive-grid">
               {archiveLoading ? (
                 <div className="ltv-loading-spinner">
@@ -831,7 +826,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
             </div>
           )}
 
-          {activeTab === 'transcript' && (
+          {shownTab === 'transcript' && (
             <div className="ltv-transcript-pane">
               <div
                 style={{
@@ -890,7 +885,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
           {/* F360/F366: the user's finished fact-check sessions are the "My sessions" tab. The section stays
               mounted (hidden) while another tab shows, as it was always mounted below the page, so it loads and
               reloads as before and an open delete question is not lost on a tab change. */}
-          <div hidden={!factCheckOffered || activeTab !== 'sessions'}>
+          <div hidden={!factCheckOffered || shownTab !== 'sessions'}>
             <PastSessions userId={factCheck.view?.flag?.userId} enabled={factCheckOffered} sessionStatus={factCheck.view?.session?.status} channels={channels} />
           </div>
         </div>

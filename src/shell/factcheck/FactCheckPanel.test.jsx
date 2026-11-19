@@ -33,7 +33,11 @@ const entry = (v, playable = true) => renderToStaticMarkup(<FactCheckEntry view=
 const text = (html) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
 // F366: the heading, the roving tab buttons (the chosen one is the tab stop) and a claim card (a target for
 // "See why", not a control) are the only elements that may carry tabindex="-1".
-const withoutFocusTargets = (html) => html.replace(/<h3[^>]*>/g, '').replace(/<button[^>]*role="tab"[^>]*>/g, '').replace(/<li[^>]*id="fc-claim-[^"]*"[^>]*>/g, '');
+// Only a tab that is not selected may be out of the tab order; the selected one must be the tab stop.
+const withoutFocusTargets = (html) => {
+  for (const b of html.match(/<button[^>]*role="tab"[^>]*aria-selected="true"[^>]*>/g) || []) expect(b).toMatch(/tabindex="0"/);
+  return html.replace(/<h3[^>]*>/g, '').replace(/<button[^>]*role="tab"[^>]*aria-selected="false"[^>]*>/g, '').replace(/<li[^>]*id="fc-claim-[^"]*"[^>]*>/g, '');
+};
 
 describe('entry point', () => {
   it('renders a Fact-check button only when the flag is on and the browser is supported', () => {

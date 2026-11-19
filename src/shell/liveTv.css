@@ -1044,6 +1044,7 @@
   .ltv-header-badges { flex: 1 0 100%; gap: 6px; }
   .ltv-main { gap: 12px; padding: 8px 12px 24px; scroll-padding-top: calc((100vw - 24px) * 9 / 16 + 12px); }
   .ltv-channelcard { padding: 12px; border-radius: 12px; }
+  .ltv-strip-arrows { display: none; } /* the strip scrolls by touch; the arrows crowd the tiles */
 
   /* The video column dissolves into the split so the stage can stay put while the panel scrolls beneath it. */
   .ltv-split { gap: 10px; }

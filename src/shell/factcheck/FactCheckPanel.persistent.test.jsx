@@ -54,6 +54,30 @@ describe('persistent panel, idle', () => {
   });
 });
 
+describe('persistent panel, idle with a re-check message to keep', () => {
+  const noticed = (extra = {}) => view({}, { recheckNotices: ['A re-check charge was applied late.'], ...extra });
+  it('shows the message and still the intro, the entry button and the notice, as the button under the video did', () => {
+    const html = render(noticed());
+    const t = text(html);
+    expect(t).toContain('A re-check charge was applied late.');
+    expect(t).toContain("Check what's being said on Aaj Tak");
+    expect(t).toContain('500 credits a minute, held up front.');
+    expect(html).toMatch(/<button[^>]*data-fc="open"/);
+    expect(html).toMatch(/data-fc="notices-dismiss"/);
+    expect(t).toContain('Verdicts are automated, may be wrong');
+  });
+  it('keeps the entry gating and its notes', () => {
+    expect(text(render(noticed({ supported: false })))).toContain('Fact-check is available on Chrome on a computer');
+    const paused = render(noticed(), { playable: false });
+    expect(paused).not.toMatch(/data-fc="open"/);
+    expect(text(paused)).toContain('Play the video to fact-check it');
+  });
+  it('is unchanged outside the persistent column', () => {
+    const html = renderToStaticMarkup(<FactCheckPanel view={noticed()} onStop={() => {}} />);
+    expect(html).not.toMatch(/data-fc="open"|Check what/);
+  });
+});
+
 describe('persistent panel, start screen open', () => {
   it('shows the heading and sentence above the existing start screen', () => {
     const html = render(view({ status: 'choosing' }));

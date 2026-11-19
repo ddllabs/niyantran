@@ -16,18 +16,18 @@ const findButton = (node) => {
 };
 
 describe('LatestClaimStrip', () => {
-  it('shows the verdict badge with its glyph and label, the claim and See why, in a polite live region', () => {
+  it('shows the verdict badge with its glyph and label, the claim and See why; it is not a live region', () => {
     const html = renderToStaticMarkup(<LatestClaimStrip latest={latest} onSee={() => {}} />);
-    expect(html).toMatch(/aria-live="polite"/);
+    // The panel's own announcer (fc-sr) already speaks each verdict; a second region would say it twice.
+    expect(html).not.toMatch(/aria-live|role="status"|role="alert"/);
     expect(html).toMatch(/fc-badge fc-badge--contradicted/);
     expect(html).toContain('✕');
     expect(html).toContain('Contradicted');
     expect(html).toContain('The deficit fell to 4.4 percent');
     expect(html).toMatch(/<button[^>]*data-fc="see-why"[^>]*>See why<\/button>/);
   });
-  it('keeps the live region but shows nothing in it without a verdict', () => {
+  it('shows nothing without a verdict', () => {
     const html = renderToStaticMarkup(<LatestClaimStrip latest={null} onSee={() => {}} />);
-    expect(html).toMatch(/aria-live="polite"/);
     expect(html).not.toMatch(/See why|fc-badge/);
   });
   it('See why hands over the claim id', () => {

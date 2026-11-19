@@ -27,14 +27,12 @@ describe('blockLine', () => {
     expect(blockLine(s({ status: 'choosing', minutesBought: 0 }))).toBeNull();
     expect(blockLine(s({ minutesBought: 0 }))).toBeNull();
   });
-  it('shows time used of minutes bought and the credits held while running', () => {
-    expect(blockLine(s())).toEqual({ text: '1:40 of 5 minutes used · 2,500 credits held', fraction: 100 / 300, low: false });
-  });
-  it('leaves the credits out when the view has none', () => {
-    expect(blockLine(s({ creditsHeld: null })).text).toBe('1:40 of 5 minutes used');
+  it('shows time used of minutes bought while running', () => {
+    expect(blockLine(s())).toEqual({ text: '1:40 of 5 minutes used', fraction: 100 / 300, low: false });
+    expect(blockLine(s()).text).not.toMatch(/credit|held/); // the rate line already says what is held
   });
   it('says one minute left at one minute or less', () => {
-    expect(blockLine(s({ secondsLeft: 60 }))).toMatchObject({ text: '1 minute left in this block · 2,500 credits held', low: true });
+    expect(blockLine(s({ secondsLeft: 60 }))).toMatchObject({ text: '1 minute left in this block', low: true });
     expect(blockLine(s({ secondsLeft: 12 })).low).toBe(true);
     expect(blockLine(s({ secondsLeft: 61 })).low).toBe(false);
   });

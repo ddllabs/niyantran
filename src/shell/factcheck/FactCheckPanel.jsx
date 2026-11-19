@@ -455,10 +455,6 @@ function IdlePanel({ view, channelName, playable, onChoose }) {
 export function FactCheckPanel(props) {
   const { persistent = false, channelName = '', playable = true, onChoose } = props;
   const idle = props.view?.session?.status === 'idle';
-  // The entry button is pressed by the user: then the heading takes focus when the start screen opens, as
-  // it always has. The page opening the start screen by itself must not take focus.
-  const userChose = useRef(false);
-  useEffect(() => { if (idle) userChose.current = false; }, [idle]);
   if (!props.view?.flag?.available) return null;
   const hasNotices = Boolean(props.view.recheckNotices?.length);
   // Idle shows only if a re-check message has to outlive the session (a late charge, switched off).
@@ -466,15 +462,15 @@ export function FactCheckPanel(props) {
     if (!persistent) return null;
     return (
       <IdlePanel view={props.view} channelName={channelName} playable={playable}
-        onChoose={() => { userChose.current = true; onChoose?.(); }} />
+        onChoose={onChoose} />
     );
   }
-  return <PanelBody {...props} quietOpen={persistent && !userChose.current} />;
+  return <PanelBody {...props} />;
 }
 
 // Mounted while a session is on screen: focus moves to the heading when it opens, and back to the
 // entry button when it is dismissed (unless the user has already moved focus elsewhere).
-export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', quietOpen = false, focusRequest = null }) {
+export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', playable = true, onChoose, focusRequest = null }) {
   const heading = useRef(null);
   const panel = useRef(null);
   const [openParts, setOpenParts] = useState({});
@@ -485,8 +481,8 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
   const opensForNotice = useRef(view.session.status === 'idle'); // a late message must not take focus
   useEffect(() => {
     // Focus without scrolling: when the panel is stacked below the player, the scroll is done on purpose below.
-    if (!opensForNotice.current && !quietOpen) heading.current?.focus({ preventScroll: true });
-    if (!opensForNotice.current && !quietOpen) revealPanel(panel.current);
+    if (!opensForNotice.current) heading.current?.focus({ preventScroll: true });
+    if (!opensForNotice.current) revealPanel(panel.current);
     return () => {
       setTimeout(() => {
         const active = document.activeElement;
@@ -494,7 +490,6 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
       }, 0);
     };
     // Mount only: how the panel opened is decided once, then the heading is left alone.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const s = view.session;
   // A failure is news: when the panel is stacked below the player it may be off screen.
@@ -582,6 +577,8 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
 
       <BlockLine session={s} />
 
+      {/* One scroll area (factCheck.css): the head above and the foot below stay put; this body scrolls. */}
+      <div className="fc-body">
       {s.creditsPerMinute != null && s.status !== 'choosing' && s.status !== 'sharing' && s.status !== 'starting' ? (
         <p className="fc-rate">
           {`${creditsText(s.creditsPerMinute)} a minute${s.creditsHeld != null ? ` · ${creditsText(s.creditsHeld)} held` : ''}`}
@@ -595,6 +592,12 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
         </div>
       ) : null}
 
+      {persistent && s.status === 'idle' ? (
+        <>
+          <IdleIntro view={view} channelName={channelName} />
+          <div className="fc-idle-entry"><FactCheckEntry view={view} playable={playable} onChoose={onChoose} /></div>
+        </>
+      ) : null}
       {persistent && s.status === 'choosing' ? <IdleIntro view={view} channelName={channelName} /> : null}
       {s.status === 'choosing' ? (
         <Choose
@@ -658,13 +661,15 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
               emptyText={live ? `Listening… Text appears about ${DELAY_SECONDS} seconds behind the speaker.` : 'No speech was transcribed.'}
               listening={s.status === 'running' && !isMuted && !(s.silentFor > SILENT_NOTICE_MS)}
             />
-            {partsShown ? parts : null}
           </div>
         </>
       ) : null}
 
-      {partsShown && !showWork ? parts : null}
+      {/* Shared parts of a recorded video (Unlock, Re-analyze this block, Report) are not tucked behind a tab. */}
+      {partsShown ? parts : null}
+      </div>
 
+      <div className="fc-foot">
       {s.status === 'ended' || s.status === 'error' ? (
         <div className="fc-actions">
           {canRestart ? (
@@ -683,6 +688,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
       ) : null}
 
       <p className="fc-disclaimer">{DISCLAIMER}</p>
+      </div>
     </section>
   );
 }

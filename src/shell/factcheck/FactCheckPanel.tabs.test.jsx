@@ -56,10 +56,11 @@ describe('header, status line and Stop', () => {
 });
 
 describe('block line', () => {
-  it('has a thin bar and the time used of the minutes bought, with the credits held', () => {
+  it('has a thin bar and the time used of the minutes bought, without repeating the credits held', () => {
     const html = render(running());
     expect(html).toMatch(/role="progressbar"[^>]*aria-valuenow="33"/);
-    expect(text(html)).toContain('1:40 of 5 minutes used · 2,500 credits held');
+    expect(text(html)).toContain('1:40 of 5 minutes used');
+    expect(html.match(/2,500 credits held/g)).toHaveLength(1); // only the rate line
   });
   it('says one minute left when a minute or less remains', () => {
     const t = text(render(running({ secondsLeft: 45 })));
@@ -174,6 +175,30 @@ describe('claim card', () => {
   });
 });
 
+describe('one scroll area', () => {
+  it('keeps the header block first, scrolls everything between in one body, and keeps the notice last', () => {
+    const html = render(running());
+    const head = html.indexOf('class="fc-head"');
+    const block = html.indexOf('class="fc-block');
+    const body = html.indexOf('class="fc-body"');
+    const tabs = html.indexOf('role="tablist"');
+    const foot = html.indexOf('class="fc-foot"');
+    const notice = html.indexOf('class="fc-disclaimer"');
+    expect(head).toBeLessThan(block);
+    expect(block).toBeLessThan(body);
+    expect(body).toBeLessThan(html.indexOf('class="fc-rate"'));
+    expect(body).toBeLessThan(tabs);
+    expect(tabs).toBeLessThan(foot);
+    expect(foot).toBeLessThan(notice);
+    const bodyChunk = html.slice(body, foot);
+    expect(bodyChunk.match(/<div/g).length - bodyChunk.match(/<\/div>/g).length).toBe(0); // the body closes before the foot opens
+  });
+  it('puts the end-of-session buttons in the footer, not in the body', () => {
+    const html = render(view({ status: 'ended', endReason: 'time', final: { minutes_used: 1, credits_charged: 500, balance: 4500 } }));
+    expect(html.indexOf('data-fc="dismiss"')).toBeGreaterThan(html.indexOf('class="fc-foot"'));
+  });
+});
+
 describe('where the other things stay', () => {
   it('notices, the ended summary and the automated-verdicts line stay in the panel', () => {
     const html = render(view({ status: 'ended', endReason: 'time', budgetReached: true, skippedPieces: 2, final: { minutes_used: 1, credits_charged: 500, balance: 4500 } }));
@@ -184,7 +209,7 @@ describe('where the other things stay', () => {
     expect(t).toContain('Verdicts are automated, may be wrong');
     expect(html).toMatch(/data-fc="dismiss"/);
   });
-  it('the shared parts, with their transcript stretches and Re-analyze, are in the Transcript panel', () => {
+  it('the shared parts, with Unlock and Re-analyze, are below the claims and not hidden by the default tab', () => {
     const shared = {
       phase: 'ready', error: null, unlockCreditsPerMinute: 100, unlocks: {}, reports: {}, covering: null,
       stretches: [{ stretch_id: 's1', from_s: 130, to_s: 460, minutes: 6, checked_on: '2026-11-16', claims_count: 1, access: 'own', price: 600, lines: [{ pos_start_s: 130, text: 'first words heard' }], claims: [claim('k1', 'supported')] }],
@@ -192,9 +217,20 @@ describe('where the other things stay', () => {
     const v = view({ status: 'ended', endReason: 'time', final: { minutes_used: 1, credits_charged: 500, balance: 4500 } },
       { flag: { available: true, creditsPerMinute: 500, recheckCredits: null, sharing: { unlockCreditsPerMinute: 100 }, userId: 'u1' }, shared, shareActions: { reanalyze() {}, unlockAsk() {} } });
     const html = render(v);
-    const transcriptPanel = html.slice(html.indexOf('id="fc-panel-transcript"'));
-    expect(transcriptPanel).toContain('Checked parts of this video');
-    expect(transcriptPanel).toContain('Re-analyze this block');
-    expect(html.slice(0, html.indexOf('id="fc-panel-transcript"'))).not.toContain('Checked parts of this video');
+    // The Transcript panel is the hidden one by default: the parts must come after it has closed.
+    const open = html.lastIndexOf('<div', html.indexOf('id="fc-panel-transcript"'));
+    const between = html.slice(open, html.indexOf('class="fc-parts"'));
+    expect(between.match(/<div/g).length - between.match(/<\/div>/g).length).toBe(0);
+    expect(html).toMatch(/id="fc-panel-transcript"[^>]*hidden/);
+    expect(html.indexOf('class="fc-parts"')).toBeGreaterThan(html.indexOf('id="fc-panel-claims"'));
+    const parts = html.slice(html.indexOf('class="fc-parts"'));
+    expect(parts).toContain('Re-analyze this block');
+    expect(parts).toMatch(/data-fc="reanalyze"/);
+  });
+  it('the shared parts of an error with nothing to show sit in the same place, outside the tabs', () => {
+    const shared = { phase: 'ready', error: null, unlockCreditsPerMinute: 100, unlocks: {}, reports: {}, covering: null, stretches: [{ stretch_id: 's1', from_s: 130, to_s: 460, minutes: 6, checked_on: '2026-11-16', claims_count: 1, access: 'locked', price: 600 }] };
+    const html = render(view({ status: 'error', error: { reason: 'capture_failed' } }, { flag: { available: true, creditsPerMinute: 500, recheckCredits: null, sharing: { unlockCreditsPerMinute: 100 }, userId: 'u1' }, shared, shareActions: { unlockAsk() {} } }));
+    expect(html).not.toMatch(/role="tablist"/);
+    expect(html).toContain('Checked parts of this video');
   });
 });

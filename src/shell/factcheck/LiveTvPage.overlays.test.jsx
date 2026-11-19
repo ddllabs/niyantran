@@ -39,7 +39,7 @@ describe('over the video', () => {
     expect(video).toMatch(/class="ltv-claimstrip"/);
     expect(text(video)).toContain('Claim 2');
     expect(text(video)).not.toContain('Claim 3');
-    expect(video).toMatch(/aria-live="polite"/);
+    expect(video).not.toMatch(/aria-live/);
     expect(video).toMatch(/data-fc="see-why"/);
   });
   it('shows the pill but no strip until a claim has a verdict', () => {

@@ -14,7 +14,7 @@ const view = {
   flag: { available: true, creditsPerMinute: 500, recheckCredits: null, userId: 'u' }, supported: true, ready: true, announcement: '', balance: 1000, rechecks: {},
   session: { status: 'running', minutesBought: 5, secondsLeft: 200, creditsHeld: 2500, creditsPerMinute: 500, transcript: [], claims: [claim('1', 'supported'), claim('2', 'contradicted')], silentFor: 0, skippedPieces: 0, droppedTurns: 0, budgetReached: false, final: null, endReason: null, error: null },
 };
-const props = (extra = {}) => ({ view, isMuted: false, onUnmute: noop, onConfirm: noop, onCancel: noop, onStop: noop, onRetry: noop, onDismiss: noop, quietOpen: true, ...extra });
+const props = (extra = {}) => ({ view, isMuted: false, onUnmute: noop, onConfirm: noop, onCancel: noop, onStop: noop, onRetry: noop, onDismiss: noop, ...extra });
 const find = (out, type) => [...elements(out)].find((e) => e.type === type);
 
 const card = { focus: vi.fn(), scrollIntoView: vi.fn() };

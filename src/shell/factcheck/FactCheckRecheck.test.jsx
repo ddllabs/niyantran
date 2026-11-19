@@ -103,7 +103,8 @@ describe('confirming', () => {
     const html = render(confirming());
     for (const b of html.match(/<button[^>]*>/g)) expect(b).toMatch(/type="button"/);
     // F366: the roving tab buttons and a claim card (a target for "See why") may carry tabindex="-1"; no control does.
-    expect(html.replace(/<h3[^>]*>/g, '').replace(/<button[^>]*role="tab"[^>]*>/g, '').replace(/<li[^>]*id="fc-claim-[^"]*"[^>]*>/g, '')).not.toMatch(/tabindex="-1"/);
+    for (const b of html.match(/<button[^>]*role="tab"[^>]*aria-selected="true"[^>]*>/g) || []) expect(b).toMatch(/tabindex="0"/);
+    expect(html.replace(/<h3[^>]*>/g, '').replace(/<button[^>]*role="tab"[^>]*aria-selected="false"[^>]*>/g, '').replace(/<li[^>]*id="fc-claim-[^"]*"[^>]*>/g, '')).not.toMatch(/tabindex="-1"/);
   });
 });
 

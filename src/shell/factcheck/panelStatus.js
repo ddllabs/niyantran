@@ -1,7 +1,6 @@
 // F366 slice B: the panel header's status line and the block line. Both read only figures the session
-// view already carries (state, minutes bought, seconds left, credits held, the final answer); nothing is
+// view already carries (state, minutes bought, seconds left, the final answer; the credits held are in the rate line); nothing is
 // charged or computed here beyond a time shown.
-import { creditsText } from '../../lib/creditsStore.js';
 import { formatClock, minutesText } from './factCheckText.js';
 
 /** { text, tone } where tone is off | wait | on | bad (the dot's colour is never the only signal: the text says it). */
@@ -28,13 +27,12 @@ export function blockLine(session) {
   const bought = session.minutesBought;
   if (!(bought > 0)) return null;
   const total = bought * 60;
-  const held = typeof session.creditsHeld === 'number' ? ` · ${creditsText(session.creditsHeld)} held` : '';
   if (session.status === 'running' || session.status === 'ending') {
     const left = Math.max(0, session.secondsLeft);
     const elapsed = Math.min(total, Math.max(0, total - session.secondsLeft));
     const low = left <= 60;
     const head = low ? '1 minute left in this block' : `${formatClock(elapsed)} of ${minutesText(bought)} used`;
-    return { text: `${head}${held}`, fraction: Math.min(1, elapsed / total), low };
+    return { text: head, fraction: Math.min(1, elapsed / total), low };
   }
   if (session.status === 'ended' && typeof session.final?.minutes_used === 'number') {
     const used = session.final.minutes_used;

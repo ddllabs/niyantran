@@ -39,7 +39,8 @@ describe('wide Live TV layout (from 1081px)', () => {
     const r = rule(media(panelCss, 'min-width: 1081px'), '.ltv-panelcol > .fc-panel');
     expect(r).toMatch(/position:\s*absolute/);
     expect(r).toMatch(/inset:\s*0/);
-    expect(r).toMatch(/overflow-y:\s*auto/);
+    // The panel clips; the one scroll area is its .fc-body, between the fixed head and foot (F366 fix round).
+    expect(r).toMatch(/overflow:\s*hidden/);
     expect(r).not.toMatch(/\bheight:/);
     expect(r).not.toMatch(/min-height:\s*[1-9]/);
   });
