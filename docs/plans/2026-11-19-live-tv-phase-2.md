@@ -148,12 +148,30 @@ time. One pull request per track, with one commit per item, replaces "each item 
   channels were added to the 13 existing ones: 96 in all, in the client's ten lists, with a "Find a channel" box and
   "My list". "My list" is kept in the browser (key `nter.livetv.following.v1`, cap 60). Ids the server no longer lists
   are hidden, never deleted from storage. Search covers channel names (Latin only), list names and language words.
-  Lookups use `playlistItems.list` then `videos.list` (2 units), never `search.list`; the server budget and cache
-  times are in the 2026-11-19 amendment of ADR 0009. Built test-first, with two independent reviews, both findings
+  Lookups never use `search.list`; their order and cost are in the second 2026-11-19 amendment of ADR 0009. The server
+  budget and cache times are in the first 2026-11-19 amendment of ADR 0009. Built test-first, with two independent reviews, both findings
   sets fixed. Executed by the supervisor on the track: 9,144 tests, lint, build, bundle check, router import. Not
   verified: against the real YouTube service, in a real browser on the app, on a phone, with a screen reader.
 - **State of the branch, 2026-11-19.** Tracks 1, 2 and 3 were each built test-first, re-run by the supervisor,
   independently reviewed, fixed, and merged into `feature/livetv-phase-2` (merge commit `dc88c3ed`). B6 was merged
   into the branch as well (merge commit `cc928cb3`). Executed on the combined branch before B6: 8,897 app tests, lint,
   build, bundle check, router import, and the SQL fixture `factcheck_refund_usage` with its vacuity proof. The
-  supervisor's final run on the branch: 9,144 app tests, lint, build, bundle check, router import and the SQL fixture with its vacuity proof, all passing. Nothing is merged to `main`, applied on NTER or deployed.
+  supervisor's final run on the branch: 9,144 app tests, lint, build, bundle check, router import and the SQL fixture with its vacuity proof, all passing. Nothing is merged to `main`, applied on NTER or deployed. The live lookup work was merged as `e5643c72`.
+- **Live lookup and refused videos, built on the branch, 2026-11-19.** The owner asked whether all channels load and
+  work. A check of all 96 channels on public YouTube showed that the lookup missed many 24-hour streams. The same check
+  showed that 15 channels' videos refuse to play inside another site (player error 150): wion, sansad-tv, cnbc-tv18,
+  india-today, aaj-tak, zee-news, news18-india, cnn-news18, the-lallantop, cnbc-awaaz, zee-business, moneycontrol,
+  zee-24-taas, news18-bihar-jharkhand and ptc-news. That is the channel owner's setting, and it cannot be changed from
+  here. The fix has two parts. The lookup uses the order in the second 2026-11-19 amendment of ADR 0009. A video that the
+  player refuses (errors 100, 101 and 150), or that YouTube marks as not embeddable, is not played. The page then falls
+  back to the channel's written video with the line "{channel}'s live stream can't be played here.", or shows a card
+  with a link to YouTube. A refusal never moves the video under a running fact-check, and the page says "This video
+  stopped playing here. End the fact-check to get unused minutes back." Reload and Try again clear a remembered refusal.
+  Built test-first, with one independent review (accept with fixes), and the fixes were made. Executed by the
+  supervisor: 9,194 app tests, lint, build, bundle check, router import, and the SQL fixture, on the combined branch
+  (merge commit `e5643c72`). Executed on the branch's preview deployment with the real key on 2026-11-19: all 96 channels were looked up once; 55
+  answered live from YouTube data, 40 answered not live, and 1 (drishti-ias) timed out and fell back. Eight of the
+  nine channels the public check feared missing (all but niti-aayog, which may not have been live at that hour) were
+  found live. YouTube reported `embeddable` true for every live video, including the channels whose player refuses
+  with error 150, so only the player's own error catches a refusal. Not verified: in a real browser on the app, or on
+  a phone.

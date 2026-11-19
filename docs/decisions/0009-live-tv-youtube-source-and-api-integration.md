@@ -149,7 +149,7 @@ correct.
 
 - **Lookup calls.** When a user picks a channel, the server calls `playlistItems.list` on the channel's uploads playlist
   and then `videos.list`: 2 units in all. `search.list` is not used. 47 channels carry a hint video id, which is checked
-  first.
+  first. The 2 units figure is replaced by the second amendment below.
 - **List check.** The channel list check is the one `videos.list` call per enabled channel described in the 2026-11-19
   amendment in section 4. It has a 3-second limit.
 - **Cache times.** A live answer is cached 10 minutes; a no-live answer 60 minutes; a failed lookup 60
@@ -168,3 +168,35 @@ correct.
   applies and the page falls back to the written videos. This costs no money.
 - **Not done.** CDN caching of `/api/livetv/channels` and `/api/livetv/videos` is not set up. The routes stay
   `no-store` until the owner decides the cache policy of F154 (F380 in `docs/plans/open-work.md`).
+
+---
+
+## Amendment 2026-11-19 (second): the lookup order
+
+Records the lookup order of the phase 2 channel lookup as built on `feature/livetv-phase-2`. It is not merged to `main`
+and not deployed. The text above and the earlier amendments are kept; where they disagree with this section, this
+section is correct.
+
+- **Calls.** There is still no `search.list`. Every call costs 1 unit.
+- **Order for one channel.** The lookup stops at the first live video it finds.
+  1. One `videos.list` for the live video found last time, the remembered video and the curated video.
+  2. `playlistItems.list` on the channel's live-streams playlist, with 50 results, then `videos.list`. The playlist id is
+     `UULV` plus the channel id without its leading `UC`.
+  3. The uploads playlist, with 50 results, then `videos.list`.
+- **Cost.** 1 unit when the video found last time is still live. 2 units when the stream is in the live-streams playlist
+  and nothing is remembered. At most 5 units. A channel with nothing live costs 4 or 5 units. For 96 channels each
+  looked up once with none live, the total is at most 480 units.
+- **Fields.** `videos.list` asks for `snippet,liveStreamingDetails,status`.
+- **One definition of live.** The lookup and the channel list check use the same rule. `snippet.liveBroadcastContent`
+  is `live`, there is an actual start time, and there is no actual end time. An abandoned broadcast keeps a start time
+  and no end time indefinitely, so the start time alone is not enough.
+- **Embeddable.** The answer carries `embeddable` from `status.embeddable`.
+- **Why the change.** Measured on public YouTube pages on 2026-11-19: 63 of the 96 channels were live, and only 30 of
+  the 47 remembered videos were still the current live video. The uploads playlist alone missed most 24-hour streams.
+  The live-streams playlist held the live video for 54 of the 63 channels in its first 45 entries.
+  `embed/live_stream?channel=` was tried and rejected: it gave player error 150 for every channel tested.
+- **Known limit.** About 9 of the 63 live channels are not in the first entries of their live-streams playlist. The hint
+  and uploads steps recover some of them. Measured on the branch's preview deployment with the real key on 2026-11-19: 55 of
+  the 96 channels answered live, including 8 of those 9. `status.embeddable` was true for every live video, also for
+  channels whose player refuses with error 150, so it does not predict a refusal; the player's error does.
+- **Unchanged.** The shared daily budget and the cache times of the first amendment are unchanged.
