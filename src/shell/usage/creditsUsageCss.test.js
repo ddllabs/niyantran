@@ -106,3 +106,20 @@ describe('Credits usage styles (F153)', () => {
     expect(css).not.toMatch(/\$|usd|dollar/i);
   });
 });
+
+// Live TV phase 2: a refund amount is told apart from spending by a border and weight as well as by its "+" and words, and its
+// colours are the page's own tokens, so it follows the light and dark themes.
+describe('the refund amount', () => {
+  const page = read('../credits/creditsPage.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = page.match(/\.cp-row-credits\.cp-row-refund\s*\{([^}]*)\}/)?.[1] || '';
+
+  it('has a rule with a border, so it does not rely on colour', () => {
+    expect(rule).toMatch(/border:\s*1px solid/);
+    expect(rule).toMatch(/border-radius/);
+  });
+
+  it('takes its colours from tokens, never a fixed colour', () => {
+    expect(rule).toMatch(/var\(--/);
+    expect(rule).not.toMatch(/#[0-9a-f]{3,8}\b|rgb\(/i);
+  });
+});
