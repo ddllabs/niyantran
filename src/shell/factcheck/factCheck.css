@@ -25,40 +25,109 @@
   --fc-amber: #ead0af;
 }
 
-/* F359: Live TV is a page. From 1100px the panel is a second column, exactly the visible height of the page
-   body in every state (choosing, running, error, ended), so nothing moves when its content changes; it
-   scrolls inside. Only when the panel exists: with fact-check
-   off or not opened there is no right column. Below 1100px it stacks under the player, and the page body
-   scrolls, not the panel. */
-.ltv-body:has(> .fc-panel) > .fc-panel { margin: 12px 14px; max-height: none; overflow: visible; align-self: stretch; flex: 0 0 auto; }
-@media (max-width: 1099px) {
-  /* Stacked: the page body scrolls, not the choose block, so the sticky buttons stick to it. */
-  .fc-choose, .fc-waiting { overflow: visible; }
-  .fc-work { flex: 0 0 auto; overflow: visible; }
-}
-@media (min-width: 1100px) {
-  /* The body is a size container (its height comes from the page, not from its content), so the panel can
-     be exactly the visible height of the body: 100cqh minus its two 16px margins. */
-  .ltv-body:has(> .fc-panel) {
-    container-type: size;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
-    grid-template-rows: auto auto 1fr;
-  }
-  .ltv-body:has(> .fc-panel) > .ltv-player-stage { grid-column: 1; grid-row: 1; }
-  .ltv-body:has(> .fc-panel) > .ltv-deck-tabs { grid-column: 1; grid-row: 2; }
-  .ltv-body:has(> .fc-panel) > .ltv-tab-content { grid-column: 1; grid-row: 3; }
-  /* Sticky, so it stays in view while the left column scrolls; the height is the same in every state. */
-  .ltv-body:has(> .fc-panel) > .fc-panel {
-    grid-column: 2; grid-row: 1 / -1; margin: 16px 18px 16px 12px;
-    position: sticky; top: 16px; align-self: start;
-    height: calc(100cqh - 32px); min-height: 0; overflow-x: hidden; overflow-y: auto;
-  }
-}
+/* F366: the panel is the right-hand column beside the video, always there when fact-check is offered. From
+   1081px the column (.ltv-panelcol, liveTv.css) is exactly as tall as the video column and the panel fills it;
+   the page never grows because of the panel. The panel has ONE scroll area, .fc-body: the head (title, status,
+   Stop, bar) stays at the top and the foot (end buttons, the automated-verdicts notice) at the bottom.
+   Below 1081px everything stacks: the panel is as tall as its content and the page scrolls. */
+.ltv-panelcol > .fc-panel { max-height: none; }
 
-.fc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+/* F366: the idle view (nothing running) and the intro above the start screen. */
+.fc-idle { display: flex; flex-direction: column; gap: 6px; }
+.fc-idle-title { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.3; }
+.fc-idle-text { color: var(--muted); }
+.fc-idle-entry { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.fc-idle-entry .fc-entry { padding: 9px 14px; font-size: 13px; background: var(--accent); border-color: var(--accent); color: #fff; }
+.theme-dark .fc-idle-entry .fc-entry { color: #0b1020; }
+
+.fc-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .fc-head-run { display: flex; align-items: center; gap: 8px; }
-.fc-title { margin: 0; font-size: 14px; font-weight: 700; }
+.fc-title { margin: 0; font-size: 16px; font-weight: 800; }
+.fc-headtext { min-width: 0; }
+
+/* F366: the status line (a dot and words: the words carry the meaning, the colour only helps) and the block. */
+.fc-panel p.fc-status { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.fc-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.fc-status--on { color: var(--live); }
+.fc-status--on .fc-dot { animation: fcPulse 1.8s ease-in-out infinite; }
+.fc-status--wait { color: var(--fc-amber); }
+.fc-status--bad { color: var(--fc-bad); }
+.fc-block { flex: none; display: flex; flex-direction: column; gap: 4px; }
+.fc-bar { height: 6px; overflow: hidden; background: var(--sum); border-radius: 3px; }
+.fc-bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.4s linear; }
+.fc-block--low .fc-bar-fill { background: var(--fc-amber); }
+.fc-panel p.fc-block-text { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.fc-block--low p.fc-block-text { color: var(--fc-amber); font-weight: 700; }
+
+/* F366: the Claims and Transcript tabs (one tab stop, arrows), the panels, and the five verdict tiles. */
+.fc-tabs { flex: none; display: flex; gap: 2px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.fc-tabs::-webkit-scrollbar { display: none; }
+.fc-tab {
+  flex: 1 0 auto;
+  min-height: 40px;
+  padding: 8px 14px;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  font: inherit; font-size: 13px; font-weight: 700;
+  cursor: pointer;
+}
+.fc-tab:hover { color: var(--fg); }
+.fc-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.fc-work[hidden] { display: none; }
+
+.fc-tiles { flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 6px; }
+.fc-tile {
+  --v: var(--muted);
+  --vbg: var(--sum);
+  min-width: 0;
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "g c" "l l";
+  align-items: center;
+  gap: 2px 6px;
+  padding: 7px 8px;
+  text-align: left;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  cursor: pointer;
+}
+.fc-tile:hover { border-color: var(--v); }
+.fc-tile[aria-pressed="true"] { border-color: var(--v); background: var(--vbg); box-shadow: inset 0 0 0 1px var(--v); }
+.fc-tile--supported { --v: var(--live); --vbg: var(--low); }
+.fc-tile--contradicted { --v: var(--fc-bad); --vbg: var(--crit); }
+.fc-tile--partly_true { --v: var(--fc-amber); --vbg: var(--warn-bg); }
+.fc-tile--no_evidence { --v: var(--muted); --vbg: var(--sum); }
+.fc-tile--opinion { --v: var(--accent); --vbg: var(--accent-soft); }
+.fc-tile-glyph {
+  grid-area: g;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px;
+  font-size: 11px; line-height: 1;
+  color: var(--panel);
+  background: var(--v);
+  border-radius: 50%;
+}
+.fc-tile-count { grid-area: c; font-size: 18px; font-weight: 800; line-height: 1; color: var(--v); font-variant-numeric: tabular-nums; }
+.fc-tile-label { grid-area: l; font-size: 11px; line-height: 1.25; color: var(--muted); overflow-wrap: normal; word-break: normal; hyphens: manual; }
+.fc-tile[aria-pressed="true"] .fc-tile-label { color: var(--fg); }
+.fc-tiles-clear {
+  grid-column: 1 / -1;
+  justify-self: end;
+  min-height: 28px;
+  padding: 2px 4px;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  font: inherit; font-size: 12px; font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
 .fc-clock { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--muted); }
 
 .fc-panel p { margin: 0; line-height: 1.45; }
@@ -73,10 +142,9 @@
 .fc-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .fc-panel :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ltv-player-stage .fc-entry:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
 
 /* Choosing */
-.fc-choose, .fc-waiting { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; min-height: 0; }
+.fc-choose, .fc-waiting { display: flex; flex-direction: column; gap: 10px; overflow: visible; }
 /* Start and Cancel stay visible at the bottom of the scrolling area on a short window. */
 .fc-choose .fc-actions, .fc-waiting .fc-actions {
   position: sticky; bottom: 0; z-index: 1;
@@ -128,13 +196,22 @@
 .fc-final dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* Transcript and claims */
-.fc-work { display: flex; flex-direction: column; gap: 8px; flex: 1 0 230px; min-height: 0; overflow-y: auto; }
-/* Close and the new-session button stay in reach when the panel scrolls on a short window. */
-.fc-panel > .fc-actions { position: sticky; bottom: 0; z-index: 1; padding: 6px 0; background: var(--panel); }
+.fc-work { display: flex; flex-direction: column; gap: 8px; flex: none; overflow: visible; }
+/* The scroll area between the fixed head and foot. */
+.fc-body { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.fc-foot { flex: none; display: flex; flex-direction: column; gap: 10px; }
+
+@media (max-width: 1080px) {
+  .ltv-panelcol > .fc-panel { max-height: none; overflow: visible; }
+  .fc-body { flex: 0 0 auto; overflow: visible; }
+}
+@media (min-width: 1081px) {
+  .ltv-panelcol > .fc-panel { position: absolute; inset: 0; box-sizing: border-box; overflow: hidden; }
+}
 .fc-transcript-wrap { position: relative; }
 .fc-listening { color: var(--muted); animation: fcPulse 2.4s ease-in-out infinite; }
 .fc-transcript {
-  max-height: 9.5rem;
+  max-height: min(16rem, 40vh); /* the one box that scrolls by itself: it follows the newest line */
   overflow-y: auto;
   padding: 8px 10px;
   background: var(--bg);
@@ -149,14 +226,16 @@
 .fc-card {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 9px 10px;
+  gap: 6px;
+  padding: 11px 12px;
   background: var(--bg);
   border: 1px solid var(--line);
   border-left: 4px solid var(--muted);
-  border-radius: 8px;
+  border-radius: 12px;
   overflow-wrap: anywhere;
 }
+/* The target of the latest-claim strip's "See why": the ring shows however focus arrived. */
+.fc-card:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
 .fc-card-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .fc-badge {
   display: inline-flex; align-items: center; gap: 4px;
@@ -175,11 +254,26 @@
   border-radius: 50%;
 }
 .fc-kind { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
-.fc-claim { font-weight: 600; }
+.fc-claim { font-weight: 600; font-size: 13.5px; }
 .fc-by, .fc-time { font-size: 11px; color: var(--muted); }
 .fc-reason { color: var(--text); }
 .fc-sources { margin: 0; padding-left: 16px; font-size: 12px; }
 .fc-sources a { color: var(--accent); text-decoration: underline; }
+/* Sources as pill links. */
+.fc-sources--pills { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.fc-sources--pills li { min-width: 0; max-width: 100%; }
+.fc-sources--pills a, .fc-sources--pills span {
+  display: inline-block; max-width: 100%;
+  padding: 3px 10px;
+  color: var(--accent);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 9999px;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.fc-sources--pills span { color: var(--muted); }
+.fc-sources--pills a:hover { border-color: var(--accent); text-decoration: underline; }
 
 .fc-card--supported { border-left-color: var(--live); }
 .fc-card--supported .fc-badge { background: var(--low); }
@@ -208,7 +302,8 @@
 @keyframes fcPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .fc-card--pending .fc-glyph, .fc-listening { animation: none; }
+  .fc-card--pending .fc-glyph, .fc-listening, .fc-status--on .fc-dot { animation: none; }
+  .fc-bar-fill { transition: none; }
 }
 
 /* Read by screen readers, not seen. */
@@ -323,19 +418,7 @@
   .fc-part-lines { max-height: 7rem; }
 }
 
-/* F360: Past sessions. A section below the page body (.ltv-body), outside its size container, so the player
-   and the fact-check panel keep their size. The wrapper .ltv-main holds the body and, when the section
-   exists, scrolls so the section can be reached. With no section the wrapper changes nothing. */
-.ltv-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-.ltv-main:has(> .pst) { overflow-y: auto; }
-/* With the section present the wrapper is the only scroller and the body flows. */
-.ltv-main:has(> .pst) > .ltv-body { flex: 0 0 auto; overflow: visible; }
-/* From 1100px with the panel there, the body keeps exactly the height it had (the whole wrapper), so the
-   sticky panel stays the same height. Without the panel the body flows at every width. */
-@media (min-width: 1100px) {
-  .ltv-main:has(> .pst):has(> .ltv-body > .fc-panel) > .ltv-body { flex: 0 0 100%; overflow-y: auto; }
-}
-
+/* F360: Past sessions, now the "My sessions" tab of the page (F366), inside the tab panel. */
 .pst {
   --fc-bad: #b3261e;
   --fc-amber: #8a5300;
@@ -397,3 +480,11 @@
 .fc-reanalyze-intro { margin: 0 0 8px; }
 .fc-reanalyze-intro:focus-visible { outline: 2px solid var(--fc-amber); outline-offset: 2px; }
 .fc-kind--earlier { color: var(--fc-amber); }
+
+/* F366 slice C: on a phone the panel is full width and natural height; its tabs scroll sideways if they must
+   (.fc-tabs). Long Hindi/Devanagari text wraps. */
+@media (max-width: 600px) {
+  .fc-panel { padding: 12px; border-radius: 12px; }
+  .fc-claim, .fc-reason, .fc-line, .fc-by { overflow-wrap: anywhere; }
+  .fc-head-run { margin-left: auto; }
+}

@@ -1,6 +1,5 @@
 // F360 T4: where the page puts "Past sessions" and what it hands it. The section itself is replaced by a
 // recorder; its own behaviour is covered by PastSessions.test.jsx and usePastSessions.test.js.
-import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -31,17 +30,15 @@ const render = () => renderToStaticMarkup(<LiveTvPage open onClose={() => {}} />
 beforeEach(() => { seen.props = []; seen.view = viewWith(); });
 
 describe('Past sessions on the page (F360)', () => {
-  it('sits after the page body, as a sibling of it, and after the tabs', () => {
+  // F366: the section is the "My sessions" tab's content, inside the tab panel (it was below the page body).
+  it('sits inside the tab panel, after the tabs, hidden until My sessions is chosen', () => {
     seen.view = viewWith({ status: 'running' });
     const html = render();
     const pst = html.indexOf('<section class="pst"');
     expect(pst).toBeGreaterThan(html.indexOf('class="ltv-deck-tabs"'));
-    expect(pst).toBeGreaterThan(html.indexOf('class="fc-panel'));
-    // the body's last two closing tags come right before it: the section is not inside the body
-    expect(html.slice(0, pst)).toMatch(/<\/div><\/div>$/);
-    expect(html.slice(pst)).toMatch(/^<section class="pst"[^>]*><\/section><\/div><\/section>$/);
+    expect(pst).toBeGreaterThan(html.indexOf('id="ltv-tab-panel"'));
+    expect(html.slice(html.lastIndexOf('<div', pst), pst)).toMatch(/^<div hidden/);
     expect(html.match(/class="ltv-main"/g)).toHaveLength(1);
-    expect(html.indexOf('class="ltv-main"')).toBeLessThan(html.indexOf('class="ltv-body"'));
   });
 
   it('is gated by the fact-check flag', () => {
@@ -72,25 +69,4 @@ it('hands over the user id the flag view already holds (M4)', () => {
   seen.view = viewWith({}, true);
   render();
   expect(seen.props.at(-1).userId).toBe('u1');
-});
-
-// M8: the layout rules that keep the panel's size. Read from the stylesheet, since the markup alone cannot show them.
-describe('layout rules (M8)', () => {
-  const css = readFileSync(new URL('./factCheck.css', import.meta.url), 'utf8');
-  const rule = (selector) => {
-    const i = css.indexOf(selector);
-    return i < 0 ? null : css.slice(i, css.indexOf('}', i));
-  };
-  it('pins the body to the wrapper only when the panel is there', () => {
-    const pinned = rule('.ltv-main:has(> .pst):has(> .ltv-body > .fc-panel) > .ltv-body');
-    expect(pinned).toContain('flex: 0 0 100%');
-    expect(css).not.toMatch(/\n\.ltv-main:has\(> \.pst\) > \.ltv-body \{ flex: 0 0 100%/);
-  });
-  it('lets the body flow when the section is there without the panel, and below 1100px', () => {
-    const flow = rule('.ltv-main:has(> .pst) > .ltv-body { flex: 0 0 auto');
-    expect(flow).toContain('overflow: visible');
-  });
-  it('leaves the wrapper alone when there is no section', () => {
-    expect(rule('.ltv-main { ')).not.toContain('overflow-y');
-  });
 });

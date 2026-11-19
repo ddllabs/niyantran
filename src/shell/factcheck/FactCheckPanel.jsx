@@ -10,10 +10,13 @@ import {
 } from './factCheckText.js';
 import { CoveredBanner, Parts, ReportControls } from './FactCheckParts.jsx';
 import { formatPosition, partModel } from './factCheckShare.js';
+import { filterClaims, shownResult, verdictCounts } from './claimFilter.js';
+import { RovingTabs, VerdictTiles } from './FactCheckTabs.jsx';
+import { blockLine, statusLine } from './panelStatus.js';
 
 const SILENT_NOTICE_MS = 30000;
 // The panel stacks below the player at this width and under (factCheck.css, same number).
-const STACKED_QUERY = '(max-width: 860px)';
+const STACKED_QUERY = '(max-width: 1080px)';
 
 // Brings the panel into view when it is stacked below the player, where it may open off screen.
 // Instant when the reader prefers reduced motion. Quietly nothing where the browser lacks the APIs.
@@ -23,6 +26,17 @@ function revealPanel(el) {
     if (!window.matchMedia(STACKED_QUERY).matches) return;
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     el.scrollIntoView({ block: 'nearest', behavior: calm ? 'auto' : 'smooth' });
+  } catch { /* a missing scroll never blocks the panel */ }
+}
+
+// Brings a claim card into view and gives it focus (the latest-claim strip's "See why"). Instant when the
+// reader prefers reduced motion. Quietly nothing when the card is not there.
+function showCard(el) {
+  if (!el) return;
+  try {
+    const calm = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest', behavior: calm ? 'auto' : 'smooth' });
+    el.focus({ preventScroll: true });
   } catch { /* a missing scroll never blocks the panel */ }
 }
 
@@ -165,7 +179,7 @@ function Waiting({ status, onStop }) {
 }
 
 // Keeps the newest line in view until the reader scrolls up; a button brings them back.
-function Transcript({ lines, emptyText, listening = false }) {
+function Transcript({ lines, emptyText, listening = false, visible = true }) {
   const box = useRef(null);
   const follow = useRef(true);
   const [away, setAway] = useState(false);
@@ -173,7 +187,7 @@ function Transcript({ lines, emptyText, listening = false }) {
   useEffect(() => {
     const el = box.current;
     if (el && follow.current) el.scrollTop = el.scrollHeight;
-  }, [tail]);
+  }, [tail, visible]);
   const onScroll = () => {
     const el = box.current;
     if (!el) return;
@@ -215,7 +229,7 @@ function SourceList({ result }) {
     }
     return title ? [<li key={i}><span>{title}</span></li>] : [];
   });
-  return items.length ? <ul className="fc-sources" aria-label="Sources">{items}</ul> : null;
+  return items.length ? <ul className="fc-sources fc-sources--pills" aria-label="Sources">{items}</ul> : null;
 }
 
 // A re-checked card and its earlier results show the date too: they were checked at different times.
@@ -302,18 +316,20 @@ function RecheckControls({ id, price, balance, recheck, onAsk, onConfirm, onCanc
   );
 }
 
-function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, share }) {
+// `anchor` marks a card of the live Claims list: it gets an id and can take focus (the latest-claim strip's
+// "See why"). Cards inside a shared part do not, as their ids may repeat the live ones.
+function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, share, anchor = false }) {
   // With no re-check price the card is exactly what it was before re-checks existed.
   const priced = typeof price === 'number';
   const chain = priced && recheck?.results?.length ? [...recheck.results, claim] : [claim];
-  const shown = chain[0];
+  const shown = shownResult(claim, recheck, priced);
   const badge = claimBadge(shown);
   const noSources = badge.key === 'no_sources';
   const tag = kindTag(claim, badge);
   const by = [claim.claimant && `Claim by ${claim.claimant}`, claim.reported_by && `reported by ${claim.reported_by}`]
     .filter(Boolean).join(', ');
   return (
-    <li className={`fc-card fc-card--${badge.key}`}>
+    <li className={`fc-card fc-card--${badge.key}`} id={anchor ? `fc-claim-${claim.id}` : undefined} tabIndex={anchor ? -1 : undefined}>
       <div className="fc-card-head">
         <span className={`fc-badge fc-badge--${badge.key}`}>
           <span className="fc-glyph" aria-hidden="true">{badge.glyph}</span>
@@ -341,14 +357,19 @@ function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, shar
 /** The claim card, for read-only reuse (no price, no share: no Check again, share or report controls). */
 export { Card as ClaimCard };
 
-function Claims({ claims, emptyText, recheck }) {
+/** The Claims tab: the verdict tiles, then the cards (newest first) that pass the filter. Controlled. */
+export function Claims({ claims, emptyText, recheck, filters, onToggle, onClear }) {
+  const ctx = { rechecks: recheck.states, price: recheck.price };
+  const shown = filterClaims(claims, filters, ctx);
   return (
     <>
-      <h4 className="fc-section">{`Claims (${claims.length})`}</h4>
-      {claims.length === 0 ? <p className="fc-empty">{emptyText}</p> : (
+      <VerdictTiles counts={verdictCounts(claims, ctx)} active={filters} onToggle={onToggle} onClear={onClear} />
+      {claims.length === 0 ? <p className="fc-empty">{emptyText}</p> : shown.length === 0 ? (
+        <p className="fc-empty">No claims match these filters yet.</p>
+      ) : (
         <ol className="fc-claims" aria-label="Claims">
-          {[...claims].reverse().map((c) => (
-            <Card key={c.id} claim={c} price={recheck.price} balance={recheck.balance} recheck={recheck.states[c.id]}
+          {[...shown].reverse().map((c) => (
+            <Card key={c.id} claim={c} anchor price={recheck.price} balance={recheck.balance} recheck={recheck.states[c.id]}
               onAsk={recheck.onAsk} onConfirm={recheck.onConfirm} onCancel={recheck.onCancel} />
           ))}
         </ol>
@@ -372,20 +393,91 @@ function Final({ final, sessionId }) {
   );
 }
 
-/** The right-hand panel. Renders nothing while idle or when the flag is off. */
+const DISCLAIMER = 'Verdicts are automated, may be wrong, and should be checked against the sources shown.';
+
+// F366: the heading and the one sentence about the price, shown while nothing is running (the idle view and
+// above the start screen). The price is the flag's, never a literal.
+function IdleIntro({ view, channelName }) {
+  const price = view.flag.creditsPerMinute;
+  return (
+    <div className="fc-idle">
+      <h4 className="fc-idle-title">{channelName ? `Check what's being said on ${channelName}` : "Check what's being said"}</h4>
+      {typeof price === 'number' ? (
+        <p className="fc-idle-text">{`${creditsText(price)} a minute, held up front. Unused whole minutes are returned.`}</p>
+      ) : null}
+    </div>
+  );
+}
+
+// F366: the title and the status line (a dot and words) of the panel header.
+function HeadTitle({ session, heading = null }) {
+  const st = statusLine(session);
+  return (
+    <div className="fc-headtext">
+      <h3 id="fc-title" className="fc-title" tabIndex={heading ? -1 : undefined} ref={heading}>Fact-check</h3>
+      <p className={`fc-status fc-status--${st.tone}`}><span className="fc-dot" aria-hidden="true" />{st.text}</p>
+    </div>
+  );
+}
+
+// F366: the thin bar and the block's line under the header, from figures the session view carries.
+function BlockLine({ session }) {
+  const block = blockLine(session);
+  if (!block) return null;
+  const pct = Math.round(block.fraction * 100);
+  return (
+    <div className={`fc-block${block.low ? ' fc-block--low' : ''}`}>
+      <div className="fc-bar" role="progressbar" aria-label="Block time used" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+        <span className="fc-bar-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <p className="fc-block-text">{block.text}</p>
+    </div>
+  );
+}
+
+// F366: the always-open panel with no session: the intro and the old entry (the start button, or the quiet
+// note saying why it is not offered). Pressing it opens the start screen exactly as before.
+function IdlePanel({ view, channelName, playable, onChoose }) {
+  return (
+    <section className="fc-panel fc-panel--idle" aria-label="Fact-check" data-status="idle">
+      <header className="fc-head"><HeadTitle session={view.session} /></header>
+      <IdleIntro view={view} channelName={channelName} />
+      <div className="fc-idle-entry"><FactCheckEntry view={view} playable={playable} onChoose={onChoose} /></div>
+      <p className="fc-disclaimer">{DISCLAIMER}</p>
+    </section>
+  );
+}
+
+/**
+ * The right-hand panel. By default renders nothing while idle or when the flag is off. With `persistent`
+ * (F366: the page's always-open column) it shows the idle view instead, still nothing when the flag is off.
+ */
 export function FactCheckPanel(props) {
+  const { persistent = false, channelName = '', playable = true, onChoose } = props;
+  const idle = props.view?.session?.status === 'idle';
   if (!props.view?.flag?.available) return null;
+  const hasNotices = Boolean(props.view.recheckNotices?.length);
   // Idle shows only if a re-check message has to outlive the session (a late charge, switched off).
-  if (props.view.session.status === 'idle' && !props.view.recheckNotices?.length) return null;
+  if (idle && !hasNotices) {
+    if (!persistent) return null;
+    return (
+      <IdlePanel view={props.view} channelName={channelName} playable={playable}
+        onChoose={onChoose} />
+    );
+  }
   return <PanelBody {...props} />;
 }
 
 // Mounted while a session is on screen: focus moves to the heading when it opens, and back to the
 // entry button when it is dismissed (unless the user has already moved focus elsewhere).
-export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel }) {
+export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', playable = true, onChoose, focusRequest = null }) {
   const heading = useRef(null);
   const panel = useRef(null);
   const [openParts, setOpenParts] = useState({});
+  const [tab, setTab] = useState('claims');
+  const [filters, setFilters] = useState([]);
+  const [pendingFocus, setPendingFocus] = useState(null);
+  const toggleFilter = (key) => setFilters((f) => (f.includes(key) ? f.filter((k) => k !== key) : [...f, key]));
   const opensForNotice = useRef(view.session.status === 'idle'); // a late message must not take focus
   useEffect(() => {
     // Focus without scrolling: when the panel is stacked below the player, the scroll is done on purpose below.
@@ -397,11 +489,30 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
         if (!active || active === document.body) document.getElementById('fc-entry')?.focus();
       }, 0);
     };
+    // Mount only: how the panel opened is decided once, then the heading is left alone.
   }, []);
   const s = view.session;
   // A failure is news: when the panel is stacked below the player it may be off screen.
   const failedNow = s.status === 'error';
   useEffect(() => { if (failedNow) revealPanel(panel.current); }, [failedNow]);
+  // F366 "See why" (the latest-claim strip, outside the panel): show the Claims tab, clear a filter that hides
+  // the claim, then, once that is on screen, scroll to the card and focus it. Once for each request.
+  const requestToken = focusRequest?.token;
+  useEffect(() => {
+    if (!focusRequest) return;
+    setTab('claims');
+    const target = s.claims.find((c) => c.id === focusRequest.claimId);
+    const ctx = { rechecks: view.rechecks || {}, price: view.flag.recheckCredits ?? null };
+    if (target && filterClaims([target], filters, ctx).length === 0) setFilters([]);
+    setPendingFocus(focusRequest.claimId);
+    // Runs for a new request only; the claims and filters it reads are those of that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestToken]);
+  useEffect(() => {
+    if (pendingFocus === null) return;
+    showCard(document.getElementById(`fc-claim-${pendingFocus}`));
+    setPendingFocus(null);
+  }, [pendingFocus, tab, filters]);
   // Shared results show only with sharing on and a recorded video (the controller sets view.shared).
   const sharedOn = Boolean(view.flag.sharing && view.shared);
   const shareActions = view.shareActions || {};
@@ -429,11 +540,33 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
   // "Re-analyze this block" starts a new session, so it is offered only where a new session is: the choose
   // step, an ended session with a known price, and an error that offers Try again.
   const partActions = s.status === 'choosing' || canRestart || problem?.retry ? shareActions : { ...shareActions, reanalyze: undefined };
+  // The shared parts (other users' transcript stretches with their verdicts, Unlock and Re-analyze this block):
+  // text of what was said, so they sit in the Transcript tab when the tabs show, else where they always were.
+  const parts = partsShown ? (
+    <Parts
+      shared={view.shared} balance={view.balance} openIds={openParts} actions={partActions}
+      onToggle={(id) => setOpenParts((o) => ({ ...o, [id]: !o[id] }))}
+      renderCard={(c, part) => (
+        <Card
+          key={c.id} claim={c}
+          price={null} balance={view.balance} /* no re-check inside a part: the server shows the original claim id */
+          recheck={view.rechecks?.[c.id]}
+          onAsk={onRecheckAsk ?? view.recheckActions?.ask} onConfirm={onRecheckConfirm ?? view.recheckActions?.confirm}
+          onCancel={onRecheckCancel ?? view.recheckActions?.cancel}
+          share={{
+            report: part.reportable ? {
+              report: view.shared.reports[c.id], onAsk: shareActions.reportAsk, onCancel: shareActions.reportCancel, onSend: shareActions.reportSend,
+            } : null,
+          }}
+        />
+      )}
+    />
+  ) : null;
   return (
     <section className="fc-panel" aria-label="Fact-check" data-status={s.status} ref={panel}>
       <div className="fc-sr" aria-live="polite" aria-atomic="true">{view.announcement}</div>
       <header className="fc-head">
-        <h3 id="fc-title" className="fc-title" tabIndex={-1} ref={heading}>Fact-check</h3>
+        <HeadTitle session={s} heading={heading} />
         {live ? (
           <div className="fc-head-run">
             <span className="fc-clock">{s.status === 'ending' ? 'Finishing…' : `${formatClock(s.secondsLeft)} left`}</span>
@@ -442,6 +575,10 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
         ) : null}
       </header>
 
+      <BlockLine session={s} />
+
+      {/* One scroll area (factCheck.css): the head above and the foot below stay put; this body scrolls. */}
+      <div className="fc-body">
       {s.creditsPerMinute != null && s.status !== 'choosing' && s.status !== 'sharing' && s.status !== 'starting' ? (
         <p className="fc-rate">
           {`${creditsText(s.creditsPerMinute)} a minute${s.creditsHeld != null ? ` · ${creditsText(s.creditsHeld)} held` : ''}`}
@@ -455,6 +592,13 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
         </div>
       ) : null}
 
+      {persistent && s.status === 'idle' ? (
+        <>
+          <IdleIntro view={view} channelName={channelName} />
+          <div className="fc-idle-entry"><FactCheckEntry view={view} playable={playable} onChoose={onChoose} /></div>
+        </>
+      ) : null}
+      {persistent && s.status === 'choosing' ? <IdleIntro view={view} channelName={channelName} /> : null}
       {s.status === 'choosing' ? (
         <Choose
           key={screenKey.current} view={view} isMuted={isMuted} onUnmute={onUnmute} onConfirm={onConfirm} onCancel={onCancel}
@@ -491,47 +635,41 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
       {s.status === 'ended' || s.status === 'error' ? <Final final={s.final} sessionId={s.sessionId} /> : null}
 
       {showWork ? (
-        <div className="fc-work">
-          <h4 className="fc-section">Transcript</h4>
-          <Transcript
-            lines={s.transcript}
-            emptyText={live ? `Listening… Text appears about ${DELAY_SECONDS} seconds behind the speaker.` : 'No speech was transcribed.'}
-            listening={s.status === 'running' && !isMuted && !(s.silentFor > SILENT_NOTICE_MS)}
+        <>
+          <RovingTabs
+            idBase="fc" label="Fact-check results" active={tab} onChange={setTab}
+            tabs={[{ id: 'claims', label: `Claims · ${s.claims.length}` }, { id: 'transcript', label: 'Transcript' }]}
           />
-          <Claims
-            claims={s.claims}
-            emptyText={live ? 'No claims yet.' : 'No claims were found.'}
-            recheck={{
-              price: view.flag.recheckCredits ?? null, balance: view.balance, states: view.rechecks || {},
-              onAsk: onRecheckAsk ?? view.recheckActions?.ask,
-              onConfirm: onRecheckConfirm ?? view.recheckActions?.confirm,
-              onCancel: onRecheckCancel ?? view.recheckActions?.cancel,
-            }}
-          />
-        </div>
-      ) : null}
-
-      {partsShown ? (
-        <Parts
-          shared={view.shared} balance={view.balance} openIds={openParts} actions={partActions}
-          onToggle={(id) => setOpenParts((o) => ({ ...o, [id]: !o[id] }))}
-          renderCard={(c, part) => (
-            <Card
-              key={c.id} claim={c}
-              price={null} balance={view.balance} /* no re-check inside a part: the server shows the original claim id */
-              recheck={view.rechecks?.[c.id]}
-              onAsk={onRecheckAsk ?? view.recheckActions?.ask} onConfirm={onRecheckConfirm ?? view.recheckActions?.confirm}
-              onCancel={onRecheckCancel ?? view.recheckActions?.cancel}
-              share={{
-                report: part.reportable ? {
-                  report: view.shared.reports[c.id], onAsk: shareActions.reportAsk, onCancel: shareActions.reportCancel, onSend: shareActions.reportSend,
-                } : null,
+          {/* Both panels stay in the page; the one not chosen is hidden, so the transcript keeps its place. */}
+          <div className="fc-work" id="fc-panel-claims" role="tabpanel" aria-labelledby="fc-tab-claims" hidden={tab !== 'claims'}>
+            <Claims
+              claims={s.claims}
+              emptyText={live ? 'No claims yet.' : 'No claims were found.'}
+              filters={filters} onToggle={toggleFilter} onClear={() => setFilters([])}
+              recheck={{
+                price: view.flag.recheckCredits ?? null, balance: view.balance, states: view.rechecks || {},
+                onAsk: onRecheckAsk ?? view.recheckActions?.ask,
+                onConfirm: onRecheckConfirm ?? view.recheckActions?.confirm,
+                onCancel: onRecheckCancel ?? view.recheckActions?.cancel,
               }}
             />
-          )}
-        />
+          </div>
+          <div className="fc-work" id="fc-panel-transcript" role="tabpanel" aria-labelledby="fc-tab-transcript" hidden={tab !== 'transcript'}>
+            <Transcript
+              lines={s.transcript}
+              visible={tab === 'transcript'}
+              emptyText={live ? `Listening… Text appears about ${DELAY_SECONDS} seconds behind the speaker.` : 'No speech was transcribed.'}
+              listening={s.status === 'running' && !isMuted && !(s.silentFor > SILENT_NOTICE_MS)}
+            />
+          </div>
+        </>
       ) : null}
 
+      {/* Shared parts of a recorded video (Unlock, Re-analyze this block, Report) are not tucked behind a tab. */}
+      {partsShown ? parts : null}
+      </div>
+
+      <div className="fc-foot">
       {s.status === 'ended' || s.status === 'error' ? (
         <div className="fc-actions">
           {canRestart ? (
@@ -549,7 +687,8 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
         </div>
       ) : null}
 
-      <p className="fc-disclaimer">Verdicts are automated, may be wrong, and should be checked against the sources shown.</p>
+      <p className="fc-disclaimer">{DISCLAIMER}</p>
+      </div>
     </section>
   );
 }
