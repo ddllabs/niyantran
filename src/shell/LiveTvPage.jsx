@@ -6,8 +6,13 @@ import {
   fetchLiveTvArchive,
   fetchLiveTvTranscript,
 } from '../lib/liveTvClient.js';
-import { FactCheckEntry, FactCheckPanel } from './factcheck/FactCheckPanel.jsx';
+import { FactCheckPanel } from './factcheck/FactCheckPanel.jsx';
 import { PastSessions } from './factcheck/PastSessions.jsx';
+import { LatestClaimStrip } from './factcheck/LatestClaimStrip.jsx';
+import { latestVerdictClaim } from './factcheck/claimFilter.js';
+import { leaveFullscreenThen } from './factcheck/leaveFullscreen.js';
+import { ChannelCard } from './liveTv/ChannelCard.jsx';
+import { nowPlayingLine } from './liveTv/channelView.js';
 import { embedVideoId, playingTarget } from './factcheck/factCheckText.js';
 import { useFactCheck } from './factcheck/useFactCheck.js';
 import { useYoutubePlayer } from './liveTv/useYoutubePlayer.js';
@@ -287,11 +292,14 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   // from the embed address, so it names the video that is really on screen.
   const factCheckVideoId = embedVideoId(currentEmbedUrl);
   const factCheckChannelId = activeChannel?.id || '';
+  const factCheckTarget = playingTarget(factCheckChannelId, playbackMode, factCheckVideoId);
   const factCheck = useFactCheck({
     open,
-    target: playingTarget(factCheckChannelId, playbackMode, factCheckVideoId),
+    target: factCheckTarget,
     // where the player is, for shared results on recorded videos
     getPosition: () => (playbackMode === 'live' ? null : player.getPosition()),
+    // F363: "Re-analyze this block" moves a recorded video to the block's start
+    seek: (s) => (playbackMode === 'live' ? false : player.seekS(s)),
     start: {
       videoId: factCheckVideoId,
       channelId: factCheckChannelId,
@@ -306,8 +314,36 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     },
   });
 
+  // F366: the panel is open by default and shows an idle state; the start screen opens only when the user
+  // presses its entry button (nothing here asks the controller to do anything on its own).
+  const playable = isPlaying && !streamError;
+
+  // F366: "See why" on the latest-claim strip asks the panel to show that claim's card (the token makes a
+  // second press on the same claim count).
+  const [seeWhy, setSeeWhy] = useState(null);
+
   // After every hook: React needs the same hooks on every render.
   if (!open) return null;
+
+  const factCheckOffered = factCheck.view?.flag?.available === true;
+  // Over the video only while a session runs: the "Fact-check on" pill and the newest claim with a verdict.
+  const sessionRunning = factCheckOffered && factCheck.view?.session?.status === 'running';
+  const latestClaim = sessionRunning
+    ? latestVerdictClaim(factCheck.view.session.claims, { rechecks: factCheck.view.rechecks || {}, price: factCheck.view.flag.recheckCredits ?? null })
+    : null;
+  const tabs = [
+    ['schedule', `Broadcast Schedule (${schedule.length})`],
+    ['videos', `Channel Videos (${videos.length})`],
+    ['archive', `Archived Segments (${archive.length})`],
+    ['transcript', 'Transcript'],
+    ...(factCheckOffered ? [['sessions', 'My sessions']] : []),
+  ];
+  // My sessions can stop being offered while it is the chosen tab: show Channel Videos then, so one tab stays
+  // the tab stop and the panel is not empty.
+  const shownTab = tabs.some(([id]) => id === activeTab) ? activeTab : 'videos';
+  const programTitle = playbackMode === 'archive'
+    ? selectedArchiveItem?.title || 'Archived Recording'
+    : (playbackMode === 'video' && activeVideo?.title) || activeChannel?.name || '';
 
   return (
     <section className="ltv-page" aria-label="Live TV">
@@ -317,7 +353,15 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
           <button type="button" className="ltv-back-btn" onClick={onClose} title="Back">
             <span aria-hidden="true">←</span> Back
           </button>
-          <h2 className="ltv-title" tabIndex={-1} ref={titleRef}>NIYANTRAN LIVE TV</h2>
+          <div className="ltv-titleblock">
+            <h2 className="ltv-title" tabIndex={-1} ref={titleRef}>Live TV</h2>
+            <p className="ltv-tagline">
+              {factCheckOffered
+                ? 'Watch and fact-check debates, speeches and bulletins as they happen.'
+                : 'Watch debates, speeches and bulletins as they happen.'}
+            </p>
+          </div>
+          <div className="ltv-header-badges">
           {playbackMode === 'live' ? (
             streamError ? (
               <span className="ltv-offline-badge">
@@ -358,63 +402,35 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                 : ''}
             </span>
           )}
+          </div>
         </div>
       </header>
 
-      {/* Category Filter Bar */}
-      {/* F61 (F171 B15): filter buttons, so pressed state, not tabs (they never behaved like tabs). */}
-      <div className="ltv-category-bar" role="group" aria-label="Channel Categories">
-        {categories.map((cat) => (
-          <button
-            type="button"
-            key={cat}
-            className={`ltv-category-pill${selectedCategory === cat ? ' active' : ''}`}
-            aria-pressed={selectedCategory === cat}
-            onClick={() => setSelectedCategory(cat)}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      {/* Channel Selection Strip */}
-      <nav className="ltv-strip-wrap" aria-label="Available Channels">
-        {channelsLoading ? (
-          <div className="ltv-strip-loading">Loading curated sources...</div>
-        ) : filteredChannels.length === 0 ? (
-          <div className="ltv-strip-loading">No channels found for {selectedCategory}</div>
-        ) : (
-          filteredChannels.map((ch) => (
-            <button
-              type="button"
-              key={ch.id}
-              className={`ltv-channel-chip${ch.id === activeChannelId && playbackMode === 'live' ? ' active' : ''}`}
-              onClick={() => {
-                setActiveChannelId(ch.id);
-                setPlaybackMode('live');
-                setActiveVideo(null);
-                setStreamError(false);
-                setReloadKey((k) => k + 1);
-              }}
-              title={`${ch.name} (${ch.category} • ${ch.lang})`}
-            >
-              <span className="ltv-chip-tag" style={{ background: ch.color || '#3b82f6' }}>
-                {ch.short || ch.name.slice(0, 3)}
-              </span>
-              <span className="ltv-chip-name">{ch.name}</span>
-              <span className={`ltv-chip-status ltv-chip-status-${ch.status || 'recent'}`}>
-                {ch.status === 'live' ? 'LIVE' : ch.status === 'soon' ? 'SOON' : 'RECENT'}
-              </span>
-            </button>
-          ))
-        )}
-      </nav>
-
-      {/* Scrollable page body; the wrapper lets the past-sessions section sit below it (factCheck.css) */}
+      {/* Scrollable page body: the channel card, the video and panel, then the lower tabs (liveTv.css) */}
       <div className="ltv-main">
+      <ChannelCard
+        channels={channels}
+        visible={filteredChannels}
+        categories={categories}
+        selectedCategory={selectedCategory}
+        onSelectCategory={setSelectedCategory}
+        activeChannelId={activeChannelId}
+        playbackMode={playbackMode}
+        loading={channelsLoading}
+        onSelectChannel={(ch) => {
+          setActiveChannelId(ch.id);
+          setPlaybackMode('live');
+          setActiveVideo(null);
+          setStreamError(false);
+          setReloadKey((k) => k + 1);
+        }}
+      />
+
       <div className="ltv-body">
-        {/* Player Stage */}
-        <section className="ltv-player-stage">
+        <div className={`ltv-split${factCheckOffered ? ' has-panel' : ''}`}>
+        <div className="ltv-videocol">
+          {/* Player Stage */}
+          <section className="ltv-player-stage">
           <div className="ltv-video-container" ref={playerContainerRef}>
             {streamError || !embedSrc ? (
               <div className="ltv-offline-card">
@@ -470,17 +486,24 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                 </button>
               </div>
             )}
+            {sessionRunning ? (
+              <>
+                <span className="ltv-fcpill"><span className="ltv-fcpill-dot" aria-hidden="true" />Fact-check on</span>
+                <LatestClaimStrip latest={latestClaim} onSee={(claimId) => leaveFullscreenThen(document, () => setSeeWhy((r) => ({ claimId, token: (r?.token || 0) + 1 })))} />
+              </>
+            ) : null}
           </div>
 
-          {/* Player Metadata & Action Bar */}
-          <div className="ltv-player-meta">
+          </section>
+
+          {/* Now playing: the tile, the title, the line, and the existing action buttons */}
+          <div className="ltv-nowplaying">
+            <span className="ltv-np-tile" style={{ background: activeChannel?.color || '#3b82f6' }} aria-hidden="true">
+              {activeChannel ? activeChannel.short || activeChannel.name.slice(0, 3) : ''}
+            </span>
             <div className="ltv-program-info">
-              <h3>
-                {playbackMode === 'archive'
-                  ? selectedArchiveItem?.title || 'Archived Recording'
-                  : activeChannel?.name || ''}
-              </h3>
-              <p>
+              <h3>{programTitle}</h3>
+              <p className="ltv-np-line">
                 {playbackMode === 'archive' ? (
                   <>
                     Segment: {selectedArchiveItem?.segment || 'General'} &bull; Duration:{' '}
@@ -488,10 +511,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                     {selectedArchiveItem?.date?.split('T')[0] || ''}
                   </>
                 ) : (
-                  <>
-                    {activeChannel?.name} &bull; {activeChannel?.category} &bull; Language:{' '}
-                    {activeChannel?.lang}
-                  </>
+                  nowPlayingLine({ mode: playbackMode, channel: activeChannel })
                 )}
               </p>
               {playbackMode === 'archive' && selectedArchiveItem?.topics && (
@@ -557,41 +577,45 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               >
                 Reload Feed
               </button>
-              <FactCheckEntry view={factCheck.view} playable={isPlaying && !streamError} onChoose={factCheck.actions.choose} />
             </div>
           </div>
-        </section>
+        </div>
 
-        <FactCheckPanel
-          view={factCheck.view}
-          isMuted={isMuted}
-          onUnmute={() => applyMute(false)}
-          onConfirm={factCheck.actions.confirm}
-          onCancel={factCheck.actions.cancel}
-          onStop={factCheck.actions.stop}
-          onRetry={factCheck.actions.retry}
-          onDismiss={factCheck.actions.dismiss}
-          onEndOrphan={factCheck.actions.endOrphan}
-        />
+        {factCheckOffered ? (
+          <div className="ltv-panelcol">
+            <FactCheckPanel
+              persistent
+              channelName={activeChannel?.name || ''}
+              playable={playable}
+              onChoose={factCheck.actions.choose}
+              view={factCheck.view}
+              isMuted={isMuted}
+              onUnmute={() => applyMute(false)}
+              onConfirm={factCheck.actions.confirm}
+              onCancel={factCheck.actions.cancel}
+              onStop={factCheck.actions.stop}
+              onRetry={factCheck.actions.retry}
+              onDismiss={factCheck.actions.dismiss}
+              onEndOrphan={factCheck.actions.endOrphan}
+              focusRequest={seeWhy}
+            />
+          </div>
+        ) : null}
+        </div>
 
         {/* Lower Section Tabs */}
         {/* F61 (F171 B15): real tabs: one tab stop, arrows, Home and End move between them. */}
         <div className="ltv-deck-tabs" role="tablist" aria-label="Live TV Modules">
-          {[
-            ['schedule', `Broadcast Schedule (${schedule.length})`],
-            ['videos', `Channel Videos (${videos.length})`],
-            ['archive', `Archived Segments (${archive.length})`],
-            ['transcript', 'Transcript'],
-          ].map(([id, label], index, all) => (
+          {tabs.map(([id, label], index, all) => (
             <button
               type="button"
               key={id}
               id={`ltv-tab-${id}`}
               role="tab"
-              aria-selected={activeTab === id}
+              aria-selected={shownTab === id}
               aria-controls="ltv-tab-panel"
-              tabIndex={activeTab === id ? 0 : -1}
-              className={`ltv-tab-btn${activeTab === id ? ' active' : ''}`}
+              tabIndex={shownTab === id ? 0 : -1}
+              className={`ltv-tab-btn${shownTab === id ? ' active' : ''}`}
               onClick={() => setActiveTab(id)}
               onKeyDown={(e) => {
                 const keys = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: all.length - 1 };
@@ -608,8 +632,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
         </div>
 
         {/* Tab Content */}
-        <div className="ltv-tab-content" id="ltv-tab-panel" role="tabpanel" aria-labelledby={`ltv-tab-${activeTab}`}>
-          {activeTab === 'schedule' && (
+        <div className="ltv-tab-content" id="ltv-tab-panel" role="tabpanel" aria-labelledby={`ltv-tab-${shownTab}`}>
+          {shownTab === 'schedule' && (
             <div className="ltv-schedule-list">
               {scheduleLoading ? (
                 <div className="ltv-loading-spinner">
@@ -650,7 +674,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
             </div>
           )}
 
-          {activeTab === 'videos' && (
+          {shownTab === 'videos' && (
             <div className="ltv-videos-grid">
               {videosLoading ? (
                 <div className="ltv-loading-spinner">
@@ -728,7 +752,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
           </div>
           )}
 
-          {activeTab === 'archive' && (
+          {shownTab === 'archive' && (
             <div className="ltv-archive-grid">
               {archiveLoading ? (
                 <div className="ltv-loading-spinner">
@@ -802,7 +826,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
             </div>
           )}
 
-          {activeTab === 'transcript' && (
+          {shownTab === 'transcript' && (
             <div className="ltv-transcript-pane">
               <div
                 style={{
@@ -857,10 +881,15 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               )}
             </div>
           )}
+
+          {/* F360/F366: the user's finished fact-check sessions are the "My sessions" tab. The section stays
+              mounted (hidden) while another tab shows, as it was always mounted below the page, so it loads and
+              reloads as before and an open delete question is not lost on a tab change. */}
+          <div hidden={!factCheckOffered || shownTab !== 'sessions'}>
+            <PastSessions userId={factCheck.view?.flag?.userId} enabled={factCheckOffered} sessionStatus={factCheck.view?.session?.status} channels={channels} />
+          </div>
         </div>
       </div>
-      {/* F360: the user's finished fact-check sessions, below the body so the player and panel keep their size */}
-      <PastSessions userId={factCheck.view?.flag?.userId} enabled={factCheck.view?.flag?.available === true} sessionStatus={factCheck.view?.session?.status} channels={channels} />
       </div>
     </section>
   );

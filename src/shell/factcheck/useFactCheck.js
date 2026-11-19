@@ -8,6 +8,7 @@ import { INITIAL_VIEW, createFactCheckController } from './factCheckController.j
  * open    the page is open (the flag is read on open; a session ends on close)
  * target  what is playing, as one string, or null; a change ends a running session
  * getPosition  () => { positionS, playerState } | null, the player's position (recorded videos only are used)
+ * seek    (seconds) => boolean, moves the player ("Re-analyze this block"); read through a holder, like getPosition
  * start   { videoId, channelId, videoKind, startPositionS, seed } for a session started now;
  *         getStartPositionS(), when given, is read at confirm time and replaces startPositionS
  */
@@ -18,14 +19,17 @@ export function withPosition(start) {
   return { ...rest, startPositionS: Number.isInteger(p) && p >= 0 ? p : null };
 }
 
-export function useFactCheck({ open, target, start, getPosition }) {
+export function useFactCheck({ open, target, start, getPosition, seek }) {
   const [view, setView] = useState(INITIAL_VIEW);
   // The controller outlives renders; it reads the newest getPosition through this holder.
   const [source] = useState(() => ({ read: null }));
   source.read = getPosition || null;
+  const [mover] = useState(() => ({ seek: null }));
+  mover.seek = seek || null;
   const [controller] = useState(() => createFactCheckController({
     onChange: (next) => setView(next),
     getPosition: () => (source.read ? source.read() : null),
+    seek: (s) => (mover.seek ? mover.seek(s) : false),
   }));
 
   useEffect(() => {
@@ -41,7 +45,13 @@ export function useFactCheck({ open, target, start, getPosition }) {
   const actions = {
     choose: () => controller.choose(),
     cancel: () => controller.cancel(),
-    confirm: (minutes, price) => { void controller.start(withPosition(start), minutes, price); },
+    // After "Re-analyze this block" the video is moved to the block start again first, and the start position is
+    // read only after that (prepareStart is null for an ordinary start, which then goes at once).
+    confirm: (minutes, price) => {
+      const go = () => { void controller.start(withPosition(start), minutes, price); };
+      const ready = controller.prepareStart ? controller.prepareStart() : null;
+      if (ready) void ready.then(go); else go();
+    },
     stop: () => { void controller.stop(); },
     retry: () => controller.retry(),
     endOrphan: () => { void controller.endOrphan(); },

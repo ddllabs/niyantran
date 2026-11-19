@@ -65,6 +65,20 @@ export function coveringPart(stretches, positionS) {
   return stretches.find((s) => positionS >= s.from_s && positionS <= s.to_s) ?? null;
 }
 
+/**
+ * The ids of stretches that a newer one overlaps (the list is newest first, as the server returns it).
+ * Overlap is strict: a stretch that only touches the end of another is the next block, not an earlier
+ * analysis of the same video.
+ */
+export function earlierAnalysisIds(stretches) {
+  const ids = new Set();
+  if (!Array.isArray(stretches)) return ids;
+  stretches.forEach((s, i) => {
+    if (stretches.slice(0, i).some((n) => n.from_s < s.to_s && s.from_s < n.to_s)) ids.add(s.stretch_id);
+  });
+  return ids;
+}
+
 const SWITCHED_OFF = 'Shared results are switched off.';
 const NOT_ALLOWED = 'Shared results are not available for this account.';
 

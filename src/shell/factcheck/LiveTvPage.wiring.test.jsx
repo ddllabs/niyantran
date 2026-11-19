@@ -3,7 +3,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const seen = { args: [], view: null };
+const seen = { args: [], view: null, seeks: [] };
 vi.mock('./useFactCheck.js', () => ({
   useFactCheck: (args) => {
     seen.args.push(args);
@@ -11,7 +11,7 @@ vi.mock('./useFactCheck.js', () => ({
   },
 }));
 vi.mock('../liveTv/useYoutubePlayer.js', () => ({
-  useYoutubePlayer: () => ({ iframeRef: { current: null }, requestMute() {}, getPositionS: () => 77 }),
+  useYoutubePlayer: () => ({ iframeRef: { current: null }, requestMute() {}, getPositionS: () => 77, seekS: (s) => { seen.seeks.push(s); return true; } }),
 }));
 const { default: LiveTvPage } = await import('../LiveTvPage.jsx');
 
@@ -25,7 +25,7 @@ const viewWith = (session = {}, extra = {}) => ({
 });
 const render = (props = {}) => renderToStaticMarkup(<LiveTvPage open onClose={() => {}} {...props} />);
 
-beforeEach(() => { seen.args = []; seen.view = viewWith(); });
+beforeEach(() => { seen.args = []; seen.seeks = []; seen.view = viewWith(); });
 
 describe('wiring into the page', () => {
   it('calls the hook on every render, open or closed, with the same shape', () => {
@@ -45,16 +45,25 @@ describe('wiring into the page', () => {
     expect(a.start).toMatchObject({ videoKind: 'live', startPositionS: null, seed: { channel: '', title: '' } });
   });
 
+  it('hands the hook a seek that moves the player (F363)', () => {
+    render();
+    expect(seen.args[0].seek(130)).toBe(false); // nothing recorded is playing: a live stream is never moved
+    expect(seen.seeks).toEqual([]);
+  });
+
   it('ignores the player position for a live stream even when the player has one', () => {
     render();
     expect(seen.args[0].start.videoKind).toBe('live');
     expect(seen.args[0].start.getStartPositionS()).toBeNull();
   });
 
-  it('puts the entry button in the player controls', () => {
+  // F366: the panel is always open, so the start control lives in it (idle state); the button under the video is gone.
+  it('puts the entry button in the always-open panel, not in the player controls', () => {
     const html = render();
-    const controls = html.slice(html.indexOf('class="ltv-player-controls"'), html.indexOf('</section>'));
-    expect(controls).toMatch(/data-fc="open"/);
+    const controls = html.slice(html.indexOf('class="ltv-player-controls"'), html.indexOf('class="ltv-panelcol"'));
+    expect(controls).not.toMatch(/data-fc="open"/);
+    const panel = html.slice(html.indexOf('class="ltv-panelcol"'));
+    expect(panel).toMatch(/data-fc="open"/);
     expect(html.match(/data-fc="open"/g)).toHaveLength(1);
   });
 
@@ -76,11 +85,12 @@ describe('wiring into the page', () => {
     expect(render()).not.toMatch(/fc-|Fact-check/);
   });
 
-  it('leaves the lower tabs as they were', () => {
+  it('keeps the four lower tabs and adds My sessions (F366)', () => {
     seen.view = viewWith({ status: 'running' });
     const html = render();
-    const tabs = html.match(/<button[^>]*role="tab"[^>]*>/g) || [];
-    expect(tabs).toHaveLength(4);
+    // The deck tabs only: the panel's own Claims and Transcript tabs (F366) are counted in FactCheckPanel.tabs.test.jsx.
+    const tabs = html.match(/<button[^>]*role="tab"[^>]*class="ltv-tab-btn[^"]*"[^>]*>|<button[^>]*class="ltv-tab-btn[^"]*"[^>]*role="tab"[^>]*>/g) || [];
+    expect(tabs).toHaveLength(5);
     expect(tabs.filter((t) => /tabindex="0"/.test(t))).toHaveLength(1);
   });
 });

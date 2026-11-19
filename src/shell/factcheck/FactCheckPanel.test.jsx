@@ -31,6 +31,13 @@ const render = (v, props = {}) => renderToStaticMarkup(
 );
 const entry = (v, playable = true) => renderToStaticMarkup(<FactCheckEntry view={v} playable={playable} onChoose={() => {}} />);
 const text = (html) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+// F366: the heading, the roving tab buttons (the chosen one is the tab stop) and a claim card (a target for
+// "See why", not a control) are the only elements that may carry tabindex="-1".
+// Only a tab that is not selected may be out of the tab order; the selected one must be the tab stop.
+const withoutFocusTargets = (html) => {
+  for (const b of html.match(/<button[^>]*role="tab"[^>]*aria-selected="true"[^>]*>/g) || []) expect(b).toMatch(/tabindex="0"/);
+  return html.replace(/<h3[^>]*>/g, '').replace(/<button[^>]*role="tab"[^>]*aria-selected="false"[^>]*>/g, '').replace(/<li[^>]*id="fc-claim-[^"]*"[^>]*>/g, '');
+};
 
 describe('entry point', () => {
   it('renders a Fact-check button only when the flag is on and the browser is supported', () => {
@@ -72,8 +79,8 @@ describe('entry point', () => {
 });
 
 describe('choosing a block', () => {
-  it('lists 1, 2, 5, 10 and 15 minutes with prices and the balance', () => {
-    const html = render(view({ status: 'choosing' }, { balance: 10000 }));
+  it('lists 1, 2, 5, 10, 15, 20 and 30 minutes with prices and the balance', () => {
+    const html = render(view({ status: 'choosing' }, { balance: 20000 }));
     const t = text(html);
     expect(t).toMatch(/1 minute\s*500 credits/);
     expect(t).not.toContain('1 minutes');
@@ -81,17 +88,20 @@ describe('choosing a block', () => {
     expect(t).toMatch(/5 minutes\s*2,500 credits/);
     expect(t).toMatch(/10 minutes\s*5,000 credits/);
     expect(t).toMatch(/15 minutes\s*7,500 credits/);
-    expect(t).toContain('10,000');
+    expect(t).toMatch(/20 minutes\s*10,000 credits/);
+    expect(t).toMatch(/30 minutes\s*15,000 credits/);
+    expect(t).toContain('20,000');
     expect(html).toMatch(/aria-label="Fact-check"/);
   });
   it('disables options the balance cannot cover, with the reason', () => {
     const html = render(view({ status: 'choosing' }, { balance: 5000 }));
     const buttons = html.match(/<button[^>]*data-minutes="\d+"[^>]*>/g);
-    expect(buttons).toHaveLength(5);
+    expect(buttons).toHaveLength(7);
     for (const b of buttons.slice(0, 4)) expect(b).not.toMatch(/disabled/);
-    expect(buttons[4]).toMatch(/disabled/);
+    for (const b of buttons.slice(4)) expect(b).toMatch(/disabled/);
     expect(text(html)).toMatch(/Needs 7,500 credits; you have 5,000/);
     expect(buttons[4]).not.toMatch(/style=/);
+    expect(text(html)).toMatch(/Needs 15,000 credits; you have 5,000/);
   });
   it('has Start and Cancel; Start names the selected block, and is disabled when nothing is affordable', () => {
     const html = render(view({ status: 'choosing' }, { balance: 10000 }));
@@ -503,7 +513,7 @@ describe('keyboard', () => {
       render(view({ status: 'running', claims: [claim()] })),
       render(view({ status: 'ended', endReason: 'user', final: { minutes_used: 1, credits_charged: 500, balance: 1 } })),
     ].join('');
-    expect(html.replace(/<h3[^>]*>/g, '')).not.toMatch(/tabindex="-1"/);
+    expect(withoutFocusTargets(html)).not.toMatch(/tabindex="-1"/);
     expect(html).not.toMatch(/<div[^>]*onclick/i);
     for (const b of html.match(/<button[^>]*>/g)) expect(b).toMatch(/type="button"/);
   });

@@ -8,7 +8,8 @@ import { positionSample } from './position.js';
  * active          run the bridge while true
  * onMutedChange   the player's own controls changed the mute (no command is sent back)
  * onFallback      the embed did not confirm a mute toggle: remount it with the wanted mute
- * Returns { iframeRef, requestMute(muted), getPositionS(), getPosition() }.
+ * Returns { iframeRef, requestMute(muted), seekS(seconds), getPositionS(), getPosition() }.
+ * seekS(seconds) asks the player to move there; true when the command was sent (the player may still not move).
  * getPosition() is { positionS, playerState } or null when the player's position is not known.
  */
 export function useYoutubePlayer(active, { onMutedChange, onFallback }) {
@@ -43,10 +44,11 @@ export function useYoutubePlayer(active, { onMutedChange, onFallback }) {
     if (controllerRef.current) controllerRef.current.request(muted);
     else handlers.current.onFallback();
   };
+  const seekS = (seconds) => (bridgeRef.current ? bridgeRef.current.seekTo(seconds) : false);
   const getPositionS = () => {
     const p = bridgeRef.current?.getSnapshot().positionS;
     return typeof p === 'number' ? Math.floor(p) : null;
   };
   const getPosition = () => positionSample(bridgeRef.current?.getSnapshot());
-  return { iframeRef, requestMute, getPositionS, getPosition };
+  return { iframeRef, requestMute, seekS, getPositionS, getPosition };
 }

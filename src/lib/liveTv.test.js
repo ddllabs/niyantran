@@ -136,7 +136,7 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
     const openHtml = renderToStaticMarkup(
       React.createElement(LiveTvPage, { open: true, onClose: () => {} })
     );
-    expect(openHtml).toContain('NIYANTRAN LIVE TV');
+    expect(openHtml).toMatch(/<h2[^>]*>Live TV<\/h2>/); // F366: the page title
     // F359: a page, not a pop-up: a labelled region, no dialog role, no backdrop, a visible Back control.
     expect(openHtml).toMatch(/<section[^>]*class="ltv-page"[^>]*aria-label="Live TV"|<section[^>]*aria-label="Live TV"[^>]*class="ltv-page"/);
     expect(openHtml).not.toContain('role="dialog"');

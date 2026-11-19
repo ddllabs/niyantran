@@ -187,3 +187,80 @@ describe('review fixes', () => {
     expect(t.bridge.getSnapshot().ready).toBe(false);
   });
 });
+
+// F363: seekTo, sent the way mute is: only to the iframe's own YouTube origin, only once the player is ready.
+describe('seekTo', () => {
+  const commands = (t) => t.contentWindow.postMessage.mock.calls.map((c) => JSON.parse(c[0])).filter((m) => m.event === 'command');
+  it('posts a seekTo command to the iframe origin when ready, never *', () => {
+    const t = setup();
+    t.bridge.start();
+    t.send(info());
+    expect(t.bridge.seekTo(130.9)).toBe(true);
+    expect(commands(t)).toEqual([{ event: 'command', func: 'seekTo', args: [130, true] }]);
+    const call = t.contentWindow.postMessage.mock.calls.at(-1);
+    expect(call[1]).toBe(NC);
+    expect(t.contentWindow.postMessage.mock.calls.every((c) => c[1] !== '*')).toBe(true);
+  });
+
+  it('posts nothing before the player is ready', () => {
+    const t = setup();
+    t.bridge.start();
+    expect(t.bridge.seekTo(130)).toBe(false);
+    expect(commands(t)).toHaveLength(0);
+  });
+
+  it('posts nothing to an iframe that is not a YouTube origin', () => {
+    const t = setup('https://example.com/embed/x');
+    t.bridge.start();
+    t.send(info(), { origin: 'https://example.com' });
+    expect(t.bridge.seekTo(130)).toBe(false);
+    expect(t.contentWindow.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('posts nothing for a position that is not a non-negative number', () => {
+    const t = setup();
+    t.bridge.start();
+    t.send(info());
+    for (const v of [-1, Number.NaN, Number.POSITIVE_INFINITY, null, undefined, '12']) expect(t.bridge.seekTo(v)).toBe(false);
+    expect(commands(t)).toHaveLength(0);
+  });
+
+  it('posts nothing once the iframe is another element that has not shaken hands', () => {
+    const t = setup();
+    t.bridge.start();
+    t.send(info());
+    t.holder.iframe = { src: `${NC}/embed/zzz?enablejsapi=1`, contentWindow: { postMessage: vi.fn() } };
+    expect(t.bridge.seekTo(130)).toBe(false);
+    expect(t.holder.iframe.contentWindow.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('forgets the position it had when the command is sent, until the player reports a new one', () => {
+    const t = setup();
+    t.bridge.start();
+    t.send(info({ currentTime: 300 }));
+    expect(t.bridge.getSnapshot().positionS).toBe(300);
+    t.bridge.seekTo(130);
+    expect(t.bridge.getSnapshot().positionS).toBeNull();
+    expect(t.bridge.getSnapshot().ready).toBe(true);
+    t.send(info({ currentTime: 131 }));
+    expect(t.bridge.getSnapshot().positionS).toBe(131);
+  });
+
+  it('keeps the position when no command was sent', () => {
+    const t = setup();
+    t.bridge.start();
+    t.send(info({ currentTime: 300 }));
+    t.bridge.seekTo(-1);
+    expect(t.bridge.getSnapshot().positionS).toBe(300);
+  });
+
+  it('refuses when the same iframe element turns into a non-YouTube address after the handshake', () => {
+    const t = setup();
+    t.bridge.start();
+    t.send(info());
+    t.holder.iframe.src = 'https://example.com/embed/x';
+    t.contentWindow.postMessage.mockClear();
+    expect(t.bridge.seekTo(130)).toBe(false);
+    expect(t.contentWindow.postMessage).not.toHaveBeenCalled();
+  });
+});

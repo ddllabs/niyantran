@@ -205,6 +205,21 @@ chain() {
     factcheck_lengths)
       chain factcheck_fail_reason
       FILES+=("$(as_non_superuser 20261119090000_factcheck_session_lengths.sql)") ;;
+    # F361: fact-check sessions of 20 and 30 minutes. The F350 lengths chain, then the 20/30 migration, as a non-superuser.
+    # The vacuity check drops the last.
+    factcheck_lengths_20_30)
+      chain factcheck_lengths
+      FILES+=("$(as_non_superuser 20261120090000_factcheck_session_lengths_20_30.sql)") ;;
+    # F362: the administrator's list of open reports. The session-lengths chain, then the reports-admin migration, as a
+    # non-superuser. The vacuity check drops the last: the function is missing and the first assertion fails.
+    factcheck_reports_admin)
+      chain factcheck_lengths
+      FILES+=("$(as_non_superuser 20261121090000_factcheck_reports_admin.sql)") ;;
+    # F364: removing a video's shared results refunds the unlocks. The reports-admin chain, then the refund migration, as a
+    # non-superuser. The vacuity check drops the last: the column and the refund are missing and the fixture fails.
+    factcheck_video_remove_refund)
+      chain factcheck_reports_admin
+      FILES+=("$(as_non_superuser 20261122090000_factcheck_video_remove_refund.sql)") ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;
@@ -1413,6 +1428,7 @@ run_fixture() {
     [ "$name" = factcheck_usage ] && { factcheck_usage_checks || rc=1; }
     [ "$name" = factcheck_recheck ] && { bash "$TESTS/factcheck_recheck_concurrency.sh" || rc=1; }
     [ "$name" = factcheck_sharing ] && { bash "$TESTS/factcheck_sharing_concurrency.sh" || rc=1; }
+    [ "$name" = factcheck_video_remove_refund ] && { bash "$TESTS/factcheck_video_remove_refund_concurrency.sh" || rc=1; }
   else
     rc=1
     echo "  FAIL"

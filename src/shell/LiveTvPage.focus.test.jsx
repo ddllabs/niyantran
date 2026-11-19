@@ -25,7 +25,7 @@ describe('the page heading', () => {
   it('is an h2 that can take focus but is not a tab stop', () => {
     harness.refFactory = null;
     const html = renderToStaticMarkup(<LiveTvPage open onClose={() => {}} />);
-    expect(html).toMatch(/<h2[^>]*class="ltv-title"[^>]*tabindex="-1"[^>]*>NIYANTRAN LIVE TV<\/h2>/);
+    expect(html).toMatch(/<h2[^>]*class="ltv-title"[^>]*tabindex="-1"[^>]*>Live TV<\/h2>/);
   });
 
   it('takes focus when the page opens, not while it is closed, and not again on a re-render', () => {

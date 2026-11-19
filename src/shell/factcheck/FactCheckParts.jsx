@@ -4,7 +4,8 @@
 // comes from the server's answer, and a locked part is never shown any text.
 import { useEffect, useRef, useState } from 'react';
 import { creditsText } from '../../lib/creditsStore.js';
-import { formatPosition, partModel } from './factCheckShare.js';
+import { earlierAnalysisIds, formatPosition, partModel } from './factCheckShare.js';
+import { REANALYZE_LABEL, earlierAnalysisText } from './factCheckText.js';
 
 // Focus goes to the first control when a confirmation or form opens, and back to the button when it closes.
 function useOpenCloseFocus(open) {
@@ -87,19 +88,25 @@ function UnlockControls({ model, price, balance, state, actions }) {
   );
 }
 
-function Part({ stretch, open, onToggle, balance, state, actions, renderCard }) {
+export function Part({ stretch, open, onToggle, balance, state, actions, renderCard, earlier = false }) {
   const m = partModel(stretch);
-  const meta = [m.minutes, m.date && `Checked on ${m.date}`, m.claimsLabel].filter(Boolean).join(' · ');
+  const meta = [m.minutes, m.date && !earlier && `Checked on ${m.date}`, m.claimsLabel].filter(Boolean).join(' · ');
   return (
     <li className="fc-part" data-part={m.id} data-access={m.access}>
       <div className="fc-card-head">
         <span className="fc-part-range">{m.range}</span>
         {m.access === 'own' ? <span className="fc-kind">Your check</span> : null}
         {m.access === 'unlocked' ? <span className="fc-kind">Unlocked</span> : null}
+        {earlier ? <span className="fc-kind fc-kind--earlier">{earlierAnalysisText(m.date)}</span> : null}
       </div>
       {meta ? <p className="fc-by">{meta}</p> : null}
       {m.readable ? (
         <>
+          {actions?.reanalyze ? (
+            <button type="button" className="ltv-action-btn fc-btn fc-reanalyze-btn" data-fc="reanalyze" data-part={m.id} aria-label={`${REANALYZE_LABEL}, ${m.range}`} onClick={() => actions.reanalyze(m.id)}>
+              {REANALYZE_LABEL}
+            </button>
+          ) : null}
           <button type="button" className="fc-part-toggle" aria-expanded={open} aria-controls={`fc-part-${m.id}`} onClick={() => onToggle(m.id)}>
             {open ? 'Hide transcript and verdicts' : 'Show transcript and verdicts'}
           </button>
@@ -128,6 +135,7 @@ function Part({ stretch, open, onToggle, balance, state, actions, renderCard }) 
 
 /** The section. `view.shared` is the controller's state; `renderCard(claim, partModel)` draws a card. */
 export function Parts({ shared, balance, openIds, onToggle, actions, renderCard }) {
+  const earlier = earlierAnalysisIds(shared.stretches);
   return (
     <section className="fc-parts" aria-labelledby="fc-parts-title">
       <h4 id="fc-parts-title" className="fc-section">Checked parts of this video</h4>
@@ -145,7 +153,7 @@ export function Parts({ shared, balance, openIds, onToggle, actions, renderCard 
           {shared.stretches.map((s) => (
             <Part
               key={s.stretch_id} stretch={s} open={Boolean(openIds[s.stretch_id])} onToggle={onToggle} balance={balance}
-              state={shared.unlocks[s.stretch_id]} actions={actions} renderCard={renderCard}
+              state={shared.unlocks[s.stretch_id]} actions={actions} renderCard={renderCard} earlier={earlier.has(s.stretch_id)}
             />
           ))}
         </ol>
