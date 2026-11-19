@@ -88,7 +88,8 @@ describe('wiring into the page', () => {
   it('keeps the four lower tabs and adds My sessions (F366)', () => {
     seen.view = viewWith({ status: 'running' });
     const html = render();
-    const tabs = html.match(/<button[^>]*role="tab"[^>]*>/g) || [];
+    // The deck tabs only: the panel's own Claims and Transcript tabs (F366) are counted in FactCheckPanel.tabs.test.jsx.
+    const tabs = html.match(/<button[^>]*role="tab"[^>]*class="ltv-tab-btn[^"]*"[^>]*>|<button[^>]*class="ltv-tab-btn[^"]*"[^>]*role="tab"[^>]*>/g) || [];
     expect(tabs).toHaveLength(5);
     expect(tabs.filter((t) => /tabindex="0"/.test(t))).toHaveLength(1);
   });

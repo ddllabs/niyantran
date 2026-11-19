@@ -8,6 +8,8 @@ import {
 } from '../lib/liveTvClient.js';
 import { FactCheckPanel } from './factcheck/FactCheckPanel.jsx';
 import { PastSessions } from './factcheck/PastSessions.jsx';
+import { LatestClaimStrip } from './factcheck/LatestClaimStrip.jsx';
+import { latestVerdictClaim } from './factcheck/claimFilter.js';
 import { ChannelCard } from './liveTv/ChannelCard.jsx';
 import { shouldAutoChoose } from './liveTv/autoChoose.js';
 import { nowPlayingLine } from './liveTv/channelView.js';
@@ -324,10 +326,19 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     }
   });
 
+  // F366: "See why" on the latest-claim strip asks the panel to show that claim's card (the token makes a
+  // second press on the same claim count).
+  const [seeWhy, setSeeWhy] = useState(null);
+
   // After every hook: React needs the same hooks on every render.
   if (!open) return null;
 
   const factCheckOffered = factCheck.view?.flag?.available === true;
+  // Over the video only while a session runs: the "Fact-check on" pill and the newest claim with a verdict.
+  const sessionRunning = factCheckOffered && factCheck.view?.session?.status === 'running';
+  const latestClaim = sessionRunning
+    ? latestVerdictClaim(factCheck.view.session.claims, { rechecks: factCheck.view.rechecks || {}, price: factCheck.view.flag.recheckCredits ?? null })
+    : null;
   const tabs = [
     ['schedule', `Broadcast Schedule (${schedule.length})`],
     ['videos', `Channel Videos (${videos.length})`],
@@ -480,6 +491,12 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                 </button>
               </div>
             )}
+            {sessionRunning ? (
+              <>
+                <span className="ltv-fcpill"><span className="ltv-fcpill-dot" aria-hidden="true" />Fact-check on</span>
+                <LatestClaimStrip latest={latestClaim} onSee={(claimId) => setSeeWhy((r) => ({ claimId, token: (r?.token || 0) + 1 }))} />
+              </>
+            ) : null}
           </div>
 
           </section>
@@ -585,6 +602,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               onRetry={factCheck.actions.retry}
               onDismiss={factCheck.actions.dismiss}
               onEndOrphan={factCheck.actions.endOrphan}
+              focusRequest={seeWhy}
             />
           </div>
         ) : null}
