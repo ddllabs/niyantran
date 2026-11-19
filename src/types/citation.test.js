@@ -47,7 +47,7 @@ describe('the client and the server agree (F332)', () => {
   });
   it('every name the server can emit passes the client check', () => {
     const names = [...server.matchAll(/name: '([^']+)'/g)].map(m => m[1]);
-    expect(names).toHaveLength(4);
+    expect(names).toHaveLength(11); // four regulators and seven desk names (F374)
     for (const name of names) expect(publisherName(text({ publisher: name }))).toBe(name);
   });
   it('the labels are the ones the spec names', () => {

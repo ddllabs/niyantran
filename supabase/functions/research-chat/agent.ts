@@ -1,7 +1,7 @@
 import { observationInstructions, OBSERVATION_SCHEMA, renderObservationSelection as renderObservation, type ObservationContext } from './observationAnswer.ts';
 import { lawAttributionContext } from '../_shared/lawContext.ts';
 import { FACTS_MAX_CHARS, isBillsFeature } from '../_shared/documentFacts.ts';
-import { isPublisherName, isRegulatoryFeature } from '../_shared/publisher.ts';
+import { isPublisherFor } from '../_shared/publisher.ts';
 import { placeholderAnswer } from './answerValidation.ts';
 // One dependency-injected research loop. The handler owns authentication,
 // failover, persistence and the public stream; this module never retries a
@@ -432,12 +432,12 @@ function catalogueLine(c: Chunk): string {
 }
 
 /**
- * The publisher field of a national Regulatory passage header (`publisher: <name>`), or ''. It is printed only when the
- * chunk's own desk is Regulatory at render time and the value is exactly one of the fixed names, so a chunk of any other
- * desk, or with any other value, prints nothing. It is a header field, so a length measurement can leave it out.
+ * The publisher field of a passage header (`publisher: <name>`), or ''. It is printed only when the value is exactly one
+ * of the fixed names the chunk's own desk can have (a regulator on Regulatory, a ministry on its own desk), so a chunk of
+ * any other desk, or with any other value, prints nothing. It is a header field, so a length measurement can leave it out.
  */
 function publisherField(c: Chunk): string {
-  return isRegulatoryFeature(c.desk_tier, c.desk_feature) && isPublisherName(c.publisher) ? `publisher: ${c.publisher}` : '';
+  return isPublisherFor(c.desk_tier, c.desk_feature, c.publisher) ? `publisher: ${c.publisher}` : '';
 }
 
 /** The passages of one search reply, each with its handle; a document's catalogue line goes under its first passage. */
@@ -459,7 +459,7 @@ function renderReply(kept: Chunk[], handles: HandleAssigner): string {
  * is document text, so it is flattened to one line and every `|` in it is
  * escaped as `\|` (escaped rather than replaced, so the heading still reads as
  * printed): it cannot add a field or a line. Title and feature are put on one line and have `|` escaped the same way
- * (F332), so neither can add a field, the publisher's among them. A Regulatory passage adds `publisher: <name>` after the
+ * (F332), so neither can add a field, the publisher's among them. A passage of a desk with a publisher (Regulatory and the five National desks) adds `publisher: <name>` after the
  * version and before the page (`publisherField`), unless `opts.publisher` is false (length measurements). No storage
  * path or other location is ever included.
  */

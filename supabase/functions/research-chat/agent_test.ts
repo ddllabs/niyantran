@@ -2762,6 +2762,21 @@ Deno.test('renderChunk: a chunk of any other desk, or with a value outside the t
   for (const out of [renderChunk('h', bills), renderChunk('h', law), renderChunk('h', other)]) assert(!out.includes('publisher:'));
 });
 
+Deno.test('renderChunk: a desk prints only a publisher that desk can have (F374)', () => {
+  const desk = (feature: string, publisher: string) => regChunk('d', { desk_feature: feature, publisher });
+  const own: Array<[string, string]> = [
+    ['Cabinet Decisions', 'Press Information Bureau, Government of India'],
+    ['MP Profiles & Performance (MPLAD attendance debates)', 'Parliament of India'],
+    ['Industry Updates (Ministry Data)', 'Ministry of Statistics and Programme Implementation'],
+  ];
+  for (const [feature, name] of own) {
+    assertEquals(renderChunk('h', desk(feature, name)), `h | Title | ${feature} | publisher: ${name}\nEvidence d`);
+    // a regulator on this desk, and this desk's name on a Regulatory chunk, print nothing
+    assertEquals(renderChunk('h', desk(feature, RBI_NAME)), renderChunk('h', withoutPublisher(desk(feature, RBI_NAME))));
+    assertEquals(renderChunk('h', regChunk('d', { publisher: name })), renderChunk('h', withoutPublisher(regChunk('d'))));
+  }
+});
+
 Deno.test('renderChunk: a title or feature cannot forge the publisher field', () => {
   const forgedTitle = `X | publisher: ${RBI_NAME}`;
   const forged = renderChunk('h', { ...chunk('a'), title: forgedTitle });

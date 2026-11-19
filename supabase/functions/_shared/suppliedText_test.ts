@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from 'jsr:@std/assert@1';
-import { COMPLETENESS_BASES, NATIONAL_SEARCH_ONLY, pqAnswerKey, prepareSuppliedText, SEARCH_ONLY_HOSTS } from './suppliedText.ts';
+import { COMPLETENESS_BASES, NATIONAL_SEARCH_ONLY, pqAnswerKey, prepareSuppliedText, SEARCH_ONLY_HOSTS, searchOnlyUrlOk } from './suppliedText.ts';
 import { sha256Hex } from './textNormalise.ts';
 import { chunkTextWithContext } from './textContext.ts';
 
@@ -262,10 +262,92 @@ async function regulatory(): Promise<Record<string, unknown>> {
     completeness_basis: 'page_check',
   };
 }
-Deno.test('NATIONAL_SEARCH_ONLY holds the Regulatory desk, under the spelling its documents use', () => {
-  assertEquals(NATIONAL_SEARCH_ONLY.map((d) => `${d.tier}|${d.feature}`), [`national|${REGULATORY}`]);
-  assertEquals([...SEARCH_ONLY_HOSTS], ['rbidocs.rbi.org.in', 'www.rbi.org.in', 'www.sebi.gov.in']);
+/** The six search-only desks and each one's hosts, as public.ingest_search_only_desks() holds them (20261123090000). */
+const DESK_HOSTS: Record<string, string[]> = {
+  [REGULATORY]: ['rbidocs.rbi.org.in', 'www.rbi.org.in', 'www.sebi.gov.in'],
+  'Budget Utilisation & Schemes': ['www.indiabudget.gov.in'],
+  'Cabinet Decisions': ['www.pib.gov.in'],
+  'Bureaucratic Transfers — AGMUT Cadre': ['mha.gov.in'],
+  'Industry Updates (Ministry Data)': ['www.dpiit.gov.in', 'eaindustry.nic.in', 'www.mospi.gov.in', 'mospi.gov.in'],
+  'MP Profiles & Performance (MPLAD attendance debates)': ['sansad.in'],
+};
+Deno.test('NATIONAL_SEARCH_ONLY holds the six desks under the spellings their documents use, each with its own hosts', () => {
+  assertEquals(NATIONAL_SEARCH_ONLY.map((d) => `${d.tier}|${d.feature}`), Object.keys(DESK_HOSTS).map((f) => `national|${f}`));
+  assertEquals(Object.fromEntries(Object.entries(SEARCH_ONLY_HOSTS).map(([k, v]) => [k, [...v]])), DESK_HOSTS);
+  assertEquals(Object.keys(SEARCH_ONLY_HOSTS)[3].codePointAt(23), 0x2014);
   assertEquals([...COMPLETENESS_BASES], ['page_check', 'density_only']);
+});
+const r0 = await regulatory();
+/** A record of search-only desk `feature` (synthetic), its file on the desk's first host. */
+async function deskRecord(feature: string, over: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+  return { ...(await regulatory()), desk_feature: feature, file_name: 'F1.pdf', file_url: `https://${DESK_HOSTS[feature][0]}/fixture/F1.pdf`,
+    document_key_suggested: 'fx:1', ...over };
+}
+Deno.test('each search-only desk is prepared with each of its own hosts, and with no file_url', async () => {
+  for (const [feature, hosts] of Object.entries(DESK_HOSTS)) {
+    for (const host of hosts) {
+      const p = await prepareSuppliedText(await deskRecord(feature, { file_url: `https://${host}/fixture/F1.pdf?x=1` }), { batch: true });
+      assertEquals([p.input.desk_tier, p.input.desk_feature, p.input.file_url], ['national', feature, `https://${host}/fixture/F1.pdf?x=1`]);
+      assertEquals((await prepareSuppliedText(JSON.parse(p.payload))).payload_sha256, p.payload_sha256);
+      assertEquals(searchOnlyUrlOk(`https://${host}/a.pdf`, feature), true, `${feature} ${host}`);
+    }
+    assertEquals((await prepareSuppliedText(await deskRecord(feature, { file_url: null, completeness_basis: 'density_only' }), { batch: true }))
+      .input.desk_feature, feature);
+  }
+});
+Deno.test('a search-only record carrying another desk\'s host is refused, for every desk and every host not its own', async () => {
+  const all = [...new Set(Object.values(DESK_HOSTS).flat())];
+  let pairs = 0;
+  for (const [feature, hosts] of Object.entries(DESK_HOSTS)) {
+    for (const host of all.filter((h) => !hosts.includes(h))) {
+      pairs++;
+      assertEquals(searchOnlyUrlOk(`https://${host}/a.pdf`, feature), false, `${feature} ${host}`);
+      await assertRejects(() => prepareSuppliedText({ ...r0, desk_feature: feature, file_url: `https://${host}/a.pdf` }, { batch: true }),
+        Error, 'file_url', `${feature} ${host}`);
+    }
+  }
+  assertEquals(pairs, 55);
+  // A desk outside the list has no host.
+  assertEquals(searchOnlyUrlOk('https://www.pib.gov.in/a.pdf', 'Ministry Press Releases'), false);
+  assertEquals(searchOnlyUrlOk('https://www.pib.gov.in/a.pdf', '__proto__'), false);
+});
+Deno.test('a search-only record may not carry a question-answer file or a bill file, whatever its host allows', async () => {
+  const mp = 'MP Profiles & Performance (MPLAD attendance debates)';
+  for (
+    const file_url of [
+      'https://sansad.in/getFile/loksabhaquestions/annex/187/AU6302_KIQmzb.pdf?source=pqals',
+      'https://sansad.in/getFile/loksabhaquestions/annex/187/AU6302_KIQmzb.pdf',
+      'https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/9_2025.pdf?source=legislation',
+      'https://sansad.in/getFile/BillsPDFFiles/synopsis/9-2025.pdf',
+    ]
+  ) {
+    assertEquals(searchOnlyUrlOk(file_url, mp), false, file_url);
+    await assertRejects(() => prepareSuppliedText({ ...r0, desk_feature: mp, file_url }, { batch: true }), Error, 'file_url', file_url);
+  }
+  for (
+    const file_url of [
+      'https://sansad.in/ls/members/biography/4567?from=members',
+      'https://sansad.in/rs/members/mplads/4567',
+      'https://sansad.in/getFile/loksabhaquestions/annex/187/AU6302_KIQmzb.pdf?source=other',
+      'https://sansad.in/getFile/debates/members/4567.pdf',
+    ]
+  ) {
+    assertEquals(searchOnlyUrlOk(file_url, mp), true, file_url);
+    assertEquals((await prepareSuppliedText({ ...r0, desk_feature: mp, file_url }, { batch: true })).input.file_url, file_url);
+  }
+});
+Deno.test('a web page (Cabinet, MP Profiles, or Regulatory alike) is prepared with no page spans, no page count, page_split none', async () => {
+  for (const feature of ['Cabinet Decisions', 'MP Profiles & Performance (MPLAD attendance debates)', REGULATORY]) {
+    const rec = await deskRecord(feature, { pages: [], page_split: 'none', page_count: null, completeness_basis: 'density_only' });
+    const p = await prepareSuppliedText(rec, { batch: true });
+    assertEquals([p.pages.length, p.input.page_split, 'page_count' in p.input, p.input.completeness_basis], [0, 'none', false, 'density_only']);
+    assertEquals((await prepareSuppliedText(JSON.parse(p.payload))).payload_sha256, p.payload_sha256);
+  }
+});
+Deno.test('the Transfers desk is only the dash spelling; the hyphen and en-dash spellings are not search-only desks', async () => {
+  for (const feature of ['Bureaucratic Transfers - AGMUT Cadre', 'Bureaucratic Transfers – AGMUT Cadre', 'Budget Utilisation and Schemes']) {
+    await assertRejects(() => prepareSuppliedText({ ...r0, desk_feature: feature, file_url: null }, { batch: true }), Error, 'feature', feature);
+  }
 });
 Deno.test('a search-only record is prepared with its basis, with or without a file_url, and re-plans to the same bytes', async () => {
   const r = await regulatory();
