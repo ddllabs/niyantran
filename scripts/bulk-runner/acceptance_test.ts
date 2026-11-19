@@ -4,6 +4,7 @@ import {
   type AcceptDb,
   type LinkKey,
   type ProbeResult,
+  PsqlAcceptDb,
   type SampleItem,
   type StoredDoc,
 } from './acceptance.ts';
@@ -355,4 +356,13 @@ Deno.test('F305: an exact search that throws leaves probe_not_first with a fixed
     'exact recheck failed',
   ]]);
   assertEquals(r.index_misses, []);
+});
+
+Deno.test('F356: an answer that is not JSON is an error carrying its length only, never any of its text', async () => {
+  const db = new PsqlAcceptDb(() =>
+    Promise.resolve({ code: 0, stdout: 'SECRETTEXT passage of a document', stderr: '', timedOut: false })
+  );
+  const e = await assertRejects(() => db.sample(BATCH, 5), Error);
+  assert(!e.message.includes('SECRET') && !e.message.includes('passage'), e.message);
+  assert(e.message.includes('not JSON'), e.message);
 });
