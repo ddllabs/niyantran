@@ -41,6 +41,32 @@ All figures were read on NTER, read-only, as a signed-in user would search. Raw 
 Not measured: a keyword rule designed for this desk; a second-stage re-ranker; whether the ten questions outside the
 first 10 before today would be answered correctly by the chat from what it now receives.
 
+## What was measured on 2026-11-19 (candidate R1)
+
+Read-only on NTER, the 55 questions, one sitting. The keyword list: every question word found in at most 2,000 chunks
+of the desk, each candidate scored by the rarity of the words it holds, the first 100 fused with the vector list as
+`match_documents_hybrid` does. Candidates were read through the keyword index and kept only if a signed-in user can
+read them (none was hidden). Raw output is outside the repository.
+
+| Variant | First 5 | First 10 | First 40 | Gained | Lost |
+|---|---|---|---|---|---|
+| Vector only | 40 | 40 | 45 | | |
+| Keyword list, equal weight | 41 | 45 | 46 | 6 | 1 |
+| Same, candidate must hold two of the words | 41 | 45 | 45 | 5 | 0 |
+| Keyword list at half weight | 39 | 41 | 45 | 2 | 1 |
+| Words in at most 300 chunks only | 36 | 40 | 44 | 1 | 1 |
+| Broken on purpose: the next question's keyword list | 35 | 39 | 42 | 0 | 1 |
+
+- R1 lifts the first 10 from 40 to 45 with no question lost, short of the bar of 47. Two of the gains (`q-0099`,
+  `q-0133`) were outside the first 100 vector passages.
+- It does not lift the first 40, which is what the chat reads: 45 either way.
+- The broken variant scores below vector only, so the measure is not empty.
+- These variants were chosen on the 55 questions, so the 55 are now a tuning set. Only a fresh set can accept R1.
+- Not measured: latency (each step ran as its own connection), the fresh set, R2.
+- An earlier attempt the same day, which ran the keyword search as a signed-in user, timed out on 53 of 55 questions:
+  the access rule is applied before the keyword condition, so the keyword index is not used. A keyword list for this
+  desk therefore needs a helper in the private schema with the access check last, as NCLT's has.
+
 ## Problem
 
 The load added 2,605 documents from the same regulators on neighbouring matters. Vector similarity alone no longer
