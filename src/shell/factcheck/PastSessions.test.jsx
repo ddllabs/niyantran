@@ -183,4 +183,17 @@ describe('fix round (M4, M5, claim states)', () => {
     expect(html).toContain('Needs context, not checked');
     expect(html).not.toMatch(/Check again|data-fc=|<input|Report|Share/);
   });
+
+  it('A1: a claim the session ended before checking shows Not checked and the reason line, never Checking', () => {
+    const html = view({
+      openId: 's1',
+      details: { s1: { phase: 'ready', capped: false, claims: [
+        claim('u', { status: 'unchecked', ended_unchecked: true, verdict: null, reason: null, sources: [] }),
+      ] } },
+    });
+    const t = text(html);
+    expect(t).toContain('Not checked');
+    expect(t).toContain(PAST_TEXT.endedUnchecked);
+    expect(t).not.toContain('Checking…');
+  });
 });

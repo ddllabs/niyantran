@@ -209,6 +209,22 @@
   .ltv-panelcol > .fc-panel { position: absolute; inset: 0; box-sizing: border-box; overflow: hidden; }
 }
 .fc-transcript-wrap { position: relative; }
+/* B2: transcript search, Copy and Download. The row wraps so nothing scrolls sideways at 375px. */
+.fc-tsearch { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+.fc-tsearch-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.fc-tsearch-input {
+  flex: 1 1 10rem; min-width: 0; min-height: 32px;
+  padding: 4px 8px;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit; font-size: 13px;
+}
+.fc-tsearch-count, .fc-tsearch-note { margin: 0; font-size: 12px; color: var(--muted); }
+.fc-tsearch-note:empty { display: none; }
+.fc-mark { color: inherit; background: var(--accent-soft); border-bottom: 2px solid var(--accent); font-weight: 700; border-radius: 2px; }
+@media (max-width: 1080px), (pointer: coarse) { .fc-tsearch-input { min-height: 40px; } }
 .fc-listening { color: var(--muted); animation: fcPulse 2.4s ease-in-out infinite; }
 .fc-transcript {
   max-height: min(16rem, 40vh); /* the one box that scrolls by itself: it follows the newest line */

@@ -155,6 +155,28 @@ describe('fetchSessionClaims', () => {
     expect(out.capped).toBe(false);
   });
 
+  it('A1: a root still pending in a settled session is returned as not checked, with the ended note flag', async () => {
+    const data = [claim('a', { status: 'pending', verdict: null, checked_at: null }), claim('b')];
+    const out = await fetchSessionClaims({ client: fakePastClient(() => ({ data })), sessionId: 's1' });
+    const a = out.claims.find((c) => c.id === 'a');
+    expect(a.status).toBe('unchecked');
+    expect(a.ended_unchecked).toBe(true);
+    expect(out.claims.find((c) => c.id === 'b').status).toBe('checked');
+    expect(out.claims.find((c) => c.id === 'b').ended_unchecked).toBeUndefined();
+  });
+
+  it('A1: a pending re-check never turns a checked root into not checked', async () => {
+    const data = [claim('a'), claim('b', { supersedes: 'a', status: 'pending', verdict: null })];
+    const out = await fetchSessionClaims({ client: fakePastClient(() => ({ data })), sessionId: 's1' });
+    expect(out.claims.map((c) => [c.id, c.status])).toEqual([['a', 'checked']]);
+  });
+
+  it('A1: a pending root with a pending re-check shows one not-checked card', async () => {
+    const data = [claim('a', { status: 'pending', verdict: null }), claim('b', { supersedes: 'a', status: 'pending', verdict: null })];
+    const out = await fetchSessionClaims({ client: fakePastClient(() => ({ data })), sessionId: 's1' });
+    expect(out.claims.map((c) => [c.id, c.status])).toEqual([['a', 'unchecked']]);
+  });
+
   it('reports the cap when more than the cap exist, and keeps only the cap', async () => {
     const data = Array.from({ length: CLAIM_CAP + 1 }, (_, i) => claim(`c${String(i).padStart(4, '0')}`));
     const out = await fetchSessionClaims({ client: fakePastClient(() => ({ data })), sessionId: 's1' });

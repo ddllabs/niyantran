@@ -273,6 +273,7 @@ export const PAST_TEXT = {
   moreError: 'Could not load more sessions.',
   detailLoading: 'Loading verdicts…',
   detailError: 'Could not load the verdicts for this session.',
+  endedUnchecked: 'The session ended before this claim was checked.',
   detailEmpty: 'No verdicts were saved for this session.',
   capped: (n) => `Showing the first ${n} results of this session.`,
   live: 'Live',

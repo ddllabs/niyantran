@@ -58,6 +58,16 @@ export function newestResults(rows) {
     .map((x) => x.pick);
 }
 
+/**
+ * A1 (F376): the results of a SETTLED session. A root claim still `pending` was never checked (the session
+ * ended first; the server leaves the row as it was), so it is shown as `unchecked` with `ended_unchecked`
+ * set for the card's note. A re-check row (`supersedes` set) is never turned: a pending one is ignored by
+ * newestResults, and a pending re-check that stands alone is not a root.
+ */
+export function settleUnchecked(rows) {
+  return rows.map((r) => (r.status === 'pending' && !r.supersedes ? { ...r, status: 'unchecked', ended_unchecked: true } : r));
+}
+
 /** One page of the user's settled sessions, newest first: { ok: true, rows, hasMore } or { ok: false }. */
 export async function listSettledSessions({ client = supabase, offset = 0 } = {}) {
   try {
@@ -88,7 +98,7 @@ export async function fetchSessionClaims({ client = supabase, sessionId } = {}) 
       .range(0, CLAIM_CAP); // one spare row tells whether the cap cut the list
     if (error || !Array.isArray(data)) return FAILED;
     const capped = data.length > CLAIM_CAP;
-    return { ok: true, claims: newestResults(capped ? data.slice(0, CLAIM_CAP) : data), capped };
+    return { ok: true, claims: settleUnchecked(newestResults(capped ? data.slice(0, CLAIM_CAP) : data)), capped };
   } catch {
     return FAILED;
   }

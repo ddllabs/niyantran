@@ -6,13 +6,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { creditsText, formatCredits } from '../../lib/creditsStore.js';
 import {
-  DELAY_SECONDS, NO_SOURCES_TEXT, blockOptions, claimBadge, confirmStart, defaultBlock, endReasonText, errorMessage, formatClock, kindTag, minutesText, reanalyzeIntroText, safeSourceUrl, seekLateText, seekPendingText, sourceLabel,
+  DELAY_SECONDS, NO_SOURCES_TEXT, PAST_TEXT, blockOptions, claimBadge, confirmStart, defaultBlock, endReasonText, errorMessage, formatClock, kindTag, minutesText, reanalyzeIntroText, safeSourceUrl, seekLateText, seekPendingText, sourceLabel,
 } from './factCheckText.js';
 import { CoveredBanner, Parts, ReportControls } from './FactCheckParts.jsx';
 import { formatPosition, partModel } from './factCheckShare.js';
 import { filterClaims, shownResult, verdictCounts } from './claimFilter.js';
 import { RovingTabs, VerdictTiles } from './FactCheckTabs.jsx';
 import { blockLine, statusLine } from './panelStatus.js';
+import { HighlightedText, TRANSCRIPT_TEXT, TranscriptBar, useTranscriptTools } from './TranscriptTools.jsx';
 
 const SILENT_NOTICE_MS = 30000;
 // The panel stacks below the player at this width and under (factCheck.css, same number).
@@ -178,12 +179,18 @@ function Waiting({ status, onStop }) {
   );
 }
 
-// Keeps the newest line in view until the reader scrolls up; a button brings them back.
-function Transcript({ lines, emptyText, listening = false, visible = true }) {
+// Keeps the newest line in view until the reader scrolls up; a button brings them back. A search box,
+// Copy and Download work on the lines held here (B2): a typed phrase narrows the view only, and new lines
+// keep arriving and keep being matched.
+function Transcript({ lines, emptyText, listening = false, visible = true, title = '' }) {
   const box = useRef(null);
   const follow = useRef(true);
   const [away, setAway] = useState(false);
-  const tail = lines.length ? `${lines.length}:${lines[lines.length - 1].text.length}:${listening ? 'l' : ''}` : '';
+  const rows = lines.map((l) => ({ key: l.seq, time: typeof l.startMs === 'number' ? formatPosition(l.startMs / 1000) : null, text: l.text }));
+  const tools = useTranscriptTools({ lines: rows, title });
+  const searching = tools.query.trim() !== '';
+  const shown = tools.shown;
+  const tail = shown.length ? `${shown.length}:${shown[shown.length - 1].text.length}:${listening && !searching ? 'l' : ''}:${searching ? tools.query : ''}` : `:${tools.query}`;
   useEffect(() => {
     const el = box.current;
     if (el && follow.current) el.scrollTop = el.scrollHeight;
@@ -202,13 +209,18 @@ function Transcript({ lines, emptyText, listening = false, visible = true }) {
     setAway(false);
   };
   return (
-    <div className="fc-transcript-wrap">
-      <div className="fc-transcript" role="region" aria-label="Transcript" aria-live="off" tabIndex={0} ref={box} onScroll={onScroll}>
-        {lines.length === 0 ? <p className="fc-empty">{emptyText}</p> : lines.map((l) => <p className="fc-line" dir="auto" key={l.seq}>{l.text}</p>)}
-        {lines.length > 0 && listening ? <p className="fc-listening" aria-hidden="true" key="listening">Listening…</p> : null}
+    <>
+      {lines.length > 0 ? <TranscriptBar tools={tools} total={lines.length} /> : null}
+      <div className="fc-transcript-wrap">
+        <div className="fc-transcript" role="region" aria-label="Transcript" aria-live="off" tabIndex={0} ref={box} onScroll={onScroll}>
+          {lines.length === 0 ? <p className="fc-empty">{emptyText}</p> : null}
+          {tools.noMatch ? <p className="fc-empty">{`${TRANSCRIPT_TEXT.noMatch}. Clear the search to see every line.`}</p> : null}
+          {shown.map((l) => <p className="fc-line" dir="auto" key={l.key}><HighlightedText text={l.text} query={tools.query} /></p>)}
+          {lines.length > 0 && listening && !searching ? <p className="fc-listening" aria-hidden="true" key="listening">Listening…</p> : null}
+        </div>
+        {away ? <button type="button" className="ltv-action-btn fc-btn fc-jump" onClick={jump}>Jump to latest</button> : null}
       </div>
-      {away ? <button type="button" className="ltv-action-btn fc-btn fc-jump" onClick={jump}>Jump to latest</button> : null}
-    </div>
+    </>
   );
 }
 
@@ -341,6 +353,7 @@ function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, shar
       {by ? <p className="fc-by">{by}</p> : null}
       {share && typeof claim.position_s === 'number' ? <p className="fc-by">{`At ${formatPosition(claim.position_s)}`}</p> : null}
       {noSources ? <p className="fc-reason fc-nosources" dir="auto">{NO_SOURCES_TEXT}</p> : null}
+      {shown.ended_unchecked === true ? <p className="fc-reason" dir="auto">{PAST_TEXT.endedUnchecked}</p> : null}
       {shown.reason ? <p className="fc-reason" dir="auto">{shown.reason}</p> : null}
       <SourceList result={shown} />
       <CheckedAt result={shown} withDate={chain.length > 1 || Boolean(share)} />
@@ -470,7 +483,7 @@ export function FactCheckPanel(props) {
 
 // Mounted while a session is on screen: focus moves to the heading when it opens, and back to the
 // entry button when it is dismissed (unless the user has already moved focus elsewhere).
-export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', playable = true, onChoose, focusRequest = null }) {
+export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', playable = true, onChoose, focusRequest = null, videoTitle = '' }) {
   const heading = useRef(null);
   const panel = useRef(null);
   const [openParts, setOpenParts] = useState({});
@@ -544,7 +557,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
   // text of what was said, so they sit in the Transcript tab when the tabs show, else where they always were.
   const parts = partsShown ? (
     <Parts
-      shared={view.shared} balance={view.balance} openIds={openParts} actions={partActions}
+      shared={view.shared} balance={view.balance} openIds={openParts} actions={partActions} title={videoTitle || channelName}
       onToggle={(id) => setOpenParts((o) => ({ ...o, [id]: !o[id] }))}
       renderCard={(c, part) => (
         <Card
@@ -660,6 +673,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
               visible={tab === 'transcript'}
               emptyText={live ? `Listening… Text appears about ${DELAY_SECONDS} seconds behind the speaker.` : 'No speech was transcribed.'}
               listening={s.status === 'running' && !isMuted && !(s.silentFor > SILENT_NOTICE_MS)}
+              title={videoTitle || channelName}
             />
           </div>
         </>
