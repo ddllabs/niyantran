@@ -87,7 +87,10 @@ pure), `scripts/bulk-runner/drive.ts` (service-account token and range reads), a
 
 Not in scope: the collection files and adapters, v1.2's bill patches, the Lok Sabha hold list, links and rows files,
 any NTER access, any change to `cli.ts`, `prepare.ts`, `plan.ts`, `run.ts` or the database. No new dependency: Deno's
-standard library and Web APIs only (WebCrypto for RS256, `DecompressionStream` for gzip and raw deflate).
+standard library and Web APIs only (WebCrypto for RS256, `DecompressionStream` for raw deflate). Since 2026-11-19
+(F370) the gzip of a documents entry is read with `node:zlib`, because v1.3 holds a file written as two gzip members
+and the Web API refuses one; the entry's hash is still checked against the manifest first, and a damaged or
+truncated member, or trailing bytes that are not a member, are refused.
 
 ## Risks
 
