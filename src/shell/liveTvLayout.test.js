@@ -55,7 +55,9 @@ describe('narrow Live TV layout (below 1081px)', () => {
     expect(panelCss).toContain('@media (max-width: 1080px)');
   });
   it('has no leftover rule for the old 1100px breakpoint or the old page body scroller', () => {
-    expect(page + panelCss).not.toMatch(/1099px|1100px|container-type|\.ltv-main:has/);
+    expect(page + panelCss).not.toMatch(/1099px|1100px|\.ltv-main:has/);
+    // The one size container is the page body from 1081px (F366 polish); nothing else is a container.
+    expect(page.match(/[{;]\s*container:/g)).toHaveLength(1);
   });
 });
 
