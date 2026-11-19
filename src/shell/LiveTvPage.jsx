@@ -19,6 +19,9 @@ import { useYoutubePlayer } from './liveTv/useYoutubePlayer.js';
 import { buildEmbedSrc, embedFrameKey } from './liveTv/embed.js';
 import './liveTv.css';
 
+const REAL_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+const SESSION_ACTIVE = new Set(['sharing', 'starting', 'running', 'ending']);
+
 // F359: a shell page at #/livetv. `open` says whether it is the page being shown; it stays mounted after the
 // first visit and draws nothing while closed. `onClose` is Back (the shell decides where to).
 export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
@@ -31,6 +34,12 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const nextEmbedMuted = useRef(true); // the mute a NEW embed mounts with; a mute toggle never rebuilds a mounted one
   const [streamError, setStreamError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  // F377: the live video YouTube data reported for a channel whose written video is not live. `lookupLive` is
+  // what the per-channel lookup said; `liveSwitch` is the decision (made once per channel selection) that the
+  // page plays it. Both name their channel, so a stale one is ignored.
+  const [lookupLive, setLookupLive] = useState(null); // { channelId, videoId }
+  const [liveSwitch, setLiveSwitch] = useState(null); // { channelId, videoId }
+  const liveDecided = useRef(''); // `${channelId}:${videoId}` already decided
 
   const [categories, setCategories] = useState(['ALL', 'NEWS', 'EDUCATION', 'POLITICS', 'ECONOMICS', 'RESEARCH', 'GENERAL']);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
@@ -122,6 +131,10 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
       .then((data) => {
         if (cancelled) return;
         setVideosLoading(false);
+        const liveId = data.liveVideo?.videoId;
+        if (data.ok && data.dataOrigin === 'youtube-api' && typeof liveId === 'string' && REAL_VIDEO_ID.test(liveId)) {
+          setLookupLive({ channelId: activeChannelId, videoId: liveId });
+        }
         if (data.ok && Array.isArray(data.recentVideos)) {
           setVideos(data.recentVideos);
         } else {
@@ -182,10 +195,16 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     };
   }, [open, selectedBroadcastId]);
 
+  // The watched channel shows LIVE when the video being played is live, by either route.
+  const liveSwitchedId = liveSwitch && liveSwitch.channelId === activeChannelId ? liveSwitch.videoId : '';
+  const shownChannels = useMemo(
+    () => (liveSwitchedId ? channels.map((c) => (c.id === activeChannelId && c.status !== 'live' ? { ...c, status: 'live' } : c)) : channels),
+    [channels, liveSwitchedId, activeChannelId],
+  );
   const filteredChannels = useMemo(() => {
-    if (!selectedCategory || selectedCategory === 'ALL') return channels;
-    return channels.filter((c) => c.category === selectedCategory);
-  }, [channels, selectedCategory]);
+    if (!selectedCategory || selectedCategory === 'ALL') return shownChannels;
+    return shownChannels.filter((c) => c.category === selectedCategory);
+  }, [shownChannels, selectedCategory]);
 
   function handlePlayVideo(video) {
     setActiveVideo(video);
@@ -198,6 +217,11 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const activeChannel = useMemo(() => {
     return channels.find((c) => c.id === activeChannelId) || channels[0] || null;
   }, [channels, activeChannelId]);
+
+  // The video live mode plays: the switched-to live video when there is one, else the written one.
+  const liveEmbedUrl = liveSwitchedId
+    ? `https://www.youtube-nocookie.com/embed/${liveSwitchedId}?autoplay=1&mute=1&playsinline=1`
+    : activeChannel?.embedUrl || '';
 
   const selectedArchiveItem = useMemo(() => {
     return archive.find((a) => a.id === selectedBroadcastId) || archive[0] || null;
@@ -252,11 +276,12 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     if (playbackMode === 'archive' && selectedArchiveItem) {
       return selectedArchiveItem.videoUrl?.replace('/embed/', '/watch?v=').split('?')[0] || activeChannel?.channelUrl || 'https://www.youtube.com';
     }
+    if (liveSwitchedId) return `https://www.youtube.com/watch?v=${liveSwitchedId}`;
     if (activeChannel?.defaultVideoId) {
       return `https://www.youtube.com/watch?v=${activeChannel.defaultVideoId}`;
     }
     return activeChannel?.channelUrl || 'https://www.youtube.com';
-  }, [playbackMode, activeVideo, selectedArchiveItem, activeChannel]);
+  }, [playbackMode, activeVideo, selectedArchiveItem, activeChannel, liveSwitchedId]);
 
   // Determine current player source
   const currentEmbedUrl =
@@ -264,7 +289,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
       ? activeVideo.embedUrl || ('https://www.youtube-nocookie.com/embed/' + (activeVideo.id || activeVideo.videoId) + '?autoplay=1&mute=1&playsinline=1')
       : playbackMode === 'archive' && selectedArchiveItem
       ? selectedArchiveItem.videoUrl
-      : activeChannel?.embedUrl || '';
+      : liveEmbedUrl;
 
   // Rebuilt only when a new iframe will mount (address, Reload Feed, Pause/Play, open), so it carries
   // the current mute then; a mute toggle alone leaves the mounted iframe's address alone.
@@ -313,6 +338,22 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
       },
     },
   });
+
+  // F377: decide, once per channel selection, whether live mode plays the live video YouTube reported. It
+  // does so only when the channel's own video is a real id that is not live (the list says `live` for it,
+  // F374), and never under a fact-check session in progress. A decision not to switch is final too, so a
+  // session that ends later does not change the video under the user.
+  const sessionActive = SESSION_ACTIVE.has(factCheck.view?.session?.status);
+  const liveCandidate = (lookupLive && lookupLive.channelId === activeChannel?.id ? lookupLive.videoId : '') || activeChannel?.liveVideoId || '';
+  useEffect(() => {
+    if (!activeChannel || !REAL_VIDEO_ID.test(liveCandidate)) return;
+    const mark = `${activeChannel.id}:${liveCandidate}`;
+    if (liveDecided.current === mark) return;
+    liveDecided.current = mark;
+    const curatedLive = activeChannel.status === 'live' && !activeChannel.liveVideoId;
+    if (curatedLive || sessionActive || !embedVideoId(activeChannel.embedUrl)) return;
+    setLiveSwitch((cur) => (cur && cur.channelId === activeChannel.id ? cur : { channelId: activeChannel.id, videoId: liveCandidate }));
+  }, [activeChannel, liveCandidate, sessionActive]);
 
   // F366: the panel is open by default and shows an idle state; the start screen opens only when the user
   // presses its entry button (nothing here asks the controller to do anything on its own).
@@ -367,7 +408,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               <span className="ltv-offline-badge">
                 <span className="ltv-offline-dot" /> OFFLINE
               </span>
-            ) : activeChannel?.status === 'live' ? (
+            ) : activeChannel?.status === 'live' || liveSwitchedId ? (
               <span className="ltv-live-badge">
                 <span className="ltv-live-dot" /> LIVE FEED
               </span>
@@ -418,6 +459,12 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
         playbackMode={playbackMode}
         loading={channelsLoading}
         onSelectChannel={(ch) => {
+          if (ch.id !== activeChannelId) {
+            // a new selection decides afresh: forget what was decided for the channel left
+            setLiveSwitch(null);
+            setLookupLive(null);
+            liveDecided.current = '';
+          }
           setActiveChannelId(ch.id);
           setPlaybackMode('live');
           setActiveVideo(null);
@@ -464,7 +511,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               </div>
             ) : isPlaying ? (
               <iframe
-                key={embedFrameKey({ channelId: activeChannelId, broadcastId: selectedBroadcastId, mode: playbackMode, reloadKey })}
+                key={embedFrameKey({ channelId: activeChannelId, broadcastId: selectedBroadcastId, mode: playbackMode, reloadKey }) + (playbackMode === 'live' && liveSwitchedId ? `-${liveSwitchedId}` : '')}
                 ref={player.iframeRef}
                 className="ltv-video-frame"
                 src={embedSrc}

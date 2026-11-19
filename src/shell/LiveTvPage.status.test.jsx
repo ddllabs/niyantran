@@ -1,5 +1,6 @@
-// F374: LIVE means the video this page plays is live. A per-channel video lookup that says "live" (it
-// reports any live upload, not the default video) must not change the header badge or the tile.
+// F374: LIVE means the video this page plays is live. A per-channel video lookup that says "live" but is not
+// YouTube data (a fallback answer) must not change the header badge or the tile. (F377: one that is YouTube data
+// does; see LiveTvPage.livevideo.test.jsx.)
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { harness, elements } from './hookHarness.js';
 
@@ -11,7 +12,7 @@ vi.mock('../lib/liveTvClient.js', () => {
   ];
   return {
     fetchLiveTvChannels: async () => ({ ok: true, channels, categories: ['NEWS'] }),
-    fetchLiveTvVideos: async () => ({ ok: true, source: 'youtube-api', dataOrigin: 'youtube-api', status: 'live', liveVideo: { videoId: 'zzzzzzzzzzz' }, recentVideos: [] }),
+    fetchLiveTvVideos: async () => ({ ok: true, source: 'youtube-api', dataOrigin: 'fallback', status: 'live', liveVideo: { videoId: 'zzzzzzzzzzz' }, recentVideos: [] }),
     fetchLiveTvSchedule: never, fetchLiveTvArchive: never, fetchLiveTvTranscript: never,
   };
 });
@@ -22,7 +23,7 @@ const { ChannelCard } = await import('./liveTv/ChannelCard.jsx');
 
 beforeEach(() => harness.reset());
 
-describe('a per-channel lookup that says live', () => {
+describe('a per-channel lookup that says live without YouTube data', () => {
   it('does not change the header badge or the tile: only the channel list says what is playing', async () => {
     const page = () => harness.render(LiveTvPage, { open: true, onClose() {} });
     page();

@@ -122,6 +122,57 @@ describe('the channel list marks live channels from one batched call', () => {
   });
 });
 
+describe('a recently opened channel with a live video of its own', () => {
+  const wion = () => YOUTUBE_SOURCES.find((c) => c.id === 'wion');
+  const entry = (over = {}) => ({
+    channelId: 'wion', status: 'live', dataOrigin: 'youtube-api',
+    liveVideo: { videoId: 'LIVEvideo_1', embedUrl: 'https://www.youtube-nocookie.com/embed/LIVEvideo_1' }, ...over,
+  });
+
+  it('is marked live with the live video id when a fresh YouTube-data entry holds one, with no extra request', async () => {
+    stubFetch((url) => videosAnswer(url, []));
+    setCached('yt-videos-wion', entry());
+    const res = await getLiveTvChannels();
+    expect(byId(res, 'wion').status).toBe('live');
+    expect(byId(res, 'wion').liveVideoId).toBe('LIVEvideo_1');
+    expect(calls).toHaveLength(1); // the one batched call of F374 and nothing for the entry
+    expect(calls.every((u) => !/search/.test(u))).toBe(true);
+  });
+
+  it('is not marked from a fallback, stale or expired entry, or an id that is not 11 characters', async () => {
+    stubFetch((url) => videosAnswer(url, []));
+    for (const over of [{ dataOrigin: 'fallback' }, { dataOrigin: 'stale' }, { liveVideo: { videoId: 'short' } }, { liveVideo: null }]) {
+      clearCache();
+      setCached('yt-videos-wion', entry(over));
+      const res = await getLiveTvChannels();
+      expect(byId(res, 'wion').status).toBe('recent');
+      expect(byId(res, 'wion').liveVideoId).toBeUndefined();
+    }
+    vi.useFakeTimers();
+    clearCache();
+    setCached('yt-videos-wion', entry());
+    vi.setSystemTime(Date.now() + 10 * 60 * 1000 + 1000);
+    const res = await getLiveTvChannels();
+    expect(byId(res, 'wion').liveVideoId).toBeUndefined();
+  });
+
+  it('adds no liveVideoId when the default video is itself live', async () => {
+    stubFetch((url) => videosAnswer(url, [wion().defaultVideoId]));
+    setCached('yt-videos-wion', entry());
+    const res = await getLiveTvChannels();
+    expect(byId(res, 'wion').status).toBe('live');
+    expect(byId(res, 'wion').liveVideoId).toBeUndefined();
+  });
+
+  it('never changes YOUTUBE_SOURCES', async () => {
+    stubFetch((url) => videosAnswer(url, []));
+    setCached('yt-videos-wion', entry());
+    const before = JSON.stringify(YOUTUBE_SOURCES);
+    await getLiveTvChannels();
+    expect(JSON.stringify(YOUTUBE_SOURCES)).toBe(before);
+  });
+});
+
 describe('the channel list never gets worse than today', () => {
   const staticStatuses = () => Object.fromEntries(enabled().map((c) => [c.id, c.status]));
   const statuses = (res) => Object.fromEntries(res.channels.map((c) => [c.id, c.status]));
