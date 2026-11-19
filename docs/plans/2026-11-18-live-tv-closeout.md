@@ -1,6 +1,6 @@
 # Live TV fact-check: close-out plan
 
-> **Status: Living (2026-11-18).** Orders the work that closes the remaining functional gaps of the Live TV fact-check
+> **Status: Living (2026-11-19).** Orders the work that closes the remaining functional gaps of the Live TV fact-check
 > (F344 and its family). It follows the [spec](../specs/2026-11-15-live-tv-fact-check.md), the
 > [past sessions spec](../specs/2026-11-18-live-tv-past-sessions.md) and the [page spec](../specs/2026-11-18-live-tv-page.md).
 > The only list of open work is [open-work.md](open-work.md). Nothing here changes production without the owner's named
@@ -33,7 +33,35 @@ Recorded verbatim from the owner:
 
 Not decided, so unchanged: the audience stays admin-only.
 
-## Current state
+## State on 2026-11-19
+
+The detail for each line is in the open-work entry named. Items marked executed were run on the live site or the
+live database. The other items are recorded as stated in those entries.
+
+- **W1, done.** One settled live-stream session was deleted on the live site on the owner's authorization. Executed:
+  14 sessions became 13, and 142 claims became 140. F360.
+- **W2, released.** Pull request 181, `7af00298`. Migration `20261120090000` applied on NTER 2026-11-18 21:01 UTC.
+  Function `factcheck` version 7 deployed 21:26 UTC. The start screen on the live site offers seven lengths
+  (executed). A real 20 or 30 minute session is still owed. F361.
+- **W3, released.** Pull request 182, `54eb731c`. Migration `20261121090000` applied 21:02 UTC. The admin page
+  "Fact-check reports" opens on the live site and showed no open reports (executed). F362.
+- **Added during the plan, F364.** Removing a video's shared results refunds each unlock once. Pull request 183,
+  `678cb548`. Migration `20261122090000` applied 21:35 UTC. No real removal with a refund has happened yet.
+- **W4, built and merged.** The spec is written. Pull request 184, `25b799df`, browser only. It is not visible on the
+  live site until W8. Not verified on a real video. F363.
+- **W5, no build.** Reference answers were made for the disputed claims. No tested design passed, so nothing was
+  built. The owner keeps the current check model. A second-step judge for numeric claims is parked in F352.
+- **Added during the plan, F365.** The rounding rule failed its measurement and is parked. Nothing was released.
+- **W6, still owed.** Each item needs the owner present: one real session on the Live TV page (ideally 20 or 30
+  minutes), the "No sources found" state, and the usage screens after a real charge.
+- **W7, parked** until the owner supplies a provider key.
+- **W8, not done.** Sharing is still off and needs the owner's go at the time. The owner settled point 1 of "Points
+  to settle": W8 waits for W1, W2, W3 and W6 only.
+- **Audience, opened.** On the owner's named go the audience was set from administrators to everyone, Free plan
+  included, on 2026-11-19 01:08 UTC, before the real session of W6. Executed: the flag reads `all` and an account
+  that is not an administrator can read it. Not verified: a session started by such an account. F344.
+
+## State when the plan was written (2026-11-18)
 
 Read from the repository, not executed, unless a line says otherwise.
 
