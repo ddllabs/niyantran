@@ -76,9 +76,9 @@ describe('CR-06 — End-to-End API Verification Suite', () => {
       }
     });
 
-    it('verifies /api/livetv/* contracts and data correctness', () => {
+    it('verifies /api/livetv/* contracts and data correctness', async () => {
       // 1. Channels
-      const chs = getLiveTvChannels();
+      const chs = await getLiveTvChannels();
       expect(chs.ok).toBe(true);
       expect(Array.isArray(chs.channels)).toBe(true);
       expect(chs.channels.length).toBeGreaterThanOrEqual(8);

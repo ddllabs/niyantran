@@ -401,6 +401,7 @@ export function setCached(key, data) {
 
 export function clearCache() {
   memoryCache.clear();
+  liveStatusInFlight = null;
 }
 
 /**
@@ -622,9 +623,80 @@ export async function fetchYouTubeChannelVideos(channel) {
 
 // ── Public API Handlers ────────────────────────────────────────────────────
 
-export function getLiveTvChannels(options = {}) {
+// F367: live state for the whole channel list from ONE videos.list call (1 quota unit, ADR 0009: no
+// search.list). The call asks about each enabled channel's default video; a channel is live when that
+// video's liveBroadcastContent is 'live'. The answer is cached for the module's 10 minutes; a failure is
+// remembered for one minute only, so a broken key or a quota stop is not retried on every list request.
+const LIVE_STATUS_KEY = 'yt-live-status';
+const LIVE_STATUS_FAILED_KEY = 'yt-live-status-failed';
+const LIVE_STATUS_FAILURE_TTL_MS = 60 * 1000;
+const LIVE_STATUS_TIMEOUT_MS = 3000;
+const VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
+let liveStatusInFlight = null;
+
+/** Ids of the channels whose default video is live; null when the answer is unknown (no key, failure). */
+async function fetchLiveChannelIds(channels) {
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  if (!apiKey) return null;
+
+  const fresh = getCached(LIVE_STATUS_KEY);
+  if (fresh && fresh.isFresh) return fresh.data;
+  const failed = getCached(LIVE_STATUS_FAILED_KEY);
+  if (failed && Date.now() - failed.timestamp < LIVE_STATUS_FAILURE_TTL_MS) return null;
+  if (liveStatusInFlight) return liveStatusInFlight;
+
+  const withVideo = channels.filter((c) => VIDEO_ID_RE.test(c.defaultVideoId || ''));
+  const ids = [...new Set(withVideo.map((c) => c.defaultVideoId))].slice(0, 50);
+  if (!ids.length) return null;
+
+  const run = (async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), LIVE_STATUS_TIMEOUT_MS);
+    try {
+      const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(
+        ids.join(','),
+      )}&key=${encodeURIComponent(apiKey)}`;
+      const resp = await fetch(url, { headers: { Accept: 'application/json' }, signal: controller.signal });
+      if (!resp.ok) throw new Error('videos.list HTTP ' + resp.status);
+      const body = await resp.json();
+      if (!Array.isArray(body?.items)) throw new Error('videos.list gave no items');
+      const liveVideoIds = new Set(
+        body.items.filter((it) => it?.snippet?.liveBroadcastContent === 'live').map((it) => it.id),
+      );
+      const liveIds = withVideo.filter((c) => liveVideoIds.has(c.defaultVideoId)).map((c) => c.id);
+      setCached(LIVE_STATUS_KEY, liveIds);
+      return liveIds;
+    } catch {
+      setCached(LIVE_STATUS_FAILED_KEY, true);
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  })();
+  liveStatusInFlight = run;
+  try {
+    return await run;
+  } finally {
+    if (liveStatusInFlight === run) liveStatusInFlight = null;
+  }
+}
+
+const DETECTED_STATUSES = new Set(['live', 'recent', 'offline']);
+
+export async function getLiveTvChannels(options = {}) {
   const category = (options.category || 'ALL').toUpperCase();
-  let channels = YOUTUBE_SOURCES.filter((c) => c.enabled !== false);
+  const enabledChannels = YOUTUBE_SOURCES.filter((c) => c.enabled !== false);
+  const liveIds = new Set((await fetchLiveChannelIds(enabledChannels)) || []);
+
+  // Copies: YOUTUBE_SOURCES is never changed. A fresh per-channel entry written from the YouTube API
+  // (fetchYouTubeChannelVideos) wins; otherwise the batched answer marks the live ones.
+  let channels = enabledChannels.map((c) => {
+    const entry = getCached(`yt-videos-${c.id}`);
+    const own = entry && entry.isFresh && entry.data?.dataOrigin === 'youtube-api' ? entry.data.status : null;
+    if (DETECTED_STATUSES.has(own)) return { ...c, status: own };
+    if (liveIds.has(c.id)) return { ...c, status: 'live' };
+    return { ...c };
+  });
 
   if (category !== 'ALL') {
     channels = channels.filter((c) => c.category === category);
@@ -665,7 +737,7 @@ export async function getLiveTvVideos(channelId) {
 
 export async function getLiveTvLiveStreams() {
   const liveChannels = [];
-  for (const ch of YOUTUBE_SOURCES) {
+  for (const ch of (await getLiveTvChannels()).channels) {
     if (ch.status === 'live') {
       liveChannels.push({
         id: ch.id,
@@ -758,7 +830,7 @@ export async function handleLiveTvApi(req, res, next) {
   try {
     if (p === '/api/livetv/channels') {
       const category = url.searchParams.get('category') || 'ALL';
-      json(res, getLiveTvChannels({ category }));
+      json(res, await getLiveTvChannels({ category }));
       return;
     }
 

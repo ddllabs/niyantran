@@ -12,7 +12,7 @@ import { LatestClaimStrip } from './factcheck/LatestClaimStrip.jsx';
 import { latestVerdictClaim } from './factcheck/claimFilter.js';
 import { leaveFullscreenThen } from './factcheck/leaveFullscreen.js';
 import { ChannelCard } from './liveTv/ChannelCard.jsx';
-import { nowPlayingLine } from './liveTv/channelView.js';
+import { applyDetectedStatuses, detectedStatusOf, nowPlayingLine } from './liveTv/channelView.js';
 import { embedVideoId, playingTarget } from './factcheck/factCheckText.js';
 import { useFactCheck } from './factcheck/useFactCheck.js';
 import { useYoutubePlayer } from './liveTv/useYoutubePlayer.js';
@@ -22,7 +22,10 @@ import './liveTv.css';
 // F359: a shell page at #/livetv. `open` says whether it is the page being shown; it stays mounted after the
 // first visit and draws nothing while closed. `onClose` is Back (the shell decides where to).
 export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
-  const [channels, setChannels] = useState([]);
+  const [channelList, setChannels] = useState([]);
+  // F367: statuses found by a channel's own video lookup this visit, { channelId: status }
+  const [detectedStatus, setDetectedStatus] = useState({});
+  const channels = useMemo(() => applyDetectedStatuses(channelList, detectedStatus), [channelList, detectedStatus]);
   const [channelsLoading, setChannelsLoading] = useState(true);
   const [activeChannelId, setActiveChannelId] = useState('dd-news');
   const [playbackMode, setPlaybackMode] = useState('live'); // 'live' | 'archive'
@@ -71,6 +74,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     if (!open) return;
     let cancelled = false;
     setChannelsLoading(true);
+    setDetectedStatus({}); // a new visit starts from the list's own statuses
     fetchLiveTvChannels().then((data) => {
       if (cancelled) return;
       setChannelsLoading(false);
@@ -122,6 +126,9 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
       .then((data) => {
         if (cancelled) return;
         setVideosLoading(false);
+        // F367: a status found from YouTube data for this channel is kept for the visit
+        const found = detectedStatusOf(data);
+        if (found) setDetectedStatus((cur) => (cur[activeChannelId] === found ? cur : { ...cur, [activeChannelId]: found }));
         if (data.ok && Array.isArray(data.recentVideos)) {
           setVideos(data.recentVideos);
         } else {

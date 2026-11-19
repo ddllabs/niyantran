@@ -25,3 +25,17 @@ export function nowPlayingLine({ mode, channel, item = null }) {
   const kind = mode === 'video' ? 'Video' : mode === 'archive' ? item?.segment || 'Archive' : channel.category;
   return [channel.name, channel.lang, kind].filter(Boolean).join(' · ');
 }
+
+const DETECTED = new Set(['live', 'recent', 'offline']);
+
+/** F367: the status found by a channel's own video lookup, only when the answer came from YouTube data ('dataOrigin' is 'youtube-api'; a fallback, stale or failed lookup says nothing); else null. */
+export function detectedStatusOf(data) {
+  return data?.ok === true && data.dataOrigin === 'youtube-api' && DETECTED.has(data.status) ? data.status : null;
+}
+
+/** F367: the list with each detected status ({ channelId: status }) laid over that channel's own. Never changes its input; returns the same array when nothing differs. */
+export function applyDetectedStatuses(channels, detected) {
+  const list = Array.isArray(channels) ? channels : [];
+  if (!detected || !list.some((c) => detected[c?.id] && detected[c.id] !== c.status)) return list;
+  return list.map((c) => (detected[c?.id] && detected[c.id] !== c.status ? { ...c, status: detected[c.id] } : c));
+}
