@@ -34,7 +34,10 @@ import {
   textBinds,
 } from './bills.ts';
 
-/** What the configuration file holds. Every field is required; an unknown field is refused. */
+/**
+ * What the configuration file holds. Every field is required except the ones marked optional (F374, the five National
+ * desks); an unknown field is refused. An absent optional field means what Regulatory's file always meant.
+ */
 export interface SearchOnlyConfig {
   collection: string;
   mapping_version: string;
@@ -44,18 +47,59 @@ export interface SearchOnlyConfig {
   /** The spelling the listing and the pack's desk_rows_feature use; links are read under it, never written. */
   desk_rows_feature: string;
   doc_type: string;
-  suggested_key_prefix: string;
+  /** Optional: further doc_type values the pack uses for this desk (budget_doc beside budget_document). Default none. */
+  doc_type_also: string[];
+  /**
+   * Optional: what a record's document_key_suggested must start with. Absent: the desk's packs carry no suggested key
+   * (Cabinet, Transfers), and a record that carries one is held as bad_shape.
+   */
+  suggested_key_prefix?: string;
   citation_required: string[];
   extraction_allowed: string[];
   source_hosts: string[];
   url_hosts: string[];
-  /** Matches the file_url of a record whose official file can be page-checked; compiled case-insensitive. */
-  pdf_url_rule: string;
+  /**
+   * Optional. Matches the file_url of a record whose official file can be page-checked; compiled case-insensitive. It
+   * names one host, or several as `(?:a\.b|c\.d)`, each one of url_hosts. Absent: the desk has no file to page-check
+   * (Cabinet and MP Profiles are web pages), and no record is ever offered to the page check.
+   */
+  pdf_url_rule?: string;
   min_chars: number;
   max_chars: number;
   replacement_fields: string[];
   replacement_flags: string[];
   allow_density_only: boolean;
+  /**
+   * Optional, default false. True: the pack's `links` are not read. A search-only document has no listing link
+   * (prepare.ts copies none and admission writes none), and the packs of Cabinet, Transfers, Industry v1.3 and MP
+   * Profiles carry links in a shape links_shape would hold (no row_key, a document_key the record does not carry, the
+   * listing spelled with commas).
+   */
+  ignore_pack_links: boolean;
+  /**
+   * Optional, default false. True: the desk's text is a web page or a dataset with no pages (page_split none and no
+   * page_count in the pack). Such a record passes text_binds with no spans and may rest on the density-only basis with
+   * no spans. A record that does carry spans is judged as ever. The policy's requirePageCount still applies: admission
+   * refuses a page-less record when it is set, so the screen holds it too.
+   */
+  unpaged_text: boolean;
+  /**
+   * Optional, default none. Accepted spellings of the desk mapped to the one written: a record naming a key of this
+   * map in desk_feature or desk_rows_feature passes the identity check, and the screened record carries the value in
+   * that field (project). Every value is this configuration's desk_feature or desk_rows_feature.
+   */
+  spelling_rewrites: Record<string, string>;
+}
+
+/** What `makeSearchOnlyScreen` takes beside the configuration and the page check. */
+export interface SearchOnlyOptions {
+  /**
+   * The repository path of this screen's configuration file, hashed with the rules in place of Regulatory's. Absent:
+   * `scripts/bulk-runner/screens/regulatory.json`.
+   */
+  configFile?: string;
+  /** Who published the stored document (default: the live citation path's resolver). A seam for tests. */
+  publisher?: (tier: unknown, feature: unknown, metadata: unknown, fileUrl: unknown) => string;
 }
 
 const SCHEMA_PREFIX = 'nter.citation_pack/1.';
@@ -125,6 +169,7 @@ const CONFIG_FIELDS = [
   'desk_feature',
   'desk_rows_feature',
   'doc_type',
+  'doc_type_also',
   'suggested_key_prefix',
   'citation_required',
   'extraction_allowed',
@@ -136,6 +181,9 @@ const CONFIG_FIELDS = [
   'replacement_fields',
   'replacement_flags',
   'allow_density_only',
+  'ignore_pack_links',
+  'unpaged_text',
+  'spelling_rewrites',
 ] as const;
 
 /** Validates the configuration strictly: every field present with the right type, nothing else. */
@@ -165,6 +213,8 @@ export function parseSearchOnlyConfig(value: unknown): SearchOnlyConfig {
     const v = get(value, k);
     return typeof v === 'boolean' ? v : fail(k, 'must be true or false');
   };
+  /** An optional flag: absent (or undefined) is false. */
+  const optionalFlag = (k: string): boolean => get(value, k) === undefined ? false : flag(k);
   const count = (k: string): number => {
     const v = get(value, k);
     return Number.isSafeInteger(v) && (v as number) >= 1 ? v as number : fail(k, 'must be a positive integer');
@@ -176,18 +226,35 @@ export function parseSearchOnlyConfig(value: unknown): SearchOnlyConfig {
     desk_feature: word('desk_feature'),
     desk_rows_feature: word('desk_rows_feature'),
     doc_type: word('doc_type'),
-    suggested_key_prefix: word('suggested_key_prefix'),
+    doc_type_also: get(value, 'doc_type_also') === undefined ? [] : words('doc_type_also'),
+    suggested_key_prefix: get(value, 'suggested_key_prefix') === undefined ? undefined : word('suggested_key_prefix'),
     citation_required: words('citation_required'),
     extraction_allowed: words('extraction_allowed'),
     source_hosts: words('source_hosts'),
     url_hosts: words('url_hosts'),
-    pdf_url_rule: word('pdf_url_rule'),
+    pdf_url_rule: get(value, 'pdf_url_rule') === undefined ? undefined : word('pdf_url_rule'),
     min_chars: count('min_chars'),
     max_chars: count('max_chars'),
     replacement_fields: words('replacement_fields', true),
     replacement_flags: words('replacement_flags', true),
     allow_density_only: flag('allow_density_only'),
+    ignore_pack_links: optionalFlag('ignore_pack_links'),
+    unpaged_text: optionalFlag('unpaged_text'),
+    spelling_rewrites: spellings(value, fail),
   };
+  if (cfg.doc_type_also.includes(cfg.doc_type) || new Set(cfg.doc_type_also).size !== cfg.doc_type_also.length) {
+    fail('doc_type_also', 'must not repeat a doc_type');
+  }
+  for (const to of Object.values(cfg.spelling_rewrites)) {
+    if (to !== cfg.desk_feature && to !== cfg.desk_rows_feature) {
+      fail('spelling_rewrites', 'must map to this desk_feature or desk_rows_feature');
+    }
+  }
+  for (const from of Object.keys(cfg.spelling_rewrites)) {
+    if (from === cfg.desk_feature || from === cfg.desk_rows_feature) {
+      fail('spelling_rewrites', 'must not accept a spelling the desk already writes');
+    }
+  }
   for (const h of cfg.url_hosts) {
     if (!/^[a-z0-9.-]+$/.test(h)) fail('url_hosts', 'must hold plain lower-case host names');
   }
@@ -195,25 +262,52 @@ export function parseSearchOnlyConfig(value: unknown): SearchOnlyConfig {
   if (cfg.max_chars > ADAPTER_MAX_CHARS) {
     fail('max_chars', `must be at most ${ADAPTER_MAX_CHARS} (the adapter's limit)`);
   }
-  if (!cfg.pdf_url_rule.startsWith('^https://') || !cfg.pdf_url_rule.endsWith('$')) {
-    fail('pdf_url_rule', 'must be anchored at both ends: start with ^https:// and end with $');
-  }
-  // The rule's host (the plain host name right after ^https://, dots escaped) must be one of the official hosts.
-  const ruleHost = /^\^https:\/\/((?:[a-z0-9-]+\\\.)*[a-z0-9-]+)\//.exec(cfg.pdf_url_rule)?.[1]?.replaceAll('\\.', '.');
-  if (ruleHost === undefined || !cfg.url_hosts.includes(ruleHost)) {
-    fail('pdf_url_rule', 'must name one host, written plainly, and it must be one of url_hosts');
-  }
-  try {
-    new RegExp(cfg.pdf_url_rule, 'i');
-  } catch {
-    fail('pdf_url_rule', 'is not a regular expression');
+  if (cfg.pdf_url_rule !== undefined) {
+    if (!cfg.pdf_url_rule.startsWith('^https://') || !cfg.pdf_url_rule.endsWith('$')) {
+      fail('pdf_url_rule', 'must be anchored at both ends: start with ^https:// and end with $');
+    }
+    // The rule's host (the plain host name right after ^https://, dots escaped; or a group `(?:a|b)` of them) must be
+    // official: every host it names is one of url_hosts.
+    const named = RULE_HOSTS.exec(cfg.pdf_url_rule);
+    const ruleHosts = (named?.[1] ?? named?.[2])?.split('|').map((h) => h.replaceAll('\\.', '.'));
+    if (ruleHosts === undefined || !ruleHosts.every((h) => cfg.url_hosts.includes(h))) {
+      fail('pdf_url_rule', 'must name its hosts plainly (one, or a group of them), and each must be one of url_hosts');
+    }
+    try {
+      new RegExp(cfg.pdf_url_rule, 'i');
+    } catch {
+      fail('pdf_url_rule', 'is not a regular expression');
+    }
   }
   return cfg;
 }
 
+const PLAIN_HOST = String.raw`(?:[a-z0-9-]+\\\.)*[a-z0-9-]+`;
+/** The host part of a pdf_url_rule: `^https://host/` or `^https://(?:host|host)/`, dots escaped. */
+const RULE_HOSTS = new RegExp(
+  String.raw`^\^https:\/\/(?:(${PLAIN_HOST})|\(\?:(${PLAIN_HOST}(?:\|${PLAIN_HOST})*)\))\/`,
+);
+
+/** The optional `spelling_rewrites` map: an object of non-empty strings to non-empty strings, copied. */
+function spellings(value: Rec, fail: (field: string, why: string) => never): Record<string, string> {
+  const v = get(value, 'spelling_rewrites');
+  if (v === undefined) return {};
+  if (!isRec(v)) return fail('spelling_rewrites', 'must be an object of accepted spellings to the one written');
+  const out: Record<string, string> = {};
+  for (const [from, to] of Object.entries(v)) {
+    if (!text(from, 1_000) || !text(to, 1_000)) {
+      return fail('spelling_rewrites', 'must map non-empty strings to non-empty strings');
+    }
+    out[from] = to;
+  }
+  return out;
+}
+
 /** The PDF URL rule of a configuration, compiled case-insensitive: for the page check and for this screen alike. */
 export function pdfUrlRule(config: unknown): RegExp {
-  return new RegExp(parseSearchOnlyConfig(config).pdf_url_rule, 'i');
+  const rule = parseSearchOnlyConfig(config).pdf_url_rule;
+  // A desk with no rule has no file to page-check: the empty negative lookahead matches nothing.
+  return rule === undefined ? /(?!)/ : new RegExp(rule, 'i');
 }
 
 // ---- helpers for checks ----
@@ -418,19 +512,71 @@ function identifierShapes(cfg: SearchOnlyConfig): Report {
 
 // ---- the screen ----
 
+const DEFAULT_CONFIG_FILE = 'scripts/bulk-runner/screens/regulatory.json';
+
+/**
+ * text_binds for a desk whose text is a web page or a dataset (unpaged_text). The pack gives such a record
+ * page_split 'none', no spans and no page_count; text_binds wants a split-less record's page_count to equal its spans,
+ * so this asks it with the count the record has: 0. A record with a declared count, or with spans, is asked as it is.
+ */
+const unpagedTextBinds: Check = {
+  ...textBinds,
+  one: (record, ctx) => {
+    const pages = get(record, 'pages');
+    const unpaged = get(record, 'page_split') === 'none' && get(record, 'page_count') == null &&
+      (pages === undefined || (Array.isArray(pages) && pages.length === 0));
+    return textBinds.one!(unpaged ? { ...record, page_count: 0 } : record, ctx);
+  },
+};
+
+/** Counts the records whose desk spelling the screen rewrote (screened records only: a held record is not written). */
+function deskSpelling(respell: (r: Rec) => Rec): Report {
+  return {
+    name: 'desk_spelling',
+    note:
+      "records whose desk_feature or desk_rows_feature was rewritten to the desk's one spelling; screened records only",
+    one(record, _ctx, outcome) {
+      return [{
+        group: outcome,
+        counts: { records: 1, rewritten: outcome === 'screened' && respell(record) !== record ? 1 : 0 },
+      }];
+    },
+  };
+}
+
 /**
  * The search-only screen for one desk. `pageCheck` is the whole-set page check (page_check.ts), built with this
  * configuration's `pdfUrlRule`; it is only ever offered records whose file_url matches that rule.
  */
-export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen {
+export function makeSearchOnlyScreen(config: unknown, pageCheck: Check, options: SearchOnlyOptions = {}): Screen {
   const cfg = parseSearchOnlyConfig(config);
+  const configFile = options.configFile ?? DEFAULT_CONFIG_FILE;
+  if (!/^scripts\/bulk-runner\/screens\/[a-z_]+\.json$/.test(configFile)) {
+    throw new Error('search-only screen: configFile must be a configuration file under scripts/bulk-runner/screens/');
+  }
+  const publisherOf = options.publisher ?? documentPublisher;
   if (
     !pageCheck || typeof pageCheck.all !== 'function' || typeof pageCheck.one === 'function' ||
     pageCheck.needs !== 'pages'
   ) {
     throw new Error('search-only screen: the page check must be a whole-set check that needs the pages');
   }
-  const pdfRule = new RegExp(cfg.pdf_url_rule, 'i');
+  const pdfRule = cfg.pdf_url_rule === undefined ? null : new RegExp(cfg.pdf_url_rule, 'i');
+  const rewrites = new Map(Object.entries(cfg.spelling_rewrites));
+  /** The spelling the desk writes for a value the desk accepts: the value itself, or what the map says. */
+  const accepted = (v: unknown, written: string): boolean =>
+    v === written || (typeof v === 'string' && rewrites.get(v) === written);
+  /** The record with its accepted spellings replaced by the written ones; the same object when nothing changes. */
+  const respell = (r: Rec): Rec => {
+    const f = get(r, 'desk_feature'), rows = get(r, 'desk_rows_feature');
+    const nf = typeof f === 'string' ? rewrites.get(f) : undefined,
+      nr = typeof rows === 'string' ? rewrites.get(rows) : undefined;
+    return nf === undefined && nr === undefined ? r : {
+      ...r,
+      ...(nf === undefined ? {} : { desk_feature: nf }),
+      ...(nr === undefined ? {} : { desk_rows_feature: nr }),
+    };
+  };
   const passed: Passed = new WeakMap();
   const basisOf = new WeakMap<object, Basis>();
 
@@ -442,12 +588,20 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen 
     const sk = get(r, 'source_key');
     if (typeof sk !== 'string' || !HEX40.test(sk)) bad.push('source_key');
     if (get(r, 'desk_tier') !== cfg.desk_tier) bad.push('desk_tier');
-    if (get(r, 'desk_feature') !== cfg.desk_feature) bad.push('desk_feature');
-    if (get(r, 'desk_rows_feature') !== cfg.desk_rows_feature) bad.push('desk_rows_feature');
-    if (get(r, 'doc_type') !== cfg.doc_type) bad.push('doc_type');
+    if (!accepted(get(r, 'desk_feature'), cfg.desk_feature)) bad.push('desk_feature');
+    if (!accepted(get(r, 'desk_rows_feature'), cfg.desk_rows_feature)) bad.push('desk_rows_feature');
+    const docType = get(r, 'doc_type');
+    if (docType !== cfg.doc_type && !(typeof docType === 'string' && cfg.doc_type_also.includes(docType))) {
+      bad.push('doc_type');
+    }
     const dk = get(r, 'document_key_suggested');
-    // A key that is not a usable string is suggested_key_invalid (source_fields); only a usable one is judged here.
-    if (text(dk) && !dk.startsWith(cfg.suggested_key_prefix)) bad.push('document_key_suggested');
+    if (cfg.suggested_key_prefix === undefined) {
+      // The desk's packs carry no suggested key; one that appears is not this desk's shape (absent and null are alike).
+      if (dk !== undefined && dk !== null) bad.push('document_key_suggested');
+    } else if (text(dk) && !dk.startsWith(cfg.suggested_key_prefix)) {
+      // A key that is not a usable string is suggested_key_invalid (source_fields); only a usable one is judged here.
+      bad.push('document_key_suggested');
+    }
     // The screen alone says how a record is known to be complete; a record that claims a basis is not trusted.
     if (Object.hasOwn(r, 'completeness_basis')) bad.push('completeness_basis');
     return bad.length ? [['bad_shape', bad.join(',')]] : [];
@@ -496,8 +650,11 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen 
     }
     // The suggested key is the document's identity: a usable string of at most 500 UTF-8 bytes (admission's limit).
     const dk = get(r, 'document_key_suggested');
-    if (!text(dk, MAX_FIELD) || !dk.isWellFormed() || utf8.encode(dk).length > MAX_SUGGESTED_KEY_BYTES) {
-      out.push(['suggested_key_invalid']);
+    // A desk with no key prefix expects none: a key that appears is held by record_shape, and an absent one is no fault.
+    if (cfg.suggested_key_prefix !== undefined || (dk !== undefined && dk !== null)) {
+      if (!text(dk, MAX_FIELD) || !dk.isWellFormed() || utf8.encode(dk).length > MAX_SUGGESTED_KEY_BYTES) {
+        out.push(['suggested_key_invalid']);
+      }
     }
     for (const k of URL_FIELDS) {
       const v = get(r, k);
@@ -525,13 +682,15 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen 
   // Whatever the resolver cannot name, this holds; the finding carries a fixed reason and no value from the record.
   const publisherUnresolved = oneCheck('publisher_unresolved', ['identity'], (r) => {
     const stored = { source_host: get(r, 'source_host'), citation: get(r, 'citation') };
-    return documentPublisher(cfg.desk_tier, cfg.desk_feature, stored, get(r, 'file_url')) === ''
+    return publisherOf(cfg.desk_tier, cfg.desk_feature, stored, get(r, 'file_url')) === ''
       ? [['publisher_unresolved']]
       : [];
   });
 
   // 4. Identity: the pack's links are read, never written.
   const linksShape = oneCheck('links_shape', ['identity'], (r) => {
+    // A desk that writes no listing link does not read the pack's (see ignore_pack_links).
+    if (cfg.ignore_pack_links) return [];
     const links = get(r, 'links');
     if (links === undefined || links === null) return [];
     if (!Array.isArray(links)) return [['link_shape', 'links is not a list']];
@@ -588,7 +747,7 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen 
 
   const isPdf = (r: Rec): boolean => {
     const u = get(r, 'file_url');
-    return typeof u === 'string' && pdfRule.test(u) && billUrlSegmentsOk(u);
+    return typeof u === 'string' && pdfRule !== null && pdfRule.test(u) && billUrlSegmentsOk(u);
   };
 
   /** Why a record without a checkable PDF has no basis, or null when the density-only basis is earned. */
@@ -598,9 +757,15 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen 
     for (const n of BASIS_CHECKS) if (!ran?.has(n)) return `check ${n} has not passed on this record`;
     const e = get(r, 'extraction');
     if (typeof e !== 'string' || !cfg.extraction_allowed.includes(e)) return 'extraction is not an allowed text layer';
-    if (get(r, 'page_split') !== 'exact') return 'page_split is not exact';
     const pages = get(r, 'pages');
-    if (!Array.isArray(pages) || pages.length === 0) return 'there are no page spans';
+    const noPages = !Array.isArray(pages) || pages.length === 0;
+    if (cfg.unpaged_text && noPages) {
+      // A web page or dataset: no spans, and the pack says so (split none; text_binds checked the rest).
+      if (get(r, 'page_split') !== 'none') return 'page_split is not none';
+      return null;
+    }
+    if (get(r, 'page_split') !== 'exact') return 'page_split is not exact';
+    if (noPages) return 'there are no page spans';
     return null;
   };
 
@@ -692,7 +857,7 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen 
       }
       const hash = await sha256Hex(record.text as string);
       const probe: Rec = {
-        ...record,
+        ...respell(record),
         completeness_basis: basis,
         text_sha256: hash,
         review: {
@@ -720,7 +885,7 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen 
     mappingVersion: cfg.mapping_version,
     rulesFiles: [
       'scripts/bulk-runner/screens/search_only.ts',
-      'scripts/bulk-runner/screens/regulatory.json',
+      configFile,
       'scripts/bulk-runner/screens/bills.ts',
       'scripts/bulk-runner/screen.ts',
       'scripts/bulk-runner/screen_types.ts',
@@ -742,7 +907,7 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen 
       sourceFields,
       publisherUnresolved,
       linksShape,
-      tracked(textBinds, passed, withoutPageNumber),
+      tracked(cfg.unpaged_text ? unpagedTextBinds : textBinds, passed, withoutPageNumber),
       tracked(makeLength(cfg.min_chars, cfg.max_chars), passed),
       tracked(density, passed),
       tracked(extraction, passed),
@@ -764,13 +929,15 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check): Screen 
       prepareHolds,
     ],
     usesPrepare: true,
-    reports: [identifierShapes(cfg)],
+    desk: { tier: cfg.desk_tier, feature: cfg.desk_feature },
+    ...(rewrites.size ? { projectRewrites: ['desk_feature', 'desk_rows_feature'] as const } : {}),
+    reports: rewrites.size ? [identifierShapes(cfg), deskSpelling(respell)] : [identifierShapes(cfg)],
     project(record) {
       const basis = basisOf.get(record);
       if (basis === undefined) {
         throw new Error('search-only project: no completeness basis was recorded for this record');
       }
-      return { ...record, completeness_basis: basis };
+      return respell({ ...record, completeness_basis: basis });
     },
   };
 }

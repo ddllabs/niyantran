@@ -1,0 +1,44 @@
+{
+  "collection": "national-industry",
+  "mapping_version": "search-only-screen-v1",
+  "desk_tier": "national",
+  "desk_feature": "Industry Updates (Ministry Data)",
+  "desk_rows_feature": "Industry Updates (Ministry Data)",
+  "doc_type": "industry_document",
+  "doc_type_also": [
+    "industry_report",
+    "industry_update"
+  ],
+  "suggested_key_prefix": "industry:",
+  "citation_required": [
+    "kind",
+    "source"
+  ],
+  "extraction_allowed": [
+    "pdf_text"
+  ],
+  "source_hosts": [
+    "eaindustry.nic.in",
+    "www.dpiit.gov.in",
+    "www.mospi.gov.in",
+    "mospi.gov.in"
+  ],
+  "url_hosts": [
+    "www.dpiit.gov.in",
+    "eaindustry.nic.in",
+    "www.mospi.gov.in",
+    "mospi.gov.in"
+  ],
+  "pdf_url_rule": "^https://(?:www\\.dpiit\\.gov\\.in|eaindustry\\.nic\\.in|www\\.mospi\\.gov\\.in|mospi\\.gov\\.in)/[^?#]+\\.pdf$",
+  "min_chars": 300,
+  "max_chars": 600000,
+  "replacement_fields": [
+    "delta_patch",
+    "replaces_text"
+  ],
+  "replacement_flags": [
+    "v16_replaces"
+  ],
+  "allow_density_only": true,
+  "ignore_pack_links": true
+}

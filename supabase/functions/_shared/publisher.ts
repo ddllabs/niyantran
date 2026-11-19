@@ -1,10 +1,12 @@
 // Who published a cited document (spec 2026-11-12-citation-attribution.md, D1).
 //
-// Pure and total. v1 covers the national Regulatory feature only. The name returned is always one of four constants from the
-// table below, chosen from the document's stored regulator code and from the hosts it names; no value from a pack or a
-// document is ever printed as the name. Every input is untrusted. A host that is malformed or outside the four domains is
-// not a candidate and does not block (an archived copy of a regulator's document is a legitimate file_url); an unknown
-// regulator code, or two different regulators among the candidates, gives no name.
+// Pure and total. v1 covered the national Regulatory feature; F374 adds the five National desks of the search-only
+// route (Budget, Cabinet, Transfers, Industry, MP Profiles), each named from its document's hosts. The name returned is
+// always one of the constants from the tables below: for Regulatory, chosen from the document's stored regulator code
+// and from the hosts it names; for the five desks, from the hosts alone. No value from a pack or a document is ever
+// printed as the name. Every input is untrusted. A host that is malformed or outside the desk's domains is not a
+// candidate and does not block (an archived copy of a document is a legitimate file_url); an unknown regulator code,
+// or two different publishers among the candidates, gives no name.
 
 /** The longest publisher a citation or a passage header may carry. */
 export const PUBLISHER_MAX_CHARS = 80;
@@ -23,7 +25,29 @@ const REGULATORS: Readonly<Record<string, { name: string; domain: string }>> = O
   CCI: { name: 'Competition Commission of India', domain: 'cci.gov.in' },
 });
 const CODES = Object.keys(REGULATORS);
-const NAMES: ReadonlySet<string> = new Set(CODES.map((code) => REGULATORS[code].name));
+
+/**
+ * The National desks named by host alone (F374). The key is the desk's feature folded as `fold` folds it, so the packs'
+ * spellings (a hyphen or a dash in Transfers, commas in MP Profiles) are one desk. A document is named only when every
+ * host it carries that falls under one of the desk's domains falls under the same one; a host outside the desk's
+ * domains is not a candidate and does not block (an archived copy), but a document with no host of its own gets no name.
+ */
+const HOST_DESKS: Readonly<Record<string, ReadonlyArray<{ name: string; domain: string }>>> = Object.freeze({
+  'budget utilisation schemes': [{ name: 'Ministry of Finance, Government of India', domain: 'indiabudget.gov.in' }],
+  'cabinet decisions': [{ name: 'Press Information Bureau, Government of India', domain: 'pib.gov.in' }],
+  'bureaucratic transfers agmut cadre': [{ name: 'Ministry of Home Affairs, Government of India', domain: 'mha.gov.in' }],
+  'mp profiles performance mplad attendance debates': [{ name: 'Parliament of India', domain: 'sansad.in' }],
+  'industry updates ministry data': [
+    { name: 'Department for Promotion of Industry and Internal Trade', domain: 'dpiit.gov.in' },
+    { name: 'Office of the Economic Adviser, DPIIT', domain: 'eaindustry.nic.in' },
+    { name: 'Ministry of Statistics and Programme Implementation', domain: 'mospi.gov.in' },
+  ],
+});
+
+const NAMES: ReadonlySet<string> = new Set([
+  ...CODES.map((code) => REGULATORS[code].name),
+  ...Object.values(HOST_DESKS).flatMap((rows) => rows.map((r) => r.name)),
+]);
 
 export function isRegulatoryFeature(tier: unknown, feature: unknown): boolean {
   try {
@@ -31,6 +55,30 @@ export function isRegulatoryFeature(tier: unknown, feature: unknown): boolean {
   } catch {
     return false;
   }
+}
+
+/** The folded name of a National desk named by host, or null (national tier only). */
+function hostDesk(tier: unknown, feature: unknown): ReadonlyArray<{ name: string; domain: string }> | null {
+  try {
+    if (tier !== TIER_NATIONAL || typeof feature !== 'string') return null;
+    const folded = fold(feature);
+    return Object.hasOwn(HOST_DESKS, folded) ? HOST_DESKS[folded] : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True only when `name` is a table name that this desk can have: one of the four regulators for Regulatory, one of the
+ * desk's own names for a host-named desk. Callers that keep a publisher off a stored or retrieved chunk should ask this,
+ * not `isPublisherName` with `isRegulatoryFeature`: the table now holds names of other desks (a Regulatory chunk
+ * carrying "Parliament of India" is not valid).
+ */
+export function isPublisherFor(tier: unknown, feature: unknown, name: unknown): boolean {
+  if (typeof name !== 'string') return false;
+  if (isRegulatoryFeature(tier, feature)) return CODES.some((code) => REGULATORS[code].name === name);
+  const desk = hostDesk(tier, feature);
+  return desk !== null && desk.some((r) => r.name === name);
 }
 
 /** True only for one of the table's names, exactly. */
@@ -75,11 +123,23 @@ function codeOfHost(host: string | null): string | null {
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /**
- * The publisher of a document: one of the four names in the table, or '' when the document is not a Regulatory one, has
- * no candidate, names a regulator outside the table, or the candidates disagree. Never throws.
+ * The publisher of a document: one of the names in the tables, or '' when the document is not Regulatory or one of the
+ * five host-named desks, has no candidate, names a regulator outside the table, or the candidates disagree. Never throws.
  */
 export function documentPublisher(tier: unknown, feature: unknown, metadata: unknown, fileUrl: unknown): string {
   try {
+    const desk = hostDesk(tier, feature);
+    if (desk !== null) {
+      const meta = isObject(metadata) ? metadata : {};
+      const citation = isObject(meta.citation) ? meta.citation : {};
+      const names = new Set<string>();
+      for (const host of [bareHost(meta.source_host), bareHost(citation.source_host), urlHost(fileUrl)]) {
+        if (!host) continue;
+        const row = desk.find((r) => host === r.domain || host.endsWith(`.${r.domain}`));
+        if (row) names.add(row.name);
+      }
+      return names.size === 1 ? [...names][0] : '';
+    }
     if (!isRegulatoryFeature(tier, feature)) return '';
     const meta = isObject(metadata) ? metadata : {};
     const citation = isObject(meta.citation) ? meta.citation : {};

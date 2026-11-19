@@ -1,6 +1,6 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { cleanFreeText } from './documentFacts.ts';
-import { documentPublisher, isPublisherName, isRegulatoryFeature, PUBLISHER_MAX_CHARS } from './publisher.ts';
+import { documentPublisher, isPublisherFor, isPublisherName, isRegulatoryFeature, PUBLISHER_MAX_CHARS } from './publisher.ts';
 
 const FEATURE = 'Regulatory Body Watch (RBI SEBI TRAI CCI)';
 const FEATURE_SLASHES = 'Regulatory Body Watch (RBI/SEBI/TRAI/CCI)';
@@ -181,7 +181,8 @@ Deno.test('each name is a closed constant: within the limit and unchanged by the
   assert(!isPublisherName('Reserve Bank of India '));
   assert(!isPublisherName('reserve bank of india'));
   assert(!isPublisherName(''));
-  assert(!isPublisherName('Parliament of India'));
+  assert(!isPublisherName('Parliament of India '));
+  assert(!isPublisherName('parliament of india'));
 });
 
 Deno.test('a regulator that is present but not a string blocks, like an unknown code; absent, null or empty means no code', () => {
@@ -230,4 +231,206 @@ Deno.test('oracle fuzz: the resolver agrees with an answer computed from how eac
   }
   // The generator reaches every name and the empty answer.
   assertEquals(seen.size, 5);
+});
+
+// ---- the five National desks (F374) ----
+
+const MOF = 'Ministry of Finance, Government of India';
+const PIB = 'Press Information Bureau, Government of India';
+const MHA = 'Ministry of Home Affairs, Government of India';
+const PARL = 'Parliament of India';
+const DPIIT = 'Department for Promotion of Industry and Internal Trade';
+const EAI = 'Office of the Economic Adviser, DPIIT';
+const MOSPI = 'Ministry of Statistics and Programme Implementation';
+const DESK_CASES: Array<{ name: string; feature: string; variants: string[]; hosts: Array<[string, string]> }> = [
+  {
+    name: 'budget',
+    feature: 'Budget Utilisation & Schemes',
+    variants: ['budget utilisation schemes', 'Budget Utilisation - Schemes'],
+    hosts: [['indiabudget.gov.in', MOF]],
+  },
+  {
+    name: 'cabinet',
+    feature: 'Cabinet Decisions',
+    variants: ['cabinet decisions', 'CABINET  DECISIONS.'],
+    hosts: [['pib.gov.in', PIB]],
+  },
+  {
+    name: 'transfers',
+    feature: 'Bureaucratic Transfers \u2014 AGMUT Cadre',
+    variants: ['Bureaucratic Transfers - AGMUT Cadre', 'bureaucratic transfers agmut cadre'],
+    hosts: [['mha.gov.in', MHA]],
+  },
+  {
+    name: 'mp_profiles',
+    feature: 'MP Profiles & Performance (MPLAD attendance debates)',
+    variants: [
+      'MP Profiles & Performance (MPLAD, attendance, debates)',
+      'mp profiles performance mplad attendance debates',
+    ],
+    hosts: [['sansad.in', PARL]],
+  },
+  {
+    name: 'industry',
+    feature: 'Industry Updates (Ministry Data)',
+    variants: ['industry updates ministry data'],
+    hosts: [['dpiit.gov.in', DPIIT], ['eaindustry.nic.in', EAI], ['mospi.gov.in', MOSPI]],
+  },
+];
+const ALL_HOSTS = DESK_CASES.flatMap((d) => d.hosts.map(([h]) => [d.name, h] as const));
+
+Deno.test('desks: each desk names its publisher from its source host, and from a file_url on the host, subdomains included', () => {
+  for (const d of DESK_CASES) {
+    for (const [h, name] of d.hosts) {
+      assertEquals(pub({ source_host: h }, undefined, 'national', d.feature), name, `${d.name} ${h}`);
+      assertEquals(pub({ source_host: `www.${h}` }, undefined, 'national', d.feature), name, `${d.name} www.${h}`);
+      assertEquals(pub({}, `https://www.${h}/a/b.pdf?x=1`, 'national', d.feature), name, `${d.name} url`);
+      assertEquals(pub({ citation: { source_host: h } }, undefined, 'national', d.feature), name, `${d.name} citation`);
+      assertEquals(pub({ source_host: h }, `https://${h}/x`, 'national', d.feature), name, `${d.name} both`);
+      assert(isPublisherName(name) && name.length <= PUBLISHER_MAX_CHARS, name);
+      assertEquals(cleanFreeText(name, PUBLISHER_MAX_CHARS), name);
+    }
+  }
+});
+
+Deno.test("desks: a desk's document on another desk's host, or an unrelated one, is not named", () => {
+  for (const d of DESK_CASES) {
+    for (const [other, h] of ALL_HOSTS) {
+      if (d.hosts.some(([x]) => x === h)) continue;
+      assertEquals(pub({ source_host: h }, undefined, 'national', d.feature), '', `${d.name} on ${other} ${h}`);
+      assertEquals(pub({}, `https://${h}/x`, 'national', d.feature), '', `${d.name} on ${other} url`);
+    }
+    for (const h of ['example.org', 'rbi.org.in', 'evil-sansad.in', 'sansad.in.evil.example', 'xsansad.in']) {
+      assertEquals(pub({ source_host: h }, undefined, 'national', d.feature), '', `${d.name} ${h}`);
+    }
+  }
+});
+
+Deno.test('desks: two different publishers among the candidates give nothing; the same publisher twice is fine', () => {
+  const ind = 'Industry Updates (Ministry Data)';
+  assertEquals(pub({ source_host: 'www.dpiit.gov.in' }, 'https://www.mospi.gov.in/a.pdf', 'national', ind), '');
+  assertEquals(
+    pub({ source_host: 'eaindustry.nic.in', citation: { source_host: 'dpiit.gov.in' } }, undefined, 'national', ind),
+    '',
+  );
+  assertEquals(pub({ source_host: 'mospi.gov.in' }, 'https://www.mospi.gov.in/a.pdf', 'national', ind), MOSPI);
+  // a host outside the desk's domains does not block, as for Regulatory (an archived copy is a legitimate file_url)
+  assertEquals(
+    pub(
+      { source_host: 'sansad.in' },
+      'https://web.archive.org/x',
+      'national',
+      'MP Profiles & Performance (MPLAD attendance debates)',
+    ),
+    PARL,
+  );
+});
+
+Deno.test('desks: malformed hosts, no host and non-string hosts give nothing', () => {
+  for (const d of DESK_CASES) {
+    const h = d.hosts[0][0];
+    for (
+      const bad of [
+        '',
+        ' ',
+        `${h}/x`,
+        `https://${h}`,
+        `a b.${h}`,
+        `.${h}`,
+        `..${h}`,
+        `-.${h}`,
+        7,
+        {},
+        [h],
+        null,
+        undefined,
+      ]
+    ) {
+      assertEquals(pub({ source_host: bad }, undefined, 'national', d.feature), '', `${d.name} ${JSON.stringify(bad)}`);
+    }
+    for (const bad of [`https://u:p@${h}/`, `ftp://${h}/x`, `http://${h}@evil.example/`, 'not a url', 7, null, {}]) {
+      assertEquals(pub({}, bad, 'national', d.feature), '', `${d.name} url ${JSON.stringify(bad)}`);
+    }
+    assertEquals(pub({}, undefined, 'national', d.feature), '', d.name);
+    assertEquals(pub(null, null, 'national', d.feature), '', d.name);
+  }
+});
+
+Deno.test('desks: the feature is matched by its folded name, so punctuation variants of the same name match', () => {
+  for (const d of DESK_CASES) {
+    const [h, name] = d.hosts[0];
+    for (const f of [d.feature, ...d.variants]) {
+      assertEquals(pub({ source_host: h }, undefined, 'national', f), name, `${d.name} ${f}`);
+    }
+  }
+  // the hyphen and the dash spellings of Transfers are one desk
+  assertEquals(
+    pub({ source_host: 'mha.gov.in' }, undefined, 'national', 'Bureaucratic Transfers - AGMUT Cadre'),
+    pub({ source_host: 'mha.gov.in' }, undefined, 'national', 'Bureaucratic Transfers \u2014 AGMUT Cadre'),
+  );
+  for (
+    const f of ['Cabinet', 'Cabinet Decisions Archive', 'Budget', 'MP Profiles', 'Bureaucratic Transfers', '', 7, null]
+  ) {
+    assertEquals(pub({ source_host: 'pib.gov.in' }, undefined, 'national', f), '', String(f));
+  }
+});
+
+Deno.test('desks: only the national tier; Regulatory is unchanged and is still the only feature isRegulatoryFeature names', () => {
+  for (const d of DESK_CASES) {
+    for (const tier of ['law', 'National', ' national', '', null, 7]) {
+      assertEquals(pub({ source_host: d.hosts[0][0] }, undefined, tier, d.feature), '', `${d.name} ${String(tier)}`);
+    }
+    assert(!isRegulatoryFeature('national', d.feature), d.name);
+  }
+  // a Regulatory document on a desk's host, and a desk's document on a regulator's host, name nothing
+  assertEquals(pub({ source_host: 'pib.gov.in' }), '');
+  assertEquals(pub({ source_host: 'rbi.org.in' }, undefined, 'national', 'Cabinet Decisions'), '');
+  assertEquals(pub({ citation: { regulator: 'RBI' } }, undefined, 'national', 'Cabinet Decisions'), '');
+});
+
+Deno.test('desks: hostile input for a desk never throws and gives nothing or a table name', () => {
+  const proxy = new Proxy({}, {
+    get() {
+      throw new Error('proxy');
+    },
+    has() {
+      throw new Error('proxy');
+    },
+  });
+  const throwing = {
+    get citation(): unknown {
+      throw new Error('getter');
+    },
+  };
+  for (const d of DESK_CASES) {
+    for (
+      const metadata of [null, 7, [], proxy, throwing, { citation: proxy }, { citation: [] }, { source_host: proxy }]
+    ) {
+      for (const fileUrl of [undefined, 7, {}, proxy, `https://${d.hosts[0][0]}/x`]) {
+        let out: string | undefined;
+        try {
+          out = documentPublisher('national', d.feature, metadata, fileUrl);
+        } catch {
+          out = undefined;
+        }
+        assert(out === '' || (out !== undefined && isPublisherName(out)), d.name);
+      }
+    }
+  }
+  assert(!isPublisherFor(proxy, proxy, proxy));
+});
+
+Deno.test('desks: isPublisherFor accepts a name only on a desk that can have it', () => {
+  for (const d of DESK_CASES) {
+    for (const [, name] of d.hosts) assert(isPublisherFor('national', d.feature, name), `${d.name} ${name}`);
+  }
+  for (const name of Object.values(NAMES)) {
+    assert(isPublisherFor('national', FEATURE, name) && isPublisherFor('national', FEATURE_SLASHES, name), name);
+    assert(!isPublisherFor('national', 'Cabinet Decisions', name), name);
+  }
+  assert(!isPublisherFor('national', FEATURE, PARL) && !isPublisherFor('national', FEATURE, MOF));
+  assert(!isPublisherFor('national', 'Cabinet Decisions', PARL) && !isPublisherFor('national', 'Cabinet Decisions', MOSPI));
+  assert(!isPublisherFor('national', 'Industry Updates (Ministry Data)', PIB));
+  assert(!isPublisherFor('law', 'Cabinet Decisions', PIB) && !isPublisherFor('national', 'Cabinet Decisions', 'press information bureau'));
+  assert(!isPublisherFor('national', 'Cabinet Decisions', 7) && !isPublisherFor(null, null, null));
 });

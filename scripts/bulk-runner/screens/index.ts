@@ -6,6 +6,11 @@ import { makePageCheck } from '../page_check.ts';
 import { makeBillsScreen } from './bills.ts';
 import { makeSearchOnlyScreen, pdfUrlRule } from './search_only.ts';
 import REGULATORY from './regulatory.json' with { type: 'json' };
+import BUDGET from './budget.json' with { type: 'json' };
+import CABINET from './cabinet.json' with { type: 'json' };
+import TRANSFERS from './transfers.json' with { type: 'json' };
+import INDUSTRY from './industry.json' with { type: 'json' };
+import MP_PROFILES from './mp_profiles.json' with { type: 'json' };
 
 const pageCheckDeps = {
   fetch: (input: URL | Request | string, init?: RequestInit) => fetch(input, init),
@@ -13,14 +18,31 @@ const pageCheckDeps = {
   now: () => Date.now(),
 };
 
+/**
+ * A search-only desk of the National packs (docs/specs/2026-11-19-five-desk-search-only-route.md): the configuration
+ * file is hashed with the rules in its own name, and the page check is built with the configuration's PDF rule.
+ */
+const deskScreen = (config: unknown, file: string) => (): Promise<Screen> =>
+  Promise.resolve(
+    makeSearchOnlyScreen(config, makePageCheck({ ...pageCheckDeps, urlRule: pdfUrlRule(config) }), {
+      configFile: `scripts/bulk-runner/screens/${file}`,
+    }),
+  );
+
 export const SCREENS: Record<string, () => Promise<Screen>> = {
   'national-bills': () => Promise.resolve(makeBillsScreen([makePageCheck(pageCheckDeps)])),
-  // Regulatory is the one search-only desk so far: its official PDFs (RBI's) are page-checked, the rest rest on the
-  // density-only basis the configuration allows.
+  // Regulatory: its official PDFs (RBI's) are page-checked, the rest rest on the density-only basis the configuration
+  // allows.
   'national-regulatory': () =>
     Promise.resolve(
       makeSearchOnlyScreen(REGULATORY, makePageCheck({ ...pageCheckDeps, urlRule: pdfUrlRule(REGULATORY) })),
     ),
+  // The five desks of F374. Each configuration says which of its files are page-checked and which rest on density.
+  'national-budget': deskScreen(BUDGET, 'budget.json'),
+  'national-cabinet': deskScreen(CABINET, 'cabinet.json'),
+  'national-transfers': deskScreen(TRANSFERS, 'transfers.json'),
+  'national-industry': deskScreen(INDUSTRY, 'industry.json'),
+  'national-mp-profiles': deskScreen(MP_PROFILES, 'mp_profiles.json'),
 };
 
 /** Whether the screen for a collection reads the collection file's prepare block (`Screen.usesPrepare`). */
