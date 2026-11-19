@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import {
   getLiveTvChannels,
   getLiveTvSchedule,
@@ -7,8 +7,12 @@ import {
 } from '../../server/liveTvApi.mjs';
 
 describe('CR-08 — Live TV Contracts and Data Verification', () => {
-  it('loads canonical channels catalogue with verified attributes', () => {
-    const data = getLiveTvChannels();
+  // no key: no test here may reach YouTube
+  beforeEach(() => { vi.stubEnv('YOUTUBE_API_KEY', ''); });
+  afterEach(() => { vi.unstubAllEnvs(); });
+
+  it('loads canonical channels catalogue with verified attributes', async () => {
+    const data = await getLiveTvChannels();
     expect(data.ok).toBe(true);
     expect(Array.isArray(data.channels)).toBe(true);
     expect(data.channels.length).toBeGreaterThanOrEqual(8);
@@ -78,7 +82,7 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
     try {
       globalThis.fetch = async (url) => {
         if (url.includes('/api/livetv/channels')) {
-          return new Response(JSON.stringify(getLiveTvChannels()));
+          return new Response(JSON.stringify(await getLiveTvChannels()));
         }
         if (url.includes('/api/livetv/schedule')) {
           return new Response(JSON.stringify(getLiveTvSchedule('dd-news')));
@@ -149,13 +153,13 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
     expect(openHtml).not.toContain('Authoritative');
   });
 
-  it('supports curated YouTube sources across all 6 required categories', () => {
-    const all = getLiveTvChannels();
+  it('supports curated YouTube sources across all 6 required categories', async () => {
+    const all = await getLiveTvChannels();
     expect(all.ok).toBe(true);
     const requiredCategories = ['NEWS', 'EDUCATION', 'POLITICS', 'ECONOMICS', 'RESEARCH', 'GENERAL'];
     for (const cat of requiredCategories) {
       expect(all.categories).toContain(cat);
-      const filtered = getLiveTvChannels({ category: cat });
+      const filtered = await getLiveTvChannels({ category: cat });
       expect(filtered.ok).toBe(true);
       expect(filtered.channels.length).toBeGreaterThanOrEqual(1);
       expect(filtered.channels.every((c) => c.category === cat)).toBe(true);
@@ -243,8 +247,8 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
     expect(norm.embedUrl).not.toContain('secret');
   });
 
-  it('verifies YouTube embed URLs avoid secrets and use privacy-enhanced domain', () => {
-    const data = getLiveTvChannels();
+  it('verifies YouTube embed URLs avoid secrets and use privacy-enhanced domain', async () => {
+    const data = await getLiveTvChannels();
     for (const ch of data.channels) {
       expect(ch.embedUrl).toContain('youtube-nocookie.com/embed');
       expect(ch.embedUrl).not.toContain('key=');

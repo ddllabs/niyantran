@@ -9,12 +9,12 @@ export function segmentCounts(channels, categories) {
   }));
 }
 
-/** LIVE, SOON or RECENT, as the channel strip has always labelled a channel. */
+/** LIVE or SOON; '' for anything else. The server marks every channel 'recent' unless it detects a live stream, so "RECENT" says nothing and is not printed. */
 export function channelStatusLabel(channel) {
-  return channel?.status === 'live' ? 'LIVE' : channel?.status === 'soon' ? 'SOON' : 'RECENT';
+  return channel?.status === 'live' ? 'LIVE' : channel?.status === 'soon' ? 'SOON' : '';
 }
 
-/** The second line of a channel tile: the status, then the language when the data has one. */
+/** The second line of a channel tile: LIVE or SOON, then the language when the data has one; '' when neither. */
 export function channelSubline(channel) {
   return [channelStatusLabel(channel), typeof channel?.lang === 'string' ? channel.lang.trim() : ''].filter(Boolean).join(' · ');
 }
