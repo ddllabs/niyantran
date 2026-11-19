@@ -534,30 +534,32 @@ export const acceptFrom = (accepted: readonly string[]) => ({ manifest_sha256 }:
   Promise.resolve(accepted.includes(manifest_sha256));
 
 /**
- * Automated acceptance (step 10): the batch passes only when every sampled check does. Its report is written beside the
- * receipts before the answer is given; a report that cannot be written is no acceptance.
+ * Automated acceptance (step 10): the batch passes only when every sampled check does. Its report is handed back to the
+ * run, which writes it beside the receipts; a report that cannot be written is no acceptance.
  */
-export const automated =
-  (db: AcceptDb, opt: AcceptOptions, dir: string, deps: Pick<CliDeps, 'writeText' | 'log'>) =>
-  async ({ batch_id, manifest_sha256 }: { batch_id: string | null; manifest_sha256: string }): Promise<boolean> => {
-    if (!batch_id) return false;
-    const report = await acceptBatch(db, batch_id, opt);
-    await deps.writeText(`${dir}/acceptance-${manifest_sha256.slice(0, 16)}.json`, JSON.stringify(report, null, 2));
-    deps.log(
-      `  acceptance ${manifest_sha256.slice(0, 16)}: ${
-        report.ok
-          ? `passed${
-            report.index_misses.length
-              ? `, ${report.index_misses.length} index miss${
-                report.index_misses.length > 1 ? 'es' : ''
-              } (exact search ranks the document first)`
-              : ''
-          }`
-          : `failed, ${report.failures.length} of ${report.sampled}`
-      }`,
-    );
-    return report.ok;
-  };
+export const automated = (db: AcceptDb, opt: AcceptOptions, deps: Pick<CliDeps, 'log'>) =>
+async (
+  { batch_id, manifest_sha256 }: { batch_id: string | null; manifest_sha256: string },
+): Promise<{ ok: boolean; reason?: string; report?: unknown }> => {
+  if (!batch_id) return { ok: false, reason: 'the batch has no id' };
+  const report = await acceptBatch(db, batch_id, opt);
+  deps.log(
+    `  acceptance ${manifest_sha256.slice(0, 16)}: ${
+      report.ok
+        ? `passed${
+          report.index_misses.length
+            ? `, ${report.index_misses.length} index miss${
+              report.index_misses.length > 1 ? 'es' : ''
+            } (exact search ranks the document first)`
+            : ''
+        }`
+        : `failed, ${report.failures.length} of ${report.sampled}`
+    }`,
+  );
+  return report.ok
+    ? { ok: true, report }
+    : { ok: false, reason: `failed, ${report.failures.length} of ${report.sampled}`, report };
+};
 
 /**
  * Splits a verified records file into part-NNN.jsonl files of at most `lines` records (blank lines dropped, each record
@@ -693,7 +695,7 @@ export async function main(argv: string[], deps: CliDeps): Promise<number> {
     writeReceipt: (name, body) => deps.writeText(`${dir}/${name}`, body),
     runId,
     accept: c.acceptService
-      ? automated(deps.acceptDb(c.psql, c.acceptService), coll.acceptance!, dir, deps)
+      ? automated(deps.acceptDb(c.psql, c.acceptService), coll.acceptance!, deps)
       : acceptFrom(c.accepted),
   });
   deps.log(`run ${runId}: ${result.completed ? 'completed' : `stopped: ${result.stop?.reason}`}`);
@@ -702,6 +704,9 @@ export async function main(argv: string[], deps: CliDeps): Promise<number> {
   const all = p.ok ? p.batches.length : 0;
   if (result.completed && result.accepted.length < all) {
     deps.log(`  ${all - result.accepted.length} of ${all} batches not accepted`);
+    for (const f of result.acceptance_failures) {
+      deps.log(`  ${f.manifest_sha256.slice(0, 16)} not accepted: ${f.reason}`);
+    }
     if (c.acceptService) return 1; // automated acceptance said no: that is a failure, not a pause
   }
   return result.completed || result.stop?.reason === 'awaiting_acceptance' ? 0 : 1;

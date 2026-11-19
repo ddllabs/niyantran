@@ -287,7 +287,12 @@ export class PsqlAcceptDb implements AcceptDb {
     if (r.code !== 0) throw new Error(`psql exited ${r.code}: ${r.stderr.trim().slice(0, 500)}`);
     const out = r.stdout.trim();
     if (!out) throw new Error('psql returned an empty answer');
-    return JSON.parse(out) as T;
+    try {
+      return JSON.parse(out) as T;
+    } catch {
+      // The answer is document data; its text must not reach an error message.
+      throw new Error(`psql returned an answer that is not JSON (${out.length} characters)`);
+    }
   }
 
   sample(batchId: string, n: number): Promise<SampleItem[]> {

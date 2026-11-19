@@ -72,9 +72,12 @@ export interface RunDeps {
   runId: string;
   /**
    * Step 10 of the bulk spec: true only when the batch passed acceptance. Batches do not chain without it; absent,
-   * failing or throwing stops the run with awaiting_acceptance before the next batch.
+   * failing or throwing stops the run with awaiting_acceptance before the next batch. A refusal may give its reason as
+   * { ok: false, reason }; a throw gives its message. The reason goes into the stop detail and, with any report it hands over, into one acceptance file beside the receipt (F356).
    */
-  accept: (info: { batch_id: string | null; manifest_sha256: string; receipt: string }) => Promise<boolean>;
+  accept: (
+    info: { batch_id: string | null; manifest_sha256: string; receipt: string },
+  ) => Promise<boolean | { ok: boolean; reason?: string; report?: unknown }>;
 }
 
 export interface RunInput {
@@ -101,6 +104,37 @@ export interface RunResult {
   receipts: string[];
   /** Manifest hashes of the batches accept confirmed. */
   accepted: string[];
+  /** The batches accept did not confirm, with why (the last batch of a run does not stop it, so it is listed here). */
+  acceptance_failures: Array<{ manifest_sha256: string; reason: string }>;
+}
+
+export const REASON_MAX = 2_000;
+const GENERIC = 'acceptance did not pass';
+
+/**
+ * The reason an acceptance gave, as text kept on disk: the message only, bounded to REASON_MAX characters, with
+ * whitespace collapsed and the usual carriers of secrets cut out (URLs, user:password@host, Authorization and Bearer
+ * values, password/secret/token/api-key style settings with = or :, quoted or not, and libpq connection settings).
+ * This is a pattern filter, not a guarantee: a secret printed in a form it does not know stays, and a message is not
+ * scanned for record text (acceptance queries by id and does not put document text in the errors it raises).
+ */
+const QUOTED = `(?:'[^']*'|"[^"]*"|\\S+)`;
+const SECRET_KEY =
+  '[\\w.-]*(?:password|passwd|pwd|secret|token|api[_-]?key|private[_-]?key|access[_-]?key|credential)[\\w.-]*';
+const LIBPQ = '(?:host|hostaddr|port|dbname|user|passfile|service|sslmode|sslcert|sslkey|sslrootcert|options)';
+const REDACTIONS: Array<[RegExp, string]> = [
+  [/\bauthorization\s*[:=]\s*(?:(?:bearer|basic|token)\s+)?\S+/gi, '[credential removed]'],
+  [/\bbearer\s+\S+/gi, '[credential removed]'],
+  [/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '[url removed]'],
+  [/\S+:\S+@\S+/g, '[address removed]'],
+  [new RegExp(`${SECRET_KEY}\\s*[=:]\\s*${QUOTED}`, 'gi'), '[credential removed]'],
+  [new RegExp(`\\b${LIBPQ}\\s*=\\s*${QUOTED}`, 'gi'), '[setting removed]'],
+];
+export function safeReason(e: unknown, max = REASON_MAX): string {
+  let text = e instanceof Error ? e.message : String(e);
+  for (const [re, to] of REDACTIONS) text = text.replace(re, to);
+  text = text.replace(/\s+/g, ' ').trim();
+  return (text || 'no reason given').slice(0, max);
 }
 
 /** Ends a batch's run with a named reason. Internal: it is caught in runBatch and never leaves this file. */
@@ -145,7 +179,7 @@ export async function run(input: RunInput, deps: RunDeps, overrides: Partial<Run
       stop,
       holds,
     });
-    return { completed: false, stop: failed ?? stop, receipts, accepted };
+    return { completed: false, stop: failed ?? stop, receipts, accepted, acceptance_failures: [] };
   };
 
   const cap = input.maxAllowedRefusalShare;
@@ -155,32 +189,80 @@ export async function run(input: RunInput, deps: RunDeps, overrides: Partial<Run
   if (!input.plan.ok) return early({ reason: input.plan.stop, detail: input.plan.detail });
 
   const all = input.plan.batches;
+  const failures: RunResult['acceptance_failures'] = [];
+  const result = (completed: boolean, stop: Stop | null): RunResult => ({
+    completed,
+    stop,
+    receipts,
+    accepted,
+    acceptance_failures: failures,
+  });
   for (const [i, batch] of all.entries()) {
     const out = await runBatch(batch, input, holds, deps, opt);
     const name = `receipt-${deps.runId}-${batch.manifest_sha256.slice(0, 16)}.json`;
     const failed = await write(name, { ...base, ...out.receipt, holds, stop: out.stop });
     const stop = out.stop ?? failed;
-    if (stop) return { completed: false, stop, receipts, accepted };
-    let ok = false;
+    if (stop) return result(false, stop);
+    // The receipt is on disk before acceptance is asked: a process that dies in acceptance leaves it. This run is then
+    // the only writer of the acceptance file (a report acceptance hands over, or else the reason), named from the receipt.
+    const fileFor = (kind: 'acceptance' | 'accept-error') => name.replace(/^receipt-/, `${kind}-`);
+    let acceptance: { accepted: boolean; reason?: string; report?: unknown };
     try {
-      ok = typeof deps.accept === 'function' &&
-        (await deps.accept({
-            batch_id: out.receipt.batch_id as string | null,
-            manifest_sha256: batch.manifest_sha256,
-            receipt: name,
-          })) === true;
-    } catch { /* an acceptance that cannot be made is not one */ }
-    if (ok) accepted.push(batch.manifest_sha256);
-    else if (i < all.length - 1) {
-      return {
-        completed: false,
-        stop: { reason: 'awaiting_acceptance', detail: `batch ${batch.manifest_sha256} is not accepted` },
-        receipts,
-        accepted,
+      const answer = typeof deps.accept === 'function'
+        ? await deps.accept({
+          batch_id: out.receipt.batch_id as string | null,
+          manifest_sha256: batch.manifest_sha256,
+          receipt: name,
+        })
+        : false;
+      if (answer === true || (typeof answer === 'object' && answer?.ok === true)) {
+        acceptance = { accepted: true, report: typeof answer === 'object' ? answer.report : undefined };
+      } else {
+        const why = typeof answer === 'object' && answer?.reason ? safeReason(answer.reason) : '';
+        acceptance = {
+          accepted: false,
+          reason: why || GENERIC,
+          report: typeof answer === 'object' ? answer?.report : undefined,
+        };
+      }
+    } catch (e) {
+      acceptance = { accepted: false, reason: safeReason(e) };
+    }
+    // A bare false (a hand acceptance not given yet) learned nothing, so it leaves no file; a report or a reason does.
+    if (acceptance.report !== undefined || (!acceptance.accepted && acceptance.reason !== GENERIC)) {
+      const body = acceptance.report !== undefined ? acceptance.report : {
+        accepted: false,
+        reason: acceptance.reason,
+        manifest_sha256: batch.manifest_sha256,
+        batch_id: out.receipt.batch_id ?? null,
       };
+      try {
+        // A full report keeps the acceptance- name; scripts/load-proof/regulatory-proof.ts reads every acceptance-* file as one.
+        await deps.writeReceipt(
+          fileFor(acceptance.report !== undefined ? 'acceptance' : 'accept-error'),
+          JSON.stringify(body, null, 2),
+        );
+      } catch (e) {
+        // The original reason stays first; a report that cannot be written is no acceptance.
+        const note = `acceptance file not written: ${safeReason(e)}`;
+        acceptance = {
+          accepted: false,
+          reason: (acceptance.reason ? `${acceptance.reason} (${note})` : note).slice(0, REASON_MAX),
+        };
+      }
+    }
+    if (acceptance.accepted) accepted.push(batch.manifest_sha256);
+    else {
+      failures.push({ manifest_sha256: batch.manifest_sha256, reason: acceptance.reason as string });
+      if (i < all.length - 1) {
+        return result(false, {
+          reason: 'awaiting_acceptance',
+          detail: `batch ${batch.manifest_sha256} is not accepted: ${acceptance.reason}`,
+        });
+      }
     }
   }
-  return { completed: true, stop: null, receipts, accepted };
+  return result(true, null);
 }
 
 async function runBatch(

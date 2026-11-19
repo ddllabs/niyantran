@@ -4,7 +4,7 @@ import type { BatchStatus, Db, RegisterDocument } from './db.ts';
 import { fake, hex, LIMITS, many } from './fixtures.ts';
 import { plan } from './plan.ts';
 import type { Hold } from './prepare.ts';
-import { DEFAULT_OPTIONS, run, type RunDeps, type RunOptions } from './run.ts';
+import { DEFAULT_OPTIONS, REASON_MAX, run, type RunDeps, type RunOptions, safeReason } from './run.ts';
 
 // deno-lint-ignore no-explicit-any
 type Json = any;
@@ -778,7 +778,7 @@ Deno.test('batches do not chain without acceptance', async () => {
     const { r, res } = await go(accept);
     assertEquals(res.stop?.reason, 'awaiting_acceptance');
     assertEquals(r.db.batches.size, 1, 'the second batch was never opened');
-    assertEquals(r.receipts.size, 1);
+    assertEquals(files56(r, 'receipt-').length, 1);
   }
   const seen: string[] = [];
   const { res } = await go((info) => {
@@ -856,3 +856,180 @@ Deno.test('the database stopping a batch mid-run is followed, whatever stopped i
 // Satisfies the type-checker that the interface FakeDb implements is the one the runner takes.
 const _db: Db = new FakeDb();
 void _db;
+
+// F356: an acceptance that does not pass keeps its reason, in a file beside the receipt.
+const files56 = (r: Rig, prefix: string) => [...r.receipts].filter(([n]) => n.startsWith(prefix));
+const reasonFile = (r: Rig): Json => {
+  const f = files56(r, 'accept-error-');
+  assertEquals(f.length, 1, 'exactly one acceptance file');
+  return JSON.parse(f[0][1]);
+};
+
+Deno.test('F356: a throw during acceptance leaves the receipt and a reason file, and the reason is in the stop detail', async () => {
+  const p = await plan(many(10_001), LIMITS);
+  const r = rig(new FakeDb(), { accept: () => Promise.reject(new Error('connection to server was lost')) });
+  const res = await run({ collection: 'bills', plan: p, holds: [], runnerCommit: 'abcdef1' }, r.deps, {});
+  assertEquals(res.stop?.reason, 'awaiting_acceptance');
+  assert(res.stop?.detail?.includes('connection to server was lost'), String(res.stop?.detail));
+  const [[name, body]] = files56(r, 'receipt-');
+  assertEquals(JSON.parse(body).acceptance, undefined, 'the receipt shape is unchanged');
+  const f = reasonFile(r);
+  assertEquals(f.accepted, false);
+  assert(f.reason.includes('connection to server was lost'));
+  assertEquals(f.manifest_sha256.length, 64);
+  assertEquals(f.batch_id, JSON.parse(body).batch_id);
+  assertEquals(
+    [...r.receipts.keys()].find((n) => n.startsWith('accept-error-')),
+    name.replace(/^receipt-/, 'accept-error-'),
+  );
+  assertEquals(files56(r, 'acceptance-').length, 0, 'regulatory-proof reads every acceptance-* file as a full report');
+});
+
+Deno.test('F356: the receipt is written before acceptance is asked, so a process that dies in acceptance leaves it', async () => {
+  const order: string[] = [];
+  const r = rig();
+  const write = r.deps.writeReceipt;
+  r.deps.writeReceipt = (n, b) => (order.push(`write ${n.split('-')[0]}`), write(n, b));
+  r.deps.accept = () => (order.push('accept'), Promise.resolve(true));
+  await start(5, r);
+  assertEquals(order, ['write receipt', 'accept']);
+});
+
+Deno.test('F356: an acceptance that answers false keeps the reason it gave, and a bare false still says so', async () => {
+  const p = await plan(many(10_001), LIMITS);
+  const a = rig(new FakeDb(), { accept: () => Promise.resolve({ ok: false, reason: 'failed, 3 of 50 sampled' }) });
+  const ra = await run({ collection: 'bills', plan: p, holds: [], runnerCommit: 'abcdef1' }, a.deps, {});
+  assert(ra.stop?.detail?.includes('failed, 3 of 50 sampled'), String(ra.stop?.detail));
+  assertEquals(reasonFile(a).reason, 'failed, 3 of 50 sampled');
+  const b = rig(new FakeDb(), { accept: () => Promise.resolve(false) });
+  const rb = await run({ collection: 'bills', plan: p, holds: [], runnerCommit: 'abcdef1' }, b.deps, {});
+  assertEquals(rb.stop?.reason, 'awaiting_acceptance');
+  assert(rb.stop?.detail?.includes('not accepted'), String(rb.stop?.detail));
+  assertEquals(
+    files56(b, 'accept-error-').length + files56(b, 'acceptance-').length,
+    0,
+    'a bare false learned nothing and leaves no file',
+  );
+});
+
+Deno.test('F356: the last batch that is not accepted still names why, in the result and a file', async () => {
+  const r = rig(new FakeDb(), { accept: () => Promise.reject(new Error('sleep killed the socket')) });
+  const res = await start(5, r);
+  assertEquals(res.completed, true);
+  assertEquals(res.accepted, []);
+  assertEquals(res.acceptance_failures.length, 1);
+  assert(res.acceptance_failures[0].reason.includes('sleep killed the socket'));
+  assert(reasonFile(r).reason.includes('sleep killed the socket'));
+});
+
+Deno.test('F356: a report the acceptance hands over is the one file, and an accepted batch with no report writes none', async () => {
+  const rep = rig(new FakeDb(), { accept: () => Promise.resolve({ ok: true, report: { ok: true, sampled: 5 } }) });
+  const res = await start(5, rep);
+  assertEquals(res.accepted.length, 1);
+  assertEquals(JSON.parse(files56(rep, 'acceptance-')[0][1]), { ok: true, sampled: 5 });
+  assertEquals(files56(rep, 'accept-error-').length, 0);
+  const bare = rig();
+  await start(5, bare);
+  assertEquals(files56(bare, 'acceptance-').length, 0);
+  const failed = rig(new FakeDb(), {
+    accept: () => Promise.resolve({ ok: false, reason: 'failed, 1 of 5', report: { ok: false } }),
+  });
+  await start(5, failed);
+  assertEquals(JSON.parse(files56(failed, 'acceptance-')[0][1]), { ok: false });
+  assertEquals(files56(failed, 'accept-error-').length, 0, 'a report is the one file');
+});
+
+Deno.test('F356: a failing write of the acceptance file does not hide the reason, and a report that cannot be written is no acceptance', async () => {
+  const w = rig(new FakeDb(), { accept: () => Promise.reject(new Error('laptop slept')) });
+  const base = w.deps.writeReceipt;
+  w.deps.writeReceipt = (n, b) =>
+    (n.startsWith('acceptance-') || n.startsWith('accept-error-'))
+      ? Promise.reject(new Error('disk full'))
+      : base(n, b);
+  const res = await start(5, w);
+  assertEquals(res.acceptance_failures.length, 1);
+  assert(res.acceptance_failures[0].reason.includes('laptop slept'));
+  assert(res.acceptance_failures[0].reason.includes('disk full'));
+  const v = rig(new FakeDb(), { accept: () => Promise.resolve({ ok: true, report: { ok: true } }) });
+  const base2 = v.deps.writeReceipt;
+  v.deps.writeReceipt = (n, b) =>
+    (n.startsWith('acceptance-') || n.startsWith('accept-error-'))
+      ? Promise.reject(new Error('disk full'))
+      : base2(n, b);
+  const rv = await start(5, v);
+  assertEquals(rv.accepted, []);
+  assert(rv.acceptance_failures[0].reason.includes('disk full'));
+});
+
+Deno.test('F356: the reason is bounded and carries no connection string or password', async () => {
+  const nasty = 'could not connect: postgresql://corpus_ingest:hunter2@db.example.com:5432/postgres?sslmode=require ' +
+    'host=db.example.com password=hunter2 user=corpus_ingest ' + 'x'.repeat(5_000);
+  const r = rig(new FakeDb(), { accept: () => Promise.reject(new Error(nasty)) });
+  await start(5, r);
+  const reason: string = reasonFile(r).reason;
+  assert(reason.length <= 2_000, `${reason.length}`);
+  assert(reason.includes('could not connect'));
+  for (const secret of ['hunter2', 'postgresql://', 'db.example.com', 'corpus_ingest']) {
+    assert(!reason.includes(secret), `reason leaks ${secret}`);
+  }
+});
+
+Deno.test('F356: a rerun of an indexed batch reaches acceptance with its batch id and registers nothing', async () => {
+  const first = rig(new FakeDb(), { accept: () => Promise.reject(new Error('laptop slept')) });
+  await start(250, first);
+  const b = [...first.db.batches.values()][0];
+  assertEquals(b.state, 'indexed', 'the load finished although acceptance did not');
+  const seen: Array<{ batch_id: string | null }> = [];
+  const again = rig(first.db, { accept: (i) => (seen.push(i), Promise.resolve(true)) });
+  const before = first.db.calls.length;
+  const res = await start(250, again);
+  assertEquals(res.accepted.length, 1);
+  assertEquals(seen.length, 1);
+  assertEquals(seen[0].batch_id, b.id);
+  for (const m of methods(first.db, before)) assert(['session', 'open', 'status'].includes(m), `a rerun called ${m}`);
+  assertEquals(realRegisters(first.db).length, 3, 'nothing was loaded again');
+});
+
+Deno.test('F356: safeReason removes quoted and unquoted secrets in the forms a driver or a shell prints', () => {
+  const cases: Array<[string, string]> = [
+    ["connect failed password='my secret pass' ok", 'secret'],
+    ['connect failed password="a b c" ok', 'b c'],
+    ['PGPASSWORD=hunter2 failed', 'hunter2'],
+    ['password: hunter2 failed', 'hunter2'],
+    ['could not reach user:pass@host:5432/db now', 'user:pass'],
+    ['bad apikey=abc123XYZ here', 'abc123XYZ'],
+    ['bad api_key: abc123XYZ here', 'abc123XYZ'],
+    ['bad token=tok_live_99 here', 'tok_live_99'],
+    ['bad SERVICE_ROLE_SECRET=s3cr3t here', 's3cr3t'],
+    ['Authorization: Bearer eyJhbGciOi.payload.sig here', 'eyJhbGciOi'],
+    ['Authorization: Bearer abc.def here', 'abc.def'],
+    ['PASSWD=zzz999 here', 'zzz999'],
+  ];
+  for (const [input, secret] of cases) {
+    const out = safeReason(new Error(input));
+    assert(!out.includes(secret), `${input} -> ${out}`);
+    assert(out.includes('here') || out.includes('ok') || out.includes('failed') || out.includes('now'), out);
+  }
+  for (const frag of ['b c"', "pass'"]) assert(!safeReason(new Error(`password="a b c"`)).includes(frag));
+});
+
+Deno.test('F356: the reason and the note about a file that was not written are bounded together', async () => {
+  const r = rig(new FakeDb(), { accept: () => Promise.reject(new Error('x'.repeat(5_000))) });
+  const base = r.deps.writeReceipt;
+  r.deps.writeReceipt = (n, b) =>
+    n.startsWith('accept-error-') ? Promise.reject(new Error('y'.repeat(5_000))) : base(n, b);
+  const res = await start(5, r);
+  assertEquals(
+    res.acceptance_failures[0].reason.length <= REASON_MAX,
+    true,
+    String(res.acceptance_failures[0].reason.length),
+  );
+});
+
+Deno.test('F356: ok false with no reason and no report is not accepted, says so, and leaves no file', async () => {
+  const r = rig(new FakeDb(), { accept: () => Promise.resolve({ ok: false }) });
+  const res = await start(5, r);
+  assertEquals(res.accepted, []);
+  assert(res.acceptance_failures[0].reason.length > 0);
+  assertEquals(files56(r, 'accept-error-').length + files56(r, 'acceptance-').length, 0);
+});
