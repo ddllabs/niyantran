@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   YOUTUBE_SOURCES, clearCache, getLiveTvChannels, fetchYouTubeChannelVideos, getLiveTvVideos, NO_LIVE_TTL_MS, QUOTA_BLOCK_MS,
+  YOUTUBE_UNITS_PER_DAY, LIST_CHECK_FAILURES_PER_DAY, REQUEST_TIMEOUT_MS,
 } from '../../server/liveTvApi.mjs';
 
 const byId = (res, id) => res.channels.find((c) => c.id === id);
@@ -55,6 +56,8 @@ describe('the batched live check with remembered live videos', () => {
     expect(c.defaultVideoId).toBe(ABP().liveHintVideoId);
     expect(c.embedUrl).toContain(`/embed/${ABP().liveHintVideoId}?`);
     expect(JSON.stringify(c)).not.toContain('liveHintVideoId');
+    expect(c.hinted).toBe(true); // marks its video as a remembered one, not a curated one
+    expect(byId(res, 'dd-news').hinted).toBeUndefined();
   });
 
   it('ignores a remembered video that is no longer live: the channel has no video to play', async () => {
@@ -95,7 +98,7 @@ describe('the batched live check with remembered live videos', () => {
 describe('the per-channel lookup: cache rules', () => {
   const CH = () => added('the-lallantop') || YOUTUBE_SOURCES.find((c) => c.lists.includes('politics') && !c.liveHintVideoId && c.id !== 'dhruv-rathee');
 
-  it('keeps an answer that found no live video for thirty minutes', async () => {
+  it('keeps an answer that found no live video for sixty minutes', async () => {
     vi.useFakeTimers();
     stub({ uploads: ['RECENT00001'] });
     const first = await fetchYouTubeChannelVideos(CH());
@@ -103,13 +106,13 @@ describe('the per-channel lookup: cache rules', () => {
     expect(first.liveVideo).toBeNull();
     const n = calls.length;
     expect(n).toBe(2); // playlistItems + videos: 2 units
-    vi.setSystemTime(Date.now() + 25 * MIN);
+    vi.setSystemTime(Date.now() + 55 * MIN);
     await fetchYouTubeChannelVideos(CH());
     expect(calls).toHaveLength(n);
     vi.setSystemTime(Date.now() + 6 * MIN);
     await fetchYouTubeChannelVideos(CH());
     expect(calls.length).toBeGreaterThan(n);
-    expect(NO_LIVE_TTL_MS).toBe(30 * MIN);
+    expect(NO_LIVE_TTL_MS).toBe(60 * MIN);
   });
 
   it('keeps an answer that found a live video for ten minutes', async () => {
@@ -189,7 +192,7 @@ describe('the per-channel lookup: quota', () => {
     expect(calls.every((u) => ['playlistItems', 'videos'].includes(kind(u)))).toBe(true);
   });
 
-  it('stops asking when this instance has spent its daily units, and starts again the next day', async () => {
+  it('stops asking when this instance has spent its daily units', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-11-20T10:00:00Z'));
     vi.stubEnv('LIVETV_LOOKUP_UNITS_PER_DAY', '4');
@@ -200,12 +203,255 @@ describe('the per-channel lookup: quota', () => {
     const third = await fetchYouTubeChannelVideos(added('news18-india'));
     expect(calls).toHaveLength(4);
     expect(third.dataOrigin).toBe('fallback');
-    vi.setSystemTime(new Date('2026-11-21T00:30:00Z'));
-    clearCacheKeepingBudget();
-    await fetchYouTubeChannelVideos(added('news18-india'));
-    expect(calls.length).toBeGreaterThan(4);
+    expect(third.reason).toBe('budget');
   });
 });
 
-// The per-channel entries expire on their own; this just lets the next day's lookup run in a test.
-function clearCacheKeepingBudget() { vi.advanceTimersByTime(40 * MIN); }
+describe('the daily budget: a YouTube day is a Pacific day, and the list check is in it', () => {
+  const A = () => added('abp-news');
+  const B = () => added('zee-news');
+  const run = async (when) => { vi.setSystemTime(new Date(when)); await fetchYouTubeChannelVideos(A()); };
+
+  it('is not renewed at UTC midnight, which is mid-afternoon in California', async () => {
+    vi.useFakeTimers();
+    vi.stubEnv('LIVETV_LOOKUP_UNITS_PER_DAY', '2');
+    stub({ uploads: ['RECENT00001'] });
+    await run('2026-11-19T23:30:00Z'); // 15:30 Pacific, 2 units: spent
+    expect(calls).toHaveLength(2);
+    vi.setSystemTime(new Date('2026-11-20T00:30:00Z')); // a new UTC date, the same Pacific day
+    await fetchYouTubeChannelVideos(B());
+    expect(calls).toHaveLength(2);
+  });
+
+  it('is renewed at midnight Pacific', async () => {
+    vi.useFakeTimers();
+    vi.stubEnv('LIVETV_LOOKUP_UNITS_PER_DAY', '2');
+    stub({ uploads: ['RECENT00001'] });
+    await run('2026-11-20T07:30:00Z'); // 23:30 Pacific on the 19th
+    expect(calls).toHaveLength(2);
+    vi.setSystemTime(new Date('2026-11-20T08:30:00Z')); // 00:30 Pacific on the 20th
+    await fetchYouTubeChannelVideos(B());
+    expect(calls).toHaveLength(4);
+  });
+
+  it('counts the list check and the lookups together, and does not start a lookup it cannot finish', async () => {
+    vi.stubEnv('LIVETV_LOOKUP_UNITS_PER_DAY', '3');
+    stub({ uploads: ['RECENT00001'] });
+    await getLiveTvChannels(); // two videos.list requests: 2 units
+    expect(calls).toHaveLength(2);
+    const out = await fetchYouTubeChannelVideos(A()); // needs 2, 1 is left
+    expect(calls).toHaveLength(2);
+    expect(out.dataOrigin).toBe('fallback');
+    expect(out.reason).toBe('budget');
+  });
+
+  it('does not start a list check it cannot finish', async () => {
+    vi.stubEnv('LIVETV_LOOKUP_UNITS_PER_DAY', '1');
+    stub();
+    const res = await getLiveTvChannels(); // needs two requests, has one unit
+    expect(calls).toHaveLength(0);
+    expect(res.channels.every((c) => c.status !== 'live')).toBe(true);
+  });
+
+  it('limits how often a failing list check is tried in a day', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-20T10:00:00Z'));
+    stub({ status: 503 });
+    for (let i = 0; i < 40; i += 1) {
+      await getLiveTvChannels();
+      vi.setSystemTime(new Date(Date.now() + 6 * MIN));
+    }
+    expect(calls.length).toBeLessThanOrEqual(LIST_CHECK_FAILURES_PER_DAY * 2);
+    expect(calls.length).toBeGreaterThan(0);
+  });
+});
+
+describe('the units a day', () => {
+  it('is 3,000 by default, for everything one instance asks YouTube', () => {
+    expect(YOUTUBE_UNITS_PER_DAY).toBe(3000);
+  });
+  it('is read as a number of units, 0 or more; 0 means no YouTube calls at all', async () => {
+    stub();
+    vi.stubEnv('LIVETV_LOOKUP_UNITS_PER_DAY', '0');
+    await getLiveTvChannels();
+    const out = await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(calls).toHaveLength(0);
+    expect(out.reason).toBe('budget');
+  });
+  it.each(['-5', 'abc', '', ' ', 'NaN', 'Infinity'])('treats %j as not set', async (raw) => {
+    stub();
+    vi.stubEnv('LIVETV_LOOKUP_UNITS_PER_DAY', raw);
+    await getLiveTvChannels();
+    expect(calls.length).toBeGreaterThan(0); // the default budget applies
+  });
+});
+
+describe('a request that hangs', () => {
+  it('answers from the curated data after four seconds, and frees the shared lookup', async () => {
+    vi.useFakeTimers();
+    let aborted = 0;
+    vi.stubGlobal('fetch', vi.fn((url, init) => {
+      calls.push(String(url));
+      return new Promise((_, reject) => { init.signal.addEventListener('abort', () => { aborted += 1; reject(new Error('aborted')); }); });
+    }));
+    const pending = fetchYouTubeChannelVideos(added('abp-news'));
+    await vi.advanceTimersByTimeAsync(4100);
+    const out = await pending;
+    expect(aborted).toBe(1);
+    expect(out.dataOrigin).toBe('fallback');
+    expect(out.reason).toBe('timeout');
+    expect(REQUEST_TIMEOUT_MS).toBe(4000);
+    // a failure is kept a minute only: a minute later the lookup is made again
+    await vi.advanceTimersByTimeAsync(61 * 1000);
+    stub({ uploads: ['RECENT00001'] });
+    calls = [];
+    await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(calls.length).toBeGreaterThan(0);
+  });
+});
+
+describe('a 403 is blocked for the whole key only when it is about the key or the quota', () => {
+  const refuse = (reason, status = 403) => vi.stubGlobal('fetch', vi.fn(async (url) => {
+    calls.push(String(url));
+    return new Response(JSON.stringify(reason === undefined ? {} : { error: { errors: [{ reason }] } }), { status });
+  }));
+  it.each(['quotaExceeded', 'dailyLimitExceeded', 'rateLimitExceeded', 'userRateLimitExceeded', 'accessNotConfigured', 'keyInvalid', 'forbidden', undefined])(
+    'reason %s: nothing else is asked for thirty minutes',
+    async (reason) => {
+      refuse(reason);
+      await fetchYouTubeChannelVideos(added('abp-news'));
+      const n = calls.length;
+      const other = await fetchYouTubeChannelVideos(added('zee-news'));
+      expect(calls).toHaveLength(n);
+      expect(other.reason).toBe('quota');
+    },
+  );
+  it('a private playlist is only that channel: other channels are still asked, and this one is not asked again for a while', async () => {
+    vi.useFakeTimers();
+    refuse('playlistItemsNotAccessible');
+    const first = await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(first.dataOrigin).toBe('fallback');
+    expect(first.reason).toBe('inaccessible');
+    const n = calls.length;
+    await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(calls).toHaveLength(n);
+    vi.setSystemTime(Date.now() + 29 * MIN); // still remembered after 29 minutes
+    await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(calls).toHaveLength(n);
+    await fetchYouTubeChannelVideos(added('zee-news'));
+    expect(calls.length).toBeGreaterThan(n);
+    const list = await getLiveTvChannels();
+    expect(list.ok).toBe(true);
+    vi.setSystemTime(Date.now() + 2 * MIN); // 31 minutes: asked again
+    const before = calls.length;
+    await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(calls.length).toBeGreaterThan(before);
+  });
+
+  it('a private videos.list is kept thirty minutes for that channel too, and a missing playlist is "inaccessible"', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      calls.push(String(url));
+      if (kind(url) === 'playlistItems') return new Response(JSON.stringify({ items: [upload('RECENT00001')] }), { status: 200 });
+      return new Response(JSON.stringify({ error: { errors: [{ reason: 'videoNotAccessible' }] } }), { status: 403 });
+    }));
+    const first = await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(first.reason).toBe('inaccessible');
+    const n = calls.length;
+    vi.setSystemTime(Date.now() + 29 * MIN);
+    await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(calls).toHaveLength(n);
+    vi.setSystemTime(Date.now() + 2 * MIN);
+    await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(calls.length).toBeGreaterThan(n);
+  });
+
+  it('a 404 playlistNotFound is that channel only, kept thirty minutes', async () => {
+    vi.useFakeTimers();
+    refuse('playlistNotFound', 404);
+    const first = await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(first.reason).toBe('inaccessible');
+    const n = calls.length;
+    vi.setSystemTime(Date.now() + 29 * MIN);
+    await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(calls).toHaveLength(n);
+    await fetchYouTubeChannelVideos(added('zee-news')); // the key is fine
+    expect(calls.length).toBeGreaterThan(n);
+  });
+
+  it.each([
+    ['reason keyInvalid', { error: { errors: [{ reason: 'keyInvalid' }] } }],
+    ['a bad request about the API key', { error: { message: 'API key not valid. Please pass a valid API key.', errors: [{ reason: 'badRequest' }] } }],
+  ])('an HTTP 400 with %s blocks the whole key for thirty minutes', async (_n, body) => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn(async (url) => { calls.push(String(url)); return new Response(JSON.stringify(body), { status: 400 }); }));
+    const first = await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(first.reason).toBe('quota');
+    const n = calls.length;
+    const other = await fetchYouTubeChannelVideos(added('zee-news'));
+    expect(calls).toHaveLength(n);
+    expect(other.reason).toBe('quota');
+    vi.setSystemTime(Date.now() + 31 * MIN);
+    stub({ uploads: ['RECENT00001'] });
+    calls = [];
+    await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(calls.length).toBeGreaterThan(0);
+  });
+
+  it('an HTTP 400 about something else is only that call', async () => {
+    refuse('invalidPageToken', 400);
+    const first = await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(first.reason).toBe('error');
+    const n = calls.length;
+    await fetchYouTubeChannelVideos(added('zee-news'));
+    expect(calls.length).toBeGreaterThan(n);
+  });
+  it('a server error is kept for a minute and gives the reason error', async () => {
+    vi.useFakeTimers();
+    refuse(undefined, 500);
+    const out = await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(out.reason).toBe('error');
+    const n = calls.length;
+    vi.setSystemTime(Date.now() + 61 * 1000);
+    await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(calls.length).toBeGreaterThan(n);
+  });
+});
+
+describe('parallel requests and a small budget', () => {
+  it('spend exactly the budget: six lookups at once at three units make three requests', async () => {
+    vi.stubEnv('LIVETV_LOOKUP_UNITS_PER_DAY', '3');
+    stub({ uploads: ['RECENT00001'] });
+    const ids = ['abp-news', 'zee-news', 'india-tv', 'news18-india', 'ndtv-india', 'republic-bharat'];
+    const out = await Promise.all(ids.map((id) => fetchYouTubeChannelVideos(added(id))));
+    expect(calls).toHaveLength(3);
+    expect(out.every((o) => o.ok)).toBe(true);
+  });
+  it('list checks and lookups together never pass the budget either', async () => {
+    vi.stubEnv('LIVETV_LOOKUP_UNITS_PER_DAY', '4');
+    stub({ uploads: ['RECENT00001'] });
+    await Promise.all([getLiveTvChannels(), fetchYouTubeChannelVideos(added('abp-news')), fetchYouTubeChannelVideos(added('zee-news')), fetchYouTubeChannelVideos(added('india-tv'))]);
+    expect(calls.length).toBeLessThanOrEqual(4);
+  });
+});
+
+describe('what the answer says about where it came from', () => {
+  it('has no reason, and dataOrigin youtube-api, when YouTube answered', async () => {
+    stub({ uploads: ['RECENT00001'] });
+    const out = await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(out.dataOrigin).toBe('youtube-api');
+    expect(out.reason).toBeUndefined();
+  });
+  it('says no-key without a key', async () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv('YOUTUBE_API_KEY', '');
+    const out = await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(out.reason).toBe('no-key');
+  });
+  it('treats a channel with no uploads at all as known: nothing live, nothing to show', async () => {
+    stub({ uploads: [] });
+    const out = await fetchYouTubeChannelVideos(added('theprint'));
+    expect(out.dataOrigin).toBe('youtube-api');
+    expect(out.recentVideos).toEqual([]);
+  });
+});

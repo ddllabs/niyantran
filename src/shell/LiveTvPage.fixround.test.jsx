@@ -142,9 +142,11 @@ describe('2: the switch follows what YouTube says now, and is reset when the pag
     expect(frame(out).props.src).toContain(`/embed/${CURATED}?`);
   });
 
-  it('does not use the list from before the page was opened again, while the new list is on its way', async () => {
+  it('does not use a list over ten minutes old when the page is opened again, while the new list is on its way', async () => {
+    vi.useFakeTimers();
     const out0 = await open([channel({ liveVideoId: LIVE })], () => new Promise(() => {}));
     expect(frame(out0).props.src).toContain(LIVE);
+    vi.setSystemTime(Date.now() + 11 * 60 * 1000);
     let release;
     h.listGate = new Promise((r) => { release = r; });
     h.channels = [channel()]; // the list now reports no live video
@@ -174,12 +176,13 @@ describe('3: a tile says LIVE only when this client will play a live video when 
     expect(tile(out, 'dd-news').status).toBe('recent');
   });
   it('keeps a curated-live channel LIVE', async () => {
-    const out = await open([channel({ status: 'live' }), channel({ id: 'wion', name: 'WION' })], async () => none());
+    const out = await open([channel({ status: 'live' }), channel({ id: 'wion', name: 'WION' })], async () => answer({ liveVideo: { videoId: CURATED } }));
     expect(tile(out, 'dd-news').status).toBe('live');
     expect(badge(out)).toBe('ltv-live-badge');
   });
   it('shows a switchable channel with a liveVideoId as playing live when it is opened', async () => {
     const out0 = await open([channel(), channel({ id: 'wion', name: 'WION', liveVideoId: LIVE2 })], async () => none());
+    h.lookup = () => new Promise(() => {}); // the lookup is out: the young list is believed meanwhile
     card(out0).props.onSelectChannel({ id: 'wion' });
     render(); await flush();
     const out = render();

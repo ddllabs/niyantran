@@ -13,7 +13,9 @@ import { latestVerdictClaim } from './factcheck/claimFilter.js';
 import { leaveFullscreenThen } from './factcheck/leaveFullscreen.js';
 import { ChannelCard } from './liveTv/ChannelCard.jsx';
 import { ChannelBar } from './liveTv/ChannelBar.jsx';
-import { browserStorage, readFollowing, writeFollowing, toggleFollowing } from './liveTv/following.js';
+import { browserStorage, readFollowing, writeFollowing, toggleFollowing, FOLLOW_KEY, FOLLOW_FULL, FOLLOW_MAX } from './liveTv/following.js';
+import { watchAboveSplit } from './liveTv/aboveSplit.js';
+import { TABS } from '../desks/tabs.js';
 import { nowPlayingLine } from './liveTv/channelView.js';
 import { embedVideoId, playingTarget } from './factcheck/factCheckText.js';
 import { useFactCheck } from './factcheck/useFactCheck.js';
@@ -28,12 +30,17 @@ const LINK_CHANNEL_ID = 'youtube-link'; // what the fact-check server stores for
 const SESSION_ACTIVE = new Set(['sharing', 'starting', 'running', 'ending']);
 const SESSION_OPEN = new Set([...SESSION_ACTIVE, 'choosing']); // the panel is busy with a session or a start screen
 
-// The channel's own video is live (the list says so, F374); a liveVideoId is a different video, found later.
-const curatedLiveOf = (c) => c.status === 'live' && !c.liveVideoId;
-// This page can play a live video for the channel: its written video is a real one that is not live, or it has none.
-// A channel added without a curated video (no embed address) can play a live video found for it.
-const switchableOf = (c) => !curatedLiveOf(c) && (!c.embedUrl || Boolean(embedVideoId(c.embedUrl)));
-const willPlayLive = (c) => curatedLiveOf(c) || (REAL_VIDEO_ID.test(c.liveVideoId || '') && switchableOf(c));
+// How long a read of the channel list is believed about who is live (the server keeps its own answer that long).
+const LIST_MAX_AGE_MS = 10 * 60 * 1000;
+const TAB_IDS = new Set(TABS.map((t) => t.id));
+// The list's "live" is about the channel's own video; a liveVideoId is a different video, found later.
+const listLiveOf = (c) => c.status === 'live' && !c.liveVideoId;
+// This page can play a live video for the channel: its written video is a real one that is not live, a remembered
+// one (confirmed live by the list, so replaceable), or it has none.
+const switchableOf = (c, trusted) => !trusted && (!c.embedUrl || Boolean(c.hinted) || Boolean(embedVideoId(c.embedUrl)));
+// A tile says LIVE for a channel other than the one watched only while the list is young, and only if this page
+// would play a live video when the channel is opened.
+const willPlayLive = (c, listFresh) => listFresh && (listLiveOf(c) || (REAL_VIDEO_ID.test(c.liveVideoId || '') && switchableOf(c, false)));
 
 // F359: a shell page at #/livetv. `open` says whether it is the page being shown; it stays mounted after the
 // first visit and draws nothing while closed. `onClose` is Back (the shell decides where to).
@@ -51,9 +58,17 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   // what the per-channel lookup said; `liveSwitch` is the video live mode plays instead of the written one. The
   // switch follows the newest candidate (the lookup, else the channel list) except under a running session on
   // the same video, and is reset when the page is opened again. Both name their channel.
-  const [lookupLive, setLookupLive] = useState(null); // { channelId, videoId }
+  // `lookupInfo` is what the per-channel lookup said for its channel: { channelId, videoId ('' = no live video),
+  // authoritative (the answer came from YouTube data, so "none" is true), reason }. null while it is out.
+  const [lookupInfo, setLookupInfo] = useState(null);
   const [liveSwitch, setLiveSwitch] = useState(null); // { channelId, videoId }
-  const [channelsFresh, setChannelsFresh] = useState(false); // the list was read since the page was opened
+  const [listReadAt, setListReadAt] = useState(0); // when the channel list was last read (ms); 0 = not yet
+  const [, setClock] = useState(0); // bumped when the list turns old, so the page draws without a stale LIVE
+  const [channelsNonce, setChannelsNonce] = useState(0); // a pick after the list turned old reads it again
+  const [videosOwner, setVideosOwner] = useState(''); // the channel `videos` belongs to
+  const [barModal, setBarModal] = useState(false); // the phone sheet is open: the page behind it is inert
+  const [followNote, setFollowNote] = useState('');
+  const contradictedRef = useRef(false); // whether YouTube data contradicted the list when no session held the video
   const sessionHeld = useRef(false); // a session is running on the video now playing: nothing may change it
   const sessionTargetRef = useRef(''); // the target the open session or start screen belongs to
   const sessionStatusRef = useRef('idle');
@@ -68,6 +83,9 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const [playerInfo, setPlayerInfo] = useState(null);
   const [playerError, setPlayerError] = useState(null); // the player's error code, or null
 
+  const mainRef = useRef(null);
+  const splitRef = useRef(null);
+  const barRef = useRef(null);
   const [lists, setLists] = useState([]); // the client's ten lists, from the server; none means the older category card
   const [followIds, setFollowIds] = useState(() => readFollowing(browserStorage())); // "My list", this browser only
   const [lookupNonce, setLookupNonce] = useState(0); // Reload on the not-live card asks the lookup again
@@ -110,15 +128,13 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    setChannelsLoading(true);
-    if (!sessionHeld.current) setChannelsFresh(false); // the list held from the last visit may be hours old
     fetchLiveTvChannels().then((data) => {
       if (cancelled) return;
       setChannelsLoading(false);
       if (data.ok && Array.isArray(data.channels) && data.channels.length) {
         setChannels(data.channels);
         setLists(Array.isArray(data.lists) ? data.lists : []);
-        setChannelsFresh(true);
+        setListReadAt(Date.now());
         if (Array.isArray(data.categories) && data.categories.length) {
           setCategories(['ALL', ...data.categories.filter((c) => c !== 'ALL')]);
         }
@@ -129,14 +145,25 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, channelsNonce]);
+
+  // What the list and a lookup say about who is live is believed for ten minutes; the page draws again when that
+  // is over (the video keeps playing; only the word LIVE goes). Nothing is asked of the server by this.
+  const lookupAt = lookupInfo && lookupInfo.authoritative && lookupInfo.videoId ? lookupInfo.at : 0;
+  useEffect(() => {
+    const now = Date.now();
+    const waits = [listReadAt, lookupAt].filter(Boolean).map((t) => t + LIST_MAX_AGE_MS - now).filter((w) => w > 0);
+    if (!waits.length) return undefined;
+    const timer = setTimeout(() => setClock((n) => n + 1), Math.min(...waits) + 50);
+    return () => clearTimeout(timer);
+  }, [listReadAt, lookupAt]);
 
   // Load schedule and archive when active channel changes
   useEffect(() => {
     if (!open || !activeChannelId) return;
     let cancelled = false;
     // Opened again, or another channel: forget what was found before, unless a session runs on this video.
-    if (!sessionHeld.current) { setLookupLive(null); setLiveSwitch(null); }
+    if (!sessionHeld.current) { setLookupInfo(null); setLiveSwitch(null); }
     setStreamError(false);
     setScheduleLoading(true);
     setScheduleError(null);
@@ -166,11 +193,12 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
       .then((data) => {
         if (cancelled) return;
         setVideosLoading(false);
-        // Only an answer from YouTube data is taken: it names the live video, or says there is none.
-        if (data.ok && data.dataOrigin === 'youtube-api') {
-          const liveId = data.liveVideo?.videoId;
-          setLookupLive(typeof liveId === 'string' && REAL_VIDEO_ID.test(liveId) ? { channelId: activeChannelId, videoId: liveId } : null);
-        }
+        // An answer from YouTube data is the truth about this channel, "no live video" included; any other
+        // answer (a fallback, a failure) says only that the check could not be made.
+        const fromYouTube = data.ok === true && data.dataOrigin === 'youtube-api';
+        const liveId = data.liveVideo?.videoId;
+        setLookupInfo({ channelId: activeChannelId, videoId: fromYouTube && typeof liveId === 'string' && REAL_VIDEO_ID.test(liveId) ? liveId : '', authoritative: fromYouTube, at: Date.now() });
+        setVideosOwner(activeChannelId);
         if (data.ok && Array.isArray(data.recentVideos)) {
           setVideos(data.recentVideos);
         } else {
@@ -182,6 +210,9 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
         if (cancelled) return;
         setVideosLoading(false);
         setVideosError(err.message || 'Failed to load videos');
+        setLookupInfo({ channelId: activeChannelId, videoId: '', authoritative: false, at: Date.now() });
+        setVideosOwner(activeChannelId);
+        setVideos([]);
       });
 
     fetchLiveTvArchive(activeChannelId)
@@ -231,22 +262,6 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     };
   }, [open, selectedBroadcastId]);
 
-  // LIVE is shown only when the video being played is live. The watched channel says so from what is really
-  // playing (the switched-to live video, or a curated video the list says is live); any other tile says LIVE
-  // only when this page will play a live video when it is opened.
-  const liveSwitchedId = liveSwitch && liveSwitch.channelId === activeChannelId ? liveSwitch.videoId : '';
-  const shownChannels = useMemo(
-    () => channels.map((c) => {
-      const live = c.id === activeChannelId && playbackMode === 'live' ? Boolean(liveSwitchedId) || curatedLiveOf(c) : willPlayLive(c);
-      return live === (c.status === 'live') ? c : { ...c, status: live ? 'live' : c.status === 'live' ? 'recent' : c.status };
-    }),
-    [channels, liveSwitchedId, activeChannelId, playbackMode],
-  );
-  const filteredChannels = useMemo(() => {
-    if (!selectedCategory || selectedCategory === 'ALL') return shownChannels;
-    return shownChannels.filter((c) => c.category === selectedCategory);
-  }, [shownChannels, selectedCategory]);
-
   function handlePlayVideo(video) {
     setActiveVideo(video);
     setSelectedBroadcastId(video.id || video.videoId);
@@ -259,10 +274,43 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     return channels.find((c) => c.id === activeChannelId) || channels[0] || null;
   }, [channels, activeChannelId]);
 
-  // The video live mode plays: the switched-to live video when there is one, else the written one.
+  // What the list says about who is live is a hint: believed while it is young and while this channel's own lookup
+  // is out. A lookup answered from YouTube data is the truth for its channel, "none" included, and drops a "live"
+  // the list gave. Under a running session the belief is frozen: the video is never changed under it.
+  const lookupHere = lookupInfo && activeChannel && lookupInfo.channelId === activeChannel.id ? lookupInfo : null;
+  const lookupAuth = lookupHere && lookupHere.authoritative ? lookupHere : null;
+  const listFresh = listReadAt > 0 && Date.now() - listReadAt < LIST_MAX_AGE_MS;
+  const lookupFresh = Boolean(lookupAuth) && Date.now() - lookupAuth.at < LIST_MAX_AGE_MS;
+  // YouTube data about this channel, once it has answered, wins at once: a "live" the list gave is dropped if the
+  // lookup names no live video or another one. Under a running session the finding is frozen (the video under it
+  // is never changed).
+  const computedContradicted = Boolean(activeChannel) && Boolean(lookupAuth) && lookupAuth.videoId !== activeChannel.defaultVideoId;
+  const contradicted = sessionHeld.current ? contradictedRef.current : computedContradicted;
+  if (!sessionHeld.current) contradictedRef.current = computedContradicted;
+  // The channel's own video is live as far as is known: the list said so and nothing has contradicted it.
+  const keepCurated = Boolean(activeChannel) && listLiveOf(activeChannel) && !contradicted;
+  // The word LIVE needs an answer that is still young: the lookup's if it has answered, else the list's.
+  const labelFresh = lookupAuth ? lookupFresh : listFresh;
+  const liveSwitchedId = liveSwitch && liveSwitch.channelId === activeChannelId ? liveSwitch.videoId : '';
+  const shownChannels = useMemo(
+    () => channels.map((c) => {
+      const live = c.id === activeChannelId && playbackMode === 'live' ? (Boolean(liveSwitchedId) || keepCurated) && labelFresh : willPlayLive(c, listFresh);
+      return live === (c.status === 'live') ? c : { ...c, status: live ? 'live' : c.status === 'live' ? 'recent' : c.status };
+    }),
+    [channels, liveSwitchedId, activeChannelId, playbackMode, listFresh, keepCurated, labelFresh],
+  );
+  const filteredChannels = useMemo(() => {
+    if (!selectedCategory || selectedCategory === 'ALL') return shownChannels;
+    return shownChannels.filter((c) => c.category === selectedCategory);
+  }, [shownChannels, selectedCategory]);
+
+  // The video live mode plays: the switched-to live video when there is one, else the channel's written one. A
+  // remembered live video the list confirmed (not a curated recording) is not played once YouTube data contradicts it
+  // (age alone never stops it).
+  const writtenEmbedUrl = activeChannel && !(activeChannel.hinted && contradicted) ? activeChannel.embedUrl || '' : '';
   const liveEmbedUrl = liveSwitchedId
     ? `https://www.youtube-nocookie.com/embed/${liveSwitchedId}?autoplay=1&mute=1&playsinline=1`
-    : activeChannel?.embedUrl || '';
+    : writtenEmbedUrl;
 
   const selectedArchiveItem = useMemo(() => {
     return archive.find((a) => a.id === selectedBroadcastId) || archive[0] || null;
@@ -359,11 +407,11 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
       return selectedArchiveItem.videoUrl?.replace('/embed/', '/watch?v=').split('?')[0] || activeChannel?.channelUrl || 'https://www.youtube.com';
     }
     if (liveSwitchedId) return `https://www.youtube.com/watch?v=${liveSwitchedId}`;
-    if (activeChannel?.defaultVideoId) {
+    if (writtenEmbedUrl && activeChannel?.defaultVideoId) {
       return `https://www.youtube.com/watch?v=${activeChannel.defaultVideoId}`;
     }
     return activeChannel?.channelUrl || 'https://www.youtube.com';
-  }, [playbackMode, pasted, activeVideo, selectedArchiveItem, activeChannel, liveSwitchedId]);
+  }, [playbackMode, pasted, activeVideo, selectedArchiveItem, activeChannel, liveSwitchedId, writtenEmbedUrl]);
 
   // Determine current player source
   const linkId = playbackMode === 'link' && pasted ? pasted.videoId : '';
@@ -459,8 +507,10 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   sessionHeld.current = heldBySession;
   sessionStatusRef.current = sessionStatus || 'idle';
   useEffect(() => { sessionTargetRef.current = sessionTarget; });
-  const liveCandidate = (lookupLive && lookupLive.channelId === activeChannel?.id ? lookupLive.videoId : '') || (channelsFresh ? activeChannel?.liveVideoId : '') || '';
-  const liveWanted = activeChannel && switchableOf(activeChannel) && REAL_VIDEO_ID.test(liveCandidate) ? liveCandidate : '';
+  // The video wanted: the lookup's, once it has answered from YouTube data (none included); the list's only while
+  // the lookup is out and the list is young.
+  const liveCandidate = lookupAuth ? lookupAuth.videoId : listFresh ? activeChannel?.liveVideoId || '' : '';
+  const liveWanted = activeChannel && switchableOf(activeChannel, keepCurated) && REAL_VIDEO_ID.test(liveCandidate) ? liveCandidate : '';
   useEffect(() => {
     if (!activeChannel || heldBySession) return;
     if (liveSwitchedId === liveWanted) return;
@@ -472,9 +522,12 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   // A channel added without a curated video has nothing to play until its live video is found: "Connecting"
   // while the lookup is out, then the live video, or "isn't live right now" with the latest upload if there is
   // one. Nothing is fact-checked while the card shows (no embed, so no target).
+  // "Connecting" is whenever no answer in hand belongs to the selected channel (derived from the answer itself, not
+  // from an effect that runs after the first paint), so a click never shows the previous channel's latest upload.
   const noVideoYet = playbackMode === 'live' && Boolean(activeChannel) && !liveEmbedUrl;
-  const channelCard = noVideoYet ? (videosLoading || Boolean(liveWanted) ? 'connecting' : 'notlive') : null;
-  const latestUpload = videos.find((v) => !v.isLive && !v.isUpcoming) || null;
+  const channelCard = noVideoYet ? (!lookupHere || Boolean(liveWanted) ? 'connecting' : lookupAuth ? 'notlive' : 'unknown') : null;
+  const latestUpload = lookupAuth && videosOwner === activeChannel?.id ? videos.find((v) => !v.isLive && !v.isUpcoming) || null : null;
+  const nothingPlaying = Boolean(channelCard) || linkBlocked;
   useEffect(() => {
     if (channelCard !== 'connecting') { setConnectingLong(false); return undefined; }
     const timer = setTimeout(() => setConnectingLong(true), 8000);
@@ -483,17 +536,33 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const followed = Boolean(activeChannel) && followIds.includes(activeChannel.id);
   function toggleFollow() {
     if (!activeChannel) return;
+    if (!followed && followIds.length >= FOLLOW_MAX) { setFollowNote(FOLLOW_FULL); return; }
+    setFollowNote('');
     const next = toggleFollowing(followIds, activeChannel.id);
     setFollowIds(next);
     writeFollowing(browserStorage(), next);
   }
+  // Another tab changed My list: take its version, so two tabs do not overwrite each other.
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined;
+    const onStorage = (e) => { if (!e || e.key === null || e.key === undefined || e.key === FOLLOW_KEY) setFollowIds(readFollowing(browserStorage())); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+  // Ids that are no longer channels are only hidden (the bar shows the known ones): they stay stored, so a list is not
+  // wiped by an older deployment that does not know a channel yet. They count toward the cap.
+  // The panel beside the video is held inside the window by a height that depends on what sits above it: measured.
+  useEffect(() => watchAboveSplit(mainRef.current, splitRef.current, barRef.current), [open, lists.length]);
   const selectChannel = (ch) => {
     leaveLink();
     if (ch.id !== activeChannelId) {
       // a new selection decides afresh: forget what was decided for the channel left
       setLiveSwitch(null);
-      setLookupLive(null);
+      setLookupInfo(null);
     }
+    // a pick after the list turned old reads it again (the list is believed for ten minutes)
+    if (!listReadAt || Date.now() - listReadAt >= LIST_MAX_AGE_MS) setChannelsNonce((n) => n + 1);
+    setFollowNote('');
     setActiveChannelId(ch.id);
     setPlaybackMode('live');
     setActiveVideo(null);
@@ -544,7 +613,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   return (
     <section className="ltv-page" aria-label="Live TV">
       {/* Top Header */}
-      <header className="ltv-header">
+      <header className="ltv-header" inert={barModal ? true : undefined}>
         <div className="ltv-header-brand">
           <button type="button" className="ltv-back-btn" onClick={onClose} title="Back">
             <span aria-hidden="true">←</span> Back
@@ -565,9 +634,9 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               </span>
             ) : channelCard ? (
               <span className="ltv-recent-badge">
-                <span className="ltv-recent-dot" /> {channelCard === 'connecting' ? 'CONNECTING' : 'NOT LIVE'}
+                <span className="ltv-recent-dot" /> {channelCard === 'connecting' ? 'CONNECTING' : channelCard === 'unknown' ? "CAN'T CHECK" : 'NOT LIVE'}
               </span>
-            ) : liveSwitchedId || (activeChannel && curatedLiveOf(activeChannel)) ? (
+            ) : (liveSwitchedId || keepCurated) && labelFresh ? (
               <span className="ltv-live-badge">
                 <span className="ltv-live-dot" /> LIVE FEED
               </span>
@@ -642,7 +711,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
       </header>
 
       {/* Scrollable page body: the channel card, the video and panel, then the lower tabs (liveTv.css) */}
-      <div className="ltv-main">
+      <div className="ltv-main" ref={mainRef}>
+      <div ref={barRef}>
       {lists.length ? (
         <ChannelBar
           channels={shownChannels}
@@ -652,6 +722,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
           loading={channelsLoading}
           following={followIds}
           onSelectChannel={selectChannel}
+          onModalChange={setBarModal}
         />
       ) : (
         <ChannelCard
@@ -666,9 +737,10 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
           onSelectChannel={selectChannel}
         />
       )}
+      </div>
 
-      <div className="ltv-body">
-        <div className={`ltv-split${factCheckOffered ? ' has-panel' : ''}`}>
+      <div className="ltv-body" inert={barModal ? true : undefined}>
+        <div className={`ltv-split${factCheckOffered ? ' has-panel' : ''}`} ref={splitRef}>
         <div className="ltv-videocol">
           {/* Player Stage */}
           <section className="ltv-player-stage">
@@ -680,6 +752,17 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                 {connectingLong ? (
                   <button type="button" className="ltv-action-btn primary" onClick={() => setLookupNonce((n) => n + 1)}>Reload feed</button>
                 ) : null}
+              </div>
+            ) : channelCard === 'unknown' ? (
+              <div className="ltv-offline-card" role="status">
+                <h4>Couldn't check {activeChannel?.name} right now</h4>
+                <p>We could not find out whether it is on air. You can open it on YouTube or try again.</p>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '14px', flexWrap: 'wrap' }}>
+                  <a href={externalWatchUrl} target="_blank" rel="noopener noreferrer" className="ltv-action-btn primary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    Open on YouTube ↗
+                  </a>
+                  <button type="button" className="ltv-action-btn" onClick={() => setLookupNonce((n) => n + 1)}>Try again</button>
+                </div>
               </div>
             ) : channelCard === 'notlive' ? (
               <div className="ltv-offline-card" role="status">
@@ -795,6 +878,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                   nowPlayingLine({ mode: playbackMode, channel: activeChannel })
                 )}
               </p>
+              {followNote ? <p className="ltv-follow-note" role="status">{followNote}</p> : null}
               {linkId && playerError !== null && !linkBlocked ? (
                 <p className="ltv-np-note" role="status">The player reported a problem with this video.</p>
               ) : null}
@@ -830,11 +914,11 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                 </>
               )}
               {!linkId && activeChannel ? (
-                <button type="button" className="ltv-action-btn" aria-pressed={followed} onClick={toggleFollow} title={followed ? 'Remove from My list' : 'Add to My list'}>
+                <button type="button" className="ltv-action-btn" aria-label={`Follow ${activeChannel.name}`} aria-pressed={followed} onClick={toggleFollow} title={followed ? 'Remove from My list' : 'Add to My list'}>
                   {followed ? 'Following' : 'Follow'}
                 </button>
               ) : null}
-              {!linkId && activeChannel?.deskId && (
+              {!linkId && activeChannel?.deskId && TAB_IDS.has(activeChannel.deskId) && (
                 <button
                   type="button"
                   className="ltv-action-btn primary"
@@ -844,6 +928,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                   Open Desk: {activeChannel.deskId}
                 </button>
               )}
+              {nothingPlaying ? null : (
+              <>
               <button
                 type="button"
                 className="ltv-action-btn"
@@ -868,6 +954,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               >
                 Fullscreen
               </button>
+              </>
+              )}
               <button
                 type="button"
                 className="ltv-action-btn"
@@ -884,7 +972,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
           <div className="ltv-panelcol">
             <FactCheckPanel
               persistent
-              channelName={linkId ? 'YouTube video' : activeChannel?.name || ''}
+              channelName={linkId ? (infoNow?.title ? `“${infoNow.title}”` : 'this video') : activeChannel?.name || ''}
               playable={playable}
               onChoose={factCheck.actions.choose}
               view={factCheck.view}

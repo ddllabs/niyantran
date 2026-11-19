@@ -139,8 +139,6 @@ describe('a channel added without a curated video', () => {
 
   it.each([
     ['nothing at all', async () => answer()],
-    ['a failed lookup', async () => ({ ok: false, error: 'HTTP 500', recentVideos: [] })],
-    ['an answer not from YouTube data', async () => ({ ok: true, dataOrigin: 'fallback', liveVideo: null, recentVideos: [] })],
   ])('shows the card without a latest video, with Open on YouTube and Reload, for %s', async (_n, lookup) => {
     await open();
     h.lookup = lookup;

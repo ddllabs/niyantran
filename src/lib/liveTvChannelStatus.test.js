@@ -193,7 +193,7 @@ describe('the channel list never gets worse than today', () => {
     expect(statuses(res)).toEqual(staticStatuses());
   });
 
-  it('on a non-OK answer returns the static list, and does not ask again for a minute', async () => {
+  it('on a non-OK answer returns the static list, and does not ask again for five minutes', async () => {
     vi.useFakeTimers();
     stubFetch(() => new Response('unavailable', { status: 503 }));
     const res = await getLiveTvChannels();
@@ -201,7 +201,13 @@ describe('the channel list never gets worse than today', () => {
     expect(statuses(res)).toEqual(staticStatuses());
     await getLiveTvChannels();
     expect(calls).toHaveLength(BATCHES);
-    vi.setSystemTime(Date.now() + 61 * 1000);
+    vi.setSystemTime(Date.now() + 61 * 1000); // past the old one-minute memory: still no call
+    await getLiveTvChannels();
+    expect(calls).toHaveLength(BATCHES);
+    vi.setSystemTime(Date.now() + 238 * 1000); // 299 s after the failure
+    await getLiveTvChannels();
+    expect(calls).toHaveLength(BATCHES);
+    vi.setSystemTime(Date.now() + 3 * 1000); // 302 s
     await getLiveTvChannels();
     expect(calls).toHaveLength(2 * BATCHES);
   });

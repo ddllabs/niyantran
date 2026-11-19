@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { channelSubline } from './channelView.js';
 import { matchChannels, regionChips, primaryLanguage } from './channelSearch.js';
+import { trapTab } from './focusTrap.js';
 
 export const EMPTY_SEARCH = 'No channel matches that. Paste its YouTube link at the top to watch and fact-check it anyway.';
 export const EMPTY_MY_LIST = 'Follow a channel and it shows up here for one-tap access.';
@@ -57,10 +58,11 @@ function Grid({ groups, activeId, onPick, empty }) {
  * following  followed channel ids, in the order followed;   activeChannelId, playbackMode   what is playing
  * initial    { top, pop, query, region, sheet } opens the bar in a given state (previews and tests)
  */
-export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loading, following = [], onSelectChannel, initial = {} }) {
+export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loading, following = [], onSelectChannel, onModalChange, initial = {} }) {
   const tops = lists.filter((l) => l.kind === 'top');
   const segs = lists.filter((l) => l.kind !== 'top');
-  const [top, setTop] = useState(initial.top || tops[0]?.id || 'my');
+  // Opens on My list when the user follows a channel that is still there, otherwise on the first top list.
+  const [top, setTop] = useState(() => initial.top || (following.some((id) => channels.some((c) => c.id === id)) ? 'my' : tops[0]?.id || 'my'));
   const [pop, setPop] = useState(initial.pop || null); // null | { kind: 'all' | 'seg' | 'search', id? }
   const [query, setQuery] = useState(initial.query || '');
   const [region, setRegion] = useState(initial.region || 'All');
@@ -70,6 +72,11 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
   const searchInput = useRef(null);
   const sheetHeading = useRef(null);
   const back = useRef(null); // the control to give focus back to when a panel closes
+  const section = useRef(null);
+  const sheetBox = useRef(null);
+  const restoreFocus = useRef(null);
+  const modalCallback = useRef(onModalChange);
+  modalCallback.current = onModalChange;
 
   const byId = new Map(channels.map((c) => [c.id, c]));
   const inList = (id) => channels.filter((c) => c.lists?.includes(id));
@@ -93,12 +100,13 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
     setQuery('');
     back.current = null;
   };
+  // Focus goes back to the button that opened the sheet only after the sheet has closed and the bar behind it is
+  // no longer inert (an inert control cannot take focus), so the close just notes where to go.
   const closeSheet = () => {
     setSheet(null);
     setQuery('');
-    const target = back.current;
+    restoreFocus.current = back.current;
     back.current = null;
-    target?.focus?.();
   };
   const onKeyDown = (e) => {
     if (e.key !== 'Escape' || (!pop && !sheet)) return;
@@ -112,6 +120,39 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
     else if (pop?.kind === 'search') { setPop(null); }
   };
 
+  // The desktop panel is not modal, but focus may never sit on a control it covers: a click outside it, or focus
+  // moving outside the bar, closes it (focus stays where the user put it).
+  const popOpen = Boolean(pop);
+  useEffect(() => {
+    if (!popOpen || typeof document === 'undefined') return undefined;
+    const outside = (e) => {
+      const box = section.current;
+      if (box && e.target && !box.contains(e.target)) { setPop(null); setQuery(''); back.current = null; }
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('focusin', outside);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('focusin', outside); };
+  }, [popOpen]);
+
+  // The phone sheet covers the page: the page behind it is told so, and it closes if the window grows past phones.
+  const sheetOpen = Boolean(sheet);
+  useEffect(() => { onModalChange?.(sheetOpen); }, [sheetOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (sheetOpen || !restoreFocus.current) return;
+    const target = restoreFocus.current;
+    restoreFocus.current = null;
+    target.focus?.();
+  }, [sheetOpen]);
+  // If the bar goes away with the sheet open, the page behind it must not stay inert.
+  useEffect(() => () => modalCallback.current?.(false), []);
+  useEffect(() => {
+    if (!sheetOpen || typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const media = window.matchMedia('(max-width: 600px)');
+    const onChange = (e) => { if (!e.matches) { setSheet(null); setQuery(''); back.current = null; } };
+    media.addEventListener?.('change', onChange);
+    return () => media.removeEventListener?.('change', onChange);
+  }, [sheetOpen]);
+
   // Focus moves into a panel opened from a button; a search panel leaves it in the box the user is typing in.
   const popKey = pop ? `${pop.kind}:${pop.id || ''}` : '';
   useEffect(() => { if (pop && pop.kind !== 'search') heading.current?.focus(); }, [popKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -124,7 +165,7 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
     let title; let groups;
     if (pop.kind === 'search') {
       title = 'Search results';
-      groups = [{ id: 'q', title: '', tiles: matchChannels(channels, query) }];
+      groups = [{ id: 'q', title: '', tiles: matchChannels(channels, query, lists) }];
     } else if (pop.kind === 'all') {
       title = 'All channels';
       groups = lists.map((l) => ({ id: l.id, title: l.name, tiles: channels.filter((c) => (c.lists?.[0] || '') === l.id) }));
@@ -136,12 +177,14 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
       groups = [{ id: pop.id, title: '', tiles }];
     }
     const count = groups.reduce((n, g) => n + g.tiles.length, 0);
+    const note = pop.kind === 'seg' ? lists.find((l) => l.id === pop.id)?.note : '';
     return (
       <div className="ltv-pop" role="dialog" aria-label={title}>
         <div className="ltv-pop-head">
           <h3 className="ltv-pop-title" tabIndex={-1} ref={heading}>{title} <span className="ltv-pop-count">{count}</span></h3>
           <button type="button" className="ltv-arrow ltv-pop-close" aria-label="Close channel menu" onClick={closePop}><span aria-hidden="true">×</span></button>
         </div>
+        {note ? <p className="ltv-pop-note">{note}</p> : null}
         {regionalChips.length ? (
           <div className="ltv-region-chips" role="group" aria-label="Language">
             {[{ label: 'All', count: inList('regional').length }, ...regionalChips].map((r) => (
@@ -159,13 +202,19 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
   function sheetBody() {
     const view = sheet.view;
     if (query.trim()) {
-      return <Grid groups={[{ id: 'q', title: '', tiles: matchChannels(channels, query) }]} activeId={activeChannelId} onPick={pick} empty={EMPTY_SEARCH} />;
+      return <Grid groups={[{ id: 'q', title: '', tiles: matchChannels(channels, query, lists) }]} activeId={activeChannelId} onPick={pick} empty={EMPTY_SEARCH} />;
     }
     if (view === 'all') {
       return <Grid groups={lists.map((l) => ({ id: l.id, title: l.name, tiles: channels.filter((c) => (c.lists?.[0] || '') === l.id) }))} activeId={activeChannelId} onPick={pick} empty="No channels." />;
     }
     if (view !== 'home') {
-      return <Grid groups={[{ id: view, title: listName(view), tiles: inList(view) }]} activeId={activeChannelId} onPick={pick} empty="No channels in this list yet." />;
+      const note = lists.find((l) => l.id === view)?.note;
+      return (
+        <>
+          {note ? <p className="ltv-pop-note">{note}</p> : null}
+          <Grid groups={[{ id: view, title: listName(view), tiles: inList(view) }]} activeId={activeChannelId} onPick={pick} empty="No channels in this list yet." />
+        </>
+      );
     }
     return (
       <>
@@ -192,7 +241,8 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
   const topTabs = [{ id: 'my', label: 'My list', n: mine.length }, ...tops.map((l) => ({ id: l.id, label: l.short || l.name, n: inList(l.id).length }))];
 
   return (
-    <section className="ltv-channelcard ltv-channelbar" aria-label="Channels" onKeyDown={onKeyDown}>
+    <section className="ltv-channelcard ltv-channelbar" aria-label="Channels" ref={section} onKeyDown={onKeyDown}>
+      <div className="ltv-bar-rows" inert={sheetOpen ? true : undefined}>
       <div className="ltv-row">
         <div className="ltv-row-head">
           <span className="ltv-row-label">TOP CHANNELS</span>
@@ -246,9 +296,10 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
       </div>
 
       {panel()}
+      </div>
 
       {sheet ? (
-        <div className="ltv-sheet" role="dialog" aria-label="Channels">
+        <div className="ltv-sheet" role="dialog" aria-modal="true" aria-label="Channels" ref={sheetBox} onKeyDown={(e) => { trapTab(e, sheetBox.current); }}>
           <div className="ltv-sheet-head">
             {sheet.view !== 'home' && !query.trim() ? (
               <button type="button" className="ltv-action-btn" onClick={() => setSheet({ view: 'home' })}>Back</button>

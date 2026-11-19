@@ -38,3 +38,5 @@ export function toggleFollowing(ids, id) {
   if (ids.includes(id)) return ids.filter((x) => x !== id);
   return ids.length >= FOLLOW_MAX ? [...ids] : [...ids, id];
 }
+
+export const FOLLOW_FULL = `My list is full (${FOLLOW_MAX}). Unfollow one first.`;

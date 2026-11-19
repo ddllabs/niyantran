@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { YOUTUBE_SOURCES, LIVE_TV_LISTS, getLiveTvChannels } from '../../server/liveTvApi.mjs';
 import { ADDED_CHANNELS, LIST_CATEGORY } from '../../server/liveTvChannels.mjs';
+import { TABS } from '../desks/tabs.js';
 
 const CURATED = [
   ['dhruv-rathee', 'UC-CSyyi47VX1lD9zyeABW3w', 'RJfqzUWZ0Bw', 'national'],
@@ -93,12 +94,37 @@ describe('the channel data', () => {
   });
 });
 
+describe('desks', () => {
+  const tabs = TABS.map((t) => t.id);
+  it('sends every added channel to a desk that is a real tab, so Open Desk never lands on Home', () => {
+    for (const c of ADDED_CHANNELS) expect(tabs).toContain(c.deskId);
+  });
+  it('maps economy to economics, international to global, and the rest to national', () => {
+    for (const c of ADDED_CHANNELS) {
+      const first = c.lists[0];
+      expect(c.deskId).toBe(first === 'economy' ? 'economics' : first === 'international' ? 'global' : 'national');
+    }
+  });
+  it('leaves the curated channels as they were, even where their desk is not a tab', () => {
+    const odd = YOUTUBE_SOURCES.slice(0, 13).filter((c) => !tabs.includes(c.deskId)).map((c) => c.id).sort();
+    expect(odd).toEqual(['aaj-tak', 'dd-news', 'sansad-tv']);
+  });
+});
+
+describe('list notes', () => {
+  it('has one note, on Parties & Leaders, and none elsewhere', () => {
+    const noted = LIVE_TV_LISTS.filter((l) => l.note);
+    expect(noted.map((l) => l.id)).toEqual(['parties']);
+    expect(noted[0].note).toBe('Only channels whose identity was verified are listed. More will be added.');
+  });
+});
+
 describe('the channel list response', () => {
   it('carries the ten lists and, for a channel, only what the page reads', async () => {
     const res = await getLiveTvChannels();
     expect(res.lists).toEqual(LIVE_TV_LISTS);
     expect(res.channels).toHaveLength(96);
-    const allowed = new Set(['id', 'name', 'officialName', 'short', 'category', 'lists', 'lang', 'color', 'channelId', 'status', 'channelUrl', 'deskId', 'viewers', 'defaultVideoId', 'embedUrl', 'liveVideoId']);
+    const allowed = new Set(['id', 'name', 'officialName', 'short', 'category', 'lists', 'lang', 'color', 'channelId', 'status', 'channelUrl', 'deskId', 'viewers', 'defaultVideoId', 'embedUrl', 'liveVideoId', 'hinted']);
     for (const c of res.channels) for (const k of Object.keys(c)) expect(allowed.has(k)).toBe(true);
     expect(JSON.stringify(res)).not.toMatch(/liveHintVideoId|description|fallbackVideos/);
   });

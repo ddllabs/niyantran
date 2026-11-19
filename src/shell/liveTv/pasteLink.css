@@ -8,7 +8,7 @@
 }
 .ltv-paste { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; margin-left: auto; }
 .ltv-paste-body { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.ltv-paste-toggle { display: none; }
+.ltv-paste .ltv-paste-toggle { display: none; } /* phones only (liveTv.css loads later and would otherwise show it) */
 .ltv-paste-input {
   box-sizing: border-box; width: 320px; max-width: 100%; min-height: 34px; padding: 6px 10px;
   border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg);
@@ -25,7 +25,7 @@
 @media (max-width: 600px) {
   .ltv-header { flex-wrap: wrap; }
   .ltv-paste { flex: 1 0 100%; margin-left: 0; }
-  .ltv-paste-toggle { display: inline-flex; align-items: center; min-height: 40px; }
+  .ltv-paste .ltv-paste-toggle { display: inline-flex; align-items: center; min-height: 40px; }
   .ltv-paste-body { display: none; flex: 1 0 100%; }
   .ltv-paste.is-open .ltv-paste-body { display: flex; }
   .ltv-paste-input { flex: 1 1 0; width: auto; min-height: 40px; font-size: 16px; }

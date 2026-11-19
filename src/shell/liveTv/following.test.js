@@ -68,3 +68,11 @@ describe('toggleFollowing', () => {
     expect(toggleFollowing(['a'], '')).toEqual(['a']);
   });
 });
+
+import { FOLLOW_FULL } from './following.js';
+
+describe('the full list message', () => {
+  it('says how many and what to do', () => {
+    expect(FOLLOW_FULL).toBe('My list is full (60). Unfollow one first.');
+  });
+});

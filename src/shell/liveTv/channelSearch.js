@@ -23,19 +23,24 @@ export function primaryLanguage(lang) {
   return typeof lang === 'string' ? lang.split(/[·(]/)[0].trim() : '';
 }
 
-function haystack(c) {
+// The words of a channel's language line that name a language, for matching a word of the query exactly.
+function languageWords(c) {
   const lang = normalizeText(c.lang);
-  const aliases = Object.entries(LANGUAGE_ALIASES).filter(([en]) => lang.includes(en)).flatMap(([, words]) => words);
-  return normalizeText([c.name, c.officialName, c.lang, ...aliases].filter(Boolean).join(' '));
+  return new Set(Object.entries(LANGUAGE_ALIASES).filter(([en]) => lang.includes(en)).flatMap(([, words]) => words.map(normalizeText)));
 }
 
-/** The channels whose name, official name or language contains every word of the query. A blank query keeps all. */
-export function matchChannels(channels, query) {
+/**
+ * The channels whose name, official name, language or list name contains every word of the query. A blank query
+ * keeps all. A language written in Devanagari is matched as a whole word, so it cannot match inside another word.
+ */
+export function matchChannels(channels, query, lists = []) {
   const words = normalizeText(query).split(' ').filter(Boolean);
   if (!words.length) return [...channels];
+  const listText = new Map(lists.map((l) => [l.id, normalizeText(`${l.name} ${l.short || ''}`)]));
   return channels.filter((c) => {
-    const text = haystack(c);
-    return words.every((w) => text.includes(w));
+    const text = normalizeText([c.name, c.officialName, c.lang, ...(c.lists || []).map((id) => listText.get(id) || '')].filter(Boolean).join(' '));
+    const aliases = languageWords(c);
+    return words.every((w) => text.includes(w) || aliases.has(w));
   });
 }
 
