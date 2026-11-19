@@ -4,6 +4,8 @@
 import { useEffect, useRef } from 'react';
 import { creditsText } from '../../lib/creditsStore.js';
 import { ClaimCard } from './FactCheckPanel.jsx';
+import { ExportButton } from './ClaimExport.jsx';
+import { exportFileName, sessionExportText } from './claimExport.js';
 import { PAST_TEXT, minutesText } from './factCheckText.js';
 import { CLAIM_CAP } from './pastSessions.js';
 import { usePastSessions } from './usePastSessions.js';
@@ -55,7 +57,7 @@ export function DeleteControl({ session, removal, onAsk, onCancel, onConfirm }) 
   );
 }
 
-function Detail({ session, state, past }) {
+function Detail({ session, state, past, source }) {
   const id = `pst-detail-${session.id}`;
   let body;
   if (!state || state.phase === 'loading') {
@@ -73,8 +75,20 @@ function Detail({ session, state, past }) {
     body = (
       <>
         <ol className="fc-claims" aria-label="Claims">
-          {state.claims.map((c) => <ClaimCard key={c.id} claim={c} />)}
+          {state.claims.map((c) => <ClaimCard key={c.id} claim={c} source={source} copyKey="pst" />)}
         </ol>
+        <div className="fc-card-actions">
+          <ExportButton
+            dataKey="pst"
+            build={() => ({
+              name: exportFileName({ title: source, date: session.started_at }),
+              text: sessionExportText({
+                title: source, date: session.started_at, minutes: session.minutes_used,
+                items: state.claims.map((c) => ({ claim: c, shown: c })),
+              }),
+            })}
+          />
+        </div>
         {state.capped ? <p className="pst-note">{PAST_TEXT.capped(CLAIM_CAP)}</p> : null}
       </>
     );
@@ -105,7 +119,7 @@ function Row({ session, channels, past }) {
       </button>
       {open ? (
         <>
-          <Detail session={session} state={past.details[session.id]} past={past} />
+          <Detail session={session} state={past.details[session.id]} past={past} source={channelLabel(session.channel_id, channels)} />
           {live
             ? <DeleteControl session={session} removal={past.removal} onAsk={past.askDelete} onCancel={past.cancelDelete} onConfirm={past.confirmDelete} />
             : <p className="pst-note">{PAST_TEXT.recordedKept}</p>}

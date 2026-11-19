@@ -60,11 +60,11 @@ export function buildTranscriptText({ title = '', date = '', lines, header = tru
   return `${[...head, ...(head.length ? [''] : []), ...body].join('\n')}\n`;
 }
 
-/** transcript-<title>-<date>.txt with anything unsafe for a file name turned into a hyphen. */
-export function transcriptFileName({ title = '', date = '' } = {}) {
+/** <prefix>-<title>-<date>.txt with anything unsafe for a file name turned into a hyphen. */
+export function transcriptFileName({ title = '', date = '', prefix = 'transcript' } = {}) {
   const slug = nfc(title).replace(/[^\p{L}\p{M}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/g, '');
   const stamp = dateStamp(date);
-  const name = ['transcript', slug, stamp].filter(Boolean).join('-');
+  const name = [prefix, slug, stamp].filter(Boolean).join('-');
   return `${name}.txt`;
 }
 
