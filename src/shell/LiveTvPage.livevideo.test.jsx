@@ -108,8 +108,10 @@ describe('the four-channel case: the curated video is not live and YouTube repor
 });
 
 describe('where nothing changes', () => {
-  it('keeps the curated video when it is itself live', async () => {
-    const out = await open({ channels: [channel({ status: 'live' })] });
+  // Round 2: the lookup is the truth at once. The curated video is kept (and called LIVE) when the lookup names
+  // it; a lookup that names another live video is played instead (LiveTvPage.review2.test.jsx).
+  it('keeps the curated video when it is itself live and the lookup names it', async () => {
+    const out = await open({ channels: [channel({ status: 'live' })], lookup: async () => answer({ liveVideo: { videoId: CURATED, embedUrl: embed(CURATED) } }) });
     expect(frame(out).props.src).toContain(`/embed/${CURATED}?`);
     expect(h.fcArgs.target).toBe(`dd-news|live|${CURATED}`);
     expect(badge(out)).toBe('ltv-live-badge');

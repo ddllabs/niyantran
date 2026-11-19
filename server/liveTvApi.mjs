@@ -16,6 +16,8 @@
  *   - YouTube API credentials remain strictly server-side (YOUTUBE_API_KEY)
  */
 
+import { LIVE_TV_LISTS, CURATED_CHANNEL_LISTS, LIST_CATEGORY, ADDED_CHANNELS } from './liveTvChannels.mjs';
+
 function json(res, body, status = 200) {
   if (typeof res.status === 'function' && typeof res.json === 'function') {
     res.setHeader?.('Cache-Control', 'no-store');
@@ -38,7 +40,8 @@ export const LIVE_TV_CATEGORIES = [
   'GENERAL',
 ];
 
-export const YOUTUBE_SOURCES = [
+// The 13 curated channels, as they have always been (ids, videos and desks unchanged).
+const CURATED_SOURCES = [
   // ── POLITICS ─────────────────────────────────────────────────────────────
   {
     id: 'dhruv-rathee',
@@ -80,7 +83,7 @@ export const YOUTUBE_SOURCES = [
     short: 'TS',
     category: 'EDUCATION',
     channelId: 'UCKZozRVHRYsYHGEyNKuhhdA',
-    channelUrl: 'https://www.youtube.com/@thethinkschoool',
+    channelUrl: 'https://www.youtube.com/@ThinkSchool',
     color: '#3B82F6',
     lang: 'English · Hindi',
     description: 'Case studies dissecting corporate strategy, national infrastructure, and economic megaprojects.',
@@ -372,6 +375,14 @@ export const YOUTUBE_SOURCES = [
   },
 ];
 
+// The curated channels (now with their lists) followed by the channels added to the client's lists.
+export const YOUTUBE_SOURCES = [
+  ...CURATED_SOURCES.map((c) => ({ ...c, lists: CURATED_CHANNEL_LISTS[c.id] || [] })),
+  ...ADDED_CHANNELS,
+];
+
+export { LIVE_TV_LISTS, LIST_CATEGORY };
+
 // Backward-compatible alias for existing tests
 export const LIVE_TV_CHANNELS = YOUTUBE_SOURCES;
 
@@ -391,22 +402,140 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 export function getCached(key) {
   const hit = memoryCache.get(key);
   if (!hit) return null;
-  const isFresh = Date.now() - hit.timestamp < CACHE_TTL_MS;
+  const isFresh = Date.now() - hit.timestamp < (hit.ttlMs ?? CACHE_TTL_MS);
   return { data: hit.data, isFresh, timestamp: hit.timestamp };
 }
 
-export function setCached(key, data) {
-  memoryCache.set(key, { data, timestamp: Date.now() });
+export function setCached(key, data, ttlMs) {
+  memoryCache.set(key, { data, timestamp: Date.now(), ttlMs });
 }
 
 export function clearCache() {
   memoryCache.clear();
   liveStatusInFlight = null;
+  channelInFlight.clear();
+  spent = { day: '', units: 0, listFailures: 0 };
+}
+
+// ── YouTube quota (ADR 0009: no search.list) ───────────────────────────────
+// A per-channel lookup costs 2 units (playlistItems.list + videos.list); the list check costs 1 unit per 50 ids.
+// With ~100 channels the cache alone cannot keep one server instance under the 10,000-unit quota of a YouTube day
+// (which ends at midnight Pacific), so:
+//   * an answer that found a live video is kept 10 minutes; one that found NONE is kept 60 minutes; a failure
+//     is kept 60 seconds, so "Try again" can get a fresh answer;
+//   * lookups of the same channel in flight share one request, and every request has a time limit;
+//   * a refusal that concerns the whole key or the quota is remembered for 30 minutes for every call; one that
+//     concerns a single resource (a private playlist) only for that channel;
+//   * an instance spends at most YOUTUBE_UNITS_PER_DAY units a Pacific day on ALL its YouTube calls, the list
+//     check included (about 288 of them), so two warm instances together stay under the quota; past it, answers
+//     come from the curated data. A failing list check is retried at most LIST_CHECK_FAILURES_PER_DAY times a day.
+export const NO_LIVE_TTL_MS = 60 * 60 * 1000;
+export const FAILURE_TTL_MS = 60 * 1000;
+export const INACCESSIBLE_TTL_MS = 30 * 60 * 1000;
+export const QUOTA_BLOCK_MS = 30 * 60 * 1000;
+export const REQUEST_TIMEOUT_MS = 4000;
+export const YOUTUBE_UNITS_PER_DAY = 3000; // LIVETV_LOOKUP_UNITS_PER_DAY overrides it (0 means no YouTube calls)
+export const LIST_CHECK_FAILURES_PER_DAY = 12;
+const LIST_FAILURE_TTL_MS = 5 * 60 * 1000;
+/** A finite number of units, 0 or more; anything else is the default. */
+function dailyBudget() {
+  const raw = process.env.LIVETV_LOOKUP_UNITS_PER_DAY;
+  if (raw === undefined || String(raw).trim() === '') return YOUTUBE_UNITS_PER_DAY;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : YOUTUBE_UNITS_PER_DAY;
+}
+const QUOTA_BLOCK_KEY = 'yt-quota-blocked';
+const channelInFlight = new Map();
+let spent = { day: '', units: 0, listFailures: 0 };
+// Refusals that are about the key or the quota, not about one resource. No reason given counts as one.
+const ACCOUNT_WIDE_REASONS = new Set([
+  'quotaExceeded', 'dailyLimitExceeded', 'rateLimitExceeded', 'userRateLimitExceeded', 'accessNotConfigured', 'keyInvalid', 'forbidden', '',
+]);
+
+// YouTube's day ends at midnight Pacific time.
+const pacificFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' });
+const today = () => pacificFormat.format(new Date());
+function spentToday() {
+  const day = today();
+  if (spent.day !== day) spent = { day, units: 0, listFailures: 0 };
+  return spent;
+}
+const unitsLeft = () => Math.max(0, dailyBudget() - spentToday().units);
+
+function quotaBlocked() {
+  const hit = memoryCache.get(QUOTA_BLOCK_KEY);
+  return Boolean(hit) && Date.now() - hit.timestamp < QUOTA_BLOCK_MS;
+}
+
+/** An error from one YouTube request. `kind` says why it did not give an answer. */
+class YouTubeError extends Error {
+  constructor(kind, status = 0, reason = '') {
+    super(`YouTube ${kind}${status ? ` ${status}` : ''}${reason ? ` ${reason}` : ''}`);
+    this.kind = kind; // 'budget' | 'quota' | 'inaccessible' | 'timeout' | 'error'
+    this.status = status;
+    this.reason = reason;
+  }
+}
+
+/** What an error body says: the first reason, and whether it is about the API key itself. */
+async function errorDetail(resp) {
+  try {
+    const body = await resp.json();
+    const r = body?.error?.errors?.[0]?.reason;
+    const reasons = [r, ...(Array.isArray(body?.error?.details) ? body.error.details.map((d) => d?.reason) : [])];
+    const aboutKey = reasons.includes('keyInvalid') || reasons.includes('API_KEY_INVALID') || /api key/i.test(String(body?.error?.message || ''));
+    return { reason: typeof r === 'string' ? r : '', aboutKey };
+  } catch { return { reason: '', aboutKey: false }; }
 }
 
 /**
- * Normalizes YouTube video item to uniform NTER video schema.
+ * One GET to YouTube: takes a unit of today's budget first, has a time limit, and sorts a refusal into "the
+ * whole key" (remembered for every call) or "this resource" (only this call fails). Returns the parsed body.
  */
+async function youtubeGet(url, timeoutMs = REQUEST_TIMEOUT_MS) {
+  if (quotaBlocked()) throw new YouTubeError('quota');
+  if (unitsLeft() < 1) throw new YouTubeError('budget');
+  spentToday().units += 1;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, { headers: { Accept: 'application/json' }, signal: controller.signal });
+    if (!resp.ok) {
+      if (resp.status === 403) {
+        const { reason } = await errorDetail(resp);
+        if (ACCOUNT_WIDE_REASONS.has(reason)) {
+          setCached(QUOTA_BLOCK_KEY, true, QUOTA_BLOCK_MS);
+          throw new YouTubeError('quota', 403, reason);
+        }
+        throw new YouTubeError('inaccessible', 403, reason);
+      }
+      // A key YouTube does not accept is the whole key's problem, like a refused 403.
+      if (resp.status === 400) {
+        const { reason, aboutKey } = await errorDetail(resp);
+        if (aboutKey) {
+          setCached(QUOTA_BLOCK_KEY, true, QUOTA_BLOCK_MS);
+          throw new YouTubeError('quota', 400, reason);
+        }
+        throw new YouTubeError('error', 400, reason);
+      }
+      // A playlist that does not exist is that channel's problem only.
+      if (resp.status === 404) {
+        const { reason } = await errorDetail(resp);
+        if (reason === 'playlistNotFound') throw new YouTubeError('inaccessible', 404, reason);
+        throw new YouTubeError('error', 404, reason);
+      }
+      try { await resp.body?.cancel(); } catch { /* the body is not needed */ }
+      throw new YouTubeError('error', resp.status);
+    }
+    return await resp.json();
+  } catch (err) {
+    if (err instanceof YouTubeError) throw err;
+    throw new YouTubeError(controller.signal.aborted ? 'timeout' : 'error');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Safely extracts an 11-character YouTube video ID from strings or various URL formats:
  * - Direct ID: "y60wB0i2b7g"
@@ -490,10 +619,43 @@ export async function fetchYouTubeChannelVideos(channel) {
   if (cached && cached.isFresh) {
     return { ok: true, source: 'cache', ...cached.data };
   }
+  // Callers that arrive while a refresh of the same channel is under way share it.
+  const open = channelInFlight.get(channel.id);
+  if (open) return open;
+  const run = refreshChannelVideos(channel, cacheKey, cached);
+  channelInFlight.set(channel.id, run);
+  try {
+    return await run;
+  } finally {
+    if (channelInFlight.get(channel.id) === run) channelInFlight.delete(channel.id);
+  }
+}
 
+/**
+ * What a channel answers with when YouTube cannot be asked: its curated data, never a claim that it is live.
+ * `reason` says why in a word (quota, budget, timeout, inaccessible, error, no-key); the page shows "couldn't
+ * check" for these and "isn't live" only for an answer from YouTube data.
+ */
+function curatedAnswer(channel, source, reason) {
+  const data = {
+    channelId: channel.id,
+    channelName: channel.name,
+    status: channel.status || 'recent',
+    liveVideo: null,
+    recentVideos: (channel.fallbackVideos || []).map((v) => normalizeYouTubeVideo(v, channel.id)),
+    upcomingVideos: [],
+    dataOrigin: 'fallback',
+    reason,
+  };
+  return { data, answer: { ok: true, source, ...data } };
+}
+
+const ID11 = /^[a-zA-Z0-9_-]{11}$/;
+
+async function refreshChannelVideos(channel, cacheKey, cached) {
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) {
-    // Graceful fallback to curated channel data when API key is not configured
+    // Graceful fallback to curated channel data when YOUTUBE_API_KEY is not configured
     const fallbackData = {
       channelId: channel.id,
       channelName: channel.name,
@@ -512,113 +674,104 @@ export async function fetchYouTubeChannelVideos(channel) {
       recentVideos: (channel.fallbackVideos || []).map((v) => normalizeYouTubeVideo(v, channel.id)),
       upcomingVideos: [],
       dataOrigin: 'fallback',
+      reason: 'no-key',
     };
     setCached(cacheKey, fallbackData);
     return { ok: true, source: 'curated-fallback', ...fallbackData };
   }
+  // Failed lookups are kept only briefly, a private playlist for longer; neither is an answer about being live.
+  const failed = (err) => {
+    const { data, answer } = curatedAnswer(channel, err.kind === 'quota' || err.kind === 'budget' ? 'quota-fallback' : 'curated-fallback', err.kind);
+    setCached(cacheKey, data, err.kind === 'inaccessible' ? INACCESSIBLE_TTL_MS : FAILURE_TTL_MS);
+    return answer;
+  };
+  if (quotaBlocked()) return failed(new YouTubeError('quota'));
+  if (unitsLeft() < 2) return failed(new YouTubeError('budget'));
 
+  // Quota (ADR 0009): search.list costs 100 units, so it is not used. One refresh is playlistItems.list (1 unit)
+  // for the recent uploads, then videos.list (1 unit, up to 50 ids) for their live state. The channel's curated
+  // video, and the live video it had when it was added, are added to that call, because a long-running 24/7
+  // stream drops out of the recent uploads.
+  const playlistId = 'UU' + channel.channelId.slice(2);
+  const playlistUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${encodeURIComponent(
+    playlistId,
+  )}&maxResults=6&key=${encodeURIComponent(apiKey)}`;
+
+  let uploads = [];
+  let trouble = null; // the first error that left the answer incomplete
   try {
-    // Quota (ADR 0009): search.list costs 100 units, so it is not used. One
-    // refresh is playlistItems.list (1 unit) for the recent uploads, then
-    // videos.list (1 unit, up to 50 ids) for their live state. The channel's
-    // curated live video is added to that call, because a long-running 24/7
-    // stream drops out of the recent uploads.
-    const playlistId = 'UU' + channel.channelId.slice(2);
-    const playlistUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${encodeURIComponent(
-      playlistId,
-    )}&maxResults=6&key=${encodeURIComponent(apiKey)}`;
-
-    let uploads = [];
-    try {
-      const pResp = await fetch(playlistUrl, { headers: { Accept: 'application/json' } });
-      if (pResp.ok) {
-        const pData = await pResp.json();
-        if (Array.isArray(pData.items)) uploads = pData.items;
-      }
-    } catch (e) {
-      // Ignore playlist failure
-    }
-
-    const uploadIds = uploads
-      .map((it) => extractYouTubeVideoId(it?.snippet?.resourceId?.videoId || it?.id?.videoId || ''))
-      .filter((id) => /^[a-zA-Z0-9_-]{11}$/.test(id));
-    const curated = /^[a-zA-Z0-9_-]{11}$/.test(channel.defaultVideoId || '') ? [channel.defaultVideoId] : [];
-    const ids = [...new Set([...uploadIds, ...curated])].slice(0, 50);
-
-    const details = new Map();
-    if (ids.length) {
-      try {
-        const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(
-          ids.join(','),
-        )}&key=${encodeURIComponent(apiKey)}`;
-        const vResp = await fetch(videosUrl, { headers: { Accept: 'application/json' } });
-        if (vResp.ok) {
-          const vData = await vResp.json();
-          for (const it of Array.isArray(vData.items) ? vData.items : []) {
-            if (typeof it?.id === 'string') details.set(it.id, it);
-          }
-        }
-      } catch (e) {
-        // Ignore the live-state check; recent uploads still show
-      }
-    }
-
-    const stateOf = (id) => details.get(id)?.snippet?.liveBroadcastContent;
-    const liveId = ids.find((id) => stateOf(id) === 'live');
-    const liveVideo = liveId ? normalizeYouTubeVideo(details.get(liveId), channel.id) : null;
-    if (liveVideo) liveVideo.isLive = true;
-    const upcomingVideos = ids
-      .filter((id) => stateOf(id) === 'upcoming')
-      .map((id) => normalizeYouTubeVideo(details.get(id), channel.id))
-      .filter(Boolean);
-
-    let recentVideos = uploads
-      .map((it) => {
-        const id = extractYouTubeVideoId(it?.snippet?.resourceId?.videoId || it?.id?.videoId || '');
-        return normalizeYouTubeVideo(details.get(id) || it, channel.id);
-      })
-      .filter(Boolean);
-
-    // If API returned no recent videos, fall back to configured fallback videos
-    if (recentVideos.length === 0 && Array.isArray(channel.fallbackVideos)) {
-      recentVideos = channel.fallbackVideos.map((v) => normalizeYouTubeVideo(v, channel.id));
-    }
-
-    const status = liveVideo ? 'live' : recentVideos.length > 0 ? 'recent' : 'offline';
-
-    // Where the DATA came from (kept with the cached payload, unlike `source`, which says how it was served):
-    // 'youtube-api' only when every recent upload came back with its details, so its live state is known.
-    // A failed playlist or videos.list, or the configured fallback list, is 'fallback'.
-    const complete = uploadIds.length > 0 && uploadIds.every((id) => details.has(id)) && uploads.length > 0;
-
-    const result = {
-      channelId: channel.id,
-      channelName: channel.name,
-      status,
-      liveVideo,
-      recentVideos,
-      upcomingVideos,
-      dataOrigin: complete ? 'youtube-api' : 'fallback',
-    };
-
-    setCached(cacheKey, result);
-    return { ok: true, source: 'youtube-api', ...result };
+    const pData = await youtubeGet(playlistUrl);
+    if (Array.isArray(pData.items)) uploads = pData.items;
   } catch (err) {
-    // If YouTube API fails (quota / network), return stale cache or curated fallback
-    if (cached) {
-      return { ok: true, source: 'stale-cache', ...cached.data, dataOrigin: 'stale' };
-    }
-    const fallbackData = {
-      channelId: channel.id,
-      channelName: channel.name,
-      status: channel.status || 'recent',
-      liveVideo: null,
-      recentVideos: (channel.fallbackVideos || []).map((v) => normalizeYouTubeVideo(v, channel.id)),
-      upcomingVideos: [],
-      dataOrigin: 'fallback',
-    };
-    return { ok: true, source: 'curated-fallback', error: err.message, ...fallbackData };
+    if (err.kind !== 'error') return failed(err); // a refusal, a spent budget or a hung request ends it here
+    trouble = err;
   }
+
+  const uploadIds = uploads
+    .map((it) => extractYouTubeVideoId(it?.snippet?.resourceId?.videoId || it?.id?.videoId || ''))
+    .filter((id) => ID11.test(id));
+  const curated = [channel.defaultVideoId, channel.liveHintVideoId].filter((id) => ID11.test(id || ''));
+  const ids = [...new Set([...uploadIds, ...curated])].slice(0, 50);
+
+  const details = new Map();
+  if (ids.length) {
+    try {
+      const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(
+        ids.join(','),
+      )}&key=${encodeURIComponent(apiKey)}`;
+      const vData = await youtubeGet(videosUrl);
+      for (const it of Array.isArray(vData.items) ? vData.items : []) {
+        if (typeof it?.id === 'string') details.set(it.id, it);
+      }
+    } catch (err) {
+      // The recent uploads already in hand still show, without a live state.
+      trouble = trouble || err;
+    }
+  }
+
+  const stateOf = (id) => details.get(id)?.snippet?.liveBroadcastContent;
+  const liveId = ids.find((id) => stateOf(id) === 'live');
+  const liveVideo = liveId ? normalizeYouTubeVideo(details.get(liveId), channel.id) : null;
+  if (liveVideo) liveVideo.isLive = true;
+  const upcomingVideos = ids
+    .filter((id) => stateOf(id) === 'upcoming')
+    .map((id) => normalizeYouTubeVideo(details.get(id), channel.id))
+    .filter(Boolean);
+
+  let recentVideos = uploads
+    .map((it) => {
+      const id = extractYouTubeVideoId(it?.snippet?.resourceId?.videoId || it?.id?.videoId || '');
+      return normalizeYouTubeVideo(details.get(id) || it, channel.id);
+    })
+    .filter(Boolean);
+
+  // If API returned no recent videos, fall back to configured fallback videos
+  const hasFallbackVideos = Array.isArray(channel.fallbackVideos) && channel.fallbackVideos.length > 0;
+  if (recentVideos.length === 0 && hasFallbackVideos) {
+    recentVideos = channel.fallbackVideos.map((v) => normalizeYouTubeVideo(v, channel.id));
+  }
+
+  const status = liveVideo ? 'live' : recentVideos.length > 0 ? 'recent' : 'offline';
+
+  // Where the DATA came from (kept with the cached payload, unlike `source`, which says how it was served):
+  // 'youtube-api' only when both calls worked and every recent upload came back with its details, so its live
+  // state is known (a channel with no uploads at all is known too, unless a curated list stands in for them).
+  const complete = !trouble && uploadIds.every((id) => details.has(id)) && (uploadIds.length > 0 || !hasFallbackVideos);
+
+  const result = {
+    channelId: channel.id,
+    channelName: channel.name,
+    status,
+    liveVideo,
+    recentVideos,
+    upcomingVideos,
+    dataOrigin: complete ? 'youtube-api' : 'fallback',
+    ...(complete ? {} : { reason: trouble?.kind || 'error' }),
+  };
+
+  // From YouTube data: a live video is kept 10 minutes, none 60 minutes. Anything else is kept briefly.
+  setCached(cacheKey, result, complete ? (liveVideo ? undefined : NO_LIVE_TTL_MS) : trouble?.kind === 'inaccessible' ? INACCESSIBLE_TTL_MS : FAILURE_TTL_MS);
+  return { ok: true, source: 'youtube-api', ...result };
 }
 
 // ── Public API Handlers ────────────────────────────────────────────────────
@@ -629,12 +782,18 @@ export async function fetchYouTubeChannelVideos(channel) {
 // remembered for one minute only, so a broken key or a quota stop is not retried on every list request.
 const LIVE_STATUS_KEY = 'yt-live-status';
 const LIVE_STATUS_FAILED_KEY = 'yt-live-status-failed';
-const LIVE_STATUS_FAILURE_TTL_MS = 60 * 1000;
 const LIVE_STATUS_TIMEOUT_MS = 3000;
 const VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
 let liveStatusInFlight = null;
 
-/** Ids of the channels whose default video is live; null when the answer is unknown (no key, failure). */
+export const LIVE_STATUS_BATCH = 50; // videos.list takes at most 50 ids
+
+/**
+ * What the batched check found: { liveIds: ids of channels whose curated video is live, hints: { channel id:
+ * video id } for added channels whose remembered live video (liveHintVideoId) is live now }. null when the
+ * answer is unknown (no key, a refusal, a failure). The ids are asked about in as many videos.list calls of
+ * 50 as needed, curated videos first (1 unit each).
+ */
 async function fetchLiveChannelIds(channels) {
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) return null;
@@ -642,38 +801,41 @@ async function fetchLiveChannelIds(channels) {
   const fresh = getCached(LIVE_STATUS_KEY);
   if (fresh && fresh.isFresh) return fresh.data;
   const failed = getCached(LIVE_STATUS_FAILED_KEY);
-  if (failed && Date.now() - failed.timestamp < LIVE_STATUS_FAILURE_TTL_MS) return null;
+  if (failed && failed.isFresh) return null;
+  if (quotaBlocked()) return null;
+  // A check that keeps failing is not retried all day: each failed attempt spends units too.
+  if (spentToday().listFailures >= LIST_CHECK_FAILURES_PER_DAY) return null;
   if (liveStatusInFlight) return liveStatusInFlight;
 
   const withVideo = channels.filter((c) => VIDEO_ID_RE.test(c.defaultVideoId || ''));
-  const ids = [...new Set(withVideo.map((c) => c.defaultVideoId))].slice(0, 50);
+  const withHint = channels.filter((c) => !VIDEO_ID_RE.test(c.defaultVideoId || '') && VIDEO_ID_RE.test(c.liveHintVideoId || ''));
+  const ids = [...new Set([...withVideo.map((c) => c.defaultVideoId), ...withHint.map((c) => c.liveHintVideoId)])];
   if (!ids.length) return null;
+  const batches = [];
+  for (let i = 0; i < ids.length; i += LIVE_STATUS_BATCH) batches.push(ids.slice(i, i + LIVE_STATUS_BATCH));
+  if (unitsLeft() < batches.length) return null; // not enough of today's units for the whole check
 
   const run = (async () => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), LIVE_STATUS_TIMEOUT_MS);
     try {
-      const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(
-        ids.join(','),
-      )}&key=${encodeURIComponent(apiKey)}`;
-      const resp = await fetch(url, { headers: { Accept: 'application/json' }, signal: controller.signal });
-      if (!resp.ok) {
-        try { await resp.body?.cancel(); } catch { /* the body is not needed */ }
-        throw new Error('videos.list HTTP ' + resp.status);
-      }
-      const body = await resp.json();
-      if (!Array.isArray(body?.items)) throw new Error('videos.list gave no items');
-      const liveVideoIds = new Set(
-        body.items.filter((it) => it?.snippet?.liveBroadcastContent === 'live').map((it) => it.id),
-      );
+      const answers = await Promise.all(batches.map(async (batch) => {
+        const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(
+          batch.join(','),
+        )}&key=${encodeURIComponent(apiKey)}`;
+        const body = await youtubeGet(url, LIVE_STATUS_TIMEOUT_MS);
+        if (!Array.isArray(body?.items)) throw new YouTubeError('error');
+        return body.items.filter((it) => it?.snippet?.liveBroadcastContent === 'live').map((it) => it.id);
+      }));
+      const liveVideoIds = new Set(answers.flat());
       const liveIds = withVideo.filter((c) => liveVideoIds.has(c.defaultVideoId)).map((c) => c.id);
-      setCached(LIVE_STATUS_KEY, liveIds);
-      return liveIds;
+      const hints = {};
+      for (const c of withHint) if (liveVideoIds.has(c.liveHintVideoId)) hints[c.id] = c.liveHintVideoId;
+      const found = { liveIds, hints };
+      setCached(LIVE_STATUS_KEY, found);
+      return found;
     } catch {
-      setCached(LIVE_STATUS_FAILED_KEY, true);
+      spentToday().listFailures += 1;
+      setCached(LIVE_STATUS_FAILED_KEY, true, LIST_FAILURE_TTL_MS);
       return null;
-    } finally {
-      clearTimeout(timer);
     }
   })();
   liveStatusInFlight = run;
@@ -692,10 +854,28 @@ function freshLiveVideoId(channelId) {
   return typeof id === 'string' && VIDEO_ID_RE.test(id) ? id : '';
 }
 
+const embedUrlFor = (id) => `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&playsinline=1`;
+
+/** What the page reads of a channel: no description, fallback videos, priority or hint, so the list stays small. */
+function toListEntry(c) {
+  const out = {
+    id: c.id, name: c.name, short: c.short, category: c.category, lists: c.lists || [], lang: c.lang, color: c.color, channelId: c.channelId,
+    status: c.status, channelUrl: c.channelUrl, deskId: c.deskId, viewers: c.viewers ?? null,
+  };
+  if (c.officialName) out.officialName = c.officialName;
+  if (c.defaultVideoId) out.defaultVideoId = c.defaultVideoId;
+  if (c.embedUrl) out.embedUrl = c.embedUrl;
+  if (c.liveVideoId) out.liveVideoId = c.liveVideoId;
+  if (c.hinted) out.hinted = true; // its video is a remembered live one that YouTube confirmed, not a curated one
+  return out;
+}
+
 export async function getLiveTvChannels(options = {}) {
   const category = (options.category || 'ALL').toUpperCase();
   const enabledChannels = YOUTUBE_SOURCES.filter((c) => c.enabled !== false);
-  const liveIds = new Set((await fetchLiveChannelIds(enabledChannels)) || []);
+  const found = await fetchLiveChannelIds(enabledChannels);
+  const liveIds = new Set(found?.liveIds || []);
+  const hints = found?.hints || {};
 
   // Copies: YOUTUBE_SOURCES is never changed. A channel is live here only when the video this page
   // plays (its defaultVideoId) is live; a live upload elsewhere on the channel does not count.
@@ -703,6 +883,8 @@ export async function getLiveTvChannels(options = {}) {
   // by getLiveTvVideos from YouTube data). Read it from memory only: no request, no search.list (ADR 0009).
   let channels = enabledChannels.map((c) => {
     if (liveIds.has(c.id)) return { ...c, status: 'live' };
+    // A remembered live video that YouTube confirms is live now is the video to play; one that is not is ignored.
+    if (hints[c.id]) return { ...c, status: 'live', defaultVideoId: hints[c.id], embedUrl: embedUrlFor(hints[c.id]), hinted: true };
     const liveVideoId = freshLiveVideoId(c.id);
     // `status` keeps its F374 meaning (the curated video is live); the client decides what to do with this.
     return liveVideoId ? { ...c, liveVideoId } : { ...c };
@@ -711,6 +893,7 @@ export async function getLiveTvChannels(options = {}) {
   if (category !== 'ALL') {
     channels = channels.filter((c) => c.category === category);
   }
+  channels = channels.map(toListEntry);
 
   // Active channel defaults to first enabled channel or 'dd-news'
   const activeChannelId = channels.some((c) => c.id === 'dd-news')
@@ -723,6 +906,7 @@ export async function getLiveTvChannels(options = {}) {
     count: channels.length,
     activeChannelId,
     categories: LIVE_TV_CATEGORIES,
+    lists: LIVE_TV_LISTS,
     selectedCategory: category,
   };
 }

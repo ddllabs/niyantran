@@ -160,3 +160,22 @@ describe('colours and motion', () => {
     expect(media(page, '(prefers-reduced-motion: reduce)')).toMatch(/\.ltv-fcpill-dot/);
   });
 });
+
+describe('the channel bar keeps the panel\'s foot in the window (B6 review)', () => {
+  const bar = readFileSync(new URL('./liveTv/channelBar.css', import.meta.url), 'utf8');
+  const paste = readFileSync(new URL('./liveTv/pasteLink.css', import.meta.url), 'utf8');
+  const outsideMedia = (css) => css.replace(/@media[^{]*\{(?:[^{}]*\{[^}]*\})*[^{}]*\}/g, '');
+  it('puts the search box at the right end of the segments row, which does not wrap; the chips scroll sideways', () => {
+    expect(bar).toMatch(/\.ltv-channelbar \.ltv-seg-row\s*\{[^}]*flex-wrap:\s*nowrap/);
+    expect(bar).toMatch(/\.ltv-seg-row \.ltv-category-bar\s*\{[^}]*flex-wrap:\s*nowrap;[^}]*overflow-x:\s*auto/);
+  });
+  it('shows the "Paste a link" and "Channels" buttons on phones only, with a selector that beats liveTv.css', () => {
+    expect(outsideMedia(paste)).toMatch(/\.ltv-paste \.ltv-paste-toggle\s*\{\s*display:\s*none/);
+    expect(outsideMedia(bar)).toMatch(/\.ltv-channelbar \.ltv-sheet-open\s*\{\s*display:\s*none/);
+    expect(paste).toMatch(/@media \(max-width: 600px\)[\s\S]*\.ltv-paste \.ltv-paste-toggle\s*\{\s*display:\s*inline-flex/);
+    expect(bar).toMatch(/@media \(max-width: 600px\)[\s\S]*\.ltv-channelbar \.ltv-sheet-open\s*\{\s*display:\s*inline-flex/);
+  });
+  it('keeps the old height as the fallback; the page writes the real one on .ltv-main', () => {
+    expect(page).toMatch(/--ltv-above-split:\s*163px/);
+  });
+});
