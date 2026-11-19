@@ -188,6 +188,16 @@ describe('fact-check charges', () => {
     expect(factcheckDetails({ channel: null, minutesUsed: null, videoKind: null })).toEqual([]);
   });
 
+  it('asks for refund lines only when told to, and only in the all-kinds view', async () => {
+    state.rpc = vi.fn(async () => ({ data: { total: 0, rows: [] }, error: null }));
+    await loadUsageActivity({});
+    await loadUsageActivity({ kind: 'all', refunds: true });
+    await loadUsageActivity({ kind: 'factcheck', refunds: true });
+    await loadUsageActivity({ kind: 'answers', refunds: true });
+    const kinds = state.rpc.mock.calls.map((c) => c[1].p_kind);
+    expect(kinds).toEqual(['all', 'all+refunds', 'factcheck', 'answers']);
+  });
+
   it('sends p_kind factcheck to the report', async () => {
     state.rpc = vi.fn(async () => ({ data: { total: 0, rows: [] }, error: null }));
     await loadUsageActivity({ kind: 'factcheck' });
@@ -217,11 +227,18 @@ describe('refund lines', () => {
     expect(rowChat({ feature: 'factcheck_refund', title: null, conversationId: null, turnKey: null })).toBe(REFUND_LABEL);
   });
 
-  it('exports a refund as a Refund line with positive credits, not as a Row', () => {
+  it('exports a refund as a Refund line with negative credits, not as a Row', () => {
     const { rows } = shapeActivity({ total: 1, rows: [raw] });
     const lines = activityCsv(rows).trim().split('\r\n');
     expect(lines[1]).toContain('Refund: shared fact-check results removed');
-    expect(lines[1].split(',').slice(-1)[0]).toBe('200');
+    const charge = shapeActivity({ total: 1, rows: [{ ...raw, feature: 'factcheck', credits: 50, video_id: null }] }).rows;
+    const sum = [...charge, ...rows].map((r) => Number(activityCsv([r]).trim().split('\r\n')[1].split(',').slice(-1)[0])).reduce((a, b) => a + b, 0);
+    expect(sum).toBe(-150);
+    // Text that starts with a minus is still kept as text.
+    expect(activityCsv([{ ...charge[0], question: '-1+1' }]).split('\r\n')[1]).toContain("'-1+1");
+    // Spent is positive and returned is negative, so a sum of the Credits column is the net spending; the minus stays a number.
+    expect(lines[1].split(',').slice(-1)[0]).toBe('-200');
+    expect(lines[1]).not.toContain("'-200");
     expect(lines[1]).toContain(',Refund,');
     expect(lines[1]).not.toContain(',Row,');
   });

@@ -137,12 +137,12 @@ function FactcheckRow({ row, max }) {
 }
 
 /** Credits given back when a video's shared results were removed: a positive line with no bar, model, calls or chat. */
-export function RefundRow({ row, compact = false }) {
+export function RefundRow({ row }) {
   const parts = [channelName(row.channel), { live: 'Live', recorded: 'Recorded' }[row.videoKind] || '', row.videoId ? `Video ${row.videoId}` : ''].filter(Boolean);
   return (
     <li className="cp-row">
       <div className="cp-row-main">
-        {compact ? null : <span className="cu-expand-gap" aria-hidden="true" />}
+        <span className="cu-expand-gap" aria-hidden="true" />
         <div className="cp-row-text">
           <p className="cp-row-q">{rowChat(row)}</p>
           <p className="cp-row-meta">

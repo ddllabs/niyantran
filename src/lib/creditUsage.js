@@ -161,9 +161,14 @@ export function loadUsageSeries(from, to, bucket) {
 
 export const ACTIVITY_PAGE = 50;
 
-export function loadUsageActivity({ offset = 0, limit = ACTIVITY_PAGE, grouped = true, model = null, status = 'all', kind = 'all' } = {}) {
+/**
+ * `refunds: true` asks for refund lines too, and only in the all-kinds view: the kind is then sent as 'all+refunds'. A database
+ * without the refund migration reads an unknown kind as 'all' (today's list), and one with it returns refund lines only for
+ * this value, so a caller that does not ask (the balance pill, the overview) never sees one, whatever the release order.
+ */
+export function loadUsageActivity({ offset = 0, limit = ACTIVITY_PAGE, grouped = true, model = null, status = 'all', kind = 'all', refunds = false } = {}) {
   return report('my_usage_activity', {
-    p_offset: offset, p_limit: limit, p_grouped: grouped, p_model: model || null, p_status: status, p_kind: kind,
+    p_offset: offset, p_limit: limit, p_grouped: grouped, p_model: model || null, p_status: status, p_kind: refunds && kind === 'all' ? 'all+refunds' : kind,
   }, shapeActivity);
 }
 

@@ -11,8 +11,11 @@
 --   turn_key null, conversation_id null, title null, question null, status 'succeeded', model null, calls 0, tokens 0,
 --   credits = the credits returned, POSITIVE (an adjustment entry holds its credits in the unit of its day and no rate, like the balance sums them), detail [], and the extra keys feature
 --   'factcheck_refund', channel, video_kind and video_id (null once the user deleted the session, which removes the unlock).
--- p_kind 'all' and 'factcheck' list them; 'answers' and 'dictation' do not; a model filter matches them only for the value
--- 'factcheck'; the status filter treats them as succeeded. The refund is found by its lot's source key, not by its note
+-- OPT-IN: refund lines are returned ONLY when p_kind is exactly 'all+refunds' (which otherwise behaves as 'all'). Every other
+-- call, including every old browser, gets exactly the output it got before this migration, for every user. The old function
+-- reads any unknown kind as 'all', so a new browser that sends 'all+refunds' to a database without this migration simply gets
+-- today's list. With the opt-in, a model filter matches a refund only for the value 'factcheck'; the status filter treats it
+-- as succeeded. The refund is found by its lot's source key, not by its note
 -- alone, so no other adjustment can look like one. They are the signed-in user's own ledger entries only. The list's
 -- total counts them (they are rows). Chat, dictation and fact-check charge rows are unchanged.
 -- Not changed: my_usage_summary, my_usage_timeseries, my_credits (its used_this_cycle and totals read charges only, so no
@@ -22,12 +25,16 @@
 -- migration's own, and applying it twice is a no-op. Privileges and owners are kept (CREATE OR REPLACE). Nothing is
 -- written, no table changes, nothing is deleted.
 --
--- RELEASE ORDER: apply this migration first, then deploy the browser. The new browser works against the old function (it
--- simply never sees a refund row); the old browser against the new function would read a refund row as a dictation row
--- (feature unknown, no chat, no turn key), so the database must not go first without the browser following soon.
--- Applying the migration first is the safer of the two: do both in the same sitting.
+-- RELEASE ORDER: safe in either order, because refund lines are opt-in. Preferred: deploy the browser first, then apply this
+-- migration (until then the new browser sends 'all+refunds' and the old function answers as for 'all'). If the migration goes
+-- first, the old browser, which never sends the value, still gets exactly today's output.
 --
--- Down: re-run public.my_usage_activity from 20261116100000_factcheck_usage_reports.sql, then
+-- private.factcheck_refunds is replaced here without a drift check: it is new in this migration, so no earlier version exists
+-- to overwrite (public.my_usage_activity, which does exist, is guarded below).
+--
+-- Down: run ONLY the statement "CREATE OR REPLACE FUNCTION public.my_usage_activity ... $$;" from
+-- 20261116100000_factcheck_usage_reports.sql (re-running that whole file would be refused by its own guard, because the other
+-- three functions are already its versions), then
 --   drop function private.factcheck_refunds(uuid);
 
 BEGIN;
@@ -39,7 +46,7 @@ DECLARE
   v_md5 text;
 BEGIN
   SELECT md5(p.prosrc) INTO v_md5 FROM pg_proc p WHERE p.oid = to_regprocedure('public.my_usage_activity(integer,integer,boolean,text,text,text)');
-  IF v_md5 IS NULL OR v_md5 NOT IN ('e70f35ab76b6b0df7cfbdb274a4792ec', '411f88ac918474997cb4cd806ea01bc1') THEN
+  IF v_md5 IS NULL OR v_md5 NOT IN ('e70f35ab76b6b0df7cfbdb274a4792ec', 'a5b51b75e48ecd565cae8671b426a30f') THEN
     RAISE EXCEPTION 'factcheck_refund_usage: public.my_usage_activity(integer,integer,boolean,text,text,text) differs from the version this migration was written against (source md5 %); review it before applying',
       coalesce(v_md5, 'missing') USING ERRCODE = '55000';
   END IF;
@@ -70,6 +77,8 @@ DECLARE
   v_model text := nullif(left(btrim(coalesce(p_model, '')), 200), '');
   v_status text := CASE WHEN p_status IN ('succeeded', 'failed') THEN p_status ELSE 'all' END;
   v_kind text := CASE WHEN p_kind IN ('answers', 'dictation', 'factcheck') THEN p_kind ELSE 'all' END;
+  -- Refund lines are opt-in: only the value 'all+refunds' (which reads as 'all' above) asks for them.
+  v_refunds boolean := coalesce(p_kind = 'all+refunds', false);
   v_total bigint;
   v_rows jsonb;
 BEGIN
@@ -113,7 +122,7 @@ BEGIN
       UNION ALL
       SELECT 'refund', r.ledger_id::text, r.refunded_at, NULL, NULL, NULL, NULL, 'succeeded',
              (v_model IS NULL OR v_model = 'factcheck')
-      FROM private.factcheck_refunds(uid) r WHERE v_kind IN ('all', 'factcheck')
+      FROM private.factcheck_refunds(uid) r WHERE v_refunds
     ), filtered AS (
       SELECT * FROM items i
       WHERE i.model_ok
@@ -221,7 +230,7 @@ BEGIN
       FROM private.factcheck_charges(uid, '-infinity', 'infinity') f WHERE v_kind IN ('all', 'factcheck')
       UNION ALL
       SELECT r.ledger_id, r.refunded_at, NULL::uuid, NULL::uuid, NULL::text, NULL::text, 'succeeded', 0, false, true
-      FROM private.factcheck_refunds(uid) r WHERE v_kind IN ('all', 'factcheck')
+      FROM private.factcheck_refunds(uid) r WHERE v_refunds
     ), filtered AS (
       SELECT * FROM items i
       WHERE (v_model IS NULL OR i.model = v_model OR ((i.is_fc OR i.is_rf) AND v_model = 'factcheck'))

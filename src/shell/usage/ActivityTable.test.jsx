@@ -3,7 +3,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import ActivityTable, { rowKey } from './ActivityTable.jsx';
-import { FIRST_FILTERS, csvName, nextFilters, toggled } from '../credits/ActivitySection.jsx';
+import { FIRST_FILTERS, csvName, nextFilters, reportFilters, toggled } from '../credits/ActivitySection.jsx';
 
 const answer = {
   turnKey: 'a1', createdAt: '2026-10-14T06:30:00Z', conversationId: 'c1', title: 'Rate cut', question: 'What did the RBI do?',
@@ -314,5 +314,13 @@ describe('refund rows', () => {
     const plain = html({ state: { status: 'ready', total: 3, rows: [answer, deleted, dictation] } });
     const mixed = html({ state: { status: 'ready', total: 4, rows: [answer, refund, deleted, dictation] } });
     for (const piece of plain.match(/<li class="cp-row[\s\S]*?<\/li>/g)) expect(mixed).toContain(piece);
+  });
+});
+
+describe('the activity screen asks for refund lines; the other callers do not', () => {
+  it('adds the refunds request to what the page, the by-chat view and the export send', () => {
+    expect(reportFilters(FIRST_FILTERS)).toMatchObject({ refunds: true, kind: 'all' });
+    expect(reportFilters({ ...FIRST_FILTERS, byChat: true })).toMatchObject({ refunds: true, grouped: true });
+    expect(reportFilters({ ...FIRST_FILTERS, byChat: true })).not.toHaveProperty('byChat');
   });
 });

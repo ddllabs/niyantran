@@ -131,13 +131,15 @@ CREATE FUNCTION pg_temp.admin_remove(p_video text) RETURNS jsonb LANGUAGE sql AS
   SELECT pg_temp.remove_as('authenticated', pg_temp.u(7), p_video);
 $$;
 -- What a user's own usage screens return, as that user.
-CREATE FUNCTION pg_temp.act(p_sub uuid, p_grouped boolean DEFAULT true, p_kind text DEFAULT 'all', p_model text DEFAULT NULL, p_status text DEFAULT 'all')
+-- p_kind defaults to the opt-in value 'all+refunds'; the snapshots and the no-opt-in checks pass 'all' or another value.
+CREATE FUNCTION pg_temp.act(p_sub uuid, p_grouped boolean DEFAULT true, p_kind text DEFAULT 'all+refunds', p_model text DEFAULT NULL, p_status text DEFAULT 'all',
+                            p_offset integer DEFAULT 0, p_limit integer DEFAULT 100)
 RETURNS jsonb LANGUAGE plpgsql AS $$
 DECLARE v jsonb;
 BEGIN
   PERFORM set_config('request.jwt.claim.sub', p_sub::text, true);
   EXECUTE 'SET LOCAL ROLE authenticated';
-  v := public.my_usage_activity(0, 100, p_grouped, p_model, p_status, p_kind);
+  v := public.my_usage_activity(p_offset, p_limit, p_grouped, p_model, p_status, p_kind);
   EXECUTE 'RESET ROLE';
   RETURN v;
 END;
@@ -146,7 +148,7 @@ CREATE FUNCTION pg_temp.others(p_sub uuid, p_grouped boolean) RETURNS jsonb LANG
   SELECT coalesce(jsonb_agg(r ORDER BY r ->> 'created_at', r::text), '[]'::jsonb)
   FROM jsonb_array_elements(pg_temp.act(p_sub, p_grouped) -> 'rows') r WHERE r ->> 'feature' IS DISTINCT FROM 'factcheck_refund';
 $$;
-CREATE FUNCTION pg_temp.refunds(p_sub uuid, p_grouped boolean DEFAULT true, p_kind text DEFAULT 'all', p_model text DEFAULT NULL, p_status text DEFAULT 'all')
+CREATE FUNCTION pg_temp.refunds(p_sub uuid, p_grouped boolean DEFAULT true, p_kind text DEFAULT 'all+refunds', p_model text DEFAULT NULL, p_status text DEFAULT 'all')
 RETURNS jsonb LANGUAGE sql AS $$
   SELECT coalesce(jsonb_agg(r ORDER BY (r ->> 'credits')::numeric), '[]'::jsonb)
   FROM jsonb_array_elements(pg_temp.act(p_sub, p_grouped, p_kind, p_model, p_status) -> 'rows') r WHERE r ->> 'feature' = 'factcheck_refund';
@@ -185,7 +187,7 @@ SELECT pg_temp.assert_true(has_function_privilege('authenticated', 'public.my_us
     AND NOT has_function_privilege('service_role', 'public.my_usage_activity(integer,integer,boolean,text,text,text)', 'EXECUTE')
     AND NOT has_function_privilege('public', 'public.my_usage_activity(integer,integer,boolean,text,text,text)', 'EXECUTE'),
   'only authenticated may execute my_usage_activity, as before');
-SELECT pg_temp.assert_true((SELECT md5(prosrc) = '411f88ac918474997cb4cd806ea01bc1' FROM pg_proc WHERE oid = to_regprocedure('public.my_usage_activity(integer,integer,boolean,text,text,text)')),
+SELECT pg_temp.assert_true((SELECT md5(prosrc) = 'a5b51b75e48ecd565cae8671b426a30f' FROM pg_proc WHERE oid = to_regprocedure('public.my_usage_activity(integer,integer,boolean,text,text,text)')),
   'the function source is the one whose md5 the migration''s guard names');
 
 -- 1. Set-up: video VX with two stretches (100 and 200 credits), VY with one (100) ---------------------------------------------------
@@ -223,8 +225,8 @@ SELECT pg_temp.assert_true(jsonb_array_length(pg_temp.act(pg_temp.u(3)) -> 'rows
 SELECT pg_temp.assert_true(pg_temp.refunds(pg_temp.u(6)) = '[]'::jsonb AND jsonb_array_length(pg_temp.act(pg_temp.u(6)) -> 'rows') = 0,
   'user 6''s look-alike adjustment (another source key) is no refund line and no other line');
 INSERT INTO snap SELECT 'rep' || n, pg_temp.reports(pg_temp.u(n)) FROM generate_series(1, 7) n;
-INSERT INTO snap SELECT 'g' || n, pg_temp.act(pg_temp.u(n), true) FROM generate_series(1, 7) n;
-INSERT INTO snap SELECT 'c' || n, pg_temp.act(pg_temp.u(n), false) FROM generate_series(1, 7) n;
+INSERT INTO snap SELECT 'g' || n, pg_temp.act(pg_temp.u(n), true, 'all') FROM generate_series(1, 7) n;
+INSERT INTO snap SELECT 'c' || n, pg_temp.act(pg_temp.u(n), false, 'all') FROM generate_series(1, 7) n;
 INSERT INTO snap SELECT 'bal' || n, to_jsonb(pg_temp.bal(pg_temp.u(n))) FROM generate_series(1, 7) n;
 
 -- 3. An administrator removes VX: users 3 and 4 are refunded ----------------------------------------------------------------------
@@ -279,26 +281,64 @@ SELECT pg_temp.assert_true(pg_temp.bal(pg_temp.u(3)) = (SELECT (j)::numeric FROM
     AND pg_temp.bal(pg_temp.u(4)) = (SELECT (j)::numeric FROM snap WHERE k = 'bal4') + 200,
   'the balances rose by exactly the refunds, so the lines show what the balance gained');
 
--- 7. Filters --------------------------------------------------------------------------------------------------------------------------
-SELECT pg_temp.assert_true(jsonb_array_length(pg_temp.refunds(pg_temp.u(3), true, 'factcheck')) = 2 AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), false, 'factcheck')) = 2
-    AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), true, 'answers')) = 0 AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), false, 'dictation')) = 0,
-  'the fact-check kind lists the refunds; the answers and dictation kinds do not');
-SELECT pg_temp.assert_true(jsonb_array_length(pg_temp.refunds(pg_temp.u(3), true, 'all', 'factcheck')) = 2
-    AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), false, 'all', 'factcheck')) = 2
-    AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), true, 'all', 'openai/gpt-x')) = 0
-    AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), false, 'all', 'openai/gpt-x')) = 0,
-  'a model filter matches a refund only for "factcheck"');
-SELECT pg_temp.assert_true(jsonb_array_length(pg_temp.refunds(pg_temp.u(3), true, 'all', NULL, 'succeeded')) = 2
-    AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), true, 'all', NULL, 'failed')) = 0
-    AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), false, 'all', NULL, 'failed')) = 0,
+-- 7. Opt-in: without the request the output is exactly what it was, for EVERY user, refunded ones included -----------------------------
+SELECT pg_temp.assert_true((SELECT bool_and(pg_temp.act(pg_temp.u(n), true, 'all') = (SELECT j FROM snap WHERE k = 'g' || n)
+                                         AND pg_temp.act(pg_temp.u(n), false, 'all') = (SELECT j FROM snap WHERE k = 'c' || n)) FROM generate_series(1, 7) n),
+  'asked for kind "all" (what an old browser sends), every user, refunded users included, gets byte for byte the list from before the removal (both modes)');
+SELECT pg_temp.assert_true((SELECT bool_and(pg_temp.act(pg_temp.u(n), true, 'bogus') = (SELECT j FROM snap WHERE k = 'g' || n)
+                                         AND pg_temp.act(pg_temp.u(n), false, NULL) = (SELECT j FROM snap WHERE k = 'c' || n)) FROM generate_series(1, 7) n),
+  'an unknown or missing kind reads as "all" and shows no refund either');
+SELECT pg_temp.assert_true(jsonb_array_length(pg_temp.refunds(pg_temp.u(3), true, 'factcheck')) = 0 AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), false, 'factcheck')) = 0
+    AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), true, 'answers')) = 0 AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), false, 'dictation')) = 0
+    AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), true, 'all')) = 0 AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), false, 'all')) = 0,
+  'no other kind lists a refund');
+SELECT pg_temp.assert_true(jsonb_array_length(pg_temp.refunds(pg_temp.u(3), true, 'all+refunds', 'factcheck')) = 2
+    AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), false, 'all+refunds', 'factcheck')) = 2
+    AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), true, 'all+refunds', 'openai/gpt-x')) = 0
+    AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), false, 'all+refunds', 'openai/gpt-x')) = 0,
+  'with the request, a model filter matches a refund only for "factcheck"');
+SELECT pg_temp.assert_true(jsonb_array_length(pg_temp.refunds(pg_temp.u(3), true, 'all+refunds', NULL, 'succeeded')) = 2
+    AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), true, 'all+refunds', NULL, 'failed')) = 0
+    AND jsonb_array_length(pg_temp.refunds(pg_temp.u(3), false, 'all+refunds', NULL, 'failed')) = 0,
   'the status filter treats a refund as succeeded');
 
--- 8. A second removal refunds nothing more and adds no line; the line survives the unlock row ------------------------------------------
+-- 8. Paging across a refund row: no row is repeated or dropped (all four of user 3's rows share one instant; the key breaks the tie) ----
+DO $$
+DECLARE is_grouped boolean; per_page integer; all_rows jsonb; got jsonb; skip integer; page jsonb;
+BEGIN
+  FOREACH is_grouped IN ARRAY ARRAY[true, false] LOOP
+    all_rows := pg_temp.act(pg_temp.u(3), is_grouped) -> 'rows';
+    FOREACH per_page IN ARRAY ARRAY[1, 3] LOOP
+      got := '[]'::jsonb;
+      FOR skip IN SELECT generate_series(0, 4, per_page) LOOP
+        page := pg_temp.act(pg_temp.u(3), is_grouped, 'all+refunds', NULL, 'all', skip, per_page) -> 'rows';
+        got := got || page;
+      END LOOP;
+      PERFORM pg_temp.assert_true(jsonb_array_length(got) = 4 AND (SELECT count(DISTINCT x::text) = 4 FROM jsonb_array_elements(got) x)
+          AND (SELECT array_agg(x::text ORDER BY x::text) FROM jsonb_array_elements(got) x) = (SELECT array_agg(x::text ORDER BY x::text) FROM jsonb_array_elements(all_rows) x)
+          AND got = all_rows,
+        format('paging %s rows at a time (%s): the pages, in order, are exactly the full list, nothing repeated or dropped', per_page, CASE WHEN is_grouped THEN 'grouped' ELSE 'per call' END));
+    END LOOP;
+  END LOOP;
+END;
+$$;
+
+-- 9. A second removal adds no line; the real deletion path (the runner deletes their session, the unlocks go by cascade) -----------------
 SELECT pg_temp.admin_remove('VX');
 SELECT pg_temp.assert_true(jsonb_array_length(pg_temp.refunds(pg_temp.u(3))) = 2 AND jsonb_array_length(pg_temp.refunds(pg_temp.u(4))) = 1, 'a second removal adds no refund line');
-DELETE FROM public.factcheck_unlocks WHERE user_id = pg_temp.u(4);
-SELECT pg_temp.assert_true(pg_temp.refunds(pg_temp.u(4)) -> 0 ->> 'credits' = '200.0000' AND pg_temp.refunds(pg_temp.u(4)) -> 0 -> 'video_id' = 'null'::jsonb
-    AND pg_temp.refunds(pg_temp.u(4)) -> 0 -> 'channel' = 'null'::jsonb,
-  'when the unlock row is gone the refund line stays, without its video');
+DELETE FROM public.factcheck_sessions WHERE id = (SELECT id FROM ids WHERE k = 'sb');
+SELECT pg_temp.assert_true(NOT EXISTS (SELECT FROM public.factcheck_unlocks WHERE session_id = (SELECT id FROM ids WHERE k = 'sb')),
+  'deleting the session removed its unlocks by cascade');
+DO $$
+DECLARE r4 jsonb := pg_temp.refunds(pg_temp.u(4)); r3 jsonb := pg_temp.refunds(pg_temp.u(3));
+BEGIN
+  PERFORM pg_temp.assert_true(jsonb_array_length(r4) = 1 AND r4 -> 0 ->> 'credits' = '200.0000' AND r4 -> 0 -> 'video_id' = 'null'::jsonb
+      AND r4 -> 0 -> 'channel' = 'null'::jsonb AND r4 -> 0 -> 'video_kind' = 'null'::jsonb,
+    'user 4''s refund line stays after the session is gone, with null video, channel and kind: ' || r4::text);
+  PERFORM pg_temp.assert_true(jsonb_array_length(r3) = 2 AND r3 -> 0 ->> 'credits' = '100.0000' AND r3 -> 0 ->> 'video_id' = 'VX' AND r3 -> 0 ->> 'channel' = 'chan'
+      AND r3 -> 1 ->> 'credits' = '200.0000' AND r3 -> 1 -> 'video_id' = 'null'::jsonb AND r3 -> 1 -> 'channel' = 'null'::jsonb AND r3 -> 1 -> 'video_kind' = 'null'::jsonb,
+    'user 3 keeps both lines; only the one whose session was deleted lost its video fields: ' || r3::text);
+END;
+$$;
 SELECT pg_temp.invariants('at the end');
 ROLLBACK;
