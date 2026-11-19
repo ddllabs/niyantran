@@ -56,9 +56,9 @@ exactly as today.
 
    | Desk | Text types allowed | Completeness basis | Citation fields required | Suggested key prefix |
    |---|---|---|---|---|
-   | Budget | `pdf_text` | page check against the official PDF; density-only if the file cannot be read | `kind`, `issuer`, `source` | `budget:` |
+   | Budget | `pdf_text` | page check against the official PDF, required | `kind`, `issuer`, `source` | `budget:` |
    | Cabinet | `html` | density-only | `kind`, `issuer`, `prid`, `source` | none |
-   | Transfers | `pdf_text` | page check; density-only if unreadable | `kind`, `source` | none |
+   | Transfers | `pdf_text` | page check where the link is a checkable PDF; density-only where there is none | `kind`, `source` | none |
    | Industry | `pdf_text` | page check where a link exists; density-only otherwise | `kind`, `source` | `industry:` |
    | MP Profiles | `html`, `dataset` | density-only | `kind`, `house`, `mp_name`, `mpsno`, `source` | `mp:` |
 
@@ -75,8 +75,28 @@ exactly as today.
 6. **Partition.** All five land in the default partition: about 27,000 chunks by estimate (Budget about 20,000),
    beside the 68,110 chunks of Parliamentary Questions. No desk is near the 100,000 bound. The runner's own refusal
    above that bound is F285.
-7. **Citations.** Every citation carries its publisher (F332). The publisher shown for each of the five desks is
-   checked on a loaded record before the desk's load is accepted.
+7. **Citations.** Every citation carries its publisher (F332), and the screen holds a record whose publisher cannot
+   be named. `supabase/functions/_shared/publisher.ts` names Regulatory documents only, so it is extended. As for
+   Regulatory, the name is a constant chosen from the document's hosts, never a value from the document:
+
+   | Desk | Domain | Publisher shown |
+   |---|---|---|
+   | Budget | `indiabudget.gov.in` | Ministry of Finance, Government of India |
+   | Cabinet | `pib.gov.in` | Press Information Bureau, Government of India |
+   | Transfers | `mha.gov.in` | Ministry of Home Affairs, Government of India |
+   | MP Profiles | `sansad.in` | Parliament of India |
+   | Industry | `dpiit.gov.in` | Department for Promotion of Industry and Internal Trade |
+   | Industry | `eaindustry.nic.in` | Office of the Economic Adviser, DPIIT |
+   | Industry | `mospi.gov.in` | Ministry of Statistics and Programme Implementation |
+
+   A document whose hosts are outside its desk's domains, or name two publishers, gets no name and is held. The
+   research chat imports this file, so it is redeployed with the route.
+8. **Corrections from the build, 2026-11-19.** (a) A link that matches a desk's PDF rule but cannot be fetched or read
+   holds the record on every desk, as the Regulatory screen already does; the density-only basis applies only where a
+   record has no checkable link. (b) The screen engine refused any projection that changes a field, so the spelling
+   rewrite needs a declared exception: a screen may name the fields its projection may change, and only those.
+   (c) Cabinet and MP records have no pages (`page_split` none); the configurations say so with a flag, and admission
+   is checked for the same shape by fixture.
 
 ## Acceptance evidence
 
@@ -97,8 +117,8 @@ exactly as today.
 
 - One file in `supabase/migrations/`, one in `supabase/tests/`, `supabase/functions/_shared/suppliedText.ts` and its
   test.
-- `scripts/bulk-runner/screens/` (five configurations, `index.ts`, `search_only.ts` only for the spelling rewrite and
-  the Budget link rule) and their tests.
+- `scripts/bulk-runner/screens/` (five configurations, `index.ts`, `search_only.ts`), `scripts/bulk-runner/screen.ts`
+  and `screen_types.ts` for the declared rewrite, `supabase/functions/_shared/publisher.ts`, and their tests.
 - A record per load in `docs/operations/`.
 
 ## Exclusions
