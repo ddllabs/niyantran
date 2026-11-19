@@ -12,11 +12,14 @@ import { LatestClaimStrip } from './factcheck/LatestClaimStrip.jsx';
 import { latestVerdictClaim } from './factcheck/claimFilter.js';
 import { leaveFullscreenThen } from './factcheck/leaveFullscreen.js';
 import { ChannelCard } from './liveTv/ChannelCard.jsx';
+import { ChannelBar } from './liveTv/ChannelBar.jsx';
+import { browserStorage, readFollowing, writeFollowing, toggleFollowing } from './liveTv/following.js';
 import { nowPlayingLine } from './liveTv/channelView.js';
 import { embedVideoId, playingTarget } from './factcheck/factCheckText.js';
 import { useFactCheck } from './factcheck/useFactCheck.js';
 import { useYoutubePlayer } from './liveTv/useYoutubePlayer.js';
 import { buildEmbedSrc, embedFrameKey } from './liveTv/embed.js';
+import { remainingSecondsOf } from './liveTv/position.js';
 import { parseYoutubeLink, youtubeEmbedUrl, youtubeWatchUrl, playerErrorMessage, pastedVideoKind, isBlockingPlayerError } from './liveTv/youtubeLink.js';
 import './liveTv.css';
 
@@ -27,8 +30,9 @@ const SESSION_OPEN = new Set([...SESSION_ACTIVE, 'choosing']); // the panel is b
 
 // The channel's own video is live (the list says so, F374); a liveVideoId is a different video, found later.
 const curatedLiveOf = (c) => c.status === 'live' && !c.liveVideoId;
-// This page can swap the channel's written video for a live one: it is a real video, not live, not a pseudo id.
-const switchableOf = (c) => !curatedLiveOf(c) && Boolean(embedVideoId(c.embedUrl));
+// This page can play a live video for the channel: its written video is a real one that is not live, or it has none.
+// A channel added without a curated video (no embed address) can play a live video found for it.
+const switchableOf = (c) => !curatedLiveOf(c) && (!c.embedUrl || Boolean(embedVideoId(c.embedUrl)));
 const willPlayLive = (c) => curatedLiveOf(c) || (REAL_VIDEO_ID.test(c.liveVideoId || '') && switchableOf(c));
 
 // F359: a shell page at #/livetv. `open` says whether it is the page being shown; it stays mounted after the
@@ -64,6 +68,10 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const [playerInfo, setPlayerInfo] = useState(null);
   const [playerError, setPlayerError] = useState(null); // the player's error code, or null
 
+  const [lists, setLists] = useState([]); // the client's ten lists, from the server; none means the older category card
+  const [followIds, setFollowIds] = useState(() => readFollowing(browserStorage())); // "My list", this browser only
+  const [lookupNonce, setLookupNonce] = useState(0); // Reload on the not-live card asks the lookup again
+  const [connectingLong, setConnectingLong] = useState(false);
   const [categories, setCategories] = useState(['ALL', 'NEWS', 'EDUCATION', 'POLITICS', 'ECONOMICS', 'RESEARCH', 'GENERAL']);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
 
@@ -109,6 +117,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
       setChannelsLoading(false);
       if (data.ok && Array.isArray(data.channels) && data.channels.length) {
         setChannels(data.channels);
+        setLists(Array.isArray(data.lists) ? data.lists : []);
         setChannelsFresh(true);
         if (Array.isArray(data.categories) && data.categories.length) {
           setCategories(['ALL', ...data.categories.filter((c) => c !== 'ALL')]);
@@ -199,7 +208,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     return () => {
       cancelled = true;
     };
-  }, [open, activeChannelId]);
+  }, [open, activeChannelId, lookupNonce]);
 
   // Load transcript when selected broadcast changes
   useEffect(() => {
@@ -379,10 +388,16 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     [currentEmbedUrl, reloadKey, isPlaying, open],
   );
 
+  // The key of the player on screen. Player information is stored with the key it arrived under and used only
+  // while that is still the key, so a duration from the previous video is never taken for this one.
+  const frameKey = embedFrameKey({ channelId: activeChannelId, broadcastId: selectedBroadcastId, mode: playbackMode, reloadKey })
+    + (playbackMode === 'live' && liveSwitchedId ? `-${liveSwitchedId}` : '') + (linkId ? `-link-${linkId}` : '');
+  const frameKeyRef = useRef(frameKey);
+  frameKeyRef.current = frameKey;
   const player = useYoutubePlayer(open, {
     onMutedChange: (m) => { nextEmbedMuted.current = m; setIsMuted(m); },
     onFallback: () => setReloadKey((k) => k + 1),
-    onInfo: (info) => setPlayerInfo(info),
+    onInfo: (info) => setPlayerInfo({ ...info, frameKey: frameKeyRef.current }),
     onError: (code) => setPlayerError(code),
   });
   const applyMute = (next) => {
@@ -399,11 +414,18 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   // arrives later cannot turn a private live session into a shared recorded one, or the other way round.
   if (kindLatch.current && !SESSION_OPEN.has(sessionStatusRef.current)) kindLatch.current = null;
   const latchedKind = kindLatch.current && kindLatch.current.linkId === linkId ? kindLatch.current.kind : null;
-  const linkLive = Boolean(linkId) && (latchedKind ?? pastedVideoKind(playerInfo)) === 'live';
+  const infoNow = playerInfo && playerInfo.frameKey === frameKey ? playerInfo : null;
+  const linkLive = Boolean(linkId) && (latchedKind ?? pastedVideoKind(infoNow)) === 'live';
   const treatAsLive = playbackMode === 'live' || linkLive;
   const linkBlocked = Boolean(linkId) && isBlockingPlayerError(playerError); // no target: nothing to fact-check
   const factCheckChannelId = linkId ? LINK_CHANNEL_ID : activeChannel?.id || '';
   const factCheckTarget = linkBlocked ? null : playingTarget(factCheckChannelId, playbackMode, factCheckVideoId);
+  const videoTitle = (linkId ? infoNow?.title : playbackMode === 'video' ? activeVideo?.title : playbackMode === 'archive' ? selectedArchiveItem?.title : '') || '';
+  // Seconds left, only for a video the player has explicitly said is not live (pastedVideoKind's strict rule),
+  // never in live mode, and only from the current player's own information.
+  const remainingSeconds = playbackMode !== 'live' && !treatAsLive && pastedVideoKind(infoNow) === 'recorded'
+    ? remainingSecondsOf({ durationS: infoNow.durationS, positionS: player.getPosition()?.positionS })
+    : null;
   const factCheck = useFactCheck({
     open,
     target: factCheckTarget,
@@ -420,7 +442,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
       getStartPositionS: () => (treatAsLive ? null : player.getPositionS()),
       seed: {
         channel: linkId ? 'YouTube link' : activeChannel?.name || '',
-        title: (linkId ? playerInfo?.title : playbackMode === 'video' ? activeVideo?.title : playbackMode === 'archive' ? selectedArchiveItem?.title : '') || '',
+        title: videoTitle,
       },
     },
   });
@@ -447,6 +469,37 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     setLiveSwitch(liveWanted ? { channelId: activeChannel.id, videoId: liveWanted } : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannel, liveWanted, liveSwitchedId, heldBySession]);
+  // A channel added without a curated video has nothing to play until its live video is found: "Connecting"
+  // while the lookup is out, then the live video, or "isn't live right now" with the latest upload if there is
+  // one. Nothing is fact-checked while the card shows (no embed, so no target).
+  const noVideoYet = playbackMode === 'live' && Boolean(activeChannel) && !liveEmbedUrl;
+  const channelCard = noVideoYet ? (videosLoading || Boolean(liveWanted) ? 'connecting' : 'notlive') : null;
+  const latestUpload = videos.find((v) => !v.isLive && !v.isUpcoming) || null;
+  useEffect(() => {
+    if (channelCard !== 'connecting') { setConnectingLong(false); return undefined; }
+    const timer = setTimeout(() => setConnectingLong(true), 8000);
+    return () => clearTimeout(timer);
+  }, [channelCard]);
+  const followed = Boolean(activeChannel) && followIds.includes(activeChannel.id);
+  function toggleFollow() {
+    if (!activeChannel) return;
+    const next = toggleFollowing(followIds, activeChannel.id);
+    setFollowIds(next);
+    writeFollowing(browserStorage(), next);
+  }
+  const selectChannel = (ch) => {
+    leaveLink();
+    if (ch.id !== activeChannelId) {
+      // a new selection decides afresh: forget what was decided for the channel left
+      setLiveSwitch(null);
+      setLookupLive(null);
+    }
+    setActiveChannelId(ch.id);
+    setPlaybackMode('live');
+    setActiveVideo(null);
+    setStreamError(false);
+    setReloadKey((k) => k + 1);
+  };
   useEffect(() => {
     if (!reopenChoose.current) return;
     reopenChoose.current = false;
@@ -481,7 +534,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   // My sessions can stop being offered while it is the chosen tab: show Channel Videos then, so one tab stays
   // the tab stop and the panel is not empty.
   const shownTab = tabs.some(([id]) => id === activeTab) ? activeTab : 'videos';
-  const linkTitle = playerInfo?.title || 'YouTube video';
+  const linkTitle = infoNow?.title || 'YouTube video';
   const programTitle = linkId
     ? linkTitle
     : playbackMode === 'archive'
@@ -509,6 +562,10 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
             streamError ? (
               <span className="ltv-offline-badge">
                 <span className="ltv-offline-dot" /> OFFLINE
+              </span>
+            ) : channelCard ? (
+              <span className="ltv-recent-badge">
+                <span className="ltv-recent-dot" /> {channelCard === 'connecting' ? 'CONNECTING' : 'NOT LIVE'}
               </span>
             ) : liveSwitchedId || (activeChannel && curatedLiveOf(activeChannel)) ? (
               <span className="ltv-live-badge">
@@ -586,29 +643,29 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
 
       {/* Scrollable page body: the channel card, the video and panel, then the lower tabs (liveTv.css) */}
       <div className="ltv-main">
-      <ChannelCard
-        channels={channels}
-        visible={filteredChannels}
-        categories={categories}
-        selectedCategory={selectedCategory}
-        onSelectCategory={setSelectedCategory}
-        activeChannelId={activeChannelId}
-        playbackMode={playbackMode}
-        loading={channelsLoading}
-        onSelectChannel={(ch) => {
-          leaveLink();
-          if (ch.id !== activeChannelId) {
-            // a new selection decides afresh: forget what was decided for the channel left
-            setLiveSwitch(null);
-            setLookupLive(null);
-          }
-          setActiveChannelId(ch.id);
-          setPlaybackMode('live');
-          setActiveVideo(null);
-          setStreamError(false);
-          setReloadKey((k) => k + 1);
-        }}
-      />
+      {lists.length ? (
+        <ChannelBar
+          channels={shownChannels}
+          lists={lists}
+          activeChannelId={activeChannelId}
+          playbackMode={playbackMode}
+          loading={channelsLoading}
+          following={followIds}
+          onSelectChannel={selectChannel}
+        />
+      ) : (
+        <ChannelCard
+          channels={channels}
+          visible={filteredChannels}
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onSelectCategory={setSelectedCategory}
+          activeChannelId={activeChannelId}
+          playbackMode={playbackMode}
+          loading={channelsLoading}
+          onSelectChannel={selectChannel}
+        />
+      )}
 
       <div className="ltv-body">
         <div className={`ltv-split${factCheckOffered ? ' has-panel' : ''}`}>
@@ -616,7 +673,35 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
           {/* Player Stage */}
           <section className="ltv-player-stage">
           <div className="ltv-video-container" ref={playerContainerRef}>
-            {streamError || !embedSrc ? (
+            {channelCard === 'connecting' ? (
+              <div className="ltv-offline-card" role="status">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" role="img" aria-label="Loading" className="ltv-connecting-icon"><path d="M12 3a9 9 0 1 0 9 9" strokeLinecap="round" /></svg>
+                <p className="ltv-connecting-line">Connecting to {activeChannel?.name}…</p>
+                {connectingLong ? (
+                  <button type="button" className="ltv-action-btn primary" onClick={() => setLookupNonce((n) => n + 1)}>Reload feed</button>
+                ) : null}
+              </div>
+            ) : channelCard === 'notlive' ? (
+              <div className="ltv-offline-card" role="status">
+                <h4>{activeChannel?.name} isn't live right now</h4>
+                {latestUpload ? (
+                  <p>Latest upload: “{latestUpload.title}”{latestUpload.duration ? ` · ${latestUpload.duration}` : ''}</p>
+                ) : (
+                  <p>There is no video to play here right now.</p>
+                )}
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '14px', flexWrap: 'wrap' }}>
+                  {latestUpload ? (
+                    <button type="button" className="ltv-action-btn primary" onClick={() => handlePlayVideo(latestUpload)}>Play latest video</button>
+                  ) : null}
+                  <a href={externalWatchUrl} target="_blank" rel="noopener noreferrer" className="ltv-action-btn" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    Open on YouTube ↗
+                  </a>
+                  {latestUpload ? null : (
+                    <button type="button" className="ltv-action-btn" onClick={() => setLookupNonce((n) => n + 1)}>Reload</button>
+                  )}
+                </div>
+              </div>
+            ) : streamError || !embedSrc ? (
               <div className="ltv-offline-card">
                 <h4>Stream Offline or Protected</h4>
                 <p>
@@ -658,7 +743,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               </div>
             ) : isPlaying ? (
               <iframe
-                key={embedFrameKey({ channelId: activeChannelId, broadcastId: selectedBroadcastId, mode: playbackMode, reloadKey }) + (playbackMode === 'live' && liveSwitchedId ? `-${liveSwitchedId}` : '') + (linkId ? `-link-${linkId}` : '')}
+                key={frameKey}
                 ref={player.iframeRef}
                 className="ltv-video-frame"
                 src={embedSrc}
@@ -699,7 +784,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               <h3>{programTitle}</h3>
               <p className="ltv-np-line">
                 {linkId ? (
-                  ['YouTube link', playerInfo?.isLive === true ? 'Live' : pastedVideoKind(playerInfo) === 'recorded' ? 'Video' : ''].filter(Boolean).join(' · ')
+                  ['YouTube link', infoNow?.isLive === true ? 'Live' : pastedVideoKind(infoNow) === 'recorded' ? 'Video' : ''].filter(Boolean).join(' · ')
                 ) : playbackMode === 'archive' ? (
                   <>
                     Segment: {selectedArchiveItem?.segment || 'General'} &bull; Duration:{' '}
@@ -744,6 +829,11 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                   </a>
                 </>
               )}
+              {!linkId && activeChannel ? (
+                <button type="button" className="ltv-action-btn" aria-pressed={followed} onClick={toggleFollow} title={followed ? 'Remove from My list' : 'Add to My list'}>
+                  {followed ? 'Following' : 'Follow'}
+                </button>
+              ) : null}
               {!linkId && activeChannel?.deskId && (
                 <button
                   type="button"
@@ -810,6 +900,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               onDismiss={factCheck.actions.dismiss}
               onEndOrphan={factCheck.actions.endOrphan}
               focusRequest={seeWhy}
+              videoTitle={videoTitle}
+              remainingSeconds={remainingSeconds}
             />
           </div>
         ) : null}

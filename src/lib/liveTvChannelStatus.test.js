@@ -11,6 +11,9 @@ import {
 
 const ID11 = /^[A-Za-z0-9_-]{11}$/;
 const enabled = () => YOUTUBE_SOURCES.filter((c) => c.enabled !== false);
+// Curated videos and remembered live videos, 50 to a videos.list request.
+const askedIds = () => new Set(enabled().flatMap((c) => [c.defaultVideoId, c.liveHintVideoId]).filter((id) => ID11.test(id || '')));
+const BATCHES = Math.ceil(askedIds().size / 50);
 const byId = (res, id) => res.channels.find((c) => c.id === id);
 
 /** A videos.list answer in which the given videos are live and every other requested id is a plain video. */
@@ -51,16 +54,21 @@ describe('the channel list marks live channels from one batched call', () => {
   it('asks YouTube once for all channels, with real 11-character ids only, 1-unit videos.list and no search', async () => {
     stubFetch((url) => videosAnswer(url, []));
     await getLiveTvChannels();
-    expect(calls).toHaveLength(1);
-    const url = new URL(calls[0]);
-    expect(url.pathname).toBe('/youtube/v3/videos');
-    expect(url.searchParams.get('part')).toBe('snippet');
-    expect(calls[0]).not.toMatch(/search/);
-    const ids = url.searchParams.get('id').split(',');
-    expect(ids.length).toBeGreaterThan(1);
-    expect(ids.length).toBeLessThanOrEqual(50);
-    expect(ids.every((id) => ID11.test(id))).toBe(true);
-    expect(new Set(ids).size).toBe(ids.length);
+    expect(calls).toHaveLength(BATCHES);
+    const all = [];
+    for (const call of calls) {
+      const url = new URL(call);
+      expect(url.pathname).toBe('/youtube/v3/videos');
+      expect(url.searchParams.get('part')).toBe('snippet');
+      expect(call).not.toMatch(/search/);
+      const ids = url.searchParams.get('id').split(',');
+      expect(ids.length).toBeGreaterThan(0);
+      expect(ids.length).toBeLessThanOrEqual(50);
+      all.push(...ids);
+    }
+    expect(all.every((id) => ID11.test(id))).toBe(true);
+    expect(new Set(all).size).toBe(all.length);
+    expect(new Set(all)).toEqual(askedIds());
   });
 
   it('skips a default video that is not a real 11-character id', async () => {
@@ -69,7 +77,7 @@ describe('the channel list marks live channels from one batched call', () => {
       YOUTUBE_SOURCES[0].defaultVideoId = 'live';
       stubFetch((url) => videosAnswer(url, []));
       await getLiveTvChannels();
-      const ids = new URL(calls[0]).searchParams.get('id').split(',');
+      const ids = calls.flatMap((c) => new URL(c).searchParams.get('id').split(','));
       expect(ids).not.toContain('live');
       expect(ids.every((id) => ID11.test(id))).toBe(true);
     } finally {
@@ -82,7 +90,7 @@ describe('the channel list marks live channels from one batched call', () => {
     await getLiveTvChannels();
     await getLiveTvChannels({ category: 'NEWS' });
     await getLiveTvChannels();
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(BATCHES);
   });
 
   it('makes one request for concurrent list calls', async () => {
@@ -91,10 +99,10 @@ describe('the channel list marks live channels from one batched call', () => {
     stubFetch(async (url) => { await gate; return videosAnswer(url, []); });
     const all = Promise.all([getLiveTvChannels(), getLiveTvChannels(), getLiveTvChannels({ category: 'NEWS' })]);
     for (let i = 0; i < 10; i += 1) await Promise.resolve();
-    expect(calls).toHaveLength(1); // all three are waiting on the one open request
+    expect(calls).toHaveLength(BATCHES); // all three are waiting on the one open request
     release();
     await all;
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(BATCHES);
   });
 
   it('asks again after the ten-minute window', async () => {
@@ -103,7 +111,7 @@ describe('the channel list marks live channels from one batched call', () => {
     await getLiveTvChannels();
     vi.setSystemTime(Date.now() + 10 * 60 * 1000 + 1000);
     await getLiveTvChannels();
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(2 * BATCHES);
   });
 
   it('does not let a per-channel "live" entry mark a channel whose default video is not live', async () => {
@@ -135,7 +143,7 @@ describe('a recently opened channel with a live video of its own (liveVideoId)',
     const res = await getLiveTvChannels();
     expect(byId(res, 'wion').status).toBe('recent'); // an older client reads status alone: never LIVE over a recording
     expect(byId(res, 'wion').liveVideoId).toBe('LIVEvideo_1');
-    expect(calls).toHaveLength(1); // the one batched call of F374 and nothing for the entry
+    expect(calls).toHaveLength(BATCHES); // the one batched call of F374 and nothing for the entry
     expect(calls.every((u) => !/search/.test(u))).toBe(true);
   });
 
@@ -187,15 +195,15 @@ describe('the channel list never gets worse than today', () => {
 
   it('on a non-OK answer returns the static list, and does not ask again for a minute', async () => {
     vi.useFakeTimers();
-    stubFetch(() => new Response('quota', { status: 403 }));
+    stubFetch(() => new Response('unavailable', { status: 503 }));
     const res = await getLiveTvChannels();
     expect(res.ok).toBe(true);
     expect(statuses(res)).toEqual(staticStatuses());
     await getLiveTvChannels();
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(BATCHES);
     vi.setSystemTime(Date.now() + 61 * 1000);
     await getLiveTvChannels();
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(2 * BATCHES);
   });
 
   it('on a thrown fetch returns the static list', async () => {
@@ -231,7 +239,7 @@ describe('the channel list never gets worse than today', () => {
     const text = JSON.stringify(res);
     expect(text).not.toContain('test-key-not-real');
     expect(text).not.toContain('liveBroadcastContent');
-    expect(Object.keys(res).sort()).toEqual(['activeChannelId', 'categories', 'channels', 'count', 'ok', 'selectedCategory']);
+    expect(Object.keys(res).sort()).toEqual(['activeChannelId', 'categories', 'channels', 'count', 'lists', 'ok', 'selectedCategory']);
   });
 });
 
@@ -240,7 +248,7 @@ describe('a failed answer frees the connection', () => {
     const cancel = vi.fn();
     stubFetch(() => ({ ok: false, status: 503, body: { cancel }, json: async () => ({}) }));
     await getLiveTvChannels();
-    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(cancel).toHaveBeenCalledTimes(BATCHES);
   });
 });
 
@@ -281,6 +289,6 @@ describe('the live-streams list uses the same data', () => {
     const live = await getLiveTvLiveStreams();
     expect(live.liveStreams.map((s) => s.id)).toEqual(['dd-news']);
     expect(live.count).toBe(1);
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(BATCHES);
   });
 });

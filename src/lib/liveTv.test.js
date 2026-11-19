@@ -26,7 +26,7 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
       expect(ch.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
       expect(ch.lang).toBeDefined();
       expect(ch.channelId).toBeDefined();
-      expect(ch.embedUrl).toContain('youtube');
+      if (ch.embedUrl) expect(ch.embedUrl).toContain('youtube'); // a channel added without a curated video has none
       expect(['live', 'recent', 'soon', 'offline']).toContain(ch.status);
       // Live count/viewer verification: must be null or positive integer, NEVER fake fabricated numbers
       if (ch.viewers !== null) {
@@ -249,7 +249,7 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
 
   it('verifies YouTube embed URLs avoid secrets and use privacy-enhanced domain', async () => {
     const data = await getLiveTvChannels();
-    for (const ch of data.channels) {
+    for (const ch of data.channels.filter((c) => c.embedUrl)) {
       expect(ch.embedUrl).toContain('youtube-nocookie.com/embed');
       expect(ch.embedUrl).not.toContain('key=');
       expect(ch.embedUrl).not.toContain('api_key');
