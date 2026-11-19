@@ -98,6 +98,23 @@ exactly as today.
    (c) Cabinet and MP records have no pages (`page_split` none); the configurations say so with a flag, and admission
    is checked for the same shape by fixture.
 
+9. **From the independent reviews, 2026-11-19.**
+   - **First load.** The `screen` command refuses a desk that holds no documents, to catch a wrong database. Four of
+     the five desks hold none. `--first-load` declares a first load: it is refused once the desk holds documents, it
+     still checks the database and server identity, and the receipt records it.
+   - **Shared host.** MP Profiles shares `sansad.in` with Parliamentary Questions and Bills. A search-only record
+     whose link is a question's answer file or a bill file is refused, on every search-only desk; otherwise it would
+     later block that question's own admission.
+   - **Page count.** Admission refuses a record with no pages when the desk's policy requires a page count. Cabinet
+     and MP Profiles are web pages, so their policies set that requirement off, and the screen follows the policy.
+   - **Applying.** The new indexes are built first and swapped in, so searches wait only for the swap; a lock that is
+     not granted in 2 s rolls the whole file back and the apply is run again. An empty suggested key on an older
+     document is left out of the index.
+   - **Publisher.** As for Regulatory, a host outside the desk's domains is ignored, not a refusal: the name comes
+     from the hosts that are the desk's own. This replaces the stricter wording in point 7.
+   - **Budget.** The configuration simply does not allow the density-only basis; no separate rule was needed.
+   - **Rewrite exception.** The engine lets a screen change `desk_feature` and `desk_rows_feature` only.
+
 ## Acceptance evidence
 
 1. Fixture in `supabase/tests/`: a record of each desk is admitted with its own host and refused with another desk's
