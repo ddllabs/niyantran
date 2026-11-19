@@ -684,6 +684,14 @@ async function fetchLiveChannelIds(channels) {
   }
 }
 
+/** The live video id held by a fresh per-channel entry built from YouTube data; '' otherwise. */
+function freshLiveVideoId(channelId) {
+  const hit = getCached(`yt-videos-${channelId}`);
+  if (!hit || !hit.isFresh || hit.data?.dataOrigin !== 'youtube-api') return '';
+  const id = hit.data.liveVideo?.videoId;
+  return typeof id === 'string' && VIDEO_ID_RE.test(id) ? id : '';
+}
+
 export async function getLiveTvChannels(options = {}) {
   const category = (options.category || 'ALL').toUpperCase();
   const enabledChannels = YOUTUBE_SOURCES.filter((c) => c.enabled !== false);
@@ -691,7 +699,14 @@ export async function getLiveTvChannels(options = {}) {
 
   // Copies: YOUTUBE_SOURCES is never changed. A channel is live here only when the video this page
   // plays (its defaultVideoId) is live; a live upload elsewhere on the channel does not count.
-  let channels = enabledChannels.map((c) => (liveIds.has(c.id) ? { ...c, status: 'live' } : { ...c }));
+  // A channel someone opened recently may hold a live video of its own in the per-channel cache (written
+  // by getLiveTvVideos from YouTube data). Read it from memory only: no request, no search.list (ADR 0009).
+  let channels = enabledChannels.map((c) => {
+    if (liveIds.has(c.id)) return { ...c, status: 'live' };
+    const liveVideoId = freshLiveVideoId(c.id);
+    // `status` keeps its F374 meaning (the curated video is live); the client decides what to do with this.
+    return liveVideoId ? { ...c, liveVideoId } : { ...c };
+  });
 
   if (category !== 'ALL') {
     channels = channels.filter((c) => c.category === category);

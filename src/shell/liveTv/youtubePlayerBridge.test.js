@@ -264,3 +264,52 @@ describe('seekTo', () => {
     expect(t.contentWindow.postMessage).not.toHaveBeenCalled();
   });
 });
+
+describe('what the player says about the video (B4)', () => {
+  it('reports the title, the duration and the live flag when they first arrive or change', () => {
+    const onInfo = vi.fn();
+    const t = setup();
+    const b = createYoutubePlayerBridge({ getIframe: () => t.holder.iframe, win: t.win, onInfo });
+    b.start();
+    t.send(info({ duration: 300, videoData: { title: 'A debate', isLive: false } }));
+    expect(onInfo).toHaveBeenLastCalledWith({ title: 'A debate', durationS: 300, isLive: false });
+    const n = onInfo.mock.calls.length;
+    t.send(info({ duration: 300, videoData: { title: 'A debate', isLive: false } }));
+    expect(onInfo).toHaveBeenCalledTimes(n); // nothing changed, nothing said
+    t.send(info({ duration: 0, videoData: { title: 'A debate', isLive: true } }));
+    expect(onInfo).toHaveBeenLastCalledWith({ title: 'A debate', durationS: 0, isLive: true });
+  });
+
+  it('reads a title only as text, trimmed and cut', () => {
+    const onInfo = vi.fn();
+    const t = setup();
+    const b = createYoutubePlayerBridge({ getIframe: () => t.holder.iframe, win: t.win, onInfo });
+    b.start();
+    t.send(info({ videoData: { title: { x: 1 } } }));
+    expect(onInfo).toHaveBeenLastCalledWith(expect.objectContaining({ title: null }));
+    t.send(info({ videoData: { title: `  ${'a'.repeat(500)}  ` } }));
+    expect(onInfo.mock.calls.at(-1)[0].title).toHaveLength(200);
+  });
+
+  it('reports a player error code from the iframe only', () => {
+    const onError = vi.fn();
+    const t = setup();
+    const b = createYoutubePlayerBridge({ getIframe: () => t.holder.iframe, win: t.win, onError });
+    b.start();
+    t.send({ event: 'onError', info: 150 });
+    expect(onError).toHaveBeenCalledWith(150);
+    t.send({ event: 'onError', info: 101 }, { source: {} });
+    t.send({ event: 'onError', info: 101 }, { origin: 'https://example.com' });
+    t.send({ event: 'onError', info: 'x' });
+    t.send({ event: 'onError', info: 1.5 });
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not treat an error as the player being ready to take commands', () => {
+    const t = setup();
+    const b = createYoutubePlayerBridge({ getIframe: () => t.holder.iframe, win: t.win, onError() {} });
+    b.start();
+    t.send({ event: 'onError', info: 150 });
+    expect(b.getSnapshot().ready).toBe(false);
+  });
+});
