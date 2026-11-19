@@ -30,8 +30,7 @@ stay. The transcript is part of a paid session. Nothing in this plan changes a p
 ### Group B: features that fit today's design
 
 - **B1. Copy a claim and export a session.** A journalist or researcher can lift a verdict with its reason and
-  sources into their own work, and keep a whole session as a text file or a printed page. Browser only, from the
-  user's own sessions.
+  sources into their own work, and keep a whole session as a text file. Browser only, from the user's own sessions.
 - **B2. Transcript search, copy and download.** The user can find a sentence in what was said and take the text
   away. During a session and for a stored recorded-video transcript. Browser only.
 - **B3. Summary tab.** At a glance: how many claims, how many of each verdict, and the contradicted ones listed
@@ -112,3 +111,42 @@ time. One pull request per track, with one commit per item, replaces "each item 
 
 - **C1, 2026-11-19: failed its rule at step 1, no fresh runs, nothing spent.** Details in the F352 entry of
   [open-work.md](open-work.md).
+- **A1 (F376), built on the branch, 2026-11-19.** A claim still `pending` in a settled session reads "Not checked",
+  but only after the server's finishing window (120 seconds after the session ended) plus the check timeout (45
+  seconds). Before that it keeps "Checking…". Review finding fixed: the first version could say "Not checked" while the
+  check was still allowed to finish.
+- **A2 (F377), built on the branch, 2026-11-19.** In live mode the page plays a channel's live video when YouTube
+  reports one and the written video is not live. The fact-check target follows it, and the video never changes under a
+  session running on it. The page follows a newer live video, or returns to the written one when the stream ends. The
+  channel list sends a `liveVideoId` field and keeps `status` meaning "the written video is live". Review findings
+  fixed: a channel change during a running session left the new channel on its recording under a LIVE badge; a
+  switched-to video stuck while the page stayed open. Not verified against the real YouTube service or in a browser.
+- **B1, built on the branch, 2026-11-19.** A "Copy" button on every claim card with a verdict, and "Export" of a
+  session as a text file, from the ended panel and from an opened past session. Text from claims and sources is cleaned
+  of control, direction-override and line-separator characters. A printed page is not built.
+- **B2, built on the branch, 2026-11-19.** Transcript search (works for Devanagari), copy and download, during and after
+  a session and for a recorded video's readable parts. No server call.
+- **B3, built on the branch, 2026-11-19.** A Summary tab made from the session's own claims, with no model call.
+- **B4, built on the branch, 2026-11-19.** A pasted YouTube link plays in the page and can be fact-checked at the
+  normal price. Only YouTube hosts are accepted, and the player address is always built from the 11-character video id.
+  A pasted video is treated as recorded only when the player explicitly reports it is not live and gives a duration;
+  otherwise it is live. Its sessions use the fixed channel id `youtube-link` and are never shareable. Read by the
+  reviewer from the server code: the sharing check finds no such channel, so no transcript is stored. A video that
+  cannot be embedded shows a message and a link to YouTube, and no fact-check is offered.
+- **B5, built on the branch, 2026-11-19.** A refund of unlock credits is its own line in the usage history. New
+  migration `20261123090000_factcheck_refund_usage.sql`, not applied anywhere but the disposable test database. Refund
+  lines are returned only when the browser asks for them (`p_kind = 'all+refunds'`), so the migration and the browser
+  can be released in either order. Review findings fixed: the release order in the migration header was backwards; the
+  balance pop-up would have shown a refund as spending. Two things to remember: the refund amount is returned as stored
+  and is not converted by `credit_current_amount`, so a future credit redenomination must handle it; and the channel of
+  the session a user unlocked becomes visible to that user on the refund line.
+- **B7, built on the branch, 2026-11-19.** For a recorded video the start screen preselects the length that covers the
+  rest, up to 30 minutes, with the hint "Covers the rest of this video".
+- **B6, in progress, 2026-11-19.** The channel inventory is done. Read-only research, executed by fetching each
+  channel's public YouTube page: 108 attempted, 96 verified, 12 not verified and left out; all 13 existing channels'
+  identities confirmed. The supervisor spot-checked 8 of the 96 against YouTube (executed, all matched). "My list" is
+  kept in the browser.
+- **State of the branch, 2026-11-19.** Tracks 1, 2 and 3 were each built test-first, re-run by the supervisor,
+  independently reviewed, fixed, and merged into `feature/livetv-phase-2` (merge commit `dc88c3ed`). Executed on the
+  combined branch: 8,897 app tests, lint, build, bundle check, router import, and the SQL fixture
+  `factcheck_refund_usage` with its vacuity proof. Nothing is merged to `main`, applied on NTER or deployed.

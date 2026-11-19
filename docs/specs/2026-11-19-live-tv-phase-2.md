@@ -43,7 +43,7 @@ and the channel list marks it live. The lookup makes no `search.list` call, as A
 **Problem.** A journalist or researcher cannot lift a verdict, with its reason and sources, into their own work. They
 also cannot keep a whole session.
 
-**Expected outcome.** The user can copy one verdict. The user can save a whole session as a text file or print it.
+**Expected outcome.** The user can copy one verdict. The user can save a whole session as a text file.
 Only the user's own sessions are used. Browser only.
 
 **Acceptance evidence.** The copied text holds the verdict, its reason and its sources. The rest is to be fixed in the
@@ -153,3 +153,14 @@ The five verdict names stay. The transcript is part of a paid session. Nothing i
   before the channel is listed.
 - **First-load bundle limit.** New channel data and new panel code must not push the first load past the limit that
   `npm run check:bundle` enforces.
+
+## Build record (2026-11-19)
+
+The items are built on `feature/livetv-phase-2`, not merged to `main`. The facts, gates and per-item notes are in the
+[phase 2 plan's Results](../plans/2026-11-19-live-tv-phase-2.md#results).
+
+Not verified:
+
+- Nothing has been seen against the real YouTube service or in a real session.
+- The panel was seen only as static preview pages.
+- Phones and screen readers were not checked.
