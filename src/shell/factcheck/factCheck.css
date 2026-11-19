@@ -25,36 +25,27 @@
   --fc-amber: #ead0af;
 }
 
-/* F359: Live TV is a page. From 1100px the panel is a second column, exactly the visible height of the page
-   body in every state (choosing, running, error, ended), so nothing moves when its content changes; it
-   scrolls inside. Only when the panel exists: with fact-check
-   off or not opened there is no right column. Below 1100px it stacks under the player, and the page body
-   scrolls, not the panel. */
-.ltv-body:has(> .fc-panel) > .fc-panel { margin: 12px 14px; max-height: none; overflow: visible; align-self: stretch; flex: 0 0 auto; }
-@media (max-width: 1099px) {
-  /* Stacked: the page body scrolls, not the choose block, so the sticky buttons stick to it. */
+/* F366: the panel is the right-hand column beside the video, always there when fact-check is offered. From
+   1081px the column (.ltv-panelcol, liveTv.css) is exactly as tall as the video column and the panel fills it,
+   scrolling inside; the page never grows because of the panel. Below 1081px it stacks under the video at its
+   natural height and the page scrolls, not the panel (liveTv.css owns the split). */
+.ltv-panelcol > .fc-panel { max-height: none; }
+@media (max-width: 1080px) {
+  /* Stacked: the page scrolls, not the choose block, so the sticky buttons stick to it. */
   .fc-choose, .fc-waiting { overflow: visible; }
   .fc-work { flex: 0 0 auto; overflow: visible; }
 }
-@media (min-width: 1100px) {
-  /* The body is a size container (its height comes from the page, not from its content), so the panel can
-     be exactly the visible height of the body: 100cqh minus its two 16px margins. */
-  .ltv-body:has(> .fc-panel) {
-    container-type: size;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
-    grid-template-rows: auto auto 1fr;
-  }
-  .ltv-body:has(> .fc-panel) > .ltv-player-stage { grid-column: 1; grid-row: 1; }
-  .ltv-body:has(> .fc-panel) > .ltv-deck-tabs { grid-column: 1; grid-row: 2; }
-  .ltv-body:has(> .fc-panel) > .ltv-tab-content { grid-column: 1; grid-row: 3; }
-  /* Sticky, so it stays in view while the left column scrolls; the height is the same in every state. */
-  .ltv-body:has(> .fc-panel) > .fc-panel {
-    grid-column: 2; grid-row: 1 / -1; margin: 16px 18px 16px 12px;
-    position: sticky; top: 16px; align-self: start;
-    height: calc(100cqh - 32px); min-height: 0; overflow-x: hidden; overflow-y: auto;
-  }
+@media (min-width: 1081px) {
+  .ltv-panelcol > .fc-panel { position: absolute; inset: 0; box-sizing: border-box; overflow-x: hidden; overflow-y: auto; }
 }
+
+/* F366: the idle view (nothing running) and the intro above the start screen. */
+.fc-idle { display: flex; flex-direction: column; gap: 6px; }
+.fc-idle-title { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.3; }
+.fc-idle-text { color: var(--muted); }
+.fc-idle-entry { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.fc-idle-entry .fc-entry { padding: 9px 14px; font-size: 13px; background: var(--accent); border-color: var(--accent); color: #fff; }
+.theme-dark .fc-idle-entry .fc-entry { color: #0b1020; }
 
 .fc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .fc-head-run { display: flex; align-items: center; gap: 8px; }
@@ -73,7 +64,6 @@
 .fc-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .fc-panel :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ltv-player-stage .fc-entry:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
 
 /* Choosing */
 .fc-choose, .fc-waiting { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; min-height: 0; }
@@ -323,19 +313,7 @@
   .fc-part-lines { max-height: 7rem; }
 }
 
-/* F360: Past sessions. A section below the page body (.ltv-body), outside its size container, so the player
-   and the fact-check panel keep their size. The wrapper .ltv-main holds the body and, when the section
-   exists, scrolls so the section can be reached. With no section the wrapper changes nothing. */
-.ltv-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-.ltv-main:has(> .pst) { overflow-y: auto; }
-/* With the section present the wrapper is the only scroller and the body flows. */
-.ltv-main:has(> .pst) > .ltv-body { flex: 0 0 auto; overflow: visible; }
-/* From 1100px with the panel there, the body keeps exactly the height it had (the whole wrapper), so the
-   sticky panel stays the same height. Without the panel the body flows at every width. */
-@media (min-width: 1100px) {
-  .ltv-main:has(> .pst):has(> .ltv-body > .fc-panel) > .ltv-body { flex: 0 0 100%; overflow-y: auto; }
-}
-
+/* F360: Past sessions, now the "My sessions" tab of the page (F366), inside the tab panel. */
 .pst {
   --fc-bad: #b3261e;
   --fc-amber: #8a5300;

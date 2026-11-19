@@ -13,7 +13,7 @@ import { formatPosition, partModel } from './factCheckShare.js';
 
 const SILENT_NOTICE_MS = 30000;
 // The panel stacks below the player at this width and under (factCheck.css, same number).
-const STACKED_QUERY = '(max-width: 860px)';
+const STACKED_QUERY = '(max-width: 1080px)';
 
 // Brings the panel into view when it is stacked below the player, where it may open off screen.
 // Instant when the reader prefers reduced motion. Quietly nothing where the browser lacks the APIs.
@@ -372,31 +372,78 @@ function Final({ final, sessionId }) {
   );
 }
 
-/** The right-hand panel. Renders nothing while idle or when the flag is off. */
+const DISCLAIMER = 'Verdicts are automated, may be wrong, and should be checked against the sources shown.';
+
+// F366: the heading and the one sentence about the price, shown while nothing is running (the idle view and
+// above the start screen). The price is the flag's, never a literal.
+function IdleIntro({ view, channelName }) {
+  const price = view.flag.creditsPerMinute;
+  return (
+    <div className="fc-idle">
+      <h4 className="fc-idle-title">{channelName ? `Check what's being said on ${channelName}` : "Check what's being said"}</h4>
+      {typeof price === 'number' ? (
+        <p className="fc-idle-text">{`${creditsText(price)} a minute, held up front. Unused whole minutes are returned.`}</p>
+      ) : null}
+    </div>
+  );
+}
+
+// F366: the always-open panel with no session: the intro and the old entry (the start button, or the quiet
+// note saying why it is not offered). Pressing it opens the start screen exactly as before.
+function IdlePanel({ view, channelName, playable, onChoose }) {
+  return (
+    <section className="fc-panel fc-panel--idle" aria-label="Fact-check" data-status="idle">
+      <header className="fc-head"><h3 id="fc-title" className="fc-title">Fact-check</h3></header>
+      <IdleIntro view={view} channelName={channelName} />
+      <div className="fc-idle-entry"><FactCheckEntry view={view} playable={playable} onChoose={onChoose} /></div>
+      <p className="fc-disclaimer">{DISCLAIMER}</p>
+    </section>
+  );
+}
+
+/**
+ * The right-hand panel. By default renders nothing while idle or when the flag is off. With `persistent`
+ * (F366: the page's always-open column) it shows the idle view instead, still nothing when the flag is off.
+ */
 export function FactCheckPanel(props) {
+  const { persistent = false, channelName = '', playable = true, onChoose } = props;
+  const idle = props.view?.session?.status === 'idle';
+  // The entry button is pressed by the user: then the heading takes focus when the start screen opens, as
+  // it always has. The page opening the start screen by itself must not take focus.
+  const userChose = useRef(false);
+  useEffect(() => { if (idle) userChose.current = false; }, [idle]);
   if (!props.view?.flag?.available) return null;
+  const hasNotices = Boolean(props.view.recheckNotices?.length);
   // Idle shows only if a re-check message has to outlive the session (a late charge, switched off).
-  if (props.view.session.status === 'idle' && !props.view.recheckNotices?.length) return null;
-  return <PanelBody {...props} />;
+  if (idle && !hasNotices) {
+    if (!persistent) return null;
+    return (
+      <IdlePanel view={props.view} channelName={channelName} playable={playable}
+        onChoose={() => { userChose.current = true; onChoose?.(); }} />
+    );
+  }
+  return <PanelBody {...props} quietOpen={persistent && !userChose.current} />;
 }
 
 // Mounted while a session is on screen: focus moves to the heading when it opens, and back to the
 // entry button when it is dismissed (unless the user has already moved focus elsewhere).
-export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel }) {
+export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', quietOpen = false }) {
   const heading = useRef(null);
   const panel = useRef(null);
   const [openParts, setOpenParts] = useState({});
   const opensForNotice = useRef(view.session.status === 'idle'); // a late message must not take focus
   useEffect(() => {
     // Focus without scrolling: when the panel is stacked below the player, the scroll is done on purpose below.
-    if (!opensForNotice.current) heading.current?.focus({ preventScroll: true });
-    if (!opensForNotice.current) revealPanel(panel.current);
+    if (!opensForNotice.current && !quietOpen) heading.current?.focus({ preventScroll: true });
+    if (!opensForNotice.current && !quietOpen) revealPanel(panel.current);
     return () => {
       setTimeout(() => {
         const active = document.activeElement;
         if (!active || active === document.body) document.getElementById('fc-entry')?.focus();
       }, 0);
     };
+    // Mount only: how the panel opened is decided once, then the heading is left alone.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const s = view.session;
   // A failure is news: when the panel is stacked below the player it may be off screen.
@@ -455,6 +502,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
         </div>
       ) : null}
 
+      {persistent && s.status === 'choosing' ? <IdleIntro view={view} channelName={channelName} /> : null}
       {s.status === 'choosing' ? (
         <Choose
           key={screenKey.current} view={view} isMuted={isMuted} onUnmute={onUnmute} onConfirm={onConfirm} onCancel={onCancel}
@@ -549,7 +597,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
         </div>
       ) : null}
 
-      <p className="fc-disclaimer">Verdicts are automated, may be wrong, and should be checked against the sources shown.</p>
+      <p className="fc-disclaimer">{DISCLAIMER}</p>
     </section>
   );
 }

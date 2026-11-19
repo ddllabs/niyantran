@@ -10,7 +10,7 @@
 .ltv-page {
   min-width: 0;
   min-height: 0;
-  background: var(--panel);
+  background: var(--bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -31,17 +31,29 @@
 .ltv-header-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  min-width: 0;
 }
 
+/* F366: the title and its one-line tagline share a row; the status badges follow it. */
+.ltv-titleblock {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  min-width: 0;
+}
 .ltv-header-brand .ltv-title {
   margin: 0;
   outline: none;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   color: var(--fg);
 }
+.ltv-tagline { margin: 0; font-size: 13px; color: var(--muted); }
+.ltv-header-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 
 .ltv-live-badge {
   display: inline-flex;
@@ -107,80 +119,120 @@
   outline-offset: 2px;
 }
 
-/* Channel Strip */
-.ltv-strip-wrap {
-  padding: 10px 18px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
+/* F366: the channel card: one bordered card, a row of large channel tiles and a row of segment chips. */
+.ltv-channelcard {
+  --ltv-live: #b91c1c;
+  --ltv-soon: #8a5300;
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  min-width: 0;
 }
+.theme-dark .ltv-channelcard { --ltv-live: #ff9a92; --ltv-soon: #ead0af; }
+.ltv-row { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.ltv-row-label { flex: 0 0 112px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--muted); }
+
+.ltv-strip-wrap { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
+.ltv-strip {
+  display: flex;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 3px;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+.ltv-strip::-webkit-scrollbar { display: none; }
+.ltv-strip-arrows { display: flex; gap: 6px; flex: 0 0 auto; }
+.ltv-arrow {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--fg);
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ltv-arrow:hover { background: var(--accent-soft); border-color: var(--accent); }
 
 .ltv-channel-chip {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border-radius: 8px;
+  gap: 10px;
+  min-width: 160px;
+  min-height: 52px;
+  padding: 7px 14px 7px 8px;
+  border-radius: 10px;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--fg);
   cursor: pointer;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 500;
-  transition: all 0.15s ease;
+  text-align: left;
+  font: inherit;
+  scroll-snap-align: start;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
-
-.ltv-channel-chip:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-}
-
-.ltv-channel-chip.active {
-  background: rgba(37, 99, 235, 0.18);
-  border-color: #3b82f6;
-  color: var(--accent);
-}
-
+.ltv-channel-chip:hover { background: var(--accent-soft); border-color: var(--accent); }
+/* The selected tile is outlined strongly (a ring, not just a colour change). */
+.ltv-channel-chip.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); background: var(--accent-soft); }
 .ltv-chip-tag {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   color: #fff;
 }
+.ltv-chip-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 
-/* Player Stage */
-.ltv-body {
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
+/* The page scrolls (not the body inside it): channel card, video and panel, then the lower tabs. */
+.ltv-main {
   flex: 1 1 auto;
   min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 18px 28px;
+  background: var(--bg);
+}
+.ltv-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* The video column and the panel column. From 1081px the panel is 440px wide and exactly as tall as the
+   video column (its column has no height of its own: the panel fills it, absolutely), so only the panel's
+   own content scrolls. Below that everything stacks (the panel under the video, natural height). */
+.ltv-split { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ltv-videocol { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ltv-panelcol { position: relative; min-width: 0; }
+@media (min-width: 1081px) {
+  .ltv-split.has-panel { display: grid; grid-template-columns: minmax(0, 1fr) 440px; align-items: stretch; }
+  .ltv-panelcol { min-height: 0; }
 }
 
-.ltv-player-stage {
-  /* The player stays dark; its buttons read against it. */
-  --fg: #f8fafc;
-  --muted: #94a3b8;
-  --line: rgba(255, 255, 255, 0.15);
-  --panel: rgba(255, 255, 255, 0.05);
-  --accent-soft: rgba(255, 255, 255, 0.1);
-  padding: 16px 18px;
-  background: #000;
-}
+.ltv-player-stage { min-width: 0; }
 
 .ltv-video-container {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
   background: #000;
-  border-radius: 8px;
+  border-radius: 14px;
   overflow: hidden;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
 }
 
 .ltv-video-frame {
@@ -190,6 +242,12 @@
 }
 
 .ltv-offline-card {
+  /* The dark card keeps its own palette in both themes; its buttons read against it. */
+  --fg: #f8fafc;
+  --muted: #94a3b8;
+  --line: rgba(255, 255, 255, 0.15);
+  --panel: rgba(255, 255, 255, 0.05);
+  --accent-soft: rgba(255, 255, 255, 0.1);
   position: absolute;
   inset: 0;
   display: flex;
@@ -215,39 +273,53 @@
   max-width: 440px;
 }
 
-.ltv-player-meta {
-  margin-top: 12px;
+/* Now playing: tile, title, line, then the action buttons. */
+.ltv-nowplaying {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px 14px;
+  min-width: 0;
 }
-
+.ltv-np-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+}
+.ltv-program-info { flex: 1 1 220px; min-width: 0; }
 .ltv-program-info h3 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: #f8fafc;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--fg);
+  overflow-wrap: anywhere;
 }
-
 .ltv-program-info p {
   margin: 3px 0 0;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 .ltv-player-controls {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .ltv-action-btn {
   padding: 6px 12px;
+  min-height: 32px;
   font-size: 12px;
   font-weight: 600;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--fg);
@@ -273,25 +345,33 @@
   background: #1d4ed8;
 }
 
+.ltv-channelcard :focus-visible,
+.ltv-nowplaying :focus-visible,
+.ltv-deck-tabs :focus-visible,
+.ltv-header :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* Tabs & Bottom Content */
 .ltv-deck-tabs {
-  padding: 0 18px;
   display: flex;
-  gap: 12px;
+  gap: 18px;
   border-bottom: 1px solid var(--line);
-  background: var(--bg);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.ltv-deck-tabs::-webkit-scrollbar { display: none; }
 
 .ltv-tab-btn {
+  flex: 0 0 auto;
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-bottom: 3px solid transparent;
   color: var(--muted);
-  padding: 12px 6px;
+  padding: 12px 4px;
+  font: inherit;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: color 0.15s ease;
 }
 
 .ltv-tab-btn:hover {
@@ -300,14 +380,15 @@
 
 .ltv-tab-btn.active {
   color: var(--accent);
-  border-bottom-color: #3b82f6;
+  border-bottom-color: var(--accent);
 }
 
 .ltv-tab-content {
-  padding: 16px 18px;
-  background: var(--panel);
+  padding: 4px 0 0;
   min-height: 200px;
 }
+/* The past-sessions section is a tab now: the tab panel supplies the padding and the edge. */
+.ltv-tab-content .pst { padding: 0; border-top: 0; background: transparent; }
 
 /* Schedule List */
 .ltv-schedule-list {
@@ -592,48 +673,26 @@
 }
 
 @media (max-width: 768px) {
-  .ltv-header {
-    padding: 10px 14px;
-  }
-  .ltv-player-stage {
-    padding: 12px 14px;
-  }
-  .ltv-player-meta {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .ltv-player-controls {
-    width: 100%;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-  .ltv-archive-grid {
-    grid-template-columns: 1fr;
-  }
-  .ltv-deck-tabs {
-    padding: 0 14px;
-    overflow-x: auto;
-  }
+  .ltv-header { padding: 10px 14px; }
+  .ltv-main { padding: 12px 14px 24px; }
+  .ltv-archive-grid { grid-template-columns: 1fr; }
+  .ltv-row { flex-wrap: wrap; gap: 8px; }
+  .ltv-row-label { flex: 1 0 100%; }
 }
 
 /* Small mobile (480px and below) */
 @media (max-width: 480px) {
-  .ltv-header-brand {
-    gap: 6px;
-  }
+  .ltv-header-brand { gap: 6px 10px; }
+  .ltv-header-brand .ltv-title { font-size: 18px; }
 
-  .ltv-header-brand .ltv-title {
-    font-size: 13px;
-  }
-
-  /* Transcript search — ensure it doesn't exceed viewport */
+  /* Transcript search: ensure it doesn't exceed the viewport */
   .ltv-transcript-search {
     max-width: 100%;
     width: 100%;
     font-size: 13px;
   }
 
-  /* Cue layout — stack timestamp/speaker above text */
+  /* Cue layout: stack timestamp/speaker above text */
   .ltv-cue {
     flex-direction: column;
     gap: 4px;
@@ -644,19 +703,13 @@
     min-width: unset;
   }
 
-  /* Archive meta — allow wrapping */
+  /* Archive meta: allow wrapping */
   .ltv-archive-meta {
     flex-wrap: wrap;
     gap: 6px;
   }
 
-  /* Player controls — smaller buttons */
-  .ltv-action-btn {
-    padding: 5px 9px;
-    font-size: 11px;
-  }
-
-  /* Transcript cues container — use more height on small screens */
+  /* Transcript cues container: use more height on small screens */
   .ltv-transcript-cues {
     max-height: 180px;
   }
@@ -664,113 +717,73 @@
 
 /* Narrowest (360px and below) */
 @media (max-width: 360px) {
-  .ltv-strip-wrap {
-    padding: 8px 10px;
-    gap: 6px;
-  }
-
-  .ltv-channel-chip {
-    padding: 5px 8px;
-    font-size: 11px;
-  }
-
-  .ltv-deck-tabs {
-    padding: 0 10px;
-  }
-
-  .ltv-player-controls {
-    gap: 6px;
-  }
-
-  .ltv-archive-card {
-    padding: 10px;
-  }
-
-  .ltv-archive-card h4 {
-    font-size: 12px;
-  }
+  .ltv-channel-chip { min-width: 140px; padding-right: 10px; }
+  .ltv-archive-card { padding: 10px; }
+  .ltv-archive-card h4 { font-size: 12px; }
 }
 
 
-/* Category Filter Bar */
+/* Segments: filter chips with a channel count each (pressed state, not tabs). */
 .ltv-category-bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  padding: 8px 18px 4px 18px;
-  overflow-x: auto;
-  scrollbar-width: thin;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .ltv-category-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
   border: 1px solid var(--line);
   background: var(--panel);
-  color: var(--muted);
-  font-size: 11px;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.03em;
-  padding: 4px 10px;
+  letter-spacing: 0.02em;
+  padding: 0 12px;
   border-radius: 9999px;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
+.ltv-category-count { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .ltv-category-pill:hover {
   background: var(--accent-soft);
-  color: var(--fg);
   border-color: var(--accent);
 }
 
 .ltv-category-pill.active {
-  background: var(--accent);
-  color: #ffffff;
+  background: var(--accent-soft);
+  color: var(--accent);
   border-color: var(--accent);
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
+.ltv-category-pill.active .ltv-category-count { color: var(--accent); }
 
-/* Channel Strip Status Badges */
+/* Channel tile text: name, then the status line (LIVE, SOON or RECENT, then the language). */
 .ltv-chip-name {
-  max-width: 120px;
+  max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .ltv-chip-status {
-  font-size: 9px;
-  font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 4px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.ltv-chip-status-live {
-  background: rgba(239, 68, 68, 0.2);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.4);
-}
-
-.ltv-chip-status-soon {
-  background: rgba(245, 158, 11, 0.2);
-  color: #f59e0b;
-  border: 1px solid rgba(245, 158, 11, 0.4);
-}
-
-.ltv-chip-status-recent {
-  background: rgba(59, 130, 246, 0.2);
-  color: var(--accent);
-  border: 1px solid rgba(59, 130, 246, 0.4);
-}
-
-.ltv-chip-status-offline {
-  background: rgba(148, 163, 184, 0.2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
   color: var(--muted);
-  border: 1px solid rgba(148, 163, 184, 0.3);
 }
+.ltv-chip-status-live { color: var(--ltv-live); }
+.ltv-chip-status-soon { color: var(--ltv-soon); }
 
 /* Header Recent & Video Badges */
 .ltv-recent-badge {
@@ -925,39 +938,26 @@
 
 /* Strip Loading */
 .ltv-strip-loading {
-  padding: 8px 14px;
+  flex: 1 1 auto;
+  padding: 8px 4px;
   font-size: 12px;
   color: var(--muted);
 }
 
 /* Mobile Responsiveness down to 320px */
 @media (max-width: 480px) {
-  .ltv-category-bar {
-    padding: 6px 10px;
-    gap: 6px;
-  }
-
-  .ltv-category-pill {
-    font-size: 10px;
-    padding: 3px 8px;
-  }
-
   .ltv-videos-grid {
     grid-template-columns: 1fr;
     gap: 10px;
   }
 
   .ltv-chip-name {
-    max-width: 90px;
+    max-width: 110px;
   }
 }
 
 @media (max-width: 360px) {
-  .ltv-category-bar {
-    padding: 4px 8px;
-  }
-
   .ltv-chip-name {
-    max-width: 70px;
+    max-width: 90px;
   }
 }
