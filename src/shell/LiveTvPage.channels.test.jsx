@@ -117,7 +117,7 @@ describe('a channel added without a curated video', () => {
     h.lookup = async () => answer({ recentVideos: [upload] });
     const out = await pick('theprint');
     expect(frame(out)).toBeUndefined();
-    expect(text(card(out))).toContain("ThePrint isn't live right now");
+    expect(text(card(out))).toContain('No live stream found for ThePrint');
     expect(text(card(out))).toContain('Budget explained');
     expect(link(card(out), 'Open on YouTube').props.href).toBe('https://www.youtube.com/@theprint');
     expect(h.fcArgs.target).toBeNull();
@@ -143,7 +143,7 @@ describe('a channel added without a curated video', () => {
     await open();
     h.lookup = lookup;
     const out = await pick('theprint');
-    expect(text(card(out))).toContain("ThePrint isn't live right now");
+    expect(text(card(out))).toContain('No live stream found for ThePrint');
     expect(button(card(out), 'Play latest video')).toBeUndefined();
     expect(link(card(out), 'Open on YouTube')).toBeDefined();
     expect(button(card(out), 'Reload')).toBeDefined();

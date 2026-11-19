@@ -414,11 +414,13 @@ export function clearCache() {
   memoryCache.clear();
   liveStatusInFlight = null;
   channelInFlight.clear();
+  lastLiveId.clear();
   spent = { day: '', units: 0, listFailures: 0 };
 }
 
 // ── YouTube quota (ADR 0009: no search.list) ───────────────────────────────
-// A per-channel lookup costs 2 units (playlistItems.list + videos.list); the list check costs 1 unit per 50 ids.
+// A per-channel lookup costs 1 unit when the stream found last time is still live, 2 to 3 for a live stream found in
+// the live-streams playlist, up to 5 when nothing is live (every call is 1 unit); the list check costs 1 unit per 50 ids.
 // With ~100 channels the cache alone cannot keep one server instance under the 10,000-unit quota of a YouTube day
 // (which ends at midnight Pacific), so:
 //   * an answer that found a live video is kept 10 minutes; one that found NONE is kept 60 minutes; a failure
@@ -651,6 +653,14 @@ function curatedAnswer(channel, source, reason) {
 }
 
 const ID11 = /^[a-zA-Z0-9_-]{11}$/;
+/** Live: started and not ended. An announced broadcast has no actual start. */
+const isLiveItem = (it) => it?.snippet?.liveBroadcastContent === 'live'
+  && Boolean(it?.liveStreamingDetails?.actualStartTime) && !it?.liveStreamingDetails?.actualEndTime;
+// A start time that cannot be read counts as the latest, so it never wins "earliest start".
+const startOf = (it) => { const t = Date.parse(it?.liveStreamingDetails?.actualStartTime); return Number.isFinite(t) ? t : Infinity; };
+// The live video found for each channel the last time, kept after its answer has expired: a refresh asks about it
+// first, so a stream that is still live costs one unit.
+const lastLiveId = new Map();
 
 async function refreshChannelVideos(channel, cacheKey, cached) {
   const apiKey = process.env.YOUTUBE_API_KEY;
@@ -686,66 +696,105 @@ async function refreshChannelVideos(channel, cacheKey, cached) {
     return answer;
   };
   if (quotaBlocked()) return failed(new YouTubeError('quota'));
-  if (unitsLeft() < 2) return failed(new YouTubeError('budget'));
+  if (unitsLeft() < 1) return failed(new YouTubeError('budget'));
 
-  // Quota (ADR 0009): search.list costs 100 units, so it is not used. One refresh is playlistItems.list (1 unit)
-  // for the recent uploads, then videos.list (1 unit, up to 50 ids) for their live state. The channel's curated
-  // video, and the live video it had when it was added, are added to that call, because a long-running 24/7
-  // stream drops out of the recent uploads.
-  const playlistId = 'UU' + channel.channelId.slice(2);
-  const playlistUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${encodeURIComponent(
-    playlistId,
-  )}&maxResults=6&key=${encodeURIComponent(apiKey)}`;
-
-  let uploads = [];
+  // Quota (ADR 0009): search.list costs 100 units, so it is not used. A channel's live video is looked for in
+  // order, and the search stops at the first step that finds one:
+  //   1. the live video the channel had when it was added (the hint) and its curated video: one videos.list (1 unit);
+  //   2. the channel's live-streams playlist ("UULV" + the channel id without "UC"): playlistItems.list (1 unit,
+  //      up to 50 entries; a 404 means the channel has none) and one videos.list to verify them (1 unit);
+  //   3. the channel's uploads playlist ("UU…"): playlistItems.list with 50 entries (1) and videos.list (1).
+  // Best case 1 unit, typical 2 to 3, worst case 5. A 24-hour stream is often not among the latest uploads, which
+  // is why the live-streams playlist comes first.
+  const base = 'https://www.googleapis.com/youtube/v3';
+  const keyParam = `&key=${encodeURIComponent(apiKey)}`;
+  const details = new Map(); // video id -> the videos.list item
   let trouble = null; // the first error that left the answer incomplete
-  try {
-    const pData = await youtubeGet(playlistUrl);
-    if (Array.isArray(pData.items)) uploads = pData.items;
-  } catch (err) {
-    if (err.kind !== 'error') return failed(err); // a refusal, a spent budget or a hung request ends it here
-    trouble = err;
+  const soft = (err) => { // what ends the search at once, versus what only leaves the answer incomplete
+    if (err.kind === 'error') { trouble = trouble || err; return null; }
+    return failed(err);
+  };
+  const verify = async (ids) => {
+    const unique = [...new Set(ids)].filter((id) => ID11.test(id || '')).slice(0, 50);
+    if (!unique.length) return [];
+    const url = `${base}/videos?part=snippet,liveStreamingDetails,status&id=${encodeURIComponent(unique.join(','))}${keyParam}`;
+    const data = await youtubeGet(url);
+    for (const it of Array.isArray(data.items) ? data.items : []) if (typeof it?.id === 'string') details.set(it.id, it);
+    return unique;
+  };
+  const playlistIds = async (playlistId) => {
+    const data = await youtubeGet(`${base}/playlistItems?part=snippet&playlistId=${encodeURIComponent(playlistId)}&maxResults=50${keyParam}`);
+    const items = Array.isArray(data.items) ? data.items : [];
+    const ids = items
+      .map((it) => extractYouTubeVideoId(it?.snippet?.resourceId?.videoId || it?.id?.videoId || ''))
+      .filter((id) => ID11.test(id));
+    return { items, ids };
+  };
+  // Live: it has started and not ended (an announced broadcast has not started). The earliest start wins, which is
+  // the 24-hour stream when a channel also has a short programme live.
+  const liveOf = (ids) => ids
+    .filter((id) => isLiveItem(details.get(id)))
+    .sort((x, y) => { const a = startOf(details.get(x)); const b = startOf(details.get(y)); return a < b ? -1 : a > b ? 1 : 0; })[0];
+
+  let liveId = '';
+  let uploads = [];
+  let recentIds = [];
+  let uploadsRead = false;
+  const hint = [...new Set([lastLiveId.get(channel.id), channel.liveHintVideoId, channel.defaultVideoId])].filter((id) => ID11.test(id || ''));
+
+  // 1. the hint and the curated video
+  if (hint.length) {
+    try { liveId = liveOf(await verify(hint)) || ''; } catch (err) { const r = soft(err); if (r) return r; }
   }
-
-  const uploadIds = uploads
-    .map((it) => extractYouTubeVideoId(it?.snippet?.resourceId?.videoId || it?.id?.videoId || ''))
-    .filter((id) => ID11.test(id));
-  const curated = [channel.defaultVideoId, channel.liveHintVideoId].filter((id) => ID11.test(id || ''));
-  const ids = [...new Set([...uploadIds, ...curated])].slice(0, 50);
-
-  const details = new Map();
-  if (ids.length) {
+  // 2. the live-streams playlist
+  if (!liveId) {
     try {
-      const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(
-        ids.join(','),
-      )}&key=${encodeURIComponent(apiKey)}`;
-      const vData = await youtubeGet(videosUrl);
-      for (const it of Array.isArray(vData.items) ? vData.items : []) {
-        if (typeof it?.id === 'string') details.set(it.id, it);
-      }
+      const { ids } = await playlistIds('UULV' + channel.channelId.slice(2));
+      recentIds = ids;
+      liveId = liveOf(await verify(ids)) || '';
     } catch (err) {
-      // The recent uploads already in hand still show, without a live state.
-      trouble = trouble || err;
+      // No live-streams playlist (404) or a private one: nothing here, the search goes on.
+      if (err.kind === 'inaccessible' || err.status === 404) recentIds = [];
+      else { const r = soft(err); if (r) return r; }
+    }
+  }
+  // 3. the uploads playlist
+  if (!liveId) {
+    try {
+      const got = await playlistIds('UU' + channel.channelId.slice(2));
+      uploads = got.items;
+      uploadsRead = true;
+      recentIds = got.ids;
+      liveId = liveOf(await verify(got.ids)) || '';
+    } catch (err) {
+      if (err.kind === 'inaccessible') return failed(err);
+      const r = soft(err); if (r) return r;
     }
   }
 
-  const stateOf = (id) => details.get(id)?.snippet?.liveBroadcastContent;
-  const liveId = ids.find((id) => stateOf(id) === 'live');
-  const liveVideo = liveId ? normalizeYouTubeVideo(details.get(liveId), channel.id) : null;
-  if (liveVideo) liveVideo.isLive = true;
-  const upcomingVideos = ids
-    .filter((id) => stateOf(id) === 'upcoming')
-    .map((id) => normalizeYouTubeVideo(details.get(id), channel.id))
+  // Remembered while it lasts: forgotten when a whole search ran and found nothing live, kept through a failure.
+  if (liveId) lastLiveId.set(channel.id, liveId);
+  else if (!trouble) lastLiveId.delete(channel.id);
+  const liveItem = liveId ? details.get(liveId) : null;
+  const liveVideo = liveItem ? normalizeYouTubeVideo(liveItem, channel.id) : null;
+  if (liveVideo) {
+    liveVideo.isLive = true;
+    liveVideo.embeddable = liveItem.status?.embeddable !== false; // false only when YouTube says so
+  }
+  const upcomingVideos = [...details.values()]
+    .filter((it) => it?.snippet?.liveBroadcastContent === 'upcoming')
+    .map((it) => normalizeYouTubeVideo(it, channel.id))
     .filter(Boolean);
 
-  let recentVideos = uploads
-    .map((it) => {
-      const id = extractYouTubeVideoId(it?.snippet?.resourceId?.videoId || it?.id?.videoId || '');
-      return normalizeYouTubeVideo(details.get(id) || it, channel.id);
-    })
-    .filter(Boolean);
+  // Recent videos: what was read, newest first, without the live and announced ones; at most 12.
+  let recentVideos = recentIds
+    .map((id) => details.get(id))
+    .filter((it) => it && !isLiveItem(it) && it.snippet?.liveBroadcastContent !== 'upcoming')
+    .map((it) => normalizeYouTubeVideo(it, channel.id))
+    .filter(Boolean)
+    .slice(0, 12);
 
-  // If API returned no recent videos, fall back to configured fallback videos
+  // If the API gave no recent videos, fall back to configured fallback videos
   const hasFallbackVideos = Array.isArray(channel.fallbackVideos) && channel.fallbackVideos.length > 0;
   if (recentVideos.length === 0 && hasFallbackVideos) {
     recentVideos = channel.fallbackVideos.map((v) => normalizeYouTubeVideo(v, channel.id));
@@ -754,9 +803,9 @@ async function refreshChannelVideos(channel, cacheKey, cached) {
   const status = liveVideo ? 'live' : recentVideos.length > 0 ? 'recent' : 'offline';
 
   // Where the DATA came from (kept with the cached payload, unlike `source`, which says how it was served):
-  // 'youtube-api' only when both calls worked and every recent upload came back with its details, so its live
-  // state is known (a channel with no uploads at all is known too, unless a curated list stands in for them).
-  const complete = !trouble && uploadIds.every((id) => details.has(id)) && (uploadIds.length > 0 || !hasFallbackVideos);
+  // 'youtube-api' when a live video was found, or when the whole search ran without a failed call (a channel with
+  // no uploads at all is known too, unless a curated list stands in for them). Otherwise 'fallback'.
+  const complete = Boolean(liveVideo) || (!trouble && uploadsRead && (uploads.length > 0 || !hasFallbackVideos));
 
   const result = {
     channelId: channel.id,
@@ -766,11 +815,12 @@ async function refreshChannelVideos(channel, cacheKey, cached) {
     recentVideos,
     upcomingVideos,
     dataOrigin: complete ? 'youtube-api' : 'fallback',
+    ...(liveVideo ? { embeddable: liveVideo.embeddable } : {}),
     ...(complete ? {} : { reason: trouble?.kind || 'error' }),
   };
 
   // From YouTube data: a live video is kept 10 minutes, none 60 minutes. Anything else is kept briefly.
-  setCached(cacheKey, result, complete ? (liveVideo ? undefined : NO_LIVE_TTL_MS) : trouble?.kind === 'inaccessible' ? INACCESSIBLE_TTL_MS : FAILURE_TTL_MS);
+  setCached(cacheKey, result, complete ? (liveVideo ? undefined : NO_LIVE_TTL_MS) : FAILURE_TTL_MS);
   return { ok: true, source: 'youtube-api', ...result };
 }
 
@@ -815,21 +865,23 @@ async function fetchLiveChannelIds(channels) {
   for (let i = 0; i < ids.length; i += LIVE_STATUS_BATCH) batches.push(ids.slice(i, i + LIVE_STATUS_BATCH));
   if (unitsLeft() < batches.length) return null; // not enough of today's units for the whole check
 
+  const embeddable = {}; // video id -> whether YouTube lets it be embedded
   const run = (async () => {
     try {
       const answers = await Promise.all(batches.map(async (batch) => {
-        const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(
+        const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,liveStreamingDetails,status&id=${encodeURIComponent(
           batch.join(','),
         )}&key=${encodeURIComponent(apiKey)}`;
         const body = await youtubeGet(url, LIVE_STATUS_TIMEOUT_MS);
         if (!Array.isArray(body?.items)) throw new YouTubeError('error');
-        return body.items.filter((it) => it?.snippet?.liveBroadcastContent === 'live').map((it) => it.id);
+        for (const it of body.items) if (typeof it?.status?.embeddable === 'boolean') embeddable[it.id] = it.status.embeddable;
+        return body.items.filter(isLiveItem).map((it) => it.id);
       }));
       const liveVideoIds = new Set(answers.flat());
       const liveIds = withVideo.filter((c) => liveVideoIds.has(c.defaultVideoId)).map((c) => c.id);
       const hints = {};
       for (const c of withHint) if (liveVideoIds.has(c.liveHintVideoId)) hints[c.id] = c.liveHintVideoId;
-      const found = { liveIds, hints };
+      const found = { liveIds, hints, embeddable };
       setCached(LIVE_STATUS_KEY, found);
       return found;
     } catch {
@@ -844,6 +896,13 @@ async function fetchLiveChannelIds(channels) {
   } finally {
     if (liveStatusInFlight === run) liveStatusInFlight = null;
   }
+}
+
+const embeddableOf = (map, id) => (typeof map?.[id] === 'boolean' ? { embeddable: map[id] } : {});
+/** Whether the live video in a fresh per-channel entry may be embedded, when YouTube said. */
+function cachedEmbeddable(channelId) {
+  const v = getCached(`yt-videos-${channelId}`)?.data?.liveVideo?.embeddable;
+  return typeof v === 'boolean' ? { embeddable: v } : {};
 }
 
 /** The live video id held by a fresh per-channel entry built from YouTube data; '' otherwise. */
@@ -866,6 +925,7 @@ function toListEntry(c) {
   if (c.defaultVideoId) out.defaultVideoId = c.defaultVideoId;
   if (c.embedUrl) out.embedUrl = c.embedUrl;
   if (c.liveVideoId) out.liveVideoId = c.liveVideoId;
+  if (typeof c.embeddable === 'boolean') out.embeddable = c.embeddable; // whether YouTube lets its live video be embedded
   if (c.hinted) out.hinted = true; // its video is a remembered live one that YouTube confirmed, not a curated one
   return out;
 }
@@ -882,12 +942,12 @@ export async function getLiveTvChannels(options = {}) {
   // A channel someone opened recently may hold a live video of its own in the per-channel cache (written
   // by getLiveTvVideos from YouTube data). Read it from memory only: no request, no search.list (ADR 0009).
   let channels = enabledChannels.map((c) => {
-    if (liveIds.has(c.id)) return { ...c, status: 'live' };
+    if (liveIds.has(c.id)) return { ...c, status: 'live', ...embeddableOf(found?.embeddable, c.defaultVideoId) };
     // A remembered live video that YouTube confirms is live now is the video to play; one that is not is ignored.
-    if (hints[c.id]) return { ...c, status: 'live', defaultVideoId: hints[c.id], embedUrl: embedUrlFor(hints[c.id]), hinted: true };
+    if (hints[c.id]) return { ...c, status: 'live', defaultVideoId: hints[c.id], embedUrl: embedUrlFor(hints[c.id]), hinted: true, ...embeddableOf(found?.embeddable, hints[c.id]) };
     const liveVideoId = freshLiveVideoId(c.id);
     // `status` keeps its F374 meaning (the curated video is live); the client decides what to do with this.
-    return liveVideoId ? { ...c, liveVideoId } : { ...c };
+    return liveVideoId ? { ...c, liveVideoId, ...cachedEmbeddable(c.id) } : { ...c };
   });
 
   if (category !== 'ALL') {

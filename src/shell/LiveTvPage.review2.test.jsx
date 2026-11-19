@@ -77,7 +77,7 @@ describe('1: a lookup from YouTube data is the truth for its channel, including 
     h.lookup = async () => none();
     const out = await pick('theprint');
     expect(frame(out)).toBeUndefined();
-    expect(text(card(out))).toContain("ThePrint isn't live right now");
+    expect(text(card(out))).toContain('No live stream found for ThePrint');
     expect(badge(out)).not.toBe('ltv-live-badge');
     expect(tile(out, 'theprint').status).not.toBe('live');
     expect(h.fcArgs.target).toBeNull();
@@ -88,7 +88,7 @@ describe('1: a lookup from YouTube data is the truth for its channel, including 
     h.lookup = async () => none();
     const out = await pick('theprint');
     expect(frame(out)).toBeUndefined();
-    expect(text(card(out))).toContain("isn't live right now");
+    expect(text(card(out))).toContain('No live stream found');
     expect(badge(out)).not.toBe('ltv-live-badge');
     expect(tile(out, 'theprint').status).not.toBe('live');
   });
@@ -213,7 +213,7 @@ describe('1 (round 2): a LIVE answer ages; nothing is swapped or asked because o
     h.lookup = async () => none();
     await pick('theprint');
     vi.advanceTimersByTime(90 * MIN);
-    expect(text(card(render()))).toContain("isn't live right now");
+    expect(text(card(render()))).toContain('No live stream found');
   });
   it('a curated video the lookup confirmed stops being called LIVE after ten minutes, and keeps playing', async () => {
     vi.useFakeTimers();
@@ -291,7 +291,7 @@ describe('4: three honest states', () => {
     h.lookup = lookup;
     const out = await pick('theprint');
     expect(text(card(out))).toContain("Couldn't check ThePrint right now");
-    expect(text(card(out))).not.toContain("isn't live");
+    expect(text(card(out))).not.toContain('No live stream found');
     expect(text(card(out))).not.toContain('Budget explained');
     expect(button(card(out), 'Play latest video')).toBeUndefined();
     expect(link(card(out), 'Open on YouTube').props.href).toBe('https://www.youtube.com/@theprint');
@@ -299,11 +299,11 @@ describe('4: three honest states', () => {
     expect(h.fcArgs.target).toBeNull();
     expect(badge(out)).not.toBe('ltv-live-badge');
   });
-  it('says "isn\'t live right now" only for an answer from YouTube data', async () => {
+  it('says "No live stream found" only for an answer from YouTube data', async () => {
     await open();
     h.lookup = async () => ({ ...none(), recentVideos: [upload] });
     const out = await pick('theprint');
-    expect(text(card(out))).toContain("ThePrint isn't live right now");
+    expect(text(card(out))).toContain('No live stream found for ThePrint');
     expect(text(card(out))).toContain('Budget explained');
   });
   it('Try again asks the lookup again', async () => {
@@ -330,7 +330,7 @@ describe('10: picking a channel never shows the previous channel\'s latest uploa
     const first = render();
     expect(text(card(first))).toContain('Connecting to Other…');
     expect(text(card(first))).not.toContain('Budget explained');
-    expect(text(card(first))).not.toContain("isn't live");
+    expect(text(card(first))).not.toContain('No live stream found');
   });
 });
 
@@ -458,5 +458,206 @@ describe('12: what the panel and the controls say', () => {
     paste('dQw4w9WgXcQ');
     h.player.onError(150);
     for (const l of hidden) expect(button(render(), l)).toBeUndefined();
+  });
+});
+
+describe('C: a live stream the player refuses', () => {
+  const REFUSED = 'rrrrrrrrrr1';
+  const note = (out) => find(out, (e) => e.type === 'p' && /ltv-refused-note/.test(e.props.className || ''));
+  const refuse = (code = 150) => { h.player.onError(code); return render(); };
+
+  it("goes back to the curated video, is not LIVE, and says so with a link to the live video (the A2 switch refused)", async () => {
+    let out;
+    out = await open({ channels: [dd(), added(), other()], lookup: async () => live(REFUSED) });
+    expect(frame(out).props.src).toContain(`/embed/${REFUSED}?`);
+    out = refuse(150);
+    expect(frame(out).props.src).toContain(`/embed/${CURATED}?`);
+    expect(badge(out)).not.toBe('ltv-live-badge');
+    expect(tile(out, 'dd-news').status).not.toBe('live');
+    expect(text(note(out))).toContain("DD News's live stream can't be played here.");
+    expect(link(note(out), 'Open on YouTube').props.href).toBe(`https://www.youtube.com/watch?v=${REFUSED}`);
+    expect(h.fcArgs.target).toBe(`dd-news|live|${CURATED}`);
+  });
+
+  it('does not flip back: the refusal is remembered for the page, across redraws, picks and a new lookup', async () => {
+    await open({ channels: [dd(), added(), other()], lookup: async () => live(REFUSED) });
+    refuse(101);
+    for (let i = 0; i < 3; i += 1) render();
+    expect(frame(render()).props.src).toContain(`/embed/${CURATED}?`);
+    await pick('other');
+    const out = await pick('dd-news'); // looked up again: the same live video is named again
+    expect(frame(out).props.src).toContain(`/embed/${CURATED}?`);
+    expect(text(note(out))).toContain("live stream can't be played here");
+  });
+
+  it('never switches to a live video the answer says may not be embedded', async () => {
+    const out = await open({ channels: [dd(), added(), other()], lookup: async () => ({ ...live(REFUSED), embeddable: false, liveVideo: { videoId: REFUSED, embeddable: false } }) });
+    expect(frame(out).props.src).toContain(`/embed/${CURATED}?`);
+    expect(badge(out)).not.toBe('ltv-live-badge');
+    expect(link(note(out), 'Open on YouTube').props.href).toBe(`https://www.youtube.com/watch?v=${REFUSED}`);
+  });
+
+  it('never switches to a list-named live video the list says may not be embedded', async () => {
+    h.lookup = () => new Promise(() => {});
+    const out = await open({ channels: [dd({ liveVideoId: REFUSED, embeddable: false }), added(), other()], lookup: () => new Promise(() => {}) });
+    expect(frame(out).props.src).toContain(`/embed/${CURATED}?`);
+    expect(note(out)).toBeDefined();
+  });
+
+  it('without a curated video, shows the cannot-be-played card with Open on YouTube and offers no fact-check', async () => {
+    await open();
+    h.lookup = async () => live(REFUSED);
+    let out = await pick('theprint');
+    expect(frame(out).props.src).toContain(`/embed/${REFUSED}?`);
+    out = refuse(150);
+    expect(frame(out)).toBeUndefined();
+    expect(text(card(out))).toContain("can't be played here");
+    expect(link(card(out), 'Open on YouTube').props.href).toBe(`https://www.youtube.com/watch?v=${REFUSED}`);
+    expect(h.fcArgs.target).toBeNull();
+    expect(badge(out)).not.toBe('ltv-live-badge');
+    out = await pick('other'); out = await pick('theprint'); // and it stays so
+    expect(frame(out)).toBeUndefined();
+  });
+
+  it('when the curated video is refused too, it is the same card', async () => {
+    let out = await open({ channels: [dd({ status: 'live' }), added(), other()], lookup: async () => live(CURATED) });
+    out = refuse(150);
+    expect(frame(out)).toBeUndefined();
+    expect(text(card(out))).toContain("can't be played here");
+    expect(h.fcArgs.target).toBeNull();
+    for (const l of ['Pause', 'Unmute', 'Fullscreen']) expect(button(out, l)).toBeUndefined();
+  });
+
+  const running = { flag: { available: true }, session: { status: 'running', claims: [] }, rechecks: {} };
+  const ended = { flag: { available: true }, session: { status: 'ended', claims: [] }, rechecks: {} };
+  const STOPPED = 'This video stopped playing here. End the fact-check to get unused minutes back.';
+  const stopped = (out) => find(out, (e) => e.type === 'p' && /ltv-stopped-note/.test(e.props.className || ''));
+
+  it('a refusal during a running session does not move the video: frame and target stay, and the line says so', async () => {
+    await open({ channels: [dd(), added(), other()], lookup: async () => live(REFUSED) });
+    h.fcView = running;
+    render();
+    expect(h.fcArgs.target).toBe(`dd-news|live|${REFUSED}`);
+    const out = refuse(150);
+    expect(frame(out).props.src).toContain(`/embed/${REFUSED}?`);
+    expect(h.fcArgs.target).toBe(`dd-news|live|${REFUSED}`);
+    expect(text(stopped(out))).toBe(STOPPED);
+    expect(card(out)).toBeUndefined();
+    // once the session is over, the refusal is applied as usual: back to the curated video
+    h.fcView = ended;
+    render();
+    const after = render();
+    expect(frame(after).props.src).toContain(`/embed/${CURATED}?`);
+    expect(stopped(after)).toBeUndefined();
+    expect(text(note(after))).toContain("live stream can't be played here");
+    expect(h.fcArgs.target).toBe(`dd-news|live|${CURATED}`);
+  });
+
+  it('a late answer that says the playing video may not be embedded does not move it either', async () => {
+    let release;
+    h.channels = [dd(), added({ status: 'live', hinted: true, defaultVideoId: X, embedUrl: embed(X) }), other()]; h.lists = LISTS;
+    h.lookup = (id) => (id === 'theprint' ? new Promise((r) => { release = r; }) : Promise.resolve(none()));
+    render(); await flush(); render(); await flush();
+    bar(render()).props.onSelectChannel({ id: 'theprint' });
+    render(); await flush(); render();
+    expect(frame(render()).props.src).toContain(`/embed/${X}?`);
+    h.fcView = running;
+    render();
+    release({ ...live(X), embeddable: false, liveVideo: { videoId: X, embeddable: false } });
+    await flush();
+    const out = render();
+    expect(frame(out).props.src).toContain(`/embed/${X}?`);
+    expect(h.fcArgs.target).toBe(`theprint|live|${X}`);
+    expect(text(stopped(out))).toBe(STOPPED);
+    h.fcView = ended;
+    render();
+    expect(frame(render())).toBeUndefined(); // no curated video: the card
+    expect(text(card(render()))).toContain("can't be played here");
+  });
+
+  it('a curated video held by a session is not taken away when the player refuses it', async () => {
+    let out = await open({ channels: [dd({ status: 'live' }), added(), other()], lookup: async () => live(CURATED) });
+    h.fcView = running;
+    render();
+    out = refuse(150);
+    expect(frame(out).props.src).toContain(`/embed/${CURATED}?`);
+    expect(h.fcArgs.target).toBe(`dd-news|live|${CURATED}`);
+    expect(text(stopped(out))).toBe(STOPPED);
+    h.fcView = ended;
+    render();
+    out = render();
+    expect(frame(out)).toBeUndefined();
+    expect(text(card(out))).toContain("can't be played here");
+  });
+
+  it('a start screen or a finished session does not hold the video', async () => {
+    await open({ channels: [dd(), added(), other()], lookup: async () => live(REFUSED) });
+    h.fcView = { flag: { available: true }, session: { status: 'choosing', claims: [] }, rechecks: {} };
+    render();
+    expect(frame(refuse(150)).props.src).toContain(`/embed/${CURATED}?`);
+  });
+
+  it('M1: names the reason for the code: 101 and 150 the owner turned playback off, 100 private or removed', async () => {
+    await open();
+    h.lookup = async () => live(REFUSED);
+    let out = await pick('theprint');
+    out = refuse(100);
+    expect(text(card(out))).toContain('This video is private or was removed.');
+    harness.reset();
+    await open();
+    h.lookup = async () => live(REFUSED);
+    out = await pick('theprint');
+    out = refuse(101);
+    expect(text(card(out))).toContain('Its owner has turned off playback on other sites.');
+  });
+
+  it('M1: 153 is a page-wide player error, not a refusal: nothing is remembered and the video stays', async () => {
+    await open({ channels: [dd(), added(), other()], lookup: async () => live(REFUSED) });
+    const out = refuse(153);
+    expect(frame(out).props.src).toContain(`/embed/${REFUSED}?`);
+    expect(note(out)).toBeUndefined();
+    expect(text(find(out, (e) => e.type === 'p' && /ltv-np-note/.test(e.props.className || '')))).toContain('The player reported a problem with this video.');
+    expect(h.fcArgs.target).toBe(`dd-news|live|${REFUSED}`);
+  });
+
+  it('M2: Reload Feed lets a refused video be tried again', async () => {
+    await open({ channels: [dd(), added(), other()], lookup: async () => live(REFUSED) });
+    let out = refuse(150);
+    expect(frame(out).props.src).toContain(`/embed/${CURATED}?`);
+    button(out, 'Reload Feed').props.onClick();
+    render(); await flush(); render(); await flush(); // the channel is asked about again
+    out = render();
+    expect(frame(out).props.src).toContain(`/embed/${REFUSED}?`);
+    out = refuse(150); // refused again: remembered again
+    expect(frame(out).props.src).toContain(`/embed/${CURATED}?`);
+  });
+
+  it('M2: Try again clears the refusal, and an answer that says it may not be embedded marks it again', async () => {
+    await open();
+    h.lookup = async () => ({ ...live(REFUSED), embeddable: false, liveVideo: { videoId: REFUSED, embeddable: false } });
+    let out = await pick('theprint');
+    expect(text(card(out))).toContain("can't be played here");
+    h.lookup = async () => live(REFUSED); // the owner turned embedding on
+    button(out, 'Reload Feed').props.onClick();
+    render(); await flush(); render(); await flush();
+    out = render();
+    expect(frame(out).props.src).toContain(`/embed/${REFUSED}?`);
+  });
+
+  it.each([2, 5, 99])('a player error code %s that is not a refusal changes nothing', async (code) => {
+    await open({ channels: [dd(), added(), other()], lookup: async () => live(REFUSED) });
+    const out = refuse(code);
+    expect(frame(out).props.src).toContain(`/embed/${REFUSED}?`);
+    expect(note(out)).toBeUndefined();
+  });
+
+  it('is only about the live mode: a refusal while another mode plays does not mark the channel\'s live video', async () => {
+    await open({ channels: [dd(), added(), other()], lookup: async () => live(REFUSED) });
+    find(render(), (e) => e.type === 'input' && e.props.id === 'ltv-paste-input').props.onChange({ target: { value: 'dQw4w9WgXcQ' } });
+    find(render(), (e) => e.type === 'form' && /ltv-paste/.test(e.props.className || '')).props.onSubmit({ preventDefault() {} });
+    render();
+    h.player.onError(150);
+    button(render(), 'Back to channels').props.onClick();
+    expect(frame(render()).props.src).toContain(`/embed/${REFUSED}?`);
   });
 });
