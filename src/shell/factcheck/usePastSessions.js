@@ -30,14 +30,32 @@ export function usePastSessions({ client = supabase, sessionStatus = 'idle' } = 
     return () => { alive.current = false; };
   }, []);
 
-  const loadDetail = useCallback((id) => {
-    setDetails((d) => ({ ...d, [id]: { phase: 'loading', claims: [], capped: false } }));
-    void fetchSessionClaims({ client, sessionId: id }).then((out) => {
+  // A claim may still be answered until ended_at + the margin (pastSessions.js). An opened session that had a
+  // claim waiting on it is read once more when the margin has passed, so a card cannot stay on "Checking…" for
+  // ever. One timer for each session, one extra read, no polling: that read does not schedule another.
+  const timers = useRef(new Map());
+  useEffect(() => {
+    const held = timers.current;
+    return () => { held.forEach((t) => clearTimeout(t)); held.clear(); };
+  }, []);
+
+  const loadDetail = useCallback((id, { again = false } = {}) => {
+    const row = state.current.list.rows.find((r) => r.id === id) || null;
+    clearTimeout(timers.current.get(id));
+    timers.current.delete(id);
+    // The first read shows "loading"; the one more read replaces the result quietly when it comes.
+    if (!again) setDetails((d) => ({ ...d, [id]: { phase: 'loading', claims: [], capped: false } }));
+    void fetchSessionClaims({ client, sessionId: id, session: row }).then((out) => {
       if (!alive.current) return;
+      if (again && !out.ok) return; // keep what is shown
       setDetails((d) => ({
         ...d,
         [id]: out.ok ? { phase: 'ready', claims: out.claims, capped: out.capped } : { phase: 'error', claims: [], capped: false },
       }));
+      if (out.ok && out.pendingUntil !== null && !again) {
+        const wait = Math.max(0, out.pendingUntil - Date.now()) + 1000;
+        timers.current.set(id, setTimeout(() => { timers.current.delete(id); if (alive.current) loadDetail(id, { again: true }); }, wait));
+      }
     });
   }, [client]);
 
@@ -50,6 +68,8 @@ export function usePastSessions({ client = supabase, sessionStatus = 'idle' } = 
     setMoreBusy(false); // a Show more still in flight is dropped below, so it can no longer clear this itself
     // Kept details may be stale after a reload: drop them, and fetch again the one that is open.
     setDetails({});
+    timers.current.forEach((t) => clearTimeout(t));
+    timers.current.clear();
     if (state.current.openId) loadDetail(state.current.openId);
     void listSettledSessions({ client, offset: 0 }).then((out) => {
       if (!alive.current || generation.current !== mine) return;
@@ -127,6 +147,6 @@ export function usePastSessions({ client = supabase, sessionStatus = 'idle' } = 
   return {
     phase: list.phase, rows: list.rows, hasMore: list.hasMore, moreBusy, moreFailed,
     openId, details, removal, notice,
-    retry, showMore, toggle, retryDetail: loadDetail, askDelete, cancelDelete, confirmDelete,
+    retry, showMore, toggle, retryDetail: (id) => loadDetail(id), askDelete, cancelDelete, confirmDelete,
   };
 }

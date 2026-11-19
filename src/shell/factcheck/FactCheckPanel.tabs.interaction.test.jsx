@@ -34,7 +34,7 @@ describe('tabs', () => {
     find(out, RovingTabs).props.onChange('transcript');
     out = harness.render(PanelBody, props());
     expect(find(out, RovingTabs).props.active).toBe('transcript');
-    expect(find(out, RovingTabs).props.tabs.map((t) => t.label)).toEqual(['Claims · 2', 'Transcript']);
+    expect(find(out, RovingTabs).props.tabs.map((t) => t.label)).toEqual(['Claims · 2', 'Transcript', 'Summary']);
   });
 });
 
@@ -89,3 +89,30 @@ describe('See why (a focus request from the page)', () => {
     expect(card.focus).not.toHaveBeenCalled();
   });
 });
+
+describe('Summary tab (B3)', () => {
+  it('opens from the tab list, and its Show card button opens Claims, clears a hiding filter and focuses the card', async () => {
+    const { SummaryTab: Summary } = await import('./SummaryTab.jsx');
+    let out = harness.render(PanelBody, props());
+    find(out, RovingTabs).props.onChange('summary');
+    out = harness.render(PanelBody, props());
+    expect(find(out, RovingTabs).props.active).toBe('summary');
+    find(out, Claims).props.onToggle('supported'); // hides claim 2
+    out = harness.render(PanelBody, props());
+    find(out, Summary).props.onSee('2');
+    out = harness.render(PanelBody, props());
+    expect(find(out, RovingTabs).props.active).toBe('claims');
+    expect(find(out, Claims).props.filters).toEqual([]);
+    expect(card.scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(card.focus).toHaveBeenCalledTimes(1);
+  });
+  it('the three tabs keep one tab stop and arrow order Claims, Transcript, Summary', async () => {
+    const { nextTab } = await import('./FactCheckTabs.jsx');
+    const ids = ['claims', 'transcript', 'summary'];
+    expect(nextTab(ids, 'transcript', 'ArrowRight')).toBe('summary');
+    expect(nextTab(ids, 'summary', 'ArrowRight')).toBe('claims');
+    expect(nextTab(ids, 'claims', 'ArrowLeft')).toBe('summary');
+    expect(nextTab(ids, 'claims', 'End')).toBe('summary');
+  });
+});
+

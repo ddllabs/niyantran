@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from 'react';
 import { creditsText } from '../../lib/creditsStore.js';
 import { earlierAnalysisIds, formatPosition, partModel } from './factCheckShare.js';
 import { REANALYZE_LABEL, earlierAnalysisText } from './factCheckText.js';
+import { HighlightedText, TRANSCRIPT_TEXT, TranscriptBar, useTranscriptTools } from './TranscriptTools.jsx';
+import { useAnnounce } from './announce.jsx';
 
 // Focus goes to the first control when a confirmation or form opens, and back to the button when it closes.
 function useOpenCloseFocus(open) {
@@ -88,7 +90,28 @@ function UnlockControls({ model, price, balance, state, actions }) {
   );
 }
 
-export function Part({ stretch, open, onToggle, balance, state, actions, renderCard, earlier = false }) {
+// The stored lines of one readable part, with the same search, Copy and Download as the live transcript.
+function PartLines({ lines, title, date }) {
+  const rows = lines.map((l, i) => ({ key: i, time: formatPosition(l.pos_start_s), text: String(l.text ?? '') }));
+  const tools = useTranscriptTools({ lines: rows, title, date, say: useAnnounce() });
+  const searching = tools.query.trim() !== '';
+  return (
+    <>
+      <TranscriptBar tools={tools} total={rows.length} landmark={false} label={TRANSCRIPT_TEXT.partSearchLabel} />
+      <div className="fc-part-lines">
+        {tools.noMatch ? <p className="fc-empty">{`${TRANSCRIPT_TEXT.noMatch}. Clear the search to see every line.`}</p> : null}
+        {tools.shown.map((l) => (
+          <p className="fc-line" dir="auto" key={l.key}>
+            <span className="fc-line-time">{l.time}</span>
+            {searching ? <>{' '}<HighlightedText text={l.text} query={tools.query} /></> : ` ${l.text}`}
+          </p>
+        ))}
+      </div>
+    </>
+  );
+}
+
+export function Part({ stretch, open, onToggle, balance, state, actions, renderCard, earlier = false, title = '' }) {
   const m = partModel(stretch);
   const meta = [m.minutes, m.date && !earlier && `Checked on ${m.date}`, m.claimsLabel].filter(Boolean).join(' · ');
   return (
@@ -111,16 +134,7 @@ export function Part({ stretch, open, onToggle, balance, state, actions, renderC
             {open ? 'Hide transcript and verdicts' : 'Show transcript and verdicts'}
           </button>
           <div className="fc-part-body" id={`fc-part-${m.id}`} hidden={!open}>
-            {m.lines.length ? (
-              <div className="fc-part-lines">
-                {m.lines.map((l, i) => (
-                  <p className="fc-line" dir="auto" key={i}>
-                    <span className="fc-line-time">{formatPosition(l.pos_start_s)}</span>
-                    {` ${l.text}`}
-                  </p>
-                ))}
-              </div>
-            ) : null}
+            {m.lines.length ? <PartLines lines={m.lines} title={title} date={stretch.checked_on} /> : null}
             <ol className="fc-claims" aria-label="Claims in this part">
               {m.claims.map((c) => renderCard(c, m))}
             </ol>
@@ -134,7 +148,7 @@ export function Part({ stretch, open, onToggle, balance, state, actions, renderC
 }
 
 /** The section. `view.shared` is the controller's state; `renderCard(claim, partModel)` draws a card. */
-export function Parts({ shared, balance, openIds, onToggle, actions, renderCard }) {
+export function Parts({ shared, balance, openIds, onToggle, actions, renderCard, title = '' }) {
   const earlier = earlierAnalysisIds(shared.stretches);
   return (
     <section className="fc-parts" aria-labelledby="fc-parts-title">
@@ -153,7 +167,7 @@ export function Parts({ shared, balance, openIds, onToggle, actions, renderCard 
           {shared.stretches.map((s) => (
             <Part
               key={s.stretch_id} stretch={s} open={Boolean(openIds[s.stretch_id])} onToggle={onToggle} balance={balance}
-              state={shared.unlocks[s.stretch_id]} actions={actions} renderCard={renderCard} earlier={earlier.has(s.stretch_id)}
+              state={shared.unlocks[s.stretch_id]} actions={actions} renderCard={renderCard} earlier={earlier.has(s.stretch_id)} title={title}
             />
           ))}
         </ol>
