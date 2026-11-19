@@ -17,9 +17,12 @@ import { embedVideoId, playingTarget } from './factcheck/factCheckText.js';
 import { useFactCheck } from './factcheck/useFactCheck.js';
 import { useYoutubePlayer } from './liveTv/useYoutubePlayer.js';
 import { buildEmbedSrc, embedFrameKey } from './liveTv/embed.js';
+import { parseYoutubeLink, youtubeEmbedUrl, youtubeWatchUrl, playerErrorMessage, pastedVideoKind } from './liveTv/youtubeLink.js';
 import './liveTv.css';
+import pasteLinkCss from './liveTv/pasteLink.css?inline'; // in this lazy chunk, not the entry stylesheet
 
 const REAL_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+const LINK_CHANNEL_ID = 'youtube-link'; // what the fact-check server stores for a pasted video (any short text is accepted)
 const SESSION_ACTIVE = new Set(['sharing', 'starting', 'running', 'ending']);
 
 // F359: a shell page at #/livetv. `open` says whether it is the page being shown; it stays mounted after the
@@ -39,7 +42,15 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   // page plays it. Both name their channel, so a stale one is ignored.
   const [lookupLive, setLookupLive] = useState(null); // { channelId, videoId }
   const [liveSwitch, setLiveSwitch] = useState(null); // { channelId, videoId }
-  const liveDecided = useRef(''); // `${channelId}:${videoId}` already decided
+  const liveDecided = useRef('');
+  // B4: a pasted YouTube link plays as its own mode ('link'). `pasted` is { videoId }; the field keeps what the
+  // user typed (also after an error); `playerInfo` and `playerError` come from the player bridge.
+  const [pasted, setPasted] = useState(null);
+  const [pasteText, setPasteText] = useState('');
+  const [pasteError, setPasteError] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false); // phones: the field opens from a button
+  const [playerInfo, setPlayerInfo] = useState(null);
+  const [playerError, setPlayerError] = useState(null); // `${channelId}:${videoId}` already decided
 
   const [categories, setCategories] = useState(['ALL', 'NEWS', 'EDUCATION', 'POLITICS', 'ECONOMICS', 'RESEARCH', 'GENERAL']);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
@@ -227,6 +238,9 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     return archive.find((a) => a.id === selectedBroadcastId) || archive[0] || null;
   }, [archive, selectedBroadcastId]);
 
+  // My sessions names a pasted video's sessions (their channel id is the fixed LINK_CHANNEL_ID).
+  const pastChannels = useMemo(() => [...channels, { id: LINK_CHANNEL_ID, name: 'YouTube link' }], [channels]);
+
   const filteredCues = useMemo(() => {
     if (!transcript || !transcript.cues || !Array.isArray(transcript.cues)) return [];
     const q = transcriptQuery.trim().toLowerCase();
@@ -251,6 +265,41 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     setReloadKey((k) => k + 1);
   }
 
+  // B4: Back to channels, and picking a channel tile, both leave the pasted video. The field keeps its text.
+  function leaveLink() {
+    setPasted(null);
+    setPlayerInfo(null);
+    setPlayerError(null);
+  }
+
+  function handleBackToChannels() {
+    leaveLink();
+    setPlaybackMode('live');
+    setStreamError(false);
+    setReloadKey((k) => k + 1);
+  }
+
+  function handleLoadLink(e) {
+    e?.preventDefault?.();
+    const parsed = parseYoutubeLink(pasteText);
+    if (!parsed.ok) { setPasteError(true); return; }
+    setPasteError(false);
+    setPasteOpen(false);
+    if (playbackMode === 'link' && pasted?.videoId === parsed.videoId) {
+      // already playing: nothing changes unless it failed, then it is tried again
+      if (playerError !== null) { setPlayerError(null); setStreamError(false); setReloadKey((k) => k + 1); }
+      return;
+    }
+    setPasted({ videoId: parsed.videoId });
+    setPlayerInfo(null);
+    setPlayerError(null);
+    setActiveVideo(null);
+    setPlaybackMode('link');
+    setIsPlaying(true);
+    setStreamError(false);
+    setReloadKey((k) => k + 1);
+  }
+
   function handleReturnToLive() {
     setPlaybackMode('live');
     setActiveVideo(null);
@@ -269,6 +318,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
 
   // External watch URL for truthful fallback
   const externalWatchUrl = useMemo(() => {
+    if (playbackMode === 'link' && pasted) return youtubeWatchUrl(pasted.videoId);
     if (playbackMode === 'video' && activeVideo) {
       const vid = activeVideo.videoId || activeVideo.id;
       return vid ? `https://www.youtube.com/watch?v=${vid}` : activeChannel?.channelUrl || 'https://www.youtube.com';
@@ -281,11 +331,14 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
       return `https://www.youtube.com/watch?v=${activeChannel.defaultVideoId}`;
     }
     return activeChannel?.channelUrl || 'https://www.youtube.com';
-  }, [playbackMode, activeVideo, selectedArchiveItem, activeChannel, liveSwitchedId]);
+  }, [playbackMode, pasted, activeVideo, selectedArchiveItem, activeChannel, liveSwitchedId]);
 
   // Determine current player source
+  const linkId = playbackMode === 'link' && pasted ? pasted.videoId : '';
   const currentEmbedUrl =
-    playbackMode === 'video' && activeVideo
+    linkId
+      ? youtubeEmbedUrl(linkId)
+      : playbackMode === 'video' && activeVideo
       ? activeVideo.embedUrl || ('https://www.youtube-nocookie.com/embed/' + (activeVideo.id || activeVideo.videoId) + '?autoplay=1&mute=1&playsinline=1')
       : playbackMode === 'archive' && selectedArchiveItem
       ? selectedArchiveItem.videoUrl
@@ -306,6 +359,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const player = useYoutubePlayer(open, {
     onMutedChange: (m) => { nextEmbedMuted.current = m; setIsMuted(m); },
     onFallback: () => setReloadKey((k) => k + 1),
+    onInfo: (info) => setPlayerInfo(info),
+    onError: (code) => setPlayerError(code),
   });
   const applyMute = (next) => {
     nextEmbedMuted.current = next; // a fallback remount, or a later Play, mounts with this
@@ -316,25 +371,29 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   // F344: fact-check. Added after the existing hooks; nothing above changed. What is playing is read
   // from the embed address, so it names the video that is really on screen.
   const factCheckVideoId = embedVideoId(currentEmbedUrl);
-  const factCheckChannelId = activeChannel?.id || '';
-  const factCheckTarget = playingTarget(factCheckChannelId, playbackMode, factCheckVideoId);
+  // A pasted video is live unless the player shows it is not (see pastedVideoKind); live sessions stay private.
+  const linkLive = Boolean(linkId) && pastedVideoKind(playerInfo) === 'live';
+  const treatAsLive = playbackMode === 'live' || linkLive;
+  const linkBlocked = Boolean(linkId) && playerError !== null; // no target: nothing to fact-check
+  const factCheckChannelId = linkId ? LINK_CHANNEL_ID : activeChannel?.id || '';
+  const factCheckTarget = linkBlocked ? null : playingTarget(factCheckChannelId, playbackMode, factCheckVideoId);
   const factCheck = useFactCheck({
     open,
     target: factCheckTarget,
     // where the player is, for shared results on recorded videos
-    getPosition: () => (playbackMode === 'live' ? null : player.getPosition()),
+    getPosition: () => (treatAsLive ? null : player.getPosition()),
     // F363: "Re-analyze this block" moves a recorded video to the block's start
-    seek: (s) => (playbackMode === 'live' ? false : player.seekS(s)),
+    seek: (s) => (treatAsLive ? false : player.seekS(s)),
     start: {
       videoId: factCheckVideoId,
       channelId: factCheckChannelId,
-      videoKind: playbackMode === 'live' ? 'live' : 'recorded',
+      videoKind: treatAsLive ? 'live' : 'recorded',
       startPositionS: null,
       // read when the user confirms: a recorded video starts from where it is playing now
-      getStartPositionS: () => (playbackMode === 'live' ? null : player.getPositionS()),
+      getStartPositionS: () => (treatAsLive ? null : player.getPositionS()),
       seed: {
-        channel: activeChannel?.name || '',
-        title: (playbackMode === 'video' ? activeVideo?.title : playbackMode === 'archive' ? selectedArchiveItem?.title : '') || '',
+        channel: linkId ? 'YouTube link' : activeChannel?.name || '',
+        title: (linkId ? playerInfo?.title : playbackMode === 'video' ? activeVideo?.title : playbackMode === 'archive' ? selectedArchiveItem?.title : '') || '',
       },
     },
   });
@@ -382,7 +441,10 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   // My sessions can stop being offered while it is the chosen tab: show Channel Videos then, so one tab stays
   // the tab stop and the panel is not empty.
   const shownTab = tabs.some(([id]) => id === activeTab) ? activeTab : 'videos';
-  const programTitle = playbackMode === 'archive'
+  const linkTitle = playerInfo?.title || 'YouTube video';
+  const programTitle = linkId
+    ? linkTitle
+    : playbackMode === 'archive'
     ? selectedArchiveItem?.title || 'Archived Recording'
     : (playbackMode === 'video' && activeVideo?.title) || activeChannel?.name || '';
 
@@ -417,6 +479,10 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                 <span className="ltv-recent-dot" /> CURATED FEED
               </span>
             )
+          ) : playbackMode === 'link' ? (
+            <span className="ltv-video-playback-badge">
+              <span className="ltv-video-dot" /> YOUTUBE LINK
+            </span>
           ) : playbackMode === 'video' ? (
             <span className="ltv-video-playback-badge">
               <span className="ltv-video-dot" /> VIDEO PLAYBACK
@@ -445,6 +511,38 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
           )}
           </div>
         </div>
+        {/* B4: paste a YouTube video or live link. On phones the field opens from a button. */}
+        <style>{pasteLinkCss}</style>
+        <form className={`ltv-paste${pasteOpen ? ' is-open' : ''}`} onSubmit={handleLoadLink} noValidate>
+          <button
+            type="button"
+            className="ltv-action-btn ltv-paste-toggle"
+            aria-expanded={pasteOpen}
+            aria-controls="ltv-paste-body"
+            onClick={() => setPasteOpen((o) => !o)}
+          >
+            Paste a link
+          </button>
+          <div className="ltv-paste-body" id="ltv-paste-body">
+            <label className="ltv-sr-only" htmlFor="ltv-paste-input">Paste a YouTube video or live link</label>
+            <input
+              id="ltv-paste-input"
+              type="text"
+              className="ltv-paste-input"
+              placeholder="Paste a YouTube video or live link"
+              value={pasteText}
+              autoComplete="off"
+              spellCheck={false}
+              aria-invalid={pasteError}
+              aria-describedby={pasteError ? 'ltv-paste-error' : undefined}
+              onChange={(e) => { setPasteText(e.target.value); setPasteError(false); }}
+            />
+            <button type="submit" className="ltv-action-btn primary ltv-paste-submit">Load video</button>
+          </div>
+          {pasteError ? (
+            <p className="ltv-paste-error" id="ltv-paste-error" role="alert">That doesn't look like a YouTube link.</p>
+          ) : null}
+        </form>
       </header>
 
       {/* Scrollable page body: the channel card, the video and panel, then the lower tabs (liveTv.css) */}
@@ -459,6 +557,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
         playbackMode={playbackMode}
         loading={channelsLoading}
         onSelectChannel={(ch) => {
+          leaveLink();
           if (ch.id !== activeChannelId) {
             // a new selection decides afresh: forget what was decided for the channel left
             setLiveSwitch(null);
@@ -509,13 +608,23 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                   </button>
                 </div>
               </div>
+            ) : linkBlocked ? (
+              <div className="ltv-offline-card" role="alert">
+                <h4>Can't play this video here</h4>
+                <p>{playerErrorMessage(playerError)}</p>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '14px', flexWrap: 'wrap' }}>
+                  <a href={externalWatchUrl} target="_blank" rel="noopener noreferrer" className="ltv-action-btn primary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    Open on YouTube ↗
+                  </a>
+                </div>
+              </div>
             ) : isPlaying ? (
               <iframe
-                key={embedFrameKey({ channelId: activeChannelId, broadcastId: selectedBroadcastId, mode: playbackMode, reloadKey }) + (playbackMode === 'live' && liveSwitchedId ? `-${liveSwitchedId}` : '')}
+                key={embedFrameKey({ channelId: activeChannelId, broadcastId: selectedBroadcastId, mode: playbackMode, reloadKey }) + (playbackMode === 'live' && liveSwitchedId ? `-${liveSwitchedId}` : '') + (linkId ? `-link-${linkId}` : '')}
                 ref={player.iframeRef}
                 className="ltv-video-frame"
                 src={embedSrc}
-                title={`${playbackMode === 'archive' ? selectedArchiveItem?.title : activeChannel?.name || 'Live TV'} Player`}
+                title={`${linkId ? linkTitle : playbackMode === 'archive' ? selectedArchiveItem?.title : activeChannel?.name || 'Live TV'} Player`}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
                 referrerPolicy="strict-origin-when-cross-origin"
                 onError={() => setStreamError(true)}
@@ -545,13 +654,15 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
 
           {/* Now playing: the tile, the title, the line, and the existing action buttons */}
           <div className="ltv-nowplaying">
-            <span className="ltv-np-tile" style={{ background: activeChannel?.color || '#3b82f6' }} aria-hidden="true">
-              {activeChannel ? activeChannel.short || activeChannel.name.slice(0, 3) : ''}
+            <span className="ltv-np-tile" style={{ background: linkId ? '#c4302b' : activeChannel?.color || '#3b82f6' }} aria-hidden="true">
+              {linkId ? 'YT' : activeChannel ? activeChannel.short || activeChannel.name.slice(0, 3) : ''}
             </span>
             <div className="ltv-program-info">
               <h3>{programTitle}</h3>
               <p className="ltv-np-line">
-                {playbackMode === 'archive' ? (
+                {linkId ? (
+                  ['YouTube link', playerInfo?.isLive === true ? 'Live' : pastedVideoKind(playerInfo) === 'recorded' ? 'Video' : ''].filter(Boolean).join(' · ')
+                ) : playbackMode === 'archive' ? (
                   <>
                     Segment: {selectedArchiveItem?.segment || 'General'} &bull; Duration:{' '}
                     {selectedArchiveItem?.duration || 'Full'} &bull; Date:{' '}
@@ -582,7 +693,17 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                   Return to Live Feed
                 </button>
               )}
-              {activeChannel?.deskId && (
+              {linkId && (
+                <>
+                  <button type="button" className="ltv-action-btn ltv-return-live-btn" onClick={handleBackToChannels} title="Back to the channels">
+                    Back to channels
+                  </button>
+                  <a href={externalWatchUrl} target="_blank" rel="noopener noreferrer" className="ltv-action-btn" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+                    Watch on YouTube ↗
+                  </a>
+                </>
+              )}
+              {!linkId && activeChannel?.deskId && (
                 <button
                   type="button"
                   className="ltv-action-btn primary"
@@ -619,7 +740,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               <button
                 type="button"
                 className="ltv-action-btn"
-                onClick={() => setReloadKey((k) => k + 1)}
+                onClick={() => { setPlayerError(null); setReloadKey((k) => k + 1); }}
                 title="Reload Live Feed"
               >
                 Reload Feed
@@ -632,7 +753,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
           <div className="ltv-panelcol">
             <FactCheckPanel
               persistent
-              channelName={activeChannel?.name || ''}
+              channelName={linkId ? 'YouTube video' : activeChannel?.name || ''}
               playable={playable}
               onChoose={factCheck.actions.choose}
               view={factCheck.view}
@@ -933,7 +1054,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               mounted (hidden) while another tab shows, as it was always mounted below the page, so it loads and
               reloads as before and an open delete question is not lost on a tab change. */}
           <div hidden={!factCheckOffered || shownTab !== 'sessions'}>
-            <PastSessions userId={factCheck.view?.flag?.userId} enabled={factCheckOffered} sessionStatus={factCheck.view?.session?.status} channels={channels} />
+            <PastSessions userId={factCheck.view?.flag?.userId} enabled={factCheckOffered} sessionStatus={factCheck.view?.session?.status} channels={pastChannels} />
           </div>
         </div>
       </div>

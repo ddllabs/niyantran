@@ -1,0 +1,30 @@
+/* B4: the "paste a YouTube link" form in the Live TV title row. */
+.ltv-sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.ltv-paste { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; margin-left: auto; }
+.ltv-paste-body { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ltv-paste-toggle { display: none; }
+.ltv-paste-input {
+  box-sizing: border-box; width: 320px; max-width: 100%; min-height: 34px; padding: 6px 10px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg);
+  font: inherit; font-size: 13px;
+}
+.ltv-paste-input::placeholder { color: var(--muted); }
+.ltv-paste-input[aria-invalid='true'] { border-color: var(--bad, #d64545); }
+.ltv-paste-input:focus-visible, .ltv-paste-toggle:focus-visible, .ltv-paste-submit:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.ltv-paste-submit { white-space: nowrap; }
+.ltv-paste-error { flex: 1 0 100%; margin: 0; font-size: 12px; color: var(--bad, #d64545); }
+
+@media (max-width: 600px) {
+  .ltv-header { flex-wrap: wrap; }
+  .ltv-paste { flex: 1 0 100%; margin-left: 0; }
+  .ltv-paste-toggle { display: inline-flex; align-items: center; min-height: 40px; }
+  .ltv-paste-body { display: none; flex: 1 0 100%; }
+  .ltv-paste.is-open .ltv-paste-body { display: flex; }
+  .ltv-paste-input { flex: 1 1 0; width: auto; min-height: 40px; font-size: 16px; }
+  .ltv-paste-submit { min-height: 40px; }
+}
