@@ -5,10 +5,12 @@
 // user id is ever sent: the session's own sign-in decides whose rows come back. Every failure is reduced
 // to { ok: false }; server error text never leaves this module.
 import { supabase } from '../../lib/supabaseClient.js';
+import { LIMITS } from '../../lib/factcheck/session.js';
 
 export const PAGE_SIZE = 20;
 export const CLAIM_CAP = 500;
 
+// ended_at is read to tell when an unanswered claim can no longer be answered (settleUnchecked).
 const SESSION_COLUMNS = 'id, video_id, channel_id, video_kind, started_at, ended_at, minutes_used, credits_charged, status';
 const CLAIM_COLUMNS = 'id, session_id, position_s, spoken_at, claim_en, claimant, reported_by, kind, status, verdict, reason, sources, checked_at, supersedes, hidden_at, fail_reason';
 
@@ -58,14 +60,41 @@ export function newestResults(rows) {
     .map((x) => x.pick);
 }
 
+/** The server accepts a check call for a session until this long after `ended_at` (migration 20261116090000). */
+export const SERVER_CHECK_WINDOW_MS = 120000;
+/** ...and a check call already sent may take up to the client's call timeout to answer. */
+export const PENDING_SETTLE_MARGIN_MS = SERVER_CHECK_WINDOW_MS + LIMITS.callTimeoutMs;
+
 /**
- * A1 (F376): the results of a SETTLED session. A root claim still `pending` was never checked (the session
- * ended first; the server leaves the row as it was), so it is shown as `unchecked` with `ended_unchecked`
- * set for the card's note. A re-check row (`supersedes` set) is never turned: a pending one is ignored by
- * newestResults, and a pending re-check that stands alone is not a root.
+ * When a root claim of this session can no longer be answered, as a time in ms: `ended_at` plus the margin.
+ * A session with no usable `ended_at` counts as long over when it is settled (the past view only reads settled
+ * sessions), and as not yet over otherwise. Returns -Infinity (over), +Infinity (not over) or a time.
  */
-export function settleUnchecked(rows) {
-  return rows.map((r) => (r.status === 'pending' && !r.supersedes ? { ...r, status: 'unchecked', ended_unchecked: true } : r));
+function settlesAt(session) {
+  const ended = Date.parse(session?.ended_at);
+  if (!Number.isNaN(ended)) return ended + PENDING_SETTLE_MARGIN_MS;
+  return session?.status === 'settled' ? -Infinity : Infinity;
+}
+
+/**
+ * A1 (F376): the results of a SETTLED session. A root claim still `pending` after the margin was never
+ * checked (the session ended first; the server leaves the row as it was), so it is shown as `unchecked` with
+ * `ended_unchecked` set for the card's note. Before the margin a check may still be on its way, so the claim
+ * keeps its "Checking…" badge and `pendingUntil` says when to read the session again. A row with `supersedes`
+ * set is never turned: a pending re-check is ignored by newestResults.
+ * Returns { claims, pendingUntil } (pendingUntil: ms, or null when no root is waiting on the margin).
+ */
+export function settleUnchecked(rows, session, now = Date.now()) {
+  const at = settlesAt(session);
+  const over = now > at;
+  let waiting = false;
+  const claims = rows.map((r) => {
+    if (r.status !== 'pending' || r.supersedes) return r;
+    if (over) return { ...r, status: 'unchecked', ended_unchecked: true };
+    waiting = true;
+    return r;
+  });
+  return { claims, pendingUntil: waiting && Number.isFinite(at) ? at : null };
 }
 
 /** One page of the user's settled sessions, newest first: { ok: true, rows, hasMore } or { ok: false }. */
@@ -85,8 +114,8 @@ export async function listSettledSessions({ client = supabase, offset = 0 } = {}
   }
 }
 
-/** One session's results: { ok: true, claims, capped } or { ok: false }. */
-export async function fetchSessionClaims({ client = supabase, sessionId } = {}) {
+/** One session's results: { ok: true, claims, capped, pendingUntil } or { ok: false }. `session` is its row (ended_at, status). */
+export async function fetchSessionClaims({ client = supabase, sessionId, session = null, now = Date.now } = {}) {
   try {
     const { data, error } = await client
       .from('factcheck_claims')
@@ -98,7 +127,8 @@ export async function fetchSessionClaims({ client = supabase, sessionId } = {}) 
       .range(0, CLAIM_CAP); // one spare row tells whether the cap cut the list
     if (error || !Array.isArray(data)) return FAILED;
     const capped = data.length > CLAIM_CAP;
-    return { ok: true, claims: settleUnchecked(newestResults(capped ? data.slice(0, CLAIM_CAP) : data)), capped };
+    const settled = settleUnchecked(newestResults(capped ? data.slice(0, CLAIM_CAP) : data), session, now());
+    return { ok: true, claims: settled.claims, capped, pendingUntil: settled.pendingUntil };
   } catch {
     return FAILED;
   }

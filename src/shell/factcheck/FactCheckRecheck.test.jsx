@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../lib/supabaseClient.js', () => ({ supabase: {}, accessToken: async () => null, functionsUrl: () => '' }));
 import { FactCheckPanel } from './FactCheckPanel.jsx';
+import { liveNodes } from './liveNodes.js';
 import { PIN_VIEWS } from './pinViews.js';
 
 const base = {
@@ -117,7 +118,8 @@ describe('running', () => {
   });
   it('does not add a second live region', () => {
     const html = render(withClaim(claim(), { rechecks: { c1: { phase: 'running', results: [], error: null, notice: '' } } }));
-    expect(html.match(/aria-live="polite"/g)).toHaveLength(1);
+    // the verdict announcer and the one shared status node for copy and export; a re-check adds none
+    expect(liveNodes(html)).toHaveLength(2);
   });
 });
 
@@ -179,7 +181,7 @@ describe('failures on the card', () => {
 describe('accessibility', () => {
   it('the new verdict is announced through the one existing live region', () => {
     const html = render(withClaim(claim(), { announcement: 'Contradicted: X (checked again)' }));
-    expect(html.match(/aria-live="polite"/g)).toHaveLength(1);
+    expect(liveNodes(html)).toHaveLength(2);
     expect(html).toMatch(/aria-live="polite"[^>]*>Contradicted: X \(checked again\)</);
   });
   it('dir="auto" stays on the card text', () => {

@@ -1,13 +1,15 @@
 // B2: search, Copy and Download for the transcript text the panel already has in memory. No request is made.
-// useTranscriptTools holds the phrase and the short message; TranscriptBar draws the three controls;
-// HighlightedText marks the matching text of a line. Styles: factCheck.css (fc-tsearch, fc-mark).
-import { useEffect, useRef, useState } from 'react';
+// useTranscriptTools holds the phrase; TranscriptBar draws the three controls; HighlightedText marks the matching
+// text of a line. Confirmations go to the view's one shared status node (announce.jsx) through `say`.
+// Styles: factCheck.css (fc-tsearch, fc-mark).
+import { useRef, useState } from 'react';
 import {
   buildTranscriptText, copyToClipboard, downloadTextFile, highlightParts, matchLines, transcriptFileName,
 } from './transcriptTools.js';
 
 export const TRANSCRIPT_TEXT = {
   searchLabel: 'Search the transcript',
+  partSearchLabel: "Search this part's transcript",
   placeholder: 'Search the transcript',
   copied: 'Transcript copied.',
   copyFailed: 'Could not copy. Select the text and copy it yourself.',
@@ -15,26 +17,18 @@ export const TRANSCRIPT_TEXT = {
   downloadFailed: 'Could not make the file. Copy the text instead.',
   noMatch: 'No line matches',
 };
-const NOTE_MS = 4000;
 
 /**
  * `lines` are { key, time?, text }; the hook returns the lines to show for the typed phrase and the actions.
  * `date` is the day of the transcript (an ISO string or a Date); the day of pressing Download when not given.
+ * `say` writes to the view's shared status node.
  */
-export function useTranscriptTools({ lines, title = '', date = null }) {
+export function useTranscriptTools({ lines, title = '', date = null, say = () => {} }) {
   const [query, setQuery] = useState('');
-  const [note, setNote] = useState('');
-  const timer = useRef(null);
-  useEffect(() => () => clearTimeout(timer.current), []);
-  const say = (message) => {
-    clearTimeout(timer.current);
-    setNote(message);
-    timer.current = setTimeout(() => setNote(''), NOTE_MS);
-  };
   const shown = matchLines(lines, query);
   const noMatch = lines.length > 0 && shown.length === 0;
   return {
-    query, setQuery, shown, noMatch, note,
+    query, setQuery, shown, noMatch,
     async copy() {
       const ok = await copyToClipboard(buildTranscriptText({ lines, header: false }));
       say(ok ? TRANSCRIPT_TEXT.copied : TRANSCRIPT_TEXT.copyFailed);
@@ -54,25 +48,31 @@ export function HighlightedText({ text, query }) {
   return parts.map((p, i) => (p.hit ? <mark className="fc-mark" key={i}>{p.text}</mark> : p.text));
 }
 
-/** The search box, Copy and Download, and the one polite status line (the count, or the short message). */
-export function TranscriptBar({ tools, total }) {
-  const { query, setQuery, shown, note } = tools;
+/**
+ * The search box, Copy and Download. The live transcript is the one `role="search"` landmark; a stored part
+ * (`landmark={false}`) is a plain labelled group, so a long list of parts does not fill the landmark list.
+ */
+export function TranscriptBar({ tools, total, landmark = true, label = TRANSCRIPT_TEXT.searchLabel }) {
+  const { query, setQuery, shown } = tools;
   const searching = query.trim() !== '';
+  const input = useRef(null);
+  // Clear disappears when pressed, which would drop focus to the page: the search box takes it.
+  const clear = () => { setQuery(''); input.current?.focus(); };
+  const frame = landmark ? { role: 'search' } : { role: 'group' };
   return (
-    <div className="fc-tsearch" role="search">
+    <div className="fc-tsearch" {...frame} aria-label={label}>
       <div className="fc-tsearch-row">
         <input
-          type="search" className="fc-tsearch-input" dir="auto" autoComplete="off" spellCheck={false}
-          aria-label={TRANSCRIPT_TEXT.searchLabel} placeholder={TRANSCRIPT_TEXT.placeholder} value={query}
+          type="search" className="fc-tsearch-input" dir="auto" autoComplete="off" spellCheck={false} ref={input}
+          aria-label={label} placeholder={TRANSCRIPT_TEXT.placeholder} value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Escape' && query) { e.preventDefault(); setQuery(''); } }}
+          onKeyDown={(e) => { if (e.key === 'Escape' && query) { e.preventDefault(); clear(); } }}
         />
-        {searching ? <button type="button" className="ltv-action-btn fc-btn" data-fc="tsearch-clear" onClick={() => setQuery('')}>Clear</button> : null}
+        {searching ? <button type="button" className="ltv-action-btn fc-btn" data-fc="tsearch-clear" onClick={clear}>Clear</button> : null}
         <button type="button" className="ltv-action-btn fc-btn" data-fc="tcopy" onClick={tools.copy}>Copy</button>
         <button type="button" className="ltv-action-btn fc-btn" data-fc="tdownload" onClick={tools.download}>Download</button>
       </div>
       {searching ? <p className="fc-tsearch-count" data-fc="tsearch-count">{`${shown.length} of ${total} lines`}</p> : null}
-      <p className="fc-tsearch-note" role="status">{note}</p>
     </div>
   );
 }

@@ -15,7 +15,8 @@ import { RovingTabs, VerdictTiles } from './FactCheckTabs.jsx';
 import { blockLine, statusLine } from './panelStatus.js';
 import { SummaryTab } from './SummaryTab.jsx';
 import { CopyClaimButton, ExportButton } from './ClaimExport.jsx';
-import { claimCopyText, exportFileName, sessionExportText } from './claimExport.js';
+import { AnnounceProvider, AnnouncerRegion, createAnnouncer, useAnnounce } from './announce.jsx';
+import { claimCopyText, exportFileName, sessionExportText, sessionStartOf } from './claimExport.js';
 import { HighlightedText, TRANSCRIPT_TEXT, TranscriptBar, useTranscriptTools } from './TranscriptTools.jsx';
 
 const SILENT_NOTICE_MS = 30000;
@@ -81,10 +82,18 @@ function MutedWarning({ onUnmute }) {
 // the already-covered banner is skipped, and focus moves here. The panel mounts it again for each press.
 export function Choose({ view, isMuted, onUnmute, onConfirm, onCancel, covered, onShowPart, sharing, reanalysis = null, remainingSeconds = null }) {
   // B7: on a recorded video whose remaining time the page knows, the shortest length that covers it is
-  // preselected and marked. Worked out once, when the screen opens, so it does not move as the video plays.
-  // A re-analysis keeps priority.
-  const [cover] = useState(() => (reanalysis ? null : coverLength(remainingSeconds)));
-  const [preferred, setPreferred] = useState(reanalysis?.minutes ?? cover);
+  // preselected and marked. Worked out when the screen opens, so it does not move as the video plays. If the
+  // figure was still unknown then, the first one to arrive is applied unless the user has already picked a
+  // length (a picked length is never changed). A re-analysis keeps priority.
+  const [cover, setCover] = useState(() => (reanalysis ? null : coverLength(remainingSeconds)));
+  const figureKnown = useRef(typeof remainingSeconds === 'number' && Number.isFinite(remainingSeconds));
+  useEffect(() => {
+    if (figureKnown.current || reanalysis || typeof remainingSeconds !== 'number' || !Number.isFinite(remainingSeconds)) return;
+    figureKnown.current = true;
+    setCover(coverLength(remainingSeconds));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remainingSeconds]);
+  const [preferred, setPreferred] = useState(reanalysis?.minutes ?? null);
   const intro = useRef(null);
   const pressToken = reanalysis?.token;
   useEffect(() => { if (pressToken !== undefined) intro.current?.focus(); }, [pressToken]);
@@ -94,7 +103,8 @@ export function Choose({ view, isMuted, onUnmute, onConfirm, onCancel, covered, 
   // A re-analysis keeps its preselected length even when it is not affordable (D11): it shows the
   // "Needs ..." line and Start is disabled until the user picks a length they can pay for.
   const keepsPreselect = (o) => o.affordable || (reanalysis != null && o.minutes === reanalysis.minutes);
-  const chosen = options.find((o) => o.minutes === preferred && keepsPreselect(o)) || defaultBlock(options);
+  const wanted = preferred ?? cover;
+  const chosen = options.find((o) => o.minutes === wanted && keepsPreselect(o)) || defaultBlock(options);
   return (
     <div className="fc-choose">
       {reanalysis ? (
@@ -190,12 +200,13 @@ function Waiting({ status, onStop }) {
 // Keeps the newest line in view until the reader scrolls up; a button brings them back. A search box,
 // Copy and Download work on the lines held here (B2): a typed phrase narrows the view only, and new lines
 // keep arriving and keep being matched.
-function Transcript({ lines, emptyText, listening = false, visible = true, title = '' }) {
+function Transcript({ lines, emptyText, listening = false, visible = true, title = '', date = null }) {
   const box = useRef(null);
   const follow = useRef(true);
   const [away, setAway] = useState(false);
   const rows = lines.map((l) => ({ key: l.seq, time: typeof l.startMs === 'number' ? formatPosition(l.startMs / 1000) : null, text: l.text }));
-  const tools = useTranscriptTools({ lines: rows, title });
+  const say = useAnnounce();
+  const tools = useTranscriptTools({ lines: rows, title, date, say });
   const searching = tools.query.trim() !== '';
   const shown = tools.shown;
   const tail = shown.length ? `${shown.length}:${shown[shown.length - 1].text.length}:${listening && !searching ? 'l' : ''}:${searching ? tools.query : ''}` : `:${tools.query}`;
@@ -339,6 +350,7 @@ function RecheckControls({ id, price, balance, recheck, onAsk, onConfirm, onCanc
 // `anchor` marks a card of the live Claims list: it gets an id and can take focus (the latest-claim strip's
 // "See why"). Cards inside a shared part do not, as their ids may repeat the live ones.
 function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, share, anchor = false, source = '', copyKey = 'fc' }) {
+  const say = useAnnounce();
   // With no re-check price the card is exactly what it was before re-checks existed.
   const priced = typeof price === 'number';
   const chain = priced && recheck?.results?.length ? [...recheck.results, claim] : [claim];
@@ -367,7 +379,7 @@ function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, shar
       <CheckedAt result={shown} withDate={chain.length > 1 || Boolean(share)} />
       {Object.hasOwn(VERDICTS, badge.key) ? (
         <div className="fc-card-actions">
-          <CopyClaimButton dataKey={copyKey} label={`Copy this claim: ${String(claim.claim_en ?? '').slice(0, 60)}`} text={() => claimCopyText({ claim, shown, source })} />
+          <CopyClaimButton dataKey={copyKey} say={say} label={`Copy this claim: ${String(claim.claim_en ?? '').slice(0, 60)}`} text={() => claimCopyText({ claim, shown, source })} />
         </div>
       ) : null}
       {claim.reported === true ? <p className="fc-reported">Reported</p> : null}
@@ -499,6 +511,10 @@ export function FactCheckPanel(props) {
 export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', playable = true, onChoose, focusRequest = null, videoTitle = '', remainingSeconds = null }) {
   const heading = useRef(null);
   const panel = useRef(null);
+  // One shared status node for every copy, export and download confirmation of this panel (announce.jsx).
+  const announcer = useRef(null);
+  if (!announcer.current) announcer.current = createAnnouncer();
+  const say = announcer.current.say;
   const [openParts, setOpenParts] = useState({});
   const [tab, setTab] = useState('claims');
   const [filters, setFilters] = useState([]);
@@ -518,6 +534,8 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
     // Mount only: how the panel opened is decided once, then the heading is left alone.
   }, []);
   const s = view.session;
+  // The day of this session for file dates; null (today) when it cannot be told.
+  const sessionDay = sessionStartOf(s);
   // A failure is news: when the panel is stacked below the player it may be off screen.
   const failedNow = s.status === 'error';
   useEffect(() => { if (failedNow) revealPanel(panel.current); }, [failedNow]);
@@ -593,6 +611,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
     />
   ) : null;
   return (
+    <AnnounceProvider value={say}>
     <section className="fc-panel" aria-label="Fact-check" data-status={s.status} ref={panel}>
       <div className="fc-sr" aria-live="polite" aria-atomic="true">{view.announcement}</div>
       <header className="fc-head">
@@ -690,7 +709,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
               visible={tab === 'transcript'}
               emptyText={live ? `Listening… Text appears about ${DELAY_SECONDS} seconds behind the speaker.` : 'No speech was transcribed.'}
               listening={s.status === 'running' && !isMuted && !(s.silentFor > SILENT_NOTICE_MS)}
-              title={videoTitle || channelName}
+              title={videoTitle || channelName} date={sessionDay}
             />
           </div>
           <div className="fc-work" id="fc-panel-summary" role="tabpanel" aria-labelledby="fc-tab-summary" hidden={tab !== 'summary'}>
@@ -722,9 +741,10 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
           ) : null}
           {s.status === 'ended' && s.claims.length > 0 ? (
             <ExportButton
+              say={say}
               build={() => {
                 const title = videoTitle || channelName;
-                const day = new Date();
+                const day = sessionDay ?? new Date();
                 const priced = typeof view.flag.recheckCredits === 'number';
                 return {
                   name: exportFileName({ title, date: day }),
@@ -742,6 +762,8 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
 
       <p className="fc-disclaimer">{DISCLAIMER}</p>
       </div>
+      <AnnouncerRegion announcer={announcer.current} />
     </section>
+    </AnnounceProvider>
   );
 }

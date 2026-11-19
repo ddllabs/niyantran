@@ -1,7 +1,7 @@
 // B2: the pure helpers of transcript search, copy and download.
 import { describe, expect, it, vi } from 'vitest';
 import {
-  buildTranscriptText, copyToClipboard, dateStamp, downloadTextFile, highlightParts, matchLines, transcriptFileName,
+  buildTranscriptText, cleanLine, copyToClipboard, dateStamp, downloadTextFile, highlightParts, matchLines, transcriptFileName,
 } from './transcriptTools.js';
 
 const lines = [
@@ -54,14 +54,55 @@ describe('highlightParts', () => {
 });
 
 describe('dateStamp', () => {
-  it('reads a calendar date from an ISO string, or the local day of a Date', () => {
-    expect(dateStamp('2026-11-19T05:00:00Z')).toBe('2026-11-19');
+  it('a date alone is kept as it is', () => {
     expect(dateStamp('2026-11-19')).toBe('2026-11-19');
-    expect(dateStamp(new Date(2026, 10, 19, 23, 30))).toBe('2026-11-19');
+  });
+  it('a time is read as the LOCAL day of the zone given (review 8): just after midnight in India is the next day', () => {
+    expect(dateStamp('2026-11-18T19:00:00Z', 'Asia/Kolkata')).toBe('2026-11-19'); // 00:30 IST
+    expect(dateStamp('2026-11-18T18:29:00Z', 'Asia/Kolkata')).toBe('2026-11-18'); // 23:59 IST
+    expect(dateStamp('2026-11-18T19:00:00Z', 'UTC')).toBe('2026-11-18');
+    expect(dateStamp(new Date('2026-11-18T19:00:00Z'), 'Asia/Kolkata')).toBe('2026-11-19');
+  });
+  it('uses the runtime zone when none is given', () => {
+    const d = new Date(2026, 10, 19, 23, 30); // local time
+    expect(dateStamp(d)).toBe('2026-11-19');
+    expect(dateStamp(d.toISOString())).toBe('2026-11-19');
   });
   it('is empty for anything else', () => {
     expect(dateStamp(null)).toBe('');
     expect(dateStamp('not a date')).toBe('');
+    expect(dateStamp(new Date('nope'))).toBe('');
+  });
+});
+
+describe('cleanLine (review 3 and 4)', () => {
+  it('turns new lines and control characters into single spaces', () => {
+    expect(cleanLine('a\nb\r\n\u0007c\td')).toBe('a b c d');
+  });
+  it('removes bidi overrides and isolates, so a line or URL cannot be reversed', () => {
+    expect(cleanLine('see \u202Egpj.exe\u202C now \u2066x\u2069')).toBe('see gpj.exe now x');
+  });
+  it('removes zero-width and other format characters, and a BOM', () => {
+    expect(cleanLine('a\u200Bb\u2060c\uFEFFd')).toBe('abcd');
+  });
+  it('turns line and paragraph separators and NEL into spaces', () => {
+    expect(cleanLine('a\u2028b\u2029c\u0085d')).toBe('a b c d');
+  });
+  it('keeps ZWJ and ZWNJ between letters, where Devanagari and Persian need them', () => {
+    const conjunct = 'क्\u200Dष'; // ka + virama + ZWJ + ssa
+    expect(cleanLine(conjunct)).toBe(conjunct);
+    expect(cleanLine(conjunct)).not.toBe('क्ष');
+    expect(cleanLine('می\u200Cخواهم')).toBe('می\u200Cخواهم');
+  });
+  it('drops ZWJ and ZWNJ anywhere else: at the ends, after a space, next to a symbol or digit', () => {
+    expect(cleanLine('\u200Dab\u200C')).toBe('ab');
+    expect(cleanLine('a \u200Db')).toBe('a b');
+    expect(cleanLine('1\u200D2')).toBe('12');
+    expect(cleanLine('a\u200D\u200Db')).toBe('ab');
+  });
+  it('is empty for nothing, and normalises composed text', () => {
+    expect(cleanLine(null)).toBe('');
+    expect(cleanLine('e\u0301')).toBe('\u00e9');
   });
 });
 
@@ -79,6 +120,17 @@ describe('buildTranscriptText', () => {
   });
 });
 
+describe('buildTranscriptText cleans what it writes (review 4)', () => {
+  it('a line holding a new line cannot forge a time-marked line, and the title cannot add lines', () => {
+    const t = buildTranscriptText({ title: 'DD\n[00:99] forged', date: '2026-11-19', lines: [{ time: '00:05', text: 'real\n[00:59] forged' }] });
+    expect(t.split('\n')).toEqual(['DD [00:99] forged', '2026-11-19', '', '[00:05] real [00:59] forged', '']);
+  });
+  it('the date is the day in the zone given', () => {
+    const t = buildTranscriptText({ title: 'X', date: '2026-11-18T19:00:00Z', timeZone: 'Asia/Kolkata', lines: [] });
+    expect(t.split('\n')[1]).toBe('2026-11-19');
+  });
+});
+
 describe('transcriptFileName', () => {
   it('is the title and the date, safe for a file system', () => {
     expect(transcriptFileName({ title: 'DD News: Live / 9 pm', date: '2026-11-19' })).toBe('transcript-DD-News-Live-9-pm-2026-11-19.txt');
@@ -92,6 +144,16 @@ describe('transcriptFileName', () => {
   });
   it('keeps a long title short', () => {
     expect(transcriptFileName({ title: 'a'.repeat(300), date: '2026-11-19' }).length).toBeLessThan(100);
+  });
+  it('cuts a long title by whole characters, never inside one (review 6)', () => {
+    const name = transcriptFileName({ title: 'क'.repeat(59) + '𠮷𠮷𠮷', date: '2026-11-19' });
+    expect(name).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/);
+    expect([...name.slice('transcript-'.length)].length).toBeLessThanOrEqual(60 + '-2026-11-19.txt'.length);
+    const astral = transcriptFileName({ title: '𠮷'.repeat(80), date: '' });
+    expect([...astral].length).toBe('transcript-'.length + 60 + '.txt'.length);
+  });
+  it('names the day in the zone given (review 8)', () => {
+    expect(transcriptFileName({ title: 'X', date: '2026-11-18T19:00:00Z', timeZone: 'Asia/Kolkata' })).toBe('transcript-X-2026-11-19.txt');
   });
 });
 

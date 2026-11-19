@@ -53,3 +53,18 @@ describe('a readable part of a recorded video', () => {
     expect(html).not.toContain('secret words');
   });
 });
+
+describe('search landmarks (review 11)', () => {
+  it('the live transcript is the one named search landmark', () => {
+    const html = render(view());
+    expect(html.match(/role="search"/g)).toHaveLength(1);
+    expect(html).toMatch(/role="search" aria-label="Search the transcript"/);
+  });
+  it('each stored part has a labelled plain group and no search landmark, however many parts there are', () => {
+    const parts = [stretch({ stretch_id: 'p1' }), stretch({ stretch_id: 'p2' }), stretch({ stretch_id: 'p3' })];
+    const html = render(view({ status: 'choosing', transcript: [] }, parts));
+    expect(html).not.toContain('role="search"');
+    expect(html.match(/role="group" aria-label="Search this part&#x27;s transcript"/g)).toHaveLength(3);
+  });
+});
+

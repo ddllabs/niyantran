@@ -37,33 +37,52 @@ export function highlightParts(text, query) {
   return parts;
 }
 
-/** YYYY-MM-DD from an ISO date or timestamp string, or the local day of a Date; '' for anything else. */
-export function dateStamp(date) {
-  if (typeof date === 'string') {
-    const m = /^(\d{4}-\d{2}-\d{2})/.exec(date);
-    return m ? m[1] : '';
-  }
-  if (date instanceof Date && !Number.isNaN(date.getTime())) {
-    const p = (n) => String(n).padStart(2, '0');
-    return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`;
-  }
-  return '';
+/**
+ * One clean line from untrusted text: control characters, new lines, and line and paragraph separators become
+ * spaces; format characters (bidi overrides and isolates, zero-width characters, a BOM) are removed, so the text
+ * cannot start a new line or reverse what follows it. ZWJ and ZWNJ stay only between two letters or marks,
+ * where Devanagari conjuncts and Persian need them (without the ZWJ in "क्‍ष" the half form is lost).
+ */
+export function cleanLine(value) {
+  return nfc(value)
+    .replace(/((?<=[\p{L}\p{M}])[\u200C\u200D](?=[\p{L}\p{M}]))|[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, (m, kept) => {
+      if (kept) return kept; // a ZWJ or ZWNJ between two letters or marks
+      return /\p{Cf}/u.test(m) ? '' : ' ';
+    })
+    .replace(/ {2,}/g, ' ')
+    .trim();
+}
+
+/**
+ * YYYY-MM-DD: a bare date as it is, a timestamp or Date as its LOCAL day (the day on screen), or the day in
+ * `timeZone` when one is given (tests; "Asia/Kolkata"). '' for anything else.
+ */
+export function dateStamp(date, timeZone = undefined) {
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+  const d = date instanceof Date ? date : typeof date === 'string' ? new Date(date) : null;
+  if (!d || Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 }
 
 /**
  * The text of a transcript: the title and date (when known), a blank line, then each line in order with its
- * time mark in square brackets. `lines` are { time?, text }. `header: false` gives the lines alone.
+ * time mark in square brackets. `lines` are { time?, text }. `header: false` gives the lines alone. Every piece
+ * is cleaned, so a line holding a new line cannot pass for a time-marked line of its own.
  */
-export function buildTranscriptText({ title = '', date = '', lines, header = true }) {
-  const body = lines.map((l) => (l.time ? `[${l.time}] ${l.text}` : l.text));
-  const head = header ? [String(title || '').trim(), dateStamp(date)].filter(Boolean) : [];
+export function buildTranscriptText({ title = '', date = '', lines, header = true, timeZone = undefined }) {
+  const body = lines.map((l) => {
+    const text = cleanLine(l.text);
+    const time = cleanLine(l.time);
+    return time ? `[${time}] ${text}` : text;
+  });
+  const head = header ? [cleanLine(title), dateStamp(date, timeZone)].filter(Boolean) : [];
   return `${[...head, ...(head.length ? [''] : []), ...body].join('\n')}\n`;
 }
 
 /** <prefix>-<title>-<date>.txt with anything unsafe for a file name turned into a hyphen. */
-export function transcriptFileName({ title = '', date = '', prefix = 'transcript' } = {}) {
-  const slug = nfc(title).replace(/[^\p{L}\p{M}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/g, '');
-  const stamp = dateStamp(date);
+export function transcriptFileName({ title = '', date = '', prefix = 'transcript', timeZone = undefined } = {}) {
+  const slug = Array.from(nfc(title).replace(/[^\p{L}\p{M}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '')).slice(0, 60).join('').replace(/-+$/g, '');
+  const stamp = dateStamp(date, timeZone);
   const name = [prefix, slug, stamp].filter(Boolean).join('-');
   return `${name}.txt`;
 }

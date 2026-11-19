@@ -7,6 +7,7 @@ import { creditsText } from '../../lib/creditsStore.js';
 import { earlierAnalysisIds, formatPosition, partModel } from './factCheckShare.js';
 import { REANALYZE_LABEL, earlierAnalysisText } from './factCheckText.js';
 import { HighlightedText, TRANSCRIPT_TEXT, TranscriptBar, useTranscriptTools } from './TranscriptTools.jsx';
+import { useAnnounce } from './announce.jsx';
 
 // Focus goes to the first control when a confirmation or form opens, and back to the button when it closes.
 function useOpenCloseFocus(open) {
@@ -92,11 +93,11 @@ function UnlockControls({ model, price, balance, state, actions }) {
 // The stored lines of one readable part, with the same search, Copy and Download as the live transcript.
 function PartLines({ lines, title, date }) {
   const rows = lines.map((l, i) => ({ key: i, time: formatPosition(l.pos_start_s), text: String(l.text ?? '') }));
-  const tools = useTranscriptTools({ lines: rows, title, date });
+  const tools = useTranscriptTools({ lines: rows, title, date, say: useAnnounce() });
   const searching = tools.query.trim() !== '';
   return (
     <>
-      <TranscriptBar tools={tools} total={rows.length} />
+      <TranscriptBar tools={tools} total={rows.length} landmark={false} label={TRANSCRIPT_TEXT.partSearchLabel} />
       <div className="fc-part-lines">
         {tools.noMatch ? <p className="fc-empty">{`${TRANSCRIPT_TEXT.noMatch}. Clear the search to see every line.`}</p> : null}
         {tools.shown.map((l) => (

@@ -6,6 +6,7 @@ import { creditsText } from '../../lib/creditsStore.js';
 import { ClaimCard } from './FactCheckPanel.jsx';
 import { ExportButton } from './ClaimExport.jsx';
 import { exportFileName, sessionExportText } from './claimExport.js';
+import { AnnounceProvider, AnnouncerRegion, createAnnouncer, useAnnounce } from './announce.jsx';
 import { PAST_TEXT, minutesText } from './factCheckText.js';
 import { CLAIM_CAP } from './pastSessions.js';
 import { usePastSessions } from './usePastSessions.js';
@@ -57,7 +58,20 @@ export function DeleteControl({ session, removal, onAsk, onCancel, onConfirm }) 
   );
 }
 
+/** The file the Export button of an opened past session saves: { name, text } (timeZone is for tests). */
+export function pastExport({ session, source, state, timeZone = undefined }) {
+  return {
+    name: exportFileName({ title: source, date: session.started_at, timeZone }),
+    text: sessionExportText({
+      title: source, date: session.started_at, minutes: session.minutes_used, timeZone,
+      note: state.capped ? PAST_TEXT.capped(CLAIM_CAP) : '',
+      items: state.claims.map((c) => ({ claim: c, shown: c })),
+    }),
+  };
+}
+
 function Detail({ session, state, past, source }) {
+  const say = useAnnounce();
   const id = `pst-detail-${session.id}`;
   let body;
   if (!state || state.phase === 'loading') {
@@ -78,16 +92,7 @@ function Detail({ session, state, past, source }) {
           {state.claims.map((c) => <ClaimCard key={c.id} claim={c} source={source} copyKey="pst" />)}
         </ol>
         <div className="fc-card-actions">
-          <ExportButton
-            dataKey="pst"
-            build={() => ({
-              name: exportFileName({ title: source, date: session.started_at }),
-              text: sessionExportText({
-                title: source, date: session.started_at, minutes: session.minutes_used,
-                items: state.claims.map((c) => ({ claim: c, shown: c })),
-              }),
-            })}
-          />
+          <ExportButton dataKey="pst" say={say} build={() => pastExport({ session, source, state })} />
         </div>
         {state.capped ? <p className="pst-note">{PAST_TEXT.capped(CLAIM_CAP)}</p> : null}
       </>
@@ -132,6 +137,9 @@ function Row({ session, channels, past }) {
 /** The section as a function of the hook's state. */
 export function PastSessionsView({ past, channels }) {
   const heading = useRef(null);
+  // One shared status node for every Copy and Export confirmation in this section (announce.jsx).
+  const announcer = useRef(null);
+  if (!announcer.current) announcer.current = createAnnouncer();
   const announced = past.notice === 'deleted';
   // After a deletion the row (and its focused button) is gone: focus moves to the heading.
   useEffect(() => { if (announced) heading.current?.focus(); }, [announced]);
@@ -163,12 +171,15 @@ export function PastSessionsView({ past, channels }) {
     );
   }
   return (
+    <AnnounceProvider value={announcer.current.say}>
     <section className="pst" aria-labelledby="pst-heading">
       <h3 className="pst-heading" id="pst-heading" tabIndex={-1} ref={heading}>{PAST_TEXT.heading}</h3>
       <p className="pst-note">{PAST_TEXT.intro}</p>
       <p className="pst-status" role="status" aria-live="polite">{announced ? PAST_TEXT.deleted : ''}</p>
       {body}
+      <AnnouncerRegion announcer={announcer.current} />
     </section>
+    </AnnounceProvider>
   );
 }
 
