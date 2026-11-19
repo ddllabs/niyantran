@@ -657,7 +657,10 @@ async function fetchLiveChannelIds(channels) {
         ids.join(','),
       )}&key=${encodeURIComponent(apiKey)}`;
       const resp = await fetch(url, { headers: { Accept: 'application/json' }, signal: controller.signal });
-      if (!resp.ok) throw new Error('videos.list HTTP ' + resp.status);
+      if (!resp.ok) {
+        try { await resp.body?.cancel(); } catch { /* the body is not needed */ }
+        throw new Error('videos.list HTTP ' + resp.status);
+      }
       const body = await resp.json();
       if (!Array.isArray(body?.items)) throw new Error('videos.list gave no items');
       const liveVideoIds = new Set(
@@ -681,22 +684,14 @@ async function fetchLiveChannelIds(channels) {
   }
 }
 
-const DETECTED_STATUSES = new Set(['live', 'recent', 'offline']);
-
 export async function getLiveTvChannels(options = {}) {
   const category = (options.category || 'ALL').toUpperCase();
   const enabledChannels = YOUTUBE_SOURCES.filter((c) => c.enabled !== false);
   const liveIds = new Set((await fetchLiveChannelIds(enabledChannels)) || []);
 
-  // Copies: YOUTUBE_SOURCES is never changed. A fresh per-channel entry written from the YouTube API
-  // (fetchYouTubeChannelVideos) wins; otherwise the batched answer marks the live ones.
-  let channels = enabledChannels.map((c) => {
-    const entry = getCached(`yt-videos-${c.id}`);
-    const own = entry && entry.isFresh && entry.data?.dataOrigin === 'youtube-api' ? entry.data.status : null;
-    if (DETECTED_STATUSES.has(own)) return { ...c, status: own };
-    if (liveIds.has(c.id)) return { ...c, status: 'live' };
-    return { ...c };
-  });
+  // Copies: YOUTUBE_SOURCES is never changed. A channel is live here only when the video this page
+  // plays (its defaultVideoId) is live; a live upload elsewhere on the channel does not count.
+  let channels = enabledChannels.map((c) => (liveIds.has(c.id) ? { ...c, status: 'live' } : { ...c }));
 
   if (category !== 'ALL') {
     channels = channels.filter((c) => c.category === category);

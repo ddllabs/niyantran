@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import {
   getLiveTvChannels,
   getLiveTvSchedule,
@@ -7,6 +7,10 @@ import {
 } from '../../server/liveTvApi.mjs';
 
 describe('CR-08 — Live TV Contracts and Data Verification', () => {
+  // no key: no test here may reach YouTube
+  beforeEach(() => { vi.stubEnv('YOUTUBE_API_KEY', ''); });
+  afterEach(() => { vi.unstubAllEnvs(); });
+
   it('loads canonical channels catalogue with verified attributes', async () => {
     const data = await getLiveTvChannels();
     expect(data.ok).toBe(true);

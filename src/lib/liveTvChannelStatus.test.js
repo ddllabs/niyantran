@@ -28,12 +28,12 @@ let calls;
 beforeEach(() => {
   clearCache();
   calls = [];
-  process.env.YOUTUBE_API_KEY = 'test-key-not-real';
+  vi.stubEnv('YOUTUBE_API_KEY', 'test-key-not-real');
 });
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
-  delete process.env.YOUTUBE_API_KEY;
+  vi.unstubAllEnvs();
 });
 
 const stubFetch = (impl) => vi.stubGlobal('fetch', vi.fn(async (url, init) => { calls.push(String(url)); return impl(String(url), init); }));
@@ -86,8 +86,14 @@ describe('the channel list marks live channels from one batched call', () => {
   });
 
   it('makes one request for concurrent list calls', async () => {
-    stubFetch(async (url) => { await Promise.resolve(); return videosAnswer(url, []); });
-    await Promise.all([getLiveTvChannels(), getLiveTvChannels(), getLiveTvChannels({ category: 'NEWS' })]);
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    stubFetch(async (url) => { await gate; return videosAnswer(url, []); });
+    const all = Promise.all([getLiveTvChannels(), getLiveTvChannels(), getLiveTvChannels({ category: 'NEWS' })]);
+    for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    expect(calls).toHaveLength(1); // all three are waiting on the one open request
+    release();
+    await all;
     expect(calls).toHaveLength(1);
   });
 
@@ -100,23 +106,19 @@ describe('the channel list marks live channels from one batched call', () => {
     expect(calls).toHaveLength(2);
   });
 
-  it('lets a fresh per-channel entry from the youtube-api win over the batched answer', async () => {
-    const dd = YOUTUBE_SOURCES.find((c) => c.id === 'dd-news');
-    const wion = YOUTUBE_SOURCES.find((c) => c.id === 'wion');
-    stubFetch((url) => videosAnswer(url, [dd.defaultVideoId]));
-    setCached('yt-videos-dd-news', { channelId: 'dd-news', status: 'recent', dataOrigin: 'youtube-api' });
+  it('does not let a per-channel "live" entry mark a channel whose default video is not live', async () => {
+    stubFetch((url) => videosAnswer(url, []));
     setCached('yt-videos-wion', { channelId: 'wion', status: 'live', dataOrigin: 'youtube-api' });
     const res = await getLiveTvChannels();
-    expect(byId(res, 'dd-news').status).toBe('recent');
-    expect(byId(res, 'wion').status).toBe('live');
-    expect(wion).toBeDefined();
+    expect(byId(res, 'wion').status).toBe('recent');
   });
 
-  it('ignores a per-channel entry that is a fallback', async () => {
-    stubFetch((url) => videosAnswer(url, []));
-    setCached('yt-videos-wion', { channelId: 'wion', status: 'live', dataOrigin: 'fallback' });
+  it('says live when the batch says the default video is live, whatever a per-channel entry says', async () => {
+    const wion = YOUTUBE_SOURCES.find((c) => c.id === 'wion');
+    stubFetch((url) => videosAnswer(url, [wion.defaultVideoId]));
+    setCached('yt-videos-wion', { channelId: 'wion', status: 'recent', dataOrigin: 'youtube-api' });
     const res = await getLiveTvChannels();
-    expect(byId(res, 'wion').status).toBe('recent');
+    expect(byId(res, 'wion').status).toBe('live');
   });
 });
 
@@ -125,7 +127,7 @@ describe('the channel list never gets worse than today', () => {
   const statuses = (res) => Object.fromEntries(res.channels.map((c) => [c.id, c.status]));
 
   it('with no key returns the static list and sends no request', async () => {
-    delete process.env.YOUTUBE_API_KEY;
+    vi.stubEnv('YOUTUBE_API_KEY', '');
     stubFetch((url) => videosAnswer(url, []));
     const res = await getLiveTvChannels();
     expect(calls).toHaveLength(0);
@@ -179,6 +181,15 @@ describe('the channel list never gets worse than today', () => {
     expect(text).not.toContain('test-key-not-real');
     expect(text).not.toContain('liveBroadcastContent');
     expect(Object.keys(res).sort()).toEqual(['activeChannelId', 'categories', 'channels', 'count', 'ok', 'selectedCategory']);
+  });
+});
+
+describe('a failed answer frees the connection', () => {
+  it('cancels the unread body of a non-OK answer', async () => {
+    const cancel = vi.fn();
+    stubFetch(() => ({ ok: false, status: 503, body: { cancel }, json: async () => ({}) }));
+    await getLiveTvChannels();
+    expect(cancel).toHaveBeenCalledTimes(1);
   });
 });
 
