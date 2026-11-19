@@ -623,7 +623,7 @@ export async function fetchYouTubeChannelVideos(channel) {
 
 // ── Public API Handlers ────────────────────────────────────────────────────
 
-// F367: live state for the whole channel list from ONE videos.list call (1 quota unit, ADR 0009: no
+// F374: live state for the whole channel list from ONE videos.list call (1 quota unit, ADR 0009: no
 // search.list). The call asks about each enabled channel's default video; a channel is live when that
 // video's liveBroadcastContent is 'live'. The answer is cached for the module's 10 minutes; a failure is
 // remembered for one minute only, so a broken key or a quota stop is not retried on every list request.

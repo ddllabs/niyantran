@@ -1,4 +1,4 @@
-// F367: the channel list carries live state for every channel from ONE YouTube videos.list call
+// F374: the channel list carries live state for every channel from ONE YouTube videos.list call
 // (the channel's default video), cached for the module's 10 minutes. Mocked fetch, controlled env.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {

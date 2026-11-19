@@ -1,4 +1,4 @@
-// F367: LIVE means the video this page plays is live. A per-channel video lookup that says "live" (it
+// F374: LIVE means the video this page plays is live. A per-channel video lookup that says "live" (it
 // reports any live upload, not the default video) must not change the header badge or the tile.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { harness, elements } from './hookHarness.js';
