@@ -41,7 +41,7 @@ export function ChannelCard({ channels, visible, categories, selectedCategory, o
                     </span>
                     <span className="ltv-chip-text">
                       <span className="ltv-chip-name">{ch.name}</span>
-                      <span className={`ltv-chip-status ltv-chip-status-${ch.status || 'recent'}`}>{channelSubline(ch)}</span>
+                      {channelSubline(ch) ? <span className={`ltv-chip-status ltv-chip-status-${ch.status || 'recent'}`}>{channelSubline(ch)}</span> : null}
                     </span>
                   </button>
                 );

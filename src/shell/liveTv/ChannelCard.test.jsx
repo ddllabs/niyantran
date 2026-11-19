@@ -15,13 +15,22 @@ const render = (over = {}) => renderToStaticMarkup(<ChannelCard {...base} {...ov
 const text = (html) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
 
 describe('channel tiles', () => {
-  it('draw tag on the channel colour, name, and a LIVE or RECENT line with the language', () => {
+  it('draw tag on the channel colour, name, and a LIVE line (or just the language)', () => {
     const html = render();
     expect(html).toMatch(/class="ltv-chip-tag"[^>]*style="background:#b91c1c"[^>]*>AN</);
     expect(html).toMatch(/>Bet</); // the tag falls back to the first three letters of the name, as before
     expect(text(html)).toContain('Alpha News');
     expect(text(html)).toContain('LIVE · Hindi');
-    expect(text(html)).toContain('RECENT · English');
+    expect(text(html)).toContain('English');
+    expect(text(html)).not.toContain('RECENT');
+  });
+  it('leave the second line out, with no empty element, when a channel has neither status nor language', () => {
+    const html = render({ visible: [{ id: 'z', name: 'Zed', category: 'NEWS', status: 'recent' }], channels: [] });
+    expect(html).toContain('Zed');
+    expect(html).not.toMatch(/ltv-chip-status/);
+  });
+  it('style LIVE as before', () => {
+    expect(render()).toMatch(/class="ltv-chip-status ltv-chip-status-live">LIVE · Hindi</);
   });
   it('mark the playing channel with aria-current and the active class, only in live mode', () => {
     const html = render();

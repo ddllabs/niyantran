@@ -52,6 +52,9 @@
   letter-spacing: -0.01em;
   color: var(--fg);
 }
+/* The title takes focus from code (keyboard and screen-reader users land on the page) but is not a control. */
+.ltv-header-brand .ltv-title:focus,
+.ltv-header-brand .ltv-title:focus-visible { outline: none; box-shadow: none; }
 .ltv-tagline { margin: 0; font-size: 13px; color: var(--muted); }
 .ltv-header-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 
@@ -218,9 +221,27 @@
 .ltv-split { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .ltv-videocol { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .ltv-panelcol { position: relative; min-width: 0; }
+/* F366 polish: from 1081px the video stays at its natural 16:9 width and may run below the fold, but the PANEL is
+   held inside the visible area so its fixed foot (Start / Cancel) is always in view: its column still stretches
+   to the video column's height (the column has no size of its own: contain: size), the panel fills it up to a
+   maximum of (the height of .ltv-main, a size container, so a layout fact) minus --ltv-above-split, and it is
+   sticky, so when the page is scrolled down it stays beside the video. Shorter video column: the panel is exactly
+   as tall as it, as before. Assumed, in one variable: what sits above the split inside the scrolling body (padding
+   16 + channel card about 115 + gap 16) plus a 16px margin. Without container queries: today's layout. */
 @media (min-width: 1081px) {
   .ltv-split.has-panel { display: grid; grid-template-columns: minmax(0, 1fr) 440px; align-items: stretch; }
   .ltv-panelcol { min-height: 0; }
+  @supports (container-type: size) {
+    .ltv-main { container: ltvmain / size; --ltv-above-split: 163px; }
+    .ltv-panelcol { contain: size; }
+    .ltv-panelcol > .fc-panel {
+      position: sticky;
+      inset: auto;
+      top: 16px;
+      height: 100%;
+      max-height: max(320px, calc(100cqh - var(--ltv-above-split)));
+    }
+  }
 }
 
 .ltv-player-stage { min-width: 0; }
