@@ -13,7 +13,12 @@ const MIN = 60 * 1000;
 let calls;
 const kind = (url) => new URL(url).pathname.split('/').pop();
 const upload = (id, title = id) => ({ snippet: { title, resourceId: { videoId: id }, thumbnails: {} } });
-const video = (id, state) => ({ id, snippet: { title: id, liveBroadcastContent: state, thumbnails: {} } });
+const video = (id, state) => ({
+  id,
+  snippet: { title: id, liveBroadcastContent: state, thumbnails: {} },
+  status: { embeddable: true },
+  ...(state === 'live' ? { liveStreamingDetails: { actualStartTime: '2026-11-19T00:00:00Z' } } : {}),
+});
 
 /** A YouTube stand-in: `live` ids report live in videos.list; `uploads` are the channel's recent uploads. */
 function stub({ live = [], uploads = [], status = 200 } = {}) {
@@ -21,7 +26,10 @@ function stub({ live = [], uploads = [], status = 200 } = {}) {
     calls.push(String(url));
     if (status !== 200) return new Response('{}', { status });
     const u = new URL(url);
-    if (kind(url) === 'playlistItems') return new Response(JSON.stringify({ items: uploads.map((id) => upload(id)) }), { status: 200 });
+    if (kind(url) === 'playlistItems') {
+      if (u.searchParams.get('playlistId').startsWith('UULV')) return new Response(JSON.stringify({ error: { errors: [{ reason: 'playlistNotFound' }] } }), { status: 404 });
+      return new Response(JSON.stringify({ items: uploads.map((id) => upload(id)) }), { status: 200 });
+    }
     const asked = u.searchParams.get('id').split(',');
     return new Response(JSON.stringify({ items: asked.map((id) => video(id, live.includes(id) ? 'live' : 'none')) }), { status: 200 });
   }));
@@ -105,7 +113,7 @@ describe('the per-channel lookup: cache rules', () => {
     expect(first.dataOrigin).toBe('youtube-api');
     expect(first.liveVideo).toBeNull();
     const n = calls.length;
-    expect(n).toBe(2); // playlistItems + videos: 2 units
+    expect(n).toBe(4); // the remembered video, the live-streams playlist (404), the uploads and their videos: 4 units
     vi.setSystemTime(Date.now() + 55 * MIN);
     await fetchYouTubeChannelVideos(CH());
     expect(calls).toHaveLength(n);
@@ -135,22 +143,25 @@ describe('the per-channel lookup: cache rules', () => {
     vi.stubGlobal('fetch', vi.fn(async (url) => {
       calls.push(String(url));
       await gate;
+      if (kind(url) === 'playlistItems' && new URL(url).searchParams.get('playlistId').startsWith('UULV')) return new Response('{}', { status: 404 });
       return new Response(JSON.stringify(kind(url) === 'playlistItems' ? { items: [upload('RECENT00001')] } : { items: [video('RECENT00001', 'none')] }), { status: 200 });
     }));
     const all = Promise.all([fetchYouTubeChannelVideos(CH()), fetchYouTubeChannelVideos(CH()), getLiveTvVideos(CH().id)]);
     for (let i = 0; i < 10; i += 1) await Promise.resolve();
-    expect(calls).toHaveLength(1); // the playlist request, shared by all three
+    expect(calls).toHaveLength(1); // the first request, shared by all three
     release();
     await all;
-    expect(calls).toHaveLength(2);
+    // one lookup's calls, not three: the remembered video, the live-streams playlist (404), the uploads, their videos
+    expect(calls).toHaveLength(4);
   });
 
-  it('asks about the remembered live video along with the recent uploads, so a 24-hour stream is found', async () => {
+  it('asks about the remembered live video first, so a 24-hour stream is found in one call', async () => {
     const ch = added('abp-news');
     stub({ uploads: ['RECENT00001'], live: [ch.liveHintVideoId] });
     const out = await fetchYouTubeChannelVideos(ch);
     expect(out.liveVideo.videoId).toBe(ch.liveHintVideoId);
-    expect(calls.some((u) => new URL(u).searchParams.get('id')?.split(',').includes(ch.liveHintVideoId))).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(new URL(calls[0]).searchParams.get('id').split(',')).toContain(ch.liveHintVideoId);
   });
 });
 
@@ -234,13 +245,13 @@ describe('the daily budget: a YouTube day is a Pacific day, and the list check i
     expect(calls).toHaveLength(4);
   });
 
-  it('counts the list check and the lookups together, and does not start a lookup it cannot finish', async () => {
+  it('counts the list check and the lookups together, and stops a lookup when the units run out', async () => {
     vi.stubEnv('LIVETV_LOOKUP_UNITS_PER_DAY', '3');
     stub({ uploads: ['RECENT00001'] });
     await getLiveTvChannels(); // two videos.list requests: 2 units
     expect(calls).toHaveLength(2);
-    const out = await fetchYouTubeChannelVideos(A()); // needs 2, 1 is left
-    expect(calls).toHaveLength(2);
+    const out = await fetchYouTubeChannelVideos(A()); // the first step takes the last unit; the next has none
+    expect(calls).toHaveLength(3);
     expect(out.dataOrigin).toBe('fallback');
     expect(out.reason).toBe('budget');
   });
@@ -432,6 +443,34 @@ describe('parallel requests and a small budget', () => {
     stub({ uploads: ['RECENT00001'] });
     await Promise.all([getLiveTvChannels(), fetchYouTubeChannelVideos(added('abp-news')), fetchYouTubeChannelVideos(added('zee-news')), fetchYouTubeChannelVideos(added('india-tv'))]);
     expect(calls.length).toBeLessThanOrEqual(4);
+  });
+});
+
+describe('a videos.list that fails part-way through a lookup', () => {
+  it('gives a fallback answer with reason error, kept a minute, and is not cached as "nothing live"', async () => {
+    vi.useFakeTimers();
+    let videosCalls = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      calls.push(String(url));
+      if (kind(url) === 'playlistItems') {
+        if (new URL(url).searchParams.get('playlistId').startsWith('UULV')) return new Response('{}', { status: 404 });
+        return new Response(JSON.stringify({ items: [upload('RECENT00001')] }), { status: 200 });
+      }
+      videosCalls += 1;
+      if (videosCalls === 2) return new Response('{}', { status: 500 }); // the verify of the uploads
+      return new Response(JSON.stringify({ items: [video('RECENT00001', 'none')] }), { status: 200 });
+    }));
+    const out = await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(out.dataOrigin).toBe('fallback');
+    expect(out.reason).toBe('error');
+    expect(out.liveVideo).toBeNull();
+    const n = calls.length;
+    vi.setSystemTime(Date.now() + 59 * 1000);
+    await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(calls).toHaveLength(n); // kept for a minute
+    vi.setSystemTime(Date.now() + 2 * 1000);
+    await fetchYouTubeChannelVideos(added('abp-news'));
+    expect(calls.length).toBeGreaterThan(n); // and not for the hour a "nothing live" answer is kept
   });
 });
 

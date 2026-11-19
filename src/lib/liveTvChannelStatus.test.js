@@ -21,7 +21,11 @@ function videosAnswer(url, liveVideoIds) {
   const ids = new URL(url).searchParams.get('id').split(',');
   return new Response(
     JSON.stringify({
-      items: ids.map((id) => ({ id, snippet: { title: id, liveBroadcastContent: liveVideoIds.includes(id) ? 'live' : 'none' } })),
+      items: ids.map((id) => ({
+        id,
+        snippet: { title: id, liveBroadcastContent: liveVideoIds.includes(id) ? 'live' : 'none' },
+        ...(liveVideoIds.includes(id) ? { liveStreamingDetails: { actualStartTime: '2026-11-19T00:00:00Z' } } : {}),
+      })),
     }),
     { status: 200 },
   );
@@ -59,7 +63,7 @@ describe('the channel list marks live channels from one batched call', () => {
     for (const call of calls) {
       const url = new URL(call);
       expect(url.pathname).toBe('/youtube/v3/videos');
-      expect(url.searchParams.get('part')).toBe('snippet');
+      expect(url.searchParams.get('part')).toBe('snippet,liveStreamingDetails,status'); // the same definition of live as the lookup; status says whether it may be embedded
       expect(call).not.toMatch(/search/);
       const ids = url.searchParams.get('id').split(',');
       expect(ids.length).toBeGreaterThan(0);

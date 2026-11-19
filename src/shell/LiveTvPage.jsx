@@ -68,6 +68,11 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const [videosOwner, setVideosOwner] = useState(''); // the channel `videos` belongs to
   const [barModal, setBarModal] = useState(false); // the phone sheet is open: the page behind it is inert
   const [followNote, setFollowNote] = useState('');
+  const [refusedIds, setRefusedIds] = useState(() => new Map()); // live videos the player refused to show here: id -> { code, channelId }
+  const refusedFrozen = useRef(new Map()); // the refusals as they were when no session held the video
+  const channelIdRef = useRef('');
+  const playingIdRef = useRef(null); // the video id on screen, and the mode, for the player's error callback
+  const modeRef = useRef('live');
   const contradictedRef = useRef(false); // whether YouTube data contradicted the list when no session held the video
   const sessionHeld = useRef(false); // a session is running on the video now playing: nothing may change it
   const sessionTargetRef = useRef(''); // the target the open session or start screen belongs to
@@ -197,7 +202,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
         // answer (a fallback, a failure) says only that the check could not be made.
         const fromYouTube = data.ok === true && data.dataOrigin === 'youtube-api';
         const liveId = data.liveVideo?.videoId;
-        setLookupInfo({ channelId: activeChannelId, videoId: fromYouTube && typeof liveId === 'string' && REAL_VIDEO_ID.test(liveId) ? liveId : '', authoritative: fromYouTube, at: Date.now() });
+        setLookupInfo({ channelId: activeChannelId, videoId: fromYouTube && typeof liveId === 'string' && REAL_VIDEO_ID.test(liveId) ? liveId : '', authoritative: fromYouTube, at: Date.now(), embeddable: data.liveVideo?.embeddable !== false });
         setVideosOwner(activeChannelId);
         if (data.ok && Array.isArray(data.recentVideos)) {
           setVideos(data.recentVideos);
@@ -287,8 +292,18 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const computedContradicted = Boolean(activeChannel) && Boolean(lookupAuth) && lookupAuth.videoId !== activeChannel.defaultVideoId;
   const contradicted = sessionHeld.current ? contradictedRef.current : computedContradicted;
   if (!sessionHeld.current) contradictedRef.current = computedContradicted;
+  // A live video the player refused (error 100, 101 or 150 once it was tried), or that YouTube data says may not be
+  // embedded, is not played here; a player refusal is remembered for the life of the page. Under a running session
+  // the refusals are frozen as they were: nothing changes the video under a session (the page says it stopped).
+  const entryLiveId = activeChannel ? activeChannel.liveVideoId || (activeChannel.status === 'live' ? activeChannel.defaultVideoId || '' : '') : '';
+  const computedRefused = new Map(refusedIds);
+  if (lookupAuth?.embeddable === false && lookupAuth.videoId && !computedRefused.has(lookupAuth.videoId)) computedRefused.set(lookupAuth.videoId, { code: 150 });
+  if (activeChannel?.embeddable === false && entryLiveId && !computedRefused.has(entryLiveId)) computedRefused.set(entryLiveId, { code: 150 });
+  const refusedMap = sessionHeld.current ? refusedFrozen.current : computedRefused;
+  if (!sessionHeld.current) refusedFrozen.current = computedRefused;
+  const isRefused = (id) => Boolean(id) && refusedMap.has(id);
   // The channel's own video is live as far as is known: the list said so and nothing has contradicted it.
-  const keepCurated = Boolean(activeChannel) && listLiveOf(activeChannel) && !contradicted;
+  const keepCurated = Boolean(activeChannel) && listLiveOf(activeChannel) && !contradicted && !isRefused(activeChannel.defaultVideoId);
   // The word LIVE needs an answer that is still young: the lookup's if it has answered, else the list's.
   const labelFresh = lookupAuth ? lookupFresh : listFresh;
   const liveSwitchedId = liveSwitch && liveSwitch.channelId === activeChannelId ? liveSwitch.videoId : '';
@@ -307,7 +322,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   // The video live mode plays: the switched-to live video when there is one, else the channel's written one. A
   // remembered live video the list confirmed (not a curated recording) is not played once YouTube data contradicts it
   // (age alone never stops it).
-  const writtenEmbedUrl = activeChannel && !(activeChannel.hinted && contradicted) ? activeChannel.embedUrl || '' : '';
+  const writtenEmbedUrl = activeChannel && !(activeChannel.hinted && contradicted) && !isRefused(embedVideoId(activeChannel.embedUrl)) ? activeChannel.embedUrl || '' : '';
   const liveEmbedUrl = liveSwitchedId
     ? `https://www.youtube-nocookie.com/embed/${liveSwitchedId}?autoplay=1&mute=1&playsinline=1`
     : writtenEmbedUrl;
@@ -446,7 +461,14 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     onMutedChange: (m) => { nextEmbedMuted.current = m; setIsMuted(m); },
     onFallback: () => setReloadKey((k) => k + 1),
     onInfo: (info) => setPlayerInfo({ ...info, frameKey: frameKeyRef.current }),
-    onError: (code) => setPlayerError(code),
+    onError: (code) => {
+      setPlayerError(code);
+      // A live-mode video the player will not show: remembered, so the page never goes back to it.
+      const id = playingIdRef.current;
+      if (isBlockingPlayerError(code) && modeRef.current === 'live' && id) {
+        setRefusedIds((prev) => (prev.has(id) ? prev : new Map(prev).set(id, { code, channelId: channelIdRef.current })));
+      }
+    },
   });
   const applyMute = (next) => {
     nextEmbedMuted.current = next; // a fallback remount, or a later Play, mounts with this
@@ -457,6 +479,9 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   // F344: fact-check. Added after the existing hooks; nothing above changed. What is playing is read
   // from the embed address, so it names the video that is really on screen.
   const factCheckVideoId = embedVideoId(currentEmbedUrl);
+  playingIdRef.current = factCheckVideoId;
+  channelIdRef.current = activeChannel?.id || '';
+  modeRef.current = playbackMode;
   // A pasted video is live unless the player shows it is not (see pastedVideoKind); live sessions stay private.
   // Fixed when a session is confirmed and kept until it is over (idle, ended or error): player information that
   // arrives later cannot turn a private live session into a shared recorded one, or the other way round.
@@ -510,8 +535,9 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   // The video wanted: the lookup's, once it has answered from YouTube data (none included); the list's only while
   // the lookup is out and the list is young.
   const liveCandidate = lookupAuth ? lookupAuth.videoId : listFresh ? activeChannel?.liveVideoId || '' : '';
-  const liveWanted = activeChannel && switchableOf(activeChannel, keepCurated) && REAL_VIDEO_ID.test(liveCandidate) ? liveCandidate : '';
+  const liveWanted = activeChannel && switchableOf(activeChannel, keepCurated) && REAL_VIDEO_ID.test(liveCandidate) && !isRefused(liveCandidate) ? liveCandidate : '';
   useEffect(() => {
+    // nothing changes the video under a running session, a refused one included (the page says it stopped)
     if (!activeChannel || heldBySession) return;
     if (liveSwitchedId === liveWanted) return;
     // a start screen the user opened is closed by the target change: it is opened again below
@@ -520,12 +546,17 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannel, liveWanted, liveSwitchedId, heldBySession]);
   // A channel added without a curated video has nothing to play until its live video is found: "Connecting"
-  // while the lookup is out, then the live video, or "isn't live right now" with the latest upload if there is
+  // while the lookup is out, then the live video, or "No live stream found" with the latest upload if there is
   // one. Nothing is fact-checked while the card shows (no embed, so no target).
   // "Connecting" is whenever no answer in hand belongs to the selected channel (derived from the answer itself, not
   // from an effect that runs after the first paint), so a click never shows the previous channel's latest upload.
   const noVideoYet = playbackMode === 'live' && Boolean(activeChannel) && !liveEmbedUrl;
-  const channelCard = noVideoYet ? (!lookupHere || Boolean(liveWanted) ? 'connecting' : lookupAuth ? 'notlive' : 'unknown') : null;
+  const refusedLiveId = [liveCandidate, entryLiveId, lookupAuth?.videoId].find((id) => REAL_VIDEO_ID.test(id || '') && isRefused(id)) || '';
+  const writtenRefused = Boolean(activeChannel) && isRefused(embedVideoId(activeChannel.embedUrl));
+  const refusedCode = refusedMap.get(refusedLiveId || embedVideoId(activeChannel?.embedUrl))?.code || 150;
+  // The video on screen was refused while a session ran on it: it stays, and the user is told.
+  const stoppedPlaying = playbackMode === 'live' && heldBySession && computedRefused.has(factCheckVideoId);
+  const channelCard = noVideoYet ? (refusedLiveId || writtenRefused ? 'refused' : !lookupHere || Boolean(liveWanted) ? 'connecting' : lookupAuth ? 'notlive' : 'unknown') : null;
   const latestUpload = lookupAuth && videosOwner === activeChannel?.id ? videos.find((v) => !v.isLive && !v.isUpcoming) || null : null;
   const nothingPlaying = Boolean(channelCard) || linkBlocked;
   useEffect(() => {
@@ -534,6 +565,17 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     return () => clearTimeout(timer);
   }, [channelCard]);
   const followed = Boolean(activeChannel) && followIds.includes(activeChannel.id);
+  // A user's retry (Reload feed, Try again, Reload): the refusals remembered for this channel's videos are let go and
+  // the channel is asked about again; an answer that says a video may not be embedded marks it again.
+  function retryChannel() {
+    const id = activeChannel?.id;
+    setRefusedIds((prev) => {
+      const next = new Map(prev);
+      for (const [vid, v] of prev) if (v.channelId === id) next.delete(vid);
+      return next.size === prev.size ? prev : next;
+    });
+    setLookupNonce((n) => n + 1);
+  }
   function toggleFollow() {
     if (!activeChannel) return;
     if (!followed && followIds.length >= FOLLOW_MAX) { setFollowNote(FOLLOW_FULL); return; }
@@ -634,7 +676,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               </span>
             ) : channelCard ? (
               <span className="ltv-recent-badge">
-                <span className="ltv-recent-dot" /> {channelCard === 'connecting' ? 'CONNECTING' : channelCard === 'unknown' ? "CAN'T CHECK" : 'NOT LIVE'}
+                <span className="ltv-recent-dot" /> {channelCard === 'connecting' ? 'CONNECTING' : channelCard === 'unknown' ? "CAN'T CHECK" : channelCard === 'refused' ? "CAN'T PLAY HERE" : 'NO LIVE STREAM FOUND'}
               </span>
             ) : (liveSwitchedId || keepCurated) && labelFresh ? (
               <span className="ltv-live-badge">
@@ -750,8 +792,18 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" role="img" aria-label="Loading" className="ltv-connecting-icon"><path d="M12 3a9 9 0 1 0 9 9" strokeLinecap="round" /></svg>
                 <p className="ltv-connecting-line">Connecting to {activeChannel?.name}…</p>
                 {connectingLong ? (
-                  <button type="button" className="ltv-action-btn primary" onClick={() => setLookupNonce((n) => n + 1)}>Reload feed</button>
+                  <button type="button" className="ltv-action-btn primary" onClick={retryChannel}>Reload feed</button>
                 ) : null}
+              </div>
+            ) : channelCard === 'refused' ? (
+              <div className="ltv-offline-card" role="alert">
+                <h4>Can't play this video here</h4>
+                <p>{playerErrorMessage(refusedCode)}</p>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '14px', flexWrap: 'wrap' }}>
+                  <a href={refusedLiveId ? `https://www.youtube.com/watch?v=${refusedLiveId}` : externalWatchUrl} target="_blank" rel="noopener noreferrer" className="ltv-action-btn primary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    Open on YouTube ↗
+                  </a>
+                </div>
               </div>
             ) : channelCard === 'unknown' ? (
               <div className="ltv-offline-card" role="status">
@@ -761,12 +813,12 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                   <a href={externalWatchUrl} target="_blank" rel="noopener noreferrer" className="ltv-action-btn primary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     Open on YouTube ↗
                   </a>
-                  <button type="button" className="ltv-action-btn" onClick={() => setLookupNonce((n) => n + 1)}>Try again</button>
+                  <button type="button" className="ltv-action-btn" onClick={retryChannel}>Try again</button>
                 </div>
               </div>
             ) : channelCard === 'notlive' ? (
               <div className="ltv-offline-card" role="status">
-                <h4>{activeChannel?.name} isn't live right now</h4>
+                <h4>No live stream found for {activeChannel?.name}</h4>
                 {latestUpload ? (
                   <p>Latest upload: “{latestUpload.title}”{latestUpload.duration ? ` · ${latestUpload.duration}` : ''}</p>
                 ) : (
@@ -780,7 +832,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                     Open on YouTube ↗
                   </a>
                   {latestUpload ? null : (
-                    <button type="button" className="ltv-action-btn" onClick={() => setLookupNonce((n) => n + 1)}>Reload</button>
+                    <button type="button" className="ltv-action-btn" onClick={retryChannel}>Reload</button>
                   )}
                 </div>
               </div>
@@ -878,8 +930,15 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                   nowPlayingLine({ mode: playbackMode, channel: activeChannel })
                 )}
               </p>
+              {playbackMode === 'live' && refusedLiveId && liveEmbedUrl ? (
+                <p className="ltv-refused-note" role="status">
+                  {activeChannel?.name}'s live stream can't be played here.{' '}
+                  <a href={`https://www.youtube.com/watch?v=${refusedLiveId}`} target="_blank" rel="noopener noreferrer">Open on YouTube</a>
+                </p>
+              ) : null}
               {followNote ? <p className="ltv-follow-note" role="status">{followNote}</p> : null}
-              {linkId && playerError !== null && !linkBlocked ? (
+              {stoppedPlaying ? <p className="ltv-stopped-note" role="status">This video stopped playing here. End the fact-check to get unused minutes back.</p> : null}
+              {(linkId || playbackMode === 'live') && playerError !== null && !isBlockingPlayerError(playerError) ? (
                 <p className="ltv-np-note" role="status">The player reported a problem with this video.</p>
               ) : null}
               {playbackMode === 'archive' && selectedArchiveItem?.topics && (
@@ -959,7 +1018,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               <button
                 type="button"
                 className="ltv-action-btn"
-                onClick={() => { setPlayerError(null); setReloadKey((k) => k + 1); }}
+                onClick={() => { setPlayerError(null); setReloadKey((k) => k + 1); if (playbackMode === 'live' && (refusedLiveId || channelCard)) retryChannel(); }}
                 title="Reload Live Feed"
               >
                 Reload Feed

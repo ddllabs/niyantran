@@ -56,15 +56,15 @@ export const youtubeWatchUrl = (id) => (realId(id) ? `https://www.youtube.com/wa
 
 /** What to tell the user for an error code the YouTube player reports. */
 export function playerErrorMessage(code) {
-  if (code === 101 || code === 150 || code === 153) {
+  if (code === 101 || code === 150) {
     return "This video can't be played here. Its owner has turned off playback on other sites.";
   }
   if (code === 100) return 'This video is private or was removed.';
-  return "This video can't be played here.";
+  return "This video can't be played here."; // 153 and the rest: a player problem, not a verdict on the video
 }
 
-/** The codes that mean the video cannot be played here: not found or private (100), embedding off (101, 150, 153). */
-export const isBlockingPlayerError = (code) => code === 100 || code === 101 || code === 150 || code === 153;
+/** The codes that mean this video cannot be played here: not found or private (100), embedding off (101, 150). */
+export const isBlockingPlayerError = (code) => code === 100 || code === 101 || code === 150;
 
 /**
  * 'recorded' only when the player has said isLive is false AND shows a finite duration above zero. A missing,

@@ -287,9 +287,11 @@ describe('a video that cannot be played here', () => {
     expect(frame(render()).props.src).toContain('AAAAAAAAAAA');
   });
 
-  it('ignores a player error while a channel is playing', async () => {
+  // Round 3: while a channel plays, a refusal (101, 150) is the channel's own card (LiveTvPage.review2.test.jsx);
+  // an error that is no refusal is still ignored.
+  it('ignores a player error that is no refusal while a channel is playing', async () => {
     await open();
-    h.player.onError(150);
+    h.player.onError(5);
     const out = render();
     expect(frame(out)).toBeTruthy();
     expect(h.fcArgs.target).toBe(`dd-news|live|${CURATED}`);

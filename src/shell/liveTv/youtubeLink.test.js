@@ -108,13 +108,17 @@ describe('the addresses built from the id', () => {
 });
 
 describe('playerErrorMessage and isBlockingPlayerError', () => {
-  it.each([101, 150, 153])('code %s: the owner has turned off playback on other sites', (code) => {
+  it.each([101, 150])('code %s: the owner has turned off playback on other sites', (code) => {
     expect(playerErrorMessage(code)).toBe("This video can't be played here. Its owner has turned off playback on other sites.");
     expect(isBlockingPlayerError(code)).toBe(true);
   });
   it('code 100: private or removed', () => {
     expect(playerErrorMessage(100)).toBe('This video is private or was removed.');
     expect(isBlockingPlayerError(100)).toBe(true);
+  });
+  it('code 153 is a page-wide player error: a plain line, not a refusal of the video', () => {
+    expect(playerErrorMessage(153)).toBe("This video can't be played here.");
+    expect(isBlockingPlayerError(153)).toBe(false);
   });
   it.each([2, 5, 999, null, undefined, 'x'])('code %s does not mean "cannot be played here"', (code) => {
     expect(isBlockingPlayerError(code)).toBe(false);
