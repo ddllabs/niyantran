@@ -9,6 +9,8 @@
 // The key is the read-only service account's key file (default ~/.config/niyantran/drive-reader.json). Nothing here
 // prints the key, a token or record text: logs and the receipt hold counts, names and hashes only.
 import { createHash } from 'node:crypto';
+import { createGunzip } from 'node:zlib';
+import { Readable, Writable } from 'node:stream';
 import { basename, dirname, fromFileUrl, isAbsolute, join, relative, resolve, SEPARATOR } from 'jsr:@std/path@1';
 import { createDriveClient, type DriveClient, type DriveItem, parseKey } from './drive.ts';
 import { entryStream, readDirectory, type ReadRange, type ZipEntry } from './zip.ts';
@@ -321,10 +323,30 @@ export async function* lines(stream: ReadableStream<Uint8Array>, name: string): 
       }
     }
   } catch {
-    throw new Error(`the gzip stream of ${name} is invalid (damaged, truncated, or more than one member)`);
+    throw new Error(
+      `the gzip stream of ${name} is invalid (damaged, truncated, or followed by bytes that are not a gzip member)`,
+    );
   }
   if (length > 0) yield join(new Uint8Array(0));
 }
+
+/**
+ * Gunzip that reads every member of a multi-member file in order (RFC 1952 allows concatenated members; the Web
+ * DecompressionStream stops at the first and fails on the rest, F370). A damaged or truncated member, or any trailing
+ * bytes that do not start a member, errors the stream; `lines` reports that as an invalid gzip stream (fail closed).
+ */
+export function gunzipMembers(): ReadableWritablePair<Uint8Array, Uint8Array> {
+  const gunzip = createGunzip();
+  const readable = Readable.toWeb(gunzip) as unknown as ReadableStream<Uint8Array>;
+  const writable = Writable.toWeb(gunzip) as unknown as WritableStream<Uint8Array>;
+  return { readable: readable.pipeThrough(plainBytes()), writable };
+}
+
+// Node buffers are Uint8Array views whose slice() shares memory; `lines` needs copies, so hand it plain Uint8Arrays.
+const plainBytes = () =>
+  new TransformStream<Uint8Array, Uint8Array>({
+    transform: (c, ctl) => ctl.enqueue(new Uint8Array(c.buffer, c.byteOffset, c.byteLength)),
+  });
 
 // ---- commands ----
 
@@ -434,7 +456,7 @@ async function select(c: Extract<Command, { cmd: 'select' }>, deps: PackDeps): P
             },
           }),
         )
-        .pipeThrough(new DecompressionStream('gzip') as unknown as ReadableWritablePair<Uint8Array, Uint8Array>);
+        .pipeThrough(gunzipMembers());
       for await (const bytes of lines(source, entryName)) {
         read++;
         let r: Record<string, unknown>;

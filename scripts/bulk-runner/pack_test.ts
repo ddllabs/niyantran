@@ -462,6 +462,42 @@ areaTest('select: a truncated gzip is refused and leaves no output', async (a) =
   assertEquals(await listing(a.work), []);
 });
 
+// F370: a gzip file may be several members back to back (National v1.3 industry_updates); all are read, in order.
+areaTest('select: a gzip of two members is read as one stream of lines (F370)', async (a) => {
+  const data = cat(await gzip(rec('a') + NL + rec('b') + NL), await gzip(rec('c') + NL));
+  const { zip } = await makePack([{ name: ENTRY, data }]);
+  assertEquals(await main(sel(a, ENTRY), depsFor(a, fakeDrive(zip).client).deps), 0);
+  const kept = (await Deno.readTextFile(join(a.work, 'out.jsonl'))).trim().split(NL).map((l) =>
+    JSON.parse(l).source_key
+  );
+  assertEquals(kept, ['a', 'b', 'c']);
+  assertEquals((await receiptOf(a)).lines_read, 3);
+});
+
+areaTest('select: a line split across two members is joined (F370)', async (a) => {
+  const body = enc.encode(rec('a') + NL + rec('b') + NL);
+  const at = body.length - 20; // inside the last line
+  const data = cat(await gzip(body.slice(0, at)), await gzip(body.slice(at)));
+  const { zip } = await makePack([{ name: ENTRY, data }]);
+  assertEquals(await main(sel(a, ENTRY), depsFor(a, fakeDrive(zip).client).deps), 0);
+  assertEquals((await receiptOf(a)).lines_read, 2);
+});
+
+areaTest('select: a valid member followed by bytes that are not a gzip member is refused (F370)', async (a) => {
+  const data = cat(await gzip(rec('a') + NL), new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
+  const { zip } = await makePack([{ name: ENTRY, data }]);
+  await assertRejects(() => main(sel(a, ENTRY), depsFor(a, fakeDrive(zip).client).deps), Error, 'gzip stream');
+  assertEquals(await listing(a.work), []);
+});
+
+areaTest('select: a truncated second member is refused (F370)', async (a) => {
+  const second = await gzip(rec('b') + NL);
+  const data = cat(await gzip(rec('a') + NL), second.slice(0, second.length - 12));
+  const { zip } = await makePack([{ name: ENTRY, data }]);
+  await assertRejects(() => main(sel(a, ENTRY), depsFor(a, fakeDrive(zip).client).deps), Error, 'gzip stream');
+  assertEquals(await listing(a.work), []);
+});
+
 areaTest('select: a line that is not JSON is refused with its number, and nothing is written', async (a) => {
   const text = [rec('a'), rec('b'), '{"schema": "nter.citation_pack/1.1", "source_key": "c", ', rec('d')].join(NL) + NL;
   const { zip } = await makePack([{ name: ENTRY, data: await gzip(text) }]);
@@ -807,7 +843,7 @@ areaTest('select: an invalid gzip says so without guessing at the cause', async 
     Error,
     'gzip stream',
   );
-  assert(e.message.includes('damaged, truncated, or more than one member'), e.message);
+  assert(e.message.includes('damaged, truncated, or followed by bytes that are not a gzip member'), e.message);
 });
 
 Deno.test('lines: splits chunks at newlines, keeping bytes, with a last line that has no newline', async () => {
