@@ -107,3 +107,8 @@ time. One pull request per track, with one commit per item, replaces "each item 
 6. Whether merges, migrations and deploys inside this plan may proceed after review, the supervisor's re-run and CI,
    without asking each time. Answer: the owner granted pull-request and merge permissions for the working branch, and
    reserved `main`.
+
+## Results
+
+- **C1, 2026-11-19: failed its rule at step 1, no fresh runs, nothing spent.** Details in the F352 entry of
+  [open-work.md](open-work.md).
