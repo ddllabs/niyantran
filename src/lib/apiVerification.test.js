@@ -76,9 +76,11 @@ describe('CR-06 — End-to-End API Verification Suite', () => {
       }
     });
 
-    it('verifies /api/livetv/* contracts and data correctness', () => {
+    it('verifies /api/livetv/* contracts and data correctness', async () => {
+      vi.stubEnv('YOUTUBE_API_KEY', ''); // no key: nothing here may reach YouTube
+      try {
       // 1. Channels
-      const chs = getLiveTvChannels();
+      const chs = await getLiveTvChannels();
       expect(chs.ok).toBe(true);
       expect(Array.isArray(chs.channels)).toBe(true);
       expect(chs.channels.length).toBeGreaterThanOrEqual(8);
@@ -99,6 +101,7 @@ describe('CR-06 — End-to-End API Verification Suite', () => {
       expect(tr.ok).toBe(true);
       expect(tr.available).toBe(false);
       expect(tr.cues).toEqual([]);
+      } finally { vi.unstubAllEnvs(); }
     });
 
     it('verifies /api/home/markets contract and data correctness', async () => {

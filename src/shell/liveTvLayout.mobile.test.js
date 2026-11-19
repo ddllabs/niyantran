@@ -38,8 +38,8 @@ describe('phone layout (up to 600px)', () => {
   it('hides the channel strip arrows: the strip scrolls by touch', () => {
     expect(rule(phone, '.ltv-strip-arrows')).toMatch(/display:\s*none/);
   });
-  it('is not sticky anywhere else', () => {
-    expect(page.replace(phone, '')).not.toMatch(/position:\s*sticky/);
+  it('is sticky nowhere else on the page except the wide panel (the next block)', () => {
+    expect(page.replace(phone, '').replace(media(page, '(min-width: 1081px)'), '')).not.toMatch(/position:\s*sticky/);
   });
   it('lets the now-playing buttons wrap evenly under the title', () => {
     expect(rule(phone, '.ltv-nowplaying .ltv-player-controls')).toMatch(/flex:\s*1 0 100%/);
@@ -65,6 +65,40 @@ describe('nothing scrolls sideways', () => {
   it('lets the panel tabs and the deck tabs scroll inside themselves', () => {
     expect(rule(panelCss, '.fc-tabs')).toMatch(/overflow-x:\s*auto/);
     expect(rule(page, '.ltv-deck-tabs')).toMatch(/overflow-x:\s*auto/);
+  });
+});
+
+describe('the panel stays inside the window from 1081px', () => {
+  const wide = media(page, '(min-width: 1081px)');
+  const fit = wide.slice(wide.indexOf('@supports'));
+  it('leaves the video column at its natural width: no height-based video width, no wider panel, no centring', () => {
+    expect(rule(wide, '.ltv-split.has-panel')).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\) 440px/);
+    expect(page).not.toMatch(/--ltv-video-w|--ltv-under-video|@container|justify-content:\s*center[^}]*\n?[^}]*has-panel|minmax\(440px, 600px\)/);
+  });
+  it('makes the scrolling body a size container, so the height of the window area is a layout fact', () => {
+    expect(rule(fit, '.ltv-main')).toMatch(/container:\s*ltvmain \/ size/);
+    expect(rule(fit, '.ltv-main')).toMatch(/--ltv-above-split:\s*163px/);
+  });
+  it('limits only the panel to what is visible, with a floor, and keeps it in view when the page scrolls', () => {
+    const panel = rule(fit, '.ltv-panelcol > .fc-panel');
+    expect(panel).toMatch(/position:\s*sticky/);
+    expect(panel).toMatch(/top:\s*16px/);
+    expect(panel).toMatch(/height:\s*100%/);
+    expect(panel).toMatch(/max-height:\s*max\(320px, calc\(100cqh - var\(--ltv-above-split\)\)\)/);
+  });
+  it('gives the panel column no size of its own, so the panel never makes the row taller than the video column', () => {
+    expect(rule(fit, '.ltv-panelcol')).toMatch(/contain:\s*size/);
+  });
+  it('touches nothing at 1080px and below, and only inside the supports guard', () => {
+    expect(page.replace(wide, '')).not.toMatch(/ltvmain|container-type|100cqh|position:\s*sticky[^}]*top:\s*16px/);
+    expect(wide).toMatch(/@supports \(container-type: size\)/);
+    expect(wide.slice(0, wide.indexOf('@supports'))).not.toMatch(/cqh|sticky/);
+  });
+});
+
+describe('the page title', () => {
+  it('shows no focus box: it takes focus from code for keyboard and screen-reader users but is not a control', () => {
+    expect(page).toMatch(/\.ltv-header-brand \.ltv-title:focus,\s*\.ltv-header-brand \.ltv-title:focus-visible\s*\{[^}]*outline:\s*none[^}]*box-shadow:\s*none/);
   });
 });
 

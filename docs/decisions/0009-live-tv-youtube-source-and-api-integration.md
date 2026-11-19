@@ -99,7 +99,10 @@ changed; this amendment records where it differs from the text above.
   uncached `GET /api/livetv/videos` costs about 101 units, not 1. The
   10-minute cache is held in memory, so each server instance keeps its own
   copy. `GET /api/livetv/live` does not call YouTube; it lists sources whose
-  curated `status` is `live`. This gap is to be tracked in the backlog
+  curated `status` is `live`. *(Changed on 2026-11-19 by F367: `GET /api/livetv/channels` now makes one
+  `videos.list` call, 1 unit, for every enabled channel's curated video, cached 10 minutes in memory per
+  instance, and marks a channel `live` only when that video is live; `GET /api/livetv/live` reuses that list,
+  so it can cause the same call. `search.list` is still not used.)* This gap is to be tracked in the backlog
   (`docs/niyantran-conflict-audit-and-plan/04-open-backlog.md`).
 - **Categories.** The 13 sources are split differently from context point 1:
   `NEWS` is DD News, Sansad TV, WION and NDTV 24x7; `GENERAL` is India Today TV

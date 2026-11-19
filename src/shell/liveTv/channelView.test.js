@@ -25,13 +25,20 @@ describe('segmentCounts', () => {
 });
 
 describe('channelSubline', () => {
-  it('names the status and the language when the data has one', () => {
+  it('names LIVE or SOON with the language when the data has one', () => {
     expect(channelSubline(channels[0])).toBe('LIVE · Hindi');
-    expect(channelSubline(channels[1])).toBe('RECENT · English');
+    expect(channelSubline({ status: 'soon', lang: 'English' })).toBe('SOON · English');
   });
-  it('leaves the language out when unknown, and treats a missing status as RECENT', () => {
+  it('prints no status for a recent channel (the server marks every channel recent), only the language', () => {
+    expect(channelSubline(channels[1])).toBe('English');
+    expect(channelSubline({ status: 'recent', lang: 'Hindi · English' })).toBe('Hindi · English');
+    expect(channelSubline({ id: 'd', name: 'D', lang: 'Hindi' })).toBe('Hindi');
+  });
+  it('is empty when there is nothing worth showing', () => {
+    expect(channelSubline({ id: 'd', name: 'D' })).toBe('');
+    expect(channelSubline({ status: 'recent', lang: '  ' })).toBe('');
+    expect(channelSubline(null)).toBe('');
     expect(channelSubline(channels[2])).toBe('SOON');
-    expect(channelSubline({ id: 'd', name: 'D' })).toBe('RECENT');
   });
 });
 
