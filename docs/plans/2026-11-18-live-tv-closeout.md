@@ -55,9 +55,11 @@ live database. The other items are recorded as stated in those entries.
 - **W6, still owed.** Each item needs the owner present: one real session on the Live TV page (ideally 20 or 30
   minutes), the "No sources found" state, and the usage screens after a real charge.
 - **W7, parked** until the owner supplies a provider key.
-- **W8, not done.** Sharing is still off, and the audience is still administrators only. Each of the two switches
-  (sharing on; audience opened to everyone, Free plan included) needs the owner's go at the time. The owner settled
-  point 1 of "Points to settle": W8 waits for W1, W2, W3 and W6 only.
+- **W8, not done.** Sharing is still off and needs the owner's go at the time. The owner settled point 1 of "Points
+  to settle": W8 waits for W1, W2, W3 and W6 only.
+- **Audience, opened.** On the owner's named go the audience was set from administrators to everyone, Free plan
+  included, on 2026-11-19 01:08 UTC, before the real session of W6. Executed: the flag reads `all` and an account
+  that is not an administrator can read it. Not verified: a session started by such an account. F344.
 
 ## State when the plan was written (2026-11-18)
 
