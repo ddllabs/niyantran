@@ -3,6 +3,9 @@
 /* F344: the fact-check panel's styles ride with this sheet (see FactCheckPanel.jsx). */
 @import './factcheck/factCheck.css';
 
+/* B4: the paste-a-link form in the title row. */
+@import './liveTv/pasteLink.css';
+
 /* F359: Live TV is a page in the shell's work area, as the credits page is. The desk stays mounted
    underneath (kept out of sight, so its AI panel keeps its work). */
 .with-livetv-page > .ltv-page { grid-area: work; }

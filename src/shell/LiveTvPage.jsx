@@ -17,13 +17,19 @@ import { embedVideoId, playingTarget } from './factcheck/factCheckText.js';
 import { useFactCheck } from './factcheck/useFactCheck.js';
 import { useYoutubePlayer } from './liveTv/useYoutubePlayer.js';
 import { buildEmbedSrc, embedFrameKey } from './liveTv/embed.js';
-import { parseYoutubeLink, youtubeEmbedUrl, youtubeWatchUrl, playerErrorMessage, pastedVideoKind } from './liveTv/youtubeLink.js';
+import { parseYoutubeLink, youtubeEmbedUrl, youtubeWatchUrl, playerErrorMessage, pastedVideoKind, isBlockingPlayerError } from './liveTv/youtubeLink.js';
 import './liveTv.css';
-import pasteLinkCss from './liveTv/pasteLink.css?inline'; // in this lazy chunk, not the entry stylesheet
 
 const REAL_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 const LINK_CHANNEL_ID = 'youtube-link'; // what the fact-check server stores for a pasted video (any short text is accepted)
 const SESSION_ACTIVE = new Set(['sharing', 'starting', 'running', 'ending']);
+const SESSION_OPEN = new Set([...SESSION_ACTIVE, 'choosing']); // the panel is busy with a session or a start screen
+
+// The channel's own video is live (the list says so, F374); a liveVideoId is a different video, found later.
+const curatedLiveOf = (c) => c.status === 'live' && !c.liveVideoId;
+// This page can swap the channel's written video for a live one: it is a real video, not live, not a pseudo id.
+const switchableOf = (c) => !curatedLiveOf(c) && Boolean(embedVideoId(c.embedUrl));
+const willPlayLive = (c) => curatedLiveOf(c) || (REAL_VIDEO_ID.test(c.liveVideoId || '') && switchableOf(c));
 
 // F359: a shell page at #/livetv. `open` says whether it is the page being shown; it stays mounted after the
 // first visit and draws nothing while closed. `onClose` is Back (the shell decides where to).
@@ -38,19 +44,25 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const [streamError, setStreamError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   // F377: the live video YouTube data reported for a channel whose written video is not live. `lookupLive` is
-  // what the per-channel lookup said; `liveSwitch` is the decision (made once per channel selection) that the
-  // page plays it. Both name their channel, so a stale one is ignored.
+  // what the per-channel lookup said; `liveSwitch` is the video live mode plays instead of the written one. The
+  // switch follows the newest candidate (the lookup, else the channel list) except under a running session on
+  // the same video, and is reset when the page is opened again. Both name their channel.
   const [lookupLive, setLookupLive] = useState(null); // { channelId, videoId }
   const [liveSwitch, setLiveSwitch] = useState(null); // { channelId, videoId }
-  const liveDecided = useRef('');
+  const [channelsFresh, setChannelsFresh] = useState(false); // the list was read since the page was opened
+  const sessionHeld = useRef(false); // a session is running on the video now playing: nothing may change it
+  const sessionTargetRef = useRef(''); // the target the open session or start screen belongs to
+  const sessionStatusRef = useRef('idle');
+  const reopenChoose = useRef(false); // a switch closed the start screen the user opened: open it again
+  const kindLatch = useRef(null); // { linkId, kind } of a pasted video, fixed when its session is confirmed
   // B4: a pasted YouTube link plays as its own mode ('link'). `pasted` is { videoId }; the field keeps what the
   // user typed (also after an error); `playerInfo` and `playerError` come from the player bridge.
   const [pasted, setPasted] = useState(null);
   const [pasteText, setPasteText] = useState('');
-  const [pasteError, setPasteError] = useState(false);
+  const [pasteError, setPasteError] = useState(false); // false | 'invalid' | 'channel'
   const [pasteOpen, setPasteOpen] = useState(false); // phones: the field opens from a button
   const [playerInfo, setPlayerInfo] = useState(null);
-  const [playerError, setPlayerError] = useState(null); // `${channelId}:${videoId}` already decided
+  const [playerError, setPlayerError] = useState(null); // the player's error code, or null
 
   const [categories, setCategories] = useState(['ALL', 'NEWS', 'EDUCATION', 'POLITICS', 'ECONOMICS', 'RESEARCH', 'GENERAL']);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
@@ -91,17 +103,18 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     if (!open) return;
     let cancelled = false;
     setChannelsLoading(true);
+    if (!sessionHeld.current) setChannelsFresh(false); // the list held from the last visit may be hours old
     fetchLiveTvChannels().then((data) => {
       if (cancelled) return;
       setChannelsLoading(false);
       if (data.ok && Array.isArray(data.channels) && data.channels.length) {
         setChannels(data.channels);
+        setChannelsFresh(true);
         if (Array.isArray(data.categories) && data.categories.length) {
           setCategories(['ALL', ...data.categories.filter((c) => c !== 'ALL')]);
         }
-        if (data.channels[0]) {
-          setActiveChannelId((cur) => cur || data.channels[0].id);
-        }
+        // the channel shown is the one the page works on: the first of the list when the chosen one is not in it
+        setActiveChannelId((cur) => (data.channels.some((c) => c.id === cur) ? cur : data.channels[0].id));
       }
     });
     return () => {
@@ -113,6 +126,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   useEffect(() => {
     if (!open || !activeChannelId) return;
     let cancelled = false;
+    // Opened again, or another channel: forget what was found before, unless a session runs on this video.
+    if (!sessionHeld.current) { setLookupLive(null); setLiveSwitch(null); }
     setStreamError(false);
     setScheduleLoading(true);
     setScheduleError(null);
@@ -142,9 +157,10 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
       .then((data) => {
         if (cancelled) return;
         setVideosLoading(false);
-        const liveId = data.liveVideo?.videoId;
-        if (data.ok && data.dataOrigin === 'youtube-api' && typeof liveId === 'string' && REAL_VIDEO_ID.test(liveId)) {
-          setLookupLive({ channelId: activeChannelId, videoId: liveId });
+        // Only an answer from YouTube data is taken: it names the live video, or says there is none.
+        if (data.ok && data.dataOrigin === 'youtube-api') {
+          const liveId = data.liveVideo?.videoId;
+          setLookupLive(typeof liveId === 'string' && REAL_VIDEO_ID.test(liveId) ? { channelId: activeChannelId, videoId: liveId } : null);
         }
         if (data.ok && Array.isArray(data.recentVideos)) {
           setVideos(data.recentVideos);
@@ -206,11 +222,16 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     };
   }, [open, selectedBroadcastId]);
 
-  // The watched channel shows LIVE when the video being played is live, by either route.
+  // LIVE is shown only when the video being played is live. The watched channel says so from what is really
+  // playing (the switched-to live video, or a curated video the list says is live); any other tile says LIVE
+  // only when this page will play a live video when it is opened.
   const liveSwitchedId = liveSwitch && liveSwitch.channelId === activeChannelId ? liveSwitch.videoId : '';
   const shownChannels = useMemo(
-    () => (liveSwitchedId ? channels.map((c) => (c.id === activeChannelId && c.status !== 'live' ? { ...c, status: 'live' } : c)) : channels),
-    [channels, liveSwitchedId, activeChannelId],
+    () => channels.map((c) => {
+      const live = c.id === activeChannelId && playbackMode === 'live' ? Boolean(liveSwitchedId) || curatedLiveOf(c) : willPlayLive(c);
+      return live === (c.status === 'live') ? c : { ...c, status: live ? 'live' : c.status === 'live' ? 'recent' : c.status };
+    }),
+    [channels, liveSwitchedId, activeChannelId, playbackMode],
   );
   const filteredChannels = useMemo(() => {
     if (!selectedCategory || selectedCategory === 'ALL') return shownChannels;
@@ -282,9 +303,11 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   function handleLoadLink(e) {
     e?.preventDefault?.();
     const parsed = parseYoutubeLink(pasteText);
-    if (!parsed.ok) { setPasteError(true); return; }
+    if (!parsed.ok) { setPasteError(parsed.reason === 'channel' ? 'channel' : 'invalid'); return; }
     setPasteError(false);
     setPasteOpen(false);
+    // On phones the field closes now; focus goes to the page title so it is not dropped to the page body.
+    titleRef.current?.focus({ preventScroll: true });
     if (playbackMode === 'link' && pasted?.videoId === parsed.videoId) {
       // already playing: nothing changes unless it failed, then it is tried again
       if (playerError !== null) { setPlayerError(null); setStreamError(false); setReloadKey((k) => k + 1); }
@@ -372,9 +395,13 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   // from the embed address, so it names the video that is really on screen.
   const factCheckVideoId = embedVideoId(currentEmbedUrl);
   // A pasted video is live unless the player shows it is not (see pastedVideoKind); live sessions stay private.
-  const linkLive = Boolean(linkId) && pastedVideoKind(playerInfo) === 'live';
+  // Fixed when a session is confirmed and kept until it is over (idle, ended or error): player information that
+  // arrives later cannot turn a private live session into a shared recorded one, or the other way round.
+  if (kindLatch.current && !SESSION_OPEN.has(sessionStatusRef.current)) kindLatch.current = null;
+  const latchedKind = kindLatch.current && kindLatch.current.linkId === linkId ? kindLatch.current.kind : null;
+  const linkLive = Boolean(linkId) && (latchedKind ?? pastedVideoKind(playerInfo)) === 'live';
   const treatAsLive = playbackMode === 'live' || linkLive;
-  const linkBlocked = Boolean(linkId) && playerError !== null; // no target: nothing to fact-check
+  const linkBlocked = Boolean(linkId) && isBlockingPlayerError(playerError); // no target: nothing to fact-check
   const factCheckChannelId = linkId ? LINK_CHANNEL_ID : activeChannel?.id || '';
   const factCheckTarget = linkBlocked ? null : playingTarget(factCheckChannelId, playbackMode, factCheckVideoId);
   const factCheck = useFactCheck({
@@ -398,21 +425,34 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     },
   });
 
-  // F377: decide, once per channel selection, whether live mode plays the live video YouTube reported. It
-  // does so only when the channel's own video is a real id that is not live (the list says `live` for it,
-  // F374), and never under a fact-check session in progress. A decision not to switch is final too, so a
-  // session that ends later does not change the video under the user.
-  const sessionActive = SESSION_ACTIVE.has(factCheck.view?.session?.status);
-  const liveCandidate = (lookupLive && lookupLive.channelId === activeChannel?.id ? lookupLive.videoId : '') || activeChannel?.liveVideoId || '';
+  // F377: live mode plays the live video YouTube reported when the channel's own video is a real id that is not
+  // live, and follows the newest report (the lookup, else the list read since the page opened): a different id
+  // moves to it, none goes back to the written video. It never changes the video under a session that runs on
+  // the video now playing. A session or start screen that belongs to another video (the channel was changed,
+  // its session is ending) does not hold it back.
+  const sessionStatus = factCheck.view?.session?.status;
+  const sessionOpen = SESSION_OPEN.has(sessionStatus);
+  const sessionTarget = sessionOpen ? sessionTargetRef.current || factCheckTarget || 'none' : '';
+  const heldBySession = SESSION_ACTIVE.has(sessionStatus) && sessionTarget === (factCheckTarget || 'none');
+  sessionHeld.current = heldBySession;
+  sessionStatusRef.current = sessionStatus || 'idle';
+  useEffect(() => { sessionTargetRef.current = sessionTarget; });
+  const liveCandidate = (lookupLive && lookupLive.channelId === activeChannel?.id ? lookupLive.videoId : '') || (channelsFresh ? activeChannel?.liveVideoId : '') || '';
+  const liveWanted = activeChannel && switchableOf(activeChannel) && REAL_VIDEO_ID.test(liveCandidate) ? liveCandidate : '';
   useEffect(() => {
-    if (!activeChannel || !REAL_VIDEO_ID.test(liveCandidate)) return;
-    const mark = `${activeChannel.id}:${liveCandidate}`;
-    if (liveDecided.current === mark) return;
-    liveDecided.current = mark;
-    const curatedLive = activeChannel.status === 'live' && !activeChannel.liveVideoId;
-    if (curatedLive || sessionActive || !embedVideoId(activeChannel.embedUrl)) return;
-    setLiveSwitch((cur) => (cur && cur.channelId === activeChannel.id ? cur : { channelId: activeChannel.id, videoId: liveCandidate }));
-  }, [activeChannel, liveCandidate, sessionActive]);
+    if (!activeChannel || heldBySession) return;
+    if (liveSwitchedId === liveWanted) return;
+    // a start screen the user opened is closed by the target change: it is opened again below
+    if (sessionStatus === 'choosing' && playbackMode === 'live') reopenChoose.current = true;
+    setLiveSwitch(liveWanted ? { channelId: activeChannel.id, videoId: liveWanted } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChannel, liveWanted, liveSwitchedId, heldBySession]);
+  useEffect(() => {
+    if (!reopenChoose.current) return;
+    reopenChoose.current = false;
+    factCheck.actions.choose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [factCheckTarget]);
 
   // F366: the panel is open by default and shows an idle state; the start screen opens only when the user
   // presses its entry button (nothing here asks the controller to do anything on its own).
@@ -470,7 +510,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               <span className="ltv-offline-badge">
                 <span className="ltv-offline-dot" /> OFFLINE
               </span>
-            ) : activeChannel?.status === 'live' || liveSwitchedId ? (
+            ) : liveSwitchedId || (activeChannel && curatedLiveOf(activeChannel)) ? (
               <span className="ltv-live-badge">
                 <span className="ltv-live-dot" /> LIVE FEED
               </span>
@@ -512,7 +552,6 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
           </div>
         </div>
         {/* B4: paste a YouTube video or live link. On phones the field opens from a button. */}
-        <style>{pasteLinkCss}</style>
         <form className={`ltv-paste${pasteOpen ? ' is-open' : ''}`} onSubmit={handleLoadLink} noValidate>
           <button
             type="button"
@@ -533,14 +572,14 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               value={pasteText}
               autoComplete="off"
               spellCheck={false}
-              aria-invalid={pasteError}
+              aria-invalid={pasteError !== false}
               aria-describedby={pasteError ? 'ltv-paste-error' : undefined}
               onChange={(e) => { setPasteText(e.target.value); setPasteError(false); }}
             />
             <button type="submit" className="ltv-action-btn primary ltv-paste-submit">Load video</button>
           </div>
           {pasteError ? (
-            <p className="ltv-paste-error" id="ltv-paste-error" role="alert">That doesn't look like a YouTube link.</p>
+            <p className="ltv-paste-error" id="ltv-paste-error" role="alert">{pasteError === 'channel' ? 'Paste the link of one video or live stream, not a channel page.' : "That doesn't look like a YouTube link."}</p>
           ) : null}
         </form>
       </header>
@@ -562,7 +601,6 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
             // a new selection decides afresh: forget what was decided for the channel left
             setLiveSwitch(null);
             setLookupLive(null);
-            liveDecided.current = '';
           }
           setActiveChannelId(ch.id);
           setPlaybackMode('live');
@@ -672,6 +710,9 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                   nowPlayingLine({ mode: playbackMode, channel: activeChannel })
                 )}
               </p>
+              {linkId && playerError !== null && !linkBlocked ? (
+                <p className="ltv-np-note" role="status">The player reported a problem with this video.</p>
+              ) : null}
               {playbackMode === 'archive' && selectedArchiveItem?.topics && (
                 <div className="ltv-topics-wrap">
                   {selectedArchiveItem.topics.map((t, idx) => (
@@ -759,7 +800,10 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               view={factCheck.view}
               isMuted={isMuted}
               onUnmute={() => applyMute(false)}
-              onConfirm={factCheck.actions.confirm}
+              onConfirm={(minutes, price) => {
+                if (linkId) kindLatch.current = { linkId, kind: treatAsLive ? 'live' : 'recorded' };
+                factCheck.actions.confirm(minutes, price);
+              }}
               onCancel={factCheck.actions.cancel}
               onStop={factCheck.actions.stop}
               onRetry={factCheck.actions.retry}

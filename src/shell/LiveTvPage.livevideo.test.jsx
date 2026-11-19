@@ -142,15 +142,22 @@ describe('where nothing changes', () => {
 });
 
 describe('a fact-check session', () => {
-  it('is not switched under: a lookup that arrives while a session runs changes nothing', async () => {
-    h.fcView = running;
-    const out = await open();
+  it('is not switched under: a lookup that arrives while a session runs changes nothing until the session is over', async () => {
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    h.channels = [channel()];
+    h.lookup = () => gate.then(() => answer());
+    render(); await flush(); render(); // the list is in, the lookup is out
+    h.fcView = running; // a session starts on the curated video
+    render();
+    release(); await flush();
+    const out = render();
     expect(frame(out).props.src).toContain(`/embed/${CURATED}?`);
     expect(h.fcArgs.target).toBe(`dd-news|live|${CURATED}`);
-    // and it does not switch later, when the session ends
+    // once the session on this video is over, the page follows the report (the decision is taken again)
     h.fcView = { ...running, session: { status: 'ended', claims: [] } };
     render(); await flush();
-    expect(frame(render()).props.src).toContain(`/embed/${CURATED}?`);
+    expect(frame(render()).props.src).toContain(`/embed/${LIVE}?`);
   });
 
   it('does not take a switch back once made, while a session runs on the live video', async () => {

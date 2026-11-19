@@ -704,7 +704,8 @@ export async function getLiveTvChannels(options = {}) {
   let channels = enabledChannels.map((c) => {
     if (liveIds.has(c.id)) return { ...c, status: 'live' };
     const liveVideoId = freshLiveVideoId(c.id);
-    return liveVideoId ? { ...c, status: 'live', liveVideoId } : { ...c };
+    // `status` keeps its F374 meaning (the curated video is live); the client decides what to do with this.
+    return liveVideoId ? { ...c, liveVideoId } : { ...c };
   });
 
   if (category !== 'ALL') {

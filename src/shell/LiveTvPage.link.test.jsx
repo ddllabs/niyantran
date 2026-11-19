@@ -15,7 +15,7 @@ vi.mock('../lib/liveTvClient.js', () => {
   };
 });
 vi.mock('./factcheck/useFactCheck.js', () => ({
-  useFactCheck: (args) => { h.fcArgs = args; return { view: h.fcView, actions: {} }; },
+  useFactCheck: (args) => { h.fcArgs = args; return { view: h.fcView, actions: { confirm: () => {}, choose: () => {} } }; },
 }));
 vi.mock('./liveTv/useYoutubePlayer.js', () => ({
   useYoutubePlayer: (_active, opts) => {
@@ -129,13 +129,41 @@ describe('the fact-check reads the pasted video', () => {
   it('is recorded once the player shows a finite duration, and starts from where the player is', async () => {
     await open();
     submit(PASTED);
-    h.player.onInfo({ title: 'T', durationS: 300, isLive: null });
+    h.player.onInfo({ title: 'T', durationS: 300, isLive: false });
     render();
     expect(h.fcArgs.target).toBe(`youtube-link|link|${PASTED}`);
     expect(h.fcArgs.start.videoKind).toBe('recorded');
     expect(h.fcArgs.start.getStartPositionS()).toBe(77);
     expect(h.fcArgs.getPosition()).toEqual({ positionS: 77, playerState: 1 });
     expect(h.fcArgs.start.seed.title).toBe('T');
+  });
+
+  it.each([[null], [undefined], [true]])('is live when the player has not said isLive is false (isLive %s), even with a duration', async (isLive) => {
+    await open();
+    submit(PASTED);
+    h.player.onInfo({ title: 'T', durationS: 300, isLive });
+    render();
+    expect(h.fcArgs.start.videoKind).toBe('live');
+    expect(h.fcArgs.start.getStartPositionS()).toBeNull();
+  });
+
+  it('keeps the kind it had when the session was confirmed, for the life of that session', async () => {
+    await open();
+    submit(PASTED);
+    h.player.onInfo({ title: 'T', durationS: 300, isLive: false });
+    render();
+    expect(h.fcArgs.start.videoKind).toBe('recorded');
+    h.fcView = { ...running, session: { status: 'choosing', claims: [] } };
+    const panel = find(render(), (e) => e.props && typeof e.props.onConfirm === 'function');
+    panel.props.onConfirm(5, 500);
+    h.fcView = running;
+    h.player.onInfo({ title: 'T', durationS: 300, isLive: true }); // later info differs
+    render();
+    expect(h.fcArgs.start.videoKind).toBe('recorded');
+    expect(h.fcArgs.getPosition()).toEqual({ positionS: 77, playerState: 1 });
+    h.fcView = { ...running, session: { status: 'ended', claims: [] } };
+    render(); render();
+    expect(h.fcArgs.start.videoKind).toBe('live'); // free again once the session is over
   });
 
   it('is live when the player says so, even with a duration', async () => {
@@ -177,11 +205,38 @@ describe('a link that is not a YouTube link', () => {
     expect(h.fcArgs.target).toBe(`dd-news|live|${CURATED}`);
   });
 
+  it.each([
+    ['a channel page', 'https://www.youtube.com/@sansadtv'],
+    ['a channel live address', 'https://www.youtube.com/@sansadtv/live'],
+    ['a channel id address', 'https://www.youtube.com/channel/UCISgnSNwqQ2i8lhCun3KtQg'],
+    ['a custom name address', 'https://www.youtube.com/c/SansadTV'],
+    ['YouTube Music', `https://music.youtube.com/watch?v=${PASTED}`],
+  ])('says to paste one video for %s, and keeps the text', async (_n, value) => {
+    await open();
+    const out = submit(value);
+    expect(text(find(out, (e) => /ltv-paste-error/.test(e.props?.className || '')))).toBe('Paste the link of one video or live stream, not a channel page.');
+    expect(input(out).props.value).toBe(value);
+  });
+
   it('clears the message when the text is edited, and when a good link loads', async () => {
     await open();
     submit('nonsense');
     input(render()).props.onChange({ target: { value: PASTED } });
     expect(find(render(), (e) => /ltv-paste-error/.test(e.props?.className || ''))).toBeUndefined();
+  });
+});
+
+describe('after a successful load', () => {
+  it('moves focus to the page title, so a phone that hides the field does not drop it to the page', async () => {
+    const focused = [];
+    harness.refFactory = () => ({ focus: (o) => focused.push(o) });
+    await open();
+    focused.length = 0;
+    submit(PASTED);
+    expect(focused.length).toBe(1);
+    submit('nonsense');
+    expect(focused.length).toBe(1); // a refused link keeps focus where it is
+    harness.refFactory = null;
   });
 });
 
@@ -196,6 +251,20 @@ describe('a video that cannot be played here', () => {
     expect(link(out, 'Open on YouTube').props.href).toBe(`https://www.youtube.com/watch?v=${PASTED}`);
     expect(input(out).props.value).toBe(`https://youtu.be/${PASTED}`);
     expect(h.fcArgs.target).toBeNull();
+  });
+
+  it.each([2, 5, 99])('code %s does not stop playback, remove the target or end a session; it shows a quiet note', async (code) => {
+    await open();
+    submit(PASTED);
+    h.player.onInfo({ title: 'T', durationS: 300, isLive: false });
+    h.fcView = running;
+    render();
+    const target = h.fcArgs.target;
+    h.player.onError(code);
+    const out = render();
+    expect(frame(out)).toBeTruthy();
+    expect(h.fcArgs.target).toBe(target);
+    expect(text(out)).toContain('The player reported a problem with this video.');
   });
 
   it('says private or removed for code 100', async () => {

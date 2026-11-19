@@ -122,24 +122,24 @@ describe('the channel list marks live channels from one batched call', () => {
   });
 });
 
-describe('a recently opened channel with a live video of its own', () => {
+describe('a recently opened channel with a live video of its own (liveVideoId)', () => {
   const wion = () => YOUTUBE_SOURCES.find((c) => c.id === 'wion');
   const entry = (over = {}) => ({
     channelId: 'wion', status: 'live', dataOrigin: 'youtube-api',
     liveVideo: { videoId: 'LIVEvideo_1', embedUrl: 'https://www.youtube-nocookie.com/embed/LIVEvideo_1' }, ...over,
   });
 
-  it('is marked live with the live video id when a fresh YouTube-data entry holds one, with no extra request', async () => {
+  it('carries the live video id as its own field and keeps status for the curated video (F374), with no extra request', async () => {
     stubFetch((url) => videosAnswer(url, []));
     setCached('yt-videos-wion', entry());
     const res = await getLiveTvChannels();
-    expect(byId(res, 'wion').status).toBe('live');
+    expect(byId(res, 'wion').status).toBe('recent'); // an older client reads status alone: never LIVE over a recording
     expect(byId(res, 'wion').liveVideoId).toBe('LIVEvideo_1');
     expect(calls).toHaveLength(1); // the one batched call of F374 and nothing for the entry
     expect(calls.every((u) => !/search/.test(u))).toBe(true);
   });
 
-  it('is not marked from a fallback, stale or expired entry, or an id that is not 11 characters', async () => {
+  it('carries no liveVideoId from a fallback, stale or expired entry, or an id that is not 11 characters', async () => {
     stubFetch((url) => videosAnswer(url, []));
     for (const over of [{ dataOrigin: 'fallback' }, { dataOrigin: 'stale' }, { liveVideo: { videoId: 'short' } }, { liveVideo: null }]) {
       clearCache();

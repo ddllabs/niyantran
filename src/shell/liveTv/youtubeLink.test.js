@@ -1,7 +1,7 @@
 // B4: the pasted-link parser, the embed address built from the id alone, the player-error wording and
 // the live-or-recorded decision. Pure, so every hostile string is tried without a page.
 import { describe, expect, it } from 'vitest';
-import { parseYoutubeLink, youtubeEmbedUrl, youtubeWatchUrl, playerErrorMessage, pastedVideoKind } from './youtubeLink.js';
+import { parseYoutubeLink, youtubeEmbedUrl, youtubeWatchUrl, playerErrorMessage, pastedVideoKind, isBlockingPlayerError } from './youtubeLink.js';
 
 const ID = 'dQw4w9WgXcQ';
 
@@ -48,8 +48,6 @@ describe('parseYoutubeLink: forms that are refused', () => {
     ['a watch address with a short id', 'https://www.youtube.com/watch?v=abc'],
     ['a watch address with a long id', `https://www.youtube.com/watch?v=${ID}extra`],
     ['a watch address with no id', 'https://www.youtube.com/watch'],
-    ['a channel address', 'https://www.youtube.com/@sansadtv'],
-    ['a channel id address', 'https://www.youtube.com/channel/UCISgnSNwqQ2i8lhCun3KtQg'],
     ['a playlist address', 'https://www.youtube.com/playlist?list=PL1234567890'],
     ['the home page', 'https://www.youtube.com/'],
     ['the live page with no id', 'https://www.youtube.com/live'],
@@ -74,6 +72,27 @@ describe('parseYoutubeLink: forms that are refused', () => {
   });
 });
 
+describe('parseYoutubeLink: a channel page or channel live address says so (B4 fix 10)', () => {
+  it.each([
+    ['a handle', 'https://www.youtube.com/@sansadtv'],
+    ['a handle live address', 'https://www.youtube.com/@sansadtv/live'],
+    ['a handle with no scheme', 'youtube.com/@sansadtv/live'],
+    ['a channel id address', 'https://www.youtube.com/channel/UCISgnSNwqQ2i8lhCun3KtQg'],
+    ['a channel id live address', 'https://www.youtube.com/channel/UCISgnSNwqQ2i8lhCun3KtQg/live'],
+    ['a custom name address', 'https://www.youtube.com/c/SansadTV'],
+    ['a user address', 'https://www.youtube.com/user/sansadtv'],
+    ['a mobile handle', 'https://m.youtube.com/@sansadtv'],
+    ['YouTube Music', `https://music.youtube.com/watch?v=${ID}`],
+  ])('%s', (_n, input) => {
+    expect(parseYoutubeLink(input)).toEqual({ ok: false, reason: 'channel' });
+  });
+  it('does not call other refused text a channel', () => {
+    expect(parseYoutubeLink('hello')).toEqual({ ok: false });
+    expect(parseYoutubeLink('https://example.com/@sansadtv')).toEqual({ ok: false });
+    expect(parseYoutubeLink('https://www.youtube.com/playlist?list=PL1234567890')).toEqual({ ok: false });
+  });
+});
+
 describe('the addresses built from the id', () => {
   it('builds the embed from the id alone, with the parameters the page already uses', () => {
     expect(youtubeEmbedUrl(ID)).toBe(`https://www.youtube-nocookie.com/embed/${ID}?autoplay=1&mute=1&playsinline=1`);
@@ -88,28 +107,29 @@ describe('the addresses built from the id', () => {
   });
 });
 
-describe('playerErrorMessage', () => {
+describe('playerErrorMessage and isBlockingPlayerError', () => {
   it.each([101, 150, 153])('code %s: the owner has turned off playback on other sites', (code) => {
     expect(playerErrorMessage(code)).toBe("This video can't be played here. Its owner has turned off playback on other sites.");
+    expect(isBlockingPlayerError(code)).toBe(true);
   });
-  it.each([100, 2])('code %s: private or removed', (code) => {
-    expect(playerErrorMessage(code)).toBe('This video is private or was removed.');
+  it('code 100: private or removed', () => {
+    expect(playerErrorMessage(100)).toBe('This video is private or was removed.');
+    expect(isBlockingPlayerError(100)).toBe(true);
   });
-  it('any other code: a plain line that blames no one', () => {
-    expect(playerErrorMessage(5)).toBe("This video can't be played here.");
-    expect(playerErrorMessage(999)).toBe("This video can't be played here.");
+  it.each([2, 5, 999, null, undefined, 'x'])('code %s does not mean "cannot be played here"', (code) => {
+    expect(isBlockingPlayerError(code)).toBe(false);
   });
 });
 
-describe('pastedVideoKind: recorded only when the player shows a finite duration', () => {
-  it('is recorded for a positive finite duration', () => {
-    expect(pastedVideoKind({ durationS: 300, isLive: null })).toBe('recorded');
+describe('pastedVideoKind: recorded only when the player says isLive false AND shows a finite duration above 0', () => {
+  it('is recorded for isLive false with a positive finite duration', () => {
+    expect(pastedVideoKind({ durationS: 300, isLive: false })).toBe('recorded');
   });
-  it('is live when the player says it is live, whatever the duration', () => {
-    expect(pastedVideoKind({ durationS: 300, isLive: true })).toBe('live');
+  it.each([[null], [undefined], [true]])('is live for isLive %s even with a positive duration (a live stream with a rewind window has one)', (isLive) => {
+    expect(pastedVideoKind({ durationS: 300, isLive })).toBe('live');
   });
-  it.each([[0], [null], [undefined], [NaN], [Infinity], [-5]])('is live for a duration of %s (live is the private side)', (d) => {
-    expect(pastedVideoKind({ durationS: d, isLive: null })).toBe('live');
+  it.each([[0], [null], [undefined], [NaN], [Infinity], [-5]])('is live for isLive false with a duration of %s', (d) => {
+    expect(pastedVideoKind({ durationS: d, isLive: false })).toBe('live');
   });
   it('is live when nothing is known yet', () => {
     expect(pastedVideoKind(null)).toBe('live');
