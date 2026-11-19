@@ -138,3 +138,33 @@ this section is correct.
   the archive entries.
   It is F7 in `docs/plans/open-work.md`, parked until the owner shares the
   new Live TV sources (O7).
+
+---
+
+## Amendment (2026-11-19)
+
+Records the phase 2 channel lookup as built on `feature/livetv-phase-2`. It is not merged to `main` and not
+deployed. The text above and the earlier amendments are kept; where they disagree with this section, this section is
+correct.
+
+- **Lookup calls.** When a user picks a channel, the server calls `playlistItems.list` on the channel's uploads playlist
+  and then `videos.list`: 2 units in all. `search.list` is not used. 47 channels carry a hint video id, which is checked
+  first.
+- **List check.** The channel list check is the one `videos.list` call per enabled channel described in the 2026-11-19
+  amendment in section 4. It has a 3-second limit.
+- **Cache times.** A live answer is cached 10 minutes; a no-live answer 60 minutes; a failed lookup 60
+  seconds; a failed list check 5 minutes, with at most 12 list-check failures a day.
+- **Timeout.** 4 seconds per request (3 seconds for the list check).
+- **Daily budget.** One budget is shared by the list check and the lookups: 3,000 units per server instance per YouTube
+  day, where the day is the Pacific date. The default is set by the environment variable
+  `LIVETV_LOOKUP_UNITS_PER_DAY`. The value 0 means no YouTube calls at all, and an invalid value means the default.
+  Units are taken before each call.
+- **Errors.** A 403 whose reason is `quotaExceeded`, `dailyLimitExceeded`, `rateLimitExceeded`,
+  `userRateLimitExceeded`, `accessNotConfigured`, `keyInvalid`, `forbidden` or `none`, and a 400 whose reason is
+  `keyInvalid`, block the whole key for 30 minutes. Any other 403, and a 404 `playlistNotFound`, affect only that
+  channel, for 30 minutes. The key is never logged or returned.
+- **Known limit.** The budget is kept per instance and resets on a cold start. `/api/livetv/*` is public, so heavy load
+  can start more instances. Four full budgets (12,000 units) exceed the key's 10,000 units. Then the 30-minute block
+  applies and the page falls back to the written videos. This costs no money.
+- **Not done.** CDN caching of `/api/livetv/channels` and `/api/livetv/videos` is not set up. The routes stay
+  `no-store` until the owner decides the cache policy of F154 (F380 in `docs/plans/open-work.md`).

@@ -142,11 +142,18 @@ time. One pull request per track, with one commit per item, replaces "each item 
   the session a user unlocked becomes visible to that user on the refund line.
 - **B7, built on the branch, 2026-11-19.** For a recorded video the start screen preselects the length that covers the
   rest, up to 30 minutes, with the hint "Covers the rest of this video".
-- **B6, in progress, 2026-11-19.** The channel inventory is done. Read-only research, executed by fetching each
+- **B6, built on the branch, 2026-11-19.** The channel inventory is done. Read-only research, executed by fetching each
   channel's public YouTube page: 108 attempted, 96 verified, 12 not verified and left out; all 13 existing channels'
-  identities confirmed. The supervisor spot-checked 8 of the 96 against YouTube (executed, all matched). "My list" is
-  kept in the browser.
+  identities confirmed. The supervisor spot-checked 8 of the 96 against YouTube (executed, all matched). 83 verified
+  channels were added to the 13 existing ones: 96 in all, in the client's ten lists, with a "Find a channel" box and
+  "My list". "My list" is kept in the browser (key `nter.livetv.following.v1`, cap 60). Ids the server no longer lists
+  are hidden, never deleted from storage. Search covers channel names (Latin only), list names and language words.
+  Lookups use `playlistItems.list` then `videos.list` (2 units), never `search.list`; the server budget and cache
+  times are in the 2026-11-19 amendment of ADR 0009. Built test-first, with two independent reviews, both findings
+  sets fixed. Executed by the supervisor on the track: 9,144 tests, lint, build, bundle check, router import. Not
+  verified: against the real YouTube service, in a real browser on the app, on a phone, with a screen reader.
 - **State of the branch, 2026-11-19.** Tracks 1, 2 and 3 were each built test-first, re-run by the supervisor,
-  independently reviewed, fixed, and merged into `feature/livetv-phase-2` (merge commit `dc88c3ed`). Executed on the
-  combined branch: 8,897 app tests, lint, build, bundle check, router import, and the SQL fixture
-  `factcheck_refund_usage` with its vacuity proof. Nothing is merged to `main`, applied on NTER or deployed.
+  independently reviewed, fixed, and merged into `feature/livetv-phase-2` (merge commit `dc88c3ed`). B6 was merged
+  into the branch as well (merge commit `cc928cb3`). Executed on the combined branch before B6: 8,897 app tests, lint,
+  build, bundle check, router import, and the SQL fixture `factcheck_refund_usage` with its vacuity proof. The
+  supervisor's final run on the branch: 9,144 app tests, lint, build, bundle check, router import and the SQL fixture with its vacuity proof, all passing. Nothing is merged to `main`, applied on NTER or deployed.

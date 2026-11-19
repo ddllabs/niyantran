@@ -93,12 +93,40 @@ fixture is proved to fail without the migration, as the vacuity rule requires.
 
 **Problem.** The page offers too few channels, and the user cannot find a channel or keep their own.
 
-**Expected outcome.** The client's 108 channels appear in the client's ten lists. A "Find a channel" box searches them.
+**Expected outcome.** The client's channels appear in the client's ten lists. A "Find a channel" box searches them.
 Channels the user follows are shown first, under "My list", which is kept in the browser first. Each channel's YouTube
-identity is verified before the channel is added, because the client's file has names only.
+identity is verified before the channel is added, because the client's file has names only. Of the client's 108
+names, 12 could not be verified and are left out.
 
-**Acceptance evidence.** Each of the 108 channels has a verified YouTube identity before it is listed. The search finds
-a channel by its name. A followed channel is shown first. The other details are to be fixed in the item's brief.
+**Built on the branch (2026-11-19).**
+
+- 83 verified channels were added to the 13 existing ones: 96 in all, in the ten lists. The Parties & Leaders list
+  notes that only verified channels are listed.
+- Search covers channel names (Latin script only), list names and language words. Devanagari language words match as
+  whole words.
+- "My list" is kept in the browser under the key `nter.livetv.following.v1`, capped at 60 channels. Ids the server no
+  longer lists are hidden and never deleted from storage. Two open tabs stay in step.
+- Lookup, per channel, when the user picks it: `playlistItems.list` on the channel's uploads, then `videos.list`
+  (2 units). No `search.list`. 47 channels carry a hint video id, which is checked first.
+- Rule on the page: an answer from YouTube data is the truth for its channel at once, "none" included. A positive
+  answer is believed for 10 minutes, then the page stops showing the LIVE badge, keeps playing and makes no request.
+  The list's live fields count only while the lookup is outstanding or has failed, and the list is under 10 minutes
+  old. The video never changes under a running fact-check session. No request is made without a user action (page
+  open, a pick, Reload or Try again).
+- Three states when nothing plays: connecting; "isn't live right now" (YouTube data says none); and "Couldn't check
+  {channel} right now" for any failed check, with Open on YouTube and Try again.
+- Server budget, cache times and error handling: ADR 0009, 2026-11-19 amendment.
+- The Open Desk button is hidden when a channel's desk is not a real tab. Added channels map to `economics`, `global`
+  or `national`.
+- The phone channel sheet is modal with a focus trap; focus returns to the Channels button after it closes.
+
+**Acceptance evidence.** Built test-first. Two independent reviews: the first found one critical issue, fixed; the
+second found no critical issue and four important ones, fixed. Executed by the supervisor on the track: 9,144 tests,
+lint, build, bundle check and router import. The Start button measured 586 px in a 1459 x 714 page (a preview
+page). Eight of the 96 channel identities were spot-checked against YouTube, all matched.
+
+**Not verified.** Against the real YouTube service; in a real browser on the app; on a phone; with a screen reader.
+The checks that need a person are listed in F375.
 
 ### B7. "Check to the end"
 
