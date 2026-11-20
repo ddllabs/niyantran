@@ -2,8 +2,9 @@
 import { describe, expect, it } from 'vitest';
 import { callArgs, fakePastClient, hasCall } from './pastSessionsFake.js';
 import {
-  CLAIM_CAP, PAGE_SIZE, deleteLiveSession, fetchSessionClaims, listSettledSessions, newestResults,
+  CLAIM_CAP, PAGE_SIZE, PENDING_SETTLE_MARGIN_MS, SERVER_CHECK_WINDOW_MS, deleteLiveSession, fetchSessionClaims, listSettledSessions, newestResults,
 } from './pastSessions.js';
+import { LIMITS } from '../../lib/factcheck/session.js';
 
 const session = (n, over = {}) => ({
   id: `s${n}`, video_id: 'v', channel_id: 'dd-news', video_kind: 'live', started_at: '2026-11-18T10:00:00Z',
@@ -153,6 +154,61 @@ describe('fetchSessionClaims', () => {
     expect(out.ok).toBe(true);
     expect(out.claims.map((c) => c.id)).toEqual(['b']);
     expect(out.capped).toBe(false);
+  });
+
+  // A1 / review point 1: the server still accepts check calls for 120 s after ended_at, and a call may take up to
+  // the client's call timeout, so a pending root reads "Not checked" only once ended_at is older than that margin.
+  const NOW = Date.parse('2026-11-18T12:00:00Z');
+  const endedAgo = (ms) => new Date(NOW - ms).toISOString();
+  const fetchWith = async (data, session) => fetchSessionClaims({ client: fakePastClient(() => ({ data })), sessionId: 's1', session, now: () => NOW });
+  const pendingRoot = (id = 'a') => claim(id, { status: 'pending', verdict: null, checked_at: null });
+
+  it('A1: a root still pending, in a session that ended beyond the margin, is returned as not checked with the ended note flag', async () => {
+    const out = await fetchWith([pendingRoot(), claim('b')], { status: 'settled', ended_at: endedAgo(PENDING_SETTLE_MARGIN_MS + 1000) });
+    const a = out.claims.find((c) => c.id === 'a');
+    expect(a.status).toBe('unchecked');
+    expect(a.ended_unchecked).toBe(true);
+    expect(out.claims.find((c) => c.id === 'b').status).toBe('checked');
+    expect(out.claims.find((c) => c.id === 'b').ended_unchecked).toBeUndefined();
+    expect(out.pendingUntil).toBeNull();
+  });
+
+  it('review 1: a session that ended 10 s ago keeps Checking, and says when to look again', async () => {
+    const out = await fetchWith([pendingRoot()], { status: 'settled', ended_at: endedAgo(10000) });
+    expect(out.claims[0].status).toBe('pending');
+    expect(out.claims[0].ended_unchecked).toBeUndefined();
+    expect(out.pendingUntil).toBe(NOW - 10000 + PENDING_SETTLE_MARGIN_MS);
+  });
+
+  it('review 1: the margin is the server window (120 s) plus the client call timeout (45 s)', () => {
+    expect(SERVER_CHECK_WINDOW_MS).toBe(120000);
+    expect(PENDING_SETTLE_MARGIN_MS).toBe(SERVER_CHECK_WINDOW_MS + LIMITS.callTimeoutMs);
+    expect(PENDING_SETTLE_MARGIN_MS).toBe(165000);
+  });
+
+  it('review 1: the edge is exclusive of the margin: exactly at it keeps Checking, one second past reads Not checked', async () => {
+    expect((await fetchWith([pendingRoot()], { status: 'settled', ended_at: endedAgo(PENDING_SETTLE_MARGIN_MS) })).claims[0].status).toBe('pending');
+    expect((await fetchWith([pendingRoot()], { status: 'settled', ended_at: endedAgo(PENDING_SETTLE_MARGIN_MS + 1000) })).claims[0].status).toBe('unchecked');
+  });
+
+  it('review 1: a missing ended_at counts as old only when the session is settled', async () => {
+    expect((await fetchWith([pendingRoot()], { status: 'settled', ended_at: null })).claims[0].status).toBe('unchecked');
+    expect((await fetchWith([pendingRoot()], { status: 'active', ended_at: null })).claims[0].status).toBe('pending');
+    expect((await fetchWith([pendingRoot()], undefined)).claims[0].status).toBe('pending');
+    expect((await fetchWith([pendingRoot()], { status: 'settled', ended_at: 'garbage' })).claims[0].status).toBe('unchecked');
+  });
+
+  it('A1: a pending re-check never turns a checked root into not checked', async () => {
+    const data = [claim('a'), claim('b', { supersedes: 'a', status: 'pending', verdict: null })];
+    const out = await fetchWith(data, { status: 'settled', ended_at: endedAgo(PENDING_SETTLE_MARGIN_MS * 2) });
+    expect(out.claims.map((c) => [c.id, c.status])).toEqual([['a', 'checked']]);
+    expect(out.pendingUntil).toBeNull();
+  });
+
+  it('A1: a pending root with a pending re-check shows one not-checked card', async () => {
+    const data = [pendingRoot(), claim('b', { supersedes: 'a', status: 'pending', verdict: null })];
+    const out = await fetchWith(data, { status: 'settled', ended_at: endedAgo(PENDING_SETTLE_MARGIN_MS * 2) });
+    expect(out.claims.map((c) => [c.id, c.status])).toEqual([['a', 'unchecked']]);
   });
 
   it('reports the cap when more than the cap exist, and keeps only the cap', async () => {

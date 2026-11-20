@@ -200,3 +200,15 @@ describe('groupByChat with fact-check charges (F347)', () => {
     ]);
   });
 });
+
+describe('groupByChat with refund lines', () => {
+  it('leaves a refund out of every group, so spending is never reduced or inflated by it', () => {
+    const rows = [
+      { conversationId: null, turnKey: null, title: null, feature: 'factcheck', credits: 12, calls: 0, createdAt: '2026-11-15T10:00:00Z' },
+      { conversationId: null, turnKey: null, title: null, feature: 'factcheck_refund', credits: 200, calls: 0, createdAt: '2026-11-15T12:00:00Z' },
+    ];
+    const groups = groupByChat(rows);
+    expect(groups.map((g) => [g.key, g.credits, g.answers])).toEqual([['factcheck', 12, 1]]);
+    expect(groupByChat([rows[1]])).toEqual([]);
+  });
+});

@@ -108,6 +108,19 @@ export function reanalyzeLength(minutes, choices = MINUTE_CHOICES) {
   return sorted.find((c) => c >= minutes) ?? sorted[sorted.length - 1];
 }
 
+/** B7: shown under the length "Check to the end" preselects on a recorded video. */
+export const COVERS_REST_TEXT = 'Covers the rest of this video';
+
+/**
+ * B7: the shortest offered length that covers the seconds left in a recorded video (the re-analysis rule,
+ * reanalyzeLength), or null when the figure is unknown or unusable, or more than the longest offered length is left.
+ */
+export function coverLength(remainingSeconds, choices = MINUTE_CHOICES) {
+  if (typeof remainingSeconds !== 'number' || !Number.isFinite(remainingSeconds) || remainingSeconds <= 0) return null;
+  const minutes = Math.ceil(remainingSeconds / 60);
+  return minutes > Math.max(...choices) ? null : reanalyzeLength(minutes, choices);
+}
+
 export const REANALYZE_LABEL = 'Re-analyze this block';
 /** Shown at the top of the start screen when it was opened from "Re-analyze this block". */
 export const reanalyzeIntroText = (position) => `Re-analyzing the block that starts at ${position}. The check starts where the video is when audio sharing begins, and the video is moved to ${position} again when you press Start. Choose how much to check.`;
@@ -273,6 +286,7 @@ export const PAST_TEXT = {
   moreError: 'Could not load more sessions.',
   detailLoading: 'Loading verdicts…',
   detailError: 'Could not load the verdicts for this session.',
+  endedUnchecked: 'The session ended before this claim was checked.',
   detailEmpty: 'No verdicts were saved for this session.',
   capped: (n) => `Showing the first ${n} results of this session.`,
   live: 'Live',

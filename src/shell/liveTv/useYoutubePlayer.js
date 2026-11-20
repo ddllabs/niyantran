@@ -8,22 +8,27 @@ import { positionSample } from './position.js';
  * active          run the bridge while true
  * onMutedChange   the player's own controls changed the mute (no command is sent back)
  * onFallback      the embed did not confirm a mute toggle: remount it with the wanted mute
+ * onInfo          { title, durationS, isLive } changed (B4: a pasted video's title and kind)
+ * onError         the player reported an error code (B4: embedding turned off, private, removed)
  * Returns { iframeRef, requestMute(muted), seekS(seconds), getPositionS(), getPosition() }.
  * seekS(seconds) asks the player to move there; true when the command was sent (the player may still not move).
  * getPosition() is { positionS, playerState } or null when the player's position is not known.
  */
-export function useYoutubePlayer(active, { onMutedChange, onFallback }) {
+export function useYoutubePlayer(active, { onMutedChange, onFallback, onInfo, onError }) {
   const iframeRef = useRef(null);
   const bridgeRef = useRef(null);
   const controllerRef = useRef(null);
-  const handlers = useRef({ onMutedChange, onFallback });
-  handlers.current = { onMutedChange, onFallback };
+  const handlers = useRef({ onMutedChange, onFallback, onInfo, onError });
+  handlers.current = { onMutedChange, onFallback, onInfo, onError };
 
   useEffect(() => {
     if (!active) return undefined;
     const getIframe = () => iframeRef.current;
     let controller = null;
-    const bridge = createYoutubePlayerBridge({ getIframe, onMutedChange: (m) => controller.notifyMuted(m) });
+    const bridge = createYoutubePlayerBridge({ getIframe, onMutedChange: (m) => controller.notifyMuted(m),
+      onInfo: (i) => handlers.current.onInfo?.(i),
+      onError: (c) => handlers.current.onError?.(c),
+    });
     controller = createMuteController({
       bridge, getIframe,
       onFallback: () => handlers.current.onFallback(),

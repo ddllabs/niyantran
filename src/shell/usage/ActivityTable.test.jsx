@@ -3,7 +3,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import ActivityTable, { rowKey } from './ActivityTable.jsx';
-import { FIRST_FILTERS, csvName, nextFilters, toggled } from '../credits/ActivitySection.jsx';
+import { FIRST_FILTERS, csvName, nextFilters, reportFilters, toggled } from '../credits/ActivitySection.jsx';
 
 const answer = {
   turnKey: 'a1', createdAt: '2026-10-14T06:30:00Z', conversationId: 'c1', title: 'Rate cut', question: 'What did the RBI do?',
@@ -271,5 +271,56 @@ describe('fact-check rows', () => {
     expect(out).toContain('2 fact-checks');
     expect(out).not.toContain('Dictation');
     expect(out).not.toContain('calls');
+  });
+});
+
+// Live TV phase 2: a refund of unlock credits is its own line, positive, with the video it relates to.
+describe('refund rows', () => {
+  const refund = { turnKey: null, createdAt: '2026-11-23T06:30:00Z', conversationId: null, title: null, question: null, model: null,
+    status: 'succeeded', calls: 0, tokens: 0, credits: 200, detail: [], feature: 'factcheck_refund', channel: 'aaj-tak', videoKind: 'recorded', videoId: 'abc123' };
+  const listOf = (out) => out.match(/<ul class="cp-rows"[\s\S]*?<\/ul>/)[0];
+  const refundList = (row, grouped = true) => listOf(html({ state: { status: 'ready', total: 1, rows: [row] }, filters: { ...FIRST_FILTERS, grouped } }));
+
+  it('has a clear title, the date, the video, and the credits returned as a positive amount', () => {
+    const out = refundList(refund);
+    expect(out).toContain('<p class="cp-row-q">Refund: shared fact-check results removed</p>');
+    expect(out).toContain('23 Nov, 12:00');
+    expect(out).toContain('Aaj Tak');
+    expect(out).toContain('Recorded');
+    expect(out).toContain('abc123');
+    expect(out).toMatch(/<span class="cp-row-credits cp-row-refund">\+200<span class="cu-sr"> credits returned<\/span><\/span>/);
+  });
+
+  it('names no video when the session is gone, and has no model chip, calls, chat, expander or bar', () => {
+    for (const grouped of [true, false]) {
+      const out = refundList({ ...refund, channel: null, videoKind: null, videoId: null }, grouped);
+      expect(out).toContain('Refund: shared fact-check results removed');
+      expect(out).not.toContain('Video');
+      expect(out).not.toContain('cp-chip');
+      expect(out).not.toContain('cp-s0');
+      expect(out).not.toContain('cu-chat-open');
+      expect(out).not.toContain('cu-expand"');
+      expect(out.replace(/<[^>]+>/g, ' ')).not.toMatch(/calls?\b|tokens|Dictation|Live TV fact-check/);
+    }
+  });
+
+  it('does not stretch the credit bars of the other rows', () => {
+    const mixed = html({ state: { status: 'ready', total: 2, rows: [answer, refund] } });
+    expect(mixed).toContain('<span class="cp-s0" style="width:100%"></span>');
+    expect(mixed).not.toContain('style="width:421%"');
+  });
+
+  it('leaves chat, dictation and fact-check rows exactly as they were in a mixed list', () => {
+    const plain = html({ state: { status: 'ready', total: 3, rows: [answer, deleted, dictation] } });
+    const mixed = html({ state: { status: 'ready', total: 4, rows: [answer, refund, deleted, dictation] } });
+    for (const piece of plain.match(/<li class="cp-row[\s\S]*?<\/li>/g)) expect(mixed).toContain(piece);
+  });
+});
+
+describe('the activity screen asks for refund lines; the other callers do not', () => {
+  it('adds the refunds request to what the page, the by-chat view and the export send', () => {
+    expect(reportFilters(FIRST_FILTERS)).toMatchObject({ refunds: true, kind: 'all' });
+    expect(reportFilters({ ...FIRST_FILTERS, byChat: true })).toMatchObject({ refunds: true, grouped: true });
+    expect(reportFilters({ ...FIRST_FILTERS, byChat: true })).not.toHaveProperty('byChat');
   });
 });

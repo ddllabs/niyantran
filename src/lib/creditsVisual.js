@@ -4,7 +4,7 @@
  * my_usage_activity (creditUsage.js). Credits only; nothing here is shown in money.
  */
 import { creditsText, lowBalance } from './creditsStore.js';
-import { dayText as periodDay, isFactcheck, istDayStart } from './creditUsage.js';
+import { dayText as periodDay, isFactcheck, isRefund, istDayStart } from './creditUsage.js';
 
 const DAY_MS = 86400000;
 const IST_OFFSET_MS = 330 * 60000;
@@ -94,6 +94,7 @@ export function heatmapCells(points, now = Date.now(), count = 90) {
 export function groupByChat(rows) {
   const groups = new Map();
   for (const row of Array.isArray(rows) ? rows : []) {
+    if (isRefund(row)) continue;   // credits given back are not spending in any chat
     const key = isFactcheck(row) ? 'factcheck' : row.conversationId || (row.turnKey ? 'deleted' : 'dictation');
     const g = groups.get(key) || { key, conversationId: row.conversationId || null, title: null, credits: 0, calls: 0, answers: 0, latest: null, sample: row };
     g.title = g.title || row.title || null;

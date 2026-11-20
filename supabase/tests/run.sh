@@ -225,6 +225,11 @@ chain() {
     factcheck_video_remove_refund)
       chain factcheck_reports_admin
       FILES+=("$(as_non_superuser 20261122090000_factcheck_video_remove_refund.sql)") ;;
+    # Live TV phase 2, track 3: a refund of unlock credits is its own line in the usage history. The refund chain, then the
+    # usage migration, as a non-superuser. The vacuity check drops the last: the list has no refund line and the fixture fails.
+    factcheck_refund_usage)
+      chain factcheck_video_remove_refund
+      FILES+=("$(as_non_superuser 20261124090000_factcheck_refund_usage.sql)") ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;
