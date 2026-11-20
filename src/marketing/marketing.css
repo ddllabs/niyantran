@@ -1,4 +1,4 @@
-﻿/* Marketing site — tokens from terminal-uiux-design-language-brand-aligned */
+/* Marketing site — tokens from terminal-uiux-design-language-brand-aligned */
 
 html.mkt-doc {
   height: auto;
@@ -21,12 +21,14 @@ html.mkt-doc #root {
   overflow: visible;
   background: transparent;
 }
-html.mkt-doc:has(.mkt-auth),
-html.mkt-doc:has(.mkt-auth) body,
-html.mkt-doc:has(.mkt-auth) #root {
-  height: 100%;
-  max-height: 100dvh;
-  overflow: hidden;
+@media (min-width: 1000px) {
+  html.mkt-doc:has(.mkt-auth),
+  html.mkt-doc:has(.mkt-auth) body,
+  html.mkt-doc:has(.mkt-auth) #root {
+    height: 100%;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
 }
 
 .mkt {
@@ -3727,11 +3729,11 @@ html.mkt-doc:has(.mkt-auth) #root {
 }
 .mkt-field input {
   width: 100%;
-  height: 42px;
+  height: 44px;
   border: 1px solid var(--mkt-border);
   border-radius: 8px;
   padding: 0 12px;
-  font: 15px var(--font-ui);
+  font: 16px var(--font-ui);
   color: var(--mkt-black);
   background: #fff;
   outline: 0;
@@ -4246,12 +4248,19 @@ html.mkt-doc:has(.mkt-auth) #root {
     right: 0;
     background: #fff;
     border-bottom: 1px solid var(--mkt-border);
+    box-shadow: 0 12px 28px -4px rgba(17, 18, 27, 0.18);
     padding: 12px 16px 16px;
     z-index: 30;
     top: 72px;
-  }
-  .mkt-nav-links.open {
     gap: 4px;
+  }
+  .mkt-nav-scrim {
+    position: fixed;
+    inset: 72px 0 0 0;
+    background: rgba(17, 18, 27, 0.38);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 28;
   }
   .mkt-nav-links.open button.mkt-nav-link {
     padding: 10px 0;
@@ -4923,11 +4932,66 @@ html.mkt-doc:has(.mkt-auth) #root {
 .mkt-signup-context{max-width:600px;width:100%}
 .mkt-signup-illustration{width:100%;max-width:clamp(280px,calc(100vw - 890px),550px);aspect-ratio:auto}
 @media(max-width:999px){
- .mkt-login-earth{display:flex;flex-direction:column;padding:20px 16px;gap:16px;overflow:auto}
- .mkt-login-earth-visual{position:relative;right:auto;top:auto;transform:none;width:min(300px,70vw);order:0;flex-shrink:0}
- .mkt-login-earth .mkt-login-card{order:1;max-height:none;flex-shrink:0}
- html.mkt-doc:has(.mkt-login-earth),html.mkt-doc:has(.mkt-login-earth) body,html.mkt-doc:has(.mkt-login-earth) #root{height:auto;max-height:none;overflow-y:auto}
- .mkt-auth:has(.mkt-login-earth){height:auto;min-height:100dvh;overflow:visible}
+  html.mkt-doc,
+  html.mkt-doc body,
+  html.mkt-doc #root,
+  html.mkt-doc:has(.mkt-auth),
+  html.mkt-doc:has(.mkt-auth) body,
+  html.mkt-doc:has(.mkt-auth) #root,
+  html.mkt-doc:has(.mkt-login-earth),
+  html.mkt-doc:has(.mkt-login-earth) body,
+  html.mkt-doc:has(.mkt-login-earth) #root {
+    height: auto !important;
+    min-height: 100% !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mkt-auth {
+    height: auto !important;
+    min-height: 100dvh !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-bottom: calc(40px + var(--sab, 0px)) !important;
+  }
+  .mkt-login,
+  .mkt-login-earth {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    height: auto !important;
+    min-height: calc(100dvh - 72px) !important;
+    max-height: none !important;
+    padding: 16px 16px calc(48px + var(--sab, 0px)) !important;
+    gap: 16px !important;
+    overflow-y: visible !important;
+    box-sizing: border-box !important;
+  }
+  .mkt-login-earth .mkt-login-card,
+  .mkt-login-card {
+    order: 1 !important;
+    width: 100% !important;
+    max-width: 440px !important;
+    max-height: none !important;
+    overflow: visible !important;
+    flex-shrink: 0 !important;
+    box-sizing: border-box !important;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08) !important;
+  }
+  .mkt-login-earth-visual {
+    order: 2 !important;
+    position: relative !important;
+    right: auto !important;
+    top: auto !important;
+    transform: none !important;
+    width: min(200px, 50vw) !important;
+    margin: 12px auto 0 !important;
+    flex-shrink: 0 !important;
+    pointer-events: none !important;
+  }
+  .mkt-field input, .mkt-field select { font-size: 16px !important; min-height: 44px; }
+  .mkt-btn-primary, .mkt-btn-social, .mkt-btn-submit, .mkt-cta { min-height: 44px; }
 }
 @media(max-width:850px){
  .mkt-signup-context{display:block;text-align:center}
