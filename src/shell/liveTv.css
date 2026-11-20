@@ -160,6 +160,9 @@
   padding: 16px 18px 28px;
   background: var(--bg);
 }
+/* F395: a wrapper around the channel bar and the body. It has no box of its own except in the laptop-height block
+   further down. */
+.ltv-grid { display: contents; }
 .ltv-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 /* The lower area: the tabs and what they show (schedule, channel videos, archive, transcript, my sessions). */
 .ltv-lower { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -175,7 +178,8 @@
    - Fallback (a window too short for the pinned layout, or no container queries): exactly the page as it was
      before F387. .ltv-main scrolls; the video column is the full left column, the panel 440px and sticky.
    - Pinned (.ltv-main at least 520px tall inside its padding, a window about 665px tall; F388 lowered this from
-     640px, which left 13-inch laptops on the scrolling page): .ltv-body is the grid.
+     640px, which left 13-inch laptops on the scrolling page): .ltv-body is the grid (with the panel, F395:
+     .ltv-grid is, and the channel bar is its first row; see the rule below).
      .ltv-split and .ltv-videocol dissolve (display: contents), so the dark stage, the now-playing row and the lower
      area are grid items of .ltv-body in the left column and the panel spans all rows of the right column. No
      script and no measured value: the rows are  stage minmax(200px, auto) | now-playing auto | lower 1fr.
@@ -195,7 +199,9 @@
         inset: auto;
         top: 16px;
         height: 100%;
-        max-height: max(320px, calc(100cqh - var(--ltv-above-split)));
+        /* F395: at least 440px where the window allows (the pinned tabs and the transcript strip left the scroll
+           area 21px at the old 320px floor); the page scrolls in this layout, so the panel's foot is reachable. */
+        max-height: max(320px, min(440px, calc(100cqh - 32px)), calc(100cqh - var(--ltv-above-split)));
       }
     }
     @container ltvmain (min-height: 520px) {
@@ -213,11 +219,22 @@
         grid-template-rows: minmax(120px, calc((100cqw - 36px) * 9 / 16)) auto minmax(clamp(110px, calc(100cqh - 480px), 25cqh), 1fr);
         gap: 12px 16px;
       }
-      .ltv-body.has-panel {
-        /* F388: the panel is wider (it was clamp(440px, 32%, 520px)); the player is limited by height at the usual
-           sizes, so the width comes out of the dark bars beside it. The stage cap below uses the same width. */
+      /* F395: with the panel, .ltv-grid is the grid and .ltv-body dissolves, so the channel bar is the first row of
+         the left column and the panel spans every row of the right column, from the top of the page body. (Until
+         F395 the panel started under the channel bar: 413px tall on a 13-inch laptop, 572px now.) The stage,
+         now-playing and lower rows are the tracks of the rule above.
+         F388: the panel is clamp(440px, 40%, 640px) wide (it was clamp(440px, 32%, 520px)); the player is limited
+         by height at the usual sizes, so the width comes out of the dark bars beside it. The stage cap uses the
+         same width. */
+      .ltv-grid.has-panel {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow: hidden;
+        overflow: clip;
+        display: grid;
         grid-template-columns: minmax(0, 1fr) clamp(440px, 40%, 640px);
-        grid-template-rows: minmax(120px, calc((100cqw - 16px - clamp(440px, 40cqw, 640px)) * 9 / 16)) auto minmax(clamp(110px, calc(100cqh - 480px), 25cqh), 1fr);
+        grid-template-rows: auto minmax(120px, calc((100cqw - 16px - clamp(440px, 40cqw, 640px)) * 9 / 16)) auto minmax(clamp(110px, calc(100cqh - 480px), 25cqh), 1fr);
+        gap: 12px 16px;
       }
       /* .ltv-split.has-panel is named because the grid rule above the query has that specificity. */
       .ltv-split, .ltv-split.has-panel, .ltv-videocol { display: contents; }
@@ -242,6 +259,12 @@
         overflow-x: hidden; overflow-y: auto;
       }
       .ltv-lower .ltv-deck-tabs { position: sticky; top: 0; z-index: 2; background: var(--bg); }
+      /* F395, with the panel: the rows move down one, under the channel bar's row. */
+      .ltv-grid.has-panel > .ltv-barwrap { grid-column: 1; grid-row: 1; min-width: 0; margin-bottom: 4px; }
+      .ltv-grid.has-panel > .ltv-body { display: contents; }
+      .ltv-grid.has-panel .ltv-player-stage { grid-row: 2; }
+      .ltv-grid.has-panel .ltv-nowplaying { grid-row: 3; }
+      .ltv-grid.has-panel .ltv-lower { grid-row: 4; }
     }
   }
 }

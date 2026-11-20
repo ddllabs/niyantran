@@ -89,7 +89,7 @@ describe('the video and the panel stay inside the window from 1081px (F387)', ()
     expect(rule(wide, '.ltv-split.has-panel')).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\) 440px/);
     expect(rule(fallback, '.ltv-panelcol')).toMatch(/contain:\s*size/);
     expect(rule(fallback, '.ltv-panelcol > .fc-panel')).toMatch(/position:\s*sticky/);
-    expect(rule(fallback, '.ltv-panelcol > .fc-panel')).toMatch(/max-height:\s*max\(320px, calc\(100cqh - var\(--ltv-above-split\)\)\)/);
+    expect(rule(fallback, '.ltv-panelcol > .fc-panel')).toMatch(/max-height:\s*max\(320px, min\(440px, calc\(100cqh - 32px\)\), calc\(100cqh - var\(--ltv-above-split\)\)\)/);
     expect(rule(wide, '.ltv-main')).toMatch(/container:\s*ltvmain \/ size/);
     expect(pinned).not.toMatch(/sticky;\s*inset|--ltv-above-split/);
   });
@@ -98,11 +98,18 @@ describe('the video and the panel stay inside the window from 1081px (F387)', ()
     expect(body).toMatch(/display:\s*grid/);
     // No track is sized by its content: the stage row has a floor and a 16:9 cap, the lower row a floor and the rest.
     expect(body).toMatch(/grid-template-rows:\s*minmax\(120px, calc\(\(100cqw - 36px\) \* 9 \/ 16\)\) auto minmax\(clamp\(110px, calc\(100cqh - 480px\), 25cqh\), 1fr\)/);
-    expect(rule(pinned, '.ltv-body.has-panel')).toMatch(/grid-template-rows:\s*minmax\(120px, calc\(\(100cqw - 16px - clamp\(440px, 40cqw, 640px\)\) \* 9 \/ 16\)\) auto minmax\(clamp\(110px, calc\(100cqh - 480px\), 25cqh\), 1fr\)/);
+    expect(rule(pinned, '.ltv-grid.has-panel')).toMatch(/grid-template-rows:\s*auto minmax\(120px, calc\(\(100cqw - 16px - clamp\(440px, 40cqw, 640px\)\) \* 9 \/ 16\)\) auto minmax\(clamp\(110px, calc\(100cqh - 480px\), 25cqh\), 1fr\)/);
     expect(body).toMatch(/overflow:\s*clip/);
     expect(body).toMatch(/flex:\s*1 1 0/);
     expect(body).toMatch(/min-height:\s*0/);
-    expect(rule(pinned, '.ltv-body.has-panel')).toMatch(/clamp\(440px, 40%, 640px\)/);
+    expect(rule(pinned, '.ltv-grid.has-panel')).toMatch(/clamp\(440px, 40%, 640px\)/);
+    // F395: the panel starts beside the channel bar: .ltv-grid is the grid, the body dissolves, the bar is row 1.
+    expect(rule(pinned, '.ltv-grid.has-panel')).toMatch(/display:\s*grid/);
+    expect(rule(pinned, '.ltv-grid.has-panel > .ltv-body')).toMatch(/display:\s*contents/);
+    expect(rule(pinned, '.ltv-grid.has-panel > .ltv-barwrap')).toMatch(/grid-column:\s*1;\s*grid-row:\s*1/);
+    expect(rule(pinned, '.ltv-grid.has-panel .ltv-player-stage')).toMatch(/grid-row:\s*2/);
+    expect(rule(pinned, '.ltv-grid.has-panel .ltv-lower')).toMatch(/grid-row:\s*4/);
+    expect(page).toMatch(/\.ltv-grid \{ display: contents; \}/);
     // .ltv-split.has-panel must be named: the grid rule outside the query has that specificity and would win.
     expect(rule(pinned, '.ltv-split, .ltv-split.has-panel, .ltv-videocol')).toMatch(/display:\s*contents/);
     expect(rule(pinned, '.ltv-panelcol')).toMatch(/grid-column:\s*2;\s*grid-row:\s*1 \/ -1/);
