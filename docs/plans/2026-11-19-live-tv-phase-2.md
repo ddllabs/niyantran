@@ -1,6 +1,6 @@
 # Live TV: phase 2 plan
 
-> **Status: Living (2026-11-19).** Orders the development left on Live TV after the close-out
+> **Status: Living (2026-11-19; released 2026-11-20).** Orders the development left on Live TV after the close-out
 > ([2026-11-18-live-tv-closeout.md](2026-11-18-live-tv-closeout.md)) and the layout
 > ([2026-11-19-live-tv-layout.md](2026-11-19-live-tv-layout.md)). The only list of open work is
 > [open-work.md](open-work.md). The owner confirmed the plan on 2026-11-19 and reserved every merge to `main`.
@@ -175,3 +175,4 @@ time. One pull request per track, with one commit per item, replaces "each item 
   found live. YouTube reported `embeddable` true for every live video, including the channels whose player refuses
   with error 150, so only the player's own error catches a refusal. Not verified: in a real browser on the app, or on
   a phone.
+- **Release, 2026-11-20.** Pull request 197 merged to `main` as `818ad04a`; both CI jobs passed on the merge commit, and the production deployment completed. Production serves 96 channels from `/api/livetv/channels`, and `/api/livetv/videos?channelId=zee-news` answers `status: live` from the YouTube API. Migration `20261124090000_factcheck_refund_usage` was applied on NTER at about 02:20 UTC on 2026-11-20 with `supabase db query --linked -f` (the logged-in CLI, not `db push`), and its history row was inserted by hand afterwards. Before the migration: the source of `public.my_usage_activity` had md5 `e70f35ab…`, there was no helper, no history row, and every fact-check session was `settled`. After it: md5 `a5b51b75…` (the migration's own), `private.factcheck_refunds(uuid)` exists, `authenticated` cannot execute the helper and can execute `my_usage_activity`, and `anon` cannot. No Edge Function was deployed. Still owed after release: the refused-stream fallback seen in a signed-in browser, a phone check, the F375 checks that only a person can do, and a real refund line seen in a signed-in usage history.
