@@ -198,11 +198,25 @@ describe('one scroll area', () => {
     expect(head).toBeLessThan(block);
     expect(block).toBeLessThan(body);
     expect(body).toBeLessThan(html.indexOf('class="fc-rate"'));
-    expect(body).toBeLessThan(tabs);
-    expect(tabs).toBeLessThan(foot);
+    expect(tabs).toBeLessThan(body); // the tablist is pinned above the scroll area, not inside it
+    expect(body).toBeLessThan(foot);
     expect(foot).toBeLessThan(notice);
     const bodyChunk = html.slice(body, foot);
     expect(bodyChunk.match(/<div/g).length - bodyChunk.match(/<\/div>/g).length).toBe(0); // the body closes before the foot opens
+  });
+  it('keeps the tablist outside .fc-body and before it, with the three tabpanels still inside', () => {
+    const html = render(running());
+    const body = html.indexOf('class="fc-body"');
+    const foot = html.indexOf('class="fc-foot"');
+    const tabs = html.indexOf('role="tablist"');
+    expect(tabs).toBeGreaterThan(-1);
+    expect(tabs).toBeLessThan(body);
+    expect(html.slice(body, foot)).not.toContain('role="tablist"');
+    for (const id of ['claims', 'transcript', 'summary']) {
+      const panel = html.indexOf(`id="fc-panel-${id}"`);
+      expect(panel, id).toBeGreaterThan(body);
+      expect(panel, id).toBeLessThan(foot);
+    }
   });
   it('puts the end-of-session buttons in the footer, not in the body', () => {
     const html = render(view({ status: 'ended', endReason: 'time', final: { minutes_used: 1, credits_charged: 500, balance: 4500 } }));

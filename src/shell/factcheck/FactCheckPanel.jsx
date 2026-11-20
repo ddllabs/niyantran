@@ -659,6 +659,14 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
         />
       ) : null}
 
+      {/* The tablist is pinned outside the scroll area, so the way to the Transcript never scrolls away with the claims. */}
+      {showWork ? (
+        <RovingTabs
+          idBase="fc" label="Fact-check results" active={tab} onChange={setTab}
+          tabs={[{ id: 'claims', label: `Claims · ${s.claims.length}` }, { id: 'transcript', label: 'Transcript' }, { id: 'summary', label: 'Summary' }]}
+        />
+      ) : null}
+
       {/* One scroll area (factCheck.css): the head above and the foot below stay put; this body scrolls. */}
       <div className="fc-body">
       {s.creditsPerMinute != null && s.status !== 'choosing' && s.status !== 'sharing' && s.status !== 'starting' ? (
@@ -718,10 +726,6 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
 
       {showWork ? (
         <>
-          <RovingTabs
-            idBase="fc" label="Fact-check results" active={tab} onChange={setTab}
-            tabs={[{ id: 'claims', label: `Claims · ${s.claims.length}` }, { id: 'transcript', label: 'Transcript' }, { id: 'summary', label: 'Summary' }]}
-          />
           {/* Both panels stay in the page; the one not chosen is hidden, so the transcript keeps its place. */}
           <div className="fc-work" id="fc-panel-claims" role="tabpanel" aria-labelledby="fc-tab-claims" hidden={tab !== 'claims'}>
             <Claims
