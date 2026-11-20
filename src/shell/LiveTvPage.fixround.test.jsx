@@ -1,8 +1,12 @@
 // Review round on A2 and B4. The rule that holds everywhere: LIVE is shown only when the video being played
 // is live. useFactCheck is a small stand-in with the controller's own rules for a target change: a start screen
 // that is open is closed, and a running session starts to end.
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { harness, elements } from './hookHarness.js';
+
+// One test below switches to fake timers. Tests run in one process (vitest.config.js, singleFork), so a clock left
+// fake here froze setImmediate and timers in the files that ran next (CI on main, 2026-11-20).
+afterEach(() => { vi.useRealTimers(); });
 
 const h = vi.hoisted(() => ({ channels: [], lookup: null, videoCalls: [], fcArgs: null, setSt: null, actions: null, player: null, position: 77, status: 'idle', listGate: null }));
 
