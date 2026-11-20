@@ -4,7 +4,9 @@
 //   deno run -A scripts/bulk-runner/cli.ts plan   --collection <file.json> --records <file.jsonl>
 //   deno run -A scripts/bulk-runner/cli.ts run    --collection <file.json> --records <file.jsonl> --receipts <dir>
 //                                                 [--accept-service <name> | --accepted <manifest sha256,...>]
-//                                                 [--psql <path>]
+//                                                 [--psql <path>] [--register-only]
+//   deno run -A scripts/bulk-runner/cli.ts accept --collection <file.json> --receipts <dir> --accept-service <name>
+//                                                 (--batch <uuid> | --all) [--psql <path>]
 //   deno run -A scripts/bulk-runner/cli.ts split  --records <file.jsonl> --lines <n> --out <dir>
 //   deno run -A scripts/bulk-runner/cli.ts status --batch <uuid> [--psql <path>]
 //
@@ -19,6 +21,18 @@
 //                            developer's own login, not corpus_ingest. Its report is written beside the receipts.
 //   --accepted <hashes>      batches the developer accepted by hand.
 // With neither, a run stops after its first batch with awaiting_acceptance.
+//   --register-only          (F394) register every batch and leave: no watching, no confirming, no acceptance, no stop
+//                            for acceptance between batches. The receipts say register_only. Not with --accept-service
+//                            or --accepted. The worker finishes the batches with the client closed. Under --register-only pacing is within a
+//                            batch only (a following part's first step may be registered while the previous part is
+//                            still queued); a stopped batch keeps `accept --all` exiting non-zero until its receipt is
+//                            dealt with.
+// `accept` is the acceptance of batches already registered, later and apart from any load. For each batch (--batch, or
+// --all: every batch of the collection that has a receipt in --receipts and no passing acceptance report there) it
+// reads the status first (which also moves the batch on), refuses a batch that is not indexed or that has failed,
+// uncertain or undecided work (no sample is taken), and otherwise runs the same acceptance as `run --accept-service` and
+// writes the same report. It makes no open, add, seal or register call and does not go through the planner. The exit
+// code is non-zero when any batch is not accepted.
 import { createHash } from 'node:crypto';
 import { basename, dirname, fromFileUrl, join, resolve } from 'jsr:@std/path@1';
 import { sha256Hex } from '../../supabase/functions/_shared/textNormalise.ts';
@@ -28,7 +42,7 @@ import { prepareAll, type PrepareOptions } from './prepare.ts';
 import { acceptBatch, type AcceptDb, type AcceptOptions, PsqlAcceptDb } from './acceptance.ts';
 import { PsqlDb, psqlExec } from './psql_db.ts';
 import { gitCommonDir, refuseInCheckout } from './pack.ts';
-import { run, type RunInput, type RunResult } from './run.ts';
+import { run, type RunInput, type RunResult, safeReason } from './run.ts';
 
 export const REPO_ROOT = resolve(dirname(fromFileUrl(import.meta.url)), '../..');
 
@@ -53,17 +67,38 @@ export type Command =
     accepted: string[];
     acceptService: string | null;
     psql: string;
+    registerOnly: boolean;
+  }
+  | {
+    cmd: 'accept';
+    collection: string;
+    receipts: string;
+    acceptService: string;
+    psql: string;
+    /** One batch id, or null with `all`. */
+    batch: string | null;
+    all: boolean;
   }
   | { cmd: 'split'; records: string; lines: number; out: string }
   | { cmd: 'status'; batch: string; psql: string };
 
-const USAGE = 'usage: cli.ts plan|run|split|status (see the header of scripts/bulk-runner/cli.ts)';
+const USAGE = 'usage: cli.ts plan|run|accept|split|status (see the header of scripts/bulk-runner/cli.ts)';
+
+/** Options that take no value. */
+const SWITCHES = ['--register-only', '--all'];
 
 export function parseArgs(argv: string[]): Command {
   const [cmd, ...rest] = argv;
   const flags = new Map<string, string>();
+  const switches = new Set<string>();
   for (let i = 0; i < rest.length; i += 2) {
     const k = rest[i];
+    if (SWITCHES.includes(k)) {
+      if (switches.has(k)) throw new Error(`${k} given twice`);
+      switches.add(k);
+      i -= 1; // a switch takes no value
+      continue;
+    }
     const v = rest[i + 1];
     if (!k?.startsWith('--') || v === undefined || v.startsWith('--')) throw new Error(`bad argument ${k}. ${USAGE}`);
     if (flags.has(k)) throw new Error(`${k} given twice`);
@@ -74,8 +109,9 @@ export function parseArgs(argv: string[]): Command {
     if (!v) throw new Error(`${k} is required. ${USAGE}`);
     return v;
   };
-  const allowed = (ks: string[]) => {
+  const allowed = (ks: string[], sw: string[] = []) => {
     for (const k of flags.keys()) if (!ks.includes(k)) throw new Error(`unknown option ${k} for ${cmd}`);
+    for (const k of switches) if (!sw.includes(k)) throw new Error(`unknown option ${k} for ${cmd}`);
   };
   const psql = flags.get('--psql') ?? 'psql';
   switch (cmd) {
@@ -83,8 +119,16 @@ export function parseArgs(argv: string[]): Command {
       allowed(['--collection', '--records']);
       return { cmd, collection: need('--collection'), records: need('--records') };
     case 'run': {
-      allowed(['--collection', '--records', '--receipts', '--accepted', '--accept-service', '--psql']);
+      allowed(['--collection', '--records', '--receipts', '--accepted', '--accept-service', '--psql'], [
+        '--register-only',
+      ]);
       const acceptService = flags.get('--accept-service') ?? null;
+      const registerOnly = switches.has('--register-only');
+      if (registerOnly && (acceptService !== null || flags.has('--accepted'))) {
+        throw new Error(
+          '--register-only does not take --accept-service or --accepted (acceptance is the accept command)',
+        );
+      }
       if (acceptService !== null && flags.has('--accepted')) {
         throw new Error('give --accept-service or --accepted, not both');
       }
@@ -101,7 +145,18 @@ export function parseArgs(argv: string[]): Command {
         accepted,
         acceptService,
         psql,
+        registerOnly,
       };
+    }
+    case 'accept': {
+      allowed(['--collection', '--receipts', '--accept-service', '--batch', '--psql'], ['--all']);
+      const acceptService = need('--accept-service');
+      if (!/^[A-Za-z0-9_.-]{1,64}$/.test(acceptService)) throw new Error('bad --accept-service name');
+      const batch = flags.get('--batch') ?? null;
+      const all = switches.has('--all');
+      if ((batch === null) === !all) throw new Error('give --batch <uuid> or --all, one of them');
+      if (batch !== null && !/^[A-Za-z0-9-]{1,64}$/.test(batch)) throw new Error('bad --batch id');
+      return { cmd, collection: need('--collection'), receipts: need('--receipts'), acceptService, psql, batch, all };
     }
     case 'split': {
       allowed(['--records', '--lines', '--out']);
@@ -649,10 +704,148 @@ async function split(c: Extract<Command, { cmd: 'split' }>, deps: CliDeps): Prom
   return 0;
 }
 
+/** The file name a report or error is stored under: the receipt's own key, else the batch id's. */
+const fileKey = (manifest: string | null, batchId: string) =>
+  (manifest ?? batchId).replace(/[^A-Za-z0-9]/g, '').slice(0, 16);
+
+interface ReceiptBatch {
+  batch_id: string;
+  manifest_sha256: string | null;
+}
+
+/** A report passes only if it says so, lists no failure and sampled at least one document. */
+const passingReport = (r: Record<string, unknown>): boolean =>
+  r.ok === true && Array.isArray(r.failures) && r.failures.length === 0 && typeof r.sampled === 'number' &&
+  r.sampled > 0 && isText(r.batch_id);
+
+/**
+ * The batches the receipts in a directory name for one collection (deduplicated by batch id), the ids that already have a
+ * passing report, and the receipt and report files that could not be read (named, so the caller can fail on them).
+ */
+async function readReceipts(
+  dir: string,
+  collection: string,
+  deps: Pick<CliDeps, 'listDir' | 'readText'>,
+): Promise<{ batches: ReceiptBatch[]; passed: Set<string>; unreadable: string[] }> {
+  const names = await deps.listDir(dir);
+  const unreadable: string[] = [];
+  const read = async (name: string): Promise<Record<string, unknown> | null> => {
+    try {
+      const v: unknown = JSON.parse(await deps.readText(`${dir}/${name}`));
+      if (isRec(v)) return v;
+    } catch { /* named below */ }
+    unreadable.push(name);
+    return null;
+  };
+  const batches = new Map<string, ReceiptBatch>();
+  for (const name of names.filter((n) => /^receipt-.*\.json$/.test(n)).sort()) {
+    const r = await read(name);
+    if (!r || r.collection !== collection || !isText(r.batch_id)) continue;
+    if (!batches.has(r.batch_id)) {
+      batches.set(r.batch_id, {
+        batch_id: r.batch_id,
+        manifest_sha256: typeof r.manifest_sha256 === 'string' && HEX64.test(r.manifest_sha256)
+          ? r.manifest_sha256
+          : null,
+      });
+    }
+  }
+  const passed = new Set<string>();
+  for (const name of names.filter((n) => /^acceptance-.*\.json$/.test(n)).sort()) {
+    const r = await read(name);
+    if (r && passingReport(r)) passed.add(r.batch_id as string);
+  }
+  return { batches: [...batches.values()], passed, unreadable };
+}
+
+/** What stands between a batch and its sample: the database's own status, judged the way `run` judges a finished batch. */
+function notReady(s: Awaited<ReturnType<Db['status']>>): string[] {
+  const why: string[] = [];
+  if (s.state !== 'indexed') why.push(`state ${s.state}`);
+  if (s.jobs.failed > 0) why.push(`${s.jobs.failed} failed jobs`);
+  if (s.jobs.uncertain > 0) why.push(`${s.jobs.uncertain} uncertain jobs`);
+  if (s.jobs.queued + s.jobs.running > 0) why.push(`${s.jobs.queued + s.jobs.running} unfinished jobs`);
+  if (s.counts.planned > 0) why.push(`${s.counts.planned} items undecided`);
+  if (s.counts.existing_not_indexed > 0) why.push(`${s.counts.existing_not_indexed} existing items not indexed`);
+  return why;
+}
+
+/**
+ * `accept` (F394): the acceptance of batches registered earlier, apart from any load. Reads the status first, which also
+ * advances the batch; a batch that is not indexed, or has failed, uncertain or undecided work, is reported with its
+ * counts and not sampled. Every other batch gets the acceptance `run` gives, and its report is written beside the receipts.
+ * No open, add, seal or register call is made, and the planner is not used.
+ */
+async function acceptCommand(c: Extract<Command, { cmd: 'accept' }>, deps: CliDeps): Promise<number> {
+  const coll = checkCollection(JSON.parse(await deps.readText(c.collection)));
+  if (!coll.acceptance) throw new Error('accept needs an acceptance block in the collection file');
+  const dir = await checkReceiptsDir(c.receipts, { repoRoot: REPO_ROOT, commonDir: deps.commonDir ?? gitCommonDir });
+  const { batches, passed, unreadable } = await readReceipts(dir, coll.collection, deps);
+  for (const name of unreadable) deps.log(`unreadable file ${name}; accept will exit non-zero`);
+  let todo: ReceiptBatch[];
+  if (c.all) {
+    if (batches.length === 0) throw new Error(`no receipt for ${coll.collection} in ${dir}`);
+    todo = batches.filter((b) => !passed.has(b.batch_id));
+    for (const b of batches.filter((b) => passed.has(b.batch_id))) {
+      deps.log(`batch ${b.batch_id} already accepted; skipped`);
+    }
+  } else {
+    const id = c.batch as string;
+    const found = batches.find((b) => b.batch_id === id);
+    if (!found) throw new Error(`no receipt in ${dir} names batch ${id} for ${coll.collection}; not accepted`);
+    todo = [found];
+  }
+  const db = deps.db(c.psql);
+  await db.session({ lock_timeout_ms: 5_000, statement_timeout_ms: 60_000 });
+  const runId = `${new Date(deps.now()).toISOString().replaceAll(':', '')}-${crypto.randomUUID().slice(0, 8)}`;
+  let acceptDb: AcceptDb | null = null; // opened only for a batch that is ready to be sampled
+  let notAccepted = unreadable.length;
+  for (const b of todo) {
+    const s = await db.status(b.batch_id);
+    const why = notReady(s);
+    if (why.length > 0) {
+      notAccepted++;
+      deps.log(`batch ${b.batch_id} not accepted, not sampled: ${why.join(', ')}`);
+      continue;
+    }
+    let answer: Awaited<ReturnType<ReturnType<typeof automated>>>;
+    try {
+      acceptDb ??= deps.acceptDb(c.psql, c.acceptService);
+      answer = await automated(acceptDb, coll.acceptance, deps)({
+        batch_id: b.batch_id,
+        manifest_sha256: b.manifest_sha256 ?? b.batch_id,
+      });
+    } catch (e) {
+      notAccepted++;
+      deps.log(`batch ${b.batch_id} not accepted: ${safeReason(e)}`);
+      continue;
+    }
+    if (answer.report !== undefined) {
+      try {
+        await deps.writeText(
+          `${dir}/acceptance-${runId}-${fileKey(b.manifest_sha256, b.batch_id)}.json`,
+          JSON.stringify(answer.report, null, 2),
+        );
+      } catch (e) {
+        notAccepted++;
+        deps.log(`batch ${b.batch_id} not accepted: acceptance file not written: ${safeReason(e)}`);
+        continue;
+      }
+    }
+    if (!answer.ok) {
+      notAccepted++;
+      deps.log(`batch ${b.batch_id} not accepted: ${answer.reason}`);
+    }
+  }
+  deps.log(`${todo.length - (notAccepted - unreadable.length)} of ${todo.length} batches accepted`);
+  return notAccepted === 0 ? 0 : 1;
+}
+
 /** Runs one command; returns the process exit code. */
 export async function main(argv: string[], deps: CliDeps): Promise<number> {
   const c = parseArgs(argv);
   if (c.cmd === 'split') return split(c, deps);
+  if (c.cmd === 'accept') return acceptCommand(c, deps);
   if (c.cmd === 'status') {
     const db = deps.db(c.psql);
     await db.session({ lock_timeout_ms: 5_000, statement_timeout_ms: 60_000 });
@@ -684,6 +877,7 @@ export async function main(argv: string[], deps: CliDeps): Promise<number> {
     controlCodesRemoved: prep.controlCodesRemoved,
     citationDatesDropped: prep.citationDatesDropped,
     runnerCommit: commit,
+    ...(c.registerOnly ? { registerOnly: true } : {}),
     allowedRefusals: coll.allowedRefusals,
     maxAllowedRefusalShare: coll.maxAllowedRefusalShare,
   };
@@ -702,6 +896,12 @@ export async function main(argv: string[], deps: CliDeps): Promise<number> {
   if (result.stop?.detail) deps.log(`  ${result.stop.detail}`);
   for (const r of result.receipts) deps.log(`  receipt ${dir}/${r}`);
   const all = p.ok ? p.batches.length : 0;
+  if (c.registerOnly) {
+    if (result.completed) {
+      deps.log(`  registered ${all} batches; not watched or accepted: run the accept command later`);
+    }
+    return result.completed ? 0 : 1;
+  }
   if (result.completed && result.accepted.length < all) {
     deps.log(`  ${all - result.accepted.length} of ${all} batches not accepted`);
     for (const f of result.acceptance_failures) {

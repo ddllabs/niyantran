@@ -1033,3 +1033,111 @@ Deno.test('F356: ok false with no reason and no report is not accepted, says so,
   assert(res.acceptance_failures[0].reason.length > 0);
   assertEquals(files56(r, 'accept-error-').length + files56(r, 'acceptance-').length, 0);
 });
+
+// F394: register and leave. Nothing after the last registration call touches the queue or asks for acceptance.
+Deno.test('F394 registerOnly: no watch, confirm or acceptance call; the receipt says so and holds the state as read', async () => {
+  const asked: string[] = [];
+  const r = rig(new FakeDb(), {
+    accept: (info) => {
+      asked.push(info.manifest_sha256);
+      return Promise.resolve(true);
+    },
+  });
+  const p = await plan(many(50), LIMITS);
+  r.worker.perSleep = 0; // the worker does nothing while the runner is here
+  const res = await run(
+    { collection: 'bills', plan: p, holds: [], runnerCommit: 'abcdef1', registerOnly: true },
+    r.deps,
+    {},
+  );
+  assertEquals(res.completed, true);
+  assertEquals(res.stop, null);
+  assertEquals(asked, [], 'acceptance was never asked');
+  assertEquals(res.accepted, []);
+  assertEquals(res.acceptance_failures, []);
+  // One status read in all: the one that gives the receipt its counts. A watch or a confirm would add more.
+  assertEquals(r.db.calls.filter((c) => c.method === 'status').length, 1);
+  assertEquals(methods(r.db).at(-1), 'status');
+  assertEquals(r.sleeps, [], 'nothing was waited for');
+  const rc = receipt(r);
+  assertEquals(rc.register_only, true);
+  assertEquals(rc.state, 'registered');
+  assertEquals(rc.counts.admitted, 50);
+  assertEquals(rc.counts.indexed, 0);
+  assertEquals(rc.stop, null);
+  assertEquals(rc.timings.watch_ms, null);
+  // The same run without the option watches, confirms and asks.
+  const w = rig(new FakeDb(), { accept: () => Promise.resolve(true) });
+  await run({ collection: 'bills', plan: p, holds: [], runnerCommit: 'abcdef1' }, w.deps, {});
+  assert(w.db.calls.filter((c) => c.method === 'status').length > 1);
+  assertEquals(receipt(w).register_only, undefined);
+});
+
+Deno.test('F394 registerOnly: two batches are both registered, with no stop for acceptance between them', async () => {
+  const asked: string[] = [];
+  const r = rig(new FakeDb(), {
+    accept: (info) => {
+      asked.push(info.manifest_sha256);
+      return Promise.resolve(false);
+    },
+  });
+  const p = await plan(many(10_001), LIMITS);
+  const res = await run(
+    { collection: 'bills', plan: p, holds: [], runnerCommit: 'abcdef1', registerOnly: true },
+    r.deps,
+    {},
+  );
+  assertEquals(res.stop, null);
+  assertEquals(res.completed, true);
+  assertEquals(asked, []);
+  assertEquals(r.db.batches.size, 2);
+  assertEquals(files56(r, 'receipt-').length, 2);
+  for (const body of r.receipts.values()) assertEquals(JSON.parse(body).register_only, true);
+});
+
+Deno.test('F394 registerOnly: a registration-time stop is the same stop, in the result and in the receipt', async () => {
+  const go = async (registerOnly: boolean) => {
+    const r = rig();
+    r.db.refuseReal.set('k000002', 'house_conflict');
+    const res = await run(
+      { collection: 'bills', plan: await plan(many(5), LIMITS), holds: [], runnerCommit: 'abcdef1', registerOnly },
+      r.deps,
+      {},
+    );
+    const rc = receipt(r);
+    delete rc.run_id;
+    delete rc.register_only;
+    return { res, rc };
+  };
+  const plain = await go(false);
+  const only = await go(true);
+  assertEquals(only.res.completed, false);
+  assertEquals(only.res.stop?.reason, 'registration_disagreement');
+  assertEquals(only.res.stop, plain.res.stop);
+  assertEquals(only.rc, plain.rc);
+});
+
+Deno.test('F394 registerOnly: over 100 documents, the drain between steps still happens', async () => {
+  const r = rig();
+  const res = await run(
+    {
+      collection: 'bills',
+      plan: await plan(many(250), LIMITS),
+      holds: [],
+      runnerCommit: 'abcdef1',
+      registerOnly: true,
+    },
+    r.deps,
+    {},
+  );
+  assertEquals(res.completed, true);
+  const order = methods(r.db);
+  const reals = r.db.calls.flatMap((c, i) => c.method === 'register' && c.args[2] === false ? [i] : []);
+  assertEquals(reals.length, 3);
+  // A status read (the drain's) falls between the first step's call and the second step's.
+  assert(
+    r.db.calls.slice(reals[0], reals[1]).some((c) => c.method === 'status'),
+    `no drain between steps: ${order.join(',')}`,
+  );
+  assert(r.sleeps.length > 0, 'the drain waited for the queue');
+});

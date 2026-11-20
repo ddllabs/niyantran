@@ -41,8 +41,9 @@ itself.
 1. **`run --register-only`.** After registration the command writes its receipt with the batch state as read and
    returns. It does not watch, confirm or accept, and it does not stop for acceptance between parts. The waits
    between registration steps stay, so commits are still paced within a batch.
-2. **`accept`.** `accept --batch <id>` or `accept --collection <name>` (every batch of the collection that has no
-   passing report in the receipts directory). It reads the status first, which also moves the batch on; it refuses a
+2. **`accept`.** `accept --collection <file> --receipts <dir>` with `--batch <id>` or `--all` (every batch of the
+   collection with a receipt in the directory and no passing report there). A batch id with no receipt for that
+   collection is refused; an unreadable receipt or report fails the command. It reads the status first, which also moves the batch on; it refuses a
    batch that is not indexed; it runs the same acceptance as today and writes the same report. It makes no open, seal
    or register call and does not pass through the planner.
 3. **Batch size for the unattended part.** The remainder of a desk is cut into batches of at least the policy's

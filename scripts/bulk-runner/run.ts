@@ -96,6 +96,13 @@ export interface RunInput {
   allowedRefusals?: readonly string[];
   /** Required with allowedRefusals: the share of a batch they may be, from the dry run, before nothing is sent. */
   maxAllowedRefusalShare?: number;
+  /**
+   * Register and leave (F394): after the last registration call of each batch the run writes its receipt with the batch
+   * state as read and moves on. It does not watch the queue, confirm the batch or ask for acceptance, and it does not
+   * stop between batches for acceptance. Pacing between registration steps and every registration-time stop are unchanged.
+   * The receipts say so (`register_only`).
+   */
+  registerOnly?: boolean;
 }
 
 export interface RunResult {
@@ -159,6 +166,7 @@ export async function run(input: RunInput, deps: RunDeps, overrides: Partial<Run
     runner_commit: input.runnerCommit,
     control_codes_removed: input.controlCodesRemoved ?? 0,
     citation_dates_dropped: input.citationDatesDropped ?? 0,
+    ...(input.registerOnly ? { register_only: true } : {}),
   };
   const planHolds = input.plan.ok ? input.plan.holds : [];
   const holds = [...input.holds, ...planHolds];
@@ -203,6 +211,8 @@ export async function run(input: RunInput, deps: RunDeps, overrides: Partial<Run
     const failed = await write(name, { ...base, ...out.receipt, holds, stop: out.stop });
     const stop = out.stop ?? failed;
     if (stop) return result(false, stop);
+    // Register-only: the receipt is the whole record; acceptance is a later, separate command.
+    if (input.registerOnly) continue;
     // The receipt is on disk before acceptance is asked: a process that dies in acceptance leaves it. This run is then
     // the only writer of the acceptance file (a report acceptance hands over, or else the reason), named from the receipt.
     const fileFor = (kind: 'acceptance' | 'accept-error') => name.replace(/^receipt-/, `${kind}-`);
@@ -660,10 +670,12 @@ async function runBatch(
     }
     marks.register_to = deps.clock();
 
-    marks.watch_from = deps.clock();
-    await watch();
-    marks.watch_to = deps.clock();
-    await confirm();
+    if (!input.registerOnly) {
+      marks.watch_from = deps.clock();
+      await watch();
+      marks.watch_to = deps.clock();
+      await confirm();
+    }
   } catch (e) {
     if (e instanceof Halt) {
       stop = e.stop;
