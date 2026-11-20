@@ -25,6 +25,7 @@ import {
   softDelete,
   restore,
   emptyTrash,
+  permanentlyDeleteItems,
   indexForAi,
   getDownloadUrl,
   normalizeFileManagerError,
@@ -547,12 +548,9 @@ export function useFileManager(initialFolderId = null) {
       return;
     }
     try {
-      if (kind === 'file') {
-        const { supabase } = await import('../lib/supabaseClient.js');
-        await supabase.from('user_files').delete().in('id', ids);
-      } else {
-        const { supabase } = await import('../lib/supabaseClient.js');
-        await supabase.from('user_folders').delete().in('id', ids);
+      const res = await permanentlyDeleteItems({ ids, kind });
+      if (!res.success && res.failed_count > 0) {
+        alert(`Storage cleanup encountered issues for ${res.failed_count} item(s). Database records have been preserved for retry: ${res.storage_error}`);
       }
       clearSelection();
       await refresh(true);

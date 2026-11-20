@@ -36,6 +36,7 @@ import {
   Search,
   Building2,
   Filter,
+  Upload,
 } from 'lucide-react';
 import {
   formatBytes,
@@ -124,6 +125,17 @@ export default function DriveBrowser({
   onUploadClick,
 }) {
   const [activeMenuId, setActiveMenuId] = useState(null);
+  const [isMobileScreen, setIsMobileScreen] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobileScreen(window.innerWidth < 640);
+    }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const effectiveViewMode = isMobileScreen ? 'grid' : viewMode;
 
   const totalItemsCount = folders.length + files.length;
   const isAllSelected =
@@ -361,7 +373,7 @@ export default function DriveBrowser({
   }
 
   // ─── Table / List View (Normative 8-Column Reference Structure) ────────────
-  if (viewMode === 'list') {
+  if (effectiveViewMode === 'list') {
     return (
       <div className="fm-table-wrap" onClick={handleContainerClick}>
         {/* Trash Retention Warning Banner */}
@@ -957,6 +969,18 @@ export default function DriveBrowser({
           );
         })}
       </div>
+
+      {onUploadClick && isMobileScreen && (
+        <button
+          type="button"
+          className="fm-mob-fab"
+          onClick={onUploadClick}
+          aria-label="Upload files"
+          title="Upload new files"
+        >
+          <Upload size={22} />
+        </button>
+      )}
     </div>
   );
 }

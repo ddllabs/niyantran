@@ -881,6 +881,300 @@ export async function emptyTrash() {
 }
 
 /**
+ * Capability 6: Permanently deletes selected files or folders using a durable,
+ * retryable lifecycle:
+ * Trash -> Deletion Intent Persisted -> Physical Storage Removal -> Database Record Cascading.
+ *
+ * Invariant: If physical storage object removal fails for any file, its database record
+ * is strictly preserved with a recorded cleanup failure so the storage reference is NEVER lost
+ * and can be retried safely.
+ *
+ * @param {{ ids: string[], kind: 'file' | 'folder' }} params
+ * @returns {Promise<{
+ *   success: boolean,
+ *   purged_count: number,
+ *   failed_count: number,
+ *   storage_deleted: boolean,
+ *   storage_error: string | null,
+ *   retained_ids: string[]
+ * }>}
+ */
+export async function permanentlyDeleteItems({ ids, kind }) {
+  if (!ids || ids.length === 0) {
+    return {
+      success: true,
+      purged_count: 0,
+      failed_count: 0,
+      storage_deleted: true,
+      storage_error: null,
+      retained_ids: [],
+    };
+  }
+
+  if (kind === 'file') {
+    // 1. Fetch file records for the authenticated user in Trash
+    const { data: files, error: fetchError } = await supabase
+      .from('user_files')
+      .select('id, storage_path, artifact_meta')
+      .in('id', ids);
+
+    if (fetchError) {
+      throw new Error(`Failed to locate files for permanent deletion: ${fetchError.message}`);
+    }
+
+    if (!files || files.length === 0) {
+      // Idempotent: already permanently deleted
+      return {
+        success: true,
+        purged_count: 0,
+        failed_count: 0,
+        storage_deleted: true,
+        storage_error: null,
+        retained_ids: [],
+      };
+    }
+
+    // 2. Persist deletion intent before calling storage removal
+    const targetFileIds = files.map((f) => f.id);
+    await supabase
+      .from('user_files')
+      .update({
+        artifact_meta: {
+          cleanup_status: 'pending_cleanup',
+          cleanup_requested_at: new Date().toISOString(),
+        },
+      })
+      .in('id', targetFileIds);
+
+    const successfulDeletions = [];
+    const failedDeletions = [];
+
+    // 3. Remove physical storage objects from bucket 'user-files'
+    for (const file of files) {
+      if (!file.storage_path) {
+        successfulDeletions.push(file);
+        continue;
+      }
+
+      try {
+        const { error: removeError } = await supabase.storage
+          .from('user-files')
+          .remove([file.storage_path]);
+
+        // Missing object (404 / 'not found') is treated as successfully absent
+        const isAbsentOrOk =
+          !removeError ||
+          removeError.message?.toLowerCase().includes('not found') ||
+          removeError.message?.toLowerCase().includes('404');
+
+        if (isAbsentOrOk) {
+          successfulDeletions.push(file);
+        } else {
+          failedDeletions.push({ file, error: removeError.message });
+        }
+      } catch (err) {
+        failedDeletions.push({ file, error: err.message });
+      }
+    }
+
+    // 4. Record failure on any files whose storage removal failed - PRESERVE their DB rows!
+    if (failedDeletions.length > 0) {
+      for (const fail of failedDeletions) {
+        await supabase
+          .from('user_files')
+          .update({
+            artifact_meta: {
+              cleanup_status: 'cleanup_failed',
+              cleanup_error: fail.error,
+              failed_at: new Date().toISOString(),
+            },
+          })
+          .eq('id', fail.file.id);
+      }
+    }
+
+    // 5. Delete database records ONLY for files whose storage objects were confirmed removed/absent
+    let purgedCount = 0;
+    if (successfulDeletions.length > 0) {
+      const successfulIds = successfulDeletions.map((f) => f.id);
+      const { error: dbError } = await supabase
+        .from('user_files')
+        .delete()
+        .in('id', successfulIds);
+
+      if (dbError) {
+        throw new Error(`Failed to remove database records for cleaned files: ${dbError.message}`);
+      }
+      purgedCount = successfulIds.length;
+    }
+
+    const hasFailures = failedDeletions.length > 0;
+    return {
+      success: !hasFailures,
+      purged_count: purgedCount,
+      failed_count: failedDeletions.length,
+      storage_deleted: !hasFailures,
+      storage_error: hasFailures ? failedDeletions[0].error : null,
+      retained_ids: failedDeletions.map((f) => f.file.id),
+    };
+  } else {
+    // kind === 'folder': recursive descendant handling
+    // 1. Fetch target folders and all descendant subfolders
+    const { data: rootFolders, error: folderFetchError } = await supabase
+      .from('user_folders')
+      .select('id, path')
+      .in('id', ids);
+
+    if (folderFetchError) {
+      throw new Error(`Failed to inspect folders for permanent deletion: ${folderFetchError.message}`);
+    }
+
+    if (!rootFolders || rootFolders.length === 0) {
+      return {
+        success: true,
+        purged_count: 0,
+        failed_count: 0,
+        storage_deleted: true,
+        storage_error: null,
+        retained_ids: [],
+      };
+    }
+
+    // Collect all descendant subfolder IDs
+    const allFolderIds = new Set(rootFolders.map((f) => f.id));
+    for (const rf of rootFolders) {
+      if (rf.path) {
+        const { data: descendants } = await supabase
+          .from('user_folders')
+          .select('id')
+          .like('path', `${rf.path}/%`);
+        if (descendants) {
+          descendants.forEach((d) => allFolderIds.add(d.id));
+        }
+      }
+    }
+
+    const folderIdArray = Array.from(allFolderIds);
+
+    // 2. Fetch all files across the target folders and descendant subfolders
+    const { data: descendantFiles, error: filesFetchError } = await supabase
+      .from('user_files')
+      .select('id, storage_path, folder_id, artifact_meta')
+      .in('folder_id', folderIdArray);
+
+    if (filesFetchError) {
+      throw new Error(`Failed to locate descendant files in folder: ${filesFetchError.message}`);
+    }
+
+    const successfulFileDeletions = [];
+    const failedFileDeletions = [];
+
+    // 3. Remove physical storage objects for all descendant files
+    for (const file of descendantFiles || []) {
+      if (!file.storage_path) {
+        successfulFileDeletions.push(file);
+        continue;
+      }
+
+      try {
+        const { error: removeError } = await supabase.storage
+          .from('user-files')
+          .remove([file.storage_path]);
+
+        const isAbsentOrOk =
+          !removeError ||
+          removeError.message?.toLowerCase().includes('not found') ||
+          removeError.message?.toLowerCase().includes('404');
+
+        if (isAbsentOrOk) {
+          successfulFileDeletions.push(file);
+        } else {
+          failedFileDeletions.push({ file, error: removeError.message });
+        }
+      } catch (err) {
+        failedFileDeletions.push({ file, error: err.message });
+      }
+    }
+
+    // 4. Delete DB rows for successful files
+    if (successfulFileDeletions.length > 0) {
+      await supabase
+        .from('user_files')
+        .delete()
+        .in('id', successfulFileDeletions.map((f) => f.id));
+    }
+
+    // Record failures for files that couldn't be deleted from storage
+    if (failedFileDeletions.length > 0) {
+      for (const fail of failedFileDeletions) {
+        await supabase
+          .from('user_files')
+          .update({
+            artifact_meta: {
+              cleanup_status: 'cleanup_failed',
+              cleanup_error: fail.error,
+              failed_at: new Date().toISOString(),
+            },
+          })
+          .eq('id', fail.file.id);
+      }
+    }
+
+    // 5. Delete folders ONLY if ALL of their descendant files were successfully purged
+    let purgedFolderCount = 0;
+    if (failedFileDeletions.length === 0) {
+      const { error: folderDeleteError } = await supabase
+        .from('user_folders')
+        .delete()
+        .in('id', folderIdArray);
+
+      if (folderDeleteError) {
+        throw new Error(`Failed to delete folder records: ${folderDeleteError.message}`);
+      }
+      purgedFolderCount = ids.length;
+    }
+
+    const hasFailures = failedFileDeletions.length > 0;
+    return {
+      success: !hasFailures,
+      purged_count: purgedFolderCount,
+      failed_count: failedFileDeletions.length,
+      storage_deleted: !hasFailures,
+      storage_error: hasFailures ? failedFileDeletions[0].error : null,
+      retained_ids: failedFileDeletions.map((f) => f.file.id),
+    };
+  }
+}
+
+/**
+ * Capability 6 & Reconciliation: Scans for any abandoned or failed storage cleanup jobs,
+ * re-attempts physical object removal, and cascades database records once verified.
+ *
+ * @returns {Promise<{ reconciled_count: number, remaining_failed_count: number }>}
+ */
+export async function reconcilePendingStorageCleanups() {
+  const { data: stuckFiles, error } = await supabase
+    .from('user_files')
+    .select('id, storage_path, artifact_meta')
+    .not('deleted_at', 'is', null)
+    .containedBy('artifact_meta', { cleanup_status: 'cleanup_failed' });
+
+  if (error || !stuckFiles || stuckFiles.length === 0) {
+    return { reconciled_count: 0, remaining_failed_count: 0 };
+  }
+
+  const res = await permanentlyDeleteItems({
+    ids: stuckFiles.map((f) => f.id),
+    kind: 'file',
+  });
+
+  return {
+    reconciled_count: res.purged_count,
+    remaining_failed_count: res.failed_count,
+  };
+}
+
+/**
  * Capability 5: Retrieves real-time storage quota and usage for the current user.
  * @returns {Promise<{ plan: string, quota_bytes: number, used_bytes: number, remaining_bytes: number, is_lapsed: boolean }>}
  */
