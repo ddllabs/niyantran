@@ -1,7 +1,7 @@
--- A refund of unlock credits is its own line in the usage history (migration 20261123090000; Live TV phase 2, track 3).
+-- A refund of unlock credits is its own line in the usage history (migration 20261124090000; Live TV phase 2, track 3).
 -- PostgreSQL assertions, no pgTAP. Run only in a disposable database, through run.sh, which applies the migration as a
 -- non-superuser. Bootstrap: the factcheck_video_remove_refund chain (so an administrator's removal really refunds), then
--- 20261123090000_factcheck_refund_usage.sql. The vacuity check drops the last: the helper is missing and the first
+-- 20261124090000_factcheck_refund_usage.sql. The vacuity check drops the last: the helper is missing and the first
 -- assertion fails; the later assertions (the refund line in the list) would fail too.
 -- Time: now() is fixed for the whole transaction, so every ledger entry shares one instant; rows are told apart by what they
 -- are, never by order.

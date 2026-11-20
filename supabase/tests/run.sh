@@ -229,7 +229,7 @@ chain() {
     # usage migration, as a non-superuser. The vacuity check drops the last: the list has no refund line and the fixture fails.
     factcheck_refund_usage)
       chain factcheck_video_remove_refund
-      FILES+=("$(as_non_superuser 20261123090000_factcheck_refund_usage.sql)") ;;
+      FILES+=("$(as_non_superuser 20261124090000_factcheck_refund_usage.sql)") ;;
     persona_global)
       chain persona_prompts
       FILES+=("$(as_non_superuser 20261027192031_persona_global_rollout.sql)") ;;

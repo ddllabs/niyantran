@@ -134,7 +134,7 @@ time. One pull request per track, with one commit per item, replaces "each item 
   reviewer from the server code: the sharing check finds no such channel, so no transcript is stored. A video that
   cannot be embedded shows a message and a link to YouTube, and no fact-check is offered.
 - **B5, built on the branch, 2026-11-19.** A refund of unlock credits is its own line in the usage history. New
-  migration `20261123090000_factcheck_refund_usage.sql`, not applied anywhere but the disposable test database. Refund
+  migration `20261124090000_factcheck_refund_usage.sql`, not applied anywhere but the disposable test database. Refund
   lines are returned only when the browser asks for them (`p_kind = 'all+refunds'`), so the migration and the browser
   can be released in either order. Review findings fixed: the release order in the migration header was backwards; the
   balance pop-up would have shown a refund as spending. Two things to remember: the refund amount is returned as stored
