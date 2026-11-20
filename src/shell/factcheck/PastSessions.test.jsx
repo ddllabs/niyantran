@@ -238,3 +238,18 @@ describe('the past-session export file (review 9 and 8)', () => {
     expect(out.text).toContain('Minutes used: 5');
   });
 });
+
+describe('pastPdfArgs', () => {
+  const state = { capped: false, claims: [{ id: 'c1' }] };
+  it('carries the same data as the text export plus the watch link when the video is known', async () => {
+    const { pastPdfArgs } = await import('./PastSessions.jsx');
+    const a = pastPdfArgs({ session: { video_id: 'abcdefghijk', started_at: '2026-11-18T10:00:00Z', minutes_used: 5 }, source: 'DD News', state });
+    expect(a).toMatchObject({ title: 'DD News', date: '2026-11-18T10:00:00Z', minutes: 5, link: 'https://www.youtube.com/watch?v=abcdefghijk', note: '' });
+    expect(a.items).toEqual([{ claim: { id: 'c1' }, shown: { id: 'c1' } }]);
+  });
+  it('leaves the link out for a missing or odd video id', async () => {
+    const { pastPdfArgs } = await import('./PastSessions.jsx');
+    expect(pastPdfArgs({ session: {}, source: 's', state }).link).toBe('');
+    expect(pastPdfArgs({ session: { video_id: 'a b"><' }, source: 's', state }).link).toBe('');
+  });
+});

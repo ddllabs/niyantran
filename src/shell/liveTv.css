@@ -24,45 +24,12 @@
   font-family: inherit;
 }
 
-.ltv-header {
-  padding: 12px 18px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.ltv-header-brand {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  min-width: 0;
-}
-
-/* F366: the title and its one-line tagline share a row; the status badges follow it. */
-.ltv-titleblock {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 2px 12px;
-  min-width: 0;
-}
-.ltv-header-brand .ltv-title {
-  margin: 0;
-  outline: none;
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: var(--fg);
-}
-/* The title takes focus from code (keyboard and screen-reader users land on the page) but is not a control. */
-.ltv-header-brand .ltv-title:focus,
-.ltv-header-brand .ltv-title:focus-visible { outline: none; box-shadow: none; }
-.ltv-tagline { margin: 0; font-size: 13px; color: var(--muted); }
-.ltv-header-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+/* The status badges (live, offline, video, archive) sit under the channel name beside the player. */
+.ltv-np-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-top: 3px; }
+.ltv-np-badges:empty { display: none; }
+/* The channel name takes focus from code (keyboard and screen-reader users land on the page) but is not a control. */
+.ltv-program-info h3:focus,
+.ltv-program-info h3:focus-visible { outline: none; box-shadow: none; }
 
 .ltv-live-badge {
   display: inline-flex;
@@ -99,33 +66,6 @@
   display: flex;
   align-items: center;
   gap: 4px;
-}
-
-.ltv-back-btn {
-  background: none;
-  border: 1px solid var(--line);
-  color: var(--muted);
-  cursor: pointer;
-  border-radius: 8px;
-  height: 32px;
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  transition: all 0.15s ease;
-}
-
-.ltv-back-btn:hover {
-  background: var(--accent-soft);
-  color: var(--fg);
-}
-
-.ltv-back-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 /* F366: the channel card: one bordered card, a row of large channel tiles and a row of segment chips. */
@@ -208,7 +148,8 @@
 }
 .ltv-chip-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 
-/* The page scrolls (not the body inside it): channel card, video and panel, then the lower tabs. */
+/* Below 1081px the page scrolls as one: channel card, video and panel, then the lower tabs. From 1081px (the
+   block further down) the page body does not scroll: only the lower area does. */
 .ltv-main {
   flex: 1 1 auto;
   min-height: 0;
@@ -220,32 +161,83 @@
   background: var(--bg);
 }
 .ltv-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* The lower area: the tabs and what they show (schedule, channel videos, archive, transcript, my sessions). */
+.ltv-lower { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ltv-lower > * { flex: none; }
 
-/* The video column and the panel column. From 1081px the panel is 440px wide and exactly as tall as the
-   video column (its column has no height of its own: the panel fills it, absolutely), so only the panel's
-   own content scrolls. Below that everything stacks (the panel under the video, natural height). */
+/* The video column and the panel column. From 1081px the panel is as tall as the video column (its column has no
+   height of its own: the panel fills it, absolutely), so only the panel's own content scrolls. Below that
+   everything stacks (the panel under the video, natural height). */
 .ltv-split { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .ltv-videocol { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .ltv-panelcol { position: relative; min-width: 0; }
-/* F366 polish: from 1081px the video stays at its natural 16:9 width and may run below the fold, but the PANEL is
-   held inside the visible area so its fixed foot (Start / Cancel) is always in view: its column still stretches
-   to the video column's height (the column has no size of its own: contain: size), the panel fills it up to a
-   maximum of (the height of .ltv-main, a size container, so a layout fact) minus --ltv-above-split, and it is
-   sticky, so when the page is scrolled down it stays beside the video. Shorter video column: the panel is exactly
-   as tall as it, as before. Assumed, in one variable: what sits above the split inside the scrolling body (padding
-   16 + channel card about 115 + gap 16) plus a 16px margin. Without container queries: today's layout. */
+/* From 1081px:
+   - Fallback (a window too short for the pinned layout, or no container queries): exactly the page as it was
+     before F387. .ltv-main scrolls; the video column is the full left column, the panel 440px and sticky.
+   - Pinned (.ltv-main at least 640px tall, which leaves about 460px under the channel bar): .ltv-body is the grid.
+     .ltv-split and .ltv-videocol dissolve (display: contents), so the dark stage, the now-playing row and the lower
+     area are grid items of .ltv-body in the left column and the panel spans all rows of the right column. No
+     script and no measured value: the rows are  stage minmax(200px, auto) | now-playing auto | lower 1fr.
+     Grid grows the stage up to its 16:9 height (column width * 9/16) before the lower area gets the rest, and the
+     lower area keeps max(25cqh, 160px). The stage is never under 200px. Only .ltv-lower scrolls (and .fc-body in
+     the panel); .ltv-body clips, so focus cannot scroll it. */
 @media (min-width: 1081px) {
   .ltv-split.has-panel { display: grid; grid-template-columns: minmax(0, 1fr) 440px; align-items: stretch; }
   .ltv-panelcol { min-height: 0; }
   @supports (container-type: size) {
     .ltv-main { container: ltvmain / size; --ltv-above-split: 163px; }
-    .ltv-panelcol { contain: size; }
-    .ltv-panelcol > .fc-panel {
-      position: sticky;
-      inset: auto;
-      top: 16px;
-      height: 100%;
-      max-height: max(320px, calc(100cqh - var(--ltv-above-split)));
+    @container ltvmain not (min-height: 640px) {
+      .ltv-panelcol { contain: size; }
+      .ltv-panelcol > .fc-panel {
+        position: sticky;
+        inset: auto;
+        top: 16px;
+        height: 100%;
+        max-height: max(320px, calc(100cqh - var(--ltv-above-split)));
+      }
+    }
+    @container ltvmain (min-height: 640px) {
+      .ltv-body {
+        container: ltvbody / size;
+        flex: 1 1 0;
+        min-height: 0;
+        overflow: hidden;
+        overflow: clip;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        /* The stage row grows first, up to the left column's width at 16:9 (cqw is the width of .ltv-main, whose
+           side padding is 18px; a cap a little off only shows as dark bars on the stage); the lower area keeps its
+           floor and takes what is left. No track depends on its content, so nothing can feed back. */
+        grid-template-rows: minmax(200px, calc((100cqw - 36px) * 9 / 16)) auto minmax(max(25cqh, 160px), 1fr);
+        gap: 12px 16px;
+      }
+      .ltv-body.has-panel {
+        grid-template-columns: minmax(0, 1fr) clamp(440px, 32%, 520px);
+        grid-template-rows: minmax(200px, calc((100cqw - 36px - 16px - 440px) * 9 / 16)) auto minmax(max(25cqh, 160px), 1fr);
+      }
+      /* .ltv-split.has-panel is named because the grid rule above the query has that specificity. */
+      .ltv-split, .ltv-split.has-panel, .ltv-videocol { display: contents; }
+      .ltv-player-stage {
+        grid-column: 1; grid-row: 1; align-self: stretch;
+        min-height: 0; min-width: 0;
+        display: flex; justify-content: center;
+        background: #05070d; border-radius: 14px; overflow: hidden;
+      }
+      .ltv-player-stage .ltv-video-container {
+        flex: none; width: auto; height: 100%; max-width: 100%;
+        border-radius: 0; box-shadow: none;
+      }
+      .ltv-player-stage .ltv-video-container:fullscreen { width: 100%; height: 100%; max-width: none; aspect-ratio: auto; }
+      .ltv-nowplaying { grid-column: 1; grid-row: 2; min-height: 0; }
+      .ltv-nowplaying .ltv-program-info { flex-basis: 160px; }
+      .ltv-nowplaying .ltv-player-controls { margin-left: auto; }
+      .ltv-panelcol { grid-column: 2; grid-row: 1 / -1; }
+      .ltv-lower {
+        grid-column: 1; grid-row: 3; margin-top: 4px;
+        min-height: 0;
+        overflow-x: hidden; overflow-y: auto;
+      }
+      .ltv-lower .ltv-deck-tabs { position: sticky; top: 0; z-index: 2; background: var(--bg); }
     }
   }
 }
@@ -374,8 +366,7 @@
 
 .ltv-channelcard :focus-visible,
 .ltv-nowplaying :focus-visible,
-.ltv-deck-tabs :focus-visible,
-.ltv-header :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ltv-deck-tabs :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Tabs & Bottom Content */
 .ltv-deck-tabs {
@@ -700,7 +691,6 @@
 }
 
 @media (max-width: 768px) {
-  .ltv-header { padding: 10px 14px; }
   .ltv-main { padding: 12px 14px 24px; }
   .ltv-archive-grid { grid-template-columns: 1fr; }
   .ltv-row { flex-wrap: wrap; gap: 8px; }
@@ -709,9 +699,6 @@
 
 /* Small mobile (480px and below) */
 @media (max-width: 480px) {
-  .ltv-header-brand { gap: 6px 10px; }
-  .ltv-header-brand .ltv-title { font-size: 18px; }
-
   /* Transcript search: ensure it doesn't exceed the viewport */
   .ltv-transcript-search {
     max-width: 100%;
@@ -1046,11 +1033,11 @@
    unchanged); the now-playing buttons wrap evenly. Nothing may scroll sideways. */
 .ltv-main, .ltv-body, .ltv-split, .ltv-videocol, .ltv-panelcol, .ltv-nowplaying, .ltv-channelcard { min-width: 0; }
 .ltv-main { overflow-x: hidden; }
-.ltv-np-line, .ltv-program-info h3, .ltv-title, .ltv-tagline { overflow-wrap: anywhere; }
+.ltv-np-line, .ltv-program-info h3 { overflow-wrap: anywhere; }
 
 /* Touch targets: at least 40px high wherever the page is stacked or the pointer is a finger. */
 @media (max-width: 1080px), (pointer: coarse) {
-  .ltv-action-btn, .ltv-back-btn, .ltv-category-pill, .ltv-tab-btn, .ltv-channel-chip,
+  .ltv-action-btn, .ltv-category-pill, .ltv-tab-btn, .ltv-channel-chip,
   .fc-btn, .fc-tab, .fc-option, .fc-tiles-clear, .fc-earlier-toggle, .fc-part-toggle, .pst-toggle,
   .ltv-claimstrip-btn, .fc-sources--pills a { min-height: 40px; }
   .fc-sources--pills a { display: inline-flex; align-items: center; }
@@ -1063,12 +1050,6 @@
 }
 
 @media (max-width: 600px) {
-  .ltv-header { padding: 8px 12px; }
-  .ltv-header-brand { flex: 1 1 auto; gap: 4px 10px; }
-  .ltv-titleblock { flex: 1 1 0; flex-direction: column; align-items: flex-start; gap: 0; }
-  .ltv-header-brand .ltv-title { font-size: 18px; }
-  .ltv-tagline { font-size: 12px; line-height: 1.35; }
-  .ltv-header-badges { flex: 1 0 100%; gap: 6px; }
   .ltv-main { gap: 12px; padding: 8px 12px 24px; scroll-padding-top: calc((100vw - 24px) * 9 / 16 + 12px); }
   .ltv-channelcard { padding: 12px; border-radius: 12px; }
   .ltv-strip-arrows { display: none; } /* the strip scrolls by touch; the arrows crowd the tiles */

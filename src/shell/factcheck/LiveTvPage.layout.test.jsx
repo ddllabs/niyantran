@@ -27,20 +27,62 @@ const render = () => renderToStaticMarkup(<LiveTvPage open onClose={() => {}} />
 const text = (html) => html.replace(/<[^>]*>/g, ' ').replace(/&#x27;/g, "'").replace(/\s+/g, ' ');
 beforeEach(() => { seen.view = viewWith(); seen.choose = 0; });
 
-describe('title row', () => {
-  it('has Back, the title Live TV, the tagline and the status badge in the header', () => {
+describe('no header strip (F387)', () => {
+  it('has no header, Back button, page title or tagline; the page starts with the channel card', () => {
     const html = render();
-    const header = html.slice(html.indexOf('<header'), html.indexOf('</header>'));
-    expect(header).toMatch(/onclick|Back/i);
-    expect(header).toMatch(/<h2[^>]*class="ltv-title"[^>]*tabindex="-1"[^>]*>Live TV<\/h2>/);
-    expect(text(header)).toContain('Watch and fact-check debates, speeches and bulletins as they happen.');
-    expect(header).toMatch(/ltv-recent-badge|ltv-live-badge/);
+    expect(html).not.toMatch(/ltv-header|ltv-back-btn|ltv-title|ltv-tagline|<h2/);
+    expect(text(html)).not.toContain('Watch debates, speeches and bulletins as they happen.');
+    expect(html.indexOf('<section class="ltv-page"')).toBeLessThan(html.indexOf('class="ltv-main"'));
+    expect(html.slice(html.indexOf('<section class="ltv-page"'), html.indexOf('class="ltv-main"'))).not.toMatch(/<header/);
   });
-  it('does not mention fact-check in the tagline when the feature is not offered', () => {
+  it('shows the channel name, the focus target, with the status badge beside the player', () => {
+    const html = render();
+    const info = html.slice(html.indexOf('class="ltv-program-info"'), html.indexOf('class="ltv-np-line"'));
+    expect(info).toMatch(/<h3 tabindex="-1">/);
+    expect(info).toMatch(/class="ltv-np-badges"[\s\S]*(ltv-recent-badge|ltv-live-badge)/);
+    expect(html.indexOf('class="ltv-video-container"')).toBeLessThan(html.indexOf('class="ltv-program-info"'));
+  });
+});
+
+describe('the paste-a-link form (F387)', () => {
+  const form = (html) => html.slice(html.indexOf('<form class="ltv-paste'), html.indexOf('</form>') + 7);
+  it('is the top row of the fact-check panel, before its head, and the only copy', () => {
+    const html = render();
+    expect(html.match(/<form class="ltv-paste/g)).toHaveLength(1);
+    const panel = html.slice(html.indexOf('class="ltv-panelcol"'), html.indexOf('class="ltv-deck-tabs"'));
+    expect(panel).toContain('<form class="ltv-paste');
+    expect(panel.indexOf('class="fc-linkslot"')).toBeLessThan(panel.indexOf('class="fc-head"'));
+    expect(panel.indexOf('<form class="ltv-paste')).toBeLessThan(panel.indexOf('class="fc-head"'));
+    expect(html).toContain('for="ltv-paste-input"');
+    expect(form(html)).toContain('>Load video<');
+  });
+  it('stays at the top of the panel in the other states too, outside the scrolling body', () => {
+    for (const status of ['choosing', 'running', 'ended', 'error']) {
+      seen.view = viewWith({ status });
+      const html = render();
+      expect(html.match(/<form class="ltv-paste/g), status).toHaveLength(1);
+      const panel = html.slice(html.indexOf('class="ltv-panelcol"'), html.indexOf('class="ltv-deck-tabs"'));
+      expect(panel.indexOf('<form class="ltv-paste'), status).toBeLessThan(panel.indexOf('class="fc-head"'));
+      expect(panel.indexOf('<form class="ltv-paste'), status).toBeLessThan(panel.indexOf('class="fc-body"') === -1 ? Infinity : panel.indexOf('class="fc-body"'));
+    }
+  });
+  it('is in its own row above the video, not in the panel, where fact-check is not offered', () => {
     seen.view = viewWith({}, false);
     const html = render();
-    expect(text(html)).toContain('Watch debates, speeches and bulletins as they happen.');
-    expect(html).not.toMatch(/fact-check/i);
+    expect(html.match(/<form class="ltv-paste/g)).toHaveLength(1);
+    expect(html.indexOf('class="ltv-linkbar"')).toBeLessThan(html.indexOf('class="ltv-body'));
+    expect(html.indexOf('<form class="ltv-paste')).toBeGreaterThan(html.indexOf('class="ltv-linkbar"'));
+  });
+});
+
+describe('the lower area (F387)', () => {
+  it('holds the tabs and their content, and nothing else of the page', () => {
+    const html = render();
+    const lower = html.indexOf('class="ltv-lower"');
+    expect(lower).toBeGreaterThan(html.indexOf('class="ltv-split'));
+    expect(lower).toBeLessThan(html.indexOf('class="ltv-deck-tabs"'));
+    expect(html.indexOf('id="ltv-tab-panel"')).toBeGreaterThan(lower);
+    expect(html.slice(lower)).not.toMatch(/ltv-player-stage|ltv-panelcol|ltv-nowplaying|ltv-paste/);
   });
 });
 
@@ -99,7 +141,7 @@ describe('now playing row', () => {
     expect(row).toBeGreaterThan(video);
     const rowHtml = col.slice(row);
     expect(rowHtml).toMatch(/class="ltv-np-tile"/);
-    expect(rowHtml).toMatch(/<h3>/);
+    expect(rowHtml).toMatch(/<h3 tabindex="-1">/);
     expect(rowHtml).toMatch(/ltv-np-line/);
     for (const label of ['Pause', 'Unmute', 'Fullscreen', 'Reload Feed']) expect(rowHtml).toContain(`>${label}<`);
   });

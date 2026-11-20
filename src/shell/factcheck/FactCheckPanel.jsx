@@ -14,7 +14,7 @@ import { filterClaims, shownResult, verdictCounts } from './claimFilter.js';
 import { RovingTabs, VerdictTiles } from './FactCheckTabs.jsx';
 import { blockLine, statusLine } from './panelStatus.js';
 import { SummaryTab } from './SummaryTab.jsx';
-import { CopyClaimButton, ExportButton } from './ClaimExport.jsx';
+import { CopyClaimButton, ExportButton, PdfButton, videoWatchLink } from './ClaimExport.jsx';
 import { AnnounceProvider, AnnouncerRegion, createAnnouncer, useAnnounce } from './announce.jsx';
 import { claimCopyText, exportFileName, sessionExportText, sessionStartOf } from './claimExport.js';
 import { HighlightedText, TRANSCRIPT_TEXT, TranscriptBar, useTranscriptTools } from './TranscriptTools.jsx';
@@ -473,11 +473,18 @@ function BlockLine({ session }) {
   );
 }
 
+// The paste-a-link form (built by the page, which owns what it does) sits at the very top of the panel in every
+// state, above the head and outside the scrolling body, so it stays where it is while the claims scroll.
+function LinkSlot({ children }) {
+  return children ? <div className="fc-linkslot">{children}</div> : null;
+}
+
 // F366: the always-open panel with no session: the intro and the old entry (the start button, or the quiet
 // note saying why it is not offered). Pressing it opens the start screen exactly as before.
-function IdlePanel({ view, channelName, playable, onChoose }) {
+function IdlePanel({ view, channelName, playable, onChoose, linkForm = null }) {
   return (
     <section className="fc-panel fc-panel--idle" aria-label="Fact-check" data-status="idle">
+      <LinkSlot>{linkForm}</LinkSlot>
       <header className="fc-head"><HeadTitle session={view.session} /></header>
       <IdleIntro view={view} channelName={channelName} />
       <div className="fc-idle-entry"><FactCheckEntry view={view} playable={playable} onChoose={onChoose} /></div>
@@ -500,7 +507,7 @@ export function FactCheckPanel(props) {
     if (!persistent) return null;
     return (
       <IdlePanel view={props.view} channelName={channelName} playable={playable}
-        onChoose={onChoose} />
+        onChoose={onChoose} linkForm={props.linkForm} />
     );
   }
   return <PanelBody {...props} />;
@@ -508,7 +515,7 @@ export function FactCheckPanel(props) {
 
 // Mounted while a session is on screen: focus moves to the heading when it opens, and back to the
 // entry button when it is dismissed (unless the user has already moved focus elsewhere).
-export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', playable = true, onChoose, focusRequest = null, videoTitle = '', remainingSeconds = null }) {
+export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', playable = true, onChoose, focusRequest = null, videoTitle = '', remainingSeconds = null, linkForm = null }) {
   const heading = useRef(null);
   const panel = useRef(null);
   // One shared status node for every copy, export and download confirmation of this panel (announce.jsx).
@@ -536,6 +543,14 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
   const s = view.session;
   // The day of this session for file dates; null (today) when it cannot be told.
   const sessionDay = sessionStartOf(s);
+  // What the ended session's exports (text and PDF) are made from; built only when a button is pressed.
+  const endedInput = () => {
+    const priced = typeof view.flag.recheckCredits === 'number';
+    return {
+      title: videoTitle || channelName, date: sessionDay ?? new Date(), minutes: s.final?.minutes_used,
+      items: s.claims.map((c) => ({ claim: c, shown: shownResult(c, view.rechecks?.[c.id], priced) })),
+    };
+  };
   // A failure is news: when the panel is stacked below the player it may be off screen.
   const failedNow = s.status === 'error';
   useEffect(() => { if (failedNow) revealPanel(panel.current); }, [failedNow]);
@@ -613,6 +628,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
   return (
     <AnnounceProvider value={say}>
     <section className="fc-panel" aria-label="Fact-check" data-status={s.status} ref={panel}>
+      <LinkSlot>{linkForm}</LinkSlot>
       <div className="fc-sr" aria-live="polite" aria-atomic="true">{view.announcement}</div>
       <header className="fc-head">
         <HeadTitle session={s} heading={heading} />
@@ -740,21 +756,16 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
             <button type="button" className="ltv-action-btn primary fc-btn" data-fc="retry" onClick={onRetry}>Try again</button>
           ) : null}
           {s.status === 'ended' && s.claims.length > 0 ? (
-            <ExportButton
-              say={say}
-              build={() => {
-                const title = videoTitle || channelName;
-                const day = sessionDay ?? new Date();
-                const priced = typeof view.flag.recheckCredits === 'number';
-                return {
-                  name: exportFileName({ title, date: day }),
-                  text: sessionExportText({
-                    title, date: day, minutes: s.final?.minutes_used,
-                    items: s.claims.map((c) => ({ claim: c, shown: shownResult(c, view.rechecks?.[c.id], priced) })),
-                  }),
-                };
-              }}
-            />
+            <>
+              <ExportButton
+                say={say}
+                build={() => {
+                  const { title, date, minutes, items } = endedInput();
+                  return { name: exportFileName({ title, date }), text: sessionExportText({ title, date, minutes, items }) };
+                }}
+              />
+              <PdfButton say={say} build={() => ({ ...endedInput(), link: videoWatchLink(s.videoId ?? s.video_id) })} />
+            </>
           ) : null}
           <button type="button" className="ltv-action-btn fc-btn" data-fc="dismiss" onClick={onDismiss}>Close</button>
         </div>

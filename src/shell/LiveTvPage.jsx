@@ -14,7 +14,6 @@ import { leaveFullscreenThen } from './factcheck/leaveFullscreen.js';
 import { ChannelCard } from './liveTv/ChannelCard.jsx';
 import { ChannelBar } from './liveTv/ChannelBar.jsx';
 import { browserStorage, readFollowing, writeFollowing, toggleFollowing, FOLLOW_KEY, FOLLOW_FULL, FOLLOW_MAX } from './liveTv/following.js';
-import { watchAboveSplit } from './liveTv/aboveSplit.js';
 import { TABS } from '../desks/tabs.js';
 import { nowPlayingLine } from './liveTv/channelView.js';
 import { embedVideoId, playingTarget } from './factcheck/factCheckText.js';
@@ -43,7 +42,7 @@ const switchableOf = (c, trusted) => !trusted && (!c.embedUrl || Boolean(c.hinte
 const willPlayLive = (c, listFresh) => listFresh && (listLiveOf(c) || (REAL_VIDEO_ID.test(c.liveVideoId || '') && switchableOf(c, false)));
 
 // F359: a shell page at #/livetv. `open` says whether it is the page being shown; it stays mounted after the
-// first visit and draws nothing while closed. `onClose` is Back (the shell decides where to).
+// first visit and draws nothing while closed. `onClose` is kept for the shell; the page has no Back button of its own (the shell's navigation leaves it).
 export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const [channels, setChannels] = useState([]);
   const [channelsLoading, setChannelsLoading] = useState(true);
@@ -88,9 +87,6 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const [playerInfo, setPlayerInfo] = useState(null);
   const [playerError, setPlayerError] = useState(null); // the player's error code, or null
 
-  const mainRef = useRef(null);
-  const splitRef = useRef(null);
-  const barRef = useRef(null);
   const [lists, setLists] = useState([]); // the client's ten lists, from the server; none means the older category card
   const [followIds, setFollowIds] = useState(() => readFollowing(browserStorage())); // "My list", this browser only
   const [lookupNonce, setLookupNonce] = useState(0); // Reload on the not-live card asks the lookup again
@@ -123,8 +119,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const playerContainerRef = useRef(null);
   const titleRef = useRef(null);
 
-  // On opening, focus moves to the page heading (the fact-check panel does the same for its title); a
-  // re-render does not take it again, only a new visit does.
+  // On opening, focus moves to the channel name beside the player (the fact-check panel does the same for its
+  // title); a re-render does not take it again, only a new visit does.
   useEffect(() => {
     if (open) titleRef.current?.focus({ preventScroll: true });
   }, [open]);
@@ -378,7 +374,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     if (!parsed.ok) { setPasteError(parsed.reason === 'channel' ? 'channel' : 'invalid'); return; }
     setPasteError(false);
     setPasteOpen(false);
-    // On phones the field closes now; focus goes to the page title so it is not dropped to the page body.
+    // On phones the field closes now; focus goes to the channel name so it is not dropped to the page body.
     titleRef.current?.focus({ preventScroll: true });
     if (playbackMode === 'link' && pasted?.videoId === parsed.videoId) {
       // already playing: nothing changes unless it failed, then it is tried again
@@ -594,7 +590,6 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   // Ids that are no longer channels are only hidden (the bar shows the known ones): they stay stored, so a list is not
   // wiped by an older deployment that does not know a channel yet. They count toward the cap.
   // The panel beside the video is held inside the window by a height that depends on what sits above it: measured.
-  useEffect(() => watchAboveSplit(mainRef.current, splitRef.current, barRef.current), [open, lists.length]);
   const selectChannel = (ch) => {
     leaveLink();
     if (ch.id !== activeChannelId) {
@@ -652,109 +647,48 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     ? selectedArchiveItem?.title || 'Archived Recording'
     : (playbackMode === 'video' && activeVideo?.title) || activeChannel?.name || '';
 
+  // B4: paste a YouTube video or live link. It lives at the top of the fact-check panel (the panel is told to show
+  // it), or above the player where fact-check is not offered. On phones the field opens from a button.
+  const linkForm = (
+    <form className={`ltv-paste${pasteOpen ? ' is-open' : ''}`} onSubmit={handleLoadLink} noValidate>
+      <button
+        type="button"
+        className="ltv-action-btn ltv-paste-toggle"
+        aria-expanded={pasteOpen}
+        aria-controls="ltv-paste-body"
+        onClick={() => setPasteOpen((o) => !o)}
+      >
+        Paste a link
+      </button>
+      <div className="ltv-paste-body" id="ltv-paste-body">
+        <label className="ltv-sr-only" htmlFor="ltv-paste-input">Paste a YouTube video or live link</label>
+        <input
+          id="ltv-paste-input"
+          type="text"
+          className="ltv-paste-input"
+          placeholder="Paste a YouTube video or live link"
+          value={pasteText}
+          autoComplete="off"
+          spellCheck={false}
+          aria-invalid={pasteError !== false}
+          aria-describedby={pasteError ? 'ltv-paste-error' : undefined}
+          onChange={(e) => { setPasteText(e.target.value); setPasteError(false); }}
+        />
+        <button type="submit" className="ltv-action-btn primary ltv-paste-submit">Load video</button>
+      </div>
+      {pasteError ? (
+        <p className="ltv-paste-error" id="ltv-paste-error" role="alert">{pasteError === 'channel' ? 'Paste the link of one video or live stream, not a channel page.' : "That doesn't look like a YouTube link."}</p>
+      ) : null}
+    </form>
+  );
+
   return (
     <section className="ltv-page" aria-label="Live TV">
-      {/* Top Header */}
-      <header className="ltv-header" inert={barModal ? true : undefined}>
-        <div className="ltv-header-brand">
-          <button type="button" className="ltv-back-btn" onClick={onClose} title="Back">
-            <span aria-hidden="true">←</span> Back
-          </button>
-          <div className="ltv-titleblock">
-            <h2 className="ltv-title" tabIndex={-1} ref={titleRef}>Live TV</h2>
-            <p className="ltv-tagline">
-              {factCheckOffered
-                ? 'Watch and fact-check debates, speeches and bulletins as they happen.'
-                : 'Watch debates, speeches and bulletins as they happen.'}
-            </p>
-          </div>
-          <div className="ltv-header-badges">
-          {playbackMode === 'live' ? (
-            streamError ? (
-              <span className="ltv-offline-badge">
-                <span className="ltv-offline-dot" /> OFFLINE
-              </span>
-            ) : channelCard ? (
-              <span className="ltv-recent-badge">
-                <span className="ltv-recent-dot" /> {channelCard === 'connecting' ? 'CONNECTING' : channelCard === 'unknown' ? "CAN'T CHECK" : channelCard === 'refused' ? "CAN'T PLAY HERE" : 'NO LIVE STREAM FOUND'}
-              </span>
-            ) : (liveSwitchedId || keepCurated) && labelFresh ? (
-              <span className="ltv-live-badge">
-                <span className="ltv-live-dot" /> LIVE FEED
-              </span>
-            ) : (
-              <span className="ltv-recent-badge">
-                <span className="ltv-recent-dot" /> CURATED FEED
-              </span>
-            )
-          ) : playbackMode === 'link' ? (
-            <span className="ltv-video-playback-badge">
-              <span className="ltv-video-dot" /> YOUTUBE LINK
-            </span>
-          ) : playbackMode === 'video' ? (
-            <span className="ltv-video-playback-badge">
-              <span className="ltv-video-dot" /> VIDEO PLAYBACK
-            </span>
-          ) : (
-            <span className="ltv-archive-badge">
-              <span className="ltv-archive-dot" /> ARCHIVE PLAYBACK
-            </span>
-          )}
-          {playbackMode === 'archive' && selectedArchiveItem && (
-            <span className="ltv-archive-pill">
-              {selectedArchiveItem.duration} &bull; {selectedArchiveItem.date?.split('T')[0]}
-            </span>
-          )}
-          {playbackMode === 'video' && activeVideo && (
-            <span className="ltv-archive-pill">
-              {[activeVideo.duration, activeVideo.publishedAt?.split('T')[0]].filter(Boolean).join(' • ')}
-            </span>
-          )}
-          {playbackMode === 'live' && (
-            <span className="ltv-viewer-metric">
-              {activeChannel?.viewers != null
-                ? `● ${activeChannel.viewers.toLocaleString()} viewers`
-                : ''}
-            </span>
-          )}
-          </div>
-        </div>
-        {/* B4: paste a YouTube video or live link. On phones the field opens from a button. */}
-        <form className={`ltv-paste${pasteOpen ? ' is-open' : ''}`} onSubmit={handleLoadLink} noValidate>
-          <button
-            type="button"
-            className="ltv-action-btn ltv-paste-toggle"
-            aria-expanded={pasteOpen}
-            aria-controls="ltv-paste-body"
-            onClick={() => setPasteOpen((o) => !o)}
-          >
-            Paste a link
-          </button>
-          <div className="ltv-paste-body" id="ltv-paste-body">
-            <label className="ltv-sr-only" htmlFor="ltv-paste-input">Paste a YouTube video or live link</label>
-            <input
-              id="ltv-paste-input"
-              type="text"
-              className="ltv-paste-input"
-              placeholder="Paste a YouTube video or live link"
-              value={pasteText}
-              autoComplete="off"
-              spellCheck={false}
-              aria-invalid={pasteError !== false}
-              aria-describedby={pasteError ? 'ltv-paste-error' : undefined}
-              onChange={(e) => { setPasteText(e.target.value); setPasteError(false); }}
-            />
-            <button type="submit" className="ltv-action-btn primary ltv-paste-submit">Load video</button>
-          </div>
-          {pasteError ? (
-            <p className="ltv-paste-error" id="ltv-paste-error" role="alert">{pasteError === 'channel' ? 'Paste the link of one video or live stream, not a channel page.' : "That doesn't look like a YouTube link."}</p>
-          ) : null}
-        </form>
-      </header>
-
-      {/* Scrollable page body: the channel card, the video and panel, then the lower tabs (liveTv.css) */}
-      <div className="ltv-main" ref={mainRef}>
-      <div ref={barRef}>
+      {/* Page body: the channel card, the video and panel, then the lower tabs (liveTv.css). Below 1081px the page
+          scrolls; from 1081px, when the window is tall enough, .ltv-body is a grid (video stage, now-playing row and lower
+          area in the left column, the panel in the right) and only the lower area (.ltv-lower) scrolls. */}
+      <div className="ltv-main">
+      <div>
       {lists.length ? (
         <ChannelBar
           channels={shownChannels}
@@ -781,8 +715,10 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
       )}
       </div>
 
-      <div className="ltv-body" inert={barModal ? true : undefined}>
-        <div className={`ltv-split${factCheckOffered ? ' has-panel' : ''}`} ref={splitRef}>
+      {factCheckOffered ? null : <div className="ltv-linkbar" inert={barModal ? true : undefined}>{linkForm}</div>}
+
+      <div className={`ltv-body${factCheckOffered ? ' has-panel' : ''}`} inert={barModal ? true : undefined}>
+        <div className={`ltv-split${factCheckOffered ? ' has-panel' : ''}`}>
         <div className="ltv-videocol">
           {/* Player Stage */}
           <section className="ltv-player-stage">
@@ -916,7 +852,57 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               {linkId ? 'YT' : activeChannel ? activeChannel.short || activeChannel.name.slice(0, 3) : ''}
             </span>
             <div className="ltv-program-info">
-              <h3>{programTitle}</h3>
+              <h3 tabIndex={-1} ref={titleRef}>{programTitle}</h3>
+              <div className="ltv-np-badges">
+              {playbackMode === 'live' ? (
+                streamError ? (
+                  <span className="ltv-offline-badge">
+                    <span className="ltv-offline-dot" /> OFFLINE
+                  </span>
+                ) : channelCard ? (
+                  <span className="ltv-recent-badge">
+                    <span className="ltv-recent-dot" /> {channelCard === 'connecting' ? 'CONNECTING' : channelCard === 'unknown' ? "CAN'T CHECK" : channelCard === 'refused' ? "CAN'T PLAY HERE" : 'NO LIVE STREAM FOUND'}
+                  </span>
+                ) : (liveSwitchedId || keepCurated) && labelFresh ? (
+                  <span className="ltv-live-badge">
+                    <span className="ltv-live-dot" /> LIVE FEED
+                  </span>
+                ) : (
+                  <span className="ltv-recent-badge">
+                    <span className="ltv-recent-dot" /> CURATED FEED
+                  </span>
+                )
+              ) : playbackMode === 'link' ? (
+                <span className="ltv-video-playback-badge">
+                  <span className="ltv-video-dot" /> YOUTUBE LINK
+                </span>
+              ) : playbackMode === 'video' ? (
+                <span className="ltv-video-playback-badge">
+                  <span className="ltv-video-dot" /> VIDEO PLAYBACK
+                </span>
+              ) : (
+                <span className="ltv-archive-badge">
+                  <span className="ltv-archive-dot" /> ARCHIVE PLAYBACK
+                </span>
+              )}
+              {playbackMode === 'archive' && selectedArchiveItem && (
+                <span className="ltv-archive-pill">
+                  {selectedArchiveItem.duration} &bull; {selectedArchiveItem.date?.split('T')[0]}
+                </span>
+              )}
+              {playbackMode === 'video' && activeVideo && (
+                <span className="ltv-archive-pill">
+                  {[activeVideo.duration, activeVideo.publishedAt?.split('T')[0]].filter(Boolean).join(' • ')}
+                </span>
+              )}
+              {playbackMode === 'live' && (
+                <span className="ltv-viewer-metric">
+                  {activeChannel?.viewers != null
+                    ? `● ${activeChannel.viewers.toLocaleString()} viewers`
+                    : ''}
+                </span>
+              )}
+              </div>
               <p className="ltv-np-line">
                 {linkId ? (
                   ['YouTube link', infoNow?.isLive === true ? 'Live' : pastedVideoKind(infoNow) === 'recorded' ? 'Video' : ''].filter(Boolean).join(' · ')
@@ -1049,12 +1035,14 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               focusRequest={seeWhy}
               videoTitle={videoTitle}
               remainingSeconds={remainingSeconds}
+              linkForm={linkForm}
             />
           </div>
         ) : null}
         </div>
 
-        {/* Lower Section Tabs */}
+        {/* Lower Section Tabs: the lower area, the one scroll container from 1081px (liveTv.css) */}
+        <div className="ltv-lower">
         {/* F61 (F171 B15): real tabs: one tab stop, arrows, Home and End move between them. */}
         <div className="ltv-deck-tabs" role="tablist" aria-label="Live TV Modules">
           {tabs.map(([id, label], index, all) => (
@@ -1339,6 +1327,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
           <div hidden={!factCheckOffered || shownTab !== 'sessions'}>
             <PastSessions userId={factCheck.view?.flag?.userId} enabled={factCheckOffered} sessionStatus={factCheck.view?.session?.status} channels={pastChannels} />
           </div>
+        </div>
         </div>
       </div>
       </div>
