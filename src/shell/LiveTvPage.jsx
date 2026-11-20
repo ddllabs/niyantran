@@ -688,7 +688,10 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
           scrolls; from 1081px, when the window is tall enough, .ltv-body is a grid (video stage, now-playing row and lower
           area in the left column, the panel in the right) and only the lower area (.ltv-lower) scrolls. */}
       <div className="ltv-main">
-      <div>
+      {/* F395: one wrapper, invisible (display: contents) except on laptop-height windows with the panel, where it is
+          the grid that lets the panel start beside the channel bar (liveTv.css). */}
+      <div className={`ltv-grid${factCheckOffered ? ' has-panel' : ''}`}>
+      <div className="ltv-barwrap">
       {lists.length ? (
         <ChannelBar
           channels={shownChannels}
@@ -1329,6 +1332,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
           </div>
         </div>
         </div>
+      </div>
       </div>
       </div>
     </section>
