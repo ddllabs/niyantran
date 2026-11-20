@@ -22,6 +22,7 @@ import {
   softDelete,
   restore,
   emptyTrash,
+  permanentlyDeleteItems,
   getStorageQuota,
 } from './fileManagerService.js';
 import {
@@ -314,6 +315,140 @@ describe('fileManagerService — Folder CRUD, Trash & Restore (Capability 1 & 6)
     expect(mockRpc).toHaveBeenCalledWith('user_files_empty_trash');
     expect(res.success).toBe(true);
     expect(res.purged_count).toBe(5);
+  });
+
+  it('permanentlyDeleteItems removes physical storage objects from user-files bucket before DB delete for files', async () => {
+    const mockStorageRemove = vi.fn().mockResolvedValue({ data: null, error: null });
+    const mockDbDelete = vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: null, error: null }) });
+    const mockDbUpdate = vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: null, error: null }) });
+    const mockDbSelect = vi.fn().mockReturnValue({
+      in: vi.fn().mockResolvedValue({
+        data: [{ id: 'f-1', storage_path: 'user-uuid/f-1/doc.pdf' }],
+        error: null,
+      }),
+    });
+
+    vi.spyOn(supabase.storage, 'from').mockReturnValue({ remove: mockStorageRemove });
+    vi.spyOn(supabase, 'from').mockImplementation((table) => {
+      if (table === 'user_files') {
+        return {
+          select: mockDbSelect,
+          update: mockDbUpdate,
+          delete: mockDbDelete,
+        };
+      }
+      return {};
+    });
+
+    const res = await permanentlyDeleteItems({ ids: ['f-1'], kind: 'file' });
+    expect(res.success).toBe(true);
+    expect(res.purged_count).toBe(1);
+    expect(mockStorageRemove).toHaveBeenCalledWith(['user-uuid/f-1/doc.pdf']);
+  });
+
+  it('permanentlyDeleteItems cleans up nested files in folders before folder deletion', async () => {
+    const mockStorageRemove = vi.fn().mockResolvedValue({ data: null, error: null });
+    const mockFileDelete = vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: null, error: null }) });
+    const mockFolderDelete = vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: null, error: null }) });
+    const mockFolderSelect = vi.fn().mockReturnValue({
+      in: vi.fn().mockResolvedValue({
+        data: [{ id: 'folder-1', path: 'folder-1' }],
+        error: null,
+      }),
+      like: vi.fn().mockResolvedValue({
+        data: [],
+        error: null,
+      }),
+    });
+    const mockNestedSelect = vi.fn().mockReturnValue({
+      in: vi.fn().mockResolvedValue({
+        data: [{ id: 'child-1', storage_path: 'user-uuid/child-1/file.pdf' }],
+        error: null,
+      }),
+    });
+
+    vi.spyOn(supabase.storage, 'from').mockReturnValue({ remove: mockStorageRemove });
+    vi.spyOn(supabase, 'from').mockImplementation((table) => {
+      if (table === 'user_files') {
+        return {
+          select: mockNestedSelect,
+          delete: mockFileDelete,
+        };
+      }
+      if (table === 'user_folders') {
+        return {
+          select: mockFolderSelect,
+          delete: mockFolderDelete,
+        };
+      }
+      return {};
+    });
+
+    const res = await permanentlyDeleteItems({ ids: ['folder-1'], kind: 'folder' });
+    expect(res.success).toBe(true);
+    expect(mockStorageRemove).toHaveBeenCalledWith(['user-uuid/child-1/file.pdf']);
+  });
+
+  it('permanentlyDeleteItems handles empty selection and treats 404 absent objects as successfully deleted', async () => {
+    const emptyRes = await permanentlyDeleteItems({ ids: [], kind: 'file' });
+    expect(emptyRes.success).toBe(true);
+    expect(emptyRes.purged_count).toBe(0);
+
+    const mockStorage404 = vi.fn().mockResolvedValue({ data: null, error: { message: 'Object not found' } });
+    const mockDbDelete = vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: null, error: null }) });
+    const mockDbUpdate = vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: null, error: null }), eq: vi.fn().mockResolvedValue({ data: null, error: null }) });
+
+    vi.spyOn(supabase.storage, 'from').mockReturnValue({ remove: mockStorage404 });
+    vi.spyOn(supabase, 'from').mockImplementation((table) => {
+      if (table === 'user_files') {
+        return {
+          select: () => ({ in: () => Promise.resolve({ data: [{ id: 'f-2', storage_path: 'user-uuid/f-2/doc.pdf', artifact_meta: null }], error: null }) }),
+          update: mockDbUpdate,
+          delete: mockDbDelete,
+        };
+      }
+      return {};
+    });
+
+    const absentRes = await permanentlyDeleteItems({ ids: ['f-2'], kind: 'file' });
+    expect(absentRes.success).toBe(true);
+    expect(absentRes.purged_count).toBe(1);
+    expect(absentRes.storage_deleted).toBe(true);
+  });
+
+  it('permanentlyDeleteItems strictly preserves DB records and records cleanup failure if storage removal fails', async () => {
+    const mockStorageFail = vi.fn().mockResolvedValue({ data: null, error: { message: 'Storage connection timeout 503' } });
+    const mockDbDelete = vi.fn();
+    const mockDbUpdate = vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: null, error: null }), eq: vi.fn().mockResolvedValue({ data: null, error: null }) });
+    const mockDbSelect = vi.fn().mockReturnValue({
+      in: vi.fn().mockResolvedValue({
+        data: [{ id: 'f-stuck', storage_path: 'user-uuid/f-stuck/data.pdf', artifact_meta: null }],
+        error: null,
+      }),
+    });
+
+    vi.spyOn(supabase.storage, 'from').mockReturnValue({ remove: mockStorageFail });
+    vi.spyOn(supabase, 'from').mockImplementation((table) => {
+      if (table === 'user_files') {
+        return {
+          select: mockDbSelect,
+          update: mockDbUpdate,
+          delete: mockDbDelete,
+        };
+      }
+      return {};
+    });
+
+    const res = await permanentlyDeleteItems({ ids: ['f-stuck'], kind: 'file' });
+    expect(res.success).toBe(false);
+    expect(res.failed_count).toBe(1);
+    expect(res.purged_count).toBe(0);
+    expect(res.retained_ids).toEqual(['f-stuck']);
+    expect(res.storage_error).toContain('Storage connection timeout');
+    // Invariant: DB delete was NOT called because storage removal failed
+    expect(mockDbDelete).not.toHaveBeenCalled();
+    // Cleanup failure state was persisted for retry
+    expect(mockDbUpdate).toHaveBeenCalled();
   });
 });
 
