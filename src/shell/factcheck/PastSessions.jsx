@@ -4,7 +4,7 @@
 import { useEffect, useRef } from 'react';
 import { creditsText } from '../../lib/creditsStore.js';
 import { ClaimCard } from './FactCheckPanel.jsx';
-import { ExportButton, PdfButton } from './ClaimExport.jsx';
+import { ExportButton, PdfButton, videoWatchLink } from './ClaimExport.jsx';
 import { exportFileName, sessionExportText } from './claimExport.js';
 import { AnnounceProvider, AnnouncerRegion, createAnnouncer, useAnnounce } from './announce.jsx';
 import { PAST_TEXT, minutesText } from './factCheckText.js';
@@ -72,10 +72,9 @@ export function pastExport({ session, source, state, timeZone = undefined }) {
 
 /** The input of the session PDF for an opened past session, with the video link when the row knows the video. */
 export function pastPdfArgs({ session, source, state, timeZone = undefined }) {
-  const id = typeof session.video_id === 'string' && /^[\w-]{6,20}$/.test(session.video_id) ? session.video_id : '';
   return {
     title: source, date: session.started_at, minutes: session.minutes_used, timeZone,
-    link: id ? `https://www.youtube.com/watch?v=${id}` : '',
+    link: videoWatchLink(session.video_id),
     note: state.capped ? PAST_TEXT.capped(CLAIM_CAP) : '',
     items: state.claims.map((c) => ({ claim: c, shown: c })),
   };
@@ -104,7 +103,7 @@ function Detail({ session, state, past, source }) {
         </ol>
         <div className="fc-card-actions">
           <ExportButton dataKey="pst" say={say} build={() => pastExport({ session, source, state })} />
-          <PdfButton dataKey="pst" say={say} disabled={state.claims.length === 0} build={() => pastPdfArgs({ session, source, state })} />
+          <PdfButton dataKey="pst" say={say} build={() => pastPdfArgs({ session, source, state })} />
         </div>
         {state.capped ? <p className="pst-note">{PAST_TEXT.capped(CLAIM_CAP)}</p> : null}
       </>

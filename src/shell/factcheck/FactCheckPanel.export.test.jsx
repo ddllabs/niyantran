@@ -5,7 +5,7 @@ import { harness, elements } from '../hookHarness.js';
 vi.mock('react', async (importOriginal) => ({ ...(await importOriginal()), ...harness.patch() }));
 vi.mock('../../lib/supabaseClient.js', () => ({ supabase: {}, accessToken: async () => null, functionsUrl: () => '' }));
 const { PanelBody } = await import('./FactCheckPanel.jsx');
-const { ExportButton } = await import('./ClaimExport.jsx');
+const { ExportButton, PdfButton } = await import('./ClaimExport.jsx');
 
 const noop = () => {};
 const claim = (id, checkedAt) => ({ id, claim_en: `Claim ${id}`, kind: 'claim', status: 'checked', verdict: 'supported', reason: 'r', sources: [], checked_at: checkedAt });
@@ -43,5 +43,20 @@ describe('the ended panel Export', () => {
   it('uses the video title when the page gives one', () => {
     const { name } = exportBuild(harness.render(PanelBody, props(view(), { videoTitle: 'Budget debate' })));
     expect(name).toBe('fact-check-Budget-debate-2026-11-18.txt');
+  });
+});
+
+describe('the ended panel Download PDF link', () => {
+  const pdfBuild = (out) => [...elements(out)].find((e) => e.type === PdfButton).props.build();
+  it('is the session\'s own video, not whatever is playing now', () => {
+    const out = harness.render(PanelBody, props(view({ videoId: 'abcdefghijk' }), { videoLink: 'https://www.youtube.com/watch?v=otherVideo1' }));
+    expect(pdfBuild(out).link).toBe('https://www.youtube.com/watch?v=abcdefghijk');
+  });
+  it('is empty when the session does not know its video, even if another video is playing', () => {
+    const out = harness.render(PanelBody, props(view(), { videoLink: 'https://www.youtube.com/watch?v=otherVideo1' }));
+    expect(pdfBuild(out).link).toBe('');
+  });
+  it('refuses a video id that is not a plain id', () => {
+    expect(pdfBuild(harness.render(PanelBody, props(view({ videoId: 'x"><script>' })))).link).toBe('');
   });
 });

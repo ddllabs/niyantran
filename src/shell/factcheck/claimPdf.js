@@ -4,10 +4,10 @@
 // Text path: Latin text is real PDF text (Helvetica, searchable). Hindi and every other script that needs shaping
 // are NOT drawn as embedded-font text: pdf-lib applies glyph substitution but ignores positioning, and a
 // proof with Noto Sans Devanagari put the short-i and long-ii vowel signs (matras) in the wrong place. So a line holding any character
-// outside the Latin set is drawn by the browser's canvas 2D text (which shapes correctly) at 3x scale and placed
+// outside the Latin set is drawn by the browser's canvas 2D text (which shapes correctly) at 2x scale and placed
 // as a PNG; the rasteriser is injectable so the layout is testable without a browser. Source links stay clickable
 // either way: the URL is always Latin text, and a link annotation covers the whole source entry.
-import { PDFDocument, PDFString, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, PDFHexString, StandardFonts, rgb } from 'pdf-lib';
 import { FILTER_KEYS } from './claimFilter.js';
 import { VERDICTS, claimBadge, formatClock, safeSourceUrl } from './factCheckText.js';
 import { AUTOMATED_LINE } from './claimExport.js';
@@ -15,7 +15,8 @@ import { cleanLine, dateStamp, transcriptFileName } from './transcriptTools.js';
 
 const PAGE = { w: 595.28, h: 841.89 };
 const MARGIN = 48;
-const RASTER_SCALE = 3;
+const RASTER_SCALE = 2;
+const YIELD_EVERY = 5; // claims between breaks that let the browser paint, so a 300-claim session does not freeze the tab
 const LINK_COLOR = [0.05, 0.27, 0.65];
 const INK = [0.1, 0.1, 0.12];
 const MUTED = [0.4, 0.4, 0.45];
@@ -24,7 +25,24 @@ const VERDICT_INK = { supported: [0.07, 0.4, 0.2], contradicted: [0.7, 0.1, 0.1]
 // What Helvetica (WinAnsi) can draw. Anything else goes through the rasteriser.
 const WIN_ANSI = /^[\x20-\x7E\u00A0-\u00FF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u0192\u02C6\u02DC\u2013\u2014\u2018\u2019\u201A\u201C\u201D\u201E\u2020\u2021\u2022\u2026\u2030\u2039\u203A\u20AC\u2122]*$/;
 
+// Characters Helvetica lacks that have a plain Latin stand-in. Applied ONLY when the line is then fully drawable as
+// text; a line with any real non-Latin script still goes to the rasteriser untouched. (The curly quotes, dashes,
+// ellipsis, bullet, euro and trademark signs are in WinAnsi already and are drawn as they are.)
+const LATIN_STAND_IN = { '\u20B9': 'Rs ', '\u2192': '->', '\u2190': '<-', '\u2212': '-', '\u2010': '-', '\u2011': '-' };
+const STAND_IN = new RegExp(`[${Object.keys(LATIN_STAND_IN).join('')}]`, 'g');
+const latinStandIn = (t) => t.replace(STAND_IN, (c) => LATIN_STAND_IN[c]);
+
 const oneLine = cleanLine;
+
+/**
+ * An address safe to write into a PDF object: parentheses and backslashes are percent-encoded (they are the string
+ * delimiters of PDF syntax) and anything still outside printable ASCII is refused (new URL().href already encodes
+ * non-ASCII, so this only rejects what is not a plain address).
+ */
+function pdfSafeUri(href) {
+  const encoded = String(href).replace(/\(/g, '%28').replace(/\)/g, '%29').replace(/\\/g, '%5C');
+  return /^[\x21-\x7E]+$/.test(encoded) ? encoded : '';
+}
 
 /** The same http(s)-only "title + address" pairs the text export lists; the title can not point anywhere else. */
 function sourceEntries(result) {
@@ -76,7 +94,13 @@ async function canvasRasterise({ text, size, maxWidthPt, bold, color, lineHeight
   };
   const probe = make(8, 8).getContext('2d');
   probe.font = font;
-  const measure = (s) => probe.measureText(s).width / RASTER_SCALE;
+  // Limit: when the browser cannot draw the text at all (measureText gives 0 for a non-empty string, e.g. no font for
+  // the script) there is no way to tell here; the width is then estimated and the line is drawn as-is (blank or boxes
+  // at worst). No font is downloaded. It never throws for that; real failures are caught by the caller.
+  const measure = (s) => {
+    const w = probe.measureText(s).width / RASTER_SCALE;
+    return w > 0 || !s ? w : s.length * size * 0.55;
+  };
   const out = [];
   for (const line of wrapText(text, measure, maxWidthPt)) {
     const widthPt = Math.max(1, Math.ceil(measure(line)) + 2);
@@ -115,6 +139,8 @@ export async function sessionPdfBytes({ title = '', link = '', date = '', minute
   const newPage = () => { page = doc.addPage([PAGE.w, PAGE.h]); y = PAGE.h - MARGIN; };
   const ensure = (h) => { if (y - h < MARGIN) newPage(); };
 
+  const rasterCache = new Map();
+
   /** Draws one clean line of text wrapped inside the column; returns the rectangles it used (for links). */
   const block = async (text, { size = 10, isBold = false, color = INK, indent = 0, gap = 3 } = {}) => {
     const lineHeight = size * 1.45;
@@ -122,18 +148,43 @@ export async function sessionPdfBytes({ title = '', link = '', date = '', minute
     const width = textW - indent;
     const rects = [];
     const place = (h) => { ensure(h); y -= h; return y; };
-    if (WIN_ANSI.test(text)) {
+    const drawable = WIN_ANSI.test(text) ? text : latinStandIn(text);
+    if (WIN_ANSI.test(drawable)) {
       const font = isBold ? bold : regular;
-      for (const line of wrapText(text, (s) => font.widthOfTextAtSize(s, size), width)) {
+      for (const line of wrapText(drawable, (s) => font.widthOfTextAtSize(s, size), width)) {
         const bottom = place(lineHeight);
         page.drawText(line, { x, y: bottom + (lineHeight - size) / 2 + size * 0.15, size, font, color: rgb(...color) });
         rects.push({ page, x, y: bottom, w: font.widthOfTextAtSize(line, size), h: lineHeight });
       }
     } else {
-      for (const img of await rasterise({ text, size, maxWidthPt: width, bold: isBold, color, lineHeight })) {
-        const bottom = place(img.heightPt);
-        page.drawImage(await doc.embedPng(img.png), { x, y: bottom, width: img.widthPt, height: img.heightPt });
-        rects.push({ page, x, y: bottom, w: img.widthPt, h: img.heightPt });
+      // The same line (text and style) repeats often (headings, "Verdict: ..."), so it is rasterised and embedded once.
+      const key = JSON.stringify([text, size, width, isBold, color, lineHeight]);
+      let images = rasterCache.get(key);
+      if (!images) {
+        try {
+          images = [];
+          for (const img of await rasterise({ text, size, maxWidthPt: width, bold: isBold, color, lineHeight })) {
+            images.push({ ...img, embedded: await doc.embedPng(img.png) });
+          }
+        } catch {
+          images = null; // the browser could not draw it: fall back to Helvetica with '?' for what it lacks
+        }
+        rasterCache.set(key, images);
+      }
+      if (images) {
+        for (const img of images) {
+          const bottom = place(img.heightPt);
+          page.drawImage(img.embedded, { x, y: bottom, width: img.widthPt, height: img.heightPt });
+          rects.push({ page, x, y: bottom, w: img.widthPt, h: img.heightPt });
+        }
+      } else {
+        const font = isBold ? bold : regular;
+        const plain = Array.from(text, (ch) => (WIN_ANSI.test(ch) ? ch : '?')).join('');
+        for (const line of wrapText(plain, (s2) => font.widthOfTextAtSize(s2, size), width)) {
+          const bottom = place(lineHeight);
+          page.drawText(line, { x, y: bottom + (lineHeight - size) / 2 + size * 0.15, size, font, color: rgb(...color) });
+          rects.push({ page, x, y: bottom, w: font.widthOfTextAtSize(line, size), h: lineHeight });
+        }
       }
     }
     y -= gap;
@@ -141,9 +192,12 @@ export async function sessionPdfBytes({ title = '', link = '', date = '', minute
   };
 
   const addLink = ({ page: p, x, y: ry, w, h }, href) => {
+    const uri = pdfSafeUri(href);
+    if (!uri) return;
+    // PDFHexString over the plain ASCII bytes (not fromText, which would add a UTF-16 byte-order mark to the address): no raw string syntax is ever written (PDFString writes its value unescaped).
     const annot = doc.context.register(doc.context.obj({
       Type: 'Annot', Subtype: 'Link', Rect: [x, ry, x + w, ry + h], Border: [0, 0, 0],
-      A: { Type: 'Action', S: 'URI', URI: PDFString.of(href) },
+      A: { Type: 'Action', S: 'URI', URI: PDFHexString.of(Array.from(uri, (c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('')) },
     }));
     p.node.addAnnot(annot);
   };
@@ -184,6 +238,7 @@ export async function sessionPdfBytes({ title = '', link = '', date = '', minute
     const result = shown || claim;
     const badge = claimBadge(result);
     ensure(70);
+    if (i > 0 && i % YIELD_EVERY === 0) await new Promise((r) => { setTimeout(r, 0); });
     await block(`${i + 1}. ${oneLine(claim?.claim_en)}`, { size: 11, isBold: true, gap: 2 });
     if (typeof claim?.position_s === 'number') await block(`Time: ${formatClock(claim.position_s)}`, { indent: 14, color: MUTED, gap: 1 });
     await block(`Verdict: ${badge.label}`, { indent: 14, isBold: true, color: VERDICT_INK[badge.key] || INK, gap: 1 });

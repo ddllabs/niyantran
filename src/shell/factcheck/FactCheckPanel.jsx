@@ -14,7 +14,7 @@ import { filterClaims, shownResult, verdictCounts } from './claimFilter.js';
 import { RovingTabs, VerdictTiles } from './FactCheckTabs.jsx';
 import { blockLine, statusLine } from './panelStatus.js';
 import { SummaryTab } from './SummaryTab.jsx';
-import { CopyClaimButton, ExportButton, PdfButton } from './ClaimExport.jsx';
+import { CopyClaimButton, ExportButton, PdfButton, videoWatchLink } from './ClaimExport.jsx';
 import { AnnounceProvider, AnnouncerRegion, createAnnouncer, useAnnounce } from './announce.jsx';
 import { claimCopyText, exportFileName, sessionExportText, sessionStartOf } from './claimExport.js';
 import { HighlightedText, TRANSCRIPT_TEXT, TranscriptBar, useTranscriptTools } from './TranscriptTools.jsx';
@@ -515,7 +515,7 @@ export function FactCheckPanel(props) {
 
 // Mounted while a session is on screen: focus moves to the heading when it opens, and back to the
 // entry button when it is dismissed (unless the user has already moved focus elsewhere).
-export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', playable = true, onChoose, focusRequest = null, videoTitle = '', remainingSeconds = null, linkForm = null, videoLink = '' }) {
+export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', playable = true, onChoose, focusRequest = null, videoTitle = '', remainingSeconds = null, linkForm = null }) {
   const heading = useRef(null);
   const panel = useRef(null);
   // One shared status node for every copy, export and download confirmation of this panel (announce.jsx).
@@ -764,7 +764,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
                   return { name: exportFileName({ title, date }), text: sessionExportText({ title, date, minutes, items }) };
                 }}
               />
-              <PdfButton say={say} disabled={s.claims.length === 0} build={() => ({ ...endedInput(), link: videoLink })} />
+              <PdfButton say={say} build={() => ({ ...endedInput(), link: videoWatchLink(s.videoId ?? s.video_id) })} />
             </>
           ) : null}
           <button type="button" className="ltv-action-btn fc-btn" data-fc="dismiss" onClick={onDismiss}>Close</button>

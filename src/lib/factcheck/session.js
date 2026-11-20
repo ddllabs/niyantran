@@ -172,7 +172,7 @@ export function createFactCheckSession({
       publish();
     };
     const snapshot = () => ({
-      status, sessionId, minutesBought: minutes, creditsPerMinute, creditsHeld,
+      status, sessionId, videoId, minutesBought: minutes, creditsPerMinute, creditsHeld,
       secondsLeft: frozenLeft ?? (status === 'running' ? left() : status === 'sharing' || status === 'starting' ? minutes * 60 : 0),
       transcript: lines.map(l => ({ ...l })),
       claims: [...claims.values()].map(c => ({ ...c, sources: [...c.sources] })),

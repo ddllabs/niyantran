@@ -48,19 +48,37 @@ describe('PdfButton', () => {
     expect(anchor.download).toBe('NTER-factcheck-test.pdf');
     expect(anchor.href).toBe('blob:pdf');
     expect(anchor.click).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(29000);
+    expect(revoked).toEqual([]); // a slow save dialog still needs the address
     vi.advanceTimersByTime(1000);
     expect(revoked).toEqual(['blob:pdf']);
     expect(say).toHaveBeenCalledWith(CLAIM_EXPORT_TEXT.pdfDone);
-    expect(CLAIM_EXPORT_TEXT.pdfDone).toBe('PDF downloaded');
+    expect(CLAIM_EXPORT_TEXT.pdfDone).toBe('PDF downloaded.');
   });
 
-  it('is disabled and aria-busy while the file is made, then free again', async () => {
+  it('stays focusable while busy: aria-disabled, never the disabled attribute, and a second press does nothing', async () => {
+    let finish;
+    const save = vi.fn(() => new Promise((r) => { finish = r; }));
+    const pending = button({ save }).props.onClick();
+    const busy = button({ save });
+    expect(busy.props.disabled).toBe(false);
+    expect(busy.props['aria-disabled']).toBe('true');
+    expect(busy.props['aria-busy']).toBe('true');
+    await busy.props.onClick();
+    expect(save).toHaveBeenCalledTimes(1);
+    finish();
+    await pending;
+    expect(button({ save }).props['aria-disabled']).toBeUndefined();
+    harness.reset();
+    expect(button({ disabled: true }).props.disabled).toBe(true);
+  });
+
+  it('is aria-busy while the file is made, then free again', async () => {
     let finish;
     builder.sessionPdfBytes.mockReturnValue(new Promise((r) => { finish = r; }));
     const first = button();
     const pending = first.props.onClick();
     const busy = button();
-    expect(busy.props.disabled).toBe(true);
     expect(busy.props['aria-busy']).toBe('true');
     finish(new Uint8Array([1]));
     await pending;

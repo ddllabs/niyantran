@@ -9,9 +9,14 @@ export const CLAIM_EXPORT_TEXT = {
   copyFailed: 'Could not copy. Select the text and copy it yourself.',
   exported: 'Session exported.',
   exportFailed: 'Could not make the file. Copy the claims one at a time instead.',
-  pdfDone: 'PDF downloaded',
+  pdfDone: 'PDF downloaded.',
   pdfFailed: 'Could not make the PDF. Try again.',
 };
+
+/** The watch link of a recorded video id, or '' when the id is not a plausible one. */
+export function videoWatchLink(id) {
+  return typeof id === 'string' && /^[\w-]{6,20}$/.test(id) ? `https://www.youtube.com/watch?v=${id}` : '';
+}
 
 /** `text` is a function so the block is built only when pressed. `dataKey` is the data attribute prefix (fc or pst). */
 export function CopyClaimButton({ text, label = 'Copy this claim', dataKey = 'fc', say = () => {} }) {
@@ -70,18 +75,18 @@ export async function savePdf(args, env = {
     a.click();
     a.remove?.();
   } finally {
-    setTimeout(() => { try { url.revokeObjectURL(href); } catch { /* nothing to free */ } }, 1000);
+    setTimeout(() => { try { url.revokeObjectURL(href); } catch { /* nothing to free */ } }, 30000); // a slow save dialog still needs the address
   }
 }
 
-/** "Download PDF" beside Export. Disabled and aria-busy while the file is being made; failures are said, never thrown. */
+/** "Download PDF" beside Export. aria-disabled and aria-busy while the file is being made (not `disabled`, which would drop keyboard focus); failures are said, never thrown. */
 export function PdfButton({ build, dataKey = 'fc', disabled = false, say = () => {}, label = 'Download PDF', save = savePdf }) {
   const [busy, setBusy] = useState(false);
   const attr = { [`data-${dataKey}`]: 'pdf' };
   return (
     <button
       type="button" className="ltv-action-btn fc-btn" {...attr}
-      disabled={disabled || busy} aria-busy={busy ? 'true' : undefined}
+      disabled={disabled} aria-disabled={busy ? 'true' : undefined} aria-busy={busy ? 'true' : undefined}
       onClick={async () => {
         if (busy) return;
         setBusy(true);

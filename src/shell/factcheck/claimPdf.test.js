@@ -61,6 +61,45 @@ describe('pdfFileName', () => {
   });
 });
 
+/** Every link annotation's whole action dictionary: its keys, /S, and decoded address. */
+async function actions(bytes) {
+  const pdf = await PDFDocument.load(bytes);
+  const out = [];
+  for (const page of pdf.getPages()) {
+    const annots = page.node.Annots();
+    if (!(annots instanceof PDFArray)) continue;
+    for (let i = 0; i < annots.size(); i += 1) {
+      const a = annots.lookup(i, PDFDict);
+      const action = a.lookup(PDFName.of('A'), PDFDict);
+      out.push({ keys: action.keys().map((k) => k.decodeText()), s: action.get(PDFName.of('S')).toString(), uri: action.lookup(PDFName.of('URI')).decodeText(), annotKeys: a.keys().map((k) => k.decodeText()) });
+    }
+  }
+  return out;
+}
+
+describe('link annotations cannot be turned into other actions (PDF string injection)', () => {
+  const hostile = [
+    'https://a.example/x)/S/JavaScript/JS(app.alert(1)',
+    'https://a.example/lone)paren',
+    'https://a.example/back\\slash',
+    'https://a.example/open(paren',
+  ];
+  it.each(hostile)('source and session link %s stays a plain /URI action', async (url) => {
+    const expected = new URL(url).href.replace(/\(/g, '%28').replace(/\)/g, '%29').replace(/\\/g, '%5C');
+    const bytes = await sessionPdfBytes({ link: url, items: [item({ sources: [{ url, title: 'T' }] })] }, { rasterise: fakeRasterise([]) });
+    const found = await actions(bytes);
+    expect(found.length).toBeGreaterThan(0);
+    for (const a of found) {
+      expect(a.s).toBe('/URI');
+      expect(a.keys).not.toContain('JS');
+      expect(a.keys.sort()).toEqual(['S', 'Type', 'URI']);
+      expect(a.annotKeys).not.toContain('JS');
+      expect(a.uri).toBe(expected);
+    }
+    expect(Buffer.from(bytes).toString('latin1')).not.toMatch(/\/JS\b|\/JavaScript/);
+  });
+});
+
 describe('sessionPdfBytes', () => {
   it('returns a PDF', async () => {
     const bytes = await sessionPdfBytes({ title: 'DD News', link: 'https://youtu.be/abc', date: '2026-11-18', minutes: 5, items: [item()], timeZone: 'UTC' }, { rasterise: fakeRasterise([]) });
@@ -140,5 +179,42 @@ describe('sessionPdfBytes', () => {
     expect(rastered.some((t) => /^[\x20-\x7E]+$/.test(t))).toBe(false);
     expect(pageText(pdf)).toContain('Reason: English reason');
     expect(uris.filter((u) => u === 'https://a.test/x').length).toBe(2); // the title line and the address line
+  });
+});
+
+describe('typographic characters, repeats and rasteriser failure', () => {
+  it('draws curly quotes, dashes, ellipsis, bullet and euro as real text', async () => {
+    const calls = [];
+    const { pdf } = await inspect(await sessionPdfBytes({ items: [item({ reason: 'It “was” – not — ‘so’… €5' })] }, { rasterise: fakeRasterise(calls) }));
+    expect(calls).toEqual([]);
+    expect(pageText(pdf)).toContain('Reason: It');
+  });
+  it('turns rupee and arrow into Latin only when the rest of the line is Latin', async () => {
+    const calls = [];
+    const { pdf } = await inspect(await sessionPdfBytes({ items: [item({ reason: 'Cost ₹1,000 a→b' })] }, { rasterise: fakeRasterise(calls) }));
+    expect(calls).toEqual([]);
+    expect(pageText(pdf)).toContain('Reason: Cost Rs 1,000 a->b');
+    const hindi = [];
+    await sessionPdfBytes({ items: [item({ reason: '₹100 पंजाब' })] }, { rasterise: fakeRasterise(hindi) });
+    expect(hindi.map((c) => c.text)).toContain('Reason: ₹100 पंजाब');
+  });
+  it('rasterises a repeated line once', async () => {
+    const again = [];
+    await sessionPdfBytes({ items: Array.from({ length: 6 }, () => item({ reason: '\u092A\u0902\u091C\u093E\u092C' })) }, { rasterise: fakeRasterise(again) });
+    expect(again.filter((c) => c.text === 'Reason: \u092A\u0902\u091C\u093E\u092C')).toHaveLength(1);
+  });
+  it('a long session yields to the event loop between claims', async () => {
+    let yields = 0;
+    const real = globalThis.setTimeout;
+    globalThis.setTimeout = (fn, ms, ...r) => { if (ms === 0) yields += 1; return real(fn, ms, ...r); };
+    try {
+      await sessionPdfBytes({ items: Array.from({ length: 60 }, () => item()) }, { rasterise: fakeRasterise([]) });
+    } finally { globalThis.setTimeout = real; }
+    expect(yields).toBeGreaterThanOrEqual(10);
+  });
+  it('a rasteriser that throws does not stop the PDF', async () => {
+    const bytes = await sessionPdfBytes({ items: [item({ reason: 'पंजाब' })] }, { rasterise: async () => { throw new Error('no canvas'); } });
+    const { pdf } = await inspect(bytes);
+    expect(pageText(pdf)).toContain('Reason: ????');
   });
 });
