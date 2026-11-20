@@ -46,6 +46,11 @@
     (`max(25cqh, 160px)`), never more than the column's width × 9/16.
   - When the height under the channel bar cannot give a 200 px player with that minimum (under about 460 px), the
     pinned rules do not apply and the page scrolls as it does on `main` today, with the panel sticky.
+- **Revised again 2026-11-20 (F388)** after a client demo on a 13-inch laptop, where Chrome leaves about 715 to
+  790 px of height and the page fell back to scrolling: the pinned rules now apply when `.ltv-main` is at least
+  520 px tall inside its padding (a window of about 665 px). Under 640 px the lower area's minimum falls from a
+  quarter of the height to 110 px so the player keeps what room there is, and the stage's floor is 120 px. At
+  1440 × 715 the player is 391 × 220. Shorter windows keep the scrolling page.
 - Anything that scrolled `.ltv-main` by script (scroll to a tab, scroll-padding) must target the new container.
 - Below 1081 px: unchanged (stacked, the page scrolls as it does today).
 
