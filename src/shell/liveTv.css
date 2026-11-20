@@ -174,19 +174,21 @@
 /* From 1081px:
    - Fallback (a window too short for the pinned layout, or no container queries): exactly the page as it was
      before F387. .ltv-main scrolls; the video column is the full left column, the panel 440px and sticky.
-   - Pinned (.ltv-main at least 640px tall, which leaves about 460px under the channel bar): .ltv-body is the grid.
+   - Pinned (.ltv-main at least 520px tall inside its padding, a window about 665px tall; F388 lowered this from
+     640px, which left 13-inch laptops on the scrolling page): .ltv-body is the grid.
      .ltv-split and .ltv-videocol dissolve (display: contents), so the dark stage, the now-playing row and the lower
      area are grid items of .ltv-body in the left column and the panel spans all rows of the right column. No
      script and no measured value: the rows are  stage minmax(200px, auto) | now-playing auto | lower 1fr.
      Grid grows the stage up to its 16:9 height (column width * 9/16) before the lower area gets the rest, and the
-     lower area keeps max(25cqh, 160px). The stage is never under 200px. Only .ltv-lower scrolls (and .fc-body in
+     lower area keeps a quarter of the height (25cqh) from 640px up and gives way to the player below that, down
+     to 110px. The stage is never under 120px. Only .ltv-lower scrolls (and .fc-body in
      the panel); .ltv-body clips, so focus cannot scroll it. */
 @media (min-width: 1081px) {
   .ltv-split.has-panel { display: grid; grid-template-columns: minmax(0, 1fr) 440px; align-items: stretch; }
   .ltv-panelcol { min-height: 0; }
   @supports (container-type: size) {
     .ltv-main { container: ltvmain / size; --ltv-above-split: 163px; }
-    @container ltvmain not (min-height: 640px) {
+    @container ltvmain not (min-height: 520px) {
       .ltv-panelcol { contain: size; }
       .ltv-panelcol > .fc-panel {
         position: sticky;
@@ -196,7 +198,7 @@
         max-height: max(320px, calc(100cqh - var(--ltv-above-split)));
       }
     }
-    @container ltvmain (min-height: 640px) {
+    @container ltvmain (min-height: 520px) {
       .ltv-body {
         container: ltvbody / size;
         flex: 1 1 0;
@@ -208,12 +210,12 @@
         /* The stage row grows first, up to the left column's width at 16:9 (cqw is the width of .ltv-main, whose
            side padding is 18px; a cap a little off only shows as dark bars on the stage); the lower area keeps its
            floor and takes what is left. No track depends on its content, so nothing can feed back. */
-        grid-template-rows: minmax(200px, calc((100cqw - 36px) * 9 / 16)) auto minmax(max(25cqh, 160px), 1fr);
+        grid-template-rows: minmax(120px, calc((100cqw - 36px) * 9 / 16)) auto minmax(clamp(110px, calc(100cqh - 480px), 25cqh), 1fr);
         gap: 12px 16px;
       }
       .ltv-body.has-panel {
         grid-template-columns: minmax(0, 1fr) clamp(440px, 32%, 520px);
-        grid-template-rows: minmax(200px, calc((100cqw - 36px - 16px - 440px) * 9 / 16)) auto minmax(max(25cqh, 160px), 1fr);
+        grid-template-rows: minmax(120px, calc((100cqw - 36px - 16px - 440px) * 9 / 16)) auto minmax(clamp(110px, calc(100cqh - 480px), 25cqh), 1fr);
       }
       /* .ltv-split.has-panel is named because the grid rule above the query has that specificity. */
       .ltv-split, .ltv-split.has-panel, .ltv-videocol { display: contents; }

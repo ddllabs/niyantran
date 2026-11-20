@@ -80,8 +80,8 @@ describe('the video and the panel stay inside the window from 1081px (F387)', ()
     }
     return '';
   };
-  const pinned = at('@container ltvmain (min-height: 640px)');
-  const fallback = at('@container ltvmain not (min-height: 640px)');
+  const pinned = at('@container ltvmain (min-height: 520px)');
+  const fallback = at('@container ltvmain not (min-height: 520px)');
   it('measures nothing by script: no variable fed back from a measured height', () => {
     expect(page).not.toMatch(/--ltv-np-h|--ltv-video-w|--ltv-lower-min/);
   });
@@ -93,12 +93,12 @@ describe('the video and the panel stay inside the window from 1081px (F387)', ()
     expect(rule(wide, '.ltv-main')).toMatch(/container:\s*ltvmain \/ size/);
     expect(pinned).not.toMatch(/sticky;\s*inset|--ltv-above-split/);
   });
-  it('is a grid under the channel bar: stage (200px floor), now-playing row, lower area; the panel the full height', () => {
+  it('is a grid under the channel bar: stage (120px floor), now-playing row, lower area; the panel the full height', () => {
     const body = rule(pinned, '.ltv-body');
     expect(body).toMatch(/display:\s*grid/);
     // No track is sized by its content: the stage row has a floor and a 16:9 cap, the lower row a floor and the rest.
-    expect(body).toMatch(/grid-template-rows:\s*minmax\(200px, calc\(\(100cqw - 36px\) \* 9 \/ 16\)\) auto minmax\(max\(25cqh, 160px\), 1fr\)/);
-    expect(rule(pinned, '.ltv-body.has-panel')).toMatch(/grid-template-rows:\s*minmax\(200px, calc\(\(100cqw - 36px - 16px - 440px\) \* 9 \/ 16\)\) auto minmax\(max\(25cqh, 160px\), 1fr\)/);
+    expect(body).toMatch(/grid-template-rows:\s*minmax\(120px, calc\(\(100cqw - 36px\) \* 9 \/ 16\)\) auto minmax\(clamp\(110px, calc\(100cqh - 480px\), 25cqh\), 1fr\)/);
+    expect(rule(pinned, '.ltv-body.has-panel')).toMatch(/grid-template-rows:\s*minmax\(120px, calc\(\(100cqw - 36px - 16px - 440px\) \* 9 \/ 16\)\) auto minmax\(clamp\(110px, calc\(100cqh - 480px\), 25cqh\), 1fr\)/);
     expect(body).toMatch(/overflow:\s*clip/);
     expect(body).toMatch(/flex:\s*1 1 0/);
     expect(body).toMatch(/min-height:\s*0/);
