@@ -36,6 +36,15 @@ describe('Export in the ended panel', () => {
   it('is there once the session ended with claims', () => {
     expect(render(view()).match(/data-fc="export"/g)).toHaveLength(1);
   });
+  it('Download PDF sits beside it, once', () => {
+    const html = render(view());
+    expect(html.match(/data-fc="pdf"/g)).toHaveLength(1);
+    expect(html).toContain('Download PDF');
+  });
+  it('and is absent while running or with no claims', () => {
+    expect(render(view({ status: 'running' }))).not.toContain('data-fc="pdf"');
+    expect(render(view({ claims: [] }))).not.toContain('data-fc="pdf"');
+  });
   it('is not there while running, or with no claims', () => {
     expect(render(view({ status: 'running' }))).not.toContain('data-fc="export"');
     expect(render(view({ claims: [] }))).not.toContain('data-fc="export"');
@@ -55,7 +64,13 @@ describe('Export in an opened past session', () => {
     expect(out.match(/data-pst="copy-claim"/g)).toHaveLength(2);
     expect(out).not.toContain('data-fc=');
   });
+  it('has Download PDF beside Export, using data-pst', () => {
+    const out = html([claim('1')]);
+    expect(out.match(/data-pst="pdf"/g)).toHaveLength(1);
+    expect(out).not.toContain('data-fc=');
+  });
   it('has none when no verdicts were saved', () => {
+    expect(html([])).not.toContain('pdf');
     expect(html([])).not.toContain('export');
   });
 });

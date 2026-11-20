@@ -1037,6 +1037,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               onEndOrphan={factCheck.actions.endOrphan}
               focusRequest={seeWhy}
               videoTitle={videoTitle}
+              videoLink={/\/watch\?v=/.test(externalWatchUrl || '') ? externalWatchUrl : ''}
               remainingSeconds={remainingSeconds}
               linkForm={linkForm}
             />
