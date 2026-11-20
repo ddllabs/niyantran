@@ -46,9 +46,12 @@ itself.
    collection is refused; an unreadable receipt or report fails the command. It reads the status first, which also moves the batch on; it refuses a
    batch that is not indexed; it runs the same acceptance as today and writes the same report. It makes no open, seal
    or register call and does not pass through the planner.
-3. **Batch size for the unattended part.** The remainder of a desk is cut into batches of at least the policy's
-   `min_decided` where the remainder is that large, so the failure-rate stop is live with no client. A remainder
-   smaller than `min_decided` goes as one batch and relies on the spend and uncertain stops; the record says so.
+3. **Batch size for the unattended part.** First use (2026-11-20) showed that batches of at least the policy's
+   `min_decided` keep the laptop attached, because the runner waits between registration steps inside a batch after
+   the first 100 documents. The Cabinet remainder therefore went as six parts of 100 or fewer, so its failure-rate
+   stop was not live (`min_decided` is 400). Closing this needs either a lower `min_decided` for hands-off loads,
+   set per policy, or registration pacing moved to the server. Undecided. See the
+   [first-use record](../operations/2026-11-20-cabinet-remainder-load.md).
 4. **Limits.** The first use, the Cabinet remainder, runs at the normal worker limits and needs no change to
    `ingest_settings` (about 4.5 hours for 547 documents, unattended). Raised limits for larger loads need the
    limits put back on Supabase when the queue is empty: a scheduled owner function, a migration, its own short spec
@@ -67,9 +70,12 @@ itself.
    non-zero; a batch not indexed is refused.
 2. Both test suites, lint and build pass.
 3. On the local load copy: three parts registered with `--register-only`, the client exits, the worker indexes them,
-   `accept --collection` then passes each.
+   `accept --collection` then passes each. **Done on the local load copy (2026-11-20):** three of three accepted; a
+   second run skipped all; a made-up batch id was refused.
 4. First use on NTER: batch `2537b346` accepted by `accept --batch`; the Cabinet remainder registered and left;
-   acceptance of each batch afterwards; a record in `docs/operations/`.
+   acceptance of each batch afterwards; a record in `docs/operations/`. **Done (2026-11-20):** batch `2537b346`
+   accepted by `accept --batch`, 50 of 50; parts 003 to 008 registered and left; `accept --all` accepted all six, 6
+   of 6. Record: [Cabinet remainder load](../operations/2026-11-20-cabinet-remainder-load.md).
 
 ## Scope
 
@@ -83,5 +89,15 @@ reads Drive from Supabase are not in this change.
 
 ## Not verified
 
-Everything under Current state was read from code. The worker's rate at the normal limits is arithmetic from the
-schedule, not a measurement.
+Everything under Current state was read from code. The worker's rate at the normal limits was measured on first use:
+547 documents in 4 h 33 min (11:10:08 to 15:43:10 UTC), about 2 a minute.
+
+## Findings from first use (2026-11-20)
+
+- Batches of at least `min_decided` keep the laptop attached: the in-batch waits after the first 100 documents
+  (design point 3).
+- Raised limits were not used hands-off, because nothing on Supabase puts them back (design point 4).
+- `run` does not check that the receipts folder exists before it registers.
+- `accept --all` with nothing to do prints "0 of 0 batches accepted".
+- `accept` reads batch status first, and that read moves a finished batch from registered to indexed; a batch nobody
+  reads stays `registered`.
