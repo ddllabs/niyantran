@@ -171,32 +171,74 @@
 .ltv-split { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .ltv-videocol { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .ltv-panelcol { position: relative; min-width: 0; }
-/* Pinned layout, from 1081px: the video and the panel never leave the window; only .ltv-lower scrolls.
-   .ltv-body is a size container, so 100cqh is the height under the channel card (a layout fact, no script). The
-   lower area keeps at least 30% of that and never under 200px; the video takes the rest of the height at 16:9
-   (the pinned height, minus the now-playing row under it, measured into --ltv-np-h, minus its 12px gap). A short
-   window therefore gives a narrower video, and the panel takes the width that frees up, never under 440px. The
-   panel is exactly as tall as the video column, top edges aligned. Without container queries the page body
-   scrolls as before (the video at its natural width, the panel 440px). */
+/* From 1081px:
+   - Fallback (a window too short for the pinned layout, or no container queries): exactly the page as it was
+     before F387. .ltv-main scrolls; the video column is the full left column, the panel 440px and sticky.
+   - Pinned (.ltv-main at least 640px tall, which leaves about 460px under the channel bar): .ltv-body is the grid.
+     .ltv-split and .ltv-videocol dissolve (display: contents), so the dark stage, the now-playing row and the lower
+     area are grid items of .ltv-body in the left column and the panel spans all rows of the right column. No
+     script and no measured value: the rows are  stage minmax(200px, auto) | now-playing auto | lower 1fr.
+     Grid grows the stage up to its 16:9 height (column width * 9/16) before the lower area gets the rest, and the
+     lower area keeps max(25cqh, 160px). The stage is never under 200px. Only .ltv-lower scrolls (and .fc-body in
+     the panel); .ltv-body clips, so focus cannot scroll it. */
 @media (min-width: 1081px) {
   .ltv-split.has-panel { display: grid; grid-template-columns: minmax(0, 1fr) 440px; align-items: stretch; }
   .ltv-panelcol { min-height: 0; }
   @supports (container-type: size) {
-    .ltv-main { overflow-y: hidden; padding-bottom: 16px; }
-    .ltv-body {
-      container: ltvbody / size;
-      flex: 1 1 0;
-      min-height: 0;
-      overflow: hidden;
-      --ltv-lower-min: max(30cqh, 200px);
-      --ltv-video-w: calc((100cqh - 16px - var(--ltv-lower-min) - var(--ltv-np-h, 96px) - 12px) * 16 / 9);
+    .ltv-main { container: ltvmain / size; --ltv-above-split: 163px; }
+    @container ltvmain not (min-height: 640px) {
+      .ltv-panelcol { contain: size; }
+      .ltv-panelcol > .fc-panel {
+        position: sticky;
+        inset: auto;
+        top: 16px;
+        height: 100%;
+        max-height: max(320px, calc(100cqh - var(--ltv-above-split)));
+      }
     }
-    .ltv-split { flex: 0 0 auto; }
-    .ltv-split.has-panel { grid-template-columns: minmax(0, min(var(--ltv-video-w), calc(100% - 456px))) minmax(440px, 1fr); }
-    .ltv-split .ltv-video-container { width: min(100%, var(--ltv-video-w)); }
-    .ltv-panelcol { contain: size; }
-    .ltv-lower { flex: 1 1 0; min-height: var(--ltv-lower-min); overflow-x: hidden; overflow-y: auto; }
-    .ltv-lower .ltv-deck-tabs { position: sticky; top: 0; z-index: 2; background: var(--bg); }
+    @container ltvmain (min-height: 640px) {
+      .ltv-body {
+        container: ltvbody / size;
+        flex: 1 1 0;
+        min-height: 0;
+        overflow: hidden;
+        overflow: clip;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        /* The stage row grows first, up to the left column's width at 16:9 (cqw is the width of .ltv-main, whose
+           side padding is 18px; a cap a little off only shows as dark bars on the stage); the lower area keeps its
+           floor and takes what is left. No track depends on its content, so nothing can feed back. */
+        grid-template-rows: minmax(200px, calc((100cqw - 36px) * 9 / 16)) auto minmax(max(25cqh, 160px), 1fr);
+        gap: 12px 16px;
+      }
+      .ltv-body.has-panel {
+        grid-template-columns: minmax(0, 1fr) clamp(440px, 32%, 520px);
+        grid-template-rows: minmax(200px, calc((100cqw - 36px - 16px - 440px) * 9 / 16)) auto minmax(max(25cqh, 160px), 1fr);
+      }
+      /* .ltv-split.has-panel is named because the grid rule above the query has that specificity. */
+      .ltv-split, .ltv-split.has-panel, .ltv-videocol { display: contents; }
+      .ltv-player-stage {
+        grid-column: 1; grid-row: 1; align-self: stretch;
+        min-height: 0; min-width: 0;
+        display: flex; justify-content: center;
+        background: #05070d; border-radius: 14px; overflow: hidden;
+      }
+      .ltv-player-stage .ltv-video-container {
+        flex: none; width: auto; height: 100%; max-width: 100%;
+        border-radius: 0; box-shadow: none;
+      }
+      .ltv-player-stage .ltv-video-container:fullscreen { width: 100%; height: 100%; max-width: none; aspect-ratio: auto; }
+      .ltv-nowplaying { grid-column: 1; grid-row: 2; min-height: 0; }
+      .ltv-nowplaying .ltv-program-info { flex-basis: 160px; }
+      .ltv-nowplaying .ltv-player-controls { margin-left: auto; }
+      .ltv-panelcol { grid-column: 2; grid-row: 1 / -1; }
+      .ltv-lower {
+        grid-column: 1; grid-row: 3; margin-top: 4px;
+        min-height: 0;
+        overflow-x: hidden; overflow-y: auto;
+      }
+      .ltv-lower .ltv-deck-tabs { position: sticky; top: 0; z-index: 2; background: var(--bg); }
+    }
   }
 }
 

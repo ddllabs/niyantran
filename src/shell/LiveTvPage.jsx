@@ -14,7 +14,6 @@ import { leaveFullscreenThen } from './factcheck/leaveFullscreen.js';
 import { ChannelCard } from './liveTv/ChannelCard.jsx';
 import { ChannelBar } from './liveTv/ChannelBar.jsx';
 import { browserStorage, readFollowing, writeFollowing, toggleFollowing, FOLLOW_KEY, FOLLOW_FULL, FOLLOW_MAX } from './liveTv/following.js';
-import { watchNowPlayingHeight } from './liveTv/aboveSplit.js';
 import { TABS } from '../desks/tabs.js';
 import { nowPlayingLine } from './liveTv/channelView.js';
 import { embedVideoId, playingTarget } from './factcheck/factCheckText.js';
@@ -88,8 +87,6 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const [playerInfo, setPlayerInfo] = useState(null);
   const [playerError, setPlayerError] = useState(null); // the player's error code, or null
 
-  const splitRef = useRef(null);
-  const nowRef = useRef(null);
   const [lists, setLists] = useState([]); // the client's ten lists, from the server; none means the older category card
   const [followIds, setFollowIds] = useState(() => readFollowing(browserStorage())); // "My list", this browser only
   const [lookupNonce, setLookupNonce] = useState(0); // Reload on the not-live card asks the lookup again
@@ -593,7 +590,6 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   // Ids that are no longer channels are only hidden (the bar shows the known ones): they stay stored, so a list is not
   // wiped by an older deployment that does not know a channel yet. They count toward the cap.
   // The panel beside the video is held inside the window by a height that depends on what sits above it: measured.
-  useEffect(() => watchNowPlayingHeight(splitRef.current, nowRef.current), [open]);
   const selectChannel = (ch) => {
     leaveLink();
     if (ch.id !== activeChannelId) {
@@ -689,7 +685,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   return (
     <section className="ltv-page" aria-label="Live TV">
       {/* Page body: the channel card, the video and panel, then the lower tabs (liveTv.css). Below 1081px the page
-          scrolls; from 1081px the video and panel stay put and only the lower area (.ltv-lower) scrolls. */}
+          scrolls; from 1081px, when the window is tall enough, .ltv-body is a grid (video stage, now-playing row and lower
+          area in the left column, the panel in the right) and only the lower area (.ltv-lower) scrolls. */}
       <div className="ltv-main">
       <div>
       {lists.length ? (
@@ -720,8 +717,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
 
       {factCheckOffered ? null : <div className="ltv-linkbar" inert={barModal ? true : undefined}>{linkForm}</div>}
 
-      <div className="ltv-body" inert={barModal ? true : undefined}>
-        <div className={`ltv-split${factCheckOffered ? ' has-panel' : ''}`} ref={splitRef}>
+      <div className={`ltv-body${factCheckOffered ? ' has-panel' : ''}`} inert={barModal ? true : undefined}>
+        <div className={`ltv-split${factCheckOffered ? ' has-panel' : ''}`}>
         <div className="ltv-videocol">
           {/* Player Stage */}
           <section className="ltv-player-stage">
@@ -850,7 +847,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
           </section>
 
           {/* Now playing: the tile, the title, the line, and the existing action buttons */}
-          <div className="ltv-nowplaying" ref={nowRef}>
+          <div className="ltv-nowplaying">
             <span className="ltv-np-tile" style={{ background: linkId ? '#c4302b' : activeChannel?.color || '#3b82f6' }} aria-hidden="true">
               {linkId ? 'YT' : activeChannel ? activeChannel.short || activeChannel.name.slice(0, 3) : ''}
             </span>
@@ -1037,7 +1034,6 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               onEndOrphan={factCheck.actions.endOrphan}
               focusRequest={seeWhy}
               videoTitle={videoTitle}
-              videoLink={/\/watch\?v=/.test(externalWatchUrl || '') ? externalWatchUrl : ''}
               remainingSeconds={remainingSeconds}
               linkForm={linkForm}
             />

@@ -35,6 +35,17 @@
   200 px. The player takes the rest at 16:9, so on a short window the player is narrower than today and the panel
   takes the freed width (never under 440 px). The player's button row stays with the player in the pinned zone.
 - The panel is exactly as tall as the player column, top edges aligned. Inside it only `.fc-body` scrolls, as today.
+- **Revised 2026-11-20 after the first build was measured in a browser** (static previews of the real page): with
+  the panel only as tall as the player column, a 1440 × 900 window gave a 508 × 286 player and a 399 px panel with
+  almost no room for claims, and 1280 × 720 gave a 188 px wide player with the lower area off screen. The three
+  bullets above are replaced by:
+  - The panel is the right column for the **full height** under the channel bar (`clamp(440px, 32%, 520px)` wide).
+  - The left column holds, top to bottom: a dark stage as wide as the column with the 16:9 player centred in it;
+    the now-playing row on one line (identity left, buttons right; it may wrap when it must); the lower area, which
+    scrolls. Stage height = the column height minus the now-playing row, the gaps and the lower area's minimum
+    (`max(25cqh, 160px)`), never more than the column's width × 9/16.
+  - When the height under the channel bar cannot give a 200 px player with that minimum (under about 460 px), the
+    pinned rules do not apply and the page scrolls as it does on `main` today, with the panel sticky.
 - Anything that scrolled `.ltv-main` by script (scroll to a tab, scroll-padding) must target the new container.
 - Below 1081 px: unchanged (stacked, the page scrolls as it does today).
 

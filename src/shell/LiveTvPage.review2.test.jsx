@@ -359,15 +359,6 @@ describe('7: the page behind the phone sheet', () => {
   });
 });
 
-describe('6: the video is sized from the real now-playing row', () => {
-  it('writes --ltv-np-h from the measured row', async () => {
-    const set = vi.fn();
-    harness.refFactory = () => ({ focus() {}, scrollTop: 0, getBoundingClientRect: () => ({ top: 100, height: 88 }), style: { setProperty: set } });
-    await open();
-    expect(set).toHaveBeenCalledWith('--ltv-np-h', '88px');
-  });
-});
-
 describe('11: My list', () => {
   const memory = (initial) => {
     const m = new Map(initial ? [['nter.livetv.following.v1', initial]] : []);

@@ -70,43 +70,57 @@ describe('nothing scrolls sideways', () => {
 
 describe('the video and the panel stay inside the window from 1081px (F387)', () => {
   const wide = media(page, '(min-width: 1081px)');
-  const fit = wide.slice(wide.indexOf('@supports'));
-  it('falls back to the page body scrolling, the video at its natural width and the panel 440px, without container queries', () => {
-    expect(rule(wide, '.ltv-split.has-panel')).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\) 440px/);
-    expect(wide.slice(0, wide.indexOf('@supports'))).not.toMatch(/cqh|sticky|overflow/);
+  const at = (marker) => {
+    const start = wide.indexOf(marker);
+    expect(start, marker).toBeGreaterThan(-1);
+    let depth = 0;
+    for (let i = wide.indexOf('{', start); i < wide.length; i += 1) {
+      if (wide[i] === '{') depth += 1;
+      if (wide[i] === '}' && (depth -= 1) === 0) return wide.slice(start, i + 1);
+    }
+    return '';
+  };
+  const pinned = at('@container ltvmain (min-height: 640px)');
+  const fallback = at('@container ltvmain not (min-height: 640px)');
+  it('measures nothing by script: no variable fed back from a measured height', () => {
+    expect(page).not.toMatch(/--ltv-np-h|--ltv-video-w|--ltv-lower-min/);
   });
-  it('makes the area under the channel card a size container, so its height is a layout fact (no script)', () => {
-    const body = rule(fit, '.ltv-body');
-    expect(body).toMatch(/container:\s*ltvbody \/ size/);
+  it('keeps the scrolling page, the 440px panel column and the sticky panel when the window is too short', () => {
+    expect(rule(wide, '.ltv-split.has-panel')).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\) 440px/);
+    expect(rule(fallback, '.ltv-panelcol')).toMatch(/contain:\s*size/);
+    expect(rule(fallback, '.ltv-panelcol > .fc-panel')).toMatch(/position:\s*sticky/);
+    expect(rule(fallback, '.ltv-panelcol > .fc-panel')).toMatch(/max-height:\s*max\(320px, calc\(100cqh - var\(--ltv-above-split\)\)\)/);
+    expect(rule(wide, '.ltv-main')).toMatch(/container:\s*ltvmain \/ size/);
+    expect(pinned).not.toMatch(/sticky;\s*inset|--ltv-above-split/);
+  });
+  it('is a grid under the channel bar: stage (200px floor), now-playing row, lower area; the panel the full height', () => {
+    const body = rule(pinned, '.ltv-body');
+    expect(body).toMatch(/display:\s*grid/);
+    // No track is sized by its content: the stage row has a floor and a 16:9 cap, the lower row a floor and the rest.
+    expect(body).toMatch(/grid-template-rows:\s*minmax\(200px, calc\(\(100cqw - 36px\) \* 9 \/ 16\)\) auto minmax\(max\(25cqh, 160px\), 1fr\)/);
+    expect(rule(pinned, '.ltv-body.has-panel')).toMatch(/grid-template-rows:\s*minmax\(200px, calc\(\(100cqw - 36px - 16px - 440px\) \* 9 \/ 16\)\) auto minmax\(max\(25cqh, 160px\), 1fr\)/);
+    expect(body).toMatch(/overflow:\s*clip/);
     expect(body).toMatch(/flex:\s*1 1 0/);
     expect(body).toMatch(/min-height:\s*0/);
-    expect(page).not.toMatch(/ltvmain|--ltv-above-split/);
+    expect(rule(pinned, '.ltv-body.has-panel')).toMatch(/clamp\(440px, 32%, 520px\)/);
+    // .ltv-split.has-panel must be named: the grid rule outside the query has that specificity and would win.
+    expect(rule(pinned, '.ltv-split, .ltv-split.has-panel, .ltv-videocol')).toMatch(/display:\s*contents/);
+    expect(rule(pinned, '.ltv-panelcol')).toMatch(/grid-column:\s*2;\s*grid-row:\s*1 \/ -1/);
   });
-  it('keeps the lower area at least 30% of that height and never under 200px; the video takes the rest at 16:9', () => {
-    expect(rule(fit, '.ltv-body')).toMatch(/--ltv-lower-min:\s*max\(30cqh, 200px\)/);
-    expect(rule(fit, '.ltv-body')).toMatch(/--ltv-video-w:\s*calc\(\(100cqh - 16px - var\(--ltv-lower-min\) - var\(--ltv-np-h, \d+px\) - 12px\) \* 16 \/ 9\)/);
-    expect(rule(fit, '.ltv-split .ltv-video-container')).toMatch(/width:\s*min\(100%, var\(--ltv-video-w\)\)/);
-    expect(rule(fit, '.ltv-lower')).toMatch(/flex:\s*1 1 0/);
-    expect(rule(fit, '.ltv-lower')).toMatch(/min-height:\s*var\(--ltv-lower-min\)/);
+  it('centres a 16:9 player in a dark stage as wide as the column; the stage is dark only here', () => {
+    expect(rule(pinned, '.ltv-player-stage')).not.toMatch(/aspect-ratio/);
+    expect(rule(pinned, '.ltv-player-stage')).toMatch(/justify-content:\s*center/);
+    expect(rule(pinned, '.ltv-player-stage')).toMatch(/background:\s*#05070d/);
+    expect(rule(pinned, '.ltv-player-stage .ltv-video-container')).toMatch(/height:\s*100%/);
+    expect(page.replace(pinned, '')).not.toMatch(/#05070d/);
   });
-  it('gives the panel at least 440px and all the width the video leaves free', () => {
-    expect(rule(fit, '.ltv-split.has-panel')).toMatch(/grid-template-columns:\s*minmax\(0, min\(var\(--ltv-video-w\), calc\(100% - 456px\)\)\) minmax\(440px, 1fr\)/);
+  it('makes the lower area the one scroll container with a floor, its tabs held at its top', () => {
+    expect(rule(pinned, '.ltv-lower')).toMatch(/min-height:\s*0/);
+    expect(rule(pinned, '.ltv-lower')).toMatch(/overflow-y:\s*auto/);
+    expect(rule(pinned, '.ltv-lower .ltv-deck-tabs')).toMatch(/position:\s*sticky/);
   });
-  it('makes the lower area the one scroll container, with its tabs held at its top', () => {
-    expect(rule(fit, '.ltv-lower')).toMatch(/overflow-y:\s*auto/);
-    expect(rule(fit, '.ltv-main')).toMatch(/overflow-y:\s*hidden/);
-    expect(rule(fit, '.ltv-lower .ltv-deck-tabs')).toMatch(/position:\s*sticky/);
-    expect(rule(fit, '.ltv-lower .ltv-deck-tabs')).toMatch(/top:\s*0/);
-  });
-  it('gives the panel column no size of its own, so the panel is exactly as tall as the video column', () => {
-    expect(rule(fit, '.ltv-panelcol')).toMatch(/contain:\s*size/);
-    expect(rule(fit, '.ltv-panelcol')).not.toMatch(/sticky|max-height/);
-  });
-  it('touches nothing at 1080px and below, and only inside the supports guard', () => {
-    expect(page.replace(wide, '').replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/ltvbody|container-type|100cqh|ltv-lower-min/);
-    expect(wide).toMatch(/@supports \(container-type: size\)/);
-  });
-  it('keeps the lower area an ordinary column below 1081px (same gap as before it existed)', () => {
+  it('touches nothing at 1080px and below', () => {
+    expect(page.replace(wide, '').replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/ltvbody|ltvmain|container-type|cqh/);
     expect(rule(page.replace(wide, ''), '.ltv-lower')).toMatch(/gap:\s*16px/);
   });
 });
@@ -189,9 +203,6 @@ describe('the channel bar keeps the panel\'s foot in the window (B6 review)', ()
     expect(outsideMedia(bar)).toMatch(/\.ltv-channelbar \.ltv-sheet-open\s*\{\s*display:\s*none/);
     expect(paste).toMatch(/@media \(max-width: 600px\)[\s\S]*\.ltv-paste \.ltv-paste-toggle\s*\{\s*display:\s*inline-flex/);
     expect(bar).toMatch(/@media \(max-width: 600px\)[\s\S]*\.ltv-channelbar \.ltv-sheet-open\s*\{\s*display:\s*inline-flex/);
-  });
-  it('keeps a fallback for the now-playing height; the page writes the measured one on .ltv-split', () => {
-    expect(page).toMatch(/var\(--ltv-np-h, 96px\)/);
   });
   it('puts the paste form in the panel (or its own row), wide enough to fill it', () => {
     expect(paste).toMatch(/\.ltv-paste-input\s*\{[^}]*flex:\s*1 1 0/);

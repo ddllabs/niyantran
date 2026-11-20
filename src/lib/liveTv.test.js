@@ -140,12 +140,12 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
     const openHtml = renderToStaticMarkup(
       React.createElement(LiveTvPage, { open: true, onClose: () => {} })
     );
-    expect(openHtml).toMatch(/<h2[^>]*>Live TV<\/h2>/); // F366: the page title
-    // F359: a page, not a pop-up: a labelled region, no dialog role, no backdrop, a visible Back control.
+    // F387: the header strip is gone (no title, no Back control); the region's label names the page.
+    expect(openHtml).not.toMatch(/ltv-header|ltv-back-btn|<h2[^>]*>Live TV<\/h2>/);
+    // F359: a page, not a pop-up: a labelled region, no dialog role, no backdrop.
     expect(openHtml).toMatch(/<section[^>]*class="ltv-page"[^>]*aria-label="Live TV"|<section[^>]*aria-label="Live TV"[^>]*class="ltv-page"/);
     expect(openHtml).not.toContain('role="dialog"');
     expect(openHtml).not.toContain('ltv-modal');
-    expect(openHtml).toMatch(/<button[^>]*class="ltv-back-btn"[^>]*>.*?Back<\/button>/);
     expect(openHtml).toContain('ltv-video-container');
     expect(openHtml).toContain('Broadcast Schedule');
     expect(openHtml).toContain('Archived Segments');
