@@ -1,6 +1,6 @@
 # Completing National ingestion and search: loads, sitewide hybrid, one-bit index
 
-> **Status: Living (2026-11-20). Draft for the developer; not yet accepted.** One programme spec that joins the
+> **Status: Living (2026-11-20). Decisions taken by the developer on 2026-11-20; see Decisions.** One programme spec that joins the
 > open threads of the corpus ingestion and hybrid search programmes: what is loaded, what is left, and the builds
 > that stand between today and a corpus that is fully loaded and searched the same way on every desk. It is a
 > capability map with an outcome and acceptance evidence per module. A module that changes the database or the search
@@ -72,7 +72,7 @@ Deletes, migrations, function deploys, pushes and anything touching billing stil
 |---|---|---|---|
 | `loads-ready` | Load what has a route: Cabinet, Budget, Bills v1.2, Industry, MP profiles | `default-partition` before Budget and MP profiles are both in | F374 |
 | `default-partition` | Keep the default partition under its working bound; the runner refuses a desk without a current chunk count | none | F285, F377 |
-| `runner-resilience` | An accept-only command; a load survives the operator's machine sleeping | none | F356, F379 |
+| `hands-off-loads` | The operator's machine screens and registers; Supabase does the rest unattended; acceptance runs later on its own | none | F356, F379 |
 | `hybrid-sitewide` | One general keyword rule, fused with vector search, with a switch per desk; on for every desk that passes | none | F355, F378 |
 | `rerank-measure` | Measure a second-stage re-ranker on Regulatory; build it only if `hybrid-sitewide` misses the bar | `hybrid-sitewide` measurement | F355 |
 | `one-bit-index` | A one-bit vector index with re-ranking on the stored vectors, per partition, measured against today's index | `hybrid-sitewide` on, so both are measured together | F279 |
@@ -80,7 +80,7 @@ Deletes, migrations, function deploys, pushes and anything touching billing stil
 | `repairs` | Corrigenda route, Budget re-extraction, Transfers source, text replacement, row links, row files | `loads-ready` for row links | F372, F376, F375, F357, F368, F373 |
 | `next-packs` | Inventory v1.4 to v1.6 by entry, then load | `one-bit-index`, `default-partition` | F358, F278 |
 
-Build order: `loads-ready` and `runner-resilience` now; `hybrid-sitewide` with `rerank-measure`; `default-partition`;
+Build order: `hands-off-loads` first, then `loads-ready`; `hybrid-sitewide` with `rerank-measure`; `default-partition`;
 `one-bit-index`; `regulatory-archive`; `repairs` alongside, each on its own spec; `next-packs` last.
 
 ## Outcome and acceptance evidence per module
@@ -99,10 +99,26 @@ Budget and MP profiles are both loaded, by the method used for the first partiti
 swapped in one transaction, old rows kept until checked). Evidence: its own design spec; fixture; rolled-back dry
 run; search check for Parliamentary Questions identical before and after.
 
-### `runner-resilience`
-Outcome: acceptance can be run for an existing batch without the run command; a long load does not depend on the
-operator's lid. Evidence: a test that the accept-only path makes no registration call; a load of several batches
-completed with the display closed, or run from a host that does not sleep. Which of the two is an open decision.
+### `hands-off-loads`
+Developer decision 2026-11-20: the operator's laptop is not to carry a long load. A small batch is tested first; the
+bulk then runs on Supabase.
+
+What runs where today: chunking, embedding and indexing already run on Supabase (the `ingest-worker` function on its
+30-second schedule). The laptop reads the pack from Drive, screens it, registers each batch (one call of about 4 s
+per 100 records), then waits for that batch to index and runs its acceptance check before registering the next. Only
+that waiting ties a load to the laptop.
+
+Outcome: after the first batch of a desk has passed with the laptop attending, the remaining batches are registered
+in one short sitting and the laptop may close. Supabase works through the queue. Acceptance for every batch is run
+afterwards, by a command that registers nothing. The worker limits are raised for the load and put back by a
+scheduled step on Supabase when the queue is empty, not by the laptop.
+Evidence: a test that the register-only path makes no acceptance or watch call and that the accept-only path makes
+no registration call; the stop thresholds of the policy shown to hold without a client attached, or moved into the
+database if they are enforced by the client today (to be read from the code before design); one load of several
+batches completed with the laptop closed, every batch accepted afterwards.
+Not chosen: a function on Supabase that reads the packs from Drive itself. It would also remove the screening step
+from the laptop, but screening is minutes, and the page check fetches official PDFs that do not suit a function's
+time limit.
 
 ### `hybrid-sitewide`
 Outcome: every desk is searched by keyword and vector together, through one function and one rule, with a flag row
@@ -184,18 +200,18 @@ records under `docs/`. Raw measurement and load output stays outside the reposit
 No change to chunking or to the embedding model. No change to billing, accounts or analytics. No move to another
 vector store. The legal corpus (v1.7) is out.
 
-## Open decisions for the developer
+## Decisions, 2026-11-20
 
-1. **Re-ranker in the live search.** If the measurement shows it is the only way past the Regulatory bar, may each
-   search make a model call? Recommendation: decide after the measurement, with its cost and added time in hand.
-2. **Order.** Recommendation: sitewide hybrid, then the Parliamentary Questions partition, then the one-bit index,
-   then the Regulators archive. The alternative is the one-bit index first; it would then be measured twice, once
-   without hybrid and once with.
-3. **Regulatory hold.** Recommendation: keep the archive held until hybrid passes on Regulatory.
-4. **Transfers.** Recommendation: ask the owner for a working source and hold the 29; the alternative is to load them
-   without a page check.
-5. **Where long loads run.** Recommendation: keep the operator's machine, lid open, and build the accept-only
-   command; a small always-on host is the alternative and is an account step for the developer.
+The developer took the recommendations:
+
+1. **Re-ranker in the live search:** decided after its measurement. The measurement did not run on 2026-11-20: it
+   needs a model key on the operator's machine, which the developer does not want. It is deferred until the keyword
+   rule has been measured; if still needed it is run from a function on Supabase, where the key already is.
+2. **Order:** sitewide hybrid, the Parliamentary Questions partition, the one-bit index, then the Regulators archive.
+3. **Regulatory hold:** the archive stays held until hybrid passes on Regulatory.
+4. **Transfers:** the 29 are held; the owner is asked for a working source.
+5. **Where long loads run:** on Supabase, as `hands-off-loads` sets out. This replaces the earlier recommendation of
+   the operator's machine with its lid open.
 
 ## Not verified
 
