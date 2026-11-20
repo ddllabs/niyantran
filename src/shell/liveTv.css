@@ -175,8 +175,9 @@
 .ltv-videocol { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .ltv-panelcol { position: relative; min-width: 0; }
 /* From 1081px:
-   - Fallback (a window too short for the pinned layout, or no container queries): exactly the page as it was
-     before F387. .ltv-main scrolls; the video column is the full left column, the panel 440px and sticky.
+   - Too short to pin (under 520px inside the padding): .ltv-main scrolls. With the panel, .ltv-grid is a grid
+     (F396): the panel is the right column from the top and stays in place, the left column scrolls. Without
+     container queries the page is as it was before F387: the panel 440px and sticky beside the video.
    - Pinned (.ltv-main at least 520px tall inside its padding, a window about 665px tall; F388 lowered this from
      640px, which left 13-inch laptops on the scrolling page): .ltv-body is the grid (with the panel, F395:
      .ltv-grid is, and the channel bar is its first row; see the rule below).
@@ -191,18 +192,39 @@
   .ltv-split.has-panel { display: grid; grid-template-columns: minmax(0, 1fr) 440px; align-items: stretch; }
   .ltv-panelcol { min-height: 0; }
   @supports (container-type: size) {
-    .ltv-main { container: ltvmain / size; --ltv-above-split: 163px; }
+    .ltv-main { container: ltvmain / size; }
     @container ltvmain not (min-height: 520px) {
       .ltv-panelcol { contain: size; }
       .ltv-panelcol > .fc-panel {
         position: sticky;
         inset: auto;
-        top: 16px;
+        /* 0, not the 16px of .ltv-main's padding: the offset is measured inside that padding (measured: 16px put
+           the panel 16px low until the end of the page). */
+        top: 0;
         height: 100%;
-        /* F395: at least 440px where the window allows (the pinned tabs and the transcript strip left the scroll
-           area 21px at the old 320px floor); the page scrolls in this layout, so the panel's foot is reachable. */
-        max-height: max(320px, min(440px, calc(100cqh - 32px)), calc(100cqh - var(--ltv-above-split)));
+        /* F396: as tall as the page body. (It was the height left under the channel bar, which the pinned tabs and
+           the transcript strip had brought down to a 21px scroll area on a window 660px tall.) */
+        max-height: max(320px, 100cqh);
       }
+      /* F396: a window too short to pin the player (a 1366 x 768 laptop gives about 650px). The page still scrolls,
+         but the panel is the right column from the top of the page body, beside the channel bar, and stays there:
+         it starts at its sticky offset, so it never travels. Only the left column moves. The grid is the one of
+         the pinned layout with rows as tall as their content; the player is capped so that it and the now-playing
+         row fit in the window together. */
+      .ltv-grid.has-panel {
+        flex: none;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) clamp(440px, 40%, 640px);
+        grid-template-rows: auto auto auto auto;
+        gap: 12px 16px;
+      }
+      .ltv-grid.has-panel > .ltv-barwrap { grid-column: 1; grid-row: 1; min-width: 0; margin-bottom: 4px; }
+      .ltv-grid.has-panel > .ltv-body, .ltv-grid.has-panel .ltv-split.has-panel, .ltv-grid.has-panel .ltv-videocol { display: contents; }
+      .ltv-grid.has-panel .ltv-player-stage { grid-column: 1; grid-row: 2; min-width: 0; }
+      .ltv-grid.has-panel .ltv-player-stage .ltv-video-container { max-height: max(180px, calc(100cqh - 76px)); }
+      .ltv-grid.has-panel .ltv-nowplaying { grid-column: 1; grid-row: 3; min-width: 0; }
+      .ltv-grid.has-panel .ltv-lower { grid-column: 1; grid-row: 4; min-width: 0; margin-top: 4px; }
+      .ltv-grid.has-panel .ltv-panelcol { grid-column: 2; grid-row: 1 / -1; }
     }
     @container ltvmain (min-height: 520px) {
       .ltv-body {
@@ -249,8 +271,13 @@
         border-radius: 0; box-shadow: none;
       }
       .ltv-player-stage .ltv-video-container:fullscreen { width: 100%; height: 100%; max-width: none; aspect-ratio: auto; }
-      .ltv-nowplaying { grid-column: 1; grid-row: 2; min-height: 0; }
-      .ltv-nowplaying .ltv-program-info { flex-basis: 160px; }
+      /* F396: no min-height: 0 here. With it the row could be given less than its content when the controls wrap
+         to a second line (a pasted video has two more buttons), and the lower area covered them (measured at
+         1440 x 715: the row needed 123px and got 80px). The narrower basis keeps them on one line at 1440 wide. */
+      .ltv-nowplaying { grid-column: 1; grid-row: 2; }
+      .ltv-nowplaying .ltv-program-info { flex-basis: 120px; }
+      /* A long title (a pasted video's) takes two lines at most here, so it cannot take the player's height. */
+      .ltv-nowplaying .ltv-program-info h3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
       .ltv-nowplaying .ltv-player-controls { margin-left: auto; }
       .ltv-panelcol { grid-column: 2; grid-row: 1 / -1; }
       .ltv-lower {
@@ -533,60 +560,12 @@
 }
 
 /* Transcript View */
-.ltv-transcript-pane {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
 
-.ltv-transcript-search {
-  padding: 8px 12px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  color: var(--fg);
-  font-size: 12px;
-  width: 100%;
-  max-width: 320px;
-}
 
-.ltv-transcript-cues {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 240px;
-  overflow-y: auto;
-  padding-right: 6px;
-}
 
-.ltv-cue {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--panel);
-  font-size: 12px;
-  line-height: 1.5;
-}
 
-.ltv-cue-time {
-  font-family: monospace;
-  font-size: 11px;
-  color: var(--accent);
-  flex-shrink: 0;
-}
 
-.ltv-cue-speaker {
-  font-weight: 700;
-  color: var(--fg);
-  flex-shrink: 0;
-  min-width: 90px;
-}
 
-.ltv-cue-text {
-  color: var(--fg);
-}
 
 .ltv-offline-badge {
   display: inline-flex;
@@ -673,19 +652,8 @@
   border-radius: 4px;
 }
 
-.ltv-cue.is-active {
-  background: rgba(59, 130, 246, 0.12);
-  border-left: 2px solid #3b82f6;
-}
 
-.ltv-cue-time {
-  cursor: pointer;
-  text-decoration: underline dotted;
-}
 
-.ltv-cue-time:hover {
-  color: var(--accent);
-}
 
 .ltv-empty-msg {
   padding: 24px;
@@ -727,22 +695,9 @@
 /* Small mobile (480px and below) */
 @media (max-width: 480px) {
   /* Transcript search: ensure it doesn't exceed the viewport */
-  .ltv-transcript-search {
-    max-width: 100%;
-    width: 100%;
-    font-size: 13px;
-  }
 
   /* Cue layout: stack timestamp/speaker above text */
-  .ltv-cue {
-    flex-direction: column;
-    gap: 4px;
-    align-items: flex-start;
-  }
 
-  .ltv-cue-speaker {
-    min-width: unset;
-  }
 
   /* Archive meta: allow wrapping */
   .ltv-archive-meta {
@@ -751,9 +706,6 @@
   }
 
   /* Transcript cues container: use more height on small screens */
-  .ltv-transcript-cues {
-    max-height: 180px;
-  }
 }
 
 /* Narrowest (360px and below) */

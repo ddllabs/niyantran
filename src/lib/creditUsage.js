@@ -7,6 +7,7 @@
  * Nothing is cached: the page reads afresh each time it opens.
  */
 import { supabase } from './supabaseClient.js';
+import { catalogueChannelName } from './liveTvChannelNames.js';
 
 /** Charges began at the credits launch (spec Decision 4); earlier calls show 0 credits. */
 export const CREDITS_STARTED_AT = '2026-10-14T05:46:00Z';
@@ -300,8 +301,15 @@ export function rowChat(row) {
   return row.turnKey ? 'Deleted conversation' : 'Dictation';
 }
 
-/** A channel id in words: "aaj-tak" is "Aaj Tak". Empty when unknown. */
-export function channelName(id) {
+/**
+ * A channel's name: the catalogue's own ("ndtv-24x7" is "NDTV 24x7"). An id outside the catalogue (a pasted
+ * video, a removed channel) uses the stored title if there is one, else the id in words ("some-id" is "Some Id").
+ * Empty when there is nothing.
+ */
+export function channelName(id, title = '') {
+  const known = catalogueChannelName(id);
+  if (known) return known;
+  if (title) return String(title);
   return String(id || '').split(/[-_\s]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
 }
 
@@ -309,7 +317,7 @@ export function channelName(id) {
 export function factcheckDetails(row) {
   const kinds = { live: 'Live', recorded: 'Recorded' };
   return [
-    channelName(row?.channel),
+    channelName(row?.channel, row?.title),
     Number.isFinite(row?.minutesUsed) ? `${row.minutesUsed} min` : '',
     kinds[row?.videoKind] || '',
   ].filter(Boolean);

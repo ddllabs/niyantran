@@ -8,7 +8,7 @@ import { harness } from './hookHarness.js';
 vi.mock('react', async (importOriginal) => ({ ...(await importOriginal()), ...harness.patch() }));
 vi.mock('../lib/liveTvClient.js', () => {
   const never = () => new Promise(() => {});
-  return { fetchLiveTvChannels: never, fetchLiveTvSchedule: never, fetchLiveTvVideos: never, fetchLiveTvArchive: never, fetchLiveTvTranscript: never };
+  return { fetchLiveTvChannels: never, fetchLiveTvSchedule: never, fetchLiveTvVideos: never, fetchLiveTvArchive: never };
 });
 vi.mock('./factcheck/useFactCheck.js', () => ({ useFactCheck: () => ({ view: null, actions: {} }) }));
 vi.mock('./liveTv/useYoutubePlayer.js', () => ({ useYoutubePlayer: () => ({ iframeRef: { current: null }, requestMute() {}, getPositionS: () => 0 }) }));

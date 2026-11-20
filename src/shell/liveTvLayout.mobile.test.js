@@ -89,7 +89,12 @@ describe('the video and the panel stay inside the window from 1081px (F387)', ()
     expect(rule(wide, '.ltv-split.has-panel')).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\) 440px/);
     expect(rule(fallback, '.ltv-panelcol')).toMatch(/contain:\s*size/);
     expect(rule(fallback, '.ltv-panelcol > .fc-panel')).toMatch(/position:\s*sticky/);
-    expect(rule(fallback, '.ltv-panelcol > .fc-panel')).toMatch(/max-height:\s*max\(320px, min\(440px, calc\(100cqh - 32px\)\), calc\(100cqh - var\(--ltv-above-split\)\)\)/);
+    expect(rule(fallback, '.ltv-panelcol > .fc-panel')).toMatch(/max-height:\s*max\(320px, 100cqh\)/);
+    // F396: with the panel, the short window has the pinned layout's columns; the page scrolls and the panel stays.
+    expect(rule(fallback, '.ltv-grid.has-panel')).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\) clamp\(440px, 40%, 640px\)/);
+    expect(rule(fallback, '.ltv-grid.has-panel')).toMatch(/grid-template-rows:\s*auto auto auto auto/);
+    expect(rule(fallback, '.ltv-grid.has-panel .ltv-panelcol')).toMatch(/grid-column:\s*2;\s*grid-row:\s*1 \/ -1/);
+    expect(rule(fallback, '.ltv-grid.has-panel .ltv-player-stage .ltv-video-container')).toMatch(/max-height:\s*max\(180px, calc\(100cqh - 76px\)\)/);
     expect(rule(wide, '.ltv-main')).toMatch(/container:\s*ltvmain \/ size/);
     expect(pinned).not.toMatch(/sticky;\s*inset|--ltv-above-split/);
   });

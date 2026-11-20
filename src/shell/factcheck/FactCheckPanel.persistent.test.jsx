@@ -49,7 +49,23 @@ describe('persistent panel, idle', () => {
   });
   it('still has a panel when no video is playing yet, without a channel name', () => {
     const html = render(view({}, { ready: false }), { channelName: '' });
-    expect(text(html)).toContain("Check what's being said");
+    expect(text(html)).toContain('Nothing is playing.');
+    expect(html).not.toMatch(/data-fc="open"/);
+  });
+  // F382: a pasted video is named by its title on its own line, never "on <title>"; with nothing playing
+  // the panel says so in one line and offers no check.
+  it('names a pasted video on its own line, without "on" before the title', () => {
+    const t = text(render(view(), { channelName: '“Budget speech 2026”', pasted: true, videoTitle: 'Budget speech 2026' }));
+    expect(t).toContain("Check what's being said in this video");
+    expect(t).toContain('Budget speech 2026');
+    expect(t).not.toMatch(/being said on /);
+    expect(t).toContain('500 credits a minute, held up front.');
+    expect(render(view(), { channelName: 'this video', pasted: true })).toMatch(/data-fc="open"/);
+  });
+  it('says nothing is playing in one line, with no price sentence or start button, when no channel or video is named', () => {
+    const html = render(view(), { channelName: '' });
+    expect(text(html)).toContain('Nothing is playing. Choose a channel or paste a video link to fact-check it.');
+    expect(text(html)).not.toContain("Check what's being said");
     expect(html).not.toMatch(/data-fc="open"/);
   });
 });

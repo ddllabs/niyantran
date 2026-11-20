@@ -105,8 +105,9 @@ describe('panel column', () => {
     expect(html.indexOf('class="ltv-panelcol"')).toBeGreaterThan(html.indexOf('class="ltv-videocol"'));
     expect(html.indexOf('class="ltv-panelcol"')).toBeLessThan(html.indexOf('class="ltv-deck-tabs"'));
     expect(html).toMatch(/fc-panel--idle/);
+    // F382: in a static render the channel list is still loading, so the panel does not say "Nothing is playing".
     expect(text(html)).toContain("Check what's being said");
-    expect(text(html)).toContain('500 credits a minute, held up front. Unused whole minutes are returned.');
+    expect(text(html)).not.toContain('Nothing is playing.');
   });
   it('moves the start button from under the video into the panel (exactly once)', () => {
     const html = render();
@@ -148,18 +149,30 @@ describe('now playing row', () => {
 });
 
 describe('lower tabs and My sessions', () => {
-  it('adds My sessions as a fifth tab when available, with one tab stop, and keeps the old four', () => {
+  it('adds My sessions as a fourth tab when available, with one tab stop, and keeps the old three', () => {
     const html = render();
     const tabs = html.match(/<button[^>]*role="tab"[^>]*>[^<]*/g) || [];
-    expect(tabs).toHaveLength(5);
+    expect(tabs).toHaveLength(4);
     expect(tabs.filter((t) => /tabindex="0"/.test(t))).toHaveLength(1);
-    for (const id of ['schedule', 'videos', 'archive', 'transcript', 'sessions']) expect(html).toContain(`id="ltv-tab-${id}"`);
-    expect(tabs[4]).toContain('My sessions');
+    for (const id of ['schedule', 'videos', 'archive', 'sessions']) expect(html).toContain(`id="ltv-tab-${id}"`);
+    expect(tabs[3]).toContain('My sessions');
+    expect(html).not.toContain('id="ltv-tab-transcript"');
+    expect(tabs.join('')).not.toMatch(/>Transcript/);
+  });
+  it('does not offer a Transcript tab under the player, while the fact-check panel keeps its own', () => {
+    seen.view = viewWith({ status: 'running' });
+    const html = render();
+    const lower = html.slice(html.indexOf('aria-label="Live TV Modules"'), html.indexOf('id="ltv-tab-panel"'));
+    expect(lower).toContain('id="ltv-tab-videos"');
+    expect(lower).not.toMatch(/Transcript/);
+    expect(html).not.toContain('id="ltv-tab-transcript"');
+    expect(html.match(/role="tab"[^>]*>Transcript</g)).toHaveLength(1);
+    expect(html).toMatch(/id="[^"]*-tab-transcript"/);
   });
   it('has no My sessions tab when the feature is not available', () => {
     seen.view = viewWith({}, false);
     const html = render();
-    expect(html.match(/<button[^>]*role="tab"[^>]*>/g)).toHaveLength(4);
+    expect(html.match(/<button[^>]*role="tab"[^>]*>/g)).toHaveLength(3);
     expect(html).not.toContain('My sessions');
   });
   it('holds the past sessions section inside the tab panel, hidden until the tab is chosen, and nowhere else', () => {

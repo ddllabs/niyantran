@@ -50,8 +50,10 @@ function showCard(el) {
  * The "Fact-check" button with its price; a quiet note when the browser cannot do it or the video is
  * not playing; null when the feature is off, nothing is playing, or a session is on screen.
  */
-export function FactCheckEntry({ view, playable = true, onChoose }) {
+export function FactCheckEntry({ view, playable = true, nothingPlaying = false, onChoose }) {
   if (!view?.flag?.available || !view.ready || view.session.status !== 'idle') return null;
+  // F382: with nothing playing the intro says so in one line; no check is offered that cannot start.
+  if (nothingPlaying) return null;
   if (!view.supported) {
     return <span className="fc-note" role="note">Fact-check is available on Chrome on a computer</span>;
   }
@@ -436,11 +438,22 @@ const DISCLAIMER = 'Verdicts are automated, may be wrong, and should be checked 
 
 // F366: the heading and the one sentence about the price, shown while nothing is running (the idle view and
 // above the start screen). The price is the flag's, never a literal.
-function IdleIntro({ view, channelName }) {
+// F382: a pasted video is named by its title on a line of its own ("on <title>" read wrongly), and with no
+// channel and no pasted video the panel says nothing is playing instead of offering a check.
+function IdleIntro({ view, channelName, pasted = false, videoTitle = '', loadingChannels = false }) {
   const price = view.flag.creditsPerMinute;
+  // Not while the channel list is still loading: the line would flash on every page load.
+  if (!loadingChannels && !pasted && !channelName) {
+    return (
+      <div className="fc-idle">
+        <p className="fc-idle-text fc-idle-nothing">Nothing is playing. Choose a channel or paste a video link to fact-check it.</p>
+      </div>
+    );
+  }
   return (
     <div className="fc-idle">
-      <h4 className="fc-idle-title">{channelName ? `Check what's being said on ${channelName}` : "Check what's being said"}</h4>
+      <h4 className="fc-idle-title">{pasted ? "Check what's being said in this video" : channelName ? `Check what's being said on ${channelName}` : "Check what's being said"}</h4>
+      {pasted && videoTitle ? <p className="fc-idle-video">{videoTitle}</p> : null}
       {typeof price === 'number' ? (
         <p className="fc-idle-text">{`${creditsText(price)} a minute, held up front. Unused whole minutes are returned.`}</p>
       ) : null}
@@ -482,13 +495,13 @@ function LinkSlot({ children }) {
 
 // F366: the always-open panel with no session: the intro and the old entry (the start button, or the quiet
 // note saying why it is not offered). Pressing it opens the start screen exactly as before.
-function IdlePanel({ view, channelName, playable, onChoose, linkForm = null }) {
+function IdlePanel({ view, channelName, playable, pasted = false, videoTitle = '', loadingChannels = false, onChoose, linkForm = null }) {
   return (
     <section className="fc-panel fc-panel--idle" aria-label="Fact-check" data-status="idle">
       <LinkSlot>{linkForm}</LinkSlot>
       <header className="fc-head"><HeadTitle session={view.session} /></header>
-      <IdleIntro view={view} channelName={channelName} />
-      <div className="fc-idle-entry"><FactCheckEntry view={view} playable={playable} onChoose={onChoose} /></div>
+      <IdleIntro view={view} channelName={channelName} pasted={pasted} videoTitle={videoTitle} loadingChannels={loadingChannels} />
+      <div className="fc-idle-entry"><FactCheckEntry view={view} playable={playable} nothingPlaying={!loadingChannels && !pasted && !channelName} onChoose={onChoose} /></div>
       <p className="fc-disclaimer">{DISCLAIMER}</p>
     </section>
   );
@@ -499,7 +512,7 @@ function IdlePanel({ view, channelName, playable, onChoose, linkForm = null }) {
  * (F366: the page's always-open column) it shows the idle view instead, still nothing when the flag is off.
  */
 export function FactCheckPanel(props) {
-  const { persistent = false, channelName = '', playable = true, onChoose } = props;
+  const { persistent = false, channelName = '', playable = true, pasted = false, videoTitle = '', loadingChannels = false, onChoose } = props;
   const idle = props.view?.session?.status === 'idle';
   if (!props.view?.flag?.available) return null;
   const hasNotices = Boolean(props.view.recheckNotices?.length);
@@ -507,7 +520,7 @@ export function FactCheckPanel(props) {
   if (idle && !hasNotices) {
     if (!persistent) return null;
     return (
-      <IdlePanel view={props.view} channelName={channelName} playable={playable}
+      <IdlePanel view={props.view} channelName={channelName} playable={playable} pasted={pasted} videoTitle={videoTitle} loadingChannels={loadingChannels}
         onChoose={onChoose} linkForm={props.linkForm} />
     );
   }
@@ -516,7 +529,7 @@ export function FactCheckPanel(props) {
 
 // Mounted while a session is on screen: focus moves to the heading when it opens, and back to the
 // entry button when it is dismissed (unless the user has already moved focus elsewhere).
-export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', playable = true, onChoose, focusRequest = null, videoTitle = '', remainingSeconds = null, linkForm = null }) {
+export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', playable = true, pasted = false, loadingChannels = false, onChoose, focusRequest = null, videoTitle = '', remainingSeconds = null, linkForm = null }) {
   const heading = useRef(null);
   const panel = useRef(null);
   // One shared status node for every copy, export and download confirmation of this panel (announce.jsx).
@@ -684,11 +697,11 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
 
       {persistent && s.status === 'idle' ? (
         <>
-          <IdleIntro view={view} channelName={channelName} />
-          <div className="fc-idle-entry"><FactCheckEntry view={view} playable={playable} onChoose={onChoose} /></div>
+          <IdleIntro view={view} channelName={channelName} pasted={pasted} videoTitle={videoTitle} loadingChannels={loadingChannels} />
+          <div className="fc-idle-entry"><FactCheckEntry view={view} playable={playable} nothingPlaying={!loadingChannels && !pasted && !channelName} onChoose={onChoose} /></div>
         </>
       ) : null}
-      {persistent && s.status === 'choosing' ? <IdleIntro view={view} channelName={channelName} /> : null}
+      {persistent && s.status === 'choosing' ? <IdleIntro view={view} channelName={channelName} pasted={pasted} videoTitle={videoTitle} loadingChannels={loadingChannels} /> : null}
       {s.status === 'choosing' ? (
         <Choose
           key={screenKey.current} view={view} isMuted={isMuted} onUnmute={onUnmute} onConfirm={onConfirm} onCancel={onCancel}
