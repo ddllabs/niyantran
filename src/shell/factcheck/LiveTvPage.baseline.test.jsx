@@ -20,7 +20,8 @@ describe('Live TV with fact-check off', () => {
     expect(html).not.toMatch(/fc-|Fact-check|fact-check/);
   });
 
-  it('keeps the four tabs and their ids', () => {
-    for (const id of ['schedule', 'videos', 'archive', 'transcript']) expect(html).toContain(`id="ltv-tab-${id}"`);
+  it('keeps the three lower tabs and their ids (the Transcript tab was removed: nothing could fill it)', () => {
+    for (const id of ['schedule', 'videos', 'archive']) expect(html).toContain(`id="ltv-tab-${id}"`);
+    expect(html).not.toContain('id="ltv-tab-transcript"');
   });
 });

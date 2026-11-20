@@ -10,7 +10,7 @@ vi.mock('../lib/liveTvClient.js', () => {
   return {
     fetchLiveTvChannels: async () => ({ ok: true, channels: h.channels, categories: ['NEWS'] }),
     fetchLiveTvVideos: async () => ({ ok: true, dataOrigin: 'fallback', liveVideo: null, recentVideos: h.recent }),
-    fetchLiveTvSchedule: never, fetchLiveTvArchive: never, fetchLiveTvTranscript: never,
+    fetchLiveTvSchedule: never, fetchLiveTvArchive: never,
   };
 });
 vi.mock('./factcheck/useFactCheck.js', () => ({

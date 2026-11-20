@@ -13,7 +13,7 @@ vi.mock('../lib/liveTvClient.js', () => {
   return {
     fetchLiveTvChannels: async () => ({ ok: true, channels, categories: ['NEWS'] }),
     fetchLiveTvVideos: async () => ({ ok: true, source: 'youtube-api', dataOrigin: 'fallback', status: 'live', liveVideo: { videoId: 'zzzzzzzzzzz' }, recentVideos: [] }),
-    fetchLiveTvSchedule: never, fetchLiveTvArchive: never, fetchLiveTvTranscript: never,
+    fetchLiveTvSchedule: never, fetchLiveTvArchive: never,
   };
 });
 vi.mock('./factcheck/useFactCheck.js', () => ({ useFactCheck: () => ({ view: null, actions: {} }) }));

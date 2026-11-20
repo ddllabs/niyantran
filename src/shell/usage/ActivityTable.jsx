@@ -138,7 +138,7 @@ function FactcheckRow({ row, max }) {
 
 /** Credits given back when a video's shared results were removed: a positive line with no bar, model, calls or chat. */
 export function RefundRow({ row }) {
-  const parts = [channelName(row.channel), { live: 'Live', recorded: 'Recorded' }[row.videoKind] || '', row.videoId ? `Video ${row.videoId}` : ''].filter(Boolean);
+  const parts = [channelName(row.channel, row.title), { live: 'Live', recorded: 'Recorded' }[row.videoKind] || '', row.videoId ? `Video ${row.videoId}` : ''].filter(Boolean);
   return (
     <li className="cp-row">
       <div className="cp-row-main">

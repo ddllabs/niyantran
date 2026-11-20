@@ -4,7 +4,6 @@ import {
   fetchLiveTvSchedule,
   fetchLiveTvVideos,
   fetchLiveTvArchive,
-  fetchLiveTvTranscript,
 } from '../lib/liveTvClient.js';
 import { FactCheckPanel } from './factcheck/FactCheckPanel.jsx';
 import { PastSessions } from './factcheck/PastSessions.jsx';
@@ -94,8 +93,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const [categories, setCategories] = useState(['ALL', 'NEWS', 'EDUCATION', 'POLITICS', 'ECONOMICS', 'RESEARCH', 'GENERAL']);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
 
-  // Tabs: 'schedule' | 'videos' | 'archive' | 'transcript'
-  // F7: videos first; the schedule, archive and transcripts are empty until a real source exists.
+  // Tabs: 'schedule' | 'videos' | 'archive' | 'sessions'
+  // F7: videos first; the schedule and archive are empty until a real source exists.
   const [activeTab, setActiveTab] = useState('videos');
   const [schedule, setSchedule] = useState([]);
   const [scheduleLoading, setScheduleLoading] = useState(true);
@@ -111,10 +110,6 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const [archiveError, setArchiveError] = useState(null);
 
   const [selectedBroadcastId, setSelectedBroadcastId] = useState(null);
-  const [transcript, setTranscript] = useState(null);
-  const [transcriptLoading, setTranscriptLoading] = useState(false);
-  const [transcriptQuery, setTranscriptQuery] = useState('');
-  const [activeCueTimestamp, setActiveCueTimestamp] = useState(null);
 
   const playerContainerRef = useRef(null);
   const titleRef = useRef(null);
@@ -242,27 +237,6 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     };
   }, [open, activeChannelId, lookupNonce]);
 
-  // Load transcript when selected broadcast changes
-  useEffect(() => {
-    if (!open || !selectedBroadcastId) return;
-    let cancelled = false;
-    setTranscriptLoading(true);
-    fetchLiveTvTranscript(selectedBroadcastId)
-      .then((data) => {
-        if (cancelled) return;
-        setTranscriptLoading(false);
-        setTranscript(data);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setTranscriptLoading(false);
-        setTranscript({ ok: false, error: err.message, cues: [] });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, selectedBroadcastId]);
-
   function handlePlayVideo(video) {
     setActiveVideo(video);
     setSelectedBroadcastId(video.id || video.videoId);
@@ -329,17 +303,6 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
 
   // My sessions names a pasted video's sessions (their channel id is the fixed LINK_CHANNEL_ID).
   const pastChannels = useMemo(() => [...channels, { id: LINK_CHANNEL_ID, name: 'YouTube link' }], [channels]);
-
-  const filteredCues = useMemo(() => {
-    if (!transcript || !transcript.cues || !Array.isArray(transcript.cues)) return [];
-    const q = transcriptQuery.trim().toLowerCase();
-    if (!q) return transcript.cues;
-    return transcript.cues.filter(
-      (c) =>
-        (c.text && c.text.toLowerCase().includes(q)) ||
-        (c.speaker && c.speaker.toLowerCase().includes(q)),
-    );
-  }, [transcript, transcriptQuery]);
 
   function handleOpenDesk(deskId, feature) {
     if (typeof onNavigateDesk === 'function') {
@@ -634,7 +597,6 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     ['schedule', `Broadcast Schedule (${schedule.length})`],
     ['videos', `Channel Videos (${videos.length})`],
     ['archive', `Archived Segments (${archive.length})`],
-    ['transcript', 'Transcript'],
     ...(factCheckOffered ? [['sessions', 'My sessions']] : []),
   ];
   // My sessions can stop being offered while it is the chosen tab: show Channel Videos then, so one tab stays
@@ -1022,6 +984,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               persistent
               channelName={linkId ? (infoNow?.title ? `“${infoNow.title}”` : 'this video') : activeChannel?.name || ''}
               playable={playable}
+              pasted={Boolean(linkId)}
+              loadingChannels={channelsLoading}
               onChoose={factCheck.actions.choose}
               view={factCheck.view}
               isMuted={isMuted}
@@ -1175,16 +1139,6 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                           >
                             Play Video
                           </button>
-                          <button
-                            type="button"
-                            className="ltv-action-btn"
-                            onClick={() => {
-                              setSelectedBroadcastId(vidId);
-                              setActiveTab('transcript');
-                            }}
-                          >
-                            Transcript
-                          </button>
                         </div>
                     </div>
                   </div>
@@ -1241,16 +1195,6 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                         >
                           Play Segment
                         </button>
-                        <button
-                          type="button"
-                          className="ltv-action-btn"
-                          onClick={() => {
-                            setSelectedBroadcastId(item.id);
-                            setActiveTab('transcript');
-                          }}
-                        >
-                          {item.hasTranscript ? 'Read Transcript' : 'No transcript'}
-                        </button>
                         {item.deskId && (
                           <button
                             type="button"
@@ -1264,62 +1208,6 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                     </div>
                   );
                 })
-              )}
-            </div>
-          )}
-
-          {shownTab === 'transcript' && (
-            <div className="ltv-transcript-pane">
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '8px',
-                }}
-              >
-                <input
-                  type="search"
-                  className="ltv-transcript-search"
-                  placeholder="Search transcript cues..."
-                  value={transcriptQuery}
-                  onChange={(e) => setTranscriptQuery(e.target.value)}
-                />
-                {transcript?.source && (
-                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                    Source: {transcript.source}
-                  </span>
-                )}
-              </div>
-
-              {transcriptLoading ? (
-                <div className="ltv-loading-spinner">
-                  <span className="ltv-spinner-circle" /> Loading transcript...
-                </div>
-              ) : !transcript || !transcript.ok || transcript.available === false ? (
-                <div className="ltv-empty-msg">{transcript?.message || 'No transcript available.'}</div>
-              ) : filteredCues.length === 0 ? (
-                <div className="ltv-empty-msg">No transcript cues match your search.</div>
-              ) : (
-                <div className="ltv-transcript-cues">
-                  {filteredCues.map((cue, idx) => (
-                    <div
-                      key={idx}
-                      className={`ltv-cue${activeCueTimestamp === cue.timestamp ? ' is-active' : ''}`}
-                    >
-                      <span
-                        className="ltv-cue-time"
-                        onClick={() => setActiveCueTimestamp(cue.timestamp)}
-                        title="Click to anchor playback cue"
-                      >
-                        {cue.timestamp}
-                      </span>
-                      <span className="ltv-cue-speaker">{cue.speaker}:</span>
-                      <span className="ltv-cue-text">{cue.text}</span>
-                    </div>
-                  ))}
-                </div>
               )}
             </div>
           )}

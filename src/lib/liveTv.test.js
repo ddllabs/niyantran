@@ -74,7 +74,6 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
       fetchLiveTvChannels,
       fetchLiveTvSchedule,
       fetchLiveTvArchive,
-      fetchLiveTvTranscript,
     } = await import('./liveTvClient.js');
 
     // Test with mocked global fetch
@@ -90,9 +89,6 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
         if (url.includes('/api/livetv/archive')) {
           return new Response(JSON.stringify(getLiveTvArchive('dd-news')));
         }
-        if (url.includes('/api/livetv/transcript')) {
-          return new Response(JSON.stringify(getLiveTvTranscript('arch-dd-2026-09-26')));
-        }
         return new Response('Not found', { status: 404 });
       };
 
@@ -107,11 +103,6 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
       const arch = await fetchLiveTvArchive('dd-news');
       expect(arch.ok).toBe(true);
       expect(arch.items).toEqual([]);
-
-      const tr = await fetchLiveTvTranscript('arch-dd-2026-09-26');
-      expect(tr.ok).toBe(true);
-      expect(tr.available).toBe(false);
-      expect(tr.cues).toEqual([]);
 
       // Network failure returns safe error shape
       globalThis.fetch = async () => {
@@ -149,7 +140,7 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
     expect(openHtml).toContain('ltv-video-container');
     expect(openHtml).toContain('Broadcast Schedule');
     expect(openHtml).toContain('Archived Segments');
-    expect(openHtml).toContain('Transcript');
+    expect(openHtml).not.toContain('Transcript'); // the empty lower Transcript tab was removed
     expect(openHtml).not.toContain('Authoritative');
   });
 

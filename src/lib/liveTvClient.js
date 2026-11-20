@@ -1,6 +1,6 @@
 /**
  * Live TV API client.
- * Backend requests for channels, videos, live streams, schedule, archive, and transcript.
+ * Backend requests for channels, videos, live streams, schedule, and archive.
  */
 
 export async function fetchLiveTvChannels(category) {
@@ -54,16 +54,5 @@ export async function fetchLiveTvArchive(channelId) {
     return await res.json();
   } catch (err) {
     return { ok: false, error: err.message, items: [] };
-  }
-}
-
-export async function fetchLiveTvTranscript(broadcastId) {
-  if (!broadcastId) return { ok: false, error: 'broadcastId required', cues: [] };
-  try {
-    const res = await fetch('/api/livetv/transcript?broadcastId=' + encodeURIComponent(broadcastId));
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    return await res.json();
-  } catch (err) {
-    return { ok: false, error: err.message, cues: [] };
   }
 }

@@ -69,7 +69,7 @@ describe('the page sheet', () => {
     expect(rule(page, '.ltv-main')).toMatch(/overflow-y:\s*auto/);
     const wide = media(page, 'min-width: 1081px');
     expect(rule(wide.slice(wide.indexOf('@supports')), '.ltv-body')).toMatch(/overflow:\s*clip/);
-    expect(rule(wide.slice(wide.indexOf('@supports')), '.ltv-lower')).toMatch(/overflow-y:\s*auto/);
+    expect(rule(wide.slice(wide.indexOf('@container ltvmain (min-height: 520px)')), '.ltv-lower')).toMatch(/overflow-y:\s*auto/);
   });
   it('uses theme tokens for the page surfaces and defines no font family', () => {
     expect(rule(page, '.ltv-channelcard')).toMatch(/background:\s*var\(--panel\)/);

@@ -11,7 +11,7 @@ vi.mock('../../lib/liveTvClient.js', () => {
     { id: 'dd-news', name: 'DD News', category: 'NEWS', status: 'live', lang: 'Hindi', embedUrl: 'https://www.youtube-nocookie.com/embed/abcdefghijk' },
     { id: 'aaj-tak', name: 'Aaj Tak', category: 'NEWS', status: 'live', lang: 'Hindi', embedUrl: 'https://www.youtube-nocookie.com/embed/lmnopqrstuv' },
   ];
-  return { fetchLiveTvChannels: async () => ({ ok: true, channels, categories: ['NEWS'] }), fetchLiveTvSchedule: never, fetchLiveTvVideos: never, fetchLiveTvArchive: never, fetchLiveTvTranscript: never };
+  return { fetchLiveTvChannels: async () => ({ ok: true, channels, categories: ['NEWS'] }), fetchLiveTvSchedule: never, fetchLiveTvVideos: never, fetchLiveTvArchive: never };
 });
 vi.mock('./useFactCheck.js', () => ({
   useFactCheck: () => ({ view: seen.view, actions: { choose: seen.choose, cancel() {}, confirm() {}, stop() {}, retry() {}, dismiss() {} } }),

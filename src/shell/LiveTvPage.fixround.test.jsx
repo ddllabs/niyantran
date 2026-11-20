@@ -12,7 +12,7 @@ vi.mock('../lib/liveTvClient.js', () => {
   return {
     fetchLiveTvChannels: async () => { if (h.listGate) await h.listGate; return { ok: true, channels: h.channels, categories: ['NEWS'] }; },
     fetchLiveTvVideos: (id) => { h.videoCalls.push(id); return h.lookup(id); },
-    fetchLiveTvSchedule: never, fetchLiveTvArchive: never, fetchLiveTvTranscript: never,
+    fetchLiveTvSchedule: never, fetchLiveTvArchive: never,
   };
 });
 vi.mock('./factcheck/useFactCheck.js', async () => {
