@@ -11,6 +11,7 @@ import {
 import { CoveredBanner, Parts, ReportControls } from './FactCheckParts.jsx';
 import { formatPosition, partModel } from './factCheckShare.js';
 import { filterClaims, shownResult, verdictCounts } from './claimFilter.js';
+import { LiveTranscriptStrip } from './LiveTranscriptStrip.jsx';
 import { RovingTabs, VerdictTiles } from './FactCheckTabs.jsx';
 import { blockLine, statusLine } from './panelStatus.js';
 import { SummaryTab } from './SummaryTab.jsx';
@@ -557,6 +558,14 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
   // F366 "See why" (the latest-claim strip, outside the panel): show the Claims tab, clear a filter that hides
   // the claim, then, once that is on screen, scroll to the card and focus it. Once for each request.
   const requestToken = focusRequest?.token;
+  // F389: "Full transcript" in the strip. The strip leaves with the switch, so focus moves to the Transcript tab.
+  const [focusTranscriptTab, setFocusTranscriptTab] = useState(false);
+  const openTranscript = () => { setTab('transcript'); setFocusTranscriptTab(true); };
+  useEffect(() => {
+    if (!focusTranscriptTab) return;
+    document.getElementById('fc-tab-transcript')?.focus();
+    setFocusTranscriptTab(false);
+  }, [focusTranscriptTab]);
   // Show the Claims tab, clear a filter that hides the claim, then focus its card once it is on screen.
   const openClaim = (claimId) => {
     setTab('claims');
@@ -641,6 +650,14 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
       </header>
 
       <BlockLine session={s} />
+
+      {/* F389: the newest words, pinned outside the scroll area; the Transcript tab shows them in full. */}
+      {live && tab !== 'transcript' ? (
+        <LiveTranscriptStrip
+          lines={s.transcript} onOpen={openTranscript}
+          listening={s.status === 'running' && !isMuted && !(s.silentFor > SILENT_NOTICE_MS)}
+        />
+      ) : null}
 
       {/* One scroll area (factCheck.css): the head above and the foot below stay put; this body scrolls. */}
       <div className="fc-body">
