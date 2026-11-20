@@ -21,7 +21,7 @@
 //                            developer's own login, not corpus_ingest. Its report is written beside the receipts.
 //   --accepted <hashes>      batches the developer accepted by hand.
 // With neither, a run stops after its first batch with awaiting_acceptance.
-//   --register-only          (F379) register every batch and leave: no watching, no confirming, no acceptance, no stop
+//   --register-only          (F394) register every batch and leave: no watching, no confirming, no acceptance, no stop
 //                            for acceptance between batches. The receipts say register_only. Not with --accept-service
 //                            or --accepted. The worker finishes the batches with the client closed. Under --register-only pacing is within a
 //                            batch only (a following part's first step may be registered while the previous part is
@@ -771,7 +771,7 @@ function notReady(s: Awaited<ReturnType<Db['status']>>): string[] {
 }
 
 /**
- * `accept` (F379): the acceptance of batches registered earlier, apart from any load. Reads the status first, which also
+ * `accept` (F394): the acceptance of batches registered earlier, apart from any load. Reads the status first, which also
  * advances the batch; a batch that is not indexed, or has failed, uncertain or undecided work, is reported with its
  * counts and not sampled. Every other batch gets the acceptance `run` gives, and its report is written beside the receipts.
  * No open, add, seal or register call is made, and the planner is not used.

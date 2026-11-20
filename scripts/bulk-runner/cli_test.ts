@@ -1147,10 +1147,10 @@ Deno.test('F356 run: with two batches, a first that fails acceptance stops the r
   assert(lines.some((l) => l.includes('socket reset by sleep')), lines.join('\n'));
 });
 
-// F379: register and leave, accept later.
+// F394: register and leave, accept later.
 const REG_ONLY = [...runArgs, '--register-only'];
 
-Deno.test('F379 parseArgs: --register-only is a switch of run only, and never with an acceptance option', () => {
+Deno.test('F394 parseArgs: --register-only is a switch of run only, and never with an acceptance option', () => {
   const c = parseArgs(REG_ONLY);
   assertEquals(c.cmd === 'run' && c.registerOnly, true);
   assertEquals(
@@ -1168,7 +1168,7 @@ Deno.test('F379 parseArgs: --register-only is a switch of run only, and never wi
   assertThrows(() => parseArgs(['status', '--batch', 'b', '--all']), Error, 'unknown');
 });
 
-Deno.test('F379 parseArgs: accept takes a service and exactly one of --batch and --all', () => {
+Deno.test('F394 parseArgs: accept takes a service and exactly one of --batch and --all', () => {
   const base = ['accept', '--collection', 'c.json', '--receipts', '/var/receipts', '--accept-service', 'nter-admin'];
   assertEquals(parseArgs([...base, '--all']), {
     cmd: 'accept',
@@ -1216,7 +1216,7 @@ async function receiptsRig(records: string[], over: Partial<CliDeps> = {}) {
   return { ...x, batchCalls, reports };
 }
 
-Deno.test('F379 run --register-only: no watch, confirm or acceptance; the receipt says register_only; exit 0', async () => {
+Deno.test('F394 run --register-only: no watch, confirm or acceptance; the receipt says register_only; exit 0', async () => {
   const records = [await question(1), await question(2)].map((r) => JSON.stringify(r));
   const { d, lines, written, db } = await receiptsRig(records, {
     acceptDb: () => {
@@ -1237,7 +1237,7 @@ Deno.test('F379 run --register-only: no watch, confirm or acceptance; the receip
   assert(lines.some((l) => l.includes('registered 1 batches; not watched or accepted')), lines.join('\n'));
 });
 
-Deno.test('F379 accept: a batch that is not indexed is refused and never sampled, then accepted once it is', async () => {
+Deno.test('F394 accept: a batch that is not indexed is refused and never sampled, then accepted once it is', async () => {
   const records = [await question(1), await question(2)].map((r) => JSON.stringify(r));
   const x = await receiptsRig(records, {
     acceptDb: () => {
@@ -1265,7 +1265,7 @@ Deno.test('F379 accept: a batch that is not indexed is refused and never sampled
   assertEquals(x.db.calls.filter((c) => planning(c.method)).length, planned, 'accept did not go through the planner');
 });
 
-Deno.test('F379 accept: a batch with failed jobs is refused with the counts even if it reads as indexed', async () => {
+Deno.test('F394 accept: a batch with failed jobs is refused with the counts even if it reads as indexed', async () => {
   const records = [await question(1), await question(2)].map((r) => JSON.stringify(r));
   const x = await receiptsRig(records, {
     acceptDb: () => {
@@ -1283,7 +1283,7 @@ Deno.test('F379 accept: a batch with failed jobs is refused with the counts even
   assert(x.lines.some((l) => l.includes('2 failed jobs, 1 uncertain jobs')), x.lines.join('\n'));
 });
 
-Deno.test('F379 accept: a failing sample exits non-zero with its report, and a later pass is still accepted', async () => {
+Deno.test('F394 accept: a failing sample exits non-zero with its report, and a later pass is still accepted', async () => {
   const records = [await question(1), await question(2)].map((r) => JSON.stringify(r));
   const x = await receiptsRig(records, { acceptDb: () => acceptStub(false) });
   assertEquals(await main(RUN, x.d), 0, x.lines.join('\n'));
@@ -1299,7 +1299,7 @@ Deno.test('F379 accept: a failing sample exits non-zero with its report, and a l
   assertEquals(x.batchCalls(), before);
 });
 
-Deno.test('F379 accept --all: a batch that already has a passing report is skipped, with no status read or sample', async () => {
+Deno.test('F394 accept --all: a batch that already has a passing report is skipped, with no status read or sample', async () => {
   const records = [await question(1), await question(2)].map((r) => JSON.stringify(r));
   const x = await receiptsRig(records, { acceptDb: () => acceptStub(true) });
   assertEquals(await main([...runArgs, '--accept-service', 'nter-admin'], x.d), 0, x.lines.join('\n'));
@@ -1315,7 +1315,7 @@ Deno.test('F379 accept --all: a batch that already has a passing report is skipp
   assertEquals(x.reports().length, 1, 'no second report');
 });
 
-Deno.test('F379 accept --batch: one batch by id, found in the receipts; no receipt for the collection is an error for --all', async () => {
+Deno.test('F394 accept --batch: one batch by id, found in the receipts; no receipt for the collection is an error for --all', async () => {
   const records = [await question(1), await question(2)].map((r) => JSON.stringify(r));
   const x = await receiptsRig(records, { acceptDb: () => acceptStub(true) });
   await assertRejects(() => main(ACCEPT_ALL, x.d), Error, 'no receipt for national-v1.1-test');
@@ -1339,7 +1339,7 @@ Deno.test('F379 accept --batch: one batch by id, found in the receipts; no recei
   assert([...x.written.keys()].some((p) => p.includes('/acceptance-') && p.endsWith(`-${manifest.slice(0, 16)}.json`)));
 });
 
-Deno.test('F379 accept: needs the collection’s acceptance block before any database call', async () => {
+Deno.test('F394 accept: needs the collection’s acceptance block before any database call', async () => {
   const plain = deps(await files(COLLECTION, JSON.stringify(await question(1))));
   await assertRejects(() => main(ACCEPT_ALL, plain.d), Error, 'acceptance block');
   assertEquals(plain.db.calls.length, 0);
@@ -1358,7 +1358,7 @@ const oneAccept = (id: string) => [
 ];
 const twoRecords = async () => [await question(1), await question(2)].map((r) => JSON.stringify(r));
 
-Deno.test('F379 accept --batch: refused, with no status read or sample, when no receipt names the batch for this collection', async () => {
+Deno.test('F394 accept --batch: refused, with no status read or sample, when no receipt names the batch for this collection', async () => {
   const x = await receiptsRig(await twoRecords(), {
     acceptDb: () => {
       throw new Error('acceptance connection opened');
@@ -1378,7 +1378,7 @@ Deno.test('F379 accept --batch: refused, with no status read or sample, when no 
   assertEquals(x.reports().length, 0);
 });
 
-Deno.test('F379 accept: an unreadable receipt or report is named and fails the run, while the other batches are still accepted', async () => {
+Deno.test('F394 accept: an unreadable receipt or report is named and fails the run, while the other batches are still accepted', async () => {
   const x = await receiptsRig(await twoRecords(), { acceptDb: () => acceptStub(true) });
   assertEquals(await main(RUN, x.d), 0, x.lines.join('\n'));
   const good = JSON.parse([...x.written].find(([p]) => p.includes('/receipt-'))![1]);
@@ -1395,7 +1395,7 @@ Deno.test('F379 accept: an unreadable receipt or report is named and fails the r
   assert(x.lines.some((l) => l.includes('acceptance-truncated.json')), x.lines.join('\n'));
 });
 
-Deno.test('F379 accept --all: a report counts as a pass only with ok, no failures and a sample', async () => {
+Deno.test('F394 accept --all: a report counts as a pass only with ok, no failures and a sample', async () => {
   const records = await twoRecords();
   const cases: Array<[string, (id: string) => Rec, boolean]> = [
     ['no sample', (id) => ({ batch_id: id, ok: true, failures: [], sampled: 0 }), false],
@@ -1415,7 +1415,7 @@ Deno.test('F379 accept --all: a report counts as a pass only with ok, no failure
   }
 });
 
-Deno.test('F379 accept: an acceptance database that throws leaves the batch not accepted and the exit non-zero', async () => {
+Deno.test('F394 accept: an acceptance database that throws leaves the batch not accepted and the exit non-zero', async () => {
   const broken: AcceptDb = { ...acceptStub(true), sample: () => Promise.reject(new Error('connection reset')) };
   const x = await receiptsRig(await twoRecords(), { acceptDb: () => broken });
   assertEquals(await main(RUN, x.d), 0, x.lines.join('\n'));
@@ -1425,7 +1425,7 @@ Deno.test('F379 accept: an acceptance database that throws leaves the batch not 
   assertEquals(x.reports().length, 0);
 });
 
-Deno.test('F379 accept --all: another collection’s receipt in the same directory is ignored', async () => {
+Deno.test('F394 accept --all: another collection’s receipt in the same directory is ignored', async () => {
   const x = await receiptsRig(await twoRecords(), { acceptDb: () => acceptStub(true) });
   assertEquals(await main(RUN, x.d), 0, x.lines.join('\n'));
   x.written.set(
@@ -1438,7 +1438,7 @@ Deno.test('F379 accept --all: another collection’s receipt in the same directo
   assertEquals(x.reports().length, 1);
 });
 
-Deno.test('F379 run --register-only: a registration-time stop exits 1, like the same run without the option', async () => {
+Deno.test('F394 run --register-only: a registration-time stop exits 1, like the same run without the option', async () => {
   const records = await twoRecords();
   const key = JSON.parse(records[0]).source_key as string;
   const go = async (argv: string[]) => {

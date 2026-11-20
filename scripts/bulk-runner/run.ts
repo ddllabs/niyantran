@@ -97,7 +97,7 @@ export interface RunInput {
   /** Required with allowedRefusals: the share of a batch they may be, from the dry run, before nothing is sent. */
   maxAllowedRefusalShare?: number;
   /**
-   * Register and leave (F379): after the last registration call of each batch the run writes its receipt with the batch
+   * Register and leave (F394): after the last registration call of each batch the run writes its receipt with the batch
    * state as read and moves on. It does not watch the queue, confirm the batch or ask for acceptance, and it does not
    * stop between batches for acceptance. Pacing between registration steps and every registration-time stop are unchanged.
    * The receipts say so (`register_only`).

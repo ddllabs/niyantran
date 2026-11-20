@@ -1034,8 +1034,8 @@ Deno.test('F356: ok false with no reason and no report is not accepted, says so,
   assertEquals(files56(r, 'accept-error-').length + files56(r, 'acceptance-').length, 0);
 });
 
-// F379: register and leave. Nothing after the last registration call touches the queue or asks for acceptance.
-Deno.test('F379 registerOnly: no watch, confirm or acceptance call; the receipt says so and holds the state as read', async () => {
+// F394: register and leave. Nothing after the last registration call touches the queue or asks for acceptance.
+Deno.test('F394 registerOnly: no watch, confirm or acceptance call; the receipt says so and holds the state as read', async () => {
   const asked: string[] = [];
   const r = rig(new FakeDb(), {
     accept: (info) => {
@@ -1073,7 +1073,7 @@ Deno.test('F379 registerOnly: no watch, confirm or acceptance call; the receipt 
   assertEquals(receipt(w).register_only, undefined);
 });
 
-Deno.test('F379 registerOnly: two batches are both registered, with no stop for acceptance between them', async () => {
+Deno.test('F394 registerOnly: two batches are both registered, with no stop for acceptance between them', async () => {
   const asked: string[] = [];
   const r = rig(new FakeDb(), {
     accept: (info) => {
@@ -1095,7 +1095,7 @@ Deno.test('F379 registerOnly: two batches are both registered, with no stop for 
   for (const body of r.receipts.values()) assertEquals(JSON.parse(body).register_only, true);
 });
 
-Deno.test('F379 registerOnly: a registration-time stop is the same stop, in the result and in the receipt', async () => {
+Deno.test('F394 registerOnly: a registration-time stop is the same stop, in the result and in the receipt', async () => {
   const go = async (registerOnly: boolean) => {
     const r = rig();
     r.db.refuseReal.set('k000002', 'house_conflict');
@@ -1117,7 +1117,7 @@ Deno.test('F379 registerOnly: a registration-time stop is the same stop, in the 
   assertEquals(only.rc, plain.rc);
 });
 
-Deno.test('F379 registerOnly: over 100 documents, the drain between steps still happens', async () => {
+Deno.test('F394 registerOnly: over 100 documents, the drain between steps still happens', async () => {
   const r = rig();
   const res = await run(
     {
