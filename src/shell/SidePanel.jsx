@@ -225,7 +225,7 @@ export function panelDragProps({ onAi, act, handOff = handOffAiDrop }) {
   };
 }
 
-export default function SidePanel({ panel, hasRail, feed, selected, onSelect, lang, loading, vizFilter, tab, featureName }) {
+export default function SidePanel({ panel, hasRail, feed, selected, onSelect, lang, loading, vizFilter, tab, featureName, aiMode = 'chat', onAiModeChange }) {
   const { state, act, seed, consumeSeed, width, setWidth, expanded, userExpanded, setUserExpanded, setCitation, citation, citationExpanded } = panel;
   const [viewerSlot, setViewerSlot] = useState(null);
   const [actionsSlot, setActionsSlot] = useState(null);
@@ -429,6 +429,8 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
               onCitation={onCitation}
               viewerSlot={viewerSlot}
               actionsSlot={actionsSlot}
+              aiMode={aiMode}
+              onAiModeChange={onAiModeChange}
             /></LazyView>
           </div>
         ) : null}

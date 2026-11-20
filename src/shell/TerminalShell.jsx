@@ -51,6 +51,9 @@ import './deskCatalogueSearch.css';
 const DeskCatalogueSearch = lazy(() => import('./DeskCatalogueSearch.jsx'));
 import RestrictedDeskRoute from './RestrictedDeskRoute.jsx';
 import { backFromRestrictedDesk, rememberDeskNavigation } from './deskRouteHistory.js';
+import MobileBottomNav from './MobileBottomNav.jsx';
+import MobileHeader from './MobileHeader.jsx';
+import './mobileNav.css';
 
 export default function TerminalShell({ onLogout }) {
   const start = parseDeskHash();
@@ -79,6 +82,7 @@ export default function TerminalShell({ onLogout }) {
   const [account, setAccount] = useState(() => parseAccountHash());
   // F195: the desk rail on module pages, open (names, over the page; a drawer on phones) or not.
   const [railOpen, setRailOpen] = useState(false);
+  const [aiMode, setAiMode] = useState('chat');
   const [userTick, setUserTick] = useState(0);
   const typeId = userTypeOf(user?.type).id;
   const typeMeta = userTypeOf(typeId);
@@ -398,6 +402,20 @@ export default function TerminalShell({ onLogout }) {
     window.addEventListener(OPEN_CONVERSATION_EVENT, onOpenConversation);
     return () => window.removeEventListener(OPEN_CONVERSATION_EVENT, onOpenConversation);
   }, [openAi, tab, featureName]);
+
+  useEffect(() => {
+    const onAiMode = (e) => {
+      const mode = e.detail?.mode;
+      if (mode === 'chat' || mode === 'work') {
+        setAiMode(mode);
+        if (!panel.aiOpen) {
+          openAi({ type: 'ai-open' });
+        }
+      }
+    };
+    window.addEventListener('niy-ai-mode', onAiMode);
+    return () => window.removeEventListener('niy-ai-mode', onAiMode);
+  }, [openAi, panel.aiOpen]);
   useEffect(() => {
     if (restricted) { setFeed(null); setSelected(null); setLoading(false); }
   }, [restricted]);
@@ -415,8 +433,19 @@ export default function TerminalShell({ onLogout }) {
   }
 
   return (
-    <div className={`terminal with-v6-directory${moduleNavigation && !account ? ' with-module-navigation with-desk-rail' : ''}${account ? ' with-credits-page' : ''} theme-${theme}`}>
+    <div className={`terminal with-v6-directory${moduleNavigation && !account ? ' with-module-navigation with-desk-rail' : ''}${account ? ' with-credits-page' : ''}${panel.aiOpen ? ' ai-open' : ''} theme-${theme}`}>
       <div className={`load-bar${loading ? ' on' : ''}`} />
+      <MobileHeader
+        activeMode={aiMode}
+        onModeChange={(mode) => {
+          setAiMode(mode);
+          if (!panel.aiOpen) {
+            openAi({ type: 'ai-open' });
+          }
+        }}
+        onOpenNav={() => setRailOpen(true)}
+        lang={lang}
+      />
       <header className="topbar">
         <div className="brand" title="Niyantran Terminal">
           <img src="/brand/logo-128.webp" alt="" />
@@ -605,7 +634,7 @@ export default function TerminalShell({ onLogout }) {
           </div>
         </LazyView>
       ) : null}
-      {moduleNavigation && !account && <DeskRail tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}
+      {(railOpen || (moduleNavigation && !account)) && <DeskRail tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}
         open={railOpen} onOpenChange={setRailOpen} />}
       {moduleNavigation && !account && <DeskNav
         tab={tab}
@@ -663,6 +692,8 @@ export default function TerminalShell({ onLogout }) {
           vizFilter={vizFilter}
           tab={tab}
           featureName={featureName}
+          aiMode={aiMode}
+          onAiModeChange={setAiMode}
         />}
       </div>
       {!restricted && !account && (tab === 'home' ? <OnboardingTour kind="home" /> : <OnboardingTour kind="desk" deskId={tab} />)}
@@ -676,6 +707,29 @@ export default function TerminalShell({ onLogout }) {
         />
       ) : null}
 
+      <MobileBottomNav
+        activeTab={tab}
+        aiOpen={Boolean(panel?.aiOpen)}
+        filesOpen={Boolean(filesOpen)}
+        accountOpen={Boolean(account)}
+        onDesk={onDesk}
+        onOpenDesks={() => setRailOpen((o) => !o)}
+        onOpenAi={() => {
+          if (!panel?.aiOpen) {
+            panel?.open('ai');
+          } else {
+            panel?.toggleExpand();
+          }
+        }}
+        onOpenFiles={() => {
+          setFilesOpen(true);
+          if (typeof location !== 'undefined') location.hash = '#/files';
+        }}
+        onOpenAccount={() => {
+          setProfileOpen((o) => !o);
+        }}
+        lang={lang}
+      />
     </div>
   );
 }

@@ -1,0 +1,242 @@
+[
+  {
+    "test": "step1-chat-375px",
+    "desc": "iPhone 13 mini: MobileHeader in Chat mode",
+    "width": 375,
+    "height": 812,
+    "mode": "chat",
+    "filename": "step1-chat-375px.png",
+    "path": "C:\\Users\\Afreen\\Downloads\\niyantran-main (2)\\niyantran-main\\docs\\qa\\screenshots\\step-1\\step1-chat-375px.png",
+    "sizeBytes": 337265,
+    "sha256": "961589c358f2d4cf66869528ec3093ee71b34b32a168357b6bb9e017f57ad45a",
+    "health": {
+      "docWidth": 375,
+      "winWidth": 375,
+      "hasHorizontalOverflow": false,
+      "mobileHeaderVisible": false,
+      "topbarVisible": false,
+      "deskRailOpen": false,
+      "draftingVisible": false
+    }
+  },
+  {
+    "test": "step1-work-375px",
+    "desc": "iPhone 13 mini: MobileHeader in Work mode with DocumentDraftingSurface",
+    "width": 375,
+    "height": 812,
+    "mode": "work",
+    "filename": "step1-work-375px.png",
+    "path": "C:\\Users\\Afreen\\Downloads\\niyantran-main (2)\\niyantran-main\\docs\\qa\\screenshots\\step-1\\step1-work-375px.png",
+    "sizeBytes": 404620,
+    "sha256": "a05d895eafc834f6f94818520cec35ddb216cf016c48f594d3caab6982673fc8",
+    "health": {
+      "docWidth": 375,
+      "winWidth": 375,
+      "hasHorizontalOverflow": false,
+      "mobileHeaderVisible": false,
+      "topbarVisible": false,
+      "deskRailOpen": false,
+      "draftingVisible": false
+    }
+  },
+  {
+    "test": "step1-drawer-open-375px",
+    "desc": "iPhone 13 mini: Hamburger drawer open over Chat",
+    "width": 375,
+    "height": 812,
+    "mode": "drawer",
+    "filename": "step1-drawer-open-375px.png",
+    "path": "C:\\Users\\Afreen\\Downloads\\niyantran-main (2)\\niyantran-main\\docs\\qa\\screenshots\\step-1\\step1-drawer-open-375px.png",
+    "sizeBytes": 419912,
+    "sha256": "c9bddce20e9e694f75aa3ca62a6829ba4eb590865f7eac6b3a41c2f5fa0d70a8",
+    "health": {
+      "docWidth": 375,
+      "winWidth": 375,
+      "hasHorizontalOverflow": false,
+      "mobileHeaderVisible": false,
+      "topbarVisible": false,
+      "deskRailOpen": false,
+      "draftingVisible": false
+    }
+  },
+  {
+    "test": "step1-chat-320px",
+    "desc": "iPhone SE (320px): Minimum mobile viewport, zero overflow",
+    "width": 320,
+    "height": 568,
+    "mode": "chat",
+    "filename": "step1-chat-320px.png",
+    "path": "C:\\Users\\Afreen\\Downloads\\niyantran-main (2)\\niyantran-main\\docs\\qa\\screenshots\\step-1\\step1-chat-320px.png",
+    "sizeBytes": 108514,
+    "sha256": "bfd366ecaa636056f5eb72dff4273be195f0a57a4f77e50065ff6bf3f8c359dc",
+    "health": {
+      "docWidth": 320,
+      "winWidth": 320,
+      "hasHorizontalOverflow": false,
+      "mobileHeaderVisible": false,
+      "topbarVisible": false,
+      "deskRailOpen": false,
+      "draftingVisible": false
+    }
+  },
+  {
+    "test": "step1-chat-360px",
+    "desc": "Galaxy S8 (360px): Standard Android mobile viewport",
+    "width": 360,
+    "height": 640,
+    "mode": "chat",
+    "filename": "step1-chat-360px.png",
+    "path": "C:\\Users\\Afreen\\Downloads\\niyantran-main (2)\\niyantran-main\\docs\\qa\\screenshots\\step-1\\step1-chat-360px.png",
+    "sizeBytes": 122222,
+    "sha256": "bc987e33aaacfa7cd4ce822c2efd6f7a89ce19109384d68a0e31aa04863c0452",
+    "health": {
+      "docWidth": 360,
+      "winWidth": 360,
+      "hasHorizontalOverflow": false,
+      "mobileHeaderVisible": false,
+      "topbarVisible": false,
+      "deskRailOpen": false,
+      "draftingVisible": false
+    }
+  },
+  {
+    "test": "step1-chat-390px",
+    "desc": "iPhone 14 Pro (390px): Storyboard reference mobile viewport",
+    "width": 390,
+    "height": 844,
+    "mode": "chat",
+    "filename": "step1-chat-390px.png",
+    "path": "C:\\Users\\Afreen\\Downloads\\niyantran-main (2)\\niyantran-main\\docs\\qa\\screenshots\\step-1\\step1-chat-390px.png",
+    "sizeBytes": 485240,
+    "sha256": "f9b7b809d9d3dc72b451fde6782ac28173b2fecbcb4ab06136a7be9cbcedbd06",
+    "health": {
+      "docWidth": 390,
+      "winWidth": 390,
+      "hasHorizontalOverflow": false,
+      "mobileHeaderVisible": false,
+      "topbarVisible": false,
+      "deskRailOpen": false,
+      "draftingVisible": false
+    }
+  },
+  {
+    "test": "step1-chat-414px",
+    "desc": "iPhone XR/Plus (414px): Large mobile viewport",
+    "width": 414,
+    "height": 896,
+    "mode": "chat",
+    "filename": "step1-chat-414px.png",
+    "path": "C:\\Users\\Afreen\\Downloads\\niyantran-main (2)\\niyantran-main\\docs\\qa\\screenshots\\step-1\\step1-chat-414px.png",
+    "sizeBytes": 572146,
+    "sha256": "405f8a45782c750b8b5b0352d5197cdcb67890ac86cd818d457273c667a72bad",
+    "health": {
+      "docWidth": 414,
+      "winWidth": 414,
+      "hasHorizontalOverflow": false,
+      "mobileHeaderVisible": false,
+      "topbarVisible": false,
+      "deskRailOpen": false,
+      "draftingVisible": false
+    }
+  },
+  {
+    "test": "step1-chat-430px",
+    "desc": "iPhone 15/16 Pro Max (430px): Max mobile viewport",
+    "width": 430,
+    "height": 932,
+    "mode": "chat",
+    "filename": "step1-chat-430px.png",
+    "path": "C:\\Users\\Afreen\\Downloads\\niyantran-main (2)\\niyantran-main\\docs\\qa\\screenshots\\step-1\\step1-chat-430px.png",
+    "sizeBytes": 631836,
+    "sha256": "7fe397187651ae18937c0ee5943d2ca6d29cee6850be7112e88c8ed6b963dceb",
+    "health": {
+      "docWidth": 430,
+      "winWidth": 430,
+      "hasHorizontalOverflow": false,
+      "mobileHeaderVisible": false,
+      "topbarVisible": false,
+      "deskRailOpen": false,
+      "draftingVisible": false
+    }
+  },
+  {
+    "test": "step1-tablet-768px",
+    "desc": "iPad Mini (768px): Tablet breakpoint boundary",
+    "width": 768,
+    "height": 1024,
+    "mode": "chat",
+    "filename": "step1-tablet-768px.png",
+    "path": "C:\\Users\\Afreen\\Downloads\\niyantran-main (2)\\niyantran-main\\docs\\qa\\screenshots\\step-1\\step1-tablet-768px.png",
+    "sizeBytes": 1269254,
+    "sha256": "0619060c83fba30d332d81b7ed56d9053c40cc4b17c09c6d8a054d7a923fc978",
+    "health": {
+      "docWidth": 753,
+      "winWidth": 768,
+      "hasHorizontalOverflow": false,
+      "mobileHeaderVisible": false,
+      "topbarVisible": false,
+      "deskRailOpen": false,
+      "draftingVisible": false
+    }
+  },
+  {
+    "test": "step1-desktop-1024px",
+    "desc": "Small desktop/laptop (1024px): Desktop topbar active, mobile header hidden",
+    "width": 1024,
+    "height": 768,
+    "mode": "desktop",
+    "filename": "step1-desktop-1024px.png",
+    "path": "C:\\Users\\Afreen\\Downloads\\niyantran-main (2)\\niyantran-main\\docs\\qa\\screenshots\\step-1\\step1-desktop-1024px.png",
+    "sizeBytes": 1506096,
+    "sha256": "7c49b71239452ec3a0b09f7407576d559f61f9fbb4832797bb917540a95b3204",
+    "health": {
+      "docWidth": 1009,
+      "winWidth": 1024,
+      "hasHorizontalOverflow": false,
+      "mobileHeaderVisible": false,
+      "topbarVisible": false,
+      "deskRailOpen": false,
+      "draftingVisible": false
+    }
+  },
+  {
+    "test": "step1-desktop-1280px",
+    "desc": "Standard laptop (1280px): Desktop workbench layout",
+    "width": 1280,
+    "height": 800,
+    "mode": "desktop",
+    "filename": "step1-desktop-1280px.png",
+    "path": "C:\\Users\\Afreen\\Downloads\\niyantran-main (2)\\niyantran-main\\docs\\qa\\screenshots\\step-1\\step1-desktop-1280px.png",
+    "sizeBytes": 1706607,
+    "sha256": "03e6efd97957a80870ca7df492eed5c64ced164077f63ee26ba4a1c1bb9d86ee",
+    "health": {
+      "docWidth": 1265,
+      "winWidth": 1280,
+      "hasHorizontalOverflow": false,
+      "mobileHeaderVisible": false,
+      "topbarVisible": false,
+      "deskRailOpen": false,
+      "draftingVisible": false
+    }
+  },
+  {
+    "test": "step1-desktop-1440px",
+    "desc": "Full desktop workbench (1440px): Uncompromised desktop workbench",
+    "width": 1440,
+    "height": 900,
+    "mode": "desktop",
+    "filename": "step1-desktop-1440px.png",
+    "path": "C:\\Users\\Afreen\\Downloads\\niyantran-main (2)\\niyantran-main\\docs\\qa\\screenshots\\step-1\\step1-desktop-1440px.png",
+    "sizeBytes": 2177070,
+    "sha256": "d6f5dedc9f090de82e700dc9c7004f7ae763653f1b8786cbf4a88ab16113d169",
+    "health": {
+      "docWidth": 1425,
+      "winWidth": 1440,
+      "hasHorizontalOverflow": false,
+      "mobileHeaderVisible": false,
+      "topbarVisible": false,
+      "deskRailOpen": false,
+      "draftingVisible": false
+    }
+  }
+]

@@ -24,7 +24,9 @@
  * `estimates` maps a model id to the credits a typical answer costs; a model
  * without one shows nothing. Credits only, never a price.
  */
+import { createPortal } from 'react-dom';
 import './research.css';
+import './mobileChatJourney.css';
 import { AiBrandIcon } from './AiBrandIcon.jsx';
 import { openPlanBilling } from './CreditBalance.jsx';
 import { creditEstimateText } from '../lib/creditsStore.js';
@@ -259,6 +261,78 @@ export default function ModelPicker({ models = [], roles = [], value, onChange, 
           ))}
         </div>
       ) : null}
+
+      {/* Mobile Bottom Sheet Modal (Reference Image 2) */}
+      {open && typeof document !== 'undefined'
+        ? createPortal(
+            <div className="nter-mob-model-sheet-backdrop" onClick={onToggle}>
+              <div
+                className="nter-mob-model-sheet"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Choose a model"
+              >
+                <div className="nter-mob-sheet-handle" />
+                <div className="nter-mob-sheet-head">
+                  <div>
+                    <h3 className="nter-mob-sheet-title">Choose a model</h3>
+                    <p className="nter-mob-sheet-sub">Switch any time. Your sources stay attached.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="nter-mob-sheet-close"
+                    onClick={onToggle}
+                    aria-label="Close model picker"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="nter-mob-sheet-list">
+                  {models.length === 0 ? (
+                    <div className="ai-v2-model-empty" style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+                      No approved models available
+                    </div>
+                  ) : (
+                    models.map((m) => {
+                      const isSelected = m.model_id === picked?.model_id;
+                      const ok = usable(m);
+                      const estimate = creditEstimateText(estimates?.[m.model_id]);
+                      return (
+                        <button
+                          key={m.model_id}
+                          type="button"
+                          disabled={!ok}
+                          className={`nter-mob-model-item ${isSelected ? 'selected' : ''} ${ok ? '' : 'locked'}`}
+                          onClick={() => {
+                            select(m.model_id);
+                            onToggle();
+                          }}
+                        >
+                          <div className="nter-mob-model-item-left">
+                            <div className="nter-mob-model-brand">
+                              <AiBrandIcon id={m.vendor || 'openrouter'} size={20} />
+                            </div>
+                            <div className="nter-mob-model-item-info">
+                              <strong>{m.label}</strong>
+                              <span>
+                                {!ok ? planNeededLabel(m) : m.model_id}
+                                {estimate ? ` · ${estimate}` : ''}
+                              </span>
+                            </div>
+                          </div>
+                          {isSelected ? <div className="nter-mob-model-check">✓</div> : null}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+                <div className="nter-sample-foot">CONCEPT · SAMPLE WORKSPACE</div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
