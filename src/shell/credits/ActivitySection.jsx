@@ -29,9 +29,9 @@ export function csvName(now = new Date()) {
   return `niyantran-ai-activity-${day}.csv`;
 }
 
-/** What the report is asked for: the server knows nothing of the client-only "by chat" view. */
-function reportFilters({ byChat, ...rest }) {
-  return byChat ? { ...rest, grouped: true } : rest;
+/** What the report is asked for: the server knows nothing of the client-only "by chat" view. This screen lists refunds. */
+export function reportFilters({ byChat, ...rest }) {
+  return byChat ? { ...rest, grouped: true, refunds: true } : { ...rest, refunds: true };
 }
 
 export default function ActivitySection({

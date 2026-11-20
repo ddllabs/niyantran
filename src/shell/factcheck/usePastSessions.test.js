@@ -346,3 +346,59 @@ describe('closing a row cancels its delete confirmation', () => {
     await settle();
   });
 });
+
+describe('review 1: an opened session whose claim may still be answered is read once more, never polled', () => {
+  const pending = (id) => claim(id, { status: 'pending', verdict: null, checked_at: null });
+  const claimReads = (w) => w.client.log.filter((q) => q.table === 'factcheck_claims').length;
+  const settle = async () => { render(); await vi.advanceTimersByTimeAsync(0); return render(); }; // fake timers: no real setTimeout
+  const endedAgo = (ms) => new Date(Date.now() - ms).toISOString();
+
+  it('opens with Checking, then re-reads once when the margin has passed and shows Not checked', async () => {
+    vi.useFakeTimers();
+    try {
+      const w = world({ sessions: [session(1, { ended_at: endedAgo(10000) })], claims: [pending('a')] }); props = { client: w.client };
+      let s = await settle();
+      s.toggle('s1');
+      s = await settle();
+      expect(s.details.s1.claims[0].status).toBe('pending');
+      expect(claimReads(w)).toBe(1);
+      // Not yet: the margin is 165 s and 10 s have passed.
+      await vi.advanceTimersByTimeAsync(100000);
+      expect(claimReads(w)).toBe(1);
+      await vi.advanceTimersByTimeAsync(60000);
+      s = await settle();
+      expect(claimReads(w)).toBe(2);
+      expect(s.details.s1.phase).toBe('ready'); // it did not flash back to loading
+      expect(s.details.s1.claims[0].status).toBe('unchecked');
+      // And never again.
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+      expect(claimReads(w)).toBe(2);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('does not schedule a second read for a session that is already past the margin', async () => {
+    vi.useFakeTimers();
+    try {
+      const w = world({ sessions: [session(1, { ended_at: endedAgo(10 * 60 * 1000) })], claims: [pending('a')] }); props = { client: w.client };
+      let s = await settle();
+      s.toggle('s1');
+      s = await settle();
+      expect(s.details.s1.claims[0].status).toBe('unchecked');
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+      expect(claimReads(w)).toBe(1);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('a timer waiting at unmount does nothing', async () => {
+    vi.useFakeTimers();
+    try {
+      const w = world({ sessions: [session(1, { ended_at: endedAgo(10000) })], claims: [pending('a')] }); props = { client: w.client };
+      let s = await settle();
+      s.toggle('s1');
+      await settle();
+      harness.unmount();
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+      expect(claimReads(w)).toBe(1);
+    } finally { vi.useRealTimers(); }
+  });
+});

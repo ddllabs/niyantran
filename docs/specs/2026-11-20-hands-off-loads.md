@@ -1,4 +1,4 @@
-# Hands-off loads: register, leave, accept later (F379)
+# Hands-off loads: register, leave, accept later (F394)
 
 > **Status: Living (2026-11-20).** Design for the `hands-off-loads` module of the
 > [programme spec](2026-11-20-corpus-and-search-completion.md). Developer decision 2026-11-20: the operator's laptop

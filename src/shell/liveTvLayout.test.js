@@ -56,18 +56,20 @@ describe('narrow Live TV layout (below 1081px)', () => {
   });
   it('has no leftover rule for the old 1100px breakpoint or the old page body scroller', () => {
     expect(page + panelCss).not.toMatch(/1099px|1100px|\.ltv-main:has/);
-    // The one size container is the page body from 1081px (F366 polish); nothing else is a container.
-    expect(page.match(/[{;]\s*container:/g)).toHaveLength(1);
+    // The size containers from 1081px (F387): .ltv-main (the height gate) and, when pinned, .ltv-body. Nothing else.
+    expect(page.match(/[{;]\s*container:/g)).toHaveLength(2);
   });
 });
 
 describe('the page sheet', () => {
-  it('styles the heading, not a strong element', () => {
-    expect(page).toMatch(/\.ltv-header-brand \.ltv-title\s*\{[^}]*margin:\s*0/);
-    expect(page).not.toContain('.ltv-header-brand strong');
+  it('has no header strip left: no rule for it, its Back button, title or tagline', () => {
+    expect(page + readFileSync(new URL('./liveTv/pasteLink.css', import.meta.url), 'utf8')).not.toMatch(/ltv-header|ltv-back-btn|ltv-titleblock|\.ltv-title|ltv-tagline/);
   });
-  it('scrolls the page body as one, so the panel never pushes it taller than the video column', () => {
+  it('scrolls the page body as one below 1081px; from 1081px only the lower area scrolls (the pinned layout)', () => {
     expect(rule(page, '.ltv-main')).toMatch(/overflow-y:\s*auto/);
+    const wide = media(page, 'min-width: 1081px');
+    expect(rule(wide.slice(wide.indexOf('@supports')), '.ltv-body')).toMatch(/overflow:\s*clip/);
+    expect(rule(wide.slice(wide.indexOf('@supports')), '.ltv-lower')).toMatch(/overflow-y:\s*auto/);
   });
   it('uses theme tokens for the page surfaces and defines no font family', () => {
     expect(rule(page, '.ltv-channelcard')).toMatch(/background:\s*var\(--panel\)/);

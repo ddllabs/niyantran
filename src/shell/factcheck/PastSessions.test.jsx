@@ -183,4 +183,73 @@ describe('fix round (M4, M5, claim states)', () => {
     expect(html).toContain('Needs context, not checked');
     expect(html).not.toMatch(/Check again|data-fc=|<input|Report|Share/);
   });
+
+  it('A1: a claim the session ended before checking shows Not checked and the reason line, never Checking', () => {
+    const html = view({
+      openId: 's1',
+      details: { s1: { phase: 'ready', capped: false, claims: [
+        claim('u', { status: 'unchecked', ended_unchecked: true, verdict: null, reason: null, sources: [] }),
+      ] } },
+    });
+    const t = text(html);
+    expect(t).toContain('Not checked');
+    expect(t).toContain(PAST_TEXT.endedUnchecked);
+    expect(t).not.toContain('Checking…');
+  });
+});
+
+import { liveNodes } from './liveNodes.js';
+describe('live regions of the past-sessions view (review 2)', () => {
+  const lots = (n) => Array.from({ length: n }, (_, i) => claim(`c${i}`, { verdict: i % 2 ? 'contradicted' : 'supported' }));
+  const open = (n, rows = 1) => view({
+    rows: Array.from({ length: rows }, (_, i) => session(i + 1)), openId: 's1',
+    details: { s1: { phase: 'ready', capped: false, claims: lots(n) } },
+  });
+  it('is the deletion status line and ONE shared node for Copy and Export, however many cards and rows', () => {
+    const small = open(1);
+    const big = open(40, 15);
+    expect(big.match(/data-pst="copy-claim"/g)).toHaveLength(40);
+    expect(liveNodes(small)).toHaveLength(2);
+    expect(liveNodes(big)).toHaveLength(2);
+    expect(liveNodes(big).filter((n) => /class="fc-sr"/.test(n))).toHaveLength(1);
+  });
+  it('the shared node is empty until something is copied', () => {
+    expect(open(2)).toContain('<p class="fc-sr" role="status"></p>');
+  });
+});
+
+const { pastExport } = await import('./PastSessions.jsx');
+const { CLAIM_CAP } = await import('./pastSessions.js');
+describe('the past-session export file (review 9 and 8)', () => {
+  const sess = session(1, { started_at: '2026-11-18T19:00:00Z', minutes_used: 5 });
+  const state = (over = {}) => ({ phase: 'ready', capped: false, claims: [claim('a'), claim('b', { verdict: 'contradicted' })], ...over });
+  it('says when the list was cut at the cap, with the same sentence the view shows', () => {
+    const { text: t } = pastExport({ session: sess, source: 'DD News', state: state({ capped: true }), timeZone: 'UTC' });
+    expect(t).toContain(PAST_TEXT.capped(CLAIM_CAP));
+    expect(t.split('\n').findIndex((l) => l === PAST_TEXT.capped(CLAIM_CAP))).toBeLessThan(t.split('\n').findIndex((l) => l.startsWith('1. ')));
+  });
+  it('says nothing about a cap when the list is whole', () => {
+    expect(pastExport({ session: sess, source: 'DD News', state: state(), timeZone: 'UTC' }).text).not.toContain('Showing the first');
+  });
+  it('names the session day in the zone of the reader and the channel, and the file likewise', () => {
+    const out = pastExport({ session: sess, source: 'DD News', state: state(), timeZone: 'Asia/Kolkata' });
+    expect(out.text).toContain('Date: 2026-11-19');
+    expect(out.name).toBe('fact-check-DD-News-2026-11-19.txt');
+    expect(out.text).toContain('Minutes used: 5');
+  });
+});
+
+describe('pastPdfArgs', () => {
+  const state = { capped: false, claims: [{ id: 'c1' }] };
+  it('carries the same data as the text export plus the watch link when the video is known', async () => {
+    const { pastPdfArgs } = await import('./PastSessions.jsx');
+    const a = pastPdfArgs({ session: { video_id: 'abcdefghijk', started_at: '2026-11-18T10:00:00Z', minutes_used: 5 }, source: 'DD News', state });
+    expect(a).toMatchObject({ title: 'DD News', date: '2026-11-18T10:00:00Z', minutes: 5, link: 'https://www.youtube.com/watch?v=abcdefghijk', note: '' });
+    expect(a.items).toEqual([{ claim: { id: 'c1' }, shown: { id: 'c1' } }]);
+  });
+  it('leaves the link out for a missing or odd video id', async () => {
+    const { pastPdfArgs } = await import('./PastSessions.jsx');
+    expect(pastPdfArgs({ session: {}, source: 's', state }).link).toBe('');
+    expect(pastPdfArgs({ session: { video_id: 'a b"><' }, source: 's', state }).link).toBe('');
+  });
 });

@@ -4,6 +4,9 @@
 import { useEffect, useRef } from 'react';
 import { creditsText } from '../../lib/creditsStore.js';
 import { ClaimCard } from './FactCheckPanel.jsx';
+import { ExportButton, PdfButton, videoWatchLink } from './ClaimExport.jsx';
+import { exportFileName, sessionExportText } from './claimExport.js';
+import { AnnounceProvider, AnnouncerRegion, createAnnouncer, useAnnounce } from './announce.jsx';
 import { PAST_TEXT, minutesText } from './factCheckText.js';
 import { CLAIM_CAP } from './pastSessions.js';
 import { usePastSessions } from './usePastSessions.js';
@@ -55,7 +58,30 @@ export function DeleteControl({ session, removal, onAsk, onCancel, onConfirm }) 
   );
 }
 
-function Detail({ session, state, past }) {
+/** The file the Export button of an opened past session saves: { name, text } (timeZone is for tests). */
+export function pastExport({ session, source, state, timeZone = undefined }) {
+  return {
+    name: exportFileName({ title: source, date: session.started_at, timeZone }),
+    text: sessionExportText({
+      title: source, date: session.started_at, minutes: session.minutes_used, timeZone,
+      note: state.capped ? PAST_TEXT.capped(CLAIM_CAP) : '',
+      items: state.claims.map((c) => ({ claim: c, shown: c })),
+    }),
+  };
+}
+
+/** The input of the session PDF for an opened past session, with the video link when the row knows the video. */
+export function pastPdfArgs({ session, source, state, timeZone = undefined }) {
+  return {
+    title: source, date: session.started_at, minutes: session.minutes_used, timeZone,
+    link: videoWatchLink(session.video_id),
+    note: state.capped ? PAST_TEXT.capped(CLAIM_CAP) : '',
+    items: state.claims.map((c) => ({ claim: c, shown: c })),
+  };
+}
+
+function Detail({ session, state, past, source }) {
+  const say = useAnnounce();
   const id = `pst-detail-${session.id}`;
   let body;
   if (!state || state.phase === 'loading') {
@@ -73,8 +99,12 @@ function Detail({ session, state, past }) {
     body = (
       <>
         <ol className="fc-claims" aria-label="Claims">
-          {state.claims.map((c) => <ClaimCard key={c.id} claim={c} />)}
+          {state.claims.map((c) => <ClaimCard key={c.id} claim={c} source={source} copyKey="pst" />)}
         </ol>
+        <div className="fc-card-actions">
+          <ExportButton dataKey="pst" say={say} build={() => pastExport({ session, source, state })} />
+          <PdfButton dataKey="pst" say={say} build={() => pastPdfArgs({ session, source, state })} />
+        </div>
         {state.capped ? <p className="pst-note">{PAST_TEXT.capped(CLAIM_CAP)}</p> : null}
       </>
     );
@@ -105,7 +135,7 @@ function Row({ session, channels, past }) {
       </button>
       {open ? (
         <>
-          <Detail session={session} state={past.details[session.id]} past={past} />
+          <Detail session={session} state={past.details[session.id]} past={past} source={channelLabel(session.channel_id, channels)} />
           {live
             ? <DeleteControl session={session} removal={past.removal} onAsk={past.askDelete} onCancel={past.cancelDelete} onConfirm={past.confirmDelete} />
             : <p className="pst-note">{PAST_TEXT.recordedKept}</p>}
@@ -118,6 +148,9 @@ function Row({ session, channels, past }) {
 /** The section as a function of the hook's state. */
 export function PastSessionsView({ past, channels }) {
   const heading = useRef(null);
+  // One shared status node for every Copy and Export confirmation in this section (announce.jsx).
+  const announcer = useRef(null);
+  if (!announcer.current) announcer.current = createAnnouncer();
   const announced = past.notice === 'deleted';
   // After a deletion the row (and its focused button) is gone: focus moves to the heading.
   useEffect(() => { if (announced) heading.current?.focus(); }, [announced]);
@@ -149,12 +182,15 @@ export function PastSessionsView({ past, channels }) {
     );
   }
   return (
+    <AnnounceProvider value={announcer.current.say}>
     <section className="pst" aria-labelledby="pst-heading">
       <h3 className="pst-heading" id="pst-heading" tabIndex={-1} ref={heading}>{PAST_TEXT.heading}</h3>
       <p className="pst-note">{PAST_TEXT.intro}</p>
       <p className="pst-status" role="status" aria-live="polite">{announced ? PAST_TEXT.deleted : ''}</p>
       {body}
+      <AnnouncerRegion announcer={announcer.current} />
     </section>
+    </AnnounceProvider>
   );
 }
 

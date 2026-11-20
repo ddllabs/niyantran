@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../lib/supabaseClient.js', () => ({ supabase: {}, accessToken: async () => null, functionsUrl: () => '' }));
 import { FactCheckEntry, FactCheckPanel } from './FactCheckPanel.jsx';
+import { liveNodes } from './liveNodes.js';
 
 const sessionBase = {
   status: 'idle', sessionId: null, minutesBought: 0, creditsPerMinute: null, creditsHeld: null, secondsLeft: 0,
@@ -275,9 +276,28 @@ describe('running', () => {
     const live = withNote.match(/<div[^>]*aria-live="polite"[^>]*>([^<]*)<\/div>/);
     expect(live).not.toBeNull();
     expect(live[1]).toBe('Supported: The tax rate is 18 percent');
-    expect(html.match(/aria-live="polite"/g)).toHaveLength(1);
+    // Review 2: the verdict announcer and the ONE shared status node for copy and export confirmations; nothing
+    // else in a running panel is a live region of any kind, whatever the number of claims (see the next test).
+    expect(liveNodes(html)).toHaveLength(2);
+    expect(liveNodes(html).filter((n) => /class="fc-sr"/.test(n))).toHaveLength(2);
     // the transcript never sits inside the polite region
     expect(withNote).not.toMatch(/aria-live="polite"[^>]*>[^<]*<[^>]*fc-transcript/);
+  });
+});
+
+describe('live regions do not grow with the content (review 2)', () => {
+  const many = (n) => Array.from({ length: n }, (_, i) => claim(String(i + 1), i % 2 ? 'contradicted' : 'supported'));
+  it('the same two nodes for one claim and for thirty, each with a Copy button, in a running and an ended panel', () => {
+    for (const status of ['running', 'ended']) {
+      const one = render(view({ status, claims: many(1), transcript: [{ seq: 0, text: 'a', startMs: 0 }] }));
+      const lots = render(view({ status, claims: many(30), transcript: Array.from({ length: 60 }, (_, i) => ({ seq: i, text: `line ${i}`, startMs: i * 1000 })) }));
+      expect(lots.match(/data-fc="copy-claim"/g)).toHaveLength(30);
+      expect(liveNodes(one)).toHaveLength(liveNodes(lots).length);
+      expect(liveNodes(lots)).toHaveLength(2);
+    }
+  });
+  it('the shared status node is empty until something is copied', () => {
+    expect(render(view({ status: 'running', claims: [many(2)[0]], minutesBought: 5, secondsLeft: 200, creditsHeld: 2500, creditsPerMinute: 500 }))).toContain('<p class="fc-sr" role="status"></p>');
   });
 });
 

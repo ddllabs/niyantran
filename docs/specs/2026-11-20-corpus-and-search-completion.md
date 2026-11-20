@@ -49,8 +49,8 @@ from that desk's documents, with the publisher named, within the app's 4-second 
   | MP profiles (v1.1; v1.2) | 2,950; 565 | route live; the 565 not screened |
   | Regulators archive and SEBI refresh (v1.3) | about 8,300 | screen refuses web-page text (F369); desk held for search (F355) |
   | Bill corrigenda (v1.1) | 365 | no route (F372) |
-  | Budget with faulty extracted text | 116 | needs re-extraction (F376) |
-  | Transfers (v1.1; v1.3) | 29; 11 | source links dead (F375); the 11 not screened |
+  | Budget with faulty extracted text | 116 | needs re-extraction (F391) |
+  | Transfers (v1.1; v1.3) | 29; 11 | source links dead (F390); the 11 not screened |
   | Corrected texts for live documents (v1.2) | 1,796 | no replacement route (F357) |
 
 - Beyond v1.3: v1.4 holds 117,631 records; v1.5 and v1.6 are delivered and not counted by entry (F358); v1.7 (legal)
@@ -71,13 +71,13 @@ Deletes, migrations, function deploys, pushes and anything touching billing stil
 | Module id | Responsibility | Depends on | Open items |
 |---|---|---|---|
 | `loads-ready` | Load what has a route: Cabinet, Budget, Bills v1.2, Industry, MP profiles | `default-partition` before Budget and MP profiles are both in | F374 |
-| `default-partition` | Keep the default partition under its working bound; the runner refuses a desk without a current chunk count | none | F285, F377 |
-| `hands-off-loads` | The operator's machine screens and registers; Supabase does the rest unattended; acceptance runs later on its own | none | F356, F379 |
-| `hybrid-sitewide` | One general keyword rule, fused with vector search, with a switch per desk; on for every desk that passes | none | F355, F378 |
+| `default-partition` | Keep the default partition under its working bound; the runner refuses a desk without a current chunk count | none | F285, F392 |
+| `hands-off-loads` | The operator's machine screens and registers; Supabase does the rest unattended; acceptance runs later on its own | none | F356, F394 |
+| `hybrid-sitewide` | One general keyword rule, fused with vector search, with a switch per desk; on for every desk that passes | none | F355, F393 |
 | `rerank-measure` | Measure a second-stage re-ranker on Regulatory; build it only if `hybrid-sitewide` misses the bar | `hybrid-sitewide` measurement | F355 |
 | `one-bit-index` | A one-bit vector index with re-ranking on the stored vectors, per partition, measured against today's index | `hybrid-sitewide` on, so both are measured together | F279 |
 | `regulatory-archive` | Accept web-page text for Regulatory, then load v1.3's archive | `hybrid-sitewide` passing on Regulatory | F369, F338 |
-| `repairs` | Corrigenda route, Budget re-extraction, Transfers source, text replacement, row links, row files | `loads-ready` for row links | F372, F376, F375, F357, F368, F373 |
+| `repairs` | Corrigenda route, Budget re-extraction, Transfers source, text replacement, row links, row files | `loads-ready` for row links | F372, F391, F390, F357, F368, F373 |
 | `next-packs` | Inventory v1.4 to v1.6 by entry, then load | `one-bit-index`, `default-partition` | F358, F278 |
 
 Build order: `hands-off-loads` first, then `loads-ready`; `hybrid-sitewide` with `rerank-measure`; `default-partition`;
@@ -163,8 +163,8 @@ from 50 to 40 of 55 and this load is three times larger. Evidence: as `loads-rea
 no worse after the load than before it.
 
 ### `repairs`
-Each on its own short spec: a corrigenda route (F372); re-extraction of 116 Budget records (F376); a source or a
-decision for 29 Transfers (F375); replacing a live document's text with the old text recoverable (F357); row links
+Each on its own short spec: a corrigenda route (F372); re-extraction of 116 Budget records (F391); a source or a
+decision for 29 Transfers (F390); replacing a live document's text with the old text recoverable (F357); row links
 for search-only documents (F368); row files and page boxes (F373).
 
 ### `next-packs`

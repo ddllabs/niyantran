@@ -26,7 +26,7 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
       expect(ch.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
       expect(ch.lang).toBeDefined();
       expect(ch.channelId).toBeDefined();
-      expect(ch.embedUrl).toContain('youtube');
+      if (ch.embedUrl) expect(ch.embedUrl).toContain('youtube'); // a channel added without a curated video has none
       expect(['live', 'recent', 'soon', 'offline']).toContain(ch.status);
       // Live count/viewer verification: must be null or positive integer, NEVER fake fabricated numbers
       if (ch.viewers !== null) {
@@ -140,12 +140,12 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
     const openHtml = renderToStaticMarkup(
       React.createElement(LiveTvPage, { open: true, onClose: () => {} })
     );
-    expect(openHtml).toMatch(/<h2[^>]*>Live TV<\/h2>/); // F366: the page title
-    // F359: a page, not a pop-up: a labelled region, no dialog role, no backdrop, a visible Back control.
+    // F387: the header strip is gone (no title, no Back control); the region's label names the page.
+    expect(openHtml).not.toMatch(/ltv-header|ltv-back-btn|<h2[^>]*>Live TV<\/h2>/);
+    // F359: a page, not a pop-up: a labelled region, no dialog role, no backdrop.
     expect(openHtml).toMatch(/<section[^>]*class="ltv-page"[^>]*aria-label="Live TV"|<section[^>]*aria-label="Live TV"[^>]*class="ltv-page"/);
     expect(openHtml).not.toContain('role="dialog"');
     expect(openHtml).not.toContain('ltv-modal');
-    expect(openHtml).toMatch(/<button[^>]*class="ltv-back-btn"[^>]*>.*?Back<\/button>/);
     expect(openHtml).toContain('ltv-video-container');
     expect(openHtml).toContain('Broadcast Schedule');
     expect(openHtml).toContain('Archived Segments');
@@ -249,7 +249,7 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
 
   it('verifies YouTube embed URLs avoid secrets and use privacy-enhanced domain', async () => {
     const data = await getLiveTvChannels();
-    for (const ch of data.channels) {
+    for (const ch of data.channels.filter((c) => c.embedUrl)) {
       expect(ch.embedUrl).toContain('youtube-nocookie.com/embed');
       expect(ch.embedUrl).not.toContain('key=');
       expect(ch.embedUrl).not.toContain('api_key');

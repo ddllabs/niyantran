@@ -74,16 +74,20 @@ describe('block line', () => {
 });
 
 describe('tabs', () => {
-  it('Claims · N and Transcript while running, Claims selected, one tab stop', () => {
+  it('Claims · N, Transcript and Summary while running, Claims selected, one tab stop', () => {
     const html = render(running());
     const tabs = html.match(/<button[^>]*role="tab"[^>]*>[^<]*/g);
-    expect(tabs).toHaveLength(2);
+    expect(tabs).toHaveLength(3);
     expect(tabs[0]).toContain('Claims · 4');
     expect(tabs[0]).toMatch(/aria-selected="true"/);
     expect(tabs[0]).toMatch(/tabindex="0"/);
     expect(tabs[1]).toContain('Transcript');
     expect(tabs[1]).toMatch(/aria-selected="false"/);
     expect(tabs[1]).toMatch(/tabindex="-1"/);
+    expect(tabs[2]).toContain('Summary');
+    expect(tabs[2]).toMatch(/aria-selected="false"/);
+    expect(tabs[2]).toMatch(/tabindex="-1"/);
+    expect(html.match(/tabindex="0"[^>]*class="fc-tab|role="tab"[^>]*tabindex="0"/g)).toHaveLength(1);
     expect(html).toMatch(/role="tablist"[^>]*aria-label="Fact-check results"/);
   });
   it('keeps both panels in the page, the unselected one hidden, so the transcript keeps its place', () => {
@@ -93,6 +97,13 @@ describe('tabs', () => {
     expect(html.indexOf('Good evening')).toBeGreaterThan(html.indexOf('id="fc-panel-transcript"'));
     expect(html.indexOf('Claim 1')).toBeGreaterThan(html.indexOf('id="fc-panel-claims"'));
     expect(html.indexOf('Claim 1')).toBeLessThan(html.indexOf('id="fc-panel-transcript"'));
+  });
+  it('the Summary panel is in the page, hidden, after the transcript panel, and holds no transcript', () => {
+    const html = render(running());
+    expect(html).toMatch(/<div[^>]*id="fc-panel-summary"[^>]*role="tabpanel"[^>]*aria-labelledby="fc-tab-summary"[^>]*hidden/);
+    expect(html.indexOf('id="fc-panel-summary"')).toBeGreaterThan(html.indexOf('id="fc-panel-transcript"'));
+    expect(html.slice(html.indexOf('id="fc-panel-summary"'))).not.toContain('Good evening');
+    expect(html.slice(html.indexOf('id="fc-panel-summary"'))).toContain('4 claims in this session');
   });
   it('also on an ended session', () => {
     const html = render(view({ status: 'ended', endReason: 'time', claims: [claim('1', 'opinion')], final: { minutes_used: 1, credits_charged: 500, balance: 4500 } }));
