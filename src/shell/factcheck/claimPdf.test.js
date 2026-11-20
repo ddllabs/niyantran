@@ -218,3 +218,46 @@ describe('typographic characters, repeats and rasteriser failure', () => {
     expect(pageText(pdf)).toContain('Reason: ????');
   });
 });
+
+/** Page 1's image XObject count and the x of the company-name text (from its text matrix). */
+async function headerFacts(bytes) {
+  const pdf = await PDFDocument.load(bytes);
+  const page = pdf.getPages()[0];
+  const xobjects = page.node.Resources().lookupMaybe(PDFName.of('XObject'), PDFDict);
+  const contents = page.node.Contents();
+  const streams = contents instanceof PDFStream ? [contents] : Array.from({ length: contents.size() }, (_, i) => contents.lookup(i));
+  const src = streams.map((st) => Buffer.from(st instanceof PDFRawStream ? decodePDFRawStream(st).decode() : st.getContents()).toString('latin1')).join('\n');
+  const nameHex = Buffer.from('Niyantran Terminal (NTER)', 'latin1').toString('hex').toUpperCase();
+  const m = src.match(new RegExp(`1 0 0 1 ([\\d.]+) ([\\d.]+) Tm\\s*<${nameHex}>`, 'i'));
+  return { images: xobjects ? xobjects.keys().length : 0, titleX: m ? Number(m[1]) : null };
+}
+
+describe('company logo in the header', () => {
+  const run = (loadLogo) => sessionPdfBytes({ title: 'DD News', items: [item()] }, { rasterise: fakeRasterise([]), loadLogo });
+
+  it('adds one image on page 1 and moves the company name to the right of it', async () => {
+    const base = await headerFacts(await run(async () => null));
+    const withLogo = await headerFacts(await run(async () => PNG));
+    expect(withLogo.images).toBe(base.images + 1);
+    expect(withLogo.titleX).toBeGreaterThan(base.titleX + 10);
+  });
+
+  it.each([
+    ['returns null', async () => null],
+    ['throws', async () => { throw new Error('offline'); }],
+    ['returns junk bytes', async () => Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])],
+    ['returns a PNG signature with a broken body', async () => Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0])],
+  ])('still makes a valid PDF with no logo when the loader %s', async (_label, loadLogo) => {
+    const base = await headerFacts(await run(async () => null));
+    const bytes = await run(loadLogo);
+    expect(Buffer.from(bytes.slice(0, 5)).toString()).toBe('%PDF-');
+    const facts = await headerFacts(bytes);
+    expect(facts.images).toBe(base.images);
+    expect(facts.titleX).toBe(base.titleX);
+  });
+
+  it('with no loadLogo option (node: no relative fetch) makes the PDF without a logo', async () => {
+    const bytes = await sessionPdfBytes({ items: [item()] }, { rasterise: fakeRasterise([]) });
+    expect((await headerFacts(bytes)).images).toBe(0);
+  });
+});

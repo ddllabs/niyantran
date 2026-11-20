@@ -117,10 +117,65 @@ async function canvasRasterise({ text, size, maxWidthPt, bold, color, lineHeight
   return out;
 }
 
+const LOGO_URL = '/brand/logo.png';
+const LOGO_HEIGHT_PT = 30;
+const LOGO_GAP_PT = 8;
+const LOGO_TIMEOUT_MS = 3000;
+const LOGO_RASTER_PX = 180;
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const isPng = (b) => b instanceof Uint8Array && b.length > 8 && PNG_SIGNATURE.every((v, i) => b[i] === v);
+
+/** Default logo loader: fetches the brand PNG and, when a canvas exists, downscales it (alpha kept). Null on any failure. */
+async function fetchLogo() {
+  try {
+    const res = await fetch(LOGO_URL);
+    if (!res.ok) return null;
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (!isPng(bytes)) return null;
+    try {
+      if (typeof createImageBitmap !== 'function' || (typeof OffscreenCanvas === 'undefined' && typeof document === 'undefined')) return bytes;
+      const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      if (!bmp.height || bmp.height <= LOGO_RASTER_PX) return bytes;
+      const w = Math.max(1, Math.round((bmp.width * LOGO_RASTER_PX) / bmp.height));
+      let canvas;
+      if (typeof OffscreenCanvas !== 'undefined') canvas = new OffscreenCanvas(w, LOGO_RASTER_PX);
+      else { canvas = document.createElement('canvas'); canvas.width = w; canvas.height = LOGO_RASTER_PX; }
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(bmp, 0, 0, w, LOGO_RASTER_PX);
+      const blob = canvas.convertToBlob ? await canvas.convertToBlob({ type: 'image/png' })
+        : await new Promise((res2) => canvas.toBlob(res2, 'image/png'));
+      const small = new Uint8Array(await blob.arrayBuffer());
+      return isPng(small) && small.length < bytes.length ? small : bytes;
+    } catch {
+      return bytes; // downscaling failed: the original is still a valid logo
+    }
+  } catch {
+    return null;
+  }
+}
+
+/** The logo PNG bytes from `loadLogo`, or null on any failure or after ~3 s. Never throws. */
+async function logoBytes(loadLogo) {
+  let timer;
+  try {
+    const bytes = await Promise.race([
+      Promise.resolve().then(() => loadLogo()),
+      new Promise((res) => { timer = setTimeout(() => res(null), LOGO_TIMEOUT_MS); }),
+    ]);
+    return isPng(bytes) ? bytes : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * The bytes of the session PDF. `items` are { claim, shown } as sessionExportText takes them. `options.rasterise`
  * ({ text, size, maxWidthPt, bold, color, lineHeight }) -> [{ png, widthPt, heightPt }] replaces the canvas
- * rasteriser (tests).
+ * rasteriser (tests). `options.loadLogo` () -> Promise<PNG bytes | null> replaces the fetch of the brand logo; any
+ * failure leaves the header without a logo.
  */
 export async function sessionPdfBytes({ title = '', link = '', date = '', minutes = null, items = [], note = '', timeZone = undefined } = {}, options = {}) {
   const rasterise = options.rasterise || canvasRasterise;
@@ -134,12 +189,25 @@ export async function sessionPdfBytes({ title = '', link = '', date = '', minute
   doc.setCreationDate(new Date());
 
   let page = doc.addPage([PAGE.w, PAGE.h]);
+  const firstPage = page;
   let y = PAGE.h - MARGIN;
   const textW = PAGE.w - MARGIN * 2;
   const newPage = () => { page = doc.addPage([PAGE.w, PAGE.h]); y = PAGE.h - MARGIN; };
   const ensure = (h) => { if (y - h < MARGIN) newPage(); };
 
   const rasterCache = new Map();
+
+  let logo = null;
+  const logoPng = await logoBytes(options.loadLogo || fetchLogo);
+  if (logoPng) {
+    try {
+      const embedded = await doc.embedPng(logoPng);
+      const ratio = embedded.width && embedded.height ? embedded.width / embedded.height : 1;
+      logo = { embedded, w: LOGO_HEIGHT_PT * ratio, h: LOGO_HEIGHT_PT };
+    } catch {
+      logo = null;
+    }
+  }
 
   /** Draws one clean line of text wrapped inside the column; returns the rectangles it used (for links). */
   const block = async (text, { size = 10, isBold = false, color = INK, indent = 0, gap = 3 } = {}) => {
@@ -203,8 +271,14 @@ export async function sessionPdfBytes({ title = '', link = '', date = '', minute
   };
 
   // Header.
-  await block('Niyantran Terminal (NTER)', { size: 17, isBold: true, gap: 0 });
-  await block('Fact-check session', { size: 11, color: MUTED, gap: 4 });
+  const headerTop = y;
+  const headerIndent = logo ? logo.w + LOGO_GAP_PT : 0;
+  await block('Niyantran Terminal (NTER)', { size: 17, isBold: true, gap: 0, indent: headerIndent });
+  await block('Fact-check session', { size: 11, color: MUTED, gap: 0, indent: headerIndent });
+  if (logo && page === firstPage && y < headerTop) {
+    page.drawImage(logo.embedded, { x: MARGIN, y: (headerTop + y) / 2 - logo.h / 2, width: logo.w, height: logo.h });
+  }
+  y -= 4;
   y -= 4;
   page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE.w - MARGIN, y }, thickness: 0.75, color: rgb(0.75, 0.75, 0.78) });
   y -= 12;
