@@ -98,12 +98,12 @@ describe('wiring into the page', () => {
 // F359: opening a desk from the page navigates once; the shell's navigation closes the page (the address
 // changes), so the page must not also call onClose, which is "Back" and would navigate a second time.
 describe('leaving the page', () => {
-  it('puts Back on onClose and nothing else, and does not call onClose when opening a desk', async () => {
+  it('has no Back button of its own (F387), and does not call onClose when opening a desk', async () => {
     const { readFileSync } = await import('node:fs');
     const source = readFileSync(new URL('../LiveTvPage.jsx', import.meta.url), 'utf8');
     const fn = source.slice(source.indexOf('function handleOpenDesk'), source.indexOf('function handlePlayArchive'));
     expect(fn).toContain('onNavigateDesk(deskId, feature)');
     expect(fn).not.toContain('onClose');
-    expect(source.match(/onClick=\{onClose\}/g)).toHaveLength(1);
+    expect(source).not.toMatch(/onClick=\{onClose\}|ltv-back-btn/);
   });
 });

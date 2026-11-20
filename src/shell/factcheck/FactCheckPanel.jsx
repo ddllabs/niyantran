@@ -6,13 +6,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { creditsText, formatCredits } from '../../lib/creditsStore.js';
 import {
-  DELAY_SECONDS, NO_SOURCES_TEXT, blockOptions, claimBadge, confirmStart, defaultBlock, endReasonText, errorMessage, formatClock, kindTag, minutesText, reanalyzeIntroText, safeSourceUrl, seekLateText, seekPendingText, sourceLabel,
+  COVERS_REST_TEXT, DELAY_SECONDS, NO_SOURCES_TEXT, PAST_TEXT, VERDICTS, blockOptions, claimBadge, confirmStart, coverLength, defaultBlock, endReasonText, errorMessage, formatClock, kindTag, minutesText, reanalyzeIntroText, safeSourceUrl, seekLateText, seekPendingText, sourceLabel,
 } from './factCheckText.js';
 import { CoveredBanner, Parts, ReportControls } from './FactCheckParts.jsx';
 import { formatPosition, partModel } from './factCheckShare.js';
 import { filterClaims, shownResult, verdictCounts } from './claimFilter.js';
 import { RovingTabs, VerdictTiles } from './FactCheckTabs.jsx';
 import { blockLine, statusLine } from './panelStatus.js';
+import { SummaryTab } from './SummaryTab.jsx';
+import { CopyClaimButton, ExportButton, PdfButton, videoWatchLink } from './ClaimExport.jsx';
+import { AnnounceProvider, AnnouncerRegion, createAnnouncer, useAnnounce } from './announce.jsx';
+import { claimCopyText, exportFileName, sessionExportText, sessionStartOf } from './claimExport.js';
+import { HighlightedText, TRANSCRIPT_TEXT, TranscriptBar, useTranscriptTools } from './TranscriptTools.jsx';
 
 const SILENT_NOTICE_MS = 30000;
 // The panel stacks below the player at this width and under (factCheck.css, same number).
@@ -75,7 +80,19 @@ function MutedWarning({ onUnmute }) {
 
 // `reanalysis` is set when "Re-analyze this block" opened this screen (F363): the length is preselected,
 // the already-covered banner is skipped, and focus moves here. The panel mounts it again for each press.
-export function Choose({ view, isMuted, onUnmute, onConfirm, onCancel, covered, onShowPart, sharing, reanalysis = null }) {
+export function Choose({ view, isMuted, onUnmute, onConfirm, onCancel, covered, onShowPart, sharing, reanalysis = null, remainingSeconds = null }) {
+  // B7: on a recorded video whose remaining time the page knows, the shortest length that covers it is
+  // preselected and marked. Worked out when the screen opens, so it does not move as the video plays. If the
+  // figure was still unknown then, the first one to arrive is applied unless the user has already picked a
+  // length (a picked length is never changed). A re-analysis keeps priority.
+  const [cover, setCover] = useState(() => (reanalysis ? null : coverLength(remainingSeconds)));
+  const figureKnown = useRef(typeof remainingSeconds === 'number' && Number.isFinite(remainingSeconds));
+  useEffect(() => {
+    if (figureKnown.current || reanalysis || typeof remainingSeconds !== 'number' || !Number.isFinite(remainingSeconds)) return;
+    figureKnown.current = true;
+    setCover(coverLength(remainingSeconds));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remainingSeconds]);
   const [preferred, setPreferred] = useState(reanalysis?.minutes ?? null);
   const intro = useRef(null);
   const pressToken = reanalysis?.token;
@@ -86,7 +103,8 @@ export function Choose({ view, isMuted, onUnmute, onConfirm, onCancel, covered, 
   // A re-analysis keeps its preselected length even when it is not affordable (D11): it shows the
   // "Needs ..." line and Start is disabled until the user picks a length they can pay for.
   const keepsPreselect = (o) => o.affordable || (reanalysis != null && o.minutes === reanalysis.minutes);
-  const chosen = options.find((o) => o.minutes === preferred && keepsPreselect(o)) || defaultBlock(options);
+  const wanted = preferred ?? cover;
+  const chosen = options.find((o) => o.minutes === wanted && keepsPreselect(o)) || defaultBlock(options);
   return (
     <div className="fc-choose">
       {reanalysis ? (
@@ -121,6 +139,7 @@ export function Choose({ view, isMuted, onUnmute, onConfirm, onCancel, covered, 
           >
             <span className="fc-option-minutes">{minutesText(o.minutes)}</span>
             <span className="fc-option-price">{creditsText(o.price)}</span>
+            {o.minutes === cover ? <span className="fc-option-hint">{COVERS_REST_TEXT}</span> : null}
             {o.affordable ? null : (
               <span className="fc-option-why">{`Needs ${creditsText(o.price)}; you have ${formatCredits(balance)}`}</span>
             )}
@@ -178,12 +197,19 @@ function Waiting({ status, onStop }) {
   );
 }
 
-// Keeps the newest line in view until the reader scrolls up; a button brings them back.
-function Transcript({ lines, emptyText, listening = false, visible = true }) {
+// Keeps the newest line in view until the reader scrolls up; a button brings them back. A search box,
+// Copy and Download work on the lines held here (B2): a typed phrase narrows the view only, and new lines
+// keep arriving and keep being matched.
+function Transcript({ lines, emptyText, listening = false, visible = true, title = '', date = null }) {
   const box = useRef(null);
   const follow = useRef(true);
   const [away, setAway] = useState(false);
-  const tail = lines.length ? `${lines.length}:${lines[lines.length - 1].text.length}:${listening ? 'l' : ''}` : '';
+  const rows = lines.map((l) => ({ key: l.seq, time: typeof l.startMs === 'number' ? formatPosition(l.startMs / 1000) : null, text: l.text }));
+  const say = useAnnounce();
+  const tools = useTranscriptTools({ lines: rows, title, date, say });
+  const searching = tools.query.trim() !== '';
+  const shown = tools.shown;
+  const tail = shown.length ? `${shown.length}:${shown[shown.length - 1].text.length}:${listening && !searching ? 'l' : ''}:${searching ? tools.query : ''}` : `:${tools.query}`;
   useEffect(() => {
     const el = box.current;
     if (el && follow.current) el.scrollTop = el.scrollHeight;
@@ -202,13 +228,18 @@ function Transcript({ lines, emptyText, listening = false, visible = true }) {
     setAway(false);
   };
   return (
-    <div className="fc-transcript-wrap">
-      <div className="fc-transcript" role="region" aria-label="Transcript" aria-live="off" tabIndex={0} ref={box} onScroll={onScroll}>
-        {lines.length === 0 ? <p className="fc-empty">{emptyText}</p> : lines.map((l) => <p className="fc-line" dir="auto" key={l.seq}>{l.text}</p>)}
-        {lines.length > 0 && listening ? <p className="fc-listening" aria-hidden="true" key="listening">Listening…</p> : null}
+    <>
+      {lines.length > 0 ? <TranscriptBar tools={tools} total={lines.length} /> : null}
+      <div className="fc-transcript-wrap">
+        <div className="fc-transcript" role="region" aria-label="Transcript" aria-live="off" tabIndex={0} ref={box} onScroll={onScroll}>
+          {lines.length === 0 ? <p className="fc-empty">{emptyText}</p> : null}
+          {tools.noMatch ? <p className="fc-empty">{`${TRANSCRIPT_TEXT.noMatch}. Clear the search to see every line.`}</p> : null}
+          {shown.map((l) => <p className="fc-line" dir="auto" key={l.key}><HighlightedText text={l.text} query={tools.query} /></p>)}
+          {lines.length > 0 && listening && !searching ? <p className="fc-listening" aria-hidden="true" key="listening">Listening…</p> : null}
+        </div>
+        {away ? <button type="button" className="ltv-action-btn fc-btn fc-jump" onClick={jump}>Jump to latest</button> : null}
       </div>
-      {away ? <button type="button" className="ltv-action-btn fc-btn fc-jump" onClick={jump}>Jump to latest</button> : null}
-    </div>
+    </>
   );
 }
 
@@ -318,7 +349,8 @@ function RecheckControls({ id, price, balance, recheck, onAsk, onConfirm, onCanc
 
 // `anchor` marks a card of the live Claims list: it gets an id and can take focus (the latest-claim strip's
 // "See why"). Cards inside a shared part do not, as their ids may repeat the live ones.
-function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, share, anchor = false }) {
+function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, share, anchor = false, source = '', copyKey = 'fc' }) {
+  const say = useAnnounce();
   // With no re-check price the card is exactly what it was before re-checks existed.
   const priced = typeof price === 'number';
   const chain = priced && recheck?.results?.length ? [...recheck.results, claim] : [claim];
@@ -341,9 +373,15 @@ function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, shar
       {by ? <p className="fc-by">{by}</p> : null}
       {share && typeof claim.position_s === 'number' ? <p className="fc-by">{`At ${formatPosition(claim.position_s)}`}</p> : null}
       {noSources ? <p className="fc-reason fc-nosources" dir="auto">{NO_SOURCES_TEXT}</p> : null}
+      {shown.ended_unchecked === true ? <p className="fc-reason" dir="auto">{PAST_TEXT.endedUnchecked}</p> : null}
       {shown.reason ? <p className="fc-reason" dir="auto">{shown.reason}</p> : null}
       <SourceList result={shown} />
       <CheckedAt result={shown} withDate={chain.length > 1 || Boolean(share)} />
+      {Object.hasOwn(VERDICTS, badge.key) ? (
+        <div className="fc-card-actions">
+          <CopyClaimButton dataKey={copyKey} say={say} label={`Copy this claim: ${String(claim.claim_en ?? '').slice(0, 60)}`} text={() => claimCopyText({ claim, shown, source })} />
+        </div>
+      ) : null}
       {claim.reported === true ? <p className="fc-reported">Reported</p> : null}
       {share?.report && claim.reported !== true ? <ReportControls id={claim.id} {...share.report} /> : null}
       {priced && !noSources && (shown.status === 'checked' || shown.status === 'error') ? (
@@ -358,7 +396,7 @@ function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, shar
 export { Card as ClaimCard };
 
 /** The Claims tab: the verdict tiles, then the cards (newest first) that pass the filter. Controlled. */
-export function Claims({ claims, emptyText, recheck, filters, onToggle, onClear }) {
+export function Claims({ claims, emptyText, recheck, filters, onToggle, onClear, source = '' }) {
   const ctx = { rechecks: recheck.states, price: recheck.price };
   const shown = filterClaims(claims, filters, ctx);
   return (
@@ -369,7 +407,7 @@ export function Claims({ claims, emptyText, recheck, filters, onToggle, onClear 
       ) : (
         <ol className="fc-claims" aria-label="Claims">
           {[...shown].reverse().map((c) => (
-            <Card key={c.id} claim={c} anchor price={recheck.price} balance={recheck.balance} recheck={recheck.states[c.id]}
+            <Card key={c.id} claim={c} anchor source={source} price={recheck.price} balance={recheck.balance} recheck={recheck.states[c.id]}
               onAsk={recheck.onAsk} onConfirm={recheck.onConfirm} onCancel={recheck.onCancel} />
           ))}
         </ol>
@@ -435,11 +473,18 @@ function BlockLine({ session }) {
   );
 }
 
+// The paste-a-link form (built by the page, which owns what it does) sits at the very top of the panel in every
+// state, above the head and outside the scrolling body, so it stays where it is while the claims scroll.
+function LinkSlot({ children }) {
+  return children ? <div className="fc-linkslot">{children}</div> : null;
+}
+
 // F366: the always-open panel with no session: the intro and the old entry (the start button, or the quiet
 // note saying why it is not offered). Pressing it opens the start screen exactly as before.
-function IdlePanel({ view, channelName, playable, onChoose }) {
+function IdlePanel({ view, channelName, playable, onChoose, linkForm = null }) {
   return (
     <section className="fc-panel fc-panel--idle" aria-label="Fact-check" data-status="idle">
+      <LinkSlot>{linkForm}</LinkSlot>
       <header className="fc-head"><HeadTitle session={view.session} /></header>
       <IdleIntro view={view} channelName={channelName} />
       <div className="fc-idle-entry"><FactCheckEntry view={view} playable={playable} onChoose={onChoose} /></div>
@@ -462,7 +507,7 @@ export function FactCheckPanel(props) {
     if (!persistent) return null;
     return (
       <IdlePanel view={props.view} channelName={channelName} playable={playable}
-        onChoose={onChoose} />
+        onChoose={onChoose} linkForm={props.linkForm} />
     );
   }
   return <PanelBody {...props} />;
@@ -470,9 +515,13 @@ export function FactCheckPanel(props) {
 
 // Mounted while a session is on screen: focus moves to the heading when it opens, and back to the
 // entry button when it is dismissed (unless the user has already moved focus elsewhere).
-export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', playable = true, onChoose, focusRequest = null }) {
+export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', playable = true, onChoose, focusRequest = null, videoTitle = '', remainingSeconds = null, linkForm = null }) {
   const heading = useRef(null);
   const panel = useRef(null);
+  // One shared status node for every copy, export and download confirmation of this panel (announce.jsx).
+  const announcer = useRef(null);
+  if (!announcer.current) announcer.current = createAnnouncer();
+  const say = announcer.current.say;
   const [openParts, setOpenParts] = useState({});
   const [tab, setTab] = useState('claims');
   const [filters, setFilters] = useState([]);
@@ -492,19 +541,33 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
     // Mount only: how the panel opened is decided once, then the heading is left alone.
   }, []);
   const s = view.session;
+  // The day of this session for file dates; null (today) when it cannot be told.
+  const sessionDay = sessionStartOf(s);
+  // What the ended session's exports (text and PDF) are made from; built only when a button is pressed.
+  const endedInput = () => {
+    const priced = typeof view.flag.recheckCredits === 'number';
+    return {
+      title: videoTitle || channelName, date: sessionDay ?? new Date(), minutes: s.final?.minutes_used,
+      items: s.claims.map((c) => ({ claim: c, shown: shownResult(c, view.rechecks?.[c.id], priced) })),
+    };
+  };
   // A failure is news: when the panel is stacked below the player it may be off screen.
   const failedNow = s.status === 'error';
   useEffect(() => { if (failedNow) revealPanel(panel.current); }, [failedNow]);
   // F366 "See why" (the latest-claim strip, outside the panel): show the Claims tab, clear a filter that hides
   // the claim, then, once that is on screen, scroll to the card and focus it. Once for each request.
   const requestToken = focusRequest?.token;
-  useEffect(() => {
-    if (!focusRequest) return;
+  // Show the Claims tab, clear a filter that hides the claim, then focus its card once it is on screen.
+  const openClaim = (claimId) => {
     setTab('claims');
-    const target = s.claims.find((c) => c.id === focusRequest.claimId);
+    const target = s.claims.find((c) => c.id === claimId);
     const ctx = { rechecks: view.rechecks || {}, price: view.flag.recheckCredits ?? null };
     if (target && filterClaims([target], filters, ctx).length === 0) setFilters([]);
-    setPendingFocus(focusRequest.claimId);
+    setPendingFocus(claimId);
+  };
+  useEffect(() => {
+    if (!focusRequest) return;
+    openClaim(focusRequest.claimId);
     // Runs for a new request only; the claims and filters it reads are those of that moment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestToken]);
@@ -544,11 +607,11 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
   // text of what was said, so they sit in the Transcript tab when the tabs show, else where they always were.
   const parts = partsShown ? (
     <Parts
-      shared={view.shared} balance={view.balance} openIds={openParts} actions={partActions}
+      shared={view.shared} balance={view.balance} openIds={openParts} actions={partActions} title={videoTitle || channelName}
       onToggle={(id) => setOpenParts((o) => ({ ...o, [id]: !o[id] }))}
       renderCard={(c, part) => (
         <Card
-          key={c.id} claim={c}
+          key={c.id} claim={c} source={videoTitle || channelName}
           price={null} balance={view.balance} /* no re-check inside a part: the server shows the original claim id */
           recheck={view.rechecks?.[c.id]}
           onAsk={onRecheckAsk ?? view.recheckActions?.ask} onConfirm={onRecheckConfirm ?? view.recheckActions?.confirm}
@@ -563,7 +626,9 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
     />
   ) : null;
   return (
+    <AnnounceProvider value={say}>
     <section className="fc-panel" aria-label="Fact-check" data-status={s.status} ref={panel}>
+      <LinkSlot>{linkForm}</LinkSlot>
       <div className="fc-sr" aria-live="polite" aria-atomic="true">{view.announcement}</div>
       <header className="fc-head">
         <HeadTitle session={s} heading={heading} />
@@ -602,7 +667,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
       {s.status === 'choosing' ? (
         <Choose
           key={screenKey.current} view={view} isMuted={isMuted} onUnmute={onUnmute} onConfirm={onConfirm} onCancel={onCancel}
-          covered={covered} onShowPart={showPart} sharing={sharedOn} reanalysis={reanalysis}
+          covered={covered} onShowPart={showPart} sharing={sharedOn} reanalysis={reanalysis} remainingSeconds={remainingSeconds}
         />
       ) : null}
       {s.status === 'sharing' || s.status === 'starting' ? <Waiting status={s.status} onStop={onStop} /> : null}
@@ -638,14 +703,14 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
         <>
           <RovingTabs
             idBase="fc" label="Fact-check results" active={tab} onChange={setTab}
-            tabs={[{ id: 'claims', label: `Claims · ${s.claims.length}` }, { id: 'transcript', label: 'Transcript' }]}
+            tabs={[{ id: 'claims', label: `Claims · ${s.claims.length}` }, { id: 'transcript', label: 'Transcript' }, { id: 'summary', label: 'Summary' }]}
           />
           {/* Both panels stay in the page; the one not chosen is hidden, so the transcript keeps its place. */}
           <div className="fc-work" id="fc-panel-claims" role="tabpanel" aria-labelledby="fc-tab-claims" hidden={tab !== 'claims'}>
             <Claims
               claims={s.claims}
               emptyText={live ? 'No claims yet.' : 'No claims were found.'}
-              filters={filters} onToggle={toggleFilter} onClear={() => setFilters([])}
+              filters={filters} onToggle={toggleFilter} onClear={() => setFilters([])} source={videoTitle || channelName}
               recheck={{
                 price: view.flag.recheckCredits ?? null, balance: view.balance, states: view.rechecks || {},
                 onAsk: onRecheckAsk ?? view.recheckActions?.ask,
@@ -660,6 +725,13 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
               visible={tab === 'transcript'}
               emptyText={live ? `Listening… Text appears about ${DELAY_SECONDS} seconds behind the speaker.` : 'No speech was transcribed.'}
               listening={s.status === 'running' && !isMuted && !(s.silentFor > SILENT_NOTICE_MS)}
+              title={videoTitle || channelName} date={sessionDay}
+            />
+          </div>
+          <div className="fc-work" id="fc-panel-summary" role="tabpanel" aria-labelledby="fc-tab-summary" hidden={tab !== 'summary'}>
+            <SummaryTab
+              claims={s.claims} onSee={openClaim}
+              ctx={{ rechecks: view.rechecks || {}, price: view.flag.recheckCredits ?? null }}
             />
           </div>
         </>
@@ -683,12 +755,26 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
           {problem?.retry ? (
             <button type="button" className="ltv-action-btn primary fc-btn" data-fc="retry" onClick={onRetry}>Try again</button>
           ) : null}
+          {s.status === 'ended' && s.claims.length > 0 ? (
+            <>
+              <ExportButton
+                say={say}
+                build={() => {
+                  const { title, date, minutes, items } = endedInput();
+                  return { name: exportFileName({ title, date }), text: sessionExportText({ title, date, minutes, items }) };
+                }}
+              />
+              <PdfButton say={say} build={() => ({ ...endedInput(), link: videoWatchLink(s.videoId ?? s.video_id) })} />
+            </>
+          ) : null}
           <button type="button" className="ltv-action-btn fc-btn" data-fc="dismiss" onClick={onDismiss}>Close</button>
         </div>
       ) : null}
 
       <p className="fc-disclaimer">{DISCLAIMER}</p>
       </div>
+      <AnnouncerRegion announcer={announcer.current} />
     </section>
+    </AnnounceProvider>
   );
 }

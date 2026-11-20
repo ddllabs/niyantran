@@ -14,7 +14,7 @@ export function shownResult(claim, recheck, priced) {
 }
 
 /** `ctx` is { rechecks: view.rechecks, price: view.flag.recheckCredits } as the panel reads them. */
-function badgeOf(claim, ctx) {
+export function badgeOf(claim, ctx) {
   const priced = typeof ctx?.price === 'number';
   return claimBadge(shownResult(claim, ctx?.rechecks?.[claim.id], priced));
 }

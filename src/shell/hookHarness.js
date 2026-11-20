@@ -56,10 +56,11 @@ export const harness = {
   unmount() { for (const s of this.effects) if (typeof s.cleanup === 'function') { s.cleanup(); s.cleanup = null; } },
 };
 
-/** Every element in a returned tree (children that are not elements or arrays are skipped). */
+/** Every element in a returned tree (children that are not elements or arrays are skipped). The panel's `linkForm` slot is walked too. */
 export function* elements(node) {
   if (Array.isArray(node)) { for (const n of node) yield* elements(n); return; }
   if (!node || typeof node !== 'object' || !('props' in node)) return;
   yield node;
   yield* elements(node.props?.children);
+  yield* elements(node.props?.linkForm);
 }
