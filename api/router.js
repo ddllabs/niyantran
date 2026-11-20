@@ -63,6 +63,10 @@ const EDGE_CACHED_ROUTES = new Set([
   '/api/constitutions',
   '/api/growth',
 ]);
+// F380: the two Live TV answers the CDN may keep briefly. Neither depends on the signed-in user,
+// cookies or any header: handleLiveTvApi reads only the URL (path, `category`, `channelId`/`channel`)
+// and shared server memory. Every other /api/livetv/* path stays `no-store`.
+const LIVE_TV_EDGE_ROUTES = new Set(['/api/livetv/channels', '/api/livetv/videos']);
 // These set their own Cache-Control over the router's `no-store`; the router leaves them alone.
 const OWN_CACHE_ROUTES = new Set(['/api/site-figures', '/api/site-icon']);
 
@@ -81,12 +85,15 @@ export const API_CACHE = {
   // loses nothing; a short stale window also means switching a module's `serve` off (the rollback) is
   // seen within minutes, not a day.
   cdnStore: 'public, s-maxage=60, stale-while-revalidate=300',
+  // F380: Live TV channels and videos. Live status may lag by up to about 3 minutes (60 s fresh plus
+  // 120 s stale); a channel that goes live shows within that window. Far shorter than `cdn` on purpose.
+  cdnLiveTv: 'public, s-maxage=60, stale-while-revalidate=120',
 };
 
 /** 'edge', 'own' or 'no-store' for one request. */
 export function cachePolicyFor(path, method) {
   if (OWN_CACHE_ROUTES.has(path)) return 'own';
-  if ((method === 'GET' || method === 'HEAD') && EDGE_CACHED_ROUTES.has(path)) return 'edge';
+  if ((method === 'GET' || method === 'HEAD') && (EDGE_CACHED_ROUTES.has(path) || LIVE_TV_EDGE_ROUTES.has(path))) return 'edge';
   return 'no-store';
 }
 
@@ -97,7 +104,7 @@ function isPendingAnswer(body) {
 
 // Decides the headers when the answer is written, once its status is known: only a 2xx answer
 // may be kept; an error, a refusal or a timeout keeps `no-store`.
-function cacheAtEdgeOnSuccess(res) {
+function cacheAtEdgeOnSuccess(res, path) {
   let body;
   const apply = () => {
     const status = Number(res.statusCode) || 200;
@@ -109,6 +116,19 @@ function cacheAtEdgeOnSuccess(res) {
     // retries reach the server again.
     if (isPendingAnswer(body)) {
       res.setHeader('Cache-Control', 'no-store');
+      return;
+    }
+    if (LIVE_TV_EDGE_ROUTES.has(path)) {
+      // F380: keep only an answer built from YouTube data. A failed ask answers ok:true with
+      // dataOrigin 'fallback' (videos and channels), so ok and dataOrigin are both checked; a body
+      // without dataOrigin 'youtube-api' is never kept.
+      const fromYouTube = body?.ok !== false && body?.dataOrigin === 'youtube-api';
+      if (!fromYouTube) {
+        res.setHeader('Cache-Control', 'no-store');
+        return;
+      }
+      res.setHeader('Cache-Control', API_CACHE.browser);
+      res.setHeader('Vercel-CDN-Cache-Control', API_CACHE.cdnLiveTv);
       return;
     }
     res.setHeader('Cache-Control', API_CACHE.browser);
@@ -210,7 +230,7 @@ export default async function handler(req, res) {
   const path = routePath(req);
   const method = String(req.method || 'GET').toUpperCase();
   const canonicalLaw = ['/api/feature-feed', '/api/law-landing'].includes(path) && q(req).get('feature') === LAW_LISTING_FEATURE;
-  if (!canonicalLaw && cachePolicyFor(path, method) === 'edge') cacheAtEdgeOnSuccess(res);
+  if (!canonicalLaw && cachePolicyFor(path, method) === 'edge') cacheAtEdgeOnSuccess(res, path);
 
   try {
     if (path === '/api/national-landing' || path === '/api/global-landing' || path === '/api/law-landing' || path === '/api/economics-landing' || path === '/api/carbon-landing' || path === '/api/sports-landing' || path === '/api/entertainment-landing' || path === '/api/state-landing') {

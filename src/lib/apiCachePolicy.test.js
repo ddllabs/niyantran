@@ -39,6 +39,9 @@ const ROUTES = {
   '/api/home/pulse': 'no-store',
   '/api/ohlc': 'no-store',
   '/api/livetv': 'no-store',
+  // F380: only these two Live TV answers; see routerLiveTvCache.test.js.
+  '/api/livetv/channels': 'edge',
+  '/api/livetv/videos': 'edge',
   '/api/news/ingest': 'no-store',
   '/api/users': 'no-store',
   '/api/users/': 'no-store',

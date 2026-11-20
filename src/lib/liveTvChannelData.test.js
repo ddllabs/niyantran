@@ -24,6 +24,9 @@ const CURATED = [
 const LEFT_OUT = ['sushant-sinha', 'the-wire', 'samajwadi-party', 'aitc-official', 'dmk-official', 'akhilesh-yadav', 'mamata-banerjee', 'election-commission-of-india', 'supreme-court-of-india', 'chatham-house', 'news-live', 'zee-punjab-haryana-himachal'];
 const LIST_IDS = ['top-hi', 'top-en', 'politics', 'parties', 'parliament', 'education', 'economy', 'research', 'international', 'regional'];
 
+// Curated channels whose curated video is a recording: they carry a hint for the live stream (tracker F377).
+const FOUR_RECORDINGS = ['ndtv-24x7', 'et-now', 'india-today', 'aaj-tak'];
+
 describe('the channel data', () => {
   it('has the 13 curated channels first and 83 added ones: 96 in all', () => {
     expect(YOUTUBE_SOURCES).toHaveLength(96);
@@ -35,7 +38,7 @@ describe('the channel data', () => {
       const c = YOUTUBE_SOURCES.find((x) => x.id === id);
       expect(c).toMatchObject({ channelId, defaultVideoId, deskId });
       expect(c.embedUrl).toContain(defaultVideoId === 'live_stream' ? 'live_stream' : `/embed/${defaultVideoId}?`);
-      expect(c.liveHintVideoId).toBeUndefined();
+      if (!FOUR_RECORDINGS.includes(id)) expect(c.liveHintVideoId).toBeUndefined();
     }
   });
   it("fixes Think School's stale handle", () => {
@@ -68,12 +71,12 @@ describe('the channel data', () => {
       expect(urls.some((u) => u.endsWith(handle))).toBe(false);
     }
   });
-  it('keeps a remembered live video only as a hint, on 47 added channels and none of the curated ones', () => {
+  it('keeps a remembered live video only as a hint, on 47 added channels and the 4 curated ones whose curated video is a recording', () => {
     const hinted = YOUTUBE_SOURCES.filter((c) => c.liveHintVideoId);
-    expect(hinted).toHaveLength(47);
+    expect(hinted).toHaveLength(51);
     for (const c of hinted) {
       expect(c.liveHintVideoId).toMatch(/^[A-Za-z0-9_-]{11}$/);
-      expect(ADDED_CHANNELS).toContain(c);
+      expect(ADDED_CHANNELS.includes(c) || FOUR_RECORDINGS.includes(c.id)).toBe(true);
     }
     for (const c of ADDED_CHANNELS) {
       expect(c.defaultVideoId).toBeUndefined();
