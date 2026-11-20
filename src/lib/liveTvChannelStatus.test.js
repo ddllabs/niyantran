@@ -1,4 +1,4 @@
-// F374: the channel list carries live state for every channel from ONE YouTube videos.list call
+// F367: the channel list carries live state for every channel from ONE YouTube videos.list call
 // (the channel's default video), cached for the module's 10 minutes. Mocked fetch, controlled env.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -141,13 +141,13 @@ describe('a recently opened channel with a live video of its own (liveVideoId)',
     liveVideo: { videoId: 'LIVEvideo_1', embedUrl: 'https://www.youtube-nocookie.com/embed/LIVEvideo_1' }, ...over,
   });
 
-  it('carries the live video id as its own field and keeps status for the curated video (F374), with no extra request', async () => {
+  it('carries the live video id as its own field and keeps status for the curated video (F367), with no extra request', async () => {
     stubFetch((url) => videosAnswer(url, []));
     setCached('yt-videos-wion', entry());
     const res = await getLiveTvChannels();
     expect(byId(res, 'wion').status).toBe('recent'); // an older client reads status alone: never LIVE over a recording
     expect(byId(res, 'wion').liveVideoId).toBe('LIVEvideo_1');
-    expect(calls).toHaveLength(BATCHES); // the one batched call of F374 and nothing for the entry
+    expect(calls).toHaveLength(BATCHES); // the one batched call of F367 and nothing for the entry
     expect(calls.every((u) => !/search/.test(u))).toBe(true);
   });
 

@@ -15,6 +15,11 @@ import {
   validateScreen,
 } from './screen.ts';
 import { SCREENS } from './screens/index.ts';
+import { makeSearchOnlyScreen } from './screens/search_only.ts';
+import { makeBillsScreen } from './screens/bills.ts';
+import REGULATORY from './screens/regulatory.json' with { type: 'json' };
+import TRANSFERS from './screens/transfers.json' with { type: 'json' };
+import CABINET from './screens/cabinet.json' with { type: 'json' };
 import { LIMITS } from './fixtures.ts';
 import {
   type Check,
@@ -397,6 +402,98 @@ Deno.test('project: a projection that changes or removes a field, or throws, hol
   }
 });
 
+const withRewrites = (project: Screen['project'], projectRewrites: readonly string[]): Screen => ({
+  ...withProject(project),
+  projectRewrites,
+});
+const DESK = ['desk_feature', 'desk_rows_feature'];
+const deskRec = (key: string, over: Rec = {}) =>
+  rec(key, 'text', { desk_feature: 'old one', desk_rows_feature: 'old two', ...over });
+
+Deno.test('projectRewrites: a named field may change, string to string; the record comes out with the new value', async () => {
+  const out = await runScreen(
+    withRewrites((r) => ({ ...r, desk_feature: 'new one', extra: 1 }), DESK),
+    [deskRec('a')],
+    ctx(),
+    opts(),
+  );
+  assertEquals(out.holds, []);
+  assertEquals([out.screened[0].desk_feature, out.screened[0].desk_rows_feature, out.screened[0].extra], [
+    'new one',
+    'old two',
+    1,
+  ]);
+  assertEquals((out.screened[0].review as Rec).source_key, 'a');
+  assertEquals((out.screened[0].review as Rec).text_sha256, sha('text'));
+});
+
+Deno.test('projectRewrites: everything else is still refused (undeclared field, wrong type, removal, review, hash)', async () => {
+  const cases: Array<[string, Screen['project'], readonly string[]]> = [
+    ['undeclared field changed', (r) => ({ ...r, text: String(r.text) + ' ' }), DESK],
+    ['declared field and another changed', (r) => ({ ...r, desk_feature: 'n', source_key: 'other' }), DESK],
+    ['title changed', (r) => ({ ...r, title: 'n' }), DESK],
+    ['declared only for one field', (r) => ({ ...r, desk_rows_feature: 'n' }), ['desk_feature']],
+    ['nothing declared', (r) => ({ ...r, desk_feature: 'n' }), []],
+    ['declared field to a number', (r) => ({ ...r, desk_feature: 5 }), DESK],
+    ['declared field to null', (r) => ({ ...r, desk_feature: null }), DESK],
+    ['declared field to an object', (r) => ({ ...r, desk_feature: { a: 1 } }), DESK],
+    ['declared field removed', (r) => {
+      const { desk_feature: _t, ...rest } = r;
+      return rest;
+    }, DESK],
+    ['sets review', (r) => ({ ...r, desk_feature: 'n', review: { status: 'eligible' } }), DESK],
+    ['sets text_sha256', (r) => ({ ...r, desk_feature: 'n', text_sha256: HEX_A }), DESK],
+  ];
+  for (const [name, project, names] of cases) {
+    const out = await runScreen(withRewrites(project, names), [deskRec('a')], ctx(), opts());
+    assertEquals(out.screened, [], name);
+    assertEquals(out.holds[0].reasons, ['project_failed'], name);
+  }
+});
+
+Deno.test('projectRewrites: a field that was not a string cannot be rewritten to one', async () => {
+  const out = await runScreen(
+    withRewrites((r) => ({ ...r, desk_feature: 'now text' }), DESK),
+    [deskRec('a', { desk_feature: 7 })],
+    ctx(),
+    opts(),
+  );
+  assertEquals(out.screened, []);
+  assertEquals(out.holds[0].reasons, ['project_failed']);
+});
+
+Deno.test('projectRewrites: only desk_feature and desk_rows_feature may be declared, each once, and it needs a project', async () => {
+  const bad: unknown[] = [
+    'desk_feature',
+    [5],
+    [''],
+    ['title'],
+    ['review'],
+    ['text_sha256'],
+    ['source_key'],
+    ['text'],
+    ['desk_tier'],
+    ['citation'],
+    ['desk_feature', 'title'],
+    ['desk_feature', 'desk_feature'],
+  ];
+  for (const names of bad) {
+    await assertRejects(
+      () => runScreen(withRewrites((r) => r, names as string[]), [rec('a')], ctx(), opts()),
+      Error,
+      'projectRewrites',
+    );
+  }
+  await assertRejects(
+    () => runScreen({ ...screenOf(), projectRewrites: ['desk_feature'] }, [rec('a')], ctx(), opts()),
+    Error,
+    'projectRewrites',
+  );
+  for (const ok of [['desk_feature'], ['desk_rows_feature'], DESK, []]) {
+    await runScreen(withRewrites((r) => r, ok), [rec('a')], ctx(), opts());
+  }
+});
+
 Deno.test('project: must be a function when given', async () => {
   await assertRejects(() => runScreen(withProject(5 as never), [rec('a')], ctx(), opts()), Error, 'project');
 });
@@ -453,12 +550,15 @@ Deno.test('parseArgs: required options, switches, and no repeats or unknowns', (
     patches: null,
     noLive: false,
     noPages: false,
+    firstLoad: false,
     psql: 'psql',
     service: 'nter-accept',
   });
   const all = parseArgs([...base, '--patches', 'p.jsonl', '--no-live', '--no-pages']);
   assertEquals([all.patches, all.noLive, all.noPages], ['p.jsonl', true, true]);
   assertEquals(parseArgs([...base, '--psql', '/opt/pg/psql']).psql, '/opt/pg/psql');
+  assertEquals(parseArgs([...base, '--first-load']).firstLoad, true);
+  assertThrows(() => parseArgs([...base, '--first-load', '--first-load']), Error, 'twice');
   assertThrows(() => parseArgs([...base, '--psql', 'a', '--psql', 'b']), Error, 'twice');
   for (const missing of ['--screen', '--collection', '--records', '--out']) {
     const i = base.indexOf(missing);
@@ -491,7 +591,15 @@ Deno.test('checkScreenBlock: decisionId and settings are required, nothing else 
 });
 
 Deno.test('the registry holds the Bills screen under national-bills, with the page check, built without the network', async () => {
-  assertEquals(Object.keys(SCREENS), ['national-bills', 'national-regulatory']);
+  assertEquals(Object.keys(SCREENS), [
+    'national-bills',
+    'national-regulatory',
+    'national-budget',
+    'national-cabinet',
+    'national-transfers',
+    'national-industry',
+    'national-mp-profiles',
+  ]);
   const real = globalThis.fetch;
   let touched = 0;
   globalThis.fetch = (() => (touched++, Promise.reject(new Error('network touched')))) as typeof fetch;
@@ -1261,6 +1369,164 @@ areaTest("identity: asked once with the records' tier and feature, recorded in t
     desk_rows: 50,
   });
 });
+
+const withDesk = (feature: string, listingRows?: 'none'): Screen => ({
+  ...liveScreen(),
+  desk: { tier: 'national', feature },
+  ...(listingRows ? { listingRows } : {}),
+});
+const pageStub = {
+  name: 'p',
+  covers: ['completeness'],
+  needs: 'pages',
+  all: () => Promise.resolve(new Map()),
+} as Check;
+
+areaTest(
+  "identity: a screen that names its desk is asked under that desk, not the record's raw spelling",
+  async (a) => {
+    const HY = 'Bureaucratic Transfers - AGMUT Cadre', DASH = 'Bureaucratic Transfers \u2014 AGMUT Cadre';
+    const f = await reader(a, 'b.jsonl', [
+      JSON.stringify(BILLS_REC('k1', undefined, { desk_feature: HY })),
+    ]);
+    const asked: Array<{ tier: string; feature: string }> = [];
+    const { deps } = depsFor(a, withDesk(DASH), { live: () => identityReader(GOOD_ID, asked) });
+    assertEquals(await main(argv(a, f.path), deps), 0);
+    assertEquals(asked, [{ tier: 'national', feature: DASH }]);
+    const receipt = JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json')));
+    assertEquals(receipt.live_identity.feature, DASH);
+    // The records must still name one desk.
+    const mixed = await reader(a, 'm.jsonl', [
+      JSON.stringify(BILLS_REC('k1', undefined, { desk_feature: HY })),
+      JSON.stringify(BILLS_REC('k2', undefined, { desk_feature: DASH })),
+    ]);
+    await Deno.remove(a.out, { recursive: true });
+    await assertRejects(
+      () => main(argv(a, mixed.path), depsFor(a, withDesk(DASH), { live: () => identityReader(GOOD_ID) }).deps),
+      Error,
+      'desk_feature',
+    );
+  },
+);
+
+areaTest(
+  'identity: the real Transfers screen asks under the dash spelling for hyphen records; Bills and Regulatory ask what they asked before',
+  async (a) => {
+    const asked = async (screen: Screen, feature: string) => {
+      const f = await reader(a, `r${Math.random()}.jsonl`, [
+        JSON.stringify(BILLS_REC('k1', undefined, { desk_feature: feature })),
+      ]);
+      const got: Array<{ tier: string; feature: string }> = [];
+      await Deno.remove(a.out, { recursive: true }).catch(() => {});
+      await main(argv(a, f.path), depsFor(a, screen, { live: () => identityReader(GOOD_ID, got) }).deps);
+      return got;
+    };
+    // each screen is built under the collection name `test` only by the harness: take the collection from the screen
+    const named = (s: Screen): Screen => ({ ...s, collection: 'test', rulesFiles: screenOf().rulesFiles });
+    const DASH = 'Bureaucratic Transfers \u2014 AGMUT Cadre';
+    assertEquals(
+      await asked(named(makeSearchOnlyScreen(TRANSFERS, pageStub)), 'Bureaucratic Transfers - AGMUT Cadre'),
+      [{ tier: 'national', feature: DASH }],
+    );
+    const REG = 'Regulatory Body Watch (RBI SEBI TRAI CCI)';
+    assertEquals(await asked(named(makeSearchOnlyScreen(REGULATORY, pageStub)), REG), [{
+      tier: 'national',
+      feature: REG,
+    }]);
+    assertEquals(await asked(named(makeBillsScreen([pageStub])), 'Bills'), [{ tier: 'national', feature: 'Bills' }]);
+    assertEquals(makeBillsScreen([pageStub]).desk, undefined);
+  },
+);
+
+areaTest(
+  'identity: --first-load lets a desk with no documents be screened, refuses one that has some, and is on the receipt',
+  async (a) => {
+    const f = await reader(a, 'b.jsonl', [
+      JSON.stringify(BILLS_REC('k1', undefined, { desk_feature: 'Cabinet Decisions' })),
+    ]);
+    const empty = { ...GOOD_ID, documents: 0, deskRows: 0 };
+    const screen = () => withDesk('Cabinet Decisions', 'none');
+    // Without the option an empty desk is refused, as ever.
+    await assertRejects(
+      () => main(argv(a, f.path), depsFor(a, screen(), { live: () => identityReader(empty) }).deps),
+      Error,
+      'nter',
+    );
+    assertEquals(await listing(a.out), []);
+    // With it, the run goes on; database and server identity are still read, and the receipt says so.
+    const { deps, logs } = depsFor(a, screen(), { live: () => identityReader(empty) });
+    assertEquals(await main(argv(a, f.path, '--first-load'), deps), 0);
+    const receipt = JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json')));
+    assertEquals(receipt.first_load, true);
+    assertEquals(receipt.live_identity.documents, 0);
+    assert(logs.some((l) => l.includes('first load')));
+    await Deno.remove(a.out, { recursive: true });
+    // Without the option the receipt says false.
+    await main(argv(a, f.path), depsFor(a, screen(), { live: () => identityReader(GOOD_ID) }).deps);
+    assertEquals(JSON.parse(await Deno.readTextFile(join(a.out, 'screen.receipt.json'))).first_load, false);
+    await Deno.remove(a.out, { recursive: true });
+    // The option on a desk that already holds documents is refused, with no outputs.
+    await assertRejects(
+      () => main(argv(a, f.path, '--first-load'), depsFor(a, screen(), { live: () => identityReader(GOOD_ID) }).deps),
+      Error,
+      'first-load',
+    );
+    assertEquals(await listing(a.out), []);
+    // It does not excuse a bad identity, and a screen that needs listing rows still needs them.
+    await assertRejects(
+      () =>
+        main(
+          argv(a, f.path, '--first-load'),
+          depsFor(a, screen(), { live: () => identityReader({ ...empty, database: '' }) }).deps,
+        ),
+      Error,
+      'identity',
+    );
+    await assertRejects(
+      () =>
+        main(
+          argv(a, f.path, '--first-load'),
+          depsFor(a, withDesk('Cabinet Decisions'), { live: () => identityReader(empty) }).deps,
+        ),
+      Error,
+      'listing rows',
+    );
+    // It cannot be combined with --no-live (nothing would have been checked).
+    await assertRejects(
+      () =>
+        main(
+          argv(a, f.path, '--first-load', '--no-live'),
+          depsFor(a, screen(), { live: () => identityReader(empty) }).deps,
+        ),
+      Error,
+      'first-load',
+    );
+  },
+);
+
+areaTest(
+  'identity: the real Cabinet screen with an empty desk is refused without --first-load and screened with it',
+  async (a) => {
+    const f = await reader(a, 'c.jsonl', [
+      JSON.stringify(BILLS_REC('k1', undefined, { desk_feature: 'Cabinet Decisions' })),
+    ]);
+    const empty = { ...GOOD_ID, documents: 0, deskRows: 0 };
+    const cab = (): Screen => ({
+      ...makeSearchOnlyScreen(CABINET, pageStub),
+      collection: 'test',
+      rulesFiles: screenOf().rulesFiles,
+    });
+    await assertRejects(
+      () => main(argv(a, f.path), depsFor(a, cab(), { live: () => identityReader(empty) }).deps),
+      Error,
+      'nter',
+    );
+    assertEquals(
+      await main(argv(a, f.path, '--first-load'), depsFor(a, cab(), { live: () => identityReader(empty) }).deps),
+      0,
+    );
+  },
+);
 
 areaTest('identity: a zero count stops the run with no outputs, naming the database', async (a) => {
   const f = await reader(a, 'b.jsonl', [JSON.stringify(BILLS_REC('k1'))]);

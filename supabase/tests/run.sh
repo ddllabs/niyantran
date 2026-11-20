@@ -126,6 +126,11 @@ chain() {
     national_search_only)
       chain ingest_bills_admission_rules
       FILES+=("$(as_non_superuser 20261113090000_national_search_only.sql)") ;;
+    # F374: five more National desks search-only, each file link on its own desk's hosts. national_search_only's chain,
+    # then the migration, as a non-superuser. The vacuity check drops the last.
+    national_search_only_five_desks)
+      chain national_search_only
+      FILES+=("$(as_non_superuser 20261123090000_national_search_only_five_desks.sql)") ;;
     # F326 and F327: a batch closed with its failed jobs named; the failure rate counts failures ever seen.
     # national_search_only's chain (the last definer of ingest_register_batch), then 20261112090000 (the resume the
     # fixture uses), then the migration, as a non-superuser. The vacuity check drops the last. Its section (e) proves the
@@ -1352,7 +1357,8 @@ fixture_sql() {
           printf '%s\n' "$inner"
         fi
       done < supabase/tests/ingest_bills_adapter.sql
-    elif [ "$1" = national_search_only ] && [ "$line" = '\i supabase/tests/ingest_bills_admission_rules.sql' ]; then
+    elif { [ "$1" = national_search_only ] || [ "$1" = national_search_only_five_desks ]; } \
+         && [ "$line" = '\i supabase/tests/ingest_bills_admission_rules.sql' ]; then
       # Every case of the Bills rules, of Bills, and of questions and Law, without their closing rollbacks. One
       # expected reason is rewritten on purpose: ingest_register_batch.sql sends a question claiming Regulatory's
       # spelling to the question policy; with the search-only adapter that desk has an adapter, so the refusal is

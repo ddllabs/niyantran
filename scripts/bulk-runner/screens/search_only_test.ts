@@ -5,10 +5,22 @@ import { sha256Hex } from '../../../supabase/functions/_shared/textNormalise.ts'
 import { type Check, type Finding, type LiveDocument, type LiveReader, REVIEW_CHECKS } from '../screen_types.ts';
 import type { ScreenContext } from '../screen_types.ts';
 import { type PrepareOptions, prepareRecord, type Rec } from '../prepare.ts';
+import { NATIONAL_SEARCH_ONLY } from '../../../supabase/functions/_shared/suppliedText.ts';
 import { rulesSha256, type RunOptions, runScreen, runScreenSets, screenSets } from '../screen.ts';
 import { makeBillsScreen, makeLength } from './bills.ts';
-import { makeSearchOnlyScreen, pdfUrlRule, verhoeffValid, yearLikeTriple } from './search_only.ts';
+import {
+  makeSearchOnlyScreen,
+  parseSearchOnlyConfig,
+  pdfUrlRule,
+  verhoeffValid,
+  yearLikeTriple,
+} from './search_only.ts';
 import REGULATORY from './regulatory.json' with { type: 'json' };
+import BUDGET from './budget.json' with { type: 'json' };
+import CABINET from './cabinet.json' with { type: 'json' };
+import TRANSFERS from './transfers.json' with { type: 'json' };
+import INDUSTRY from './industry.json' with { type: 'json' };
+import MP_PROFILES from './mp_profiles.json' with { type: 'json' };
 
 const FEATURE = 'Regulatory Body Watch (RBI SEBI TRAI CCI)';
 const LISTING = 'Regulatory Body Watch (RBI/SEBI/TRAI/CCI)';
@@ -1589,7 +1601,15 @@ Deno.test('screenSets still hands over each outcome while a record carries ids (
 
 Deno.test('registration: national-regulatory builds the Regulatory screen without reading, fetching or running anything', async () => {
   const { SCREENS } = await import('./index.ts');
-  assertEquals(Object.keys(SCREENS).sort(), ['national-bills', 'national-regulatory']);
+  assertEquals(Object.keys(SCREENS).sort(), [
+    'national-bills',
+    'national-budget',
+    'national-cabinet',
+    'national-industry',
+    'national-mp-profiles',
+    'national-regulatory',
+    'national-transfers',
+  ]);
   const s = await SCREENS['national-regulatory']();
   assertEquals([s.collection, s.mappingVersion, s.listingRows], [
     'national-regulatory',
@@ -2115,4 +2135,662 @@ Deno.test('prepare_holds: a prepare block that carries patches fails closed (che
   assertEquals(out.screened, []);
   assertEquals(out.holds[0].reasons, ['check_error']);
   assertEquals(out.holds[0].findings[0].check, 'prepare_holds');
+});
+
+// ---- the five National desks (F374; docs/specs/2026-11-19-five-desk-search-only-route.md, Design 2 to 4) ----
+// Records are synthetic. Each desk's configuration is exercised through the real runner, with a fake page check and the
+// real publisher resolver (supabase/functions/_shared/publisher.ts names the five desks by host).
+
+/** The settings the five desks will really run with: page-less text is theirs (policy requirePageCount false). */
+const DESK_SETTINGS: Rec = { ...SETTINGS, requirePageCount: false };
+const deskCtx = (settings: Rec = DESK_SETTINGS) => ctxOf(new FakeLive(), settings);
+
+interface Desk {
+  name: string;
+  file: string;
+  cfg: Rec;
+  collection: string;
+  /** Text from pages (a PDF text layer) or from a page or dataset with none. */
+  paged: boolean;
+  sourceHost: string;
+  extraction: string;
+  /** A file link the desk's host list allows, and whether the page check applies to it. */
+  url: (n: number) => string | null;
+  citation: Rec;
+  prefix: string | null;
+  basis: 'page_check' | 'density_only';
+  /** A file link on another desk's host. */
+  foreignUrl: string;
+  /** An extraction the desk does not allow. */
+  otherExtraction: string;
+}
+const DESKS: Desk[] = [
+  {
+    name: 'budget',
+    file: 'budget.json',
+    cfg: BUDGET,
+    collection: 'national-budget',
+    paged: true,
+    sourceHost: 'indiabudget.gov.in',
+    extraction: 'pdf_text',
+    url: (n) => `https://www.indiabudget.gov.in/doc/budget_speech/bs${n}.pdf`,
+    citation: { kind: 'budget', collection: 'c', issuer: 'Ministry of Finance', source: 'S', licence_note: 'n' },
+    prefix: 'budget:',
+    basis: 'page_check',
+    foreignUrl: 'https://www.pib.gov.in/doc/x.pdf',
+    otherExtraction: 'doc',
+  },
+  {
+    name: 'cabinet',
+    file: 'cabinet.json',
+    cfg: CABINET,
+    collection: 'national-cabinet',
+    paged: false,
+    sourceHost: 'pib.gov.in',
+    extraction: 'html',
+    url: (n) => `https://www.pib.gov.in/PressReleasePage.aspx?PRID=${n}`,
+    citation: { kind: 'cabinet_decision', issuer: 'Cabinet', prid: '100', posted_on: null, source: 'S' },
+    prefix: null,
+    basis: 'density_only',
+    foreignUrl: 'https://mha.gov.in/x.pdf',
+    otherExtraction: 'pdf_text',
+  },
+  {
+    name: 'transfers',
+    file: 'transfers.json',
+    cfg: TRANSFERS,
+    collection: 'national-transfers',
+    paged: true,
+    sourceHost: 'mha.gov.in',
+    extraction: 'pdf_text',
+    url: (n) => `https://mha.gov.in/sites/default/files/T${n}.pdf`,
+    citation: { kind: 'transfer_order', issuer: 'MHA', date: '2025-01-01', source: 'S' },
+    prefix: null,
+    basis: 'page_check',
+    foreignUrl: 'https://www.pib.gov.in/doc/x.pdf',
+    otherExtraction: 'ocr',
+  },
+  {
+    name: 'industry',
+    file: 'industry.json',
+    cfg: INDUSTRY,
+    collection: 'national-industry',
+    paged: true,
+    sourceHost: 'www.dpiit.gov.in',
+    extraction: 'pdf_text',
+    url: (n) => `https://www.dpiit.gov.in/static/uploads/I${n}.pdf`,
+    citation: { kind: 'industry_update', issuer: 'DPIIT', source: 'S' },
+    prefix: 'industry:',
+    basis: 'page_check',
+    foreignUrl: 'https://www.pib.gov.in/doc/x.pdf',
+    otherExtraction: 'ocr',
+  },
+  {
+    name: 'mp_profiles',
+    file: 'mp_profiles.json',
+    cfg: MP_PROFILES,
+    collection: 'national-mp-profiles',
+    paged: false,
+    sourceHost: 'sansad.in',
+    extraction: 'html',
+    url: (n) => `https://sansad.in/ls/members/biography/${n}?x=1`,
+    citation: { kind: 'mp_profile', house: 'Lok Sabha', mp_name: 'A. Member', mpsno: '12', source: 'S' },
+    prefix: 'mp:',
+    basis: 'density_only',
+    foreignUrl: 'https://www.pib.gov.in/x?PRID=1',
+    otherExtraction: 'ocr',
+  },
+];
+const deskNamed = (n: string) => DESKS.find((d) => d.name === n)!;
+
+/** A web page or dataset: text with no pages, as the pack gives it (page_split none, no page_count). */
+async function unpagedRec(n: number, chars: number): Promise<Rec> {
+  const text = `Document ${n}. `.padEnd(chars, 'w');
+  return {
+    schema: 'nter.citation_pack/1.1',
+    source_key: key(n),
+    desk_tier: 'national',
+    title: `Record number ${n}`,
+    file_name: `r${n}`,
+    licence_class: LICENCE,
+    content_sha256: await sha256Hex(text),
+    n_chars: [...text].length,
+    page_count: null,
+    page_split: 'none',
+    links: [],
+    pages: [],
+    text,
+  };
+}
+/** A record of the desk that passes every check; `over` replaces fields, and an undefined value removes one. */
+async function deskRec(d: Desk, n: number, over: Rec = {}, chars = 1_200): Promise<Rec> {
+  const base = d.paged ? await textRec(n, 1, chars) : await unpagedRec(n, chars);
+  const rec: Rec = {
+    ...base,
+    desk_feature: d.cfg.desk_feature,
+    desk_rows_feature: d.cfg.desk_rows_feature,
+    doc_type: d.cfg.doc_type,
+    source_host: d.sourceHost,
+    extraction: d.extraction,
+    file_url: d.url(n),
+    citation: { ...d.citation },
+    document_key_suggested: d.prefix === null ? undefined : `${d.prefix}${n}`,
+    links: [],
+    ...over,
+  };
+  for (const k of Object.keys(rec)) if (rec[k] === undefined) delete rec[k];
+  return rec;
+}
+/**
+ * The desk's screen. `prepare_holds` asks the adapter's own prepare step, which names the search-only desks in
+ * `supabase/functions/_shared/suppliedText.ts` (task 2 of the spec, not this task): until it names these five it holds
+ * every record of them as prepare_failed. So the desk tests stand that one check in with a pass, and the last test of
+ * this section asks the real one for every desk the adapter already names.
+ */
+const deskScreen = (d: Desk, cfg: Rec = {}, page = fakePage(), realPrepare = false) => {
+  const s = makeSearchOnlyScreen({ ...d.cfg, ...cfg }, page.check, {
+    configFile: `scripts/bulk-runner/screens/${d.file}`,
+  });
+  return realPrepare ? s : {
+    ...s,
+    checks: s.checks.map((c) => c.name === 'prepare_holds' ? { ...c, one: () => Promise.resolve([]) } : c),
+  };
+};
+const deskRun = (d: Desk, records: Rec[], cfg: Rec = {}, page = fakePage()) =>
+  runScreen(deskScreen(d, cfg, page), records, deskCtx(), opts());
+const reasonsOf = (out: Awaited<ReturnType<typeof run>>, k: string) => holdOf(out, k)?.reasons ?? [];
+
+Deno.test('desks: each of the five configurations parses and names its collection, desk and limits', () => {
+  for (const d of DESKS) {
+    const cfg = parseSearchOnlyConfig(d.cfg);
+    assertEquals(cfg.collection, d.collection);
+    assertEquals(cfg.desk_tier, 'national');
+    assertEquals(cfg.desk_rows_feature, cfg.desk_feature, d.name);
+    assertEquals([cfg.min_chars, cfg.max_chars], [300, 600_000]);
+    assertEquals(deskScreen(d).collection, d.collection);
+  }
+  const feature = (d: string) => deskNamed(d).cfg.desk_feature;
+  assertEquals(feature('budget'), 'Budget Utilisation & Schemes');
+  assertEquals(feature('cabinet'), 'Cabinet Decisions');
+  assertEquals(feature('transfers'), 'Bureaucratic Transfers \u2014 AGMUT Cadre');
+  assertEquals(feature('industry'), 'Industry Updates (Ministry Data)');
+  assertEquals(feature('mp_profiles'), 'MP Profiles & Performance (MPLAD attendance debates)');
+});
+
+Deno.test('desks: the values of the spec table (text types, citation fields, key prefix, hosts)', () => {
+  const want: Record<string, Rec> = {
+    budget: {
+      extraction_allowed: ['pdf_text'],
+      citation_required: ['kind', 'issuer', 'source'],
+      suggested_key_prefix: 'budget:',
+      url_hosts: ['www.indiabudget.gov.in'],
+    },
+    cabinet: {
+      extraction_allowed: ['html'],
+      citation_required: ['kind', 'issuer', 'prid', 'source'],
+      suggested_key_prefix: undefined,
+      url_hosts: ['www.pib.gov.in'],
+    },
+    transfers: {
+      extraction_allowed: ['pdf_text'],
+      citation_required: ['kind', 'source'],
+      suggested_key_prefix: undefined,
+      url_hosts: ['mha.gov.in'],
+    },
+    industry: {
+      extraction_allowed: ['pdf_text'],
+      citation_required: ['kind', 'source'],
+      suggested_key_prefix: 'industry:',
+      url_hosts: ['www.dpiit.gov.in', 'eaindustry.nic.in', 'www.mospi.gov.in', 'mospi.gov.in'],
+    },
+    mp_profiles: {
+      extraction_allowed: ['html', 'dataset'],
+      citation_required: ['kind', 'house', 'mp_name', 'mpsno', 'source'],
+      suggested_key_prefix: 'mp:',
+      url_hosts: ['sansad.in'],
+    },
+  };
+  for (const d of DESKS) {
+    const cfg = parseSearchOnlyConfig(d.cfg);
+    for (const [k, v] of Object.entries(want[d.name])) {
+      assertEquals((cfg as unknown as Rec)[k], v, `${d.name} ${k}`);
+    }
+  }
+  // Budget holds a record with no checkable file by not allowing the density-only basis; the others allow it.
+  assertEquals(parseSearchOnlyConfig(BUDGET).allow_density_only, false);
+  for (const d of DESKS.filter((x) => x.name !== 'budget')) {
+    assertEquals(parseSearchOnlyConfig(d.cfg).allow_density_only, true, d.name);
+  }
+});
+
+Deno.test('desks: a good record of each desk passes and earns the basis the spec gives it', async () => {
+  for (const d of DESKS) {
+    const out = await deskRun(d, [await deskRec(d, 1)]);
+    assertEquals(out.holds, [], d.name);
+    assertEquals(out.screened.length, 1, d.name);
+    assertEquals(out.screened[0].completeness_basis, d.basis, d.name);
+  }
+});
+
+Deno.test('desks: MP Profiles takes a dataset as well as a page; Industry, a record with no file link; Budget its second doc_type', async () => {
+  const mp = deskNamed('mp_profiles');
+  const set = await deskRec(mp, 2, { extraction: 'dataset', doc_type: 'mp_record_profile', source_record_id: 'r2' });
+  const page = await deskRec(mp, 3, { doc_type: 'mp_profile' });
+  const out = await deskRun(mp, [set, page]);
+  assertEquals(out.holds, []);
+  const ind = deskNamed('industry');
+  const noLink = await deskRec(ind, 4, { file_url: undefined, source_host: 'eaindustry.nic.in' });
+  const out2 = await deskRun(ind, [noLink]);
+  assertEquals(out2.holds, []);
+  assertEquals(out2.screened[0].completeness_basis, 'density_only');
+  for (const dt of ['industry_document', 'industry_report', 'industry_update']) {
+    assertEquals((await deskRun(ind, [await deskRec(ind, 5, { doc_type: dt })])).holds, [], dt);
+  }
+  const bud = deskNamed('budget');
+  // budget_doc is the pack's spelling for the one OCR record: accepted as a doc_type, held for its text type.
+  const ocr = await deskRec(bud, 6, { doc_type: 'budget_doc', extraction: 'ocr' });
+  assertEquals(reasonsOf(await deskRun(bud, [ocr]), key(6)), ['extraction_not_allowed']);
+  assertEquals((await deskRun(bud, [await deskRec(bud, 7, { doc_type: 'budget_doc' })])).holds, []);
+  for (const dt of ['regulatory', 'budget_documents', '']) {
+    assert(reasonsOf(await deskRun(bud, [await deskRec(bud, 8, { doc_type: dt })]), key(8)).includes('bad_shape'), dt);
+  }
+});
+
+Deno.test('desks: each hold of the spec shows on a record built for it', async () => {
+  for (const d of DESKS) {
+    const own = (k: number) => d.name + k;
+    // Too short (299 characters) and too long (600,001).
+    const short = await deskRec(d, 1, {}, 299);
+    const long = await deskRec(d, 2, {}, 600_001);
+    const edge1 = await deskRec(d, 3, {}, 300);
+    const edge2 = await deskRec(d, 4, {}, 600_000);
+    const out = await deskRun(d, [short, long, edge1, edge2]);
+    assert(reasonsOf(out, key(1)).includes('too_short'), own(1));
+    assert(reasonsOf(out, key(2)).includes('too_long'), own(2));
+    assertEquals(holdOf(out, key(3)), undefined, own(3));
+    assertEquals(holdOf(out, key(4)), undefined, own(4));
+    // A text type the desk does not allow.
+    const ext = await deskRun(d, [await deskRec(d, 5, { extraction: d.otherExtraction })]);
+    assertEquals(reasonsOf(ext, key(5)), ['extraction_not_allowed'], own(5));
+    // A source host the desk does not list; a file link on another desk's host.
+    const host = await deskRun(d, [await deskRec(d, 6, { source_host: 'example.org' })]);
+    assertEquals(reasonsOf(host, key(6)), ['unknown_host'], own(6));
+    const foreign = await deskRun(d, [await deskRec(d, 7, { file_url: d.foreignUrl })]);
+    assertEquals(reasonsOf(foreign, key(7)), ['not_official_url'], own(7));
+    // Each required citation field, missing or blank.
+    for (const f of d.cfg.citation_required as string[]) {
+      for (const bad of [undefined, '', '  ']) {
+        const c = { ...d.citation, [f]: bad };
+        if (bad === undefined) delete c[f];
+        const r = await deskRun(d, [await deskRec(d, 8, { citation: c })]);
+        assertEquals(reasonsOf(r, key(8)), ['citation_incomplete'], `${d.name} ${f}`);
+        assertEquals(holdOf(r, key(8))!.findings[0].detail, f, `${d.name} ${f}`);
+      }
+    }
+    // A key with another desk's prefix; a desk with no prefix takes no suggested key at all.
+    const wrong = await deskRun(d, [await deskRec(d, 9, { document_key_suggested: 'law:9' })]);
+    assertEquals(reasonsOf(wrong, key(9)), ['bad_shape'], own(9));
+    assertEquals(holdOf(wrong, key(9))!.findings[0].detail, 'document_key_suggested', own(9));
+    if (d.prefix !== null) {
+      const missing = await deskRun(d, [await deskRec(d, 10, { document_key_suggested: undefined })]);
+      assertEquals(reasonsOf(missing, key(10)), ['suggested_key_invalid'], own(10));
+    }
+  }
+});
+
+Deno.test('desks: a desk is not another desk (feature, rows feature and tier are named by the configuration)', async () => {
+  const a = deskNamed('budget'), b = deskNamed('cabinet');
+  const out = await deskRun(a, [
+    await deskRec(a, 1, { desk_feature: b.cfg.desk_feature }),
+    await deskRec(a, 2, { desk_rows_feature: b.cfg.desk_rows_feature }),
+    await deskRec(a, 3, { desk_tier: 'law' }),
+  ]);
+  for (const n of [1, 2, 3]) assertEquals(reasonsOf(out, key(n)), ['bad_shape'], String(n));
+});
+
+Deno.test('desks: pack links are not read for a desk that carries none (a search-only document has no row links)', async () => {
+  // The pack's Cabinet link has no row_key and names a document key the record does not carry; MP's names the listing
+  // under its commas. Admission writes no link for a search-only document, so these are no hold.
+  const cab = deskNamed('cabinet'), mp = deskNamed('mp_profiles');
+  const link = (feature: string, document_key: string | null) => [{
+    tier: 'national',
+    feature,
+    role: 'press_release',
+    row_key: null,
+    document_key,
+    match_on: 'x',
+  }];
+  const r1 = await deskRec(cab, 1, { links: link('Cabinet Decisions', 'cab:1') });
+  const r2 = await deskRec(mp, 2, { links: link('MP Profiles & Performance (MPLAD, attendance, debates)', 'mp:2') });
+  assertEquals((await deskRun(cab, [r1])).holds, []);
+  assertEquals((await deskRun(mp, [r2])).holds, []);
+  // Proof that the field is what lets them through: without it, the same records are held as link_shape.
+  assertEquals(reasonsOf(await deskRun(cab, [r1], { ignore_pack_links: false }), key(1)), ['link_shape']);
+  assertEquals(reasonsOf(await deskRun(mp, [r2], { ignore_pack_links: false }), key(2)), ['link_shape']);
+  // Regulatory keeps reading its links.
+  assertEquals(parseSearchOnlyConfig(REGULATORY).ignore_pack_links, false);
+});
+
+Deno.test('desks: text from a page or dataset has no pages, and passes when the policy does not require a page count', async () => {
+  for (const name of ['cabinet', 'mp_profiles']) {
+    const d = deskNamed(name);
+    const r = await deskRec(d, 1);
+    assertEquals(r.page_split, 'none');
+    assertEquals(r.page_count, null);
+    const out = await deskRun(d, [r]);
+    assertEquals(out.holds, [], name);
+    assertEquals(out.screened[0].completeness_basis, 'density_only', name);
+  }
+});
+
+Deno.test('desks: with a policy that requires a page count, page-less records are held, as admission holds them (S1)', async () => {
+  for (const name of ['cabinet', 'mp_profiles']) {
+    const d = deskNamed(name);
+    const strict = await runScreen(
+      deskScreen(d),
+      [await deskRec(d, 1)],
+      deskCtx({ ...SETTINGS, requirePageCount: true }),
+      opts(),
+    );
+    assertEquals(strict.screened, [], name);
+    assertEquals(reasonsOf(strict, key(1)), ['no_page_spans'], name);
+    const loose = await runScreen(
+      deskScreen(d),
+      [await deskRec(d, 2)],
+      deskCtx({ ...SETTINGS, requirePageCount: false }),
+      opts(),
+    );
+    assertEquals(loose.holds, [], name);
+  }
+});
+
+Deno.test('desks: unpaged_text only relaxes records with no pages; without it a page-less record is held', async () => {
+  const cab = deskNamed('cabinet');
+  const r = await deskRec(cab, 1);
+  const strict = await deskRun(cab, [r], { unpaged_text: false });
+  assert(reasonsOf(strict, key(1)).includes('page_count_unsplittable'), JSON.stringify(reasonsOf(strict, key(1))));
+  // A split that is not 'none', or spans that do not add up, still hold.
+  const odd = await deskRun(cab, [await deskRec(cab, 2, { page_split: 'exact' })]);
+  assert(reasonsOf(odd, key(2)).includes('page_spans'), JSON.stringify(reasonsOf(odd, key(2))));
+  const bad = await deskRun(cab, [await deskRec(cab, 3, { page_split: 'approximate' })]);
+  assert(reasonsOf(bad, key(3)).includes('page_split'));
+  const count = await deskRun(cab, [await deskRec(cab, 4, { page_count: 3 })]);
+  assert(reasonsOf(count, key(4)).includes('page_count_unsplittable'));
+  const hash = await deskRun(cab, [await deskRec(cab, 5, { content_sha256: '0'.repeat(64) })]);
+  assert(reasonsOf(hash, key(5)).includes('text_hash_mismatch'));
+});
+
+Deno.test('desks: Budget (density-only not allowed) holds a record whose official file cannot be page-checked; a desk that allows it passes it', async () => {
+  const bud = deskNamed('budget'), ind = deskNamed('industry'), tr = deskNamed('transfers');
+  // No file link, and a link the PDF rule does not match (a page of the site, a PDF on the wrong host).
+  const none = await deskRec(bud, 1, { file_url: undefined });
+  const html = await deskRec(bud, 2, { file_url: 'https://www.indiabudget.gov.in/doc/page.html' });
+  const out = await deskRun(bud, [none, html]);
+  for (const n of [1, 2]) {
+    assertEquals(reasonsOf(out, key(n)), ['no_completeness_basis'], String(n));
+    assertEquals(
+      holdOf(out, key(n))!.findings[0].detail,
+      'the density-only basis is not allowed and there is no checkable file',
+    );
+  }
+  // The same two records, with density-only allowed, are what they were: held by nothing and passed on density alone.
+  const off = await deskRun(bud, [none, html], { allow_density_only: true });
+  assertEquals(off.holds, []);
+  assertEquals(off.screened.map((r) => r.completeness_basis), ['density_only', 'density_only']);
+  // The same shape of record on desks whose table allows density-only passes.
+  const i1 = await deskRec(ind, 3, { file_url: undefined });
+  const t1 = await deskRec(tr, 4, { file_url: undefined });
+  assertEquals((await deskRun(ind, [i1])).holds, []);
+  assertEquals((await deskRun(tr, [t1])).holds, []);
+  // A Budget link the page check cannot read is held by the page check, as for every desk.
+  const bad = await deskRec(bud, 5);
+  const failed = await deskRun(bud, [bad], {}, fakePage({ [key(5)]: ['pdf_unavailable'] }));
+  assertEquals(reasonsOf(failed, key(5)), ['pdf_unavailable']);
+  const ok = await deskRun(bud, [await deskRec(bud, 6)]);
+  assertEquals(ok.screened[0].completeness_basis, 'page_check');
+});
+
+Deno.test("desks: the page check is offered the desk's own PDFs only", async () => {
+  const ind = deskNamed('industry');
+  const page = fakePage();
+  const hosts = [
+    'https://www.dpiit.gov.in/a.pdf',
+    'https://eaindustry.nic.in/a.pdf',
+    'https://www.mospi.gov.in/a.pdf',
+    'https://mospi.gov.in/a.pdf',
+  ];
+  const recs = await Promise.all(
+    hosts.map((u, i) => deskRec(ind, 10 + i, { file_url: u, source_host: new URL(u).host })),
+  );
+  const page2 = await deskRec(ind, 20, { file_url: undefined });
+  const html = await deskRec(ind, 21, { file_url: 'https://www.dpiit.gov.in/a.html' });
+  const out = await deskRun(ind, [...recs, page2, html], {}, page);
+  assertEquals(out.holds, []);
+  assertEquals(page.seen.flat().sort(), recs.map((r) => String(r.source_key)).sort());
+  const rule = pdfUrlRule(INDUSTRY);
+  for (const u of hosts) assert(rule.test(u), u);
+  for (
+    const no of [
+      'https://www.pib.gov.in/a.pdf',
+      'https://dpiit.gov.in/a.pdf',
+      'https://www.dpiit.gov.in.evil.example/a.pdf',
+      'https://www.dpiit.gov.in/a.pdf?x=1',
+      'http://www.dpiit.gov.in/a.pdf',
+    ]
+  ) {
+    assert(!rule.test(no), no);
+  }
+  // A desk with no PDF rule has no page-checkable file at all.
+  for (const n of ['cabinet', 'mp_profiles']) {
+    assertEquals(pdfUrlRule(deskNamed(n).cfg).test(deskNamed(n).url(1)!), false, n);
+  }
+});
+
+Deno.test('desks: pdf_url_rule is optional, and a rule over several hosts must name only listed hosts, plainly', () => {
+  const bad = (over: Rec, text: string) =>
+    assertThrows(() => parseSearchOnlyConfig({ ...INDUSTRY, ...over }), Error, text);
+  bad({ pdf_url_rule: '^https://(?:www\\.dpiit\\.gov\\.in|other\\.example)/[^?#]+\\.pdf$' }, 'pdf_url_rule');
+  bad({ pdf_url_rule: '^https://(?:www\\.dpiit\\.gov\\.in|.*)/[^?#]+\\.pdf$' }, 'pdf_url_rule');
+  bad({ pdf_url_rule: '^https://(?:www\\.dpiit\\.gov\\.in)x/a\\.pdf$' }, 'pdf_url_rule');
+  bad({ pdf_url_rule: '^https://(?:)/a\\.pdf$' }, 'pdf_url_rule');
+  bad({ pdf_url_rule: '' }, 'pdf_url_rule');
+  const { pdf_url_rule: _gone, ...noRule } = INDUSTRY;
+  assertEquals(parseSearchOnlyConfig(noRule).pdf_url_rule, undefined);
+  assertEquals(pdfUrlRule(noRule).test('https://www.dpiit.gov.in/a.pdf'), false);
+});
+
+Deno.test('desks: the new configuration fields are refused by name when malformed', () => {
+  const bad = (over: Rec, text: string) =>
+    assertThrows(() => parseSearchOnlyConfig({ ...TRANSFERS, ...over }), Error, text);
+  bad({ doc_type_also: 'x' }, 'doc_type_also');
+  bad({ doc_type_also: [''] }, 'doc_type_also');
+  bad({ doc_type_also: ['transfer_order'] }, 'doc_type_also');
+  bad({ suggested_key_prefix: '' }, 'suggested_key_prefix');
+  bad({ ignore_pack_links: 'yes' }, 'ignore_pack_links');
+  bad({ unpaged_text: 1 }, 'unpaged_text');
+  bad({ spelling_rewrites: [] }, 'spelling_rewrites');
+  bad({ spelling_rewrites: { a: 'not a spelling of this desk' } }, 'spelling_rewrites');
+  bad({ spelling_rewrites: { [TRANSFERS.desk_feature]: TRANSFERS.desk_feature } }, 'spelling_rewrites');
+  bad({ spelling_rewrites: { '': TRANSFERS.desk_feature } }, 'spelling_rewrites');
+});
+
+// ---- Design 3: one spelling per desk ----
+
+const HYPHEN = 'Bureaucratic Transfers - AGMUT Cadre';
+const DASH = 'Bureaucratic Transfers \u2014 AGMUT Cadre';
+
+Deno.test('spelling: the Transfers configuration accepts the hyphen spelling and writes the dash spelling into both fields', async () => {
+  const tr = deskNamed('transfers');
+  const s = deskScreen(tr);
+  assertEquals(TRANSFERS.desk_feature, DASH);
+  assertEquals(TRANSFERS.desk_rows_feature, DASH);
+  assertEquals((TRANSFERS as Rec).spelling_rewrites, { [HYPHEN]: DASH });
+  const v11 = await deskRec(tr, 1, { desk_feature: HYPHEN, desk_rows_feature: HYPHEN });
+  // The checks accept it (the identity check is the one that names the spellings).
+  for (const c of s.checks) {
+    if (c.one && c.name !== 'prepare_holds') {
+      assertEquals((await c.one(v11, deskCtx())).map((f) => f.reason), [], c.name);
+    }
+  }
+  await s.checks.find((c) => c.name === 'completeness_basis')!.all!([v11], deskCtx());
+  const done = s.project!(v11);
+  assertEquals(done.desk_feature, DASH);
+  assertEquals(done.desk_rows_feature, DASH);
+});
+
+Deno.test('spelling: a hyphen Transfers record goes through the real runner and comes out screened with the dash spelling in both fields', async () => {
+  const tr = deskNamed('transfers');
+  const v11 = await deskRec(tr, 1, { desk_feature: HYPHEN, desk_rows_feature: HYPHEN });
+  const before = structuredClone(v11);
+  const out = await deskRun(tr, [v11, await deskRec(tr, 2)]);
+  assertEquals(out.holds, []);
+  assertEquals(out.screened.map((r) => [r.desk_feature, r.desk_rows_feature]), [[DASH, DASH], [DASH, DASH]]);
+  const { text_sha256: _t, review: _r, completeness_basis: _b, ...rest } = out.screened[0];
+  assertEquals(rest, { ...before, desk_feature: DASH, desk_rows_feature: DASH });
+  const sets = await runScreenSets(
+    deskScreen(tr),
+    { records: { records: [v11, await deskRec(tr, 2)], packageId: 'p#' + 'a'.repeat(64), fileSha256: 'b'.repeat(64) } },
+    deskCtx(),
+    { decisionId: 'd', rulesSha256: 'c'.repeat(64), noLive: false, noPages: false },
+  );
+  assertEquals(sets.summary.reports.desk_spelling.screened, { records: 2, rewritten: 1 });
+  // Only a screen that has an alias map declares rewrites.
+  assertEquals(deskScreen(tr).projectRewrites, ['desk_feature', 'desk_rows_feature']);
+  assertEquals(screenWith().projectRewrites, undefined);
+  for (const d of DESKS.filter((x) => x.name !== 'transfers')) assertEquals(deskScreen(d).projectRewrites, undefined);
+});
+
+Deno.test('spelling: nothing but the two fields changes, and the input record is not touched', async () => {
+  const tr = deskNamed('transfers');
+  const s = deskScreen(tr);
+  const v11 = await deskRec(tr, 1, { desk_feature: HYPHEN, desk_rows_feature: HYPHEN });
+  const before = structuredClone(v11);
+  // The basis needs the completeness check to have run; do that through the whole-set check.
+  await s.checks.find((c) => c.name === 'completeness_basis')!.all!([v11], deskCtx());
+  const done = s.project!(v11);
+  assertEquals(v11, before);
+  assertEquals(done, { ...before, desk_feature: DASH, desk_rows_feature: DASH, completeness_basis: 'page_check' });
+  // Either field alone is rewritten alone.
+  const one = await deskRec(tr, 2, { desk_feature: HYPHEN });
+  await s.checks.find((c) => c.name === 'completeness_basis')!.all!([one], deskCtx());
+  assertEquals(s.project!(one).desk_feature, DASH);
+  assertEquals(s.project!(one).desk_rows_feature, DASH);
+});
+
+Deno.test('spelling: a dash record is untouched; any other spelling, on this desk or another, is bad_shape', async () => {
+  const tr = deskNamed('transfers'), bud = deskNamed('budget');
+  const dash = await deskRec(tr, 1);
+  assertEquals(dash.desk_feature, DASH);
+  const out = await deskRun(tr, [
+    await deskRec(tr, 2, { desk_feature: 'Bureaucratic Transfers - AGMUT cadre' }),
+    await deskRec(tr, 3, { desk_rows_feature: 'Transfers' }),
+    await deskRec(tr, 4, { desk_feature: HYPHEN.replace('-', '\u2013') }),
+  ]);
+  for (const n of [2, 3, 4]) assertEquals(reasonsOf(out, key(n)), ['bad_shape'], String(n));
+  // The hyphen spelling is the Transfers desk's only: other desks name no alias.
+  const b = await deskRun(bud, [await deskRec(bud, 5, { desk_feature: HYPHEN, desk_rows_feature: HYPHEN })]);
+  assertEquals(reasonsOf(b, key(5)), ['bad_shape']);
+});
+
+Deno.test('spelling: the report counts the records it rewrote, screened ones only, and a desk with no alias has no such report', async () => {
+  const tr = deskNamed('transfers');
+  const s = deskScreen(tr);
+  assertEquals(s.reports?.map((r) => r.name), ['identifier_shapes', 'desk_spelling']);
+  const rep = s.reports!.find((r) => r.name === 'desk_spelling')!;
+  const hy = await deskRec(tr, 1, { desk_feature: HYPHEN, desk_rows_feature: HYPHEN });
+  const hy1 = await deskRec(tr, 2, { desk_rows_feature: HYPHEN });
+  const da = await deskRec(tr, 3);
+  const total = (rec: Rec, outcome: 'screened' | 'held') =>
+    rep.one(rec, deskCtx(), outcome) as Array<{ group: string; counts: Record<string, number> }>;
+  assertEquals(total(hy, 'screened'), [{ group: 'screened', counts: { records: 1, rewritten: 1 } }]);
+  assertEquals(total(hy1, 'screened'), [{ group: 'screened', counts: { records: 1, rewritten: 1 } }]);
+  assertEquals(total(da, 'screened'), [{ group: 'screened', counts: { records: 1, rewritten: 0 } }]);
+  assertEquals(total(hy, 'held'), [{ group: 'held', counts: { records: 1, rewritten: 0 } }]);
+  assertEquals(deskScreen(deskNamed('budget')).reports?.map((r) => r.name), ['identifier_shapes']);
+  assertEquals(screenWith().reports?.map((r) => r.name), ['identifier_shapes']);
+});
+
+// ---- the rules hash and the seams ----
+
+Deno.test("rules files: a desk hashes its own configuration file in place of Regulatory's, every file exists", async () => {
+  for (const d of DESKS) {
+    const files = deskScreen(d).rulesFiles;
+    assert(files.includes(`scripts/bulk-runner/screens/${d.file}`), d.name);
+    assert(!files.includes('scripts/bulk-runner/screens/regulatory.json'), d.name);
+    assertEquals(files.length, screenWith().rulesFiles.length, d.name);
+    for (const f of files) assert((await Deno.stat(new URL(`../../../${f}`, import.meta.url))).isFile, f);
+  }
+  assertThrows(
+    () => makeSearchOnlyScreen(REGULATORY, fakePage().check, { configFile: 'x' }),
+    Error,
+    'configFile',
+  );
+});
+
+Deno.test('publisher: the screen asks the resolver it is given, and holds a record it cannot name', async () => {
+  const bud = deskNamed('budget');
+  const mute = makeSearchOnlyScreen(BUDGET, fakePage().check, { publisher: () => '' });
+  const out = await runScreen(mute, [await deskRec(bud, 1)], deskCtx(), opts());
+  assertEquals(reasonsOf(out, key(1)), ['publisher_unresolved']);
+  const asked: unknown[][] = [];
+  const spy = makeSearchOnlyScreen(BUDGET, fakePage().check, {
+    publisher: (...a) => (asked.push(a), 'P'),
+  });
+  await runScreen(spy, [await deskRec(bud, 2)], deskCtx(), opts());
+  assertEquals(asked[0][0], 'national');
+  assertEquals(asked[0][1], 'Budget Utilisation & Schemes');
+});
+
+Deno.test('desks: the real prepare step accepts a good record of every desk the adapter already names', async () => {
+  const named: string[] = NATIONAL_SEARCH_ONLY.map((x) => x.feature);
+  let asked = 0;
+  for (const d of DESKS) {
+    if (!named.includes(d.cfg.desk_feature as string)) continue;
+    asked++;
+    const out = await runScreen(deskScreen(d, {}, fakePage(), true), [await deskRec(d, 1)], deskCtx(), opts());
+    assertEquals(out.holds, [], d.name);
+  }
+  // The prepare probe sees the record as the runner will: with the one spelling. (Observable once the adapter names Transfers.)
+  const tr = deskNamed('transfers');
+  if (named.includes(tr.cfg.desk_feature as string)) {
+    const v11 = await deskRec(tr, 3, { desk_feature: HYPHEN, desk_rows_feature: HYPHEN });
+    const out = await runScreen(deskScreen(tr, {}, fakePage(), true), [v11], deskCtx(), opts());
+    assert(!reasonsOf(out, key(3)).includes('prepare_failed'), JSON.stringify(reasonsOf(out, key(3))));
+  }
+  // Until suppliedText.ts names a desk, its records are held by prepare itself: the sign that task 2 is still to do.
+  if (asked < DESKS.length) {
+    const d = DESKS.find((x) => !named.includes(x.cfg.desk_feature as string))!;
+    const out = await runScreen(deskScreen(d, {}, fakePage(), true), [await deskRec(d, 2)], deskCtx(), opts());
+    assertEquals(reasonsOf(out, key(2)), ['prepare_failed']);
+  }
+});
+
+Deno.test('registration: the five desks are registered under their collections, built without the network, each with its own file in the rules', async () => {
+  const { SCREENS, screenUsesPrepare } = await import('./index.ts');
+  const real = globalThis.fetch;
+  let touched = 0;
+  globalThis.fetch = (() => (touched++, Promise.reject(new Error('network touched')))) as typeof fetch;
+  try {
+    for (const d of DESKS) {
+      const s = await SCREENS[d.collection]();
+      assertEquals([s.collection, s.listingRows, s.usesPrepare], [d.collection, 'none', true], d.name);
+      assert(s.rulesFiles.includes(`scripts/bulk-runner/screens/${d.file}`), d.name);
+      assert(s.rulesFiles.includes('scripts/bulk-runner/screens/index.ts'), d.name);
+      assertEquals(await screenUsesPrepare(d.collection), true, d.name);
+    }
+    assertEquals(touched, 0);
+  } finally {
+    globalThis.fetch = real;
+  }
+});
+
+Deno.test('publisher: through the real resolver each desk holds a record none of whose hosts it can name', async () => {
+  for (const d of DESKS) {
+    const host = 'example.org';
+    const cfg = { source_hosts: [...(d.cfg.source_hosts as string[]), host] };
+    const out = await deskRun(d, [await deskRec(d, 1, { source_host: host, file_url: undefined })], cfg);
+    assertEquals(reasonsOf(out, key(1)), ['publisher_unresolved'], d.name);
+    // and the same record with a host of the desk is named, so the hold is the resolver's
+    assertEquals((await deskRun(d, [await deskRec(d, 2)])).holds, [], d.name);
+  }
 });

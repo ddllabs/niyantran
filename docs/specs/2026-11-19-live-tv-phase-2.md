@@ -2,13 +2,13 @@
 
 > **Status: Living (2026-11-19).** Turns the [phase 2 plan](../plans/2026-11-19-live-tv-phase-2.md) into one
 > spec: what each item must do, how it is accepted, and what stays out. The only list of open work is
-> [open-work.md](../plans/open-work.md), where the items are F374 to F378. The owner confirmed the plan on
+> [open-work.md](../plans/open-work.md), where the items are F367 and F375 to F378. The owner confirmed the plan on
 > 2026-11-19 and reserved every merge to `main`.
 
 ## Current state
 
 The channel list now reads live status from a per-channel lookup, and the page shows LIVE only for a live video
-(F374, live since 2026-11-19). Four 24-hour channels still play a recorded video, not their live stream (F377). A
+(F367, live since 2026-11-19). Four 24-hour channels still play a recorded video, not their live stream (F377). A
 claim left unchecked at the end of a session shows "Checking…" for ever in past sessions (F376). The owner accepted
 the worst-case cost of the fact-check as it is for now (F378).
 

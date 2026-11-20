@@ -1,4 +1,4 @@
-// F374: LIVE means the video this page plays is live. A per-channel video lookup that says "live" but is not
+// F367: LIVE means the video this page plays is live. A per-channel video lookup that says "live" but is not
 // YouTube data (a fallback answer) must not change the header badge or the tile. (F377: one that is YouTube data
 // does; see LiveTvPage.livevideo.test.jsx.)
 import { beforeEach, describe, expect, it, vi } from 'vitest';

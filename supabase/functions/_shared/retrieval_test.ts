@@ -520,9 +520,28 @@ Deno.test('rowToChunk keeps a publisher only if it is one of the four names and 
   assertEquals(Object.hasOwn(await rowToChunk({ ...row('a', 0.9), desk_tier: 'law', desk_feature: REG, publisher: RBI }), 'publisher'), false);
   assertEquals(Object.hasOwn(await rowToChunk({ ...row('a', 0.9), desk_tier: undefined, desk_feature: undefined, publisher: RBI }), 'publisher'), false);
   // A Regulatory row carrying a clean string outside the table gets none.
-  for (const publisher of ['Parliament of India', 'reserve bank of india', 'Reserve Bank of India ', 'Some Body', 'x'.repeat(80)]) {
+  for (const publisher of ['Some Body', 'reserve bank of india', 'Reserve Bank of India ', 'x'.repeat(80)]) {
     assertEquals(Object.hasOwn(await rowToChunk({ ...row('a', 0.9), desk_feature: REG, publisher }), 'publisher'), false, publisher);
   }
+});
+
+Deno.test('rowToChunk keeps a publisher only on a desk that can have that name (F374)', async () => {
+  const CAB = 'Cabinet Decisions';
+  const own: Array<[string, string]> = [
+    ['Budget Utilisation & Schemes', 'Ministry of Finance, Government of India'],
+    [CAB, 'Press Information Bureau, Government of India'],
+    ['Bureaucratic Transfers \u2014 AGMUT Cadre', 'Ministry of Home Affairs, Government of India'],
+    ['MP Profiles & Performance (MPLAD attendance debates)', 'Parliament of India'],
+    ['Industry Updates (Ministry Data)', 'Department for Promotion of Industry and Internal Trade'],
+  ];
+  for (const [desk_feature, publisher] of own) {
+    assertEquals((await rowToChunk({ ...row('a', 0.9), desk_feature, publisher })).publisher, publisher, desk_feature);
+    // the same name on a Regulatory row, and a regulator on this desk, are dropped
+    assertEquals(Object.hasOwn(await rowToChunk({ ...row('a', 0.9), desk_feature: REG, publisher }), 'publisher'), false, publisher);
+    assertEquals(Object.hasOwn(await rowToChunk({ ...row('a', 0.9), desk_feature, publisher: RBI }), 'publisher'), false, desk_feature);
+    assertEquals(Object.hasOwn(await rowToChunk({ ...row('a', 0.9), desk_feature, desk_tier: 'law', publisher }), 'publisher'), false);
+  }
+  assertEquals(Object.hasOwn(await rowToChunk({ ...row('a', 0.9), desk_feature: CAB, publisher: 'Parliament of India' }), 'publisher'), false);
 });
 
 // F295: a failed or timed-out phase still reports the time it took, and the embedding is reported first.

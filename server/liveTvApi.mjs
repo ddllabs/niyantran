@@ -826,7 +826,7 @@ async function refreshChannelVideos(channel, cacheKey, cached) {
 
 // ── Public API Handlers ────────────────────────────────────────────────────
 
-// F374: live state for the whole channel list from ONE videos.list call (1 quota unit, ADR 0009: no
+// F367: live state for the whole channel list from ONE videos.list call (1 quota unit, ADR 0009: no
 // search.list). The call asks about each enabled channel's default video; a channel is live when that
 // video's liveBroadcastContent is 'live'. The answer is cached for the module's 10 minutes; a failure is
 // remembered for one minute only, so a broken key or a quota stop is not retried on every list request.
@@ -946,7 +946,7 @@ export async function getLiveTvChannels(options = {}) {
     // A remembered live video that YouTube confirms is live now is the video to play; one that is not is ignored.
     if (hints[c.id]) return { ...c, status: 'live', defaultVideoId: hints[c.id], embedUrl: embedUrlFor(hints[c.id]), hinted: true, ...embeddableOf(found?.embeddable, hints[c.id]) };
     const liveVideoId = freshLiveVideoId(c.id);
-    // `status` keeps its F374 meaning (the curated video is live); the client decides what to do with this.
+    // `status` keeps its F367 meaning (the curated video is live); the client decides what to do with this.
     return liveVideoId ? { ...c, liveVideoId, ...cachedEmbeddable(c.id) } : { ...c };
   });
 

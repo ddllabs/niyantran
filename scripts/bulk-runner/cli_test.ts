@@ -943,14 +943,13 @@ Deno.test('run: a batch that fails automated acceptance makes the run fail, with
   assert(lines.some((l) => l.includes('not accepted')), lines.join('\n'));
 });
 
-Deno.test('automated acceptance: a batch with no id is never accepted, and no report is claimed for it', async () => {
+Deno.test('automated acceptance: a batch with no id is never accepted, and no acceptance line is logged for it', async () => {
   const written: string[] = [];
-  const accept = automated(acceptStub(true), { sample: 50, requireLinks: false }, '/var/receipts', {
-    writeText: (p) => (written.push(p), Promise.resolve()),
-    log: () => {},
+  const accept = automated(acceptStub(true), { sample: 50, requireLinks: false }, {
+    log: (l) => written.push(l),
   });
-  assertEquals(await accept({ batch_id: null, manifest_sha256: H }), false);
-  assertEquals(written, []);
+  assertEquals((await accept({ batch_id: null, manifest_sha256: H })).ok, false);
+  assertEquals(written, [], 'nothing was logged');
 });
 
 Deno.test('run: the run receipt carries citation_dates_dropped and control_codes_removed from prepare', async () => {
@@ -1090,4 +1089,60 @@ Deno.test('plan: stays offline and judges by the collection file', async () => {
   const { d, db } = deps(await files(OVER, records));
   assertEquals(await main(plan1, d), 1);
   assertEquals(db.calls.length, 0);
+});
+
+// F356: acceptance that cannot be made says why, and can be made again for a batch that is already indexed.
+Deno.test('F356 run: an acceptance connection that fails puts its message in the output and in the acceptance file', async () => {
+  const records = [await question(1), await question(2)].map((r) => JSON.stringify(r)).join('\n');
+  const broken: AcceptDb = {
+    ...acceptStub(true),
+    sample: () => Promise.reject(new Error('server closed the connection unexpectedly')),
+  };
+  const { d, lines, written } = deps(await files(AUTO, records), { acceptDb: () => broken });
+  assertEquals(await main([...runArgs, '--accept-service', 'nter-admin'], d), 1, lines.join('\n'));
+  assert(lines.some((l) => l.includes('server closed the connection unexpectedly')), lines.join('\n'));
+  const file = [...written].find(([p]) => p.includes('/accept-error-'));
+  assert(file, 'no reason file');
+  assert(![...written.keys()].some((p) => p.includes('/acceptance-')), 'a reason-only file is not named as a report');
+  assertStringIncludes(file[1], 'server closed the connection unexpectedly');
+  assert([...written.keys()].some((p) => p.includes('/receipt-')), 'the receipt is there too');
+});
+
+Deno.test('F356 run: running again on a batch that is indexed but not accepted accepts it without loading again', async () => {
+  const records = [await question(1), await question(2)].map((r) => JSON.stringify(r)).join('\n');
+  let up = false;
+  const flaky: AcceptDb = {
+    ...acceptStub(true),
+    sample: (...a) => up ? acceptStub(true).sample(...a) : Promise.reject(new Error('laptop slept')),
+  };
+  const { d, lines, written, db } = deps(await files(AUTO, records), { acceptDb: () => flaky });
+  assertEquals(await main([...runArgs, '--accept-service', 'nter-admin'], d), 1, lines.join('\n'));
+  const registers = db.calls.filter((c) => c.method === 'register').length;
+  assert(registers > 0);
+  up = true;
+  lines.length = 0;
+  assertEquals(await main([...runArgs, '--accept-service', 'nter-admin'], d), 0, lines.join('\n'));
+  assertEquals(db.calls.filter((c) => c.method === 'register').length, registers, 'nothing was loaded again');
+  assert(lines.some((l) => l.includes('acceptance') && l.includes('passed')), lines.join('\n'));
+  // the first run's reason file and the second run's report: one file per attempt, none overwritten
+  assertEquals([...written.keys()].filter((p) => p.includes('/accept-error-')).length, 1);
+  assertEquals([...written.keys()].filter((p) => p.includes('/acceptance-')).length, 1);
+});
+
+Deno.test('F356 run: two acceptance reports of one batch get different names, so a second acceptance can be written', async () => {
+  const records = [await question(1), await question(2)].map((r) => JSON.stringify(r)).join('\n');
+  const { d, lines, written } = deps(await files(AUTO, records), { acceptDb: () => acceptStub(false) });
+  assertEquals(await main([...runArgs, '--accept-service', 'nter-admin'], d), 1, lines.join('\n'));
+  assertEquals(await main([...runArgs, '--accept-service', 'nter-admin'], d), 1, lines.join('\n'));
+  assertEquals([...written.keys()].filter((p) => p.includes('/acceptance-')).length, 2);
+});
+
+Deno.test('F356 run: with two batches, a first that fails acceptance stops the run and the output names the reason', async () => {
+  const pack = (await Promise.all(Array.from({ length: 10_001 }, (_, i) => question(i + 1))))
+    .map((r) => JSON.stringify(r)).join('\n');
+  const broken: AcceptDb = { ...acceptStub(true), sample: () => Promise.reject(new Error('socket reset by sleep')) };
+  const { d, lines } = deps(await files(AUTO, pack), { acceptDb: () => broken });
+  await main([...runArgs, '--accept-service', 'nter-admin'], d);
+  assert(lines.some((l) => l.includes('awaiting_acceptance')), lines.join('\n'));
+  assert(lines.some((l) => l.includes('socket reset by sleep')), lines.join('\n'));
 });
