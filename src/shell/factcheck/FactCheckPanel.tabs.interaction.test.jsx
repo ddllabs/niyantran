@@ -7,6 +7,7 @@ vi.mock('react', async (importOriginal) => ({ ...(await importOriginal()), ...ha
 vi.mock('../../lib/supabaseClient.js', () => ({ supabase: {}, accessToken: async () => null, functionsUrl: () => '' }));
 const { PanelBody, Claims } = await import('./FactCheckPanel.jsx');
 const { RovingTabs } = await import('./FactCheckTabs.jsx');
+const { LiveTranscriptStrip } = await import('./LiveTranscriptStrip.jsx');
 
 const noop = () => {};
 const claim = (id, verdict) => ({ id, quote: 'q', claim_en: `Claim ${id}`, kind: 'claim', status: 'checked', verdict, reason: 'r', sources: [], checked_at: null });
@@ -116,3 +117,24 @@ describe('Summary tab (B3)', () => {
   });
 });
 
+
+describe('F389 live transcript strip', () => {
+  const strip = (out) => [...elements(out)].find((e) => e.type === LiveTranscriptStrip);
+  it('shows on Claims and Summary, is gone on Transcript, and Full transcript selects the Transcript tab and focuses it', () => {
+    const tabButton = { focus: vi.fn() };
+    globalThis.document = { getElementById: (id) => (id === 'fc-tab-transcript' ? tabButton : null), activeElement: null };
+    let out = harness.render(PanelBody, props());
+    expect(strip(out)).toBeTruthy();
+    strip(out).props.onOpen();
+    out = harness.render(PanelBody, props());
+    expect(find(out, RovingTabs).props.active).toBe('transcript');
+    expect(strip(out)).toBeUndefined();
+    expect(tabButton.focus).toHaveBeenCalled();
+  });
+  it('is absent on the Transcript tab chosen from the tab list', () => {
+    let out = harness.render(PanelBody, props());
+    find(out, RovingTabs).props.onChange('transcript');
+    out = harness.render(PanelBody, props());
+    expect(strip(out)).toBeUndefined();
+  });
+});

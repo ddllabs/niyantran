@@ -94,7 +94,7 @@ describe('tabs', () => {
     const html = render(running());
     expect(html).toMatch(/<div[^>]*id="fc-panel-claims"[^>]*role="tabpanel"[^>]*aria-labelledby="fc-tab-claims"(?![^>]*hidden)[^>]*>/);
     expect(html).toMatch(/<div[^>]*id="fc-panel-transcript"[^>]*role="tabpanel"[^>]*aria-labelledby="fc-tab-transcript"[^>]*hidden/);
-    expect(html.indexOf('Good evening')).toBeGreaterThan(html.indexOf('id="fc-panel-transcript"'));
+    expect(html.lastIndexOf('Good evening')).toBeGreaterThan(html.indexOf('id="fc-panel-transcript"')); // the strip above also holds the text
     expect(html.indexOf('Claim 1')).toBeGreaterThan(html.indexOf('id="fc-panel-claims"'));
     expect(html.indexOf('Claim 1')).toBeLessThan(html.indexOf('id="fc-panel-transcript"'));
   });
@@ -243,5 +243,24 @@ describe('where the other things stay', () => {
     const html = render(view({ status: 'error', error: { reason: 'capture_failed' } }, { flag: { available: true, creditsPerMinute: 500, recheckCredits: null, sharing: { unlockCreditsPerMinute: 100 }, userId: 'u1' }, shared, shareActions: { unlockAsk() {} } }));
     expect(html).not.toMatch(/role="tablist"/);
     expect(html).toContain('Checked parts of this video');
+  });
+});
+
+describe('F389 live transcript strip', () => {
+  const lines = [{ seq: 0, text: 'Good evening', startMs: 0 }, { seq: 1, text: 'and welcome', startMs: 2000 }];
+  it('is pinned before .fc-body, outside it, while running on the Claims tab, with the newest words', () => {
+    const html = render(running({ transcript: lines }));
+    const strip = html.indexOf('aria-label="Latest transcript"');
+    expect(strip).toBeGreaterThan(-1);
+    expect(strip).toBeGreaterThan(html.indexOf('class="fc-block'));
+    expect(strip).toBeLessThan(html.indexOf('class="fc-body"'));
+    expect(html.slice(strip, html.indexOf('class="fc-body"'))).toContain('Good evening and welcome');
+  });
+  it('is there while ending, and says Listening… with no lines', () => {
+    expect(render(running({ status: 'ending' }))).toMatch(/aria-label="Latest transcript"/);
+    expect(text(render(running({ transcript: [] })).split('class="fc-body"')[0])).toContain('Listening…');
+  });
+  it.each(['ended', 'idle', 'choosing', 'starting', 'error'])('is absent when %s', (status) => {
+    expect(render(view({ status, transcript: lines }))).not.toMatch(/Latest transcript/);
   });
 });
