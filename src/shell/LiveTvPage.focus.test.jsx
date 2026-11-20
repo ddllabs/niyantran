@@ -1,4 +1,4 @@
-// F359: opening Live TV moves focus to the page heading once, and a re-render does not take it again.
+// F359/F387: opening Live TV moves focus to the channel name beside the player once, and a re-render does not take it again.
 // The REAL component runs with real effects (hookHarness.js); every null ref is an element stand-in
 // whose focus() is recorded.
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -21,11 +21,12 @@ beforeEach(() => {
 });
 const render = (open) => harness.render(LiveTvPage, { open, onClose() {}, onNavigateDesk() {} });
 
-describe('the page heading', () => {
-  it('is an h2 that can take focus but is not a tab stop', () => {
+describe('the focus target', () => {
+  it('is the channel name at the player: it can take focus but is not a tab stop, and no header strip is left', () => {
     harness.refFactory = null;
     const html = renderToStaticMarkup(<LiveTvPage open onClose={() => {}} />);
-    expect(html).toMatch(/<h2[^>]*class="ltv-title"[^>]*tabindex="-1"[^>]*>Live TV<\/h2>/);
+    expect(html).toMatch(/<div class="ltv-program-info"><h3 tabindex="-1">/);
+    expect(html).not.toMatch(/ltv-header|<h2|ltv-title/);
   });
 
   it('takes focus when the page opens, not while it is closed, and not again on a re-render', () => {

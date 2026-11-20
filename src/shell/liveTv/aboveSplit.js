@@ -1,25 +1,21 @@
-// The panel beside the video is held inside the window by CSS that needs to know how much sits above the split in
-// the scrolling page body (padding, the channel bar, the gap). That depends on the bar, which has two rows and
-// changes with the window, so it is measured, not assumed. The stylesheet keeps its old value as the fallback.
-export const ABOVE_SPLIT_MARGIN = 16;
-
-/** Pixels from the top of the scrolling body's content to the split, plus the margin kept below the window top. */
-export function aboveSplitPx({ mainTop, mainScrollTop = 0, splitTop }) {
-  const v = splitTop - mainTop + mainScrollTop + ABOVE_SPLIT_MARGIN;
-  return Number.isFinite(v) && v > 0 ? Math.round(v) : null;
+// From 1081px the video is sized from the height left for it (liveTv.css): the pinned zone's height, minus what sits
+// under the video in the same column (the now-playing row: title, status, buttons), minus the gap. That row wraps
+// with the window, so its height is measured, not assumed. The stylesheet keeps a fallback for the variable.
+/** Whole pixels for a measured height, or null for a number that means nothing. */
+export function nowPlayingPx(height) {
+  return Number.isFinite(height) && height > 0 ? Math.round(height) : null;
 }
 
-/** Writes --ltv-above-split on `main` now and whenever `main` or `bar` changes size. Returns the cleanup. */
-export function watchAboveSplit(main, split, bar, ResizeObserverImpl = typeof ResizeObserver !== 'undefined' ? ResizeObserver : null) {
-  if (!main || !split || !main.style?.setProperty) return () => {};
+/** Writes --ltv-np-h on `split` now and whenever `nowPlaying` changes size. Returns the cleanup. */
+export function watchNowPlayingHeight(split, nowPlaying, ResizeObserverImpl = typeof ResizeObserver !== 'undefined' ? ResizeObserver : null) {
+  if (!split || !nowPlaying || !split.style?.setProperty) return () => {};
   const apply = () => {
-    const px = aboveSplitPx({ mainTop: main.getBoundingClientRect().top, mainScrollTop: main.scrollTop, splitTop: split.getBoundingClientRect().top });
-    if (px !== null) main.style.setProperty('--ltv-above-split', `${px}px`);
+    const px = nowPlayingPx(nowPlaying.getBoundingClientRect().height);
+    if (px !== null) split.style.setProperty('--ltv-np-h', `${px}px`);
   };
   apply();
   if (!ResizeObserverImpl) return () => {};
   const observer = new ResizeObserverImpl(apply);
-  observer.observe(main);
-  if (bar) observer.observe(bar);
+  observer.observe(nowPlaying);
   return () => observer.disconnect();
 }

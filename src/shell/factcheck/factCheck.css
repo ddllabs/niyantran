@@ -32,6 +32,9 @@
    Below 1081px everything stacks: the panel is as tall as its content and the page scrolls. */
 .ltv-panelcol > .fc-panel { max-height: none; }
 
+/* The paste-a-link form (built by the page) is the top row of the panel in every state: pinned, outside .fc-body. */
+.fc-linkslot { flex: none; min-width: 0; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+
 /* F366: the idle view (nothing running) and the intro above the start screen. */
 .fc-idle { display: flex; flex-direction: column; gap: 6px; }
 .fc-idle-title { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.3; }

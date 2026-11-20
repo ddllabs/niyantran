@@ -349,22 +349,22 @@ describe('5: Open Desk only to a desk that exists', () => {
 describe('7: the page behind the phone sheet', () => {
   it('is inert while the sheet is open', async () => {
     let out = await open();
-    expect(find(out, (e) => e.type === 'header').props.inert).toBeUndefined();
+    expect(find(out, (e) => e.type === 'header')).toBeUndefined(); // F387: no header strip
+    expect(find(out, (e) => /ltv-body/.test(e.props?.className || '')).props.inert).toBeUndefined();
     bar(out).props.onModalChange(true);
     out = render();
-    expect(find(out, (e) => e.type === 'header').props.inert).toBe(true);
     expect(find(out, (e) => /ltv-body/.test(e.props?.className || '')).props.inert).toBe(true);
     bar(out).props.onModalChange(false);
-    expect(find(render(), (e) => e.type === 'header').props.inert).toBeUndefined();
+    expect(find(render(), (e) => /ltv-body/.test(e.props?.className || '')).props.inert).toBeUndefined();
   });
 });
 
-describe('6: the panel\'s height follows the real bar', () => {
-  it('writes --ltv-above-split from the measured layout', async () => {
+describe('6: the video is sized from the real now-playing row', () => {
+  it('writes --ltv-np-h from the measured row', async () => {
     const set = vi.fn();
-    harness.refFactory = () => ({ focus() {}, scrollTop: 0, getBoundingClientRect: () => ({ top: 100 }), style: { setProperty: set } });
+    harness.refFactory = () => ({ focus() {}, scrollTop: 0, getBoundingClientRect: () => ({ top: 100, height: 88 }), style: { setProperty: set } });
     await open();
-    expect(set).toHaveBeenCalledWith('--ltv-above-split', '16px');
+    expect(set).toHaveBeenCalledWith('--ltv-np-h', '88px');
   });
 });
 
