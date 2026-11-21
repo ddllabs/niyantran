@@ -1,6 +1,6 @@
 # Spec: Live TV watch layout (F402)
 
-> **Status: Living.** Corrected in place while F402 is built; becomes Historical (dated) when it is released.
+> **Status: Historical (dated 2026-11-21).** Released in `b61ae69f` (pull request 215).
 
 ## Current state (measured 2026-11-21)
 
