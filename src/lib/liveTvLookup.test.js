@@ -84,6 +84,66 @@ describe('the batched live check with remembered live videos', () => {
     expect(res.channels.filter((c) => c.status === 'live').map((c) => c.id)).toEqual(['dd-news']);
   });
 
+  describe('a live stream the per-channel lookup found (a new stream id after the hard-coded hint went stale)', () => {
+    const NEW = 'NewLive_123'; // 11 characters, not a curated or hard-coded id
+    const askedIds = () => calls.filter((u) => kind(u) === 'videos').flatMap((u) => new URL(u).searchParams.get('id').split(','));
+
+    it('is asked about by the next list check, which marks the channel live with it', async () => {
+      stub({ live: [NEW], uploads: [NEW] });
+      await getLiveTvVideos('abp-news'); // the lookup finds NEW and remembers it
+      calls = [];
+      const c = byId(await getLiveTvChannels(), 'abp-news');
+      expect(askedIds()).toContain(NEW);
+      expect(c.status).toBe('live');
+      expect(c.defaultVideoId).toBe(NEW);
+      expect(c.embedUrl).toContain(`/embed/${NEW}?`);
+      expect(c.hinted).toBe(true);
+      expect(c.embeddable).toBe(true);
+    });
+
+    it('comes before a live hard-coded hint, and the hint is used when it is not live any more', async () => {
+      stub({ live: [NEW], uploads: [NEW] });
+      await getLiveTvVideos('abp-news');
+      stub({ live: [NEW, ABP().liveHintVideoId] });
+      expect(byId(await getLiveTvChannels(), 'abp-news').defaultVideoId).toBe(NEW);
+    });
+
+    it('is ignored when it is not live any more: a live hard-coded hint is used', async () => {
+      vi.useFakeTimers();
+      stub({ live: [NEW], uploads: [NEW] });
+      await getLiveTvVideos('abp-news');
+      calls = [];
+      vi.setSystemTime(Date.now() + 11 * MIN); // past the list check's ten minutes
+      stub({ live: [ABP().liveHintVideoId] });
+      const c = byId(await getLiveTvChannels(), 'abp-news');
+      expect(askedIds()).toContain(NEW);
+      expect(c.defaultVideoId).toBe(ABP().liveHintVideoId);
+    });
+
+    it('never beats a live curated video', async () => {
+      const dd = added('dd-news');
+      stub({ live: [NEW], uploads: [NEW] });
+      await getLiveTvVideos('dd-news');
+      stub({ live: [dd.defaultVideoId, NEW] });
+      const c = byId(await getLiveTvChannels(), 'dd-news');
+      expect(c.status).toBe('live');
+      expect(c.defaultVideoId).toBe(dd.defaultVideoId);
+      expect(c.hinted).toBeUndefined();
+    });
+
+    it('still asks about every id once, in requests of at most 50, one unit each', async () => {
+      stub({ live: [NEW], uploads: [NEW] });
+      await getLiveTvVideos('abp-news');
+      calls = [];
+      await getLiveTvChannels();
+      const ids = askedIds();
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(ids.length).toBeGreaterThan(64); // the 64 ids of the plain check plus the remembered one
+      expect(calls).toHaveLength(Math.ceil(ids.length / 50));
+      expect(calls.map((u) => new URL(u).searchParams.get('id').split(',').length).every((n) => n <= 50)).toBe(true);
+    });
+  });
+
   it('remembers a 403 for thirty minutes: no request from the list or from a lookup', async () => {
     vi.useFakeTimers();
     stub({ status: 403 });
