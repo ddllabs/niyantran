@@ -366,7 +366,7 @@ export function makePageCheck(deps: PageCheckDeps): PageCheck {
     return { ok: false, status: null, detail: 'too many redirects' };
   }
 
-  /** The body, whole; short of its Content-Length is a transfer failure; over maxBytes or not `%PDF-` is refused. */
+  /** The body, whole; short of its Content-Length (when not content-encoded) is a transfer failure; over maxBytes or not `%PDF-` is refused. */
   async function body(res: Response, signal: AbortSignal, pdf: boolean): Promise<Uint8Array> {
     const parts: Uint8Array[] = [];
     let n = 0;
@@ -389,8 +389,13 @@ export function makePageCheck(deps: PageCheckDeps): PageCheck {
       out.set(p, at);
       at += p.length;
     }
+    // Content-Length counts the bytes on the wire; after a content-encoding it cannot be compared with the decoded body.
+    const encoding = (res.headers.get('content-encoding') ?? '').trim().toLowerCase();
     const declared = Number(res.headers.get('content-length'));
-    if (res.headers.has('content-length') && Number.isSafeInteger(declared) && n < declared) {
+    if (
+      (encoding === '' || encoding === 'identity') && res.headers.has('content-length') &&
+      Number.isSafeInteger(declared) && n < declared
+    ) {
       throw new Retry(`body short: ${n} of ${declared} bytes`);
     }
     if (pdf && !isPdf(out)) throw new Refuse('pdf_unreadable', 'not a PDF');
