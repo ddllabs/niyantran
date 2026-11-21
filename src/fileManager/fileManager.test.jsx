@@ -1419,14 +1419,14 @@ describe('FileManager UI/UX — Table Columns & Dual Status Pills', () => {
     expect(html).toContain('Not searchable');
   });
 
-  it('renders "Not searchable" unsupported pill for non-PDF files', () => {
+  it('renders "Not searchable" unsupported pill for truly unsupported files', () => {
     const html = renderToStaticMarkup(
       <DriveBrowser
         files={[{
           ...baseFile,
-          name: 'spreadsheet.xlsx',
-          mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          index_status: 'indexed',
+          name: 'archive.zip',
+          mime_type: 'application/zip',
+          index_status: 'unsupported',
         }]}
         folders={[]}
         viewMode="list"

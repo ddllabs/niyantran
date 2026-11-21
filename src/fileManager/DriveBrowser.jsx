@@ -42,7 +42,7 @@ import {
   formatBytes,
   formatRelativeDate,
 } from './fileManagerService.js';
-import { isPdfMimeType } from '../types/fileManager.ts';
+import { isPdfMimeType, isIndexableFile } from '../types/fileManager.ts';
 
 /**
  * Returns recognizable icon for file MIME type and extension.
@@ -187,7 +187,7 @@ export default function DriveBrowser({
 
   // Render AI Indexing Status Pills (per Section 6 requirements)
   const renderIndexStatusPill = (file) => {
-    const isPdf = isPdfMimeType(file.mime_type);
+    const isIndexable = isIndexableFile(file);
 
     if (file.upload_status === 'uploading') {
       return (
@@ -205,9 +205,9 @@ export default function DriveBrowser({
       );
     }
 
-    if (!isPdf) {
+    if (!isIndexable) {
       return (
-        <span className="fm-pill fm-pill-unsupported" title="Stored securely. AI vector indexing is supported for PDF documents.">
+        <span className="fm-pill fm-pill-unsupported" title="Stored securely. AI vector indexing is supported for documents and spreadsheets.">
           Not searchable
         </span>
       );
@@ -627,7 +627,7 @@ export default function DriveBrowser({
                                 >
                                   <Sparkles size={13} /> ✦ Ask AI
                                 </button>
-                                {isPdf && file.index_status !== 'indexed' && (
+                                {isIndexableFile(file) && file.index_status !== 'indexed' && (
                                   <button
                                     type="button"
                                     className="fm-nav-btn"

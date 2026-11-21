@@ -23,6 +23,8 @@ import {
 import { normalise, sha256Hex } from '../_shared/textNormalise.ts';
 import { buildOcrRequest, callMistralOcr, ocrCostUsd } from './mistral.ts';
 import { extractHash, ocrHash } from './hashes.ts';
+import { extractSpreadsheet } from '../_shared/spreadsheetExtractor.ts';
+import { chunkDocx, chunkTxt, estimateTokens } from '../_shared/documentExtractor.ts';
 import {
   INGEST,
   IngestError,
@@ -131,6 +133,285 @@ export async function executeUserFileJob(
     }
     inMemoryOcrPages.set(job.file_id, [...pages]);
   };
+
+  const fileName = (job.file_name || '').toLowerCase();
+  const isXlsx = fileName.endsWith('.xlsx') || fileName.endsWith('.xlsm') || fileName.endsWith('.xls');
+  const isCsv = fileName.endsWith('.csv');
+  const isDocx = fileName.endsWith('.docx');
+  const isTxt = fileName.endsWith('.txt') || fileName.endsWith('.md');
+  const isNonPdf = isXlsx || isCsv || isDocx || isTxt;
+
+  if (isNonPdf) {
+    let signedUrl = '';
+    try {
+      signedUrl = await deps.storage.signedUrl(job.storage_path, INGEST.signedUrlSeconds);
+    } catch (storageErr) {
+      const errMsg = storageErr instanceof Error ? storageErr.message : String(storageErr);
+      const patch: UserFileAdvancePatch = {
+        step: 'commit',
+        status: 'failed',
+        error_message: errMsg,
+        error_code: 'storage_unavailable',
+      };
+      await deps.db.advance(job.id, claimToken, patch);
+      await deps.db.updateFileIndexStatus?.(job.file_id, 'indexing_failed', errMsg);
+      if (deps.db.settleCredits) {
+        await deps.db.settleCredits({
+          p_job_id: job.id,
+          p_final_status: 'failed',
+          p_ocr_pages: 0,
+          p_actual_cost_usd: 0,
+          p_actual_cost_paise: 0,
+        });
+      }
+      return {
+        status: 'failed',
+        patch,
+        pagesProcessed: 0,
+        costUsd: 0,
+        error: errMsg,
+      };
+    }
+
+    let fileBytes: Uint8Array;
+    try {
+      const resp = await (deps.fetch ?? fetch)(signedUrl);
+      if (!resp.ok) throw new Error(`Failed to download personal file: ${resp.statusText}`);
+      fileBytes = new Uint8Array(await resp.arrayBuffer());
+    } catch (fetchErr) {
+      const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+      const patch: UserFileAdvancePatch = {
+        step: 'commit',
+        status: 'failed',
+        error_message: errMsg,
+        error_code: 'download_failed',
+      };
+      await deps.db.advance(job.id, claimToken, patch);
+      await deps.db.updateFileIndexStatus?.(job.file_id, 'indexing_failed', errMsg);
+      return {
+        status: 'failed',
+        patch,
+        pagesProcessed: 0,
+        costUsd: 0,
+        error: errMsg,
+      };
+    }
+
+    let rawChunks: Array<{
+      content: string;
+      charFrom?: number;
+      charTo?: number;
+      metadata: Record<string, unknown>;
+    }> = [];
+
+    if (isXlsx || isCsv) {
+      const res = extractSpreadsheet(fileBytes, { fileName: job.file_name, isCsv });
+      rawChunks = res.chunks.map((c) => ({
+        content: c.content,
+        charFrom: 0,
+        charTo: c.content.length,
+        metadata: {
+          source: 'user_file',
+          file_name: job.file_name,
+          sheet_name: c.metadata.sheet_name,
+          sheet_index: c.metadata.sheet_index,
+          row_start: c.metadata.row_start,
+          row_end: c.metadata.row_end,
+          column_headers: c.metadata.column_headers,
+          file_type: c.metadata.file_type,
+        },
+      }));
+    } else if (isDocx) {
+      const chunks = await chunkDocx(fileBytes);
+      rawChunks = chunks.map((c) => ({
+        content: c.content,
+        charFrom: c.charFrom,
+        charTo: c.charTo,
+        metadata: {
+          source: 'user_file',
+          file_name: job.file_name,
+          heading_hierarchy: c.metadata.headingHierarchy,
+          current_heading: c.metadata.currentHeading,
+          heading_level: c.metadata.headingLevel,
+          content_type: c.metadata.contentType,
+        },
+      }));
+    } else if (isTxt) {
+      const chunks = await chunkTxt(fileBytes);
+      rawChunks = chunks.map((c) => ({
+        content: c.content,
+        charFrom: c.charFrom,
+        charTo: c.charTo,
+        metadata: {
+          source: 'user_file',
+          file_name: job.file_name,
+          section: c.metadata.section,
+          paragraph_count: c.metadata.paragraphCount,
+          content_type: c.metadata.contentType,
+        },
+      }));
+    }
+
+    const textsToEmbed = rawChunks.map((c) => c.content);
+    let vectors: number[][] = [];
+    let embedTokens = 0;
+    let embedCost = 0;
+
+    if (textsToEmbed.length > 0) {
+      try {
+        if (deps.embed) {
+          const res = await deps.embed(textsToEmbed);
+          vectors = res.vectors;
+          embedTokens = res.promptTokens;
+          embedCost = res.costUsd;
+        } else {
+          const embedDeps: EmbedDeps = deps.embedDeps ?? {
+            fetch: deps.fetch ?? fetch,
+            apiKey: deps.openRouterApiKey ?? '',
+          };
+          const res = await embedTexts(embedDeps, textsToEmbed);
+          vectors = res.vectors;
+          embedTokens = res.promptTokens;
+          embedCost = res.costUsd;
+        }
+      } catch (embedErr: unknown) {
+        const errMsg = embedErr instanceof Error ? embedErr.message : String(embedErr);
+        const spentTokens = embedErr instanceof EmbeddingError ? embedErr.promptTokens : 0;
+        const spentEmbedCost = embedErr instanceof EmbeddingError ? embedErr.costUsd : 0;
+        const patch: UserFileAdvancePatch = {
+          step: 'embed',
+          status: 'failed',
+          error_message: errMsg,
+          error_code: 'embed_failed',
+        };
+        await deps.db.advance(job.id, claimToken, patch);
+        await deps.db.updateFileIndexStatus?.(job.file_id, 'indexing_failed', errMsg);
+        if (deps.db.settleCredits) {
+          await deps.db.settleCredits({
+            p_job_id: job.id,
+            p_final_status: 'failed',
+            p_ocr_pages: 0,
+            p_embed_tokens: spentTokens,
+            p_actual_cost_usd: spentEmbedCost,
+          });
+        }
+        return {
+          status: 'failed',
+          patch,
+          pagesProcessed: 0,
+          costUsd: spentEmbedCost,
+          error: errMsg,
+        };
+      }
+    }
+
+    const safeSha = job.file_sha256 || '0'.repeat(64);
+    const commitRows: UserFileChunkCommitRow[] = [];
+    for (let i = 0; i < rawChunks.length; i++) {
+      const c = rawChunks[i];
+      const textHash = await sha256Hex(normalise(c.content));
+      commitRows.push({
+        chunk_hash: await sha256Hex(`chunk:${i}:${textHash}`),
+        chunk_index: i,
+        page_number: 1,
+        char_from: c.charFrom ?? 0,
+        char_to: c.charTo ?? c.content.length,
+        content: c.content,
+        token_count: estimateTokens(c.content),
+        text_hash: textHash,
+        extract_hash: safeSha,
+        embedding: vectors[i] ?? [],
+        metadata: c.metadata,
+        block_ids: [],
+        image_ids: [],
+      });
+    }
+
+    if (commitRows.length > 0) {
+      try {
+        await deps.db.commitChunks(job.user_id, job.file_id, commitRows);
+      } catch (commitErr: unknown) {
+        const errMsg = commitErr instanceof Error ? commitErr.message : String(commitErr);
+        const patch: UserFileAdvancePatch = {
+          step: 'commit',
+          status: 'failed',
+          error_message: errMsg,
+          error_code: 'commit_failed',
+        };
+        await deps.db.advance(job.id, claimToken, patch);
+        await deps.db.updateFileIndexStatus?.(job.file_id, 'indexing_failed', errMsg);
+        if (deps.db.settleCredits) {
+          await deps.db.settleCredits({
+            p_job_id: job.id,
+            p_final_status: 'failed',
+            p_ocr_pages: 0,
+            p_embed_tokens: embedTokens,
+            p_actual_cost_usd: embedCost,
+          });
+        }
+        return {
+          status: 'failed',
+          patch,
+          pagesProcessed: 0,
+          costUsd: embedCost,
+          error: errMsg,
+        };
+      }
+    }
+
+    if (embedTokens > 0 && deps.db.recordCallLog) {
+      try {
+        await deps.db.recordCallLog({
+          user_id: job.user_id,
+          caller: 'ingest-worker',
+          purpose: 'embedding',
+          model_requested: 'openai/text-embedding-3-small',
+          model_served: 'openai/text-embedding-3-small',
+          provider: 'openrouter',
+          status: 'success',
+          prompt_tokens: embedTokens,
+          total_tokens: embedTokens,
+          cost_usd: embedCost,
+          raw_usage: {
+            job_id: job.id,
+            file_id: job.file_id,
+            chunks_count: rawChunks.length,
+            stage: 'user_file_indexing',
+          },
+        });
+      } catch {
+        // Non-fatal telemetry recording failure
+      }
+    }
+
+    const settleRes = await deps.db.settleCredits({
+      p_job_id: job.id,
+      p_final_status: 'completed',
+      p_ocr_pages: 0,
+      p_embed_tokens: embedTokens,
+      p_actual_cost_usd: embedCost,
+    });
+    const settledAmount = settleRes?.credits_settled ?? 0;
+
+    const patch: UserFileAdvancePatch = {
+      step: 'commit',
+      status: 'completed',
+      page_count: 1,
+      extract_hash: safeSha,
+      credits_settled: settledAmount,
+    };
+
+    await deps.db.advance(job.id, claimToken, patch);
+    await deps.db.updateFileIndexStatus?.(job.file_id, 'indexed');
+
+    return {
+      status: 'completed',
+      patch,
+      pagesProcessed: 1,
+      chunksCommitted: commitRows.length,
+      costUsd: embedCost,
+    };
+  }
 
   // ─── Stage 1: Mistral OCR Extraction & Checkpointing ─────────────────────
   const storedPages: UserFileOcrPageCheckpoint[] = await loadPages();

@@ -374,7 +374,7 @@ export async function prepareUpload({ name, mime_type, size_bytes, folder_id = n
     mime_type,
     size_bytes,
     upload_status: 'pending_upload',
-    index_status: isPdfMimeType(mime_type) ? 'not_indexed' : 'unsupported',
+    index_status: isIndexableFile({ mime_type, name }) ? 'not_indexed' : 'unsupported',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });

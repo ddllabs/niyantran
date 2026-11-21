@@ -431,19 +431,44 @@ export const SAFE_PREVIEW_MIME_TYPES: readonly string[] = Object.freeze([
   'text/markdown',
 ]);
 
-/** MIME types confirmed for AI extraction and indexing in v1. */
+/** MIME types confirmed for AI extraction and indexing in Phase RAG-1. */
 export const INDEXABLE_MIME_TYPES: readonly string[] = Object.freeze([
   'application/pdf',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'text/csv',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+  'text/markdown',
+]);
+
+export const INDEXABLE_EXTENSIONS: readonly string[] = Object.freeze([
+  'pdf',
+  'xlsx',
+  'xlsm',
+  'xls',
+  'csv',
+  'docx',
+  'txt',
+  'md',
 ]);
 
 // ─── Helper Functions & Type Guards ──────────────────────────────────────────
 
 export function isPdfMimeType(mime: string): boolean {
-  return mime.toLowerCase() === 'application/pdf';
+  return (mime || '').toLowerCase() === 'application/pdf';
 }
 
-export function isIndexableMimeType(mime: string): boolean {
-  return INDEXABLE_MIME_TYPES.includes(mime.toLowerCase());
+export function isIndexableMimeType(mime: string, fileName = ''): boolean {
+  const m = (mime || '').toLowerCase();
+  if (INDEXABLE_MIME_TYPES.includes(m)) return true;
+  const ext = (fileName.split('.').pop() || '').toLowerCase();
+  return INDEXABLE_EXTENSIONS.includes(ext);
+}
+
+export function isIndexableFile(file?: { mime_type?: string; name?: string } | null): boolean {
+  if (!file) return false;
+  return isIndexableMimeType(file.mime_type || '', file.name || '');
 }
 
 export function isSafePreviewableMimeType(mime: string): boolean {
