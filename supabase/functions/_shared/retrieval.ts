@@ -241,7 +241,15 @@ export async function rowToChunk(raw: unknown): Promise<Chunk> {
   if (fileId) chunk.file_id = fileId;
   const blockIds = ids(r.block_ids);
   const imageIds = ids(r.image_ids);
-  const sect = section(r.section);
+  let sect = section(r.section);
+  if (!sect && isPrivate && r.metadata && typeof r.metadata === 'object' && !Array.isArray(r.metadata)) {
+    const meta = r.metadata as Record<string, unknown>;
+    const sheetName = meta.sheet_name ? String(meta.sheet_name) : (meta.current_heading ? String(meta.current_heading) : undefined);
+    const rowNote = (meta.row_start && meta.row_end) ? `Rows ${meta.row_start}–${meta.row_end}` : undefined;
+    if (sheetName || rowNote) {
+      sect = { ...(sheetName ? { heading: sheetName } : {}), ...(rowNote ? { note: rowNote } : {}) };
+    }
+  }
   if (blockIds) chunk.block_ids = blockIds;
   if (imageIds) chunk.image_ids = imageIds;
   if (sect) chunk.section = sect;
@@ -267,6 +275,8 @@ export interface SearchInput {
   /** Optional private file IDs scoping retrieval to personal uploaded files. */
   private_file_ids?: string[];
   privateFileIds?: string[];
+  /** Scope of retrieval: 'private' searches only user files; 'shared' searches only corpus; 'combined' searches both. */
+  scope?: 'private' | 'shared' | 'combined';
 }
 
 export async function search(deps: RetrievalDeps, input: SearchInput): Promise<Chunk[]> {
@@ -358,6 +368,13 @@ export async function search(deps: RetrievalDeps, input: SearchInput): Promise<C
 
   const [sharedData, privateData] = await measure('retrievalMs', async () => {
     if (hasPrivateFiles) {
+      // Determine if shared retrieval is requested alongside private files
+      // If input.scope === 'private' or if no documentIds/deskTier were provided (private-only attached mode)
+      const isPrivateOnly = input.scope === 'private' || (!input.documentIds?.length && !input.deskTier && input.scope !== 'combined');
+      if (isPrivateOnly) {
+        const privateRows = await userFileRows();
+        return [[], privateRows];
+      }
       return await Promise.all([
         hybrid?.enabled ? hybridRows(hybrid) : vectorRows(),
         userFileRows(),

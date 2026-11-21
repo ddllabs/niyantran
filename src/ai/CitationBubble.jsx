@@ -91,7 +91,7 @@ export default function CitationBubble({ n, source: raw, onOpen, selectedSource,
       type="button"
       className={`cite-bubble${source.kind === 'row' ? ' row' : ''}${selected ? ' selected' : ''}`}
       aria-pressed={selected}
-      title={showContext ? [label, documentRoleLabel(source.document_role), source.page_number ? `Page ${source.page_number}` : '', source.section?.heading, publisher].filter(Boolean).join(' · ') : label}
+      title={showContext ? [label, documentRoleLabel(source.document_role), source.page_number ? `Page ${source.page_number}` : '', source.section?.heading, source.section?.note, publisher].filter(Boolean).join(' · ') : label}
       aria-label={`Source ${n}: ${label}`}
       onClick={(e) => {
         e.preventDefault();

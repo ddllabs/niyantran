@@ -634,6 +634,40 @@ Deno.test('F341: match_user_files is NOT dispatched when private_file_ids is abs
   assertEquals(calls, ['match_documents']);
 });
 
+Deno.test('F341: private-only isolation suppresses match_documents when searching only private files', async () => {
+  const calls: string[] = [];
+  const privateRow = privRow('priv-1', 'file-uuid-1', 0.94, 'Private document content', 'report.pdf');
+  const d: RetrievalDeps = {
+    embed: () => Promise.resolve({ vector: vec(), model: 'openai/text-embedding-3-small' }),
+    rpc: (fn) => {
+      calls.push(fn);
+      if (fn === 'match_user_files') {
+        return Promise.resolve({ data: [privateRow], error: null });
+      }
+      return Promise.resolve({ data: [], error: null });
+    },
+  };
+
+  // Case A: explicit scope: 'private'
+  const chunksA = await search(d, {
+    query: 'specific private query',
+    private_file_ids: ['file-uuid-1'],
+    scope: 'private',
+  });
+  assertEquals(calls, ['match_user_files']);
+  assertEquals(chunksA.length, 1);
+  assertEquals(chunksA[0].id, 'priv-1');
+
+  // Case B: private files attached without public documentIds or deskTier defaults to private-only
+  calls.length = 0;
+  const chunksB = await search(d, {
+    query: 'specific private query',
+    private_file_ids: ['file-uuid-1'],
+  });
+  assertEquals(calls, ['match_user_files']);
+  assertEquals(chunksB.length, 1);
+});
+
 Deno.test('F341: match_user_files RPC error surfaces with its message', async () => {
   const d: RetrievalDeps = {
     embed: () => Promise.resolve({ vector: vec(), model: 'openai/text-embedding-3-small' }),
