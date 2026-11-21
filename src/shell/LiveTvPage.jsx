@@ -648,12 +648,12 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
 
   return (
     <section className="ltv-page" aria-label="Live TV">
-      {/* Page body: the channel card, the video and panel, then the lower tabs (liveTv.css). Below 1081px the page
-          scrolls; from 1081px, when the window is tall enough, .ltv-body is a grid (video stage, now-playing row and lower
-          area in the left column, the panel in the right) and only the lower area (.ltv-lower) scrolls. */}
+      {/* Page body (liveTv.css): .ltv-main is the one scroll container. Below 1081px everything stacks: the channel
+          bar, the video, the panel, then the lower tabs. From 1081px the channel bar is a full-width row and the video
+          column (stage, now-playing row, lower tabs) and the panel column sit under it. */}
       <div className="ltv-main">
-      {/* F395: one wrapper, invisible (display: contents) except on laptop-height windows with the panel, where it is
-          the grid that lets the panel start beside the channel bar (liveTv.css). */}
+      {/* One wrapper, invisible (display: contents) except from 1081px with the panel, where it is the page grid:
+          the bar across both columns, the video column left, the panel right (liveTv.css). */}
       <div className={`ltv-grid${factCheckOffered ? ' has-panel' : ''}`}>
       <div className="ltv-barwrap">
       {lists.length ? (
@@ -1010,7 +1010,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
         ) : null}
         </div>
 
-        {/* Lower Section Tabs: the lower area, the one scroll container from 1081px (liveTv.css) */}
+        {/* Lower Section Tabs: the lower area, at its natural height (the page scrolls, liveTv.css) */}
         <div className="ltv-lower">
         {/* F61 (F171 B15): real tabs: one tab stop, arrows, Home and End move between them. */}
         <div className="ltv-deck-tabs" role="tablist" aria-label="Live TV Modules">
