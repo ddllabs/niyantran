@@ -180,10 +180,12 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F403 is next) and goes in the
+- A new finding gets the next free `F` number (F404 is next) and goes in the
   right section.
 
 ## Frontend follow-up
+
+- [ ] **F403 — Two duplicate bills in the bundled register; two MPs share a row key.** *Fixed in the working tree 2026-11-21 (developer: "fix everything and merge"); the NTER `desk_rows` reload is a separate step that needs the developer's yes.* (1) `national_bill_tracker.json` held 9,819 rows and 9,817 distinct ids (the landing counted 9,819, the home page and `desk_rows` 9,817). Two pairs shared an id (bill 155, Lok Sabha, and bill XLIV, Rajya Sabha; same number, house and date, different title year and stage). Sansad's own listing holds both rows of each pair too, so it could not delete one; it settled which is right: for 155 the 2002-titled row's introduced-bill file is named for 2000 and the 2000-titled row carries the stage, so the 2000 row stays; for XLIV the 1973 row has the passage and assent dates and the 1976 row has none, so the 1973 row stays. The 2002 and 1976 rows are removed (9,817 rows, 9,817 ids); `national_bill_tracker.meta.json` `row_count` follows. (2) `national_mp_report_card.json`: 782 members, 780 `desk_rows`, because the register's `id` repeats across the houses (2664 and 2554 each name a Lok Sabha and a Rajya Sabha member) and `id` is the row key. `shapeMpRows` (`src/lib/parliament.js`, run by `prepareDeskFeed` for the loader and the desk) now keys a Rajya Sabha row whose id a Lok Sabha row also holds as `rs-<id>` (original in `id_raw`); every other key is unchanged. Reload needed: `npx vite-node --config vitest.config.js scripts/load-desk-rows.mjs -- --dry-run --tier national`, then the same without `--dry-run`; expected 5 upserts (the 2 colliding keys change content, 2 new `rs-` keys, 1 FCRA bill row) and 0 deletes. 2026-11-21
 
 - [ ] **F235 — Indian Sports redundant browser fallback.** *Ready to build. 2026-11-10 (F299)* Chrome shows direct Google News RSS canceled after same-origin feature-feed succeeds (200,227stories); console empty and publisher navigation works. Review unnecessary parallel fallback requests separately; no CORS failure proven by this observation. The long-open blank tab recovered on reload and was not reproduced in a fresh session; keep this limitation in browser evidence.
 
