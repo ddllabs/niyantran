@@ -23,9 +23,11 @@ const rule = (source, selector) => {
 describe('the channel bar from 1081px', () => {
   const wide = media('(min-width: 1081px)');
   it('fills the page\'s 60px box, border included, with no vertical padding', () => {
-    const bar = rule(wide, '.ltv-channelbar');
+    const bar = rule(wide, '.ltv-channelcard.ltv-channelbar');
     expect(bar).toMatch(/box-sizing:\s*border-box/);
     expect(bar).toMatch(/height:\s*var\(--ltv-bar-h,\s*60px\)/);
+    // The card is a column by default; centring in a column kept the content at its full width (2,581px).
+    expect(bar).toMatch(/flex-direction:\s*row/);
     expect(bar).toMatch(/padding:\s*0 12px/);
   });
   it('lays the two groups of controls in one row that never wraps', () => {
@@ -51,6 +53,7 @@ describe('the channel bar below 1081px', () => {
     expect(rule(css, '.ltv-channelbar .ltv-row')).toMatch(/flex-wrap:\s*wrap/);
   });
   it('keeps the phone sheet\'s rules: the segment row is hidden up to 600px', () => {
-    expect(rule(media('(max-width: 600px)'), '.ltv-seg-row')).toMatch(/display:\s*none/);
+    // Two classes: a lone .ltv-seg-row lost to .ltv-row { display: flex } (measured: the row showed on a 375px phone).
+    expect(rule(media('(max-width: 600px)'), '.ltv-channelbar .ltv-seg-row')).toMatch(/display:\s*none/);
   });
 });

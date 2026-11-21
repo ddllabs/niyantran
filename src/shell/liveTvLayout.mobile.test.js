@@ -175,9 +175,9 @@ describe('the channel bar keeps the panel\'s foot in the window (B6 review)', ()
   const bar = readFileSync(new URL('./liveTv/channelBar.css', import.meta.url), 'utf8');
   const paste = readFileSync(new URL('./liveTv/pasteLink.css', import.meta.url), 'utf8');
   const outsideMedia = (css) => css.replace(/@media[^{]*\{(?:[^{}]*\{[^}]*\})*[^{}]*\}/g, '');
-  it('puts the search box at the right end of the segments row, which does not wrap; the chips scroll sideways', () => {
+  it('keeps the Segments button and the search box on one row that does not wrap', () => {
     expect(bar).toMatch(/\.ltv-channelbar \.ltv-seg-row\s*\{[^}]*flex-wrap:\s*nowrap/);
-    expect(bar).toMatch(/\.ltv-seg-row \.ltv-category-bar\s*\{[^}]*flex-wrap:\s*nowrap;[^}]*overflow-x:\s*auto/);
+    // F402: the segment pills moved into the overlay; the bar has one Segments button (see channelBar.layout.test.js).
   });
   it('shows the "Paste a link" and "Channels" buttons on phones only, with a selector that beats liveTv.css', () => {
     expect(outsideMedia(paste)).toMatch(/\.ltv-paste \.ltv-paste-toggle\s*\{\s*display:\s*none/);

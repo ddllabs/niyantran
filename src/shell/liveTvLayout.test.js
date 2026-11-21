@@ -96,6 +96,9 @@ describe('wide Live TV layout (from 1081px)', () => {
     const r = rule(supported, '.ltv-split:not(.has-panel) .ltv-videocol');
     expect(r).toMatch(/width:\s*min\(100%, var\(--ltv-video-max-w\)\)/);
     expect(r).toMatch(/margin-inline:\s*auto/);
+    // The link row and .ltv-main's 16px gaps sit above the video there (measured: without this the now-playing row
+    // ended 12px below a 1590 x 840 window).
+    expect(rule(supported, '.ltv-grid:not(.has-panel)')).toMatch(/--ltv-video-h:\s*calc\(100cqh - var\(--ltv-bar-h\) - 34px - 2 \* 16px/);
   });
 });
 

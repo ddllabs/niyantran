@@ -29,7 +29,10 @@
 /* From 1081px the whole bar is one row inside the page's 60px box (border included): the list buttons, the strip
    with its arrows, the chooser and the search. Nothing wraps; the strip is what gives way. */
 @media (min-width: 1081px) {
-  .ltv-channelbar { box-sizing: border-box; height: var(--ltv-bar-h, 60px); padding: 0 12px; display: flex; align-items: center; }
+  /* A row, not the card's column: in a column, align-items: center would centre the content at its full width
+     (measured 2,581px at a 1590px window) instead of letting the strip shrink. Two classes, because liveTv.css
+     imports this sheet first and its .ltv-channelcard rule (a column) would win a tie. */
+  .ltv-channelcard.ltv-channelbar { box-sizing: border-box; height: var(--ltv-bar-h, 60px); padding: 0 12px; display: flex; flex-direction: row; align-items: center; }
   .ltv-channelbar .ltv-bar-rows { flex: 1 1 auto; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 12px; }
   .ltv-channelbar .ltv-row { flex-wrap: nowrap; gap: 10px; }
   .ltv-channelbar .ltv-row:first-child { flex: 1 1 0; }
@@ -67,7 +70,8 @@
 
 @media (max-width: 600px) {
   /* The strip stays one scrolling row; the segments and the search live in the Channels sheet. */
-  .ltv-seg-row { display: none; }
+  /* Two classes: .ltv-row (display: flex, in liveTv.css, which imports this sheet first) would win a tie. */
+  .ltv-channelbar .ltv-seg-row { display: none; }
   .ltv-pop { display: none; }
   .ltv-channelbar .ltv-sheet-open { display: inline-flex; align-items: center; flex: none; min-height: 40px; }
   .ltv-channelbar .ltv-strip-wrap { flex: 1 0 100%; }

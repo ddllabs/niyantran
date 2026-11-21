@@ -220,7 +220,12 @@
     .ltv-grid.has-panel .ltv-nowplaying { grid-column: 1; grid-row: 3; }
     .ltv-grid.has-panel .ltv-lower { grid-column: 1; grid-row: 4; margin-top: 4px; }
     .ltv-grid.has-panel .ltv-panelcol { grid-column: 2; grid-row: 2; align-self: start; height: 0; }
-    /* Without the panel: one centred column. */
+    /* Without the panel: one centred column. The parts are spaced by .ltv-main's 16px gap, and the paste-a-link row
+       (about 34px) sits between the bar and the video, so the height the video may use is smaller (measured: without
+       this the now-playing row ended 12px below a 1590 x 840 window). */
+    .ltv-grid:not(.has-panel) {
+      --ltv-video-h: calc(100cqh - var(--ltv-bar-h) - 34px - 2 * 16px - var(--ltv-gap-y) - var(--ltv-np-h));
+    }
     .ltv-split:not(.has-panel) .ltv-videocol { width: min(100%, var(--ltv-video-max-w)); margin-inline: auto; }
     /* No min-height: 0 on the now-playing row: with it the row could be given less than its content when the
        controls wrap to a second line (a pasted video has two more buttons), and the lower area would cover them.
