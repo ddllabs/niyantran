@@ -3,7 +3,7 @@
 > **Status: Historical (2026-11-21).** Budget parts 001 to 003, MP Profiles (36 parts), Industry (v1.1 and v1.3), and
 > the screen of Bills v1.2 (nothing loaded from it). Specs: [corpus and search completion](../specs/2026-11-20-corpus-and-search-completion.md)
 > and [hands-off loads](../specs/2026-11-20-hands-off-loads.md). Open work: F374 (Transfers and held Budget records
-> remain), F394 and F402. Earlier record: [Cabinet remainder load](2026-11-20-cabinet-remainder-load.md).
+> remain), F394 and F403. Earlier record: [Cabinet remainder load](2026-11-20-cabinet-remainder-load.md).
 
 All times are UTC on 2026-11-21. Figures were read back on NTER unless marked as arithmetic. Counts only; no document
 text or personal data is recorded here.
@@ -103,7 +103,7 @@ text or personal data is recorded here.
 3. One shell watcher received all its batch ids as a single argument, because zsh does not split a variable. It watched
    nothing for about four hours. Shell scripts are now run with `bash`.
 4. A batch's spend ceiling equals its estimate, with no headroom. The runner's token estimate was also low on the
-   Industry v1.3 PDF text. See F402.
+   Industry v1.3 PDF text. See F403.
 
 ## Rollback
 
