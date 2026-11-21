@@ -45,9 +45,11 @@ describe('wide Live TV layout (from 1081px)', () => {
   const grid = rule(supported, '.ltv-grid.has-panel');
   it('has a full-width bar row of one fixed height, --ltv-bar-h, set on the page', () => {
     expect(rule(page, '\n.ltv-page')).toMatch(/--ltv-bar-h:\s*60px/);
-    expect(rule(wide, '.ltv-barwrap')).toMatch(/height:\s*var\(--ltv-bar-h\)/);
+    expect(rule(wide, '.ltv-barwrap.has-bar')).toMatch(/height:\s*var\(--ltv-bar-h\)/);
+    // The older card (no channel list yet) is taller than the bar: the wrapper and the grid row must not fix its height.
+    expect(rule(wide, '.ltv-barwrap')).not.toMatch(/height/);
     expect(rule(supported, '.ltv-grid.has-panel > .ltv-barwrap')).toMatch(/grid-column:\s*1 \/ -1;\s*grid-row:\s*1/);
-    expect(grid).toMatch(/grid-template-rows:\s*var\(--ltv-bar-h\) auto auto auto/);
+    expect(grid).toMatch(/grid-template-rows:\s*auto auto auto auto/);
     // The bar's overlay opens over the panel: the row paints above the absolutely positioned panel.
     expect(rule(wide, '.ltv-barwrap')).toMatch(/position:\s*relative;\s*z-index:\s*6/);
   });

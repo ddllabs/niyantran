@@ -89,6 +89,12 @@ describe('the page grid wrappers (F402)', () => {
     expect(bar).toMatch(/ltv-channelcard|ltv-channelbar/);
     expect(bar).not.toMatch(/ltv-player-stage|ltv-panelcol|ltv-lower/);
   });
+  it('gives the wrapper no has-bar class while the channel list is empty, so the older card keeps its own height', () => {
+    const html = render();
+    expect(html).toMatch(/class="ltv-barwrap"/);
+    expect(html).not.toContain('has-bar');
+    expect(html).toContain('class="ltv-channelcard"');
+  });
   it('keeps the lower area inside the body, after the split, so the grid dissolve puts it under the video', () => {
     const html = render();
     const body = at(html, 'ltv-body');

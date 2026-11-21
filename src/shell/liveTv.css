@@ -179,7 +179,7 @@
 /* From 1081px. The size container is .ltv-main; cqw and cqh are the width and height of its content box (its padding
    is outside them: 16px above, 28px below, 18px at the sides). With no container query support the page stays stacked.
    The page body scrolls; nothing inside it is sticky or has a scroll of its own except the panel's body.
-   - The bar row: .ltv-barwrap is --ltv-bar-h tall (the bar fits it) and its overlay opens over the panel.
+   - The bar row: .ltv-barwrap.has-bar is --ltv-bar-h tall (the bar fits it); the row is auto, so the older card fits too and its overlay opens over the panel.
    - With the panel, .ltv-grid is a two-column grid and .ltv-body, .ltv-split and .ltv-videocol dissolve, so the bar is
      row 1 across both columns; the video stage, the now-playing row and the lower tabs are rows 2 to 4 of the left
      column; the panel column starts at row 2.
@@ -191,7 +191,10 @@
      padding included). The column holds it at height 0 so it adds nothing to the rows, and it scrolls away with the page.
    - Without the panel the video column is centred, capped by the same height rule, over the page background. */
 @media (min-width: 1081px) {
-  .ltv-barwrap { position: relative; z-index: 6; height: var(--ltv-bar-h); min-width: 0; }
+  .ltv-barwrap { position: relative; z-index: 6; min-width: 0; }
+  /* Fixed only around the channel bar, which is exactly --ltv-bar-h. The older card (shown until the channels load, or
+     if they do not) has its own height, so it is not clipped or let spill over the video. */
+  .ltv-barwrap.has-bar { height: var(--ltv-bar-h); }
   @supports (container-type: size) {
     .ltv-main { container: ltvmain / size; }
     .ltv-grid {
@@ -209,7 +212,7 @@
       flex: none;
       display: grid;
       grid-template-columns: minmax(0, min(calc(100cqw - var(--ltv-gap-x) - var(--ltv-panel-min)), var(--ltv-video-max-w))) minmax(0, 1fr);
-      grid-template-rows: var(--ltv-bar-h) auto auto auto;
+      grid-template-rows: auto auto auto auto;
       gap: var(--ltv-gap-y) var(--ltv-gap-x);
     }
     .ltv-grid.has-panel .ltv-body,

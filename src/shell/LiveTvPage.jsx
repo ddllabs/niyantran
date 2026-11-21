@@ -655,7 +655,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
       {/* One wrapper, invisible (display: contents) except from 1081px with the panel, where it is the page grid:
           the bar across both columns, the video column left, the panel right (liveTv.css). */}
       <div className={`ltv-grid${factCheckOffered ? ' has-panel' : ''}`}>
-      <div className="ltv-barwrap">
+      <div className={`ltv-barwrap${lists.length ? ' has-bar' : ''}`}>
       {lists.length ? (
         <ChannelBar
           channels={shownChannels}

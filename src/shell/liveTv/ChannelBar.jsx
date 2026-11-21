@@ -1,6 +1,7 @@
 // B6: the channel bar. From 1081px one row: "My list", Hindi and English tabs, a strip of tiles with arrows, a
-// segment chooser (opens All channels, with a chip per segment) and a search box; narrower windows may wrap it. A segment, All,
-// or a search opens a panel that overlays the page under the bar (it never pushes the video down). On phones a "Channels" button opens the same choices as a full sheet.
+// segment chooser (opens All channels, with a chip per segment) and a search box; narrower windows may wrap it.
+// A segment, All, or a search opens a panel that overlays the page under the bar (it never pushes the video down).
+// On phones a "Channels" button opens the same choices as a full sheet.
 // Presentational: the page owns the playing channel and the followed list; this owns only what is open.
 import { useEffect, useRef, useState } from 'react';
 import { channelSubline } from './channelView.js';
@@ -192,13 +193,13 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
         </div>
         {pop.kind !== 'search' ? (
           <div className="ltv-pop-segs" role="group" aria-label="Segments">
-            <button type="button" className={`ltv-category-pill${pop.kind === 'all' ? ' active' : ''}`} aria-pressed={pop.kind === 'all'} onClick={() => switchPop({ kind: 'all' })}>
+            <button type="button" className={`ltv-category-pill${pop.kind === 'all' ? ' active' : ''}`} aria-current={pop.kind === 'all' ? 'true' : undefined} onClick={() => switchPop({ kind: 'all' })}>
               All <span className="ltv-category-count">{channels.length}</span>
             </button>
             {segs.map((s) => {
               const on = pop.kind === 'seg' && pop.id === s.id;
               return (
-                <button type="button" key={s.id} className={`ltv-category-pill${on ? ' active' : ''}`} aria-pressed={on} onClick={() => switchPop({ kind: 'seg', id: s.id })}>
+                <button type="button" key={s.id} className={`ltv-category-pill${on ? ' active' : ''}`} aria-current={on ? 'true' : undefined} onClick={() => switchPop({ kind: 'seg', id: s.id })}>
                   {s.short || s.name} <span className="ltv-category-count">{inList(s.id).length}</span>
                 </button>
               );

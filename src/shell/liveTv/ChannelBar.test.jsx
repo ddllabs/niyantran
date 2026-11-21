@@ -116,17 +116,18 @@ describe('the segment chooser and the panel', () => {
     expect(segButton(mount()).props['aria-expanded']).toBe(false);
     expect(focus).toHaveBeenCalledTimes(1);
   });
-  it('has a chip row in the overlay: All and each segment with counts, the current one pressed', () => {
+  it('has a chip row in the overlay: All and each segment with counts, the current one marked', () => {
     mount();
     segButton(mount()).props.onClick({ currentTarget: mk(() => {}) });
     let out = mount();
     const labels = () => all(chips(out), (e) => e.type === 'button').map((b) => text(b).replace(/\s+/g, ' ').trim());
     expect(labels()).toEqual(['All 8', 'Politics & Debates 2', 'Plain 0', 'Regional 3']);
-    expect(all(chips(out), (e) => e.type === 'button').map((b) => b.props['aria-pressed'])).toEqual([true, false, false, false]);
+    expect(all(chips(out), (e) => e.type === 'button').map((b) => b.props['aria-current'])).toEqual(['true', undefined, undefined, undefined]);
+    expect(all(chips(out), (e) => e.type === 'button').some((b) => 'aria-pressed' in b.props)).toBe(false);
     chip(out, 'Regional').props.onClick();
     out = mount();
     expect(dialog(out).props['aria-label']).toBe('Regional');
-    expect(all(chips(out), (e) => e.type === 'button').map((b) => b.props['aria-pressed'])).toEqual([false, false, false, true]);
+    expect(all(chips(out), (e) => e.type === 'button').map((b) => b.props['aria-current'])).toEqual([undefined, undefined, undefined, 'true']);
     expect(segButton(out).props['aria-expanded']).toBe(true);
     chip(out, 'All').props.onClick();
     expect(dialog(mount()).props['aria-label']).toBe('All channels');

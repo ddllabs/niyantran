@@ -41,9 +41,27 @@ describe('the channel bar from 1081px', () => {
     expect(rule(wide, '.ltv-channelbar .ltv-seg-row')).toMatch(/border-top:\s*0/);
     expect(rule(wide, '.ltv-channelbar .ltv-strip-wrap')).toMatch(/flex:\s*1 1 0/);
   });
-  it('makes the strip tiles 40px tall with a 28px tag, in the bar\'s own stylesheet and not in the overlay', () => {
-    expect(rule(css, '.ltv-channelbar .ltv-strip .ltv-channel-chip')).toMatch(/min-height:\s*40px/);
-    expect(rule(css, '.ltv-channelbar .ltv-strip .ltv-chip-tag')).toMatch(/width:\s*28px;\s*height:\s*28px/);
+  it('makes the strip tiles 40px tall with a 28px tag, only from 1081px (phones and tablets keep the page\'s tiles)', () => {
+    expect(rule(wide, '.ltv-channelbar .ltv-strip .ltv-channel-chip')).toMatch(/min-height:\s*40px/);
+    expect(rule(wide, '.ltv-channelbar .ltv-strip .ltv-chip-tag')).toMatch(/width:\s*28px;\s*height:\s*28px/);
+    expect(rule(wide, '.ltv-channelbar .ltv-strip .ltv-chip-name')).toMatch(/max-width:\s*120px/);
+    // Outside the wide block there is no strip-tile rule at all: it would override the 480px and 360px name widths.
+    expect(css.replace(wide, '').replace(media('(min-width: 1081px) and (pointer: fine)'), '')).not.toMatch(/\.ltv-strip \.ltv-(channel-chip|chip-)/);
+  });
+  it('keeps the compact Segments button and arrows (36px, 32px) to a wide window with a fine pointer', () => {
+    const fine = media('(min-width: 1081px) and (pointer: fine)');
+    expect(rule(fine, '.ltv-channelbar .ltv-seg-open')).toMatch(/min-height:\s*36px/);
+    expect(rule(fine, '.ltv-channelbar .ltv-strip-arrows .ltv-arrow')).toMatch(/width:\s*32px;\s*height:\s*32px/);
+    // Elsewhere the page's 40px touch rule applies: nothing outside the fine block sets these sizes.
+    const rest = css.replace(fine, '');
+    expect(rest).not.toMatch(/\.ltv-seg-open\s*\{[^}]*min-height:\s*3\d/);
+    expect(rest).not.toMatch(/\.ltv-arrow\s*\{[^}]*(width|height):\s*3\d/);
+    // 40px controls still fit the 60px bar: no vertical padding, content centred.
+    expect(rule(wide, '.ltv-channelcard.ltv-channelbar')).toMatch(/padding:\s*0 12px/);
+  });
+  it('turns the Segments caret over while the overlay is open, with the motion only when allowed', () => {
+    expect(rule(css, ".ltv-seg-open[aria-expanded='true'] .ltv-seg-caret")).toMatch(/rotate\(180deg\)/);
+    expect(media('(prefers-reduced-motion: no-preference)')).toMatch(/\.ltv-seg-caret[^}]*transition/);
   });
 });
 

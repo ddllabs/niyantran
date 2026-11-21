@@ -60,7 +60,27 @@ Below 1081px the page keeps its stacked, scrolling layout; the bar may wrap to m
 (600px and under) keep the Channels sheet. Fullscreen is unchanged.
 
 The channel bar's overlay (the "All channels" and segment list) opens under the bar, across the full
-width, as a dialog over the page; the body stays inert while it is open (as today).
+width, over the page and over the panel while it is open. On desktop it is not modal: the page body is not made inert
+(only the phone sheet is), and it closes when focus or a click moves outside it.
+
+## Measured 2026-11-21
+
+Executed on the rendered page with the built CSS and a 125px header stand-in.
+
+| Window | Player | Panel | Notes |
+| --- | --- | --- | --- |
+| 1590 × 840 | 916 × 515 | 622 × 627 | bar 60px |
+| 1440 × 760 | 773 × 435 | 615 × 547 | |
+| 1920 × 960 | 1129 × 635 | 739 × 747 | |
+| 1366 × 650 | 578 × 325 | 736 × 437 | now-playing row 100px (controls wrap); its bottom on the window's bottom |
+| 1081 × 700 | 589 × 331 | 440 × 487 | |
+| 1590 × 840, no panel | 820 × 461, centred | none | |
+
+Scrolling 150px moves the bar, the player and the panel by 150px. At 375px (phone) the segment row is hidden and
+the page does not scroll sideways.
+
+Known limit: the now-playing reserve is 72px. A row that wraps further (a pasted video's two extra buttons, a note
+under the title) can end a little below the window, and the page scrolls.
 
 ## Acceptance (measured in a browser on the rendered page)
 
