@@ -15,7 +15,8 @@ describe('Live TV keyboard roles (F61)', () => {
 
   it('the lower tabs are tabs with exactly one tab stop and a labelled panel', () => {
     const tabs = html.match(/<button[^>]*role="tab"[^>]*>/g) || [];
-    expect(tabs).toHaveLength(3);
+    // Schedule and archive are empty with no source, so only Channel Videos is listed.
+    expect(tabs).toHaveLength(1);
     expect(tabs.filter((t) => /tabindex="0"/.test(t))).toHaveLength(1);
     expect(tabs.filter((t) => /aria-selected="true"/.test(t))).toHaveLength(1);
     expect(html).toMatch(/role="tabpanel" aria-labelledby="ltv-tab-videos"/);

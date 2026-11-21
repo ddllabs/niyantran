@@ -20,8 +20,9 @@ describe('Live TV with fact-check off', () => {
     expect(html).not.toMatch(/fc-|Fact-check|fact-check/);
   });
 
-  it('keeps the three lower tabs and their ids (the Transcript tab was removed: nothing could fill it)', () => {
-    for (const id of ['schedule', 'videos', 'archive']) expect(html).toContain(`id="ltv-tab-${id}"`);
+  it('lists only Channel Videos while schedule and archive are empty (the Transcript tab was removed: nothing could fill it)', () => {
+    expect(html).toContain('id="ltv-tab-videos"');
+    for (const id of ['schedule', 'archive']) expect(html).not.toContain(`id="ltv-tab-${id}"`);
     expect(html).not.toContain('id="ltv-tab-transcript"');
   });
 });
