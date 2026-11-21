@@ -507,6 +507,29 @@ Deno.test('a body shorter than its Content-Length is retried; a whole one then p
   assertEquals(n.pdfCalls().length, 2);
 });
 
+Deno.test('a compressed body is not judged against its Content-Length (the length on the wire)', async () => {
+  const good = fakePdf(['abc']);
+  const n = net({
+    [url(1)]: () =>
+      new Response(good, { headers: { 'content-encoding': 'gzip', 'content-length': String(good.length + 20) } }),
+  });
+  const { out } = await run([rec('k1', ['abc'], url(1))], n);
+  assertEquals(out.size, 0);
+  assertEquals(n.pdfCalls().length, 1);
+});
+
+Deno.test('a compressed robots.txt shorter than its Content-Length is read, not retried', async () => {
+  const txt = 'User-agent: *\nAllow: /';
+  const n = net({
+    [url(1)]: fakePdf(['abc']),
+    [`${HOST}/robots.txt`]: () =>
+      new Response(txt, { headers: { 'content-encoding': 'gzip', 'content-length': String(txt.length + 20) } }),
+  });
+  const { out } = await run([rec('k1', ['abc'], url(1))], n);
+  assertEquals(out.size, 0);
+  assertEquals(n.calls.filter((c) => c.url === `${HOST}/robots.txt`).length, 1);
+});
+
 Deno.test('a body that fails while being read is retried', async () => {
   const good = fakePdf(['abc']);
   const broken = () =>
