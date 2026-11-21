@@ -1281,8 +1281,29 @@ Deno.test('F288 wiring: an unreadable switch is off: plain search succeeds, the 
   assertEquals(chunks.length, 1);
   const failure = lines.map((l) => JSON.parse(l)).find((l) => l.event === 'research.hybrid_flag_read_failed');
   assert(failure);
-  assertEquals(Object.keys(failure).filter((k) => k !== 't' && k !== 'event'), ['kind']);
+  assertEquals(Object.keys(failure).filter((k) => k !== 't' && k !== 'event'), ['kind', 'scope']);
+  assertEquals(failure.scope, 'nclt');
   assertEquals(lines.join('\n').includes('PRIVATE'), false);
+});
+Deno.test('F393 wiring: an unreadable per-desk switch is off, and its log line carries a label for the kind of switch, never the desk or the question', async () => {
+  const REG = 'Regulatory Body Watch (RBI SEBI TRAI CCI)';
+  const r = hybridRig(undefined);
+  r.f.setReply((_side, table) =>
+    table === 'hybrid_search_desks' ? { data: null, error: { message: 'PRIVATE desk failure' } } :
+    table === 'match_documents' ? { data: [chunkRow('v1')], error: null } :
+    table === 'documents' ? { data: [{ id: 'doc-a', metadata: {} }], error: null } : { data: [], error: null }
+  );
+  const d = createDependencies(request(), r.f.runtime);
+  await d.requireUser(request());
+  const { result: chunks, lines } = await captureLogs<{ id: string }[]>(() => d.searchDocuments({ ...nclt, desk_feature: REG }, undefined, r.context));
+  assertEquals(r.names(), ['match_documents']);
+  assertEquals(chunks.length, 1);
+  const failure = lines.map((l) => JSON.parse(l)).find((l) => l.event === 'research.hybrid_flag_read_failed');
+  assert(failure);
+  assertEquals(Object.keys(failure).filter((k) => k !== 't' && k !== 'event'), ['kind', 'scope']);
+  assertEquals(failure.scope, 'desk');
+  const all = lines.join('\n');
+  assertEquals(all.includes('PRIVATE') || all.includes('Regulatory') || all.includes('secret insolvency question'), false);
 });
 
 Deno.test('F288 wiring: the switch is read once across searches within the cache window', async () => {
@@ -1295,15 +1316,47 @@ Deno.test('F288 wiring: the switch is read once across searches within the cache
   assertEquals(r.names(), ['match_documents_hybrid', 'match_documents_hybrid']);
 });
 
-Deno.test('F288 wiring: other scopes never read the switch', async () => {
+Deno.test('F288 wiring: a search with no desk, or with document ids, never reads a switch', async () => {
   const r = hybridRig({ enabled: true });
   const d = createDependencies(request(), r.f.runtime);
   await d.requireUser(request());
   await d.searchDocuments({ query: 'Q' }, undefined, r.context);
-  await d.searchDocuments({ ...nclt, desk_feature: 'Parliamentary Questions' }, undefined, r.context);
   await d.searchDocuments(nclt, ['doc-a'], r.context);
-  assertEquals(r.f.calls.some((x) => x.table === 'app_flags'), false);
+  await d.searchDocuments({ ...nclt, desk_feature: 'Parliamentary Questions' }, ['doc-a'], r.context);
+  assertEquals(r.f.calls.some((x) => x.table === 'app_flags' || x.table === 'hybrid_search_desks'), false);
   assertEquals(r.names(), ['match_documents', 'match_documents', 'match_documents']);
+});
+
+Deno.test('F393 wiring: another desk reads its own row in hybrid_search_desks, not app_flags; no row is off; NCLT still reads app_flags', async () => {
+  const REG = 'Regulatory Body Watch (RBI SEBI TRAI CCI)';
+  const r = hybridRig(undefined);
+  let desksRow: unknown = null;
+  r.f.setReply((_side, table) => {
+    if (table === 'hybrid_search_desks') return { data: desksRow, error: null };
+    if (table === 'app_flags') return { data: { value: { enabled: false } }, error: null };
+    if (table === 'match_documents_hybrid') return { data: [chunkRow('h1')], error: null };
+    if (table === 'match_documents') return { data: [chunkRow('v1')], error: null };
+    if (table === 'documents') return { data: [{ id: 'doc-a', metadata: {} }], error: null };
+    return { data: [], error: null };
+  });
+  const d = createDependencies(request(), r.f.runtime);
+  await d.requireUser(request());
+  const reg = { ...nclt, desk_feature: REG };
+  await d.searchDocuments(reg, undefined, r.context);
+  assertEquals(r.names(), ['match_documents'], 'no row: vector only');
+  const read = r.f.calls.find((x) => x.table === 'hybrid_search_desks')!;
+  assertEquals(read.side, 'caller');
+  assertEquals(read.columns, 'enabled,hybrid_ms,fallback_ms');
+  assertEquals(read.filters, [['eq', 'desk_feature', REG]]);
+  assert(read.signal, 'bounded');
+  assertEquals(r.f.calls.some((x) => x.table === 'app_flags'), false, 'the global NCLT row is not read for another desk');
+  resetHybridFlagCache();
+  desksRow = { enabled: true, hybrid_ms: null, fallback_ms: null };
+  await d.searchDocuments(reg, undefined, r.context);
+  assertEquals(r.names(), ['match_documents', 'match_documents_hybrid'], 'an enabled row: hybrid, default budgets');
+  await d.searchDocuments(nclt, undefined, r.context);
+  assertEquals(r.f.calls.filter((x) => x.table === 'app_flags').length, 1, 'NCLT reads the app_flags row');
+  assertEquals(r.names(), ['match_documents', 'match_documents_hybrid', 'match_documents'], 'NCLT is off by its own row');
 });
 
 Deno.test('F288 wiring: Stop during the hybrid call starts no fallback', async () => {

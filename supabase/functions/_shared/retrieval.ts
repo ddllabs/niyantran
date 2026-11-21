@@ -124,7 +124,10 @@ export interface RetrievalTrace {
 
 export type RetrievalPhase = 'embeddingMs' | 'retrievalMs';
 
-/** The one feature keyword search applies to (match_documents_hybrid, migration 20261102120000). */
+/**
+ * The desk whose switch is the global `hybrid_search` row and whose rule is its own (match_documents_hybrid, migration
+ * 20261102120000). Every other desk is switched by its row in `hybrid_search_desks` (migration 20261124100000).
+ */
 export const HYBRID_FEATURE = 'NCLT / NCLAT (Insolvency)';
 /** Time budgets of the hybrid path (F288), in ms. */
 export const HYBRID_DEFAULTS = { hybridMs: 2_500, fallbackMs: 4_000 } as const;
@@ -174,8 +177,11 @@ export interface RetrievalDeps {
     args: Record<string, unknown>,
     budgetMs?: number,
   ): Promise<{ data: unknown[] | null; error: { message: string; code?: string } | null }>;
-  /** Present only where the hybrid path may run. A rejecting `config` means vector-only. */
-  hybrid?: { config(): Promise<HybridConfig> };
+  /**
+   * Present only where the hybrid path may run. `config` is asked for the searched desk (a feature search with no
+   * document ids only); a rejecting `config` means vector-only.
+   */
+  hybrid?: { config(deskFeature: string): Promise<HybridConfig> };
   /** The turn's signal: an aborted turn starts no fallback. */
   signal?: AbortSignal;
   onPath?(info: RetrievalPathInfo): void;
@@ -281,11 +287,12 @@ export async function search(deps: RetrievalDeps, input: SearchInput): Promise<C
     if (error) throw new Error(`match_documents: ${error.message}`);
     return data ?? [];
   };
-  // F288: only an NCLT feature search with no document ids can differ in hybrid (the SQL makes every other scope
-  // identical), so only that search reads the switch. A switch that cannot be read is off.
+  // F288, F393: only a feature search with no document ids can differ in hybrid (the SQL makes every other scope
+  // identical), so only that search reads a switch: NCLT's `hybrid_search` row, or the searched desk's own row. A
+  // switch that cannot be read is off.
   let hybrid: HybridConfig | null = null;
-  if (deps.hybrid && input.deskFeature === HYBRID_FEATURE && !input.documentIds?.length) {
-    try { hybrid = await deps.hybrid.config(); } catch { hybrid = null; }
+  if (deps.hybrid && input.deskFeature && !input.documentIds?.length) {
+    try { hybrid = await deps.hybrid.config(input.deskFeature); } catch { hybrid = null; }
   }
   const hybridRows = async (config: HybridConfig): Promise<unknown[]> => {
     const hybridStart = now();
