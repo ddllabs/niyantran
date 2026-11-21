@@ -1,6 +1,6 @@
 # Plan: Live TV watch layout (F402)
 
-> **Status: Living.** Spec: [2026-11-21-live-tv-watch-layout.md](../specs/2026-11-21-live-tv-watch-layout.md).
+> **Status: Historical (dated 2026-11-21).** Done; released in `b61ae69f` (pull request 215). Spec: [2026-11-21-live-tv-watch-layout.md](../specs/2026-11-21-live-tv-watch-layout.md).
 
 Integration branch: `task/livetv-watch-layout`, from `main` at `9dd11518`. Two tasks run at the same
 time in supervisor-created worktrees; their write scopes are disjoint and their one shared value is
