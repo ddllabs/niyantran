@@ -4,7 +4,6 @@
 .ltv-bar-rows { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .ltv-channelbar .ltv-row { flex-wrap: wrap; row-gap: 8px; }
 .ltv-row-head { flex: none; display: flex; flex-direction: column; gap: 6px; }
-.ltv-channelbar .ltv-row-label { flex: none; }
 .ltv-toptabs { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--accent-soft); }
 .ltv-toptab {
   min-height: 30px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--fg);
@@ -13,13 +12,31 @@
 .ltv-toptab[aria-pressed='true'] { background: var(--panel); box-shadow: 0 0 0 1px var(--accent); color: var(--accent); }
 .ltv-channelbar .ltv-strip-wrap { flex: 1 1 360px; }
 .ltv-channelbar .ltv-seg-row { border-top: 1px solid var(--line); padding-top: 8px; flex-wrap: nowrap; }
-/* The segment chips scroll sideways on narrower windows instead of wrapping, and the search box sits at the right
-   end of the same row: the bar stays two rows tall, which keeps the panel's foot in the window. */
-.ltv-seg-row .ltv-category-bar { flex: 1 1 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; min-width: 0; }
-.ltv-seg-row .ltv-category-bar::-webkit-scrollbar { display: none; }
-.ltv-seg-row .ltv-category-pill { flex: none; }
-.ltv-seg-row .ltv-row-label { flex: none; }
+/* The Segments button (opens the overlay, which has a chip per segment) and the search box share the second row. */
+.ltv-channelbar .ltv-seg-open { flex: none; min-height: 36px; white-space: nowrap; }
+.ltv-seg-caret { margin-left: 4px; font-size: 11px; }
+.ltv-pop-segs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .ltv-find { flex: 0 0 190px; min-width: 140px; }
+.ltv-seg-row .ltv-find { margin-left: auto; }
+/* The strip's tiles are smaller than the overlay's (the bar is 60px tall from 1081px): 40px tall, a 28px tag. */
+.ltv-channelbar .ltv-strip .ltv-channel-chip { min-width: 128px; min-height: 40px; gap: 8px; padding: 0 10px 0 6px; }
+.ltv-channelbar .ltv-strip .ltv-chip-tag { width: 28px; height: 28px; border-radius: 6px; font-size: 10px; }
+.ltv-channelbar .ltv-strip .ltv-chip-text { gap: 0; }
+.ltv-channelbar .ltv-strip .ltv-chip-name { max-width: 120px; font-size: 12px; line-height: 1.25; }
+.ltv-channelbar .ltv-strip .ltv-chip-status { font-size: 10px; line-height: 1.2; }
+.ltv-channelbar .ltv-strip-arrows .ltv-arrow { width: 32px; height: 32px; font-size: 20px; border-radius: 8px; }
+
+/* From 1081px the whole bar is one row inside the page's 60px box (border included): the list buttons, the strip
+   with its arrows, the chooser and the search. Nothing wraps; the strip is what gives way. */
+@media (min-width: 1081px) {
+  .ltv-channelbar { box-sizing: border-box; height: var(--ltv-bar-h, 60px); padding: 0 12px; display: flex; align-items: center; }
+  .ltv-channelbar .ltv-bar-rows { flex: 1 1 auto; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 12px; }
+  .ltv-channelbar .ltv-row { flex-wrap: nowrap; gap: 10px; }
+  .ltv-channelbar .ltv-row:first-child { flex: 1 1 0; }
+  .ltv-channelbar .ltv-seg-row { flex: none; border-top: 0; padding-top: 0; }
+  .ltv-channelbar .ltv-strip-wrap { flex: 1 1 0; }
+  .ltv-channelbar .ltv-find { flex: 0 1 180px; }
+}
 .ltv-find-input {
   box-sizing: border-box; width: 100%; min-height: 36px; padding: 0 14px; border: 1px solid var(--line);
   border-radius: 9999px; background: var(--panel); color: var(--fg); font: inherit; font-size: 13px;
