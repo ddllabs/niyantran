@@ -163,6 +163,11 @@ chain() {
     chunk_hybrid_search)
       chain law_documents_serving_set
       FILES+=("$(as_non_superuser 20261102120000_chunk_hybrid_search.sql)") ;;
+    # F393: keyword and vector search together on any desk with a flag row. chunk_hybrid_search's chain (the NCLT
+    # migration included), then the migration, as a non-superuser. The vacuity check drops the last.
+    hybrid_sitewide)
+      chain chunk_hybrid_search
+      FILES+=("$(as_non_superuser 20261124100000_hybrid_sitewide.sql)") ;;
     # Keeping NCLT search warm. The function only looks relations up by name, so the fixture makes stand-ins with
     # those names and the chain is the bare roles-and-extensions-schema bootstrap (a full corpus chain cost ~290 s of
     # the CI job's budget, F302). The container's migrator is not a superuser and so cannot create the extension
@@ -1177,6 +1182,119 @@ hybrid_mutation_checks() {
   return $rc
 }
 
+# hybrid_sitewide only: the fixture's guards, each proved against the defect it guards. The migration is mutated once per
+# defect (a perl substitution on the as-non-superuser copy; a mutation that changes nothing fails the check). Each mutated
+# migration must still APPLY, and the fixture must then FAIL on one of its own assertions ("FAIL:"), not on an error.
+hybrid_sitewide_mutation_checks() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f rc=0 k out
+  local base=niyantran_hybrid_sitewide_mutbase_test db=niyantran_hybrid_sitewide_mut_test
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  local names=(
+    "no flag row needed"
+    "disabled flag row ignored"
+    "keyword scan returns unpublished chunks"
+    "word probe counts unpublished chunks"
+    "one word is enough for a candidate"
+    "equal scores and rarity ignored: nearest first"
+    "a word in 2001 chunks is rare"
+    "policy comparison not run"
+    "tier ignored"
+    "unindexed documents allowed"
+    "chunks without a vector allowed"
+    "scan ignores the desk"
+    "NCLT no longer keeps its rule"
+    "ties at the cut of 300 split by chunk id"
+    "probes may scan sequentially"
+    "hidden-document rule differs from the NCLT helper's copy"
+    "hidden-document list executable by every role"
+    "a flag row for NCLT allowed"
+    "a flag row for an unknown desk allowed")
+  local exprs=(
+    's/\n       or not exists \(select 1 from public\.hybrid_search_desks h where h\.desk_feature = p_desk_feature and h\.enabled\)//'
+    's/ and h\.enabled\)/)/'
+    's/\n          and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n     \) r/\n     ) r/'
+    's/\n               and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n             limit c_rare_df_max/\n             limit c_rare_df_max/'
+    's/c_min_words constant int := 2;/c_min_words constant int := 1;/'
+    's/order by k\.score desc, k\.dist, k\.id/order by k.dist, k.id/'
+    's/c_rare_df_max constant int := 2000;/c_rare_df_max constant int := 2001;/'
+    's/\n  perform 1 from retrieval_internal\.hybrid_candidate_ids\(\x27\x27, null, null, null\);\n/\n/'
+    's/\n       and \(p_desk_tier is null or d\.desk_tier = p_desk_tier\)(\n     order by s\.score)/$1/'
+    's/where d\.indexed_at is not null\n       and \(p_desk_tier is null or d\.desk_tier = p_desk_tier\)\n     order by s\.score/where (p_desk_tier is null or d.desk_tier = p_desk_tier)\n     order by s.score/'
+    's/\n          and c\.embedding is not null(\n          and c\.document_id is not null)/$1/'
+    's/\n          and c\.desk_feature = p_desk_feature(\n          and c\.embedding is not null)/$1/'
+    's/if p_desk_feature is distinct from c_nclt then/if true then/'
+    's/order by s\.score desc\n     fetch first c_pool rows with ties/order by s.score desc, s.id\n     limit c_pool/'
+    's/\n  perform set_config\(\x27enable_seqscan\x27, \x27off\x27, true\);//'
+    's/\n          or not exists \(select 1 from public\.law_listing_settings where active\)//'
+    's/\nrevoke all on function retrieval_internal\.hidden_document_ids\(\) from public, anon, authenticated, service_role;//'
+    's/,\n  constraint hybrid_search_desks_not_nclt check \(desk_feature <> \x27NCLT \/ NCLAT \(Insolvency\)\x27\)//'
+    's/\ncreate trigger hybrid_search_desks_known_desk before insert or update of desk_feature on public\.hybrid_search_desks\n  for each row execute function public\.hybrid_search_desks_known_desk\(\);//')
+  q "drop database if exists $base" >/dev/null; q "create database $base" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $base < "$f" >/dev/null 2>&1 || { echo "  MUTATION: bootstrap broke at $(basename "$f")"; q "drop database if exists $base" >/dev/null; return 1; }
+  done
+  for k in "${!names[@]}"; do
+    perl -0pe "${exprs[$k]}" "$guard" > "$WORK/sitewide_mutant.sql"
+    if cmp -s "$guard" "$WORK/sitewide_mutant.sql"; then
+      echo "  MUTATION FAIL - '${names[$k]}' did not change the migration (the pattern no longer matches)"; rc=1; continue
+    fi
+    q "drop database if exists $db" >/dev/null; q "create database $db template $base" >/dev/null
+    if ! psql_in $db < "$WORK/sitewide_mutant.sql" > "$WORK/sitewide_mutant.out" 2>&1; then
+      echo "  MUTATION FAIL - '${names[$k]}': the mutated migration does not apply"; sed 's/^/    /' "$WORK/sitewide_mutant.out" | head -3; rc=1; q "drop database if exists $db" >/dev/null; continue
+    fi
+    if out="$(fixture_sql hybrid_sitewide | psql_in $db 2>&1)"; then
+      echo "  MUTATION FAIL - the fixture still passes with: ${names[$k]}"; rc=1
+    elif ! grep -q 'FAIL:' <<<"$out"; then
+      echo "  MUTATION FAIL - with '${names[$k]}' the fixture stopped on an error, not on an assertion:"; grep -m2 ERROR <<<"$out" | sed 's/^/    /'; rc=1
+    else
+      echo "  mutation ok - fails with: ${names[$k]}  [$(grep -m1 'FAIL:' <<<"$out" | sed 's/^ERROR:  FAIL: //' | cut -c1-110)]"
+    fi
+    q "drop database if exists $db" >/dev/null
+  done
+  q "drop database if exists $base" >/dev/null
+  return $rc
+}
+
+# hybrid_sitewide only: the migration's last statement runs the policy comparison on the database being migrated. On a database
+# whose access policies differ from the NCLT helper's list it must fail with 55000 and leave nothing (one transaction); the same
+# run without the drift must apply; and with the drift but without the last statement it applies, which shows that the last
+# statement is what refuses (so the check is not vacuous).
+hybrid_sitewide_drift_rollback_check() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i f drift out left rc_m mig
+  local db=niyantran_hybrid_sitewide_drift_test
+  local objs="select (to_regclass('public.hybrid_search_desks') is not null)::int
+                   + (select count(*) from pg_proc where proname in ('keyword_candidate_ids', 'hidden_document_ids', 'hybrid_search_desks_known_desk'))
+                   + (select count(*) from pg_proc where proname = 'match_documents_hybrid' and prosrc like '%hybrid_search_desks%')"
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  perl -0pe 's/\ndo \$\$\nbegin\n  perform retrieval_internal\.hidden_document_ids\(\);\nend\n\$\$;//' "$guard" > "$WORK/sitewide_nodo.sql"
+  if cmp -s "$guard" "$WORK/sitewide_nodo.sql"; then
+    echo "  DRIFT FAIL - the migration's final check was not found (the pattern no longer matches)"; return 1
+  fi
+  for drift in "alter policy law_documents_serving on public.documents rename to law_documents_serving_x" "" "stripped"; do
+    mig="$guard"
+    if [ "$drift" = stripped ]; then mig="$WORK/sitewide_nodo.sql"; drift="alter policy law_documents_serving on public.documents rename to law_documents_serving_x"; fi
+    q "drop database if exists $db" >/dev/null; q "create database $db" >/dev/null
+    i=0
+    for f in "${FILES[@]}"; do
+      i=$((i+1)); [ $i -eq $n ] && break
+      psql_in $db < "$f" >/dev/null 2>&1 || { echo "  DRIFT: bootstrap broke at $(basename "$f")"; q "drop database if exists $db" >/dev/null; return 1; }
+    done
+    [ -n "$drift" ] && q "$drift" -d $db >/dev/null
+    out="$({ echo '\set VERBOSITY verbose'; cat "$mig"; } | psql_in $db 2>&1)" && rc_m=0 || rc_m=$?
+    left="$(q "$objs" -d $db)"
+    q "drop database if exists $db" >/dev/null
+    if [ -n "$drift" ] && [ "$mig" = "$guard" ]; then
+      if [ $rc_m -eq 0 ] || ! grep -q 'ERROR:  55000: keyword search unavailable' <<<"$out" || [ "$left" != 0 ]; then
+        echo "  DRIFT FAIL - on a drifted database the migration must fail with 55000 and leave nothing (exit $rc_m, objects left $left)"; return 1
+      fi
+    elif [ $rc_m -ne 0 ] || [ "$left" != 5 ]; then
+      echo "  DRIFT FAIL - the migration did not apply where it must (stripped of its final check: ${mig##*/}; exit $rc_m, objects $left)"; return 1
+    fi
+  done
+  echo "  drift ok - a drifted database refuses the migration with 55000 and keeps nothing; without drift, or without the final check, it applies"
+}
+
 hybrid_private_check() {
   local mig="$MIG/20261102120000_chunk_hybrid_search.sql" guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f
   local db=niyantran_chunk_hybrid_search_acl_test
@@ -1184,8 +1302,8 @@ hybrid_private_check() {
   if grep -qiw private "$mig"; then
     echo "  PRIVATE FAIL - the migration names the schema private:"; grep -niw private "$mig" | head -3 | sed 's/^/    /'; return 1
   fi
-  if grep -rlw retrieval_internal "$MIG" | grep -vq '20261102120000_chunk_hybrid_search.sql'; then
-    echo "  PRIVATE FAIL - another migration uses the name retrieval_internal:"; grep -rlw retrieval_internal "$MIG" | grep -v chunk_hybrid_search | sed 's/^/    /'; return 1
+  if grep -rlw retrieval_internal "$MIG" | grep -vqE '20261102120000_chunk_hybrid_search.sql|20261124100000_hybrid_sitewide.sql'; then
+    echo "  PRIVATE FAIL - another migration uses the name retrieval_internal:"; grep -rlw retrieval_internal "$MIG" | grep -vE 'chunk_hybrid_search|hybrid_sitewide' | sed 's/^/    /'; return 1
   fi
   if ! grep -q '^create schema retrieval_internal;' "$mig"; then
     echo "  PRIVATE FAIL - the migration must create its schema with a plain CREATE SCHEMA (no IF NOT EXISTS)"; return 1
@@ -1424,6 +1542,7 @@ run_fixture() {
     [ "$name" = credit_paise_contract ] && { credit_paise_atomic_check "$db" || rc=1; }
     [ "${VACUITY:-1}" = 1 ] && { vacuity_check "$name" || rc=1; }
     [ "$name" = chunk_hybrid_search ] && { hybrid_exposure_check || rc=1; hybrid_private_check || rc=1; hybrid_drift_rollback_check || rc=1; hybrid_mutation_checks || rc=1; }
+    [ "$name" = hybrid_sitewide ] && { hybrid_sitewide_drift_rollback_check || rc=1; hybrid_sitewide_mutation_checks || rc=1; }
     [ "$name" = corpus_records ] && { corpus_records_checks || rc=1; }
     [ "$name" = document_chunks_partitions ] && { document_chunks_partitions_checks || rc=1; }
     [ "$name" = feed_records ] && { feed_records_checks || rc=1; }
