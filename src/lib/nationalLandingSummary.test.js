@@ -65,7 +65,7 @@ describe('National v6 data coverage', () => {
     expect(s.limitations).toMatch(/not/i);
     expect(s).not.toHaveProperty('rows');
   });
-  it('does not call Budget lines or World Bank data points records (F403)', () => {
+  it('does not call Budget lines or World Bank data points records (F404)', () => {
     const budget = projectNationalSummary(feed(NATIONAL_FEATURES[10], [{ title: 'Total expenditure', kind: 'headline' }, { title: 'MGNREGA', scheme: 'MGNREGA', kind: 'scheme' }]));
     expect(budget.count).toBe(2);
     expect(budget.unit).toBe('schemes and headline figures');

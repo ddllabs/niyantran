@@ -3,7 +3,7 @@ import handler from '../../api/router.js';
 import { handleFeatureFeedRequest, landingLoadFeed, resetFeedCache, serveFeatureFeedStoredFirst, serveFeatureFeedWithBackup, serveFeatureFeedWithinLimit } from '../../server/featureFeed.mjs';
 import { withoutLoaderCaches } from '../../server/loaderCache.mjs';
 
-// F403: a desk landing counts the module the way its table does. A module the 5-minute timer keeps in
+// F404: a desk landing counts the module the way its table does. A module the 5-minute timer keeps in
 // the feed store is read from the store first on every landing endpoint, on the Vite server and on the
 // Vercel router. Before, the landings tried the live source within a time limit and showed an error or
 // a smaller live count where the table showed the stored rows.
@@ -74,7 +74,7 @@ beforeEach(() => {
 });
 afterEach(() => { resetFeedCache(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
-describe('the landing loader choice (F403)', () => {
+describe('the landing loader choice (F404)', () => {
   it('shares one loader per route family, so the Vite server and the Vercel router cannot drift', () => {
     expect(landingLoadFeed('/api/sports-landing')).toBe(landingLoadFeed('/api/carbon-landing'));
     expect(landingLoadFeed('/api/economics-landing')).toBe(landingLoadFeed('/api/entertainment-landing'));

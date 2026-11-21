@@ -17,7 +17,7 @@ describe('v6 desk presentation contract', () => {
     expect(summarizeModules(modules, summaries)).toMatchObject({ count: 9, loaded: 1, pending: 1, knownModules: 2 });
     expect(summarizeModules([{ feature: 'empty' }], { empty: { count: 0, resourceKey: 'empty', availability: 'empty' } }).count).toBe(0);
   });
-  it('totals only record counts, not reports, projections, promises or data points (F403)', () => {
+  it('totals only record counts, not reports, projections, promises or data points (F404)', () => {
     const modules = ['bills', 'brief', 'delim', 'promises', 'budget', 'industry', 'plain'].map(feature => ({ feature }));
     const summaries = {
       bills: { count: 100, unit: 'records', resourceKey: 'bills' },

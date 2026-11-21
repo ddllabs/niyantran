@@ -1,4 +1,4 @@
-// F403: the stored copy of a module can hold more entries than its table lists (the table reads one page of
+// F404: the stored copy of a module can hold more entries than its table lists (the table reads one page of
 // STORE_PAGE_ROWS). The landing counts what the table lists, as the table does, and says so when the store
 // holds more, in `capped` and `storeTotal` and in the limitations text.
 const inIndia = (value) => value.toLocaleString('en-IN');

@@ -13,7 +13,7 @@ vi.mock('../../server/featureFeed.mjs', () => ({
   serveFeatureFeedWithBackup: vi.fn((params) => feed.within(params)),
   // F169 C4: the scheduled-store-first route; the store is out of this test.
   serveFeatureFeedStoredFirst: vi.fn((params) => feed.within(params)),
-  // F403: the loader the landing endpoints count with; the store and the live sources are out of this test.
+  // F404: the loader the landing endpoints count with; the store and the live sources are out of this test.
   landingLoadFeed: vi.fn(() => (params) => feed.within(params)),
 }));
 

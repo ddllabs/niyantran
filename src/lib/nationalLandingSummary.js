@@ -40,7 +40,7 @@ const safeLink = value => {
   try { const url = new URL(value); return /^https?:$/.test(url.protocol) ? url.href : null; } catch { return null; }
 };
 
-// F403: only a module whose entries are records says 'records'; the desk total counts those alone.
+// F404: only a module whose entries are records says 'records'; the desk total counts those alone.
 // Budget's rows are 8 schemes and 5 headline figures; Industry Updates' are World Bank data points.
 const unitOf = (feature, sourceMode, reporting) => sourceMode === 'simulated' ? 'projection outputs'
   : feature === NATIONAL_FEATURES[14] ? 'promises'

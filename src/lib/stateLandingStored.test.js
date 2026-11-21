@@ -104,7 +104,7 @@ describe.each([false, true])('scoped State stored summaries (local=%s)', local =
     expect(res.body.served).not.toBe('store');
   });
 
-  // F403: every module the timer keeps in the store is counted from it, as its table is; the old rule
+  // F404: every module the timer keeps in the store is counted from it, as its table is; the old rule
   // limited this to the two MLA summaries, so the others disagreed with their tables.
   it('reads any other scheduled State module from the store, and leaves an unscheduled one on its live loader', async () => {
     const fetch = network();

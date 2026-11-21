@@ -89,7 +89,7 @@ describe.each([false, true])('Policy Pipeline stored summary (local=%s)', local 
     expect(res.body).toMatchObject({ count: 1, served: 'live' });
     expect(res.body).not.toHaveProperty('fetchedAt');
   });
-  // F403: every scheduled module is counted from the store, as its table is (Cabinet Decisions, 1 live
+  // F404: every scheduled module is counted from the store, as its table is (Cabinet Decisions, 1 live
   // against 93 in the table, was the case that showed it); an unscheduled module stays on its live loader.
   it('reads other scheduled National summaries from the store and leaves unscheduled ones live', async () => {
     const fetch = network(snapshot());

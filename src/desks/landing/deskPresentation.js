@@ -186,7 +186,7 @@ export const NATIONAL_PRESENTATION = {
   ]
 };
 
-// F403: a desk total of "records" adds only summaries whose unit is records. A summary with no unit
+// F404: a desk total of "records" adds only summaries whose unit is records. A summary with no unit
 // (Global's) is counted; news reports, projection outputs, promises and data points are not. The desks
 // that label their total as mixed units (Economics, Carbon, Sports, Entertainment, Law) ask for all.
 export const countsAsRecords = summary => summary?.unit == null || summary.unit === 'records';

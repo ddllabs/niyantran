@@ -4121,7 +4121,7 @@ export async function serveFeatureFeedStoredFirst(searchParams, { store = serveF
 }
 
 /**
- * F403: the loader a desk landing endpoint counts a module with. The table (/api/feature-feed) reads a
+ * F404: the loader a desk landing endpoint counts a module with. The table (/api/feature-feed) reads a
  * scheduled module from the feed store first; the landing used to try the live source within a time
  * limit, so it counted something else (a smaller live page) or showed an error when the source was slow.
  * Now a module the timer keeps in the store (scheduledModuleId) is read stored-first, as the table does,
