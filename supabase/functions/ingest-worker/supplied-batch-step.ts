@@ -37,7 +37,7 @@ import {
   type EmbedResult,
   planBatches,
 } from '../_shared/embed.ts';
-import { type EmbeddingChunk, INDEX_STEP } from './index-step.ts';
+import { type EmbeddingChunk, embedWithTimeout, INDEX_STEP, outageMessage } from './index-step.ts';
 import { readAll } from './paging.ts';
 import { loadSuppliedPlan } from './supplied-step.ts';
 import { type BatchStep, IngestError, type IngestJob, type PageCommitRow, type StepOutcome, type WorkerDeps } from './types.ts';
@@ -164,7 +164,7 @@ export async function runSuppliedBatch(
     const started = deps.now();
     let r: EmbedResult;
     try {
-      r = await deps.embed(items.map((s) => s.chunk.embedding_input));
+      r = await embedWithTimeout(deps, deadline, items.map((s) => s.chunk.embedding_input));
     } catch (err) {
       // Whatever the failed call had already cost reaches the jobs it carried, and the log.
       const spent = err instanceof EmbeddingError ? { tokens: err.promptTokens, cost: err.costUsd } : { tokens: 0, cost: 0 };
@@ -304,13 +304,12 @@ export async function runSuppliedBatch(
     } else if (downFor(m)) {
       // Released because the provider failed: queued again with the queue's backoff, not failed.
       const down = downFor(m)!;
-      const where = down.status === null ? '' : ` HTTP ${down.status}`;
       outcomes[i] = {
         patch: {
           progressed: m.committed,
           embed_tokens: m.spend.tokens,
           embed_cost_usd: m.spend.cost,
-          error: { code: 'embed_outage', message: `embedding provider unavailable: ${down.cls}${where}`, permanent: false },
+          error: { code: 'embed_outage', message: outageMessage(down), permanent: false },
         },
       };
     } else if (m.done < m.stale.length || deps.now() >= deadline - INDEX_STEP.deadlineReserveMs) {

@@ -293,7 +293,7 @@ export function buildWorkerDeps(client: SupabaseClient, env: Env): RunDeps {
     storage: supabaseIngestStorage(client),
     // callMistralOcr refuses an empty key with a permanent mistral_key_missing error.
     ocr: (request) => callMistralOcr({ fetch, apiKey: mistralKey }, request),
-    embed: (inputs) => embedTexts({ fetch: markNetworkErrors(fetch), apiKey: openrouterKey }, inputs),
+    embed: (inputs, signal) => embedTexts({ fetch: markNetworkErrors(fetch), apiKey: openrouterKey, signal }, inputs),
     documentUrlOverride: (sha256) => documentUrlOverride(supabaseUrl, env, sha256),
     now: Date.now,
     log: (event, fields) => log(event, fields),

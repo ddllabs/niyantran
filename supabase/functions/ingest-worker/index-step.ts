@@ -9,7 +9,7 @@
 
 import { type ComposedDocument, composeDocument, locateBlocks, normaliseBox, type Box } from '../_shared/pageText.ts';
 import { chunkPages, PAGE_CHUNK_VERSION, type PageChunkRow } from '../_shared/chunking.ts';
-import { EMBED_MODEL, EmbeddingError } from '../_shared/embed.ts';
+import { EMBED_MODEL, EmbeddingError, embedOutageClass, type EmbedOutageClass, type EmbedResult } from '../_shared/embed.ts';
 import { sha256Hex } from '../_shared/textNormalise.ts';
 import { readAll } from './paging.ts';
 import {
@@ -37,6 +37,38 @@ export const INDEX_STEP = Object.freeze({
    */
   deadlineReserveMs: 10_000,
 });
+
+/** How long one embedding call may run: INGEST.embedTimeoutMs, and never past the work budget less the safety margin. */
+export function embedTimeoutMs(now: number, deadline: number): number {
+  return Math.max(1_000, Math.min(INGEST.embedTimeoutMs, deadline - now - INGEST.embedSafetyMs));
+}
+
+/**
+ * One embedding call, aborted when embedTimeoutMs passes. The abort ends the request and its retries; the
+ * provider's call then fails like any other (the abort reason, here a TimeoutError, surfaces as itself through
+ * markNetworkErrors and is classified as an outage of class network by embedOutageClass), logged as an error,
+ * never as a success.
+ */
+export async function embedWithTimeout(deps: Pick<WorkerDeps, 'embed' | 'now'>, deadline: number, inputs: string[]): Promise<EmbedResult> {
+  const abort = new AbortController();
+  const timer = setTimeout(
+    () => abort.abort(new DOMException('embeddings request exceeded its time limit', 'TimeoutError')),
+    embedTimeoutMs(deps.now(), deadline),
+  );
+  try {
+    return await deps.embed(inputs, abort.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** An embedding failure that says the provider is unavailable (embedOutageClass), with its class and HTTP status. */
+const outages = new WeakMap<IngestError, { cls: EmbedOutageClass; status: number | null }>();
+
+/** Release message of a provider outage, shared by the single-job and batch supplied-text paths. */
+export function outageMessage(o: { cls: EmbedOutageClass; status: number | null }): string {
+  return `embedding provider unavailable: ${o.cls}${o.status === null ? '' : ` HTTP ${o.status}`}`;
+}
 
 const EXTENSION = { 'image/jpeg': 'jpeg', 'image/png': 'png', 'image/webp': 'webp' } as const;
 
@@ -183,6 +215,7 @@ async function embedSlice(
   job: IngestJob,
   chunks: EmbeddingChunk[],
   spend: Spend,
+  deadline: number,
 ): Promise<number[][]> {
   const started = deps.now();
   const base = {
@@ -197,7 +230,7 @@ async function embedSlice(
     job_id: job.id, document_id: job.document_id, inputs: chunks.length, first_chunk_index: chunks[0].chunk_index,
   };
   try {
-    const r = await deps.embed(chunks.map((c) => c.embedding_input));
+    const r = await embedWithTimeout(deps, deadline, chunks.map((c) => c.embedding_input));
     await deps.db.logCall({
       ...base,
       model_served: r.model,
@@ -228,7 +261,10 @@ async function embedSlice(
       cost_usd: spent.cost,
       raw_usage: { ...usage, status: err instanceof EmbeddingError ? err.status ?? null : null },
     });
-    throw new IngestError('embed_failed', message, false, err instanceof EmbeddingError ? err.status : undefined);
+    const failed = new IngestError('embed_failed', message, false, err instanceof EmbeddingError ? err.status : undefined);
+    const cls = embedOutageClass(err);
+    if (cls) outages.set(failed, { cls, status: err instanceof EmbeddingError ? err.status ?? null : null });
+    throw failed;
   }
 }
 
@@ -291,7 +327,7 @@ export async function runIndexPlan(
         return { patch: { progressed: committed, embed_tokens: spend.tokens, embed_cost_usd: spend.cost } };
       }
 
-      const embedded = await embedSlice(deps, job, stale, spend);
+      const embedded = await embedSlice(deps, job, stale, spend, deadline);
       const vectors = new Map(stale.map((c, i) => [c.chunk_hash, embedded[i]]));
       const commit: PageCommitRow[] = rows.slice(from, from + INGEST.commitSlice).map((r) => {
         const embedding = vectors.get(r.chunk_hash);
@@ -311,6 +347,20 @@ export async function runIndexPlan(
     // Reported rather than thrown, so the spend of this claim reaches the job's totals as well as
     // model_call_logs. Slices committed before the failure stay committed.
     const e = err instanceof IngestError ? err : new IngestError('internal', (err as Error).message);
+    // A provider outage (including a call that hit its time limit) is not held against supplied text: the job is
+    // queued again with the queue's backoff, as the batch step releases it, and no failure is counted. Slices
+    // already committed stay.
+    const down = job.input_kind === 'supplied_text' ? outages.get(e) : undefined;
+    if (down) {
+      return {
+        patch: {
+          progressed: committed,
+          embed_tokens: spend.tokens,
+          embed_cost_usd: spend.cost,
+          error: { code: 'embed_outage', message: outageMessage(down), permanent: false },
+        },
+      };
+    }
     return {
       patch: {
         progressed: committed,
