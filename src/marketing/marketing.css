@@ -4932,30 +4932,34 @@ html.mkt-doc #root {
 .mkt-signup-context{max-width:600px;width:100%}
 .mkt-signup-illustration{width:100%;max-width:clamp(280px,calc(100vw - 890px),550px);aspect-ratio:auto}
 @media(max-width:999px){
+  html,
+  body,
   html.mkt-doc,
+  body.mkt-doc,
   html.mkt-doc body,
-  html.mkt-doc #root,
-  html.mkt-doc:has(.mkt-auth),
-  html.mkt-doc:has(.mkt-auth) body,
-  html.mkt-doc:has(.mkt-auth) #root,
-  html.mkt-doc:has(.mkt-login-earth),
-  html.mkt-doc:has(.mkt-login-earth) body,
-  html.mkt-doc:has(.mkt-login-earth) #root {
+  html:has(.mkt-auth),
+  body:has(.mkt-auth) {
     height: auto !important;
     min-height: 100% !important;
     max-height: none !important;
+    overflow-x: hidden !important;
     overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch;
+    -webkit-overflow-scrolling: touch !important;
   }
+  html.mkt-doc #root,
+  #root,
+  .mkt,
   .mkt-auth {
     height: auto !important;
-    min-height: 100dvh !important;
+    min-height: 100% !important;
     max-height: none !important;
-    overflow-y: auto !important;
+    overflow: visible !important;
+    overflow-y: visible !important;
     overflow-x: hidden !important;
     padding-bottom: calc(40px + var(--sab, 0px)) !important;
   }
   .mkt-login,
+  .mkt-login-globe,
   .mkt-login-earth {
     display: flex !important;
     flex-direction: column !important;
@@ -4963,21 +4967,27 @@ html.mkt-doc #root {
     height: auto !important;
     min-height: calc(100dvh - 72px) !important;
     max-height: none !important;
-    padding: 16px 16px calc(48px + var(--sab, 0px)) !important;
+    padding: 16px 16px calc(56px + var(--sab, 0px)) !important;
     gap: 16px !important;
+    overflow: visible !important;
     overflow-y: visible !important;
     box-sizing: border-box !important;
   }
   .mkt-login-earth .mkt-login-card,
   .mkt-login-card {
     order: 1 !important;
+    position: relative !important;
     width: 100% !important;
     max-width: 440px !important;
+    height: auto !important;
     max-height: none !important;
     overflow: visible !important;
+    overflow-y: visible !important;
+    overscroll-behavior: auto !important;
     flex-shrink: 0 !important;
     box-sizing: border-box !important;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08) !important;
+    margin: 0 auto !important;
   }
   .mkt-login-earth-visual {
     order: 2 !important;
@@ -4985,9 +4995,13 @@ html.mkt-doc #root {
     right: auto !important;
     top: auto !important;
     transform: none !important;
-    width: min(200px, 50vw) !important;
-    margin: 12px auto 0 !important;
+    width: min(180px, 45vw) !important;
+    max-width: 180px !important;
+    margin: 16px auto 0 !important;
     flex-shrink: 0 !important;
+    pointer-events: none !important;
+  }
+  .mkt-login-earth-visual * {
     pointer-events: none !important;
   }
   .mkt-field input, .mkt-field select { font-size: 16px !important; min-height: 44px; }
