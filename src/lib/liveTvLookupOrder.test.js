@@ -254,7 +254,9 @@ describe('whether the live video may be embedded', () => {
     fake.videos.LIVEOK00001 = { state: 'live', embeddable: false };
     await fetchYouTubeChannelVideos(c);
     const entry = (await getLiveTvChannels()).channels.find((x) => x.id === c.id);
-    expect(entry.liveVideoId).toBe('LIVEOK00001');
+    // The list check also asks about the live video the lookup found, so it now marks the channel live with it.
+    expect(entry.defaultVideoId).toBe('LIVEOK00001');
+    expect(entry.hinted).toBe(true);
     expect(entry.embeddable).toBe(false);
   });
   it('reaches the list check for a remembered live video that YouTube confirms but will not embed', async () => {

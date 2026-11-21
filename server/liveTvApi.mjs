@@ -844,9 +844,10 @@ export const LIVE_STATUS_BATCH = 50; // videos.list takes at most 50 ids
 
 /**
  * What the batched check found: { liveIds: ids of channels whose curated video is live, hints: { channel id:
- * video id } for channels whose remembered live video (liveHintVideoId) is live now }. A hint is asked about
- * for every channel that has one, also when it has a curated video; the curated video keeps priority in
- * getLiveTvChannels (the hint counts only when the curated video is not live). null when the answer is
+ * video id } for channels whose remembered live video is live now }. Asked about, for every channel that has
+ * them: the curated video, the live video the per-channel lookup last found (lastLiveId, in memory), and the
+ * hard-coded hint (liveHintVideoId), also when the channel has a curated video. Precedence: the curated video
+ * first (getLiveTvChannels), then a live looked-up video, then a live hard-coded hint. null when the answer is
  * unknown (no key, a refusal, a failure). The ids are de-duplicated and asked about in as many videos.list
  * calls of 50 as needed, curated videos first (1 unit each).
  */
@@ -865,7 +866,15 @@ async function fetchLiveChannelIds(channels) {
 
   const withVideo = channels.filter((c) => VIDEO_ID_RE.test(c.defaultVideoId || ''));
   const withHint = channels.filter((c) => VIDEO_ID_RE.test(c.liveHintVideoId || ''));
-  const ids = [...new Set([...withVideo.map((c) => c.defaultVideoId), ...withHint.map((c) => c.liveHintVideoId)])];
+  // The live video the per-channel lookup last found for a channel (kept in memory while it lasts): news channels
+  // start new streams often, so a hard-coded hint goes stale within a day while this one is current.
+  const rememberedOf = (c) => { const id = lastLiveId.get(c.id); return VIDEO_ID_RE.test(id || '') ? id : ''; };
+  const withRemembered = channels.filter((c) => rememberedOf(c));
+  const ids = [...new Set([
+    ...withVideo.map((c) => c.defaultVideoId),
+    ...withRemembered.map(rememberedOf),
+    ...withHint.map((c) => c.liveHintVideoId),
+  ])];
   if (!ids.length) return null;
   const batches = [];
   for (let i = 0; i < ids.length; i += LIVE_STATUS_BATCH) batches.push(ids.slice(i, i + LIVE_STATUS_BATCH));
@@ -886,7 +895,9 @@ async function fetchLiveChannelIds(channels) {
       const liveVideoIds = new Set(answers.flat());
       const liveIds = withVideo.filter((c) => liveVideoIds.has(c.defaultVideoId)).map((c) => c.id);
       const hints = {};
+      // A live remembered video comes before the hard-coded hint (the curated video still wins in getLiveTvChannels).
       for (const c of withHint) if (liveVideoIds.has(c.liveHintVideoId)) hints[c.id] = c.liveHintVideoId;
+      for (const c of withRemembered) if (liveVideoIds.has(rememberedOf(c))) hints[c.id] = rememberedOf(c);
       const found = { liveIds, hints, embeddable };
       setCached(LIVE_STATUS_KEY, found);
       return found;
