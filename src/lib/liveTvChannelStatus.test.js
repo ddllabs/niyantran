@@ -249,7 +249,7 @@ describe('the channel list never gets worse than today', () => {
     const text = JSON.stringify(res);
     expect(text).not.toContain('test-key-not-real');
     expect(text).not.toContain('liveBroadcastContent');
-    expect(Object.keys(res).sort()).toEqual(['activeChannelId', 'categories', 'channels', 'count', 'lists', 'ok', 'selectedCategory']);
+    expect(Object.keys(res).sort()).toEqual(['activeChannelId', 'categories', 'channels', 'count', 'dataOrigin', 'lists', 'ok', 'selectedCategory']);
   });
 });
 
@@ -300,5 +300,57 @@ describe('the live-streams list uses the same data', () => {
     expect(live.liveStreams.map((s) => s.id)).toEqual(['dd-news']);
     expect(live.count).toBe(1);
     expect(calls).toHaveLength(BATCHES);
+  });
+});
+
+describe('a channel with both a curated video and a live hint (tracker F377)', () => {
+  const ndtv = () => YOUTUBE_SOURCES.find((c) => c.id === 'ndtv-24x7');
+
+  it('lists the channel live and plays the hint when the curated video is not live but the hint is', async () => {
+    const c = ndtv();
+    expect(ID11.test(c.defaultVideoId) && ID11.test(c.liveHintVideoId)).toBe(true);
+    stubFetch((url) => videosAnswer(url, [c.liveHintVideoId]));
+    const res = await getLiveTvChannels();
+    const got = byId(res, 'ndtv-24x7');
+    expect(got.status).toBe('live');
+    expect(got.hinted).toBe(true);
+    expect(got.defaultVideoId).toBe(c.liveHintVideoId);
+    expect(got.embedUrl).toContain(c.liveHintVideoId);
+  });
+
+  it('keeps the curated video when it is live, even if the hint is live too', async () => {
+    const c = ndtv();
+    stubFetch((url) => videosAnswer(url, [c.defaultVideoId, c.liveHintVideoId]));
+    const got = byId(await getLiveTvChannels(), 'ndtv-24x7');
+    expect(got.status).toBe('live');
+    expect(got.hinted).toBeUndefined();
+    expect(got.defaultVideoId).toBe(c.defaultVideoId);
+  });
+
+  it('asks about both the curated video and the hint, one unit per 50 ids', async () => {
+    const c = ndtv();
+    stubFetch((url) => videosAnswer(url, []));
+    await getLiveTvChannels();
+    expect(calls).toHaveLength(BATCHES);
+    const ids = calls.flatMap((u) => new URL(u).searchParams.get('id').split(','));
+    expect(ids).toContain(c.defaultVideoId);
+    expect(ids).toContain(c.liveHintVideoId);
+    expect(byId(await getLiveTvChannels(), 'ndtv-24x7').status).toBe('recent');
+  });
+});
+
+describe('the channels answer says where it came from', () => {
+  it("is 'youtube-api' when the batched check answered", async () => {
+    stubFetch((url) => videosAnswer(url, []));
+    expect((await getLiveTvChannels()).dataOrigin).toBe('youtube-api');
+  });
+  it("is 'fallback' when there is no key, and when the check fails", async () => {
+    vi.stubEnv('YOUTUBE_API_KEY', '');
+    stubFetch((url) => videosAnswer(url, []));
+    expect((await getLiveTvChannels()).dataOrigin).toBe('fallback');
+    clearCache();
+    vi.stubEnv('YOUTUBE_API_KEY', 'test-key-not-real');
+    stubFetch(() => new Response('{}', { status: 500 }));
+    expect((await getLiveTvChannels()).dataOrigin).toBe('fallback');
   });
 });

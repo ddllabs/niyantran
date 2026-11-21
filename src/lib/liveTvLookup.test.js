@@ -48,10 +48,10 @@ describe('the batched live check with remembered live videos', () => {
   it('asks about the curated videos and the remembered ones together, 50 to a request, and says how many requests', async () => {
     stub();
     await getLiveTvChannels();
-    // 13 curated + 47 remembered = 60 ids: two videos.list requests, 2 units per 10 minutes
+    // 13 curated + 51 remembered (47 added + 4 curated recordings) = 64 ids: two videos.list requests, 2 units per 10 minutes
     expect(calls).toHaveLength(2);
     const sizes = calls.map((u) => new URL(u).searchParams.get('id').split(',').length);
-    expect(sizes).toEqual([50, 10]);
+    expect(sizes).toEqual([50, 14]);
     expect(calls.every((u) => kind(u) === 'videos')).toBe(true);
     expect(calls.join(' ')).not.toMatch(/search/);
   });

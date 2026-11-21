@@ -285,6 +285,7 @@ const CURATED_SOURCES = [
     status: 'recent',
     viewers: null,
     defaultVideoId: 'I8643WY0BgA',
+    liveHintVideoId: 'vWDZzfNycAI', // the curated video is a recording; this is the channel's live stream (checked 2026-11-20)
     embedUrl: 'https://www.youtube-nocookie.com/embed/I8643WY0BgA?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
     ],
@@ -327,6 +328,7 @@ const CURATED_SOURCES = [
     status: 'recent',
     viewers: null,
     defaultVideoId: 'v-HldpGnVT8',
+    liveHintVideoId: 'jatd-jPXmyM', // the curated video is a recording; this is the channel's live stream (checked 2026-11-20)
     embedUrl: 'https://www.youtube-nocookie.com/embed/v-HldpGnVT8?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
     ],
@@ -349,6 +351,7 @@ const CURATED_SOURCES = [
     status: 'recent',
     viewers: null,
     defaultVideoId: '9NH-hAV3H6M',
+    liveHintVideoId: 'vyCEIBuIyMQ', // the curated video is a recording; this is the channel's live stream (checked 2026-11-20)
     embedUrl: 'https://www.youtube-nocookie.com/embed/9NH-hAV3H6M?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
     ],
@@ -369,6 +372,7 @@ const CURATED_SOURCES = [
     status: 'recent',
     viewers: null,
     defaultVideoId: 'ChQPEkASCb4',
+    liveHintVideoId: '0qL-sn2ecgs', // the curated video is a recording; this is the channel's live stream (checked 2026-11-20)
     embedUrl: 'https://www.youtube-nocookie.com/embed/ChQPEkASCb4?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
     ],
@@ -840,9 +844,11 @@ export const LIVE_STATUS_BATCH = 50; // videos.list takes at most 50 ids
 
 /**
  * What the batched check found: { liveIds: ids of channels whose curated video is live, hints: { channel id:
- * video id } for added channels whose remembered live video (liveHintVideoId) is live now }. null when the
- * answer is unknown (no key, a refusal, a failure). The ids are asked about in as many videos.list calls of
- * 50 as needed, curated videos first (1 unit each).
+ * video id } for channels whose remembered live video (liveHintVideoId) is live now }. A hint is asked about
+ * for every channel that has one, also when it has a curated video; the curated video keeps priority in
+ * getLiveTvChannels (the hint counts only when the curated video is not live). null when the answer is
+ * unknown (no key, a refusal, a failure). The ids are de-duplicated and asked about in as many videos.list
+ * calls of 50 as needed, curated videos first (1 unit each).
  */
 async function fetchLiveChannelIds(channels) {
   const apiKey = process.env.YOUTUBE_API_KEY;
@@ -858,7 +864,7 @@ async function fetchLiveChannelIds(channels) {
   if (liveStatusInFlight) return liveStatusInFlight;
 
   const withVideo = channels.filter((c) => VIDEO_ID_RE.test(c.defaultVideoId || ''));
-  const withHint = channels.filter((c) => !VIDEO_ID_RE.test(c.defaultVideoId || '') && VIDEO_ID_RE.test(c.liveHintVideoId || ''));
+  const withHint = channels.filter((c) => VIDEO_ID_RE.test(c.liveHintVideoId || ''));
   const ids = [...new Set([...withVideo.map((c) => c.defaultVideoId), ...withHint.map((c) => c.liveHintVideoId)])];
   if (!ids.length) return null;
   const batches = [];
@@ -943,7 +949,8 @@ export async function getLiveTvChannels(options = {}) {
   // by getLiveTvVideos from YouTube data). Read it from memory only: no request, no search.list (ADR 0009).
   let channels = enabledChannels.map((c) => {
     if (liveIds.has(c.id)) return { ...c, status: 'live', ...embeddableOf(found?.embeddable, c.defaultVideoId) };
-    // A remembered live video that YouTube confirms is live now is the video to play; one that is not is ignored.
+    // The curated video above wins. Otherwise a remembered live video that YouTube confirms is live now is the
+    // video to play (also for a channel whose curated video is a recording); one that is not live is ignored.
     if (hints[c.id]) return { ...c, status: 'live', defaultVideoId: hints[c.id], embedUrl: embedUrlFor(hints[c.id]), hinted: true, ...embeddableOf(found?.embeddable, hints[c.id]) };
     const liveVideoId = freshLiveVideoId(c.id);
     // `status` keeps its F367 meaning (the curated video is live); the client decides what to do with this.
@@ -968,6 +975,8 @@ export async function getLiveTvChannels(options = {}) {
     categories: LIVE_TV_CATEGORIES,
     lists: LIVE_TV_LISTS,
     selectedCategory: category,
+    // 'youtube-api' only when the batched live check answered; the router keeps nothing else at the edge.
+    dataOrigin: found ? 'youtube-api' : 'fallback',
   };
 }
 

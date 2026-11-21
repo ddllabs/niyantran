@@ -79,3 +79,20 @@ describe('main', () => {
     expect(log.mock.calls.flat().join('\n')).not.toContain('SECRETKEY123');
   });
 });
+
+describe('main, a hint that lives outside the channel file', () => {
+  it('reports it as kept and writes nothing, without throwing', async () => {
+    const original = YOUTUBE_SOURCES.find((x) => x.id === 'ndtv-24x7');
+    expect(original.liveHintVideoId).toBeTruthy();
+    const dir = mkdtempSync(join(tmpdir(), 'hints-'));
+    const file = join(dir, 'channels.mjs');
+    const text = "  { id: 'other', liveHintVideoId: 'OLDVIDEO009' },\n";
+    writeFileSync(file, text);
+    const log = vi.fn();
+    expect(await main({ argv: ['--write', '--only', 'ndtv-24x7'], env: {}, lookup: async () => live(NEW1), log, file })).toBe(0);
+    expect(readFileSync(file, 'utf8')).toBe(text);
+    const out = log.mock.calls.flat().join('\n');
+    expect(out).toContain('kept: hint lives in liveTvApi.mjs');
+    expect(out).toContain('Nothing to write');
+  });
+});
