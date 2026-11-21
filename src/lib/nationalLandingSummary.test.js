@@ -65,6 +65,15 @@ describe('National v6 data coverage', () => {
     expect(s.limitations).toMatch(/not/i);
     expect(s).not.toHaveProperty('rows');
   });
+  it('does not call Budget lines or World Bank data points records (F403)', () => {
+    const budget = projectNationalSummary(feed(NATIONAL_FEATURES[10], [{ title: 'Total expenditure', kind: 'headline' }, { title: 'MGNREGA', scheme: 'MGNREGA', kind: 'scheme' }]));
+    expect(budget.count).toBe(2);
+    expect(budget.unit).toBe('schemes and headline figures');
+    const industry = projectNationalSummary(feed(NATIONAL_FEATURES[11], [{ title: 'Manufacturing value added', value: 12 }], { source: { adapter: 'api', links: [] } }));
+    expect(industry.count).toBe(1);
+    expect(industry.unit).toBe('data points');
+    expect(projectNationalSummary(feed(bill, [{ sector: 'Finance' }])).unit).toBe('records');
+  });
   it('describes the actual illustrative simulator and curated promises destinations', () => {
     const simulator = projectNationalSummary(feed(added[1], allocateSeats(753), { kind: 'simulator', source: { adapter:'internal', links:['https://news.google.com/rss/search?q=delimitation'] } }));
     expect(simulator.count).toBe(allocateSeats(753).length);

@@ -7,7 +7,7 @@ import './carbonLanding.css';
 
 export function CarbonLandingContent({ summaries = {}, onFeature, retry, lang = 'en' }) {
   const modules = CARBON_PRESENTATION.groups.flatMap(group => group.modules);
-  const totals = summarizeModules(modules, summaries);
+  const totals = summarizeModules(modules, summaries, { allUnits: true });
   const sourceCount = mode => {
     const count = modules.filter(module => summaries[module.feature]?.sourceMode === mode && !['error', 'unavailable'].includes(summaries[module.feature]?.availability)).length;
     return totals.pending && !count ? null : count;

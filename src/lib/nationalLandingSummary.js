@@ -40,6 +40,14 @@ const safeLink = value => {
   try { const url = new URL(value); return /^https?:$/.test(url.protocol) ? url.href : null; } catch { return null; }
 };
 
+// F403: only a module whose entries are records says 'records'; the desk total counts those alone.
+// Budget's rows are 8 schemes and 5 headline figures; Industry Updates' are World Bank data points.
+const unitOf = (feature, sourceMode, reporting) => sourceMode === 'simulated' ? 'projection outputs'
+  : feature === NATIONAL_FEATURES[14] ? 'promises'
+  : feature === NATIONAL_FEATURES[10] ? 'schemes and headline figures'
+  : feature === NATIONAL_FEATURES[11] ? 'data points'
+  : reporting ? 'reports' : 'records';
+
 export function projectNationalSummary(raw, retrievedAt = new Date().toISOString()) {
   const feature = raw?.feature;
   if (!NATIONAL_FEATURES.includes(feature)) throw new Error('Unknown National module');
@@ -71,7 +79,7 @@ export function projectNationalSummary(raw, retrievedAt = new Date().toISOString
   if (ranked.length > 7) sectorSummary.push({ label: 'Other sectors', count: ranked.slice(7).reduce((n, [, count]) => n + count, 0) });
   return {
     ok: !unavailable, feature, resourceKey: nationalResourceKey(feature), version: 1,
-    count: unavailable ? null : rows.length, countBasis: 'prepared-feed', unit: sourceMode === 'simulated' ? 'projection outputs' : feature === NATIONAL_FEATURES[14] ? 'promises' : reporting ? 'reports' : 'records',
+    count: unavailable ? null : rows.length, countBasis: 'prepared-feed', unit: unitOf(feature, sourceMode, reporting),
     availability: unavailable ? 'error' : rows.length ? 'ready' : 'empty', sourceMode,
     asOf, retrievedAt, columns: unavailable ? [] : columns,
     graphColumns: graphFields.filter(c => populated(rows, c.key)),

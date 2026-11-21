@@ -10,7 +10,7 @@ import { serveCarbonLanding } from './carbonLandingSummary.mjs';
 import { serveSportsLanding } from './sportsLandingSummary.mjs';
 import { serveEntertainmentLanding } from './entertainmentLandingSummary.mjs';
 import { serveGlobalLanding } from './globalLandingSummary.mjs';
-import { serveStateLanding, stateSummaryUsesStore } from './stateLandingSummary.mjs';
+import { serveStateLanding } from './stateLandingSummary.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { flattenAlliance } from '../src/lib/alliances.js';
@@ -4120,6 +4120,22 @@ export async function serveFeatureFeedStoredFirst(searchParams, { store = serveF
   return old;
 }
 
+/**
+ * F403: the loader a desk landing endpoint counts a module with. The table (/api/feature-feed) reads a
+ * scheduled module from the feed store first; the landing used to try the live source within a time
+ * limit, so it counted something else (a smaller live page) or showed an error when the source was slow.
+ * Now a module the timer keeps in the store (scheduledModuleId) is read stored-first, as the table does,
+ * and any other module keeps its live loader. Decided per request, from the tier and feature the summary
+ * asks for, so the choice is one function shared by this server and api/router.js. Economics, Carbon,
+ * Sports and Entertainment keep serveFeatureFeedWithinLimit as the live loader of an unscheduled module.
+ */
+const LIVE_WITHIN_LIMIT_LANDINGS = new Set(['/api/economics-landing', '/api/carbon-landing', '/api/sports-landing', '/api/entertainment-landing']);
+const landingStoredOrBackup = (searchParams) => (scheduledModuleId(searchParams) ? serveFeatureFeedStoredFirst(searchParams) : serveFeatureFeedWithBackup(searchParams));
+const landingStoredOrWithinLimit = (searchParams) => (scheduledModuleId(searchParams) ? serveFeatureFeedStoredFirst(searchParams) : serveFeatureFeedWithinLimit(searchParams));
+export function landingLoadFeed(pathname) {
+  return LIVE_WITHIN_LIMIT_LANDINGS.has(pathname) ? landingStoredOrWithinLimit : landingStoredOrBackup;
+}
+
 export async function handleFeatureFeedRequest(req, res, next) {
   const host = req.headers.host || 'localhost';
   const url = new URL(req.url, `http://${host}`);
@@ -4139,9 +4155,7 @@ export async function handleFeatureFeedRequest(req, res, next) {
       return;
     }
     try {
-      const loadFeed = (url.pathname === '/api/national-landing' && url.searchParams.get('feature') === 'Policy Pipeline Tracker (Draft-to-Gazette)') || (global && url.searchParams.get('feature') === 'Satellite Infrastructure') || (state && stateSummaryUsesStore(url.searchParams.get('feature')))
-        ? serveFeatureFeedStoredFirst
-        : (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : serveFeatureFeedWithBackup;
+      const loadFeed = landingLoadFeed(url.pathname);
       const body = await (state ? serveStateLanding : entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, loadFeed, { authorization: req.headers?.authorization });
       res.statusCode = body.ok ? 200 : 502;
       res.end(JSON.stringify(body));

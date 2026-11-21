@@ -104,9 +104,15 @@ describe.each([false, true])('scoped State stored summaries (local=%s)', local =
     expect(res.body.served).not.toBe('store');
   });
 
-  it('leaves other State summary routing alone even when that module has stored data', async () => {
+  // F403: every module the timer keeps in the store is counted from it, as its table is; the old rule
+  // limited this to the two MLA summaries, so the others disagreed with their tables.
+  it('reads any other scheduled State module from the store, and leaves an unscheduled one on its live loader', async () => {
     const fetch = network();
     await request(local, 'State Governance Brief');
+    const asked = fetch.mock.calls.filter(([url]) => String(url).includes('/rest/v1/rpc/')).map(([, init]) => JSON.parse(init.body).p_feature);
+    expect(asked).toContain('State Governance Brief');
+    fetch.mockClear();
+    await request(local, 'Constituency Register');
     expect(fetch.mock.calls.some(([url]) => String(url).includes('/rest/v1/rpc/'))).toBe(false);
   });
 

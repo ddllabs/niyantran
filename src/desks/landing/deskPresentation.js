@@ -186,7 +186,13 @@ export const NATIONAL_PRESENTATION = {
   ]
 };
 
-export function summarizeModules(modules, summaries) {
+// F403: a desk total of "records" adds only summaries whose unit is records. A summary with no unit
+// (Global's) is counted; news reports, projection outputs, promises and data points are not. The desks
+// that label their total as mixed units (Economics, Carbon, Sports, Entertainment, Law) ask for all.
+export const countsAsRecords = summary => summary?.unit == null || summary.unit === 'records';
+export const RECORD_DESKS = new Set(['national', 'global']);
+
+export function summarizeModules(modules, summaries, { allUnits = false } = {}) {
   const resources = new Map();
   let pending = 0, knownModules = 0;
   for (const module of modules) {
@@ -194,10 +200,10 @@ export function summarizeModules(modules, summaries) {
     if (!summary || summary.pending) pending++;
     if (Number.isInteger(summary?.count) && summary.count >= 0) {
       knownModules++;
-      resources.set(summary.resourceKey || `${module.tier}:${module.feature}`, summary.count);
+      if (allUnits || countsAsRecords(summary)) resources.set(summary.resourceKey || `${module.tier}:${module.feature}`, summary.count);
     }
   }
-  return { count: resources.size ? [...resources.values()].reduce((a, b) => a + b, 0) : null, loaded: resources.size, pending, knownModules };
+  return { count: resources.size ? [...resources.values()].reduce((a, b) => a + b, 0) : knownModules ? 0 : null, loaded: resources.size, pending, knownModules };
 }
 
 export function moduleAvailability(module, summary) {
