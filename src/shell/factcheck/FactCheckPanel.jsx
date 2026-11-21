@@ -434,7 +434,7 @@ function Final({ final, sessionId }) {
   );
 }
 
-const DISCLAIMER = 'Verdicts are automated, may be wrong, and should be checked against the sources shown.';
+const DISCLAIMER = 'Verdicts are automated, may be wrong, can change if a claim is checked again, and should be checked against the sources shown.';
 
 // F366: the heading and the one sentence about the price, shown while nothing is running (the idle view and
 // above the start screen). The price is the flag's, never a literal.

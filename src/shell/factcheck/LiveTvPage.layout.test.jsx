@@ -149,13 +149,14 @@ describe('now playing row', () => {
 });
 
 describe('lower tabs and My sessions', () => {
-  it('adds My sessions as a fourth tab when available, with one tab stop, and keeps the old three', () => {
+  it('adds My sessions after Channel Videos when available, with one tab stop (empty schedule and archive are not listed)', () => {
     const html = render();
     const tabs = html.match(/<button[^>]*role="tab"[^>]*>[^<]*/g) || [];
-    expect(tabs).toHaveLength(4);
+    expect(tabs).toHaveLength(2);
     expect(tabs.filter((t) => /tabindex="0"/.test(t))).toHaveLength(1);
-    for (const id of ['schedule', 'videos', 'archive', 'sessions']) expect(html).toContain(`id="ltv-tab-${id}"`);
-    expect(tabs[3]).toContain('My sessions');
+    for (const id of ['videos', 'sessions']) expect(html).toContain(`id="ltv-tab-${id}"`);
+    for (const id of ['schedule', 'archive']) expect(html).not.toContain(`id="ltv-tab-${id}"`);
+    expect(tabs[1]).toContain('My sessions');
     expect(html).not.toContain('id="ltv-tab-transcript"');
     expect(tabs.join('')).not.toMatch(/>Transcript/);
   });
@@ -172,7 +173,7 @@ describe('lower tabs and My sessions', () => {
   it('has no My sessions tab when the feature is not available', () => {
     seen.view = viewWith({}, false);
     const html = render();
-    expect(html.match(/<button[^>]*role="tab"[^>]*>/g)).toHaveLength(3);
+    expect(html.match(/<button[^>]*role="tab"[^>]*>/g)).toHaveLength(1);
     expect(html).not.toContain('My sessions');
   });
   it('holds the past sessions section inside the tab panel, hidden until the tab is chosen, and nowhere else', () => {
