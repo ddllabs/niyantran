@@ -26,8 +26,8 @@
 }
 
 /* F366: the panel is the right-hand column beside the video, always there when fact-check is offered. From
-   1081px the column (.ltv-panelcol, liveTv.css) is exactly as tall as the video column and the panel fills it;
-   the page never grows because of the panel. The panel has ONE scroll area, .fc-body: the head (title, status,
+   1081px the column (.ltv-panelcol, liveTv.css) holds the panel at the window's height from its top
+   (--ltv-panel-h) and the panel scrolls away with the page. The panel has ONE scroll area, .fc-body: the head (title, status,
    Stop, bar) stays at the top and the foot (end buttons, the automated-verdicts notice) at the bottom.
    Below 1081px everything stacks: the panel is as tall as its content and the page scrolls. */
 .ltv-panelcol > .fc-panel { max-height: none; }
@@ -210,7 +210,11 @@
   .fc-body { flex: 0 0 auto; overflow: visible; }
 }
 @media (min-width: 1081px) {
-  .ltv-panelcol > .fc-panel { position: absolute; inset: 0; box-sizing: border-box; overflow: hidden; }
+  /* --ltv-panel-h is defined on .ltv-grid.has-panel (liveTv.css); without container query support there is no
+     height, and the panel stays stacked at its natural height. */
+  @supports (container-type: size) {
+    .ltv-panelcol > .fc-panel { position: absolute; inset: 0 0 auto; height: var(--ltv-panel-h); box-sizing: border-box; overflow: hidden; }
+  }
 }
 .fc-transcript-wrap { position: relative; }
 /* B1: Copy on a claim card and Export; the buttons wrap on a phone and keep 40px targets (liveTv.css). */

@@ -75,6 +75,41 @@ describe('the paste-a-link form (F387)', () => {
   });
 });
 
+describe('the page grid wrappers (F402)', () => {
+  const at = (html, cls) => html.indexOf(`class="${cls}`);
+  it('nests main > grid > bar row, then body > split > video column and panel column, then the lower area', () => {
+    const html = render();
+    const order = ['ltv-main', 'ltv-grid has-panel', 'ltv-barwrap', 'ltv-body has-panel', 'ltv-split has-panel', 'ltv-videocol', 'ltv-player-stage', 'ltv-nowplaying', 'ltv-panelcol', 'ltv-lower'].map((c) => at(html, c));
+    expect(order.every((i) => i > -1)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+  it('puts the channel bar in its own row wrapper before the body, so the grid can span it over both columns', () => {
+    const html = render();
+    const bar = html.slice(at(html, 'ltv-barwrap'), at(html, 'ltv-body'));
+    expect(bar).toMatch(/ltv-channelcard|ltv-channelbar/);
+    expect(bar).not.toMatch(/ltv-player-stage|ltv-panelcol|ltv-lower/);
+  });
+  it('gives the wrapper no has-bar class while the channel list is empty, so the older card keeps its own height', () => {
+    const html = render();
+    expect(html).toMatch(/class="ltv-barwrap"/);
+    expect(html).not.toContain('has-bar');
+    expect(html).toContain('class="ltv-channelcard"');
+  });
+  it('keeps the lower area inside the body, after the split, so the grid dissolve puts it under the video', () => {
+    const html = render();
+    const body = at(html, 'ltv-body');
+    expect(at(html, 'ltv-lower')).toBeGreaterThan(at(html, 'ltv-panelcol'));
+    expect(html.slice(body, at(html, 'ltv-lower'))).toMatch(/ltv-split/);
+  });
+  it('marks the grid as having a panel only when the panel is offered (the two-column grid is for that case)', () => {
+    expect(render()).toMatch(/class="ltv-grid has-panel"/);
+    seen.view = viewWith({}, false);
+    const html = render();
+    expect(html).toMatch(/class="ltv-grid"/);
+    expect(html).not.toMatch(/has-panel/);
+  });
+});
+
 describe('the lower area (F387)', () => {
   it('holds the tabs and their content, and nothing else of the page', () => {
     const html = render();

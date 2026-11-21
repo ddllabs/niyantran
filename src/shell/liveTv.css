@@ -14,6 +14,8 @@
 .with-livetv-page > .ltv-page { grid-area: work; }
 .with-livetv-page > .workspace[hidden] { display: none; }
 .ltv-page {
+  /* The channel bar row's height from 1081px (the bar fits it; the page grid below is built on it). */
+  --ltv-bar-h: 60px;
   min-width: 0;
   min-height: 0;
   background: var(--bg);
@@ -148,8 +150,9 @@
 }
 .ltv-chip-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 
-/* Below 1081px the page scrolls as one: channel card, video and panel, then the lower tabs. From 1081px (the
-   block further down) the page body does not scroll: only the lower area does. */
+/* The page body is the one scroll container at every width (YouTube-style): the channel bar, the video and the panel,
+   then the lower tabs, all scrolling together. Below 1081px everything stacks; from 1081px (the block below) the
+   channel bar is a full-width row and the video and panel are two columns under it. */
 .ltv-main {
   flex: 1 1 auto;
   min-height: 0;
@@ -160,139 +163,80 @@
   padding: 16px 18px 28px;
   background: var(--bg);
 }
-/* F395: a wrapper around the channel bar and the body. It has no box of its own except in the laptop-height block
-   further down. */
+/* A wrapper around the channel bar and the body. It has no box of its own except from 1081px with the panel, where
+   it is the page grid (below). */
 .ltv-grid { display: contents; }
 .ltv-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 /* The lower area: the tabs and what they show (schedule, channel videos, archive, transcript, my sessions). */
 .ltv-lower { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .ltv-lower > * { flex: none; }
 
-/* The video column and the panel column. From 1081px the panel is as tall as the video column (its column has no
-   height of its own: the panel fills it, absolutely), so only the panel's own content scrolls. Below that
-   everything stacks (the panel under the video, natural height). */
+/* The video column and the panel column. Below 1081px everything stacks (the panel under the video, natural height). */
 .ltv-split { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .ltv-videocol { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .ltv-panelcol { position: relative; min-width: 0; }
-/* From 1081px:
-   - Too short to pin (under 520px inside the padding): .ltv-main scrolls. With the panel, .ltv-grid is a grid
-     (F396): the panel is the right column from the top and stays in place, the left column scrolls. Without
-     container queries the page is as it was before F387: the panel 440px and sticky beside the video.
-   - Pinned (.ltv-main at least 520px tall inside its padding, a window about 665px tall; F388 lowered this from
-     640px, which left 13-inch laptops on the scrolling page): .ltv-body is the grid (with the panel, F395:
-     .ltv-grid is, and the channel bar is its first row; see the rule below).
-     .ltv-split and .ltv-videocol dissolve (display: contents), so the dark stage, the now-playing row and the lower
-     area are grid items of .ltv-body in the left column and the panel spans all rows of the right column. No
-     script and no measured value: the rows are  stage minmax(200px, auto) | now-playing auto | lower 1fr.
-     Grid grows the stage up to its 16:9 height (column width * 9/16) before the lower area gets the rest, and the
-     lower area keeps a quarter of the height (25cqh) from 640px up and gives way to the player below that, down
-     to 110px. The stage is never under 120px. Only .ltv-lower scrolls (and .fc-body in
-     the panel); .ltv-body clips, so focus cannot scroll it. */
+
+/* From 1081px. The size container is .ltv-main; cqw and cqh are the width and height of its content box (its padding
+   is outside them: 16px above, 28px below, 18px at the sides). With no container query support the page stays stacked.
+   The page body scrolls; nothing inside it is sticky or has a scroll of its own except the panel's body.
+   - The bar row: .ltv-barwrap.has-bar is --ltv-bar-h tall (the bar fits it); the row is auto, so the older card fits too and its overlay opens over the panel.
+   - With the panel, .ltv-grid is a two-column grid and .ltv-body, .ltv-split and .ltv-videocol dissolve, so the bar is
+     row 1 across both columns; the video stage, the now-playing row and the lower tabs are rows 2 to 4 of the left
+     column; the panel column starts at row 2.
+   - The video is 16:9 and as wide as the left column (no stage, no bars). The left column is as wide as the page body
+     allows with the panel at least --ltv-panel-min wide, but no wider than the video that fits the window: the video
+     (16:9), the now-playing row (--ltv-np-h, a reserve; the row itself has its natural height) and the gaps between
+     them fit under the bar in --ltv-video-h. Width the video cannot use goes to the panel. The column has a 360px floor.
+   - The panel is --ltv-panel-h tall: the window height from its top (the page body's visible height under the bar,
+     padding included). The column holds it at height 0 so it adds nothing to the rows, and it scrolls away with the page.
+   - Without the panel the video column is centred, capped by the same height rule, over the page background. */
 @media (min-width: 1081px) {
-  .ltv-split.has-panel { display: grid; grid-template-columns: minmax(0, 1fr) 440px; align-items: stretch; }
-  .ltv-panelcol { min-height: 0; }
+  .ltv-barwrap { position: relative; z-index: 6; min-width: 0; }
+  /* Fixed only around the channel bar, which is exactly --ltv-bar-h. The older card (shown until the channels load, or
+     if they do not) has its own height, so it is not clipped or let spill over the video. */
+  .ltv-barwrap.has-bar { height: var(--ltv-bar-h); }
   @supports (container-type: size) {
     .ltv-main { container: ltvmain / size; }
-    @container ltvmain not (min-height: 520px) {
-      .ltv-panelcol { contain: size; }
-      .ltv-panelcol > .fc-panel {
-        position: sticky;
-        inset: auto;
-        /* 0, not the 16px of .ltv-main's padding: the offset is measured inside that padding (measured: 16px put
-           the panel 16px low until the end of the page). */
-        top: 0;
-        height: 100%;
-        /* F396: as tall as the page body. (It was the height left under the channel bar, which the pinned tabs and
-           the transcript strip had brought down to a 21px scroll area on a window 660px tall.) */
-        max-height: max(320px, 100cqh);
-      }
-      /* F396: a window too short to pin the player (a 1366 x 768 laptop gives about 650px). The page still scrolls,
-         but the panel is the right column from the top of the page body, beside the channel bar, and stays there:
-         it starts at its sticky offset, so it never travels. Only the left column moves. The grid is the one of
-         the pinned layout with rows as tall as their content; the player is capped so that it and the now-playing
-         row fit in the window together. */
-      .ltv-grid.has-panel {
-        flex: none;
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) clamp(440px, 40%, 640px);
-        grid-template-rows: auto auto auto auto;
-        gap: 12px 16px;
-      }
-      .ltv-grid.has-panel > .ltv-barwrap { grid-column: 1; grid-row: 1; min-width: 0; margin-bottom: 4px; }
-      .ltv-grid.has-panel > .ltv-body, .ltv-grid.has-panel .ltv-split.has-panel, .ltv-grid.has-panel .ltv-videocol { display: contents; }
-      .ltv-grid.has-panel .ltv-player-stage { grid-column: 1; grid-row: 2; min-width: 0; }
-      .ltv-grid.has-panel .ltv-player-stage .ltv-video-container { max-height: max(180px, calc(100cqh - 76px)); }
-      .ltv-grid.has-panel .ltv-nowplaying { grid-column: 1; grid-row: 3; min-width: 0; }
-      .ltv-grid.has-panel .ltv-lower { grid-column: 1; grid-row: 4; min-width: 0; margin-top: 4px; }
-      .ltv-grid.has-panel .ltv-panelcol { grid-column: 2; grid-row: 1 / -1; }
+    .ltv-grid {
+      --ltv-gap-x: 16px;
+      --ltv-gap-y: 12px;
+      --ltv-np-h: 72px;
+      /* The height the video and the now-playing row can share: the content box, less the bar, the gap under it and
+         the gap between the video and the row. */
+      --ltv-video-h: calc(100cqh - var(--ltv-bar-h) - 2 * var(--ltv-gap-y) - var(--ltv-np-h));
+      --ltv-video-max-w: max(360px, calc(var(--ltv-video-h) * 16 / 9));
     }
-    @container ltvmain (min-height: 520px) {
-      .ltv-body {
-        container: ltvbody / size;
-        flex: 1 1 0;
-        min-height: 0;
-        overflow: hidden;
-        overflow: clip;
-        display: grid;
-        grid-template-columns: minmax(0, 1fr);
-        /* The stage row grows first, up to the left column's width at 16:9 (cqw is the width of .ltv-main, whose
-           side padding is 18px; a cap a little off only shows as dark bars on the stage); the lower area keeps its
-           floor and takes what is left. No track depends on its content, so nothing can feed back. */
-        grid-template-rows: minmax(120px, calc((100cqw - 36px) * 9 / 16)) auto minmax(clamp(110px, calc(100cqh - 480px), 25cqh), 1fr);
-        gap: 12px 16px;
-      }
-      /* F395: with the panel, .ltv-grid is the grid and .ltv-body dissolves, so the channel bar is the first row of
-         the left column and the panel spans every row of the right column, from the top of the page body. (Until
-         F395 the panel started under the channel bar: 413px tall on a 13-inch laptop, 572px now.) The stage,
-         now-playing and lower rows are the tracks of the rule above.
-         F388: the panel is clamp(440px, 40%, 640px) wide (it was clamp(440px, 32%, 520px)); the player is limited
-         by height at the usual sizes, so the width comes out of the dark bars beside it. The stage cap uses the
-         same width. */
-      .ltv-grid.has-panel {
-        flex: 1 1 0;
-        min-height: 0;
-        overflow: hidden;
-        overflow: clip;
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) clamp(440px, 40%, 640px);
-        grid-template-rows: auto minmax(120px, calc((100cqw - 16px - clamp(440px, 40cqw, 640px)) * 9 / 16)) auto minmax(clamp(110px, calc(100cqh - 480px), 25cqh), 1fr);
-        gap: 12px 16px;
-      }
-      /* .ltv-split.has-panel is named because the grid rule above the query has that specificity. */
-      .ltv-split, .ltv-split.has-panel, .ltv-videocol { display: contents; }
-      .ltv-player-stage {
-        grid-column: 1; grid-row: 1; align-self: stretch;
-        min-height: 0; min-width: 0;
-        display: flex; justify-content: center;
-        background: #05070d; border-radius: 14px; overflow: hidden;
-      }
-      .ltv-player-stage .ltv-video-container {
-        flex: none; width: auto; height: 100%; max-width: 100%;
-        border-radius: 0; box-shadow: none;
-      }
-      .ltv-player-stage .ltv-video-container:fullscreen { width: 100%; height: 100%; max-width: none; aspect-ratio: auto; }
-      /* F396: no min-height: 0 here. With it the row could be given less than its content when the controls wrap
-         to a second line (a pasted video has two more buttons), and the lower area covered them (measured at
-         1440 x 715: the row needed 123px and got 80px). The narrower basis keeps them on one line at 1440 wide. */
-      .ltv-nowplaying { grid-column: 1; grid-row: 2; }
-      .ltv-nowplaying .ltv-program-info { flex-basis: 120px; }
-      /* A long title (a pasted video's) takes two lines at most here, so it cannot take the player's height. */
-      .ltv-nowplaying .ltv-program-info h3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-      .ltv-nowplaying .ltv-player-controls { margin-left: auto; }
-      .ltv-panelcol { grid-column: 2; grid-row: 1 / -1; }
-      .ltv-lower {
-        grid-column: 1; grid-row: 3; margin-top: 4px;
-        min-height: 0;
-        overflow-x: hidden; overflow-y: auto;
-      }
-      .ltv-lower .ltv-deck-tabs { position: sticky; top: 0; z-index: 2; background: var(--bg); }
-      /* F395, with the panel: the rows move down one, under the channel bar's row. */
-      .ltv-grid.has-panel > .ltv-barwrap { grid-column: 1; grid-row: 1; min-width: 0; margin-bottom: 4px; }
-      .ltv-grid.has-panel > .ltv-body { display: contents; }
-      .ltv-grid.has-panel .ltv-player-stage { grid-row: 2; }
-      .ltv-grid.has-panel .ltv-nowplaying { grid-row: 3; }
-      .ltv-grid.has-panel .ltv-lower { grid-row: 4; }
+    .ltv-grid.has-panel {
+      --ltv-panel-min: clamp(440px, 40cqw, 640px);
+      --ltv-panel-h: max(320px, calc(100cqh + 28px - var(--ltv-bar-h) - var(--ltv-gap-y)));
+      flex: none;
+      display: grid;
+      grid-template-columns: minmax(0, min(calc(100cqw - var(--ltv-gap-x) - var(--ltv-panel-min)), var(--ltv-video-max-w))) minmax(0, 1fr);
+      grid-template-rows: auto auto auto auto;
+      gap: var(--ltv-gap-y) var(--ltv-gap-x);
     }
+    .ltv-grid.has-panel .ltv-body,
+    .ltv-grid.has-panel .ltv-split,
+    .ltv-grid.has-panel .ltv-videocol { display: contents; }
+    .ltv-grid.has-panel > .ltv-barwrap { grid-column: 1 / -1; grid-row: 1; }
+    .ltv-grid.has-panel .ltv-player-stage { grid-column: 1; grid-row: 2; }
+    .ltv-grid.has-panel .ltv-nowplaying { grid-column: 1; grid-row: 3; }
+    .ltv-grid.has-panel .ltv-lower { grid-column: 1; grid-row: 4; margin-top: 4px; }
+    .ltv-grid.has-panel .ltv-panelcol { grid-column: 2; grid-row: 2; align-self: start; height: 0; }
+    /* Without the panel: one centred column. The parts are spaced by .ltv-main's 16px gap, and the paste-a-link row
+       (about 34px) sits between the bar and the video, so the height the video may use is smaller (measured: without
+       this the now-playing row ended 12px below a 1590 x 840 window). */
+    .ltv-grid:not(.has-panel) {
+      --ltv-video-h: calc(100cqh - var(--ltv-bar-h) - 34px - 2 * 16px - var(--ltv-gap-y) - var(--ltv-np-h));
+    }
+    .ltv-split:not(.has-panel) .ltv-videocol { width: min(100%, var(--ltv-video-max-w)); margin-inline: auto; }
+    /* No min-height: 0 on the now-playing row: with it the row could be given less than its content when the
+       controls wrap to a second line (a pasted video has two more buttons), and the lower area would cover them.
+       The narrower basis keeps the controls on one line at the usual widths. */
+    .ltv-nowplaying .ltv-program-info { flex-basis: 120px; }
+    /* A long title (a pasted video's) takes two lines at most here, so it cannot take the player's height. */
+    .ltv-nowplaying .ltv-program-info h3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+    .ltv-nowplaying .ltv-player-controls { margin-left: auto; }
   }
 }
 

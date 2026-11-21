@@ -1,6 +1,7 @@
-// B6: the channel bar. Row one: "My list", Hindi and English tabs over a strip of tiles. Row two: All and the eight
-// segments with counts, and a search box. A segment, All, or a search opens a panel that overlays the page under
-// the bar (it never pushes the video down). On phones a "Channels" button opens the same choices as a full sheet.
+// B6: the channel bar. From 1081px one row: "My list", Hindi and English tabs, a strip of tiles with arrows, a
+// segment chooser (opens All channels, with a chip per segment) and a search box; narrower windows may wrap it.
+// A segment, All, or a search opens a panel that overlays the page under the bar (it never pushes the video down).
+// On phones a "Channels" button opens the same choices as a full sheet.
 // Presentational: the page owns the playing channel and the followed list; this owns only what is open.
 import { useEffect, useRef, useState } from 'react';
 import { channelSubline } from './channelView.js';
@@ -71,6 +72,7 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
   const heading = useRef(null);
   const searchInput = useRef(null);
   const sheetHeading = useRef(null);
+  const keepFocus = useRef(false); // a chip switched the panel: focus stays on the chip
   const back = useRef(null); // the control to give focus back to when a panel closes
   const section = useRef(null);
   const sheetBox = useRef(null);
@@ -86,6 +88,8 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
 
   const listName = (id) => lists.find((l) => l.id === id)?.name || '';
   const openPop = (next, e) => { back.current = e?.currentTarget || null; setPop(next); setRegion('All'); };
+  const popKey = pop ? `${pop.kind}:${pop.id || ''}` : '';
+  const switchPop = (next) => { if (`${next.kind}:${next.id || ''}` !== popKey) keepFocus.current = true; setPop(next); setRegion('All'); };
   const closePop = () => {
     setPop(null);
     if (query) setQuery('');
@@ -122,6 +126,7 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
 
   // The desktop panel is not modal, but focus may never sit on a control it covers: a click outside it, or focus
   // moving outside the bar, closes it (focus stays where the user put it).
+  const segOpen = pop?.kind === 'all' || pop?.kind === 'seg';
   const popOpen = Boolean(pop);
   useEffect(() => {
     if (!popOpen || typeof document === 'undefined') return undefined;
@@ -154,8 +159,10 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
   }, [sheetOpen]);
 
   // Focus moves into a panel opened from a button; a search panel leaves it in the box the user is typing in.
-  const popKey = pop ? `${pop.kind}:${pop.id || ''}` : '';
-  useEffect(() => { if (pop && pop.kind !== 'search') heading.current?.focus(); }, [popKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (keepFocus.current) { keepFocus.current = false; return; }
+    if (pop && pop.kind !== 'search') heading.current?.focus();
+  }, [popKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const sheetKey = sheet ? sheet.view : '';
   useEffect(() => { if (sheet) sheetHeading.current?.focus(); }, [sheetKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -184,6 +191,21 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
           <h3 className="ltv-pop-title" tabIndex={-1} ref={heading}>{title} <span className="ltv-pop-count">{count}</span></h3>
           <button type="button" className="ltv-arrow ltv-pop-close" aria-label="Close channel menu" onClick={closePop}><span aria-hidden="true">×</span></button>
         </div>
+        {pop.kind !== 'search' ? (
+          <div className="ltv-pop-segs" role="group" aria-label="Segments">
+            <button type="button" className={`ltv-category-pill${pop.kind === 'all' ? ' active' : ''}`} aria-current={pop.kind === 'all' ? 'true' : undefined} onClick={() => switchPop({ kind: 'all' })}>
+              All <span className="ltv-category-count">{channels.length}</span>
+            </button>
+            {segs.map((s) => {
+              const on = pop.kind === 'seg' && pop.id === s.id;
+              return (
+                <button type="button" key={s.id} className={`ltv-category-pill${on ? ' active' : ''}`} aria-current={on ? 'true' : undefined} onClick={() => switchPop({ kind: 'seg', id: s.id })}>
+                  {s.short || s.name} <span className="ltv-category-count">{inList(s.id).length}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
         {note ? <p className="ltv-pop-note">{note}</p> : null}
         {regionalChips.length ? (
           <div className="ltv-region-chips" role="group" aria-label="Language">
@@ -245,7 +267,6 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
       <div className="ltv-bar-rows" inert={sheetOpen ? true : undefined}>
       <div className="ltv-row">
         <div className="ltv-row-head">
-          <span className="ltv-row-label">TOP CHANNELS</span>
           <div className="ltv-toptabs" role="group" aria-label="Top channel list">
             {topTabs.map((t) => (
               <button type="button" key={t.id} className="ltv-toptab" aria-pressed={top === t.id} onClick={() => setTop(t.id)}>
@@ -275,20 +296,15 @@ export function ChannelBar({ channels, lists, activeChannelId, playbackMode, loa
       </div>
 
       <div className="ltv-row ltv-seg-row">
-        <span className="ltv-row-label">SEGMENTS</span>
-        <div className="ltv-category-bar" role="group" aria-label="Segments">
-          <button type="button" className={`ltv-category-pill${pop?.kind === 'all' ? ' active' : ''}`} aria-expanded={pop?.kind === 'all'} aria-haspopup="dialog" onClick={(e) => (pop?.kind === 'all' ? closePop() : openPop({ kind: 'all' }, e))}>
-            All <span className="ltv-category-count">{channels.length}</span>
-          </button>
-          {segs.map((s) => {
-            const on = pop?.kind === 'seg' && pop.id === s.id;
-            return (
-              <button type="button" key={s.id} className={`ltv-category-pill${on ? ' active' : ''}`} aria-expanded={on} aria-haspopup="dialog" onClick={(e) => (on ? closePop() : openPop({ kind: 'seg', id: s.id }, e))}>
-                {s.short || s.name} <span className="ltv-category-count">{inList(s.id).length}</span>
-              </button>
-            );
-          })}
-        </div>
+        <button
+          type="button"
+          className={`ltv-action-btn ltv-seg-open${segOpen ? ' active' : ''}`}
+          aria-haspopup="dialog"
+          aria-expanded={segOpen}
+          onClick={(e) => (segOpen ? closePop() : openPop({ kind: 'all' }, e))}
+        >
+          Segments <span className="ltv-seg-caret" aria-hidden="true">▾</span>
+        </button>
         <label className="ltv-find">
           <span className="ltv-sr-only">Find a channel</span>
           <input type="search" ref={searchInput} className="ltv-find-input" placeholder="Find a channel" value={query} autoComplete="off" onChange={(e) => onQuery(e.target.value, false)} />
