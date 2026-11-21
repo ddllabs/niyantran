@@ -1,11 +1,12 @@
 // The index step (ingestion-v2 spec, "The `index` step"; plan I3) against in-memory fakes. No network.
 
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
+import { FakeTime } from 'jsr:@std/testing@1.0.21/time';
 import { EMBED_MODEL, EmbeddingError, type EmbedResult } from '../_shared/embed.ts';
 import { PAGE_CHUNK_VERSION } from '../_shared/chunking.ts';
 import { composeDocument, normaliseBox } from '../_shared/pageText.ts';
 import { sha256Hex } from '../_shared/textNormalise.ts';
-import { indexStep, INDEX_STEP, planIndex } from './index-step.ts';
+import { embedTimeoutMs, embedWithTimeout, indexStep, INDEX_STEP, planIndex } from './index-step.ts';
 import {
   type ActivatePatch,
   type BlockRow,
@@ -720,4 +721,77 @@ Deno.test('index: planIndex with a document header keeps every chunk_hash and ch
     assert(c.embed_hash !== plain.chunks[i].embed_hash);
   }
   assertEquals((await planIndex(DOC, EXTRACT_HASH, pages.length, pages)).chunks, plain.chunks);
+});
+
+// ─── Embedding timeout ───────────────────────────────────────────────────────
+
+const realSleep = ((set) => (ms: number) => new Promise<void>((r) => set(r, ms)))(globalThis.setTimeout);
+
+/** An embedding call that never answers; it ends only if the signal the step gives it aborts. */
+function hangingEmbed(onCall: () => void): WorkerDeps['embed'] {
+  return (_inputs, signal) =>
+    new Promise<EmbedResult>((_resolve, reject) => {
+      onCall();
+      signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+    });
+}
+
+Deno.test('index (embed timeout): a call that never returns is aborted inside the work budget; it is logged as an error and nothing is committed or activated', async () => {
+  using time = new FakeTime();
+  const pages = longDocument(25, 10);
+  const f = fakeDb(pages);
+  const clk = clock();
+  const budget = 100_000;
+  let out: Awaited<ReturnType<typeof indexStep>> | undefined;
+  const called = Promise.withResolvers<void>();
+  const run = indexStep(deps(f.db, hangingEmbed(called.resolve), clk.now), job({ pages_total: pages.length }), clk.now() + budget)
+    .then((o) => (out = o));
+  await called.promise; // the step does real async work (hashing) before its first call
+  // 95 s: the whole budget less a 5 s margin for the release writes.
+  await time.tickAsync(95_000);
+  await realSleep(200); // the step's remaining work includes real async hashing
+  assert(out, 'the step did not return before the budget ran out: it waited on the hung call');
+  await run;
+  assertEquals([out.patch.error?.code, out.patch.error?.permanent], ['embed_failed', false]);
+  assertEquals(out.activated, undefined);
+  assertEquals(f.commits.length, 0, 'no slice was committed for the aborted call');
+  assertEquals(f.activations, []);
+  assertEquals(f.logs.map((l) => l.status), ['error'], 'the aborted call is logged as an error, never as a success');
+  assertEquals([f.logs[0].cost_usd, f.logs[0].prompt_tokens], [0, 0]);
+});
+
+Deno.test('index (embed timeout): the limit is 75 s, less the time the budget has left minus 5 s, never under 1 s', () => {
+  assertEquals(embedTimeoutMs(0, 100_000), 75_000, 'ample budget: the per-call cap');
+  assertEquals(embedTimeoutMs(0, 80_000), 75_000);
+  assertEquals(embedTimeoutMs(0, 60_000), 55_000, 'the budget binds: 5 s margin left');
+  assertEquals(embedTimeoutMs(0, 10_001), 5_001, 'the latest a slice may start (10 s reserve) still gets over 5 s');
+  assertEquals(embedTimeoutMs(0, 3_000), 1_000, 'floor');
+  assertEquals(embedTimeoutMs(5_000, 0), 1_000, 'a deadline already past still gets the floor');
+});
+
+Deno.test('index (embed timeout): a call with ample budget is unaffected; its signal is live, and its timer is cleared', async () => {
+  using time = new FakeTime();
+  let seen: AbortSignal | undefined;
+  const embed: WorkerDeps['embed'] = (inputs, signal) => {
+    seen = signal;
+    return Promise.resolve({ vectors: inputs.map(() => [1]), model: EMBED_MODEL, promptTokens: 3, costUsd: 6e-8, requests: 1 });
+  };
+  const r = await embedWithTimeout({ embed, now: () => 0 }, 100_000, ['a', 'b']);
+  assertEquals([r.vectors.length, r.promptTokens], [2, 3]);
+  assert(seen && !seen.aborted, 'not aborted when the call answers');
+  // Past the 75 s limit: a timer left pending would abort the signal of a call that finished long ago.
+  await time.tickAsync(80_000);
+  assert(!seen.aborted, 'the timer was cleared when the call answered');
+});
+
+Deno.test('index (embed timeout): a call that is slow but inside its limit completes', async () => {
+  using time = new FakeTime();
+  const embed: WorkerDeps['embed'] = (inputs, signal) =>
+    new Promise((resolve, reject) => {
+      signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+      setTimeout(() => resolve({ vectors: inputs.map(() => [1]), model: EMBED_MODEL, promptTokens: 1, costUsd: 0, requests: 1 }), 63_000);
+    });
+  const p = embedWithTimeout({ embed, now: () => 0 }, 100_000, ['a']);
+  await time.tickAsync(63_000);
+  assertEquals((await p).vectors, [[1]]);
 });

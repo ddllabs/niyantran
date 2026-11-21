@@ -135,3 +135,61 @@ Deno.test('markNetworkErrors: a fetch that rejects is marked, without its URL; a
   assert(t instanceof TypeError, 'the parsing error is a TypeError');
   assertEquals(embedOutageClass(t), null);
 });
+
+/** A fetch that never answers; it rejects with the signal's reason when the signal aborts, as the platform's does. */
+const hungFetch = ((_url: string, init: RequestInit) =>
+  new Promise<Response>((_resolve, reject) => {
+    init.signal?.addEventListener('abort', () => reject(init.signal!.reason), { once: true });
+  })) as unknown as typeof fetch;
+
+Deno.test('embedTexts: a signal that aborts ends a request that never answers, as an outage of class network', async () => {
+  const e = await assertRejects(() =>
+    embedTexts({ fetch: markNetworkErrors(hungFetch), apiKey: 'k', sleep: noSleep, signal: AbortSignal.timeout(20) }, ['a'])
+  );
+  assertEquals(embedOutageClass(e), 'network');
+});
+
+const rejectsWhenAborted = ((_url: string, init: RequestInit) =>
+  init.signal?.aborted ? Promise.reject(init.signal.reason) : new Promise<Response>(() => {})) as unknown as typeof fetch;
+
+Deno.test('markNetworkErrors: a fetch aborted by its signal rethrows the signal reason, still an outage of class network', async () => {
+  const ctl = new AbortController();
+  ctl.abort(new DOMException('embeddings request exceeded its time limit', 'TimeoutError'));
+  const e = await assertRejects(() => markNetworkErrors(rejectsWhenAborted)('https://x.test/', { signal: ctl.signal }));
+  assert(e instanceof DOMException && e.name === 'TimeoutError', 'the time limit is visible in the error');
+  assertEquals(embedOutageClass(e), 'network');
+  // An abort whose reason is something else, and a rejection with no abort, stay the generic mark.
+  const other = new AbortController();
+  other.abort('stop');
+  assert((await assertRejects(() => markNetworkErrors(rejectsWhenAborted)('https://x.test/', { signal: other.signal }))) instanceof EmbedNetworkError);
+  const failing = (() => Promise.reject(new TypeError('boom'))) as unknown as typeof fetch;
+  assert((await assertRejects(() => markNetworkErrors(failing)('https://x.test/', { signal: new AbortController().signal }))) instanceof EmbedNetworkError);
+});
+
+Deno.test('embedTexts: a signal that aborts while the reply body is being read is an outage, not a malformed reply', async () => {
+  const ctl = new AbortController();
+  const stalled = (() => {
+    const body = new ReadableStream({
+      start(c) {
+        ctl.signal.addEventListener('abort', () => c.error(ctl.signal.reason), { once: true });
+      },
+    });
+    return Promise.resolve(new Response(body, { status: 200 }));
+  }) as unknown as typeof fetch;
+  setTimeout(() => ctl.abort(new DOMException('limit', 'TimeoutError')), 20);
+  const e = await assertRejects(() => embedTexts({ fetch: markNetworkErrors(stalled), apiKey: 'k', sleep: noSleep, signal: ctl.signal }, ['a']));
+  assertEquals(embedOutageClass(e), 'network');
+});
+
+Deno.test('embedTexts: a signal that is not aborted leaves a normal call unchanged, and the signal reaches the request', async () => {
+  const s = scripted([ok(['a'])]);
+  let passed: AbortSignal | null | undefined;
+  const spy = ((url: string, init: RequestInit) => {
+    passed = init.signal;
+    return s.fetchFn(url, init);
+  }) as unknown as typeof fetch;
+  const ctl = new AbortController();
+  const r = await embedTexts({ fetch: spy, apiKey: 'k', sleep: noSleep, signal: ctl.signal }, ['a']);
+  assertEquals(r.vectors.length, 1);
+  assert(passed === ctl.signal);
+});

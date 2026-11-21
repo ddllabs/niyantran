@@ -23,6 +23,14 @@ export type OcrFlags = typeof OCR_FLAGS;
 export const INGEST = Object.freeze({
   /** Work budget per invocation, under the 150 s response timeout and the Free-plan wall clock. */
   budgetMs: 100_000,
+  /**
+   * Longest one embedding call (all its attempts) may take. Normal calls take about 1 s per 96 inputs and the
+   * slowest seen answered in 63 s; past this the call is aborted. A supplied-text job is then released as an
+   * embed_outage (queued again, no failure counted); any other job gets a non-permanent embed_failed.
+   */
+  embedTimeoutMs: 75_000,
+  /** An embedding call is also aborted this long before the work budget ends, leaving time to log and release. */
+  embedSafetyMs: 5_000,
   /** Lease taken by ingest_claim. */
   leaseSeconds: 300,
   /** Pages per OCR call to start; halved per job after a large response. */
@@ -359,7 +367,7 @@ export interface WorkerDeps {
   /** One Mistral OCR call (mistral.ts); throws IngestError classified as rate-limited, transient or permanent. */
   ocr(request: OcrRequest): Promise<OcrCallResult>;
   /** OpenRouter embeddings (_shared/embed.ts); throws EmbeddingError carrying the spend so far. */
-  embed(inputs: string[]): Promise<EmbedResult>;
+  embed(inputs: string[], signal?: AbortSignal): Promise<EmbedResult>;
   /** Public URL for a file hash, honoured only when SUPABASE_URL is localhost (entry point decides). */
   documentUrlOverride(sha256: string): string | null;
   now(): number;

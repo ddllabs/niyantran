@@ -57,13 +57,20 @@ export class EmbedNetworkError extends Error {
 /**
  * A fetch that rethrows every rejection as an EmbedNetworkError, so a caller can tell "the request never
  * completed" from a programming error in the code that reads the reply. The ingest worker passes its fetch
- * through this; embedTexts itself is unchanged for other callers.
+ * through this; embedTexts itself is unchanged for other callers. A fetch aborted by its own signal rethrows the
+ * signal's reason when that is a TimeoutError or AbortError.
  */
 export function markNetworkErrors(inner: typeof fetch): typeof fetch {
   return (async (...args: Parameters<typeof fetch>) => {
     try {
       return await inner(...args);
     } catch {
+      // A call aborted through its signal says so: the reason (a TimeoutError or AbortError, still an outage of
+      // class network) rather than the generic mark, so the logged error shows it was a time limit.
+      const signal = args[1]?.signal;
+      const reason = signal?.reason;
+      if (signal?.aborted && (reason instanceof Error || reason instanceof DOMException) &&
+        (reason.name === 'TimeoutError' || reason.name === 'AbortError')) throw reason;
       throw new EmbedNetworkError();
     }
   }) as typeof fetch;
@@ -73,8 +80,7 @@ export function markNetworkErrors(inner: typeof fetch): typeof fetch {
  * Whether a failed embedding call says the provider is unavailable rather than that the request is wrong:
  * HTTP 408, 429 or 5xx (after the call's own attempts), or a marked fetch rejection. Anything else (another
  * 4xx, a malformed or mismatched reply, a bare TypeError, an unknown error) is not an outage and returns
- * null. AbortError and TimeoutError are recognised too; the worker sets no request timeout today, so they
- * cannot occur there yet.
+ * null. AbortError and TimeoutError (an EmbedDeps.signal that fired) are recognised too.
  */
 export function embedOutageClass(err: unknown): EmbedOutageClass | null {
   if (err instanceof EmbeddingError) {
@@ -94,6 +100,8 @@ export function embedOutageClass(err: unknown): EmbedOutageClass | null {
 export interface EmbedDeps {
   fetch: typeof fetch;
   apiKey: string;
+  /** Aborts the call: any request in flight or waiting to be retried ends with the signal's reason. */
+  signal?: AbortSignal;
   sleep?: (ms: number) => Promise<void>;
   /** Overrides for tests; production uses EMBED_BATCH. */
   batch?: Partial<EmbedBatchBounds>;
@@ -157,12 +165,16 @@ async function requestBatch(
         'x-title': 'Niyantran Terminal',
       },
       body: JSON.stringify({ model: EMBED_MODEL, input: batch, encoding_format: 'float' }),
+      signal: deps.signal,
     });
     lastStatus = res.status;
     const payload = (await res.json().catch(() => ({}))) as ProviderResponse;
+    // An abort while the body was being read is not a reply to interpret.
+    deps.signal?.throwIfAborted();
     if (res.status === 429 || res.status >= 500) {
       lastMessage = String(payload?.error?.message ?? `HTTP ${res.status}`);
       if (attempt < MAX_ATTEMPTS) await sleep(500 * attempt);
+      deps.signal?.throwIfAborted();
       continue;
     }
     if (!res.ok) {

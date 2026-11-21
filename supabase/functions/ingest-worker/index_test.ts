@@ -7,6 +7,7 @@ import {
   supabaseIngestDb,
   supabaseIngestStorage,
 } from './index.ts';
+import { embedOutageClass } from '../_shared/embed.ts';
 import { readAll } from './paging.ts';
 import { CORPUS_BUCKET, INGEST, type IngestCallLog, type PageCommitRow } from './types.ts';
 
@@ -470,4 +471,31 @@ Deno.test('buildWorkerDeps wires the override to SUPABASE_URL and lists the secr
 
   const local = buildWorkerDeps(client, (n) => (n === 'SUPABASE_URL' ? 'http://kong:8000' : env(n)));
   assertEquals(local.documentUrlOverride(SHA), OVERRIDE);
+});
+
+Deno.test('buildWorkerDeps passes the abort signal through to the embeddings request', async () => {
+  const { client } = recordingClient();
+  const env = envWith({ SUPABASE_URL: 'https://abcdefghijklmnop.supabase.co', OPENROUTER_API_KEY: 'openrouter-key-value' });
+  const realFetch = globalThis.fetch;
+  // A provider that never answers: the request ends only when the caller's signal aborts it.
+  globalThis.fetch = ((_input: unknown, init?: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      if (!signal) return; // no signal wired: hangs, and the test's own guard below fails it
+      if (signal.aborted) return reject(signal.reason);
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    })) as typeof fetch;
+  const controller = new AbortController();
+  const guard = setTimeout(() => controller.abort(new DOMException('guard: signal was not wired', 'GuardError')), 200);
+  const stop = setTimeout(() => controller.abort(new DOMException('time limit', 'TimeoutError')), 20);
+  try {
+    const err = await buildWorkerDeps(client, env).embed(['a'], controller.signal).then(() => null, (e: unknown) => e);
+    assert(err !== null, 'the call must reject');
+    assertEquals((err as DOMException).name, 'TimeoutError', 'rejected by the caller signal, not the guard');
+    assertEquals(embedOutageClass(err), 'network');
+  } finally {
+    clearTimeout(stop);
+    clearTimeout(guard);
+    globalThis.fetch = realFetch;
+  }
 });

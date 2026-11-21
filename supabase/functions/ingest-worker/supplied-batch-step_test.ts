@@ -1,6 +1,7 @@
 // The multi-job supplied-text step and the worker's multi-job claim (C3b, design 8.3). The embedding
 // provider is a stub; no network.
 import { assert, assertEquals, assertFalse } from 'jsr:@std/assert@1';
+import { FakeTime } from 'jsr:@std/testing@1.0.21/time';
 import { EMBED_MODEL, EmbedNetworkError, EmbeddingError, type EmbedResult } from '../_shared/embed.ts';
 import { prepareSuppliedText } from '../_shared/suppliedText.ts';
 import { input } from '../_shared/suppliedText_fixture.ts';
@@ -571,4 +572,77 @@ Deno.test('single job: a batch job\'s embedding call is attributed to its batch 
   const solo = await world(1);
   await suppliedTextStep(solo.deps, job(1, { batch_id: null }), FAR);
   assertFalse('batch_id' in solo.rec.logs[0].raw_usage, 'a job without a batch logs as before');
+});
+
+const realSleep = ((set) => (ms: number) => new Promise<void>((r) => set(r, ms)))(globalThis.setTimeout);
+
+Deno.test('batch (embed timeout): a call that never returns is aborted inside the work budget and its jobs are released as an outage, nothing committed', async () => {
+  using time = new FakeTime();
+  const start = Date.now();
+  const w = await world(2, { now: () => Date.now() });
+  const called = Promise.withResolvers<void>();
+  w.deps.embed = (_inputs: string[], signal?: AbortSignal) =>
+    new Promise<EmbedResult>((_resolve, reject) => {
+      called.resolve();
+      signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+    });
+  let out: StepOutcome[] | undefined;
+  const run = runSuppliedBatch(w.deps, [job(1), job(2)], start + 100_000, BOUNDS).then((o) => (out = o));
+  await called.promise; // the step does real async work (hashing) before its first call
+  // Fake time in 1 s steps (real pauses let the step's hashing run) until the step returns; it must do so
+  // within the 100 s budget less the 5 s margin.
+  for (let t = 0; t < 95 && !out; t++) {
+    await time.tickAsync(1_000);
+    await realSleep(5);
+  }
+  assert(out, 'the step did not return before the budget ran out: it waited on the hung call');
+  await run;
+  assert(Date.now() - start <= 95_000, `returned after ${Date.now() - start} ms`);
+  // The shared call and the first job's own call were aborted (an outage: released with embed_outage); the
+  // second job's own call was not started, the deadline reserve having been reached. Nobody is failed.
+  assertOutageRelease(out[0], 'embedding provider unavailable: network');
+  assertEquals([out[1].patch.error, out[1].activated], [undefined, undefined]);
+  assertEquals(w.rec.commits, []);
+  assertEquals(w.rec.activations, []);
+  assert(w.rec.logs.length >= 1 && w.rec.logs.every((l) => l.status === 'error'), 'only error rows: no success is recorded for an aborted call');
+});
+
+Deno.test('single job (embed timeout): a supplied-text call that never returns is released as an outage, not failed; nothing committed, one error row at cost 0', async () => {
+  using time = new FakeTime();
+  const start = Date.now();
+  const w = await world(1, { now: () => Date.now() });
+  const called = Promise.withResolvers<void>();
+  w.deps.embed = (_inputs: string[], signal?: AbortSignal) =>
+    new Promise<EmbedResult>((_resolve, reject) => {
+      called.resolve();
+      signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+    });
+  let out: StepOutcome | undefined;
+  const run = suppliedTextStep(w.deps, job(1), start + 100_000).then((o) => (out = o));
+  await called.promise; // the step does real async work (hashing) before its first call
+  for (let t = 0; t < 95 && !out; t++) {
+    await time.tickAsync(1_000);
+    await realSleep(5);
+  }
+  assert(out, 'the step did not return before the budget ran out: it waited on the hung call');
+  await run;
+  // Non-permanent: ingest_advance queues the job again with backoff and counts no failure.
+  assertOutageRelease(out, 'embedding provider unavailable: network');
+  assertEquals(out.patch.progressed, false);
+  assertEquals(w.rec.commits, []);
+  assertEquals(w.rec.activations, []);
+  assertEquals(w.rec.logs.map((l) => [l.status, l.cost_usd, l.prompt_tokens]), [['error', 0, 0]]);
+});
+
+Deno.test('single job (embed outage): any other supplied-text embedding failure stays permanent', async () => {
+  const w = await world(1, { failEmbedFor: 'appeal number' });
+  const out = await suppliedTextStep(w.deps, job(1), FAR);
+  assertEquals([out.patch.error?.code, out.patch.error?.permanent], ['embed_failed', true]);
+});
+
+Deno.test('single job (embed outage): a 503 is released as embed_outage with its status; the class never carries provider text', async () => {
+  const w = await world(1);
+  w.deps.embed = () => Promise.reject(outage(503));
+  const out = await suppliedTextStep(w.deps, job(1), FAR);
+  assertOutageRelease(out, 'embedding provider unavailable: server_error HTTP 503');
 });
