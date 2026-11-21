@@ -85,8 +85,8 @@ export const FALLBACK_SEGMENTS = [
     lastUpdated: 'Daily Audit',
     summary: 'European and domestic carbon tariff tracking, voluntary offset registries, and emissions targets.',
     keyMetrics: [
+      // A fact of the EU regulation: CBAM covers six goods groups. Jurisdictions are counted by the server.
       { label: 'Sectors', value: '6' },
-      { label: 'Jurisdictions', value: '27' },
     ],
   },
   {
@@ -98,7 +98,7 @@ export const FALLBACK_SEGMENTS = [
     status: 'BENCH MONITOR',
     lastUpdated: 'Daily Digest',
     summary: 'Supreme Court order digests, High Court precedents, and tribunal dispute settlements.',
-    keyMetrics: [{ label: 'Benches Covered', value: '25' }],
+    keyMetrics: [],
   },
 ];
 

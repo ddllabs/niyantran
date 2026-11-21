@@ -8,7 +8,7 @@ import DataGlobe from './DataGlobe.jsx';
 import HeroPersonas from './HeroPersonas.jsx';
 import './homeHero.css';
 import { figure } from '../lib/siteFigures.js';
-import { stageBar } from '../lib/previewFigures.js';
+import { stageBar, shareBars, LOK_SABHA_SEATS } from '../lib/previewFigures.js';
 import PREVIEW from '../data/preview-figures.json';
 import { useSiteFigures } from './useSiteFigures.js';
 
@@ -68,17 +68,13 @@ const DESKS = [
       ['Lok Sabha general election, 2024 - West Bengal', 'West Bengal'],
     ],
     kpis: [
-      ['543', 'blue', 'LS CONSTITUENCIES'],
+      // A constant of the world (Article 81), not a count from our data; see LOK_SABHA_SEATS.
+      [String(LOK_SABHA_SEATS), 'blue', 'LS CONSTITUENCIES'],
+      // States and territories in the MP report card (previewFigures.js).
       [String(PREVIEW.mps.states), 'ok', 'STATES COVERED'],
-      ['8', 'warn', 'BY-ELECTIONS'],
-      ['1951', 'gold', 'SERIES START'],
     ],
-    bars: [
-      ['Declared', 480, '88%', 88, ''],
-      ['Counting', 32, '6%', 6, 'sand'],
-      ['Notified', 22, '4%', 4, ''],
-      ['Disputed', 9, '2%', 2, 'red'],
-    ],
+    // No measured status counts for returns: no bars rather than invented ones.
+    bars: [],
     note: 'Returns are official counts as published. Seat totals here are a desk preview, not a forecast.',
   },
   {
@@ -97,17 +93,11 @@ const DESKS = [
       ['NDTV wire on standing committee report', 'NDTV'],
     ],
     kpis: [
-      ['128', 'blue', 'ITEMS THIS WEEK'],
-      ['14', 'ok', 'OFFICIAL SOURCES'],
-      ['6', 'warn', 'WIRE SEARCHES'],
-      ['3', 'gold', 'HOUSES COVERED'],
+      // The regulatory notices in the snapshot the National desk reads (national_regulatory_watch).
+      [String(PREVIEW.regulatory.notices), 'blue', 'REGULATORY NOTICES'],
+      [String(PREVIEW.regulatory.regulators), 'ok', 'REGULATORS'],
     ],
-    bars: [
-      ['Official', 72, '56%', 56, ''],
-      ['Parliament', 31, '24%', 24, 'sand'],
-      ['Wire', 18, '14%', 14, ''],
-      ['Other', 7, '6%', 6, 'red'],
-    ],
+    bars: [],
     note: 'Wires are labelled as reporting searches. They are not treated as official tables.',
   },
   {
@@ -126,17 +116,9 @@ const DESKS = [
       ['CBIC circular on drawback rates', 'CBIC'],
     ],
     kpis: [
-      ['84', 'blue', 'OPEN NOTICES'],
-      ['12', 'ok', 'MINISTRIES'],
-      ['9', 'warn', 'CLOSING 7D'],
-      ['6', 'gold', 'SECTORS'],
+      // No honest tender figure: the live Tenders module holds no unexpired notice, so no number is shown.
     ],
-    bars: [
-      ['Open', 48, '57%', 57, ''],
-      ['Closing', 19, '23%', 23, 'sand'],
-      ['Awarded', 12, '14%', 14, ''],
-      ['Cancelled', 5, '6%', 6, 'red'],
-    ],
+    bars: [],
     note: 'Tender rows are administrative notices. Award status is as published, not a recommendation.',
   },
   {
@@ -157,15 +139,8 @@ const DESKS = [
     kpis: [
       [String(PREVIEW.macro.series), 'blue', 'LIVE SERIES'],
       [String(PREVIEW.macro.publishers), 'ok', 'PUBLISHERS'],
-      ['4', 'warn', 'UPDATED TODAY'],
-      ['1991', 'gold', 'SERIES START'],
     ],
-    bars: [
-      ['Prices', 12, '29%', 29, ''],
-      ['Activity', 11, '26%', 26, 'sand'],
-      ['Trade', 10, '24%', 24, ''],
-      ['Fiscal', 9, '21%', 21, 'red'],
-    ],
+    bars: [],
     note: 'Market cap is never an input here. Size bands, if shown on a desk, are revenue-based only.',
   },
   {
@@ -186,15 +161,10 @@ const DESKS = [
     kpis: [
       [String(PREVIEW.fronts.fronts), 'blue', 'OPEN FRONTS'],
       [String(PREVIEW.fronts.regions), 'ok', 'THEATRES'],
-      ['4', 'warn', 'UPDATED 48H'],
-      ['9', 'gold', 'SOURCES'],
     ],
-    bars: [
-      ['Active', 11, '61%', 61, ''],
-      ['Watch', 4, '22%', 22, 'sand'],
-      ['Frozen', 2, '11%', 11, ''],
-      ['Closed', 1, '6%', 6, 'red'],
-    ],
+    // Fronts by their recorded stage, as a share of all fronts (previewFigures.js).
+    barsTitle: 'FRONTS BY STAGE',
+    bars: shareBars(PREVIEW.fronts.stages),
     note: 'Fronts are sourced events. Intensity labels are descriptive of the record, not a call to action.',
   },
 ];
@@ -401,6 +371,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
               <div className="mkt-prev-tabs">
                 <span className="mkt-prev-tab-static">Key indicators</span>
               </div>
+              {desk.kpis.length > 0 && (
               <div className="mkt-kpi-grid">
                 {desk.kpis.map(([value, tone, lab]) => { const n = typeof value === 'function' ? value(figures) : value; return (
                   <div className="mkt-kpi" key={lab}>
@@ -409,7 +380,8 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                   </div>
                 ); })}
               </div>
-              <div className="mkt-bar-lab">STATUS BY STAGE</div>
+              )}
+              {desk.bars.length > 0 && <div className="mkt-bar-lab">{desk.barsTitle || 'STATUS BY STAGE'}</div>}
               {desk.bars.map(([lab, count, pct, width, tone]) => (
                 <div className="mkt-bar" key={`${desk.id}-${lab}`}>
                   <span>{lab}</span>
@@ -497,7 +469,6 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 </span>
                 <span className="mkt-walk-video-meta">
                   <strong>PRODUCT WALKTHROUGH</strong>
-                  <em>02:18</em>
                 </span>
                 <span className="mkt-walk-video-tags">LEGISLATION · MARKETS · GLOBAL AFFAIRS · AND MORE</span>
                 <span className="mkt-walk-video-tip">
@@ -533,7 +504,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 </i>
                 <div>
                   <strong>
-                    <b>8</b> Desks
+                    <b>{figures.desks}</b> Desks
                   </strong>
                   <span>Curated intelligence modules</span>
                 </div>
@@ -554,8 +525,8 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                   <Ico d="M4 5h16v14H4zM8 3v4M16 3v4M4 9h16" />
                 </i>
                 <div>
-                  <strong>Coverage from 1952 onward</strong>
-                  <span>Historical &amp; live data across jurisdictions</span>
+                  <strong>Bill register from {PREVIEW.bills.seriesStart} onward</strong>
+                  <span>Historical &amp; live legislation across both Houses</span>
                 </div>
               </article>
             </div>
@@ -705,8 +676,8 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 <Ico d="M4 5h16v14H4zM8 3v4M16 3v4M4 9h16" size={16} />
               </i>
               <div>
-                <div className="n">1952–2026</div>
-                <div className="l">Present Coverage</div>
+                <div className="n">{PREVIEW.bills.seriesStart}–{PREVIEW.bills.seriesEnd}</div>
+                <div className="l">Bill Register Years</div>
               </div>
             </div>
             <div className="mkt-ribbon-item">

@@ -2,6 +2,7 @@
 // terminal has eight. Both are checked against the desk list so they cannot drift again.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { SITE_FIGURES } from '../lib/siteFigures.js';
 import { DESK_CATALOGUE } from '../desks/landing/deskCatalogue.js';
 
 const desks = new Set(DESK_CATALOGUE.map((m) => m.tab)).size;
@@ -10,8 +11,9 @@ const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'e
 describe('desk count on the marketing pages (F30)', () => {
   it('the homepage proof card names the real number of desks', () => {
     const home = readFileSync(new URL('./HomePage.jsx', import.meta.url), 'utf8');
-    const shown = /<b>(\d+)<\/b>\s*Desks/.exec(home)?.[1];
-    expect(Number(shown)).toBe(desks);
+    // The card reads the count from the catalogue-derived figure (siteFigures.test.js pins it to the desk list).
+    expect(home).toMatch(/<b>\{figures\.desks\}<\/b>\s*Desks/);
+    expect(SITE_FIGURES.desks).toBe(desks);
   });
 
   it('the pricing page names the real number of desks', () => {
