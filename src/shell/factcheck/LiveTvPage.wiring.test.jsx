@@ -85,12 +85,12 @@ describe('wiring into the page', () => {
     expect(render()).not.toMatch(/fc-|Fact-check/);
   });
 
-  it('keeps the three lower tabs and adds My sessions (F366)', () => {
+  it('lists Channel Videos and adds My sessions (F366)', () => {
     seen.view = viewWith({ status: 'running' });
     const html = render();
     // The deck tabs only: the panel's own Claims and Transcript tabs (F366) are counted in FactCheckPanel.tabs.test.jsx.
     const tabs = html.match(/<button[^>]*role="tab"[^>]*class="ltv-tab-btn[^"]*"[^>]*>|<button[^>]*class="ltv-tab-btn[^"]*"[^>]*role="tab"[^>]*>/g) || [];
-    expect(tabs).toHaveLength(4);
+    expect(tabs).toHaveLength(2);
     expect(tabs.filter((t) => /tabindex="0"/.test(t))).toHaveLength(1);
   });
 });

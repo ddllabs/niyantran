@@ -138,8 +138,10 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
     expect(openHtml).not.toContain('role="dialog"');
     expect(openHtml).not.toContain('ltv-modal');
     expect(openHtml).toContain('ltv-video-container');
-    expect(openHtml).toContain('Broadcast Schedule');
-    expect(openHtml).toContain('Archived Segments');
+    // Schedule and archive have no source, so their tabs are not listed while they are empty.
+    expect(openHtml).toContain('Channel Videos');
+    expect(openHtml).not.toContain('Broadcast Schedule');
+    expect(openHtml).not.toContain('Archived Segments');
     expect(openHtml).not.toContain('Transcript'); // the empty lower Transcript tab was removed
     expect(openHtml).not.toContain('Authoritative');
   });

@@ -594,9 +594,11 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     ? latestVerdictClaim(factCheck.view.session.claims, { rechecks: factCheck.view.rechecks || {}, price: factCheck.view.flag.recheckCredits ?? null })
     : null;
   const tabs = [
-    ['schedule', `Broadcast Schedule (${schedule.length})`],
+    // Schedule and archive have no real source today (both lists come back empty), so their tabs are listed only
+    // when there is something in them. The fetches and playback path stay for when a source is connected.
+    ...(schedule.length > 0 ? [['schedule', `Broadcast Schedule (${schedule.length})`]] : []),
     ['videos', `Channel Videos (${videos.length})`],
-    ['archive', `Archived Segments (${archive.length})`],
+    ...(archive.length > 0 ? [['archive', `Archived Segments (${archive.length})`]] : []),
     ...(factCheckOffered ? [['sessions', 'My sessions']] : []),
   ];
   // My sessions can stop being offered while it is the chosen tab: show Channel Videos then, so one tab stays

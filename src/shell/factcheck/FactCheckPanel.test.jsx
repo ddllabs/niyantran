@@ -269,6 +269,7 @@ describe('running', () => {
   });
   it('has the permanent automated-verdict line', () => {
     expect(text(render(running()))).toContain('Verdicts are automated, may be wrong');
+    expect(text(render(running()))).toContain('Verdicts are automated, may be wrong, can change if a claim is checked again, and should be checked against the sources shown.');
   });
   it('announces new verdicts politely, in a live region separate from the transcript', () => {
     const html = render(running({}), {});
