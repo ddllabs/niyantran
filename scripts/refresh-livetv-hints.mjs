@@ -72,9 +72,10 @@ export function applyHintUpdates(source, results) {
 export function summarize(results) {
   const by = (s) => results.filter((r) => r.status === s);
   const out = [`${results.length} hinted channels checked`];
-  for (const s of ['changed', 'same', 'not-live', 'not-embeddable', 'unknown']) out.push(`  ${s}: ${by(s).length}`);
+  for (const s of ['changed', 'same', 'not-live', 'not-embeddable', 'kept-elsewhere', 'unknown']) out.push(`  ${s}: ${by(s).length}`);
   for (const r of by('changed')) out.push(`  ~ ${r.id}: ${r.old} -> ${r.next}`);
   for (const r of by('not-embeddable')) out.push(`  ! ${r.id}: live as ${r.next} but not embeddable; hint kept`);
+  for (const r of by('kept-elsewhere')) out.push(`  = ${r.id}: live as ${r.next}; kept: hint lives in liveTvApi.mjs`);
   for (const r of by('unknown')) out.push(`  ? ${r.id}: ${r.detail}; hint kept`);
   return out.join('\n');
 }
@@ -92,6 +93,11 @@ export async function main({ argv = process.argv.slice(2), env = process.env, lo
   const channels = api.YOUTUBE_SOURCES;
   const chosen = only ? channels.filter((c) => only.includes(c.id)) : channels;
   const results = await planHintRefresh(chosen, find);
+  // Hints of the original channels live in server/liveTvApi.mjs, not in the channel file: leave those alone.
+  const fileText = readFileSync(file, 'utf8');
+  for (const r of results) {
+    if (r.status === 'changed' && !fileText.split('\n').some((l) => l.trimStart().startsWith(`{ id: '${r.id}',`))) r.status = 'kept-elsewhere';
+  }
   log(summarize(results));
   const changed = results.filter((r) => r.status === 'changed');
   if (!write) {
