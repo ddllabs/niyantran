@@ -49,6 +49,9 @@ const running = { flag: { available: true }, session: { status: 'running', claim
 
 beforeEach(() => {
   harness.reset();
+  // Test files share one process: a `window` stub left by another file (one without `location`) made every test
+  // here fail in a shuffled run (seed 41), as LiveTvPage reads window.location.origin when a window exists.
+  delete globalThis.window;
   h.videoCalls = [];
   h.fcView = null;
   h.fcArgs = null;
