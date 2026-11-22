@@ -20,7 +20,7 @@ const EXPECTED_ROWS = {
   'Policy Intelligence Graph': 9817,
   'Parliamentary Question Database': 8000,
   'Candidate Affidavit Database (Structured + API)': 483,
-  'MP Profiles & Performance (MPLAD, attendance, debates)': 780,
+  'MP Profiles & Performance (MPLAD, attendance, debates)': 782,
   'Regulatory Body Watch (RBI/SEBI/TRAI/CCI)': 121,
 };
 
