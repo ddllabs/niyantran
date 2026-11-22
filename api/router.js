@@ -3,7 +3,7 @@
  * vercel.json rewrites /api/* → /api/router?__route=<path> so URLs stay the same.
  */
 import { getCachedDeskBrief, runDeskBrief } from '../server/deskBrief.mjs';
-import { serveFeatureFeedStoredFirst, serveFeatureFeedWithBackup, serveFeatureFeedWithinLimit } from '../server/featureFeed.mjs';
+import { landingLoadFeed, serveFeatureFeedStoredFirst, serveFeatureFeedWithBackup } from '../server/featureFeed.mjs';
 import { LAW_LISTING_FEATURE } from '../src/lib/pagedFeatures.js';
 import { serveFeaturePage, wantsPage } from '../server/featurePage.mjs';
 import { serveNationalLanding } from '../server/nationalLandingSummary.mjs';
@@ -13,7 +13,7 @@ import { serveCarbonLanding } from '../server/carbonLandingSummary.mjs';
 import { serveSportsLanding } from '../server/sportsLandingSummary.mjs';
 import { serveEntertainmentLanding } from '../server/entertainmentLandingSummary.mjs';
 import { serveGlobalLanding } from '../server/globalLandingSummary.mjs';
-import { serveStateLanding, stateSummaryUsesStore } from '../server/stateLandingSummary.mjs';
+import { serveStateLanding } from '../server/stateLandingSummary.mjs';
 import {
   serveHomeLatest,
   serveHomeMarkets,
@@ -244,9 +244,7 @@ export default async function handler(req, res) {
       if (method !== 'GET') { res.status(405).json({ ok: false, error: 'GET only' }); return; }
       try {
         const params = q(req);
-        const loadFeed = (path === '/api/national-landing' && params.get('feature') === 'Policy Pipeline Tracker (Draft-to-Gazette)') || (global && params.get('feature') === 'Satellite Infrastructure') || (state && stateSummaryUsesStore(params.get('feature')))
-          ? serveFeatureFeedStoredFirst
-          : (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : serveFeatureFeedWithBackup;
+        const loadFeed = landingLoadFeed(path);
         const body = await (state ? serveStateLanding : entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(params, loadFeed, { authorization: req.headers?.authorization });
         res.status(body.ok ? 200 : 502).json(body);
       } catch (err) {

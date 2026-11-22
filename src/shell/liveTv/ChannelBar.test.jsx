@@ -41,6 +41,14 @@ const btn = (out, label) => find(out, (e) => e.type === 'button' && text(e).repl
 const dialog = (out) => find(out, (e) => e.props?.role === 'dialog' && e.props['aria-label'] !== 'Channels');
 const tileNames = (node) => all(node, (e) => e.type === 'button' && /ltv-channel-chip/.test(e.props.className || '')).map((e) => text(find(e, (x) => /ltv-chip-name/.test(x.props?.className || ''))));
 const mk = (focus) => ({ focus, currentTarget: null });
+// The Segments button opens the overlay on All; inside it a chip per segment switches it.
+const segButton = (out) => find(out, (e) => e.type === 'button' && /ltv-seg-open/.test(e.props.className || ''));
+const chips = (out) => find(dialog(out), (e) => e.props?.['aria-label'] === 'Segments');
+const chip = (out, label) => all(chips(out), (e) => e.type === 'button').find((b) => text(b).replace(/\s+/g, ' ').trim().startsWith(label));
+const choose = (out, value, currentTarget) => {
+  segButton(out).props.onClick({ currentTarget });
+  if (value !== 'all') chip(mount(), { politics: 'Politics', regional: 'Regional' }[value]).props.onClick({ currentTarget: mk(() => {}) });
+};
 
 beforeEach(() => { harness.reset(); harness.refFactory = null; });
 
@@ -82,27 +90,86 @@ describe('row one: the tabs and the strip', () => {
   });
 });
 
-describe('row two: the segments and the panel', () => {
-  it('has All and each segment with a count, once per channel in All', () => {
+describe('the segment chooser and the panel', () => {
+  it('has one Segments button in the bar, with a caret, and no segment pills or select', () => {
     const out = mount();
-    const row = find(out, (e) => e.props?.['aria-label'] === 'Segments');
-    expect(all(row, (e) => e.type === 'button').map((b) => text(b).replace(/\s+/g, ' ').trim())).toEqual(['All 8', 'Politics & Debates 2', 'Plain 0', 'Regional 3']);
+    expect(text(segButton(out)).replace(/\s+/g, ' ').trim()).toBe('Segments ▾');
+    expect(segButton(out).props['aria-haspopup']).toBe('dialog');
+    expect(segButton(out).props['aria-expanded']).toBe(false);
+    expect(find(out, (e) => e.type === 'select')).toBeUndefined();
+    expect(all(out, (e) => e.type === 'button' && /ltv-category-pill/.test(e.props.className || ''))).toHaveLength(0);
+  });
+  it('has no visual TOP CHANNELS or SEGMENTS labels in the bar, and the groups keep accessible names', () => {
+    const out = mount();
+    expect(text(out)).not.toMatch(/TOP CHANNELS|SEGMENTS/);
+    expect(find(out, (e) => e.props?.['aria-label'] === 'Top channel list')).toBeDefined();
+    expect(find(out, (e) => e.props?.['aria-label'] === 'Available Channels')).toBeDefined();
+  });
+  it('opens All channels from the button, sets aria-expanded, and closes when pressed again', () => {
+    const focus = vi.fn();
+    mount();
+    segButton(mount()).props.onClick({ currentTarget: { focus } });
+    expect(dialog(mount()).props['aria-label']).toBe('All channels');
+    expect(segButton(mount()).props['aria-expanded']).toBe(true);
+    segButton(mount()).props.onClick({ currentTarget: { focus } });
+    expect(dialog(mount())).toBeUndefined();
+    expect(segButton(mount()).props['aria-expanded']).toBe(false);
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+  it('has a chip row in the overlay: All and each segment with counts, the current one marked', () => {
+    mount();
+    segButton(mount()).props.onClick({ currentTarget: mk(() => {}) });
+    let out = mount();
+    const labels = () => all(chips(out), (e) => e.type === 'button').map((b) => text(b).replace(/\s+/g, ' ').trim());
+    expect(labels()).toEqual(['All 8', 'Politics & Debates 2', 'Plain 0', 'Regional 3']);
+    expect(all(chips(out), (e) => e.type === 'button').map((b) => b.props['aria-current'])).toEqual(['true', undefined, undefined, undefined]);
+    expect(all(chips(out), (e) => e.type === 'button').some((b) => 'aria-pressed' in b.props)).toBe(false);
+    chip(out, 'Regional').props.onClick();
+    out = mount();
+    expect(dialog(out).props['aria-label']).toBe('Regional');
+    expect(all(chips(out), (e) => e.type === 'button').map((b) => b.props['aria-current'])).toEqual([undefined, undefined, undefined, 'true']);
+    expect(segButton(out).props['aria-expanded']).toBe(true);
+    chip(out, 'All').props.onClick();
+    expect(dialog(mount()).props['aria-label']).toBe('All channels');
+  });
+  it('keeps focus on the chip when switching, and Escape then returns it to the Segments button', () => {
+    const focusBtn = vi.fn(); const focusHeading = vi.fn();
+    harness.refFactory = () => ({ focus: focusHeading }); // every ref stand-in shares the spy, so count from a baseline
+    mount();
+    const base = focusHeading.mock.calls.length;
+    segButton(mount()).props.onClick({ currentTarget: { focus: focusBtn } });
+    mount();
+    expect(focusHeading).toHaveBeenCalledTimes(base + 1); // opening from the button focuses the heading
+    chip(mount(), 'Politics').props.onClick();
+    mount();
+    expect(focusHeading).toHaveBeenCalledTimes(base + 1); // switching by chip does not
+    chip(mount(), 'Politics').props.onClick(); // the same chip again leaves nothing pending
+    chip(mount(), 'Regional').props.onClick();
+    mount();
+    expect(focusHeading).toHaveBeenCalledTimes(base + 1);
+    find(mount(), (e) => e.type === 'section').props.onKeyDown({ key: 'Escape', preventDefault() {} });
+    expect(dialog(mount())).toBeUndefined();
+    expect(focusBtn).toHaveBeenCalledTimes(1);
+  });
+  it('has no chip row in the search overlay', () => {
+    mount();
+    find(mount(), (e) => e.type === 'input' && e.props.placeholder === 'Find a channel').props.onChange({ target: { value: 'abp' } });
+    expect(dialog(mount()).props['aria-label']).toBe('Search results');
+    expect(find(dialog(mount()), (e) => e.props?.['aria-label'] === 'Segments')).toBeUndefined();
   });
 
   it('opens a panel for a segment, under the bar, with the channels as tiles', () => {
     mount();
-    btn(mount(), 'Politics').props.onClick({ currentTarget: mk(() => {}) });
+    choose(mount(), 'politics', mk(() => {}));
     const out = mount();
     const pop = dialog(out);
     expect(pop.props['aria-label']).toBe('Politics & Debates');
     expect(tileNames(pop).sort()).toEqual(['DD News', 'The Lallantop']);
-    expect(btn(out, 'Politics').props['aria-expanded']).toBe(true);
-    expect(btn(out, 'Politics').props['aria-haspopup']).toBe('dialog');
   });
 
   it('opens All grouped by first list, each channel once', () => {
     mount();
-    btn(mount(), 'All').props.onClick({ currentTarget: mk(() => {}) });
+    choose(mount(), 'all', mk(() => {}));
     const pop = dialog(mount());
     expect(pop.props['aria-label']).toBe('All channels');
     expect(tileNames(pop)).toHaveLength(8);
@@ -111,7 +178,7 @@ describe('row two: the segments and the panel', () => {
   it('closes with its close button, giving focus back to the control that opened it', () => {
     const focus = vi.fn();
     mount();
-    btn(mount(), 'Politics').props.onClick({ currentTarget: { focus } });
+    choose(mount(), 'politics', { focus });
     const close = find(mount(), (e) => e.props?.['aria-label'] === 'Close channel menu');
     close.props.onClick();
     expect(dialog(mount())).toBeUndefined();
@@ -121,7 +188,7 @@ describe('row two: the segments and the panel', () => {
   it('closes with Escape, from inside the panel or the search box, and returns focus', () => {
     const focus = vi.fn();
     mount();
-    btn(mount(), 'Regional').props.onClick({ currentTarget: { focus } });
+    choose(mount(), 'regional', { focus });
     const section = find(mount(), (e) => e.type === 'section');
     const prevent = vi.fn();
     section.props.onKeyDown({ key: 'Escape', preventDefault: prevent });
@@ -135,7 +202,7 @@ describe('row two: the segments and the panel', () => {
 
   it('ignores other keys', () => {
     mount();
-    btn(mount(), 'Regional').props.onClick({ currentTarget: mk(() => {}) });
+    choose(mount(), 'regional', mk(() => {}));
     find(mount(), (e) => e.type === 'section').props.onKeyDown({ key: 'a', preventDefault() {} });
     expect(dialog(mount())).toBeDefined();
   });
@@ -143,7 +210,7 @@ describe('row two: the segments and the panel', () => {
   it('moves focus into the panel when it opens from a button', () => {
     const focusHeading = vi.fn();
     mount();
-    btn(mount(), 'Regional').props.onClick({ currentTarget: mk(() => {}) });
+    choose(mount(), 'regional', mk(() => {}));
     const heading = find(mount(), (e) => /ltv-pop-title/.test(e.props?.className || ''));
     heading.props.ref.current = { focus: focusHeading };
     harness.reset();
@@ -157,25 +224,23 @@ describe('row two: the segments and the panel', () => {
   it('picking a tile selects the channel and closes the panel', () => {
     const onSelectChannel = vi.fn();
     mount({ onSelectChannel });
-    btn(mount({ onSelectChannel }), 'Politics').props.onClick({ currentTarget: mk(() => {}) });
+    choose(mount({ onSelectChannel }), 'politics', mk(() => {}));
     const tile = all(dialog(mount({ onSelectChannel })), (e) => e.type === 'button' && /ltv-channel-chip/.test(e.props.className || ''))[0];
     tile.props.onClick();
     expect(onSelectChannel).toHaveBeenCalledTimes(1);
     expect(dialog(mount({ onSelectChannel }))).toBeUndefined();
   });
 
-  it('presses the same segment again to close it, and another to switch', () => {
+  it('switches to another segment from the chooser while a panel is open', () => {
     mount();
-    btn(mount(), 'Politics').props.onClick({ currentTarget: mk(() => {}) });
-    btn(mount(), 'Regional').props.onClick({ currentTarget: mk(() => {}) });
+    choose(mount(), 'politics', mk(() => {}));
+    chip(mount(), 'Regional').props.onClick();
     expect(dialog(mount()).props['aria-label']).toBe('Regional');
-    btn(mount(), 'Regional').props.onClick({ currentTarget: mk(() => {}) });
-    expect(dialog(mount())).toBeUndefined();
   });
 
   it('does not put a backdrop or a focus trap on the page', () => {
     mount();
-    btn(mount(), 'Politics').props.onClick({ currentTarget: mk(() => {}) });
+    choose(mount(), 'politics', mk(() => {}));
     const out = mount();
     expect(find(out, (e) => /backdrop|overlay-bg/.test(e.props?.className || ''))).toBeUndefined();
     expect(dialog(out).props['aria-modal']).toBeUndefined();
@@ -183,7 +248,7 @@ describe('row two: the segments and the panel', () => {
 });
 
 describe('Regional', () => {
-  const open = () => { mount(); btn(mount(), 'Regional').props.onClick({ currentTarget: mk(() => {}) }); return mount(); };
+  const open = () => { mount(); choose(mount(), 'regional', mk(() => {})); return mount(); };
   it('has language chips with counts, All first', () => {
     const chips = find(open(), (e) => e.props?.['aria-label'] === 'Language');
     expect(all(chips, (e) => e.type === 'button').map((b) => text(b).replace(/\s+/g, ' ').trim())).toEqual(['All 3', 'Malayalam 1', 'Marathi 2']);
@@ -198,7 +263,7 @@ describe('Regional', () => {
   });
   it('has no language chips in other segments', () => {
     mount();
-    btn(mount(), 'Politics').props.onClick({ currentTarget: mk(() => {}) });
+    choose(mount(), 'politics', mk(() => {}));
     expect(find(mount(), (e) => e.props?.['aria-label'] === 'Language')).toBeUndefined();
   });
 });
@@ -255,6 +320,7 @@ describe('the phone sheet', () => {
     expect(find(s, (e) => e.type === 'input' && e.props.placeholder === 'Find a channel')).toBeDefined();
     expect(text(s)).toContain('TOP CHANNELS');
     expect(text(s)).toContain('SEGMENTS');
+    expect(find(s, (e) => /ltv-seg-open/.test(e.props?.className || ''))).toBeUndefined(); // the sheet keeps its own pills
     expect(all(s, (e) => e.type === 'button' && /ltv-category-pill/.test(e.props.className || '')).map((b) => text(b).replace(/\s+/g, ' ').trim())).toEqual(['All 8', 'Politics & Debates 2', 'Plain 0', 'Regional 3']);
   });
   it('shows a segment\'s channels and goes back', () => {
@@ -316,12 +382,12 @@ describe('which tab the bar opens on', () => {
 describe('a note under a list\'s heading', () => {
   it('shows the list\'s own note in its panel and in no other', () => {
     mount();
-    btn(mount(), 'Politics').props.onClick({ currentTarget: mk(() => {}) });
+    choose(mount(), 'politics', mk(() => {}));
     const note = find(dialog(mount()), (e) => /ltv-pop-note/.test(e.props?.className || ''));
     expect(text(note)).toBe('Only channels whose identity was verified are listed. More will be added.');
-    btn(mount(), 'Regional').props.onClick({ currentTarget: mk(() => {}) });
+    chip(mount(), 'Regional').props.onClick();
     expect(find(dialog(mount()), (e) => /ltv-pop-note/.test(e.props?.className || ''))).toBeUndefined();
-    btn(mount(), 'All').props.onClick({ currentTarget: mk(() => {}) });
+    chip(mount(), 'All').props.onClick();
     expect(find(dialog(mount()), (e) => /ltv-pop-note/.test(e.props?.className || ''))).toBeUndefined();
   });
 });
@@ -348,7 +414,7 @@ describe('the desktop panel never leaves focus on a control it covers', () => {
   const fire = (type, target) => { for (const fn of [...(docListeners[type] || [])]) fn({ target }); };
   it('closes on a click outside the bar, without taking focus', () => {
     mount();
-    btn(mount(), 'Politics').props.onClick({ currentTarget: { focus: vi.fn() } });
+    choose(mount(), 'politics', { focus: vi.fn() });
     mount();
     fire('pointerdown', { inside: true });
     expect(dialog(mount())).toBeDefined();
@@ -357,7 +423,7 @@ describe('the desktop panel never leaves focus on a control it covers', () => {
   });
   it('closes when focus moves outside the bar', () => {
     mount();
-    btn(mount(), 'Politics').props.onClick({ currentTarget: { focus() {} } });
+    choose(mount(), 'politics', { focus() {} });
     mount();
     fire('focusin', { inside: true });
     expect(dialog(mount())).toBeDefined();
@@ -367,7 +433,7 @@ describe('the desktop panel never leaves focus on a control it covers', () => {
   it('listens only while a panel is open', () => {
     mount();
     expect([...(docListeners.pointerdown || [])]).toHaveLength(0);
-    btn(mount(), 'Politics').props.onClick({ currentTarget: { focus() {} } });
+    choose(mount(), 'politics', { focus() {} });
     mount();
     expect([...docListeners.pointerdown]).toHaveLength(1);
     find(mount(), (e) => e.props?.['aria-label'] === 'Close channel menu').props.onClick();
@@ -377,7 +443,7 @@ describe('the desktop panel never leaves focus on a control it covers', () => {
   });
   it('is gone with the bar', () => {
     mount();
-    btn(mount(), 'Politics').props.onClick({ currentTarget: { focus() {} } });
+    choose(mount(), 'politics', { focus() {} });
     mount();
     harness.unmount();
     expect([...(docListeners.pointerdown || [])]).toHaveLength(0);

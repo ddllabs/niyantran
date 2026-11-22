@@ -1,11 +1,12 @@
-// The last measured figures (F142 fallback). Bills and documents come from read-only queries on NTER
-// on 2026-10-12 (docs/specs/2026-10-12-legal-policies.md); ministries and fronts from the carousel's
-// snapshot computation the same day. /api/site-figures serves these only when the database cannot be
-// read, so the marketing pages never show a blank or a zero. No imports: the server reads it too.
+// What /api/site-figures serves when the database cannot be read (F142 fallback). It used to hold the
+// counts measured on 2026-10-12, which went stale (documents read 3,431 while the database held over
+// 30,000). A figure that cannot be measured now is shown as "—", never as an old number: every field is
+// null, and the pages show their own build-time snapshot figures (src/data/preview-figures.json) only
+// where the snapshot counts the same thing (bills, fronts). No imports: the server reads it too.
 export const MEASURED_FIGURES = {
-  bills: 9817,
-  documents: 3431,
-  ministries: 56,
-  fronts: 88,
-  as_of: '2026-10-12T00:00:00Z',
+  bills: null,
+  documents: null,
+  ministries: null,
+  fronts: null,
+  as_of: null,
 };

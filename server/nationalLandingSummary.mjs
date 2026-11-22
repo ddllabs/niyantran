@@ -1,3 +1,4 @@
+import { withStoreCap } from './landingStoreCap.mjs';
 import { NATIONAL_FEATURES, nationalResourceKey, projectNationalSummary } from '../src/lib/nationalLandingSummary.js';
 
 // Only simultaneous requests share work. No new persisted cache or freshness policy.
@@ -17,8 +18,8 @@ export async function serveNationalLanding(searchParams, loadFeed) {
     const raw = await request;
     const summary = projectNationalSummary({ ...raw, feature, tier: 'national' });
     if (raw?.served === 'store') {
-      return { ...summary, served: raw.served, fetchedAt: raw.fetchedAt,
-        ...(raw.stale ? { stale: true, ageMinutes: raw.ageMinutes } : {}) };
+      return withStoreCap({ ...summary, served: raw.served, fetchedAt: raw.fetchedAt,
+        ...(raw.stale ? { stale: true, ageMinutes: raw.ageMinutes } : {}) }, raw);
     }
     // F154: whether the count came from the live source or, past its time limit, the archive.
     return raw?.served ? { ...summary, served: raw.served } : summary;

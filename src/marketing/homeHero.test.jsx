@@ -49,15 +49,16 @@ describe('homepage hero', () => {
   it('shows the seven coverage figures from our own sources, in the reference order', async () => {
     const { SITE_FIGURES } = await import('../lib/siteFigures.js');
     const PREVIEW = (await import('../data/preview-figures.json')).default;
+    const { figure: figureOf } = await import('../lib/siteFigures.js');
     const box = hero.slice(hero.indexOf('nd-coverage-box'));
     expect(box).toContain('THE RECORD, AT A GLANCE');
     const cells = [...box.matchAll(/<div><strong>(.*?)<\/strong><span>(.*?)<\/span><\/div>/g)].map((m) => [m[1], m[2]]);
     expect(cells).toEqual([
-      ['9,817', 'Bills on record'],
+      [figureOf(SITE_FIGURES.bills), 'Bills on record'],
       [String(SITE_FIGURES.modules), 'Research modules'],
       [String(SITE_FIGURES.endpoints), 'Source endpoints'],
       [String(SITE_FIGURES.desks), 'Intelligence desks'],
-      [String(SITE_FIGURES.ministries), 'Ministries'],
+      [figureOf(SITE_FIGURES.ministries), 'Ministries'],
       [String(PREVIEW.bills.houses), 'Houses covered'],
       [String(PREVIEW.bills.seriesStart), 'Coverage since'],
     ]);

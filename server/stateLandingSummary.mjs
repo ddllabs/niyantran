@@ -1,6 +1,5 @@
+import { withStoreCap } from './landingStoreCap.mjs';
 import { stateLandingAnswer, stateModule } from '../src/lib/stateLandingSummary.js';
-
-export const stateSummaryUsesStore = feature => feature === 'MLA Directory' || feature === 'MLA Report Card + Statement Tracker';
 
 // F157: the State desk landing's count for one module, without its rows. The module's own tier
 // (State or Local) is taken from the catalogue, never from the request.
@@ -16,7 +15,7 @@ export async function serveStateLanding(searchParams, loadFeed) {
         code: diagnostic.includes('timeout') ? 'live-timeout' : 'summary-unavailable',
         served: ['live', 'store', 'archive'].includes(raw?.served) ? raw.served : 'unknown' });
     }
-    return answer;
+    return withStoreCap(answer, raw);
   } catch (error) {
     console.warn('[state-landing]', { feature: module.feature, code: 'summary-error' });
     throw error;
