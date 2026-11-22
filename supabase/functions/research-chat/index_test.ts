@@ -1218,10 +1218,31 @@ Deno.test('F288 wiring: hybrid errors: vector rows come back hydrated, the query
   assert(fallbackLog, 'a fallback is logged');
   assertEquals(fallbackLog.reason, 'error');
   assertEquals(fallbackLog.code, '57014');
+  assertEquals(fallbackLog.scope, 'nclt', 'the log says which kind of switch served the search');
   assert(typeof fallbackLog.hybrid_ms === 'number' && typeof fallbackLog.fallback_ms === 'number');
   assertEquals(lines.join('\n').includes('secret insolvency'), false, 'no query text in any log line');
   assertEquals(JSON.stringify(r.paths).includes('secret'), false);
   assertEquals((r.paths[0] as { path: string }).path, 'hybrid_fallback');
+});
+
+Deno.test('F393 wiring: a fallback on another desk is logged with scope desk, never the desk or the question', async () => {
+  const REG = 'Regulatory Body Watch (RBI SEBI TRAI CCI)';
+  const r = hybridRig(undefined);
+  r.f.setReply((_side, table) =>
+    table === 'hybrid_search_desks' ? { data: { enabled: true, hybrid_ms: null, fallback_ms: null }, error: null } :
+    table === 'match_documents_hybrid' ? { data: null, error: { message: 'secret desk failure', code: '57014' } } :
+    table === 'match_documents' ? { data: [chunkRow('v1')], error: null } :
+    table === 'documents' ? { data: [{ id: 'doc-a', metadata: {} }], error: null } : { data: [], error: null }
+  );
+  const d = createDependencies(request(), r.f.runtime);
+  await d.requireUser(request());
+  const { lines } = await captureLogs<{ id: string }[]>(() => d.searchDocuments({ ...nclt, desk_feature: REG }, undefined, r.context));
+  assertEquals(r.names(), ['match_documents_hybrid', 'match_documents']);
+  const fallbackLog = lines.map((l) => JSON.parse(l)).find((l) => l.event === 'research.hybrid_fallback');
+  assert(fallbackLog, 'a fallback is logged');
+  assertEquals(fallbackLog.scope, 'desk');
+  const all = lines.join('\n');
+  assertEquals(all.includes('Regulatory') || all.includes('secret'), false);
 });
 
 Deno.test('F288 wiring: the hybrid call gets 2,500 ms and the fallback its own 4,000 ms, not what is left', async () => {

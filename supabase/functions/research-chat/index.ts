@@ -638,8 +638,9 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
         },
         onPath: (info) => {
           if (info.path === 'hybrid_fallback') {
-            // Counts and a reason only: never the query, the user, or an error message.
+            // Counts, a reason and the kind of switch (never the desk's name): never the query, the user, or an error message.
             log('research.hybrid_fallback', {
+              scope: args.desk_feature === HYBRID_FEATURE ? 'nclt' : 'desk',
               reason: info.fallbackReason,
               hybrid_ms: info.hybridMs,
               fallback_ms: info.fallbackMs,

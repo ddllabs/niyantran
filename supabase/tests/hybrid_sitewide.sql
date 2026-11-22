@@ -3,7 +3,7 @@
 -- hybrid migration) + the migration, all applied as a non-superuser.
 --
 --   Part 1  what the migration creates: the flag table (no row, RLS, grants), the private helper (security definer,
---           fixed search_path, ids and ranks only, no PUBLIC or anon execute), the schema holding exactly two
+--           fixed search_path, ids and ranks only, no PUBLIC or anon execute), the schema holding exactly four
 --           functions, the replaced search function's properties and grants.
 --   Part 2  a desk without a flag row (or with a disabled one) returns exactly what match_documents returns, for
 --           every scope, and a flag row on one desk changes no other desk.
@@ -71,9 +71,9 @@ select pg_temp.ok(has_function_privilege('authenticated', 'retrieval_internal.ke
   and not exists (select 1 from pg_proc p, aclexplode(p.proacl) a
                    where p.oid = 'retrieval_internal.keyword_candidate_ids(text, extensions.vector, text, text)'::regprocedure and a.grantee = 0),
   'the helper: authenticated and service_role may execute it; anon and PUBLIC may not');
-select pg_temp.ok((select count(*) from pg_proc where pronamespace = 'retrieval_internal'::regnamespace) = 3
+select pg_temp.ok((select count(*) from pg_proc where pronamespace = 'retrieval_internal'::regnamespace) = 4
   and not exists (select 1 from pg_class where relnamespace = 'retrieval_internal'::regnamespace),
-  'schema retrieval_internal holds the three helpers and no table or view');
+  'schema retrieval_internal holds the four helpers and no table or view');
 -- R3: one place for the hidden-document rule. The list returns ids the caller may not read, so only the definer helpers
 -- (which run as its owner) may call it.
 select pg_temp.ok(to_regprocedure('retrieval_internal.hidden_document_ids()') is not null
@@ -84,6 +84,17 @@ select pg_temp.ok(to_regprocedure('retrieval_internal.hidden_document_ids()') is
   and not exists (select 1 from pg_proc p, aclexplode(p.proacl) a
                    where p.oid = 'retrieval_internal.hidden_document_ids()'::regprocedure and a.grantee = 0),
   'the hidden-document list is a security definer function that no role but its owner may execute');
+-- R2 repair: the probes are a function of their own, which no role but its owner may execute. (That its planner settings
+-- stay its own is proved by behaviour in part 5, not by reading its SET clause.)
+select pg_temp.ok(to_regprocedure('retrieval_internal.rare_word_counts(text[], text, uuid[], int)') is not null
+  and (select prosecdef and proconfig @> array['search_path=pg_catalog, pg_temp']
+         from pg_proc where oid = 'retrieval_internal.rare_word_counts(text[], text, uuid[], int)'::regprocedure)
+  and not has_function_privilege('authenticated', 'retrieval_internal.rare_word_counts(text[], text, uuid[], int)', 'execute')
+  and not has_function_privilege('service_role', 'retrieval_internal.rare_word_counts(text[], text, uuid[], int)', 'execute')
+  and not has_function_privilege('anon', 'retrieval_internal.rare_word_counts(text[], text, uuid[], int)', 'execute')
+  and not exists (select 1 from pg_proc p, aclexplode(p.proacl) a
+                   where p.oid = 'retrieval_internal.rare_word_counts(text[], text, uuid[], int)'::regprocedure and a.grantee = 0),
+  'the probe function is security definer with a fixed search_path, and no role but its owner may execute it');
 -- R3: the rule is copied from the NCLT helper (which this migration leaves alone); the two copies must be the same text.
 select pg_temp.ok((select regexp_replace(substring(prosrc from 'select coalesce\(array_agg\(d\.id\), ''\{\}''\) into v_hidden.*?is not true;'), '\s+', ' ', 'g')
                      from pg_proc where oid = 'retrieval_internal.hidden_document_ids()'::regprocedure) like 'select coalesce(array_agg(d.id)%is not true;'
@@ -149,7 +160,7 @@ insert into document_chunks (document_id, desk_feature, chunk_hash, chunk_index,
 select d.id, d.desk_feature, 'edge-' || k, 3000 + k, 0, 4, 'cwd' || case when k <= 2000 then ' edgeok' else '' end || ' edgebad ' || k,
        pg_temp.cone(1, 0.60 + 0.00004 * k, 1000 + k), 4
   from generate_series(1, 2001) k join documents d on d.source_key = 'hs-reg-1';
--- 400 chunks hold both 'tiealpha' and 'tiebeta': one score for all of them, so a cut at 300 must keep the ties (R1 of the
+-- 400 chunks hold both 'tiealpha' and 'tiebeta': one score for all of them, so a cut at 100 must keep the ties (R1 of the
 -- review; the chunk ids are random, so an id cut and a distance cut disagree). Distances spread from 0.20 to 0.60.
 insert into document_chunks (document_id, desk_feature, chunk_hash, chunk_index, char_from, char_to, content, embedding, chunker_version)
 select d.id, d.desk_feature, 'tie-' || k, 5000 + k, 0, 4, 'tiealpha tiebeta together',
@@ -190,7 +201,8 @@ create function pg_temp.fuse(vec uuid[], kw uuid[], n int) returns uuid[] langua
             left join unnest(kw) with ordinality k(id, o) on k.id = u.id
            order by 4 desc, 2 nulls last, 3 nulls last, 1 limit n) t $$;
 
--- The vector side is exact on these few rows.
+-- The vector side is exact on these few rows. (Part 5 sets the two planner settings explicitly before it reads them back,
+-- so this setting cannot hide a leak of the probes' settings.)
 set local enable_indexscan = off;
 set local hnsw.ef_search = 40;
 set local hnsw.iterative_scan = 'strict_order';
@@ -359,53 +371,98 @@ $$;
 create function pg_temp.gin_scans() returns bigint language sql as $$
   select coalesce(sum(pg_stat_get_xact_numscans(k.oid)), 0)::bigint from pg_class k where k.relname like 'document_chunks%to_tsvector_idx'
 $$;
+-- Scans of every index of a chunk partition that is not a GIN index (the btrees and the HNSW index), counted by access method.
+create function pg_temp.other_idx_scans() returns bigint language sql as $$
+  select coalesce(sum(pg_stat_get_xact_numscans(x.indexrelid)), 0)::bigint
+    from pg_index x
+    join pg_inherits i on i.inhrelid = x.indrelid and i.inhparent = 'public.document_chunks'::regclass
+    join pg_class ic on ic.oid = x.indexrelid
+    join pg_am am on am.oid = ic.relam
+   where am.amname <> 'gin'
+$$;
 create function public.hs_direct_probe(q tsquery) returns bigint language sql stable security invoker set search_path = public, extensions as $$
   select count(*) from (select 1 from public.document_chunks where to_tsvector('simple'::regconfig, content) @@ q limit 2001) x
 $$;
 grant execute on function public.hs_direct_probe(tsquery) to authenticated;
-create temp table plan_stats(label text primary key, seq bigint, gin bigint);
+create temp table plan_stats(label text primary key, seq bigint, gin bigint, other bigint);
 grant all on plan_stats to authenticated;
 set local role authenticated;
 do $$
-declare s0 bigint; g0 bigint; n bigint;
+declare s0 bigint; g0 bigint; o0 bigint; n bigint;
 begin
-  s0 := pg_temp.seq_scans(); g0 := pg_temp.gin_scans();
+  s0 := pg_temp.seq_scans(); g0 := pg_temp.gin_scans(); o0 := pg_temp.other_idx_scans();
   select count(*) into n from retrieval_internal.keyword_candidate_ids('qqqaaa qqqbbb', (select v from q where name = 'near'), null, 'Regulatory Body Watch (RBI SEBI TRAI CCI)');
-  insert into plan_stats values ('probes only', pg_temp.seq_scans() - s0, pg_temp.gin_scans() - g0);
-  s0 := pg_temp.seq_scans(); g0 := pg_temp.gin_scans();
+  insert into plan_stats values ('probes only', pg_temp.seq_scans() - s0, pg_temp.gin_scans() - g0, pg_temp.other_idx_scans() - o0);
+  s0 := pg_temp.seq_scans(); g0 := pg_temp.gin_scans(); o0 := pg_temp.other_idx_scans();
   select count(*) into n from retrieval_internal.keyword_candidate_ids('zqalpha zqbeta', (select v from q where name = 'near'), null, 'Regulatory Body Watch (RBI SEBI TRAI CCI)');
-  insert into plan_stats values ('helper', pg_temp.seq_scans() - s0, pg_temp.gin_scans() - g0);
-  s0 := pg_temp.seq_scans(); g0 := pg_temp.gin_scans();
+  insert into plan_stats values ('helper', pg_temp.seq_scans() - s0, pg_temp.gin_scans() - g0, pg_temp.other_idx_scans() - o0);
+  s0 := pg_temp.seq_scans(); g0 := pg_temp.gin_scans(); o0 := pg_temp.other_idx_scans();
   select count(*) into n from retrieval_internal.keyword_candidate_ids('cmnw', (select v from q where name = 'near'), null, 'Regulatory Body Watch (RBI SEBI TRAI CCI)');
-  insert into plan_stats values ('common word', pg_temp.seq_scans() - s0, pg_temp.gin_scans() - g0);
-  s0 := pg_temp.seq_scans(); g0 := pg_temp.gin_scans();
+  insert into plan_stats values ('common word', pg_temp.seq_scans() - s0, pg_temp.gin_scans() - g0, pg_temp.other_idx_scans() - o0);
+  s0 := pg_temp.seq_scans(); g0 := pg_temp.gin_scans(); o0 := pg_temp.other_idx_scans();
   select public.hs_direct_probe(to_tsquery('simple', 'zqalpha | zqbeta')) into n;
-  insert into plan_stats values ('direct', pg_temp.seq_scans() - s0, pg_temp.gin_scans() - g0);
+  insert into plan_stats values ('direct', pg_temp.seq_scans() - s0, pg_temp.gin_scans() - g0, pg_temp.other_idx_scans() - o0);
 end $$;
 reset role;
 select pg_temp.ok((select seq = 0 from plan_stats where label = 'helper') and (select seq = 0 from plan_stats where label = 'probes only')
   and (select gin from plan_stats where label = 'probes only') > 0
   and (select gin from plan_stats where label = 'helper') > (select gin from plan_stats where label = 'probes only'),
   'the helper, called as authenticated: no chunk partition is scanned sequentially; the probes and the candidate scan read the GIN index');
--- The session keeps its default planner settings here (sequential scans allowed); with them the default planner scans the
--- partition sequentially for a word in 30000 of its chunks (it expects to find 2001 matches early), so only the helper's
--- own settings can keep the probe off a sequential scan. (The bitmap plan it then takes may read the desk's btree index
--- instead of the keyword index: both are bitmap scans, about 12 ms against 200 ms measured on a 40,000-chunk partition.)
+-- A word in tens of thousands of chunks: the default planner scans the partition sequentially (it expects to find 2001
+-- matches early), so the probes forbid sequential and plain index scans. What is left are bitmap scans, and the desk's
+-- btree index (desk_feature, language) would serve a "desk_feature = X" condition: it matches every row of a per-desk
+-- partition, and to_tsvector(content) would then be computed row by row until 2,001 matches, the same work as the
+-- sequential scan. So the probe asks the desk's partition by name, with the desk test written so that no btree can serve
+-- it, and the one index it can use is the keyword index. The session's sequential scans are allowed here (the fixture
+-- turns plain index scans off for the vector side), so only the helper's own settings can keep the probe off both.
 select pg_temp.ok((select seq = 0 from plan_stats where label = 'common word')
   and (select count(*) from plan_stats where label = 'common word') = 1,
   'a word in tens of thousands of chunks is probed without a sequential scan, with the session''s default planner settings (R2)');
+select pg_temp.ok((select gin > 0 and other = 0 from plan_stats where label = 'common word'),
+  'a word in tens of thousands of chunks is probed through the keyword (GIN) index and no other index of the chunks is scanned (R2 repair)');
 select pg_temp.ok((select seq > 0 and gin = 0 from plan_stats where label = 'direct'),
   'the check can fail: the same keyword predicate run directly as authenticated scans the partitions sequentially');
 drop function public.hs_direct_probe(tsquery);
 
--- R1. Ties at the cut: 400 chunks with one score; the list is the 100 nearest of them (the cut at 300 keeps every tie).
+-- R2 repair. The probes forbid sequential and plain index scans; the caller's settings must come back, both when they were
+-- on (the default) and when they were off, after the helper and after the search function that calls it. The fixture's own
+-- setting for the vector side (enable_indexscan off) is put away and back here, so that it cannot hide a leak.
+create temp table setting_after(label text primary key, seq text, idx text);
+grant all on setting_after to authenticated;
+set local role authenticated;
+do $$
+declare n bigint;
+begin
+  perform set_config('enable_seqscan', 'on', true);
+  perform set_config('enable_indexscan', 'on', true);
+  select count(*) into n from retrieval_internal.keyword_candidate_ids('zqalpha zqbeta cmnw', (select v from q where name = 'near'), null, 'Regulatory Body Watch (RBI SEBI TRAI CCI)');
+  insert into setting_after values ('helper, on before', current_setting('enable_seqscan'), current_setting('enable_indexscan'));
+  select count(*) into n from match_documents_hybrid((select v from q where name = 'near'), 'zqalpha zqbeta cmnw', 40, null, null, 'Regulatory Body Watch (RBI SEBI TRAI CCI)');
+  insert into setting_after values ('search, on before', current_setting('enable_seqscan'), current_setting('enable_indexscan'));
+  perform set_config('enable_seqscan', 'off', true);
+  perform set_config('enable_indexscan', 'off', true);
+  select count(*) into n from retrieval_internal.keyword_candidate_ids('zqalpha zqbeta cmnw', (select v from q where name = 'near'), null, 'Regulatory Body Watch (RBI SEBI TRAI CCI)');
+  insert into setting_after values ('helper, off before', current_setting('enable_seqscan'), current_setting('enable_indexscan'));
+  select count(*) into n from match_documents_hybrid((select v from q where name = 'near'), 'zqalpha zqbeta cmnw', 40, null, null, 'Regulatory Body Watch (RBI SEBI TRAI CCI)');
+  insert into setting_after values ('search, off before', current_setting('enable_seqscan'), current_setting('enable_indexscan'));
+  -- The fixture's state for what follows: sequential scans allowed, plain index scans off.
+  perform set_config('enable_seqscan', 'on', true);
+  perform set_config('enable_indexscan', 'off', true);
+end $$;
+reset role;
+select pg_temp.ok((select count(*) = 2 and bool_and(seq = 'on' and idx = 'on') from setting_after where label like '%, on before'),
+  'with sequential and plain index scans on before the call, both are still on after the helper and after the search function (R2: no leak)');
+select pg_temp.ok((select count(*) = 2 and bool_and(seq = 'off' and idx = 'off') from setting_after where label like '%, off before'),
+  'with both off before the call, both are still off after the helper and after the search function (the caller''s settings come back, whatever they were)');
+
+-- R1. Ties at the cut: 400 chunks with one score; the list is the 100 nearest of them (the cut at 100 keeps every tie).
 select pg_temp.ok((select count(*) from document_chunks where chunk_hash like 'tie-%') = 400
   and pg_temp.kw('tiealpha tiebeta', null, 'Regulatory Body Watch (RBI SEBI TRAI CCI)') =
       (select array_agg(t.id order by t.dist, t.id) from
          (select c.id, (c.embedding::halfvec(1536)) <=> ((select v from q where name = 'near')::halfvec(1536)) as dist
             from document_chunks c where c.chunk_hash like 'tie-%'
            order by 2, 1 limit 100) t),
-  'more than 300 chunks tie on score: the list is the 100 nearest of all the tied chunks, not the first 300 by chunk id');
+  'more than 100 chunks tie on score: the list is the 100 nearest of all the tied chunks, not the first 100 by chunk id');
 
 -- ===========================================================================================
 -- Part 6. NCLT keeps its own rule. 'nclname' is in the title of one NCLT order (a name), 'ncother' is not: the NCLT rule

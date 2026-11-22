@@ -39,15 +39,23 @@ shows a gain; a desk that does not gain stays vector only, on record.
 
 1. The question is cut to 4,000 characters and analysed with the `simple` configuration. Of its first 64 words (digit
    words first, then the longest), a word is *rare* when it is in 1 to 2,000 chunks of the desk that the caller can read.
-   Each word is probed with sequential and plain index scans forbidden for the duration of the probes (the caller's
-   settings are put back after them): for a word in many chunks the default planner chooses a sequential scan of the
-   partition, measured at about 200 ms a word against 12 ms with bitmap scans on a 40,000-chunk partition.
+   The probes run in their own private function, `retrieval_internal.rare_word_counts`, whose SET clause forbids
+   sequential and plain index scans (a function restores, on return, the settings its SET clause names and no others,
+   so the caller's settings come back by themselves; a `set_config` inside a function that does not name the setting
+   leaks it to the caller's later statements, shown in the fixture). For a word in many chunks the default planner
+   chooses a sequential scan of the partition (measured 2026-11-21 at about 200 ms a word on a 40,000-chunk partition).
+   Forbidding it is not enough: the bitmap scan the planner then takes may be on the btree (desk_feature, language),
+   whose condition `desk_feature = X` matches every row of a per-desk partition, so `to_tsvector(content)` is computed
+   row by row until 2,001 matches, the same work. The probe therefore reads the desk's partition by name (the default
+   partition, or the parent if neither is found) and writes the desk test as `(desk_feature || '') = X`, which no index
+   can serve: the keyword index is the only one left. The fixture reads the index scan counters for it.
 2. Rare words are kept, digit words first and each group rarest first, while their counts add up to at most 6,000.
 3. A candidate is an embedded chunk of an indexed document of the desk (and tier) that holds at least two kept words
    (one, when only one was kept). Its score is the sum over the words it holds of `ln(2001 / count) + 1`, rounded to six
    decimals, so a rarer word weighs more and ties are exact.
-4. The best 300 by score, and every candidate tied with the 300th, are ordered by score, then by cosine similarity to
-   the question, then id; the first 100 are the list. A chunk's score depends only on which kept words it holds, so ties
+4. The best 100 by score, and every candidate tied with the 100th, are ordered by score, then by cosine similarity to
+   the question, then id; the first 100 are the list (the first 100 of that order all hold a score at least the 100th's,
+   so a wider pool of 300 gave the same list). A chunk's score depends only on which kept words it holds, so ties
    are the normal case; the first build cut the 300 by chunk id and kept 11 of the 100 nearest in the reviewer's
    measurement. The ties are bounded by the word budget (at most 6,000 rows are scored).
 5. The list is fused with the 100 vector rows by reciprocal rank fusion, k = 60, weight 1 per list, as for NCLT. No
@@ -110,10 +118,12 @@ for one desk changes no other desk, no unscoped search and no search that names 
 an independent re-implementation of the fusion; the rule's parts (two words, rarity, the 2,000 boundary, tier, unindexed
 documents, chunks without a vector, other desks); an unpublished order's chunks neither appear nor make a word rare;
 a changed policy fails the keyword path closed; `anon` is refused; the helper reads the keyword index and never scans a
-partition even for a word in 30,000 chunks, under the session's default planner settings (and the check can fail);
-more than 300 chunks tied on score return the 100 nearest of them; the hidden-document function is executable by no
+partition even for a word in 30,000 chunks, under the session's default planner settings (and the check can fail), and
+for that word the keyword (GIN) index's scan count rises while no other index of the chunks is scanned; with
+sequential and plain index scans on before the call, both are still on after the helper and after the search function,
+and with both off, both are still off; more than 100 chunks tied on score return the 100 nearest of them; the hidden-document function is executable by no
 role and its statement is the NCLT helper's text; a row for NCLT or for an unknown desk is refused; NCLT keeps its rule.
-`run.sh` mutates the migration 19 ways and requires the fixture to fail on an assertion each time, and checks that the
+`run.sh` mutates the migration 21 ways and requires the fixture to fail on an assertion each time, and checks that the
 migration's final statement (the policy comparison on the database being migrated) rolls it back on a drifted database
 and is the statement that does so.
 
@@ -124,15 +134,24 @@ The independent review of the first build (2026-11-21) found, and this revision 
 | Finding | Fix | Test that failed first |
 |---|---|---|
 | R1. The cut at 300 was by chunk id; ties are normal; 11 of the 100 nearest were returned | Cut with ties on the score, then order by score, distance, id | 400 chunks tied on score: the list must be the 100 nearest of them |
-| R2. The rarity probe scanned the partition sequentially for a common word | The probes forbid sequential and plain index scans, then restore the caller's settings | A word in 30,000 chunks under default planner settings: no sequential scan (the old guard forced the setting itself) |
-| R3. Two copies of the hidden-document rule | One private function holds the comparison and the list; the fixture compares its text with the NCLT helper's | Schema holds three helpers; the list is not executable by any role; the two texts are equal |
+| R2. The rarity probe scanned the partition sequentially for a common word | The probes forbid sequential and plain index scans (see "The rule", 1) | A word in 30,000 chunks under default planner settings: no sequential scan (the old guard forced the setting itself) |
+| R3. Two copies of the hidden-document rule | One private function holds the comparison and the list; the fixture compares its text with the NCLT helper's | Schema holds four helpers; the list is not executable by any role; the two texts are equal |
 | O1. No rollback test for the final statement | `hybrid_sitewide_drift_rollback_check` in `run.sh` (drifted: 55000 and nothing left; undrifted: applies; drifted without the statement: applies) | The third case proves the statement is what refuses |
 | O2. The flag-read failure line | Carries `scope` (`nclt` or `desk`), never the desk or the question; the deploy order is stated above | The two flag-failure tests in `research-chat/index_test.ts` |
 | O3. A row for NCLT or an unknown desk | Check constraint and trigger, 23514 | Four refused inserts and updates, and a `service_role` insert that works |
 
-Not changed, and why: the explicit restoring of the planner settings after the probes has no test of its own (the helper's
-SET clause already restores them when the function returns; the explicit restore keeps the candidate scan's plans the
-caller's own). The desk-name check is "some document carries it", the most the database can know.
+The desk-name check is "some document carries it", the most the database can know.
+
+### Second review (2026-11-21), two blocking findings in the R2 fix
+
+| Finding | Fix | Test that failed first |
+|---|---|---|
+| R2a. With sequential and plain index scans off, the probe for a common word took a bitmap scan on the btree `document_chunks_<desk>_desk_feature_language_idx` (its condition matched every row of the partition), not the keyword index: the same work as the sequential scan. The comment "12 ms against 200 ms" was wrong for that plan, and the `seq = 0` assertion passed anyway | The probes read the desk's partition by name with a desk test no index can serve (see "The rule", 1); the comment is corrected | For the common word, the GIN scan count rises and the scan count of every non-GIN index of the chunks stays 0. Run on the unchanged migration it failed. `run.sh` mutation "probe desk test servable by the desk's btree index" restores `desk_feature = X` and fails it |
+| R2b. The explicit restore of the planner settings was untested (the fixture set `enable_indexscan = off` for the whole run), and this spec said the function's SET clause did the restoring, which it does not: a SET clause restores only the settings it names | The probes moved into `retrieval_internal.rare_word_counts`, whose SET clause names both settings, so the restore is automatic. The spec text above is corrected | The fixture sets both settings on, calls the helper and `match_documents_hybrid`, and requires both on afterwards; then both off, and requires both off. Run on the first build with its restore lines deleted, it failed; with them present it passed. `run.sh` mutation "probe settings leak to the caller (no restore)" (the SET clause replaced by `set_config` calls inside the body) fails it. The fixture's own `enable_indexscan = off` is overridden by these explicit settings |
+
+Also done: the pool of 300 became `fetch first 100 rows with ties` (the 400-tie test, whose expected list is an
+independent query for the 100 nearest of all tied chunks, passes with it), and the `research.hybrid_fallback` log
+line carries `scope` (`nclt` or `desk`), tested for both.
 
 ## Measurements
 
@@ -154,7 +173,7 @@ inside `begin transaction read only; ... rollback;` over `psql service=nter-acce
 apply the migration to a restored copy; raw output belongs in `~/niyantran-eval-cache/hybrid-sitewide-2026-11-21/`.
 
 Proof run (2026-11-21, disposable local databases): `./supabase/tests/run.sh hybrid_sitewide` passes; its vacuity
-check fails without the migration; the drift check passes; the 19 mutations of the migration each fail the fixture on
+check fails without the migration; the drift check passes; the 21 mutations of the migration each fail the fixture on
 an assertion.
 
 ## Scope
@@ -173,8 +192,8 @@ F393 entry of `open-work.md`.
 
 - Behaviour at NTER's size (833,144 chunks; the Regulatory partition alone is 183,805): the cost of 64 probes, each
   building a bitmap of the word's matches in the partition, and of scoring up to 6,000 rows.
-- A second review of this revision against the access rules (the first review's findings are fixed; the fixes are not
-  yet re-reviewed).
+- A third review of this revision (the second review found no access defect; its two blocking findings are fixed above and
+  not yet re-reviewed).
 - The cost of the probes' bitmap scans and of ordering up to 6,000 tied rows by distance at NTER's size.
-- The tie rule (every candidate tied with the 300th is ordered by similarity) is a choice made here; R1 was measured
+- The tie rule (every candidate tied with the 100th is ordered by similarity) is a choice made here; R1 was measured
   with its own tie order.

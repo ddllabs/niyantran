@@ -1,6 +1,6 @@
 -- Keyword and vector search together on any desk that has a flag row (F393, module `hybrid-sitewide` of
 -- docs/specs/2026-11-20-corpus-and-search-completion.md; spec docs/specs/2026-11-21-hybrid-sitewide.md).
--- Not applied anywhere. Additive: it adds one table, two private helpers and replaces public.match_documents_hybrid
+-- Not applied anywhere. Additive: it adds one table, three private helpers and replaces public.match_documents_hybrid
 -- with a version whose NCLT branch and whose "everything else" branch are the present ones.
 -- Deploy order: this migration first, then the Edge Function that reads the new table (spec, "Deploy order").
 --
@@ -34,7 +34,7 @@
 --        * a candidate is a chunk of the desk (embedded, in an indexed document of the tier) holding at least two of
 --          the kept words (one, when only one was kept); its score is the sum over the kept words it holds of
 --          ln(2001 / the word's count) + 1, so a rarer word weighs more, rounded to 6 decimals so that ties are exact;
---        * the best 300 by score, and every candidate tied with the 300th, are ordered by score, then by cosine
+--        * the best 100 by score, and every candidate tied with the 100th, are ordered by score, then by cosine
 --          similarity to the question (halfvec, as match_documents), then id, and the first 100 are the list. A
 --          chunk's score depends only on which kept words it holds, so ties are the normal case and the cut must
 --          not split them (cutting by id kept 11 of the 100 nearest in a measurement on 2026-11-21). The ties are
@@ -44,6 +44,11 @@
 --      ranks anything; if the access policies have drifted that call raises 55000 and the search fails closed (the app
 --      then falls back to vector only). A call with no text, no vector or no desk returns at once and reads no row.
 --      The function that calls it reads every returned chunk back through the caller's own RLS.
+--
+--      The rarity probes are in a fourth function of the same schema, retrieval_internal.rare_word_counts(), SECURITY
+--      DEFINER and executable by no role but its owner. Its SET clause (enable_seqscan and enable_indexscan off) is what
+--      keeps its planner settings to itself: they are restored when it returns, whatever the caller had. It reads the
+--      desk's partition by name and tests the desk so that the keyword index is the only index the probe can use.
 --
 --   4. public.match_documents_hybrid is replaced with the same signature, columns and grants:
 --        * names document ids                       -> match_documents (as before)
@@ -59,6 +64,7 @@
 --
 -- Rollback (nothing else depends on it): restore match_documents_hybrid from 20261102120000, then
 --   drop function retrieval_internal.keyword_candidate_ids(text, extensions.vector, text, text);
+--   drop function retrieval_internal.rare_word_counts(text[], text, uuid[], int);
 --   drop function retrieval_internal.hidden_document_ids();
 --   drop table public.hybrid_search_desks;
 --   drop function public.hybrid_search_desks_known_desk();
@@ -127,6 +133,73 @@ $fn$;
 
 revoke all on function retrieval_internal.hidden_document_ids() from public, anon, authenticated, service_role;
 
+-- The rarity probes, in a function of their own so that its SET clause is what keeps their planner settings: a function
+-- restores, when it returns, the settings named in its SET clause and no others. The probes forbid sequential and plain
+-- index scans. For a word in many chunks of a partition the default planner prefers a sequential scan (it expects to find
+-- 2001 matches soon), and a probe that way cost about 200 ms a word on a 40,000-chunk partition (measured 2026-11-21).
+-- Bitmap scans are left, and two of them can serve a probe: the keyword index (GIN), and the btree on (desk_feature,
+-- language), whose condition "desk_feature = X" matches EVERY row of a per-desk partition and would make the probe compute
+-- to_tsvector(content) row by row until 2,001 matches (the same work as the sequential scan). So the probe reads the
+-- desk's partition by name, not the parent, and writes the desk test as (desk_feature || '') = X, which no index can
+-- serve: the keyword index is the only one left. A desk without a partition of its own is in the default partition, whose
+-- test is the same; if neither is found the parent is read (slower, never wrong).
+-- Returns, for the words of p_lexes in the order given, those that are in 1 to p_rare_max readable chunks of the desk.
+create function retrieval_internal.rare_word_counts(
+  p_lexes        text[],
+  p_desk_feature text,
+  p_hidden       uuid[],
+  p_rare_max     int
+) returns table (
+  lex text,
+  lit text,
+  df  int
+)
+language plpgsql
+stable
+security definer
+set search_path = pg_catalog, pg_temp
+set enable_seqscan = off
+set enable_indexscan = off
+as $fn$
+declare
+  v_part text;
+  v_lex  text;
+  v_lit  text;
+  v_df   int;
+begin
+  select k.oid::regclass::text into v_part
+    from pg_inherits i join pg_class k on k.oid = i.inhrelid
+   where i.inhparent = 'public.document_chunks'::regclass
+     and pg_get_expr(k.relpartbound, k.oid) = format('FOR VALUES IN (%L)', p_desk_feature);
+  if v_part is null then
+    select k.oid::regclass::text into v_part
+      from pg_inherits i join pg_class k on k.oid = i.inhrelid
+     where i.inhparent = 'public.document_chunks'::regclass and pg_get_expr(k.relpartbound, k.oid) = 'DEFAULT';
+  end if;
+  v_part := coalesce(v_part, 'public.document_chunks');
+
+  foreach v_lex in array p_lexes loop
+    v_lit := '''' || replace(replace(v_lex, '\', '\\'), '''', '''''') || '''';
+    -- Each probe counts readable chunks and stops after p_rare_max + 1; the documents the caller may not read are left out
+    -- before the count.
+    execute format($q$select count(*)
+      from (select 1
+              from %s c
+             where to_tsvector('simple'::regconfig, c.content) @@ %L::tsquery
+               and (c.desk_feature || '') = $1
+               and c.document_id is not null and c.document_id not in (select h.id from unnest($2) h(id))
+             limit %s) z$q$, v_part, v_lit, p_rare_max + 1)
+      into v_df using p_desk_feature, p_hidden;
+    if v_df between 1 and p_rare_max then
+      lex := v_lex; lit := v_lit; df := v_df;
+      return next;
+    end if;
+  end loop;
+end
+$fn$;
+
+revoke all on function retrieval_internal.rare_word_counts(text[], text, uuid[], int) from public, anon, authenticated, service_role;
+
 create function retrieval_internal.keyword_candidate_ids(
   p_query_text      text,
   p_query_embedding extensions.vector(1536),
@@ -150,16 +223,15 @@ declare
   c_match_budget constant int := 6000;
   -- A candidate holds at least this many of the kept words (fewer when fewer were kept).
   c_min_words constant int := 2;
-  -- Candidates ordered by similarity (the best by score), and rows of the list.
-  c_pool constant int := 300;
+  -- Rows of the list.
   c_candidates constant int := 100;
   -- Words probed per call (digit words first, then the longest), and characters of the text that are analysed.
   c_max_terms constant int := 64;
   c_query_max constant int := 4000;
   v_text    text;
-  v_lex     text;
   v_lit     text;
   v_df      int;
+  v_terms   text[];
   v_lexes   text[] := '{}';
   v_lits    text[] := '{}';
   v_dfs     int[]  := '{}';
@@ -169,8 +241,6 @@ declare
   v_min     int;
   v_hidden  uuid[];
   v_found   uuid[];
-  v_seq     text;
-  v_idx     text;
 begin
   v_text := left(p_query_text, c_query_max);
   if nullif(btrim(coalesce(v_text, '')), '') is null or p_query_embedding is null or p_desk_feature is null then
@@ -181,37 +251,17 @@ begin
   -- every read below leaves their chunks out before it counts.
   v_hidden := retrieval_internal.hidden_document_ids();
 
-  -- The rare words: each probe counts readable chunks of the desk and stops after c_rare_df_max + 1. For a word that is
-  -- in many chunks the default planner prefers a sequential scan of the partition (it expects to find 2001 matches soon):
-  -- measured 2026-11-21 on a 40,000-chunk partition, about 200 ms a word that way and 12 ms through the keyword index.
-  -- The probes therefore forbid sequential and plain index scans (the bitmap scans stay), and the caller's settings are
-  -- put back before anything else runs, so the plans of the candidate scan below are not touched by this.
-  v_seq := current_setting('enable_seqscan');
-  v_idx := current_setting('enable_indexscan');
-  perform set_config('enable_seqscan', 'off', true);
-  perform set_config('enable_indexscan', 'off', true);
-  for v_lex in
-    select x.lex
-      from (select distinct unnest(tsvector_to_array(to_tsvector('simple'::regconfig, v_text))) as lex) x
-     order by (x.lex ~ '[0-9]') desc, length(x.lex) desc, x.lex
-     limit c_max_terms
-  loop
-    v_lit := '''' || replace(replace(v_lex, '\', '\\'), '''', '''''') || '''';
-    select count(*) into v_df
-      from (select 1
-              from public.document_chunks c
-             where to_tsvector('simple'::regconfig, c.content) @@ v_lit::tsquery
-               and c.desk_feature = p_desk_feature
-               and c.document_id is not null and c.document_id not in (select h.id from unnest(v_hidden) h(id))
-             limit c_rare_df_max + 1) z;
-    if v_df between 1 and c_rare_df_max then
-      v_lexes := v_lexes || v_lex;
-      v_lits := v_lits || v_lit;
-      v_dfs := v_dfs || v_df;
-    end if;
-  end loop;
-  perform set_config('enable_seqscan', v_seq, true);
-  perform set_config('enable_indexscan', v_idx, true);
+  -- The rare words: the probes count readable chunks of the desk for each of the first c_max_terms words (digit words
+  -- first, then the longest), in retrieval_internal.rare_word_counts, which keeps the planner settings the probes need to
+  -- itself (see there).
+  select coalesce(array_agg(t.lex), '{}') into v_terms
+    from (select x.lex
+            from (select distinct unnest(tsvector_to_array(to_tsvector('simple'::regconfig, v_text))) as lex) x
+           order by (x.lex ~ '[0-9]') desc, length(x.lex) desc, x.lex
+           limit c_max_terms) t;
+  select coalesce(array_agg(r.lex), '{}'), coalesce(array_agg(r.lit), '{}'), coalesce(array_agg(r.df), '{}')
+    into v_lexes, v_lits, v_dfs
+    from retrieval_internal.rare_word_counts(v_terms, p_desk_feature, v_hidden, c_rare_df_max) r;
 
   -- The word budget: digit words first, then the others, each group rarest first, ties by the word; a word is kept
   -- when its count still fits in what is left of c_match_budget.
@@ -234,9 +284,11 @@ begin
 
   -- The candidates. Step 1 reads, word by word through the keyword index, the readable chunks of the desk that hold
   -- the word, with the word's weight. Step 2 sums the weights per chunk and keeps those holding v_min words, in an
-  -- indexed document of the tier. Step 3 keeps the best c_pool by score (and its ties) and reads each one's vector back by its unique
-  -- key (id, desk_feature) to order ties by similarity; the first c_candidates are the list. The cut keeps every row tied
-  -- with the c_pool-th, so it never decides between equal scores (the order below does).
+  -- indexed document of the tier. Step 3 keeps the best c_candidates by score and every row tied with the last of them, and reads each
+  -- one's vector back by its unique key (id, desk_feature) to order ties by similarity; the first c_candidates of that
+  -- order are the list. The cut keeps every row tied with the c_candidates-th, so it never decides between equal scores
+  -- (the order below does), and the list is the same as with a wider pool: the first c_candidates rows by score, then
+  -- distance, then id, all hold a score at least the c_candidates-th's.
   with m as materialized (
     select r.id, r.document_id, r.desk_feature, k.w
       from (select z.lit, round((ln((c_rare_df_max + 1)::numeric / z.df) + 1)::numeric, 6) as w
@@ -263,7 +315,7 @@ begin
      where d.indexed_at is not null
        and (p_desk_tier is null or d.desk_tier = p_desk_tier)
      order by s.score desc
-     fetch first c_pool rows with ties
+     fetch first c_candidates rows with ties
   )
   select array_agg(k.id order by k.score desc, k.dist, k.id) into v_found
     from (select p.id, p.score,

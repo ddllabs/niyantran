@@ -1203,17 +1203,19 @@ hybrid_sitewide_mutation_checks() {
     "chunks without a vector allowed"
     "scan ignores the desk"
     "NCLT no longer keeps its rule"
-    "ties at the cut of 300 split by chunk id"
+    "ties at the cut split by chunk id"
     "probes may scan sequentially"
     "hidden-document rule differs from the NCLT helper's copy"
     "hidden-document list executable by every role"
     "a flag row for NCLT allowed"
-    "a flag row for an unknown desk allowed")
+    "a flag row for an unknown desk allowed"
+    "probe settings leak to the caller (no restore)"
+    "probe desk test servable by the desk's btree index")
   local exprs=(
     's/\n       or not exists \(select 1 from public\.hybrid_search_desks h where h\.desk_feature = p_desk_feature and h\.enabled\)//'
     's/ and h\.enabled\)/)/'
     's/\n          and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n     \) r/\n     ) r/'
-    's/\n               and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(v_hidden\) h\(id\)\)\n             limit c_rare_df_max/\n             limit c_rare_df_max/'
+    's/\n               and c\.document_id is not null and c\.document_id not in \(select h\.id from unnest\(\$2\) h\(id\)\)(\n             limit %s)/$1/'
     's/c_min_words constant int := 2;/c_min_words constant int := 1;/'
     's/order by k\.score desc, k\.dist, k\.id/order by k.dist, k.id/'
     's/c_rare_df_max constant int := 2000;/c_rare_df_max constant int := 2001;/'
@@ -1223,12 +1225,14 @@ hybrid_sitewide_mutation_checks() {
     's/\n          and c\.embedding is not null(\n          and c\.document_id is not null)/$1/'
     's/\n          and c\.desk_feature = p_desk_feature(\n          and c\.embedding is not null)/$1/'
     's/if p_desk_feature is distinct from c_nclt then/if true then/'
-    's/order by s\.score desc\n     fetch first c_pool rows with ties/order by s.score desc, s.id\n     limit c_pool/'
-    's/\n  perform set_config\(\x27enable_seqscan\x27, \x27off\x27, true\);//'
+    's/order by s\.score desc\n     fetch first c_candidates rows with ties/order by s.score desc, s.id\n     limit c_candidates/'
+    's/\nset enable_seqscan = off\nset enable_indexscan = off//'
     's/\n          or not exists \(select 1 from public\.law_listing_settings where active\)//'
     's/\nrevoke all on function retrieval_internal\.hidden_document_ids\(\) from public, anon, authenticated, service_role;//'
     's/,\n  constraint hybrid_search_desks_not_nclt check \(desk_feature <> \x27NCLT \/ NCLAT \(Insolvency\)\x27\)//'
-    's/\ncreate trigger hybrid_search_desks_known_desk before insert or update of desk_feature on public\.hybrid_search_desks\n  for each row execute function public\.hybrid_search_desks_known_desk\(\);//')
+    's/\ncreate trigger hybrid_search_desks_known_desk before insert or update of desk_feature on public\.hybrid_search_desks\n  for each row execute function public\.hybrid_search_desks_known_desk\(\);//'
+    's/\nset enable_seqscan = off\nset enable_indexscan = off//; s/(\n  v_df   int;\nbegin)/$1\n  perform set_config(\x27enable_seqscan\x27, \x27off\x27, true);\n  perform set_config(\x27enable_indexscan\x27, \x27off\x27, true);/'
+    's/\(c\.desk_feature \|\| \x27\x27\) = \$1/c.desk_feature = \$1/')
   q "drop database if exists $base" >/dev/null; q "create database $base" >/dev/null
   for f in "${FILES[@]}"; do
     i=$((i+1)); [ $i -eq $n ] && break
