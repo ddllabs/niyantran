@@ -195,6 +195,8 @@ export function planOcr(records: Rec[], holds: HoldLine[], o: SelectOptions): Oc
 // Control codes other than tab, line feed and carriage return are not text; a page break inside a page would break the spans.
 // deno-lint-ignore no-control-regex
 const CONTROL = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
+/** A Mistral table placeholder left in the text means the table itself is missing (F408): such text is never built. */
+const TABLE_PLACEHOLDER = /\[tbl-[^\]\n]*\.md\]\(tbl-[^)\n]*\.md\)/;
 
 export interface QueueRow {
   source_key: string;
@@ -235,6 +237,7 @@ export async function buildOcrRecord(orig: Rec, row: QueueRow): Promise<{ record
   let removed = 0;
   const texts = row.page_texts.map((t) => {
     if (typeof t !== 'string') throw new OcrRecordError('page_text_not_string');
+    if (TABLE_PLACEHOLDER.test(t)) throw new OcrRecordError('table_placeholder');
     return t.replace(CONTROL, () => (removed++, ''));
   });
   const text = texts.join('\f');
