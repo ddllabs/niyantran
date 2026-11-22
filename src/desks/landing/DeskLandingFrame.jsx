@@ -3,7 +3,7 @@ import { ArrowRight, ArrowUpRight, Database, FileText, Network, Newspaper, Pause
 import { DESK_IMAGES, DESK_IMAGE_CREDITS } from './deskImages.js';
 import { deskHash } from '../../lib/deskRoute.js';
 import { isTechnicalNote } from '../../lib/plainSourceNote.js';
-import { formatCount, moduleAvailability, sourceDate, summarizeModules } from './deskPresentation.js';
+import { RECORD_DESKS, formatCount, moduleAvailability, sourceDate, summarizeModules } from './deskPresentation.js';
 import V6Photo from './V6Photo.jsx';
 import V6Dialog from './V6Dialog.jsx';
 import useDeskLandingMotion, { exploreDeskSectors } from './useDeskLandingMotion.js';
@@ -51,7 +51,7 @@ export function SectorCard({ presentation, group, summaries, onFeature, id, inde
     restoreFront.current = false;
   }, [open]);
   const close = () => { restoreFront.current = true; onToggle(null); };
-  const totals = summarizeModules(group.modules, summaries);
+  const totals = summarizeModules(group.modules, summaries, { allUnits: !RECORD_DESKS.has(presentation.id) });
   const modes = [...new Set(group.modules.map(module => summaries[module.feature]?.sourceMode).filter(mode => mode && mode !== 'unknown'))];
   return <article className="sector-flip" data-dense={group.modules.length > 6} data-open={open} style={{ '--i': index }} onKeyDown={event => {
     if (open && event.key === 'Escape') { event.stopPropagation(); close(); }
@@ -90,7 +90,7 @@ export default function DeskLandingFrame({ presentation, summaries = {}, onFeatu
   const sectors = useRef(null);
   const id = useId();
   const modules = presentation.groups.flatMap(group => group.modules);
-  const aggregate = summarizeModules(modules, summaries);
+  const aggregate = summarizeModules(modules, summaries, { allUnits: !RECORD_DESKS.has(presentation.id) });
   const groups = filter === 'sources' ? groupsWithSources(presentation.groups, summaries) : presentation.groups;
   const national = presentation.id === 'national';
   const bills = national ? summaries['Bill Passage Probability Index'] : null;
@@ -99,7 +99,7 @@ export default function DeskLandingFrame({ presentation, summaries = {}, onFeatu
   const insightCount = dataHighlight ? dataHighlight.count : national ? bills?.count : aggregate.count;
   // The count-up follows the numbers on screen (the insight and the stat tiles), not the raw summaries.
   const motion = useDeskLandingMotion([insightCount, ...shownMetrics.map(metric => metric.value)].join(','));
-  const items = dataHighlight?.items || (national ? bills?.sectors || [] : presentation.groups.map(item => ({ label: item.short, count: summarizeModules(item.modules, summaries).count })).filter(item => item.count != null));
+  const items = dataHighlight?.items || (national ? bills?.sectors || [] : presentation.groups.map(item => ({ label: item.short, count: summarizeModules(item.modules, summaries, { allUnits: !RECORD_DESKS.has(presentation.id) }).count })).filter(item => item.count != null));
   const chooseSector = sectorId => {
     setSelected(sectorId);
     const sector = presentation.groups.find(item => item.id === sectorId);
