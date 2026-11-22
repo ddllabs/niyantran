@@ -24,12 +24,13 @@ const classOf = id => (id.startsWith('national:') || id.includes('SDL') ? 'offic
 
 // [landing path, tier the table asks, feature, rows the store holds, rows the store reports in all]
 const CASES = [
-  ['/api/national-landing', 'national', 'Cabinet Decisions', 7, 7],
+  // The store reports more than the table lists, but under a page: a filtered table, not a capped one.
+  ['/api/national-landing', 'national', 'Cabinet Decisions', 7, 9],
   ['/api/entertainment-landing', 'entertainment', 'Box Office Tracker', 6, 6],
   ['/api/entertainment-landing', 'entertainment', 'Celebrity Influence Index', 5, 5],
   ['/api/state-landing', 'state', 'SDL Auction & Borrowing Tracker', 4, 4],
   ['/api/state-landing', 'state', 'MLA Defection & Anti-defection Case Tracker', 3, 3],
-  ['/api/sports-landing', 'sports', 'Cricket Wire', 8, 1200],
+  ['/api/sports-landing', 'sports', 'Cricket Wire', 500, 1200],
 ];
 
 function network() {
@@ -116,7 +117,7 @@ describe.each([false, true])('landing equals table (local=%s)', local => {
     expect(landing.body.availability).toBe('ready');
     // No live source was needed for either answer.
     expect(fetch.mock.calls.every(([url]) => String(url).endsWith('/rpc/feed_page'))).toBe(true);
-    if (total > held) {
+    if (total > held && held >= 500) {
       expect(landing.body).toMatchObject({ capped: true, storeTotal: total });
       expect(landing.body.limitations).toContain(`${held.toLocaleString('en-IN')} of ${total.toLocaleString('en-IN')}`);
     } else {
