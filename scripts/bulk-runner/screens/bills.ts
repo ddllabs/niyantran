@@ -37,10 +37,10 @@ const MIN_NAME = 8; // SQL line 64: a name of fewer than 8 letters and digits is
 const SHA256 = /^[0-9a-f]{64}$/;
 const SOURCE_KEY = /^[0-9a-f]{40}$/;
 
-const isRec = (v: unknown): v is Rec => !!v && typeof v === 'object' && !Array.isArray(v);
-const str = (v: unknown): v is string => typeof v === 'string' && v !== '';
+export const isRec = (v: unknown): v is Rec => !!v && typeof v === 'object' && !Array.isArray(v);
+export const str = (v: unknown): v is string => typeof v === 'string' && v !== '';
 const isInt = (v: unknown): v is number => Number.isSafeInteger(v);
-const keyOf = (r: Rec): string | null => str(r.source_key) ? r.source_key : null;
+export const keyOf = (r: Rec): string | null => str(r.source_key) ? r.source_key : null;
 const EMPTY_TEXT_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
 // The hash prepare.ts will store: its text after layout breaks become line breaks and control codes go. Computed once
@@ -76,13 +76,13 @@ export function billNorm(v: unknown): string {
 }
 
 /** SQL lines 76-77: a real calendar date written YYYY-MM-DD, as a day number; else null. */
-function isoDay(v: unknown): number | null {
+export function isoDay(v: unknown): number | null {
   if (typeof v !== 'string' || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v)) return null;
   const t = Date.parse(`${v}T00:00:00Z`);
   return Number.isNaN(t) || new Date(t).toISOString().slice(0, 10) !== v ? null : t / 86_400_000;
 }
 
-const citationOf = (r: Rec): Rec => isRec(r.citation) ? r.citation : {};
+export const citationOf = (r: Rec): Rec => isRec(r.citation) ? r.citation : {};
 /** A number or year the pack may give as a string or a number (SQL reads both through ->>). */
 const scalar = (v: unknown): string | null => str(v) ? v : isInt(v) ? String(v) : null;
 
@@ -106,13 +106,13 @@ function billKeys(r: Rec): string[] {
   return lk === null || lk === ck ? [ck] : [ck, lk];
 }
 
-function finding(check: string, covers: ReviewCheck[], reason: string, detail?: string): Finding {
+export function finding(check: string, covers: ReviewCheck[], reason: string, detail?: string): Finding {
   return detail === undefined ? { check, covers, reason } : { check, covers, reason, detail };
 }
 
 type Verdict = [reason: string, detail?: string];
 /** A per-record check from a function that lists what is wrong. */
-function oneCheck(
+export function oneCheck(
   name: string,
   covers: ReviewCheck[],
   judge: (r: Rec, ctx: ScreenContext) => Verdict[] | Promise<Verdict[]>,
@@ -159,7 +159,7 @@ const officialSource = oneCheck('official_source', ['identity'], (r) => {
   return r.file_name === last && last !== '' ? [] : [['file_name_mismatch']];
 });
 
-const citationComplete = oneCheck('citation_complete', ['identity'], (r) => {
+export const citationComplete = oneCheck('citation_complete', ['identity'], (r) => {
   const c = citationOf(r);
   const bad: string[] = [];
   const n = scalar(c.bill_number), y = scalar(c.bill_year);
@@ -171,7 +171,7 @@ const citationComplete = oneCheck('citation_complete', ['identity'], (r) => {
   return bad.length ? [['citation_incomplete', bad.join(',')]] : [];
 });
 
-const linksAgree = oneCheck('links_agree', ['identity'], (r) => {
+export const linksAgree = oneCheck('links_agree', ['identity'], (r) => {
   const links = r.links;
   if (!Array.isArray(links) || links.length === 0) return [['no_link']];
   const c = citationOf(r);
@@ -283,7 +283,7 @@ export const licenceAdmitted = makeLicenceAdmitted('bills screen');
 // house, name and date is the record's key and is written to `matched` for the checks after this one (and `project`).
 // Both matching is ambiguous and held; neither is held with the worse of the two findings. A record not in `matched`
 // is undecided, never passed.
-const listingRow = (matched: Map<string, string>): Check => ({
+export const listingRow = (matched: Map<string, string>): Check => ({
   name: 'listing_row',
   covers: ['identity'],
   needs: 'live',
@@ -534,7 +534,7 @@ const corrigendum = oneCheck(
  * The fields the adapter reads at the top of a bill (`document_key`, `document_role`), from fields the checks verified.
  * Throws rather than guess, and never overwrites a different value already there.
  */
-const projectWith = (matched: Map<string, string>) => (record: Rec): Rec => {
+export const projectWith = (matched: Map<string, string>) => (record: Rec): Rec => {
   const keys = billKeys(record);
   // The key listing_row matched; without it, only a citation key that is also the listing key is certain.
   const key = matched.get(String(record.source_key)) ?? (keys.length === 1 ? keys[0] : null);

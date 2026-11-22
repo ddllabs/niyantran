@@ -1602,6 +1602,7 @@ Deno.test('screenSets still hands over each outcome while a record carries ids (
 Deno.test('registration: national-regulatory builds the Regulatory screen without reading, fetching or running anything', async () => {
   const { SCREENS } = await import('./index.ts');
   assertEquals(Object.keys(SCREENS).sort(), [
+    'national-bill-corrigenda',
     'national-bills',
     'national-budget',
     'national-cabinet',
