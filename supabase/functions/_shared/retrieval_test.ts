@@ -465,12 +465,31 @@ Deno.test('F288: hybrid and fallback both fail: the fallback error surfaces once
   assertEquals(r.paths.map((p) => p.path), ['hybrid_fallback'], 'the fallback is still visible');
 });
 
-Deno.test('F288: other scopes never read the switch or call hybrid', async () => {
+Deno.test('F393: a desk other than NCLT reads its own switch: off is the plain vector search, on is hybrid with the same fallback', async () => {
+  const desk = { query: 'q', deskTier: 'national', deskFeature: 'Regulatory Body Watch (RBI SEBI TRAI CCI)' };
+  const off = rig(OFF);
+  await search(off.d, desk);
+  assertEquals(off.calls.map((c) => c.fn), ['match_documents']);
+  assertEquals(off.reads(), 1, 'the desk switch was consulted');
+  const on = rig(ON);
+  await search(on.d, desk);
+  assertEquals(on.calls.map((c) => c.fn), ['match_documents_hybrid']);
+  assertEquals(on.calls[0].args.query_text, 'q');
+  assertEquals(on.calls[0].args.p_desk_feature, desk.deskFeature);
+  const failing = rig(ON, { match_documents_hybrid: () => Promise.resolve({ data: null, error: { message: 'x' } }) });
+  await search(failing.d, desk);
+  assertEquals(failing.calls.map((c) => c.fn), ['match_documents_hybrid', 'match_documents'], 'vector-only is the fallback');
+  const unreadable = rig(new Error('read failed'));
+  await search(unreadable.d, desk);
+  assertEquals(unreadable.calls.map((c) => c.fn), ['match_documents'], 'an unreadable switch is off');
+});
+
+Deno.test('F288: scopes without a desk feature or with document ids never read the switch or call hybrid', async () => {
   const scopes = [
     { query: 'q' },
     { query: 'q', deskTier: 'national' },
-    { query: 'q', deskTier: 'national', deskFeature: 'Parliamentary Questions' },
     { ...NCLT, documentIds: ['doc-1'] },
+    { query: 'q', deskTier: 'national', deskFeature: 'Parliamentary Questions', documentIds: ['doc-1'] },
   ];
   for (const scope of scopes) {
     const r = rig(ON);
