@@ -193,6 +193,13 @@ run; changing it is one `update` by the developer.
   (image data): `callMistralOcr` reads it whole with no size limit, while the worker asks at most 25 pages a call and halves
   that after a 20 MB answer; this function asks up to 62 pages in one call, two calls at once, inside the function's 256 MB.
   Not measured; no limit was added.
+- **2026-11-22, trial of HTML tables.** The worker-flags trial (Demand 42 and 55, 4 pages, US$0.016) gave byte-identical
+  text: the year values were still lost, as Mistral flattens merged cells in its markdown tables. The developer approved a
+  trial of `table_format: 'html'`, which can express `rowspan` and `colspan`, on the same two documents. `ocrRequestFor`
+  now sends the worker's flags with `BUDGET_TABLE_FORMAT = 'html'` (one line to change back; the worker's `OCR_FLAGS` are
+  unchanged), and the composition also resolves `[tbl-N.html](tbl-N.html)` placeholders, so the stored text would then
+  hold the tables as HTML. An unresolved html placeholder still fails as `ocr_table_unresolved`, and `ocr-collect` refuses
+  one left in the text.
 
 ## Rollback
 
