@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import register from '../../public/data/embedded_csv/national_mp_report_card.json';
+import { deskRowKey } from './deskRows.js';
 import { cabinetPrefers, cabinetReleaseGroup, canonicalParty, isCabinetBody, mpHouseOf, pickReleasePairs, shapeMpRows } from './parliament.js';
 
 // F125: PIB names each release's issuing body; only the Cabinet and its committees issue decisions.
@@ -54,6 +55,38 @@ describe('MP register shaping', () => {
     for (const [i, r] of shaped.entries()) expect(r.party_raw, r.mp_name).toBe(register[i].party);
     expect(shaped.filter((r) => r.party === 'BJP').length).toBe(354); // 240 abbreviated + 114 full names
     expect(register[0]).not.toHaveProperty('party_raw'); // the input is not mutated
+  });
+
+  // Row ids repeat across the houses; the id is the row key, so two members collapsed into others.
+  it('gives two members with one numeric id in different houses two keys', () => {
+    const ls = { id: '2664', mp_name: 'A', source_url: 'https://sansad.in/ls/members/biographyM/2664?from=members' };
+    const rs = { id: '2664', mp_name: 'B', source_url: 'https://sansad.in/rs/members/biographyM/2664' };
+    const keys = shapeMpRows([ls, rs]).map(deskRowKey);
+    expect(new Set(keys).size).toBe(2);
+    expect(keys[0]).toBe('2664'); // the Lok Sabha member keeps the key it had
+    expect(shapeMpRows([ls, rs])[1].id_raw).toBe('2664');
+  });
+
+  it('keys all 782 real members apart, moving only the two Rajya Sabha rows that collided', () => {
+    const shaped = shapeMpRows(register);
+    const keys = shaped.map(deskRowKey);
+    expect(new Set(keys).size).toBe(782);
+    const moved = register.map((r, i) => [r, keys[i]]).filter(([r, key]) => key !== deskRowKey(r));
+    expect(moved.map(([r, key]) => [r.id, key])).toEqual([['2664', 'rs-2664'], ['2554', 'rs-2554']]);
+    expect(moved.every(([r]) => mpHouseOf(r.source_url) === 'Rajya Sabha')).toBe(true);
+  });
+
+  it('is idempotent and leaves a lone Rajya Sabha id alone', () => {
+    const once = shapeMpRows(register);
+    expect(shapeMpRows(once)).toEqual(once);
+    const lone = { id: '9', source_url: 'https://sansad.in/rs/members/biographyM/9' };
+    expect(shapeMpRows([lone])[0].id).toBe('9');
+  });
+
+  it('keeps other modules keys unchanged (the key function itself is not touched)', () => {
+    expect(deskRowKey({ id: 'XLIV', bill_name: 'A Bill' })).toBe('xliv');
+    expect(deskRowKey({ bill_number: '155', bill_name: 'A Bill' })).toBe('155');
+    expect(deskRowKey({ source_url: 'https://sansad.in/rs/members/biographyM/9' })).toBe('https://sansad.in/rs/members/biographym/9');
   });
 });
 

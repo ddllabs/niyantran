@@ -118,10 +118,27 @@ export function canonicalParty(name) {
   return PARTY_ABBREVIATIONS.get(held.toLowerCase()) || held;
 }
 
-/** The MP register with `house` from each member's own link and a unified `party`; the original stays in `party_raw`. */
+/**
+ * The MP register with `house` from each member's own link and a unified `party`; the original
+ * stays in `party_raw`. The register's `id` repeats across the houses (two Lok Sabha and two Rajya
+ * Sabha members share one) and `id` is the row key, so a Rajya Sabha row whose id a Lok Sabha row
+ * also holds is keyed `rs-<id>` (the register's own id stays in `id_raw`). Every other row keeps
+ * its key, so stored references to it still resolve. Shaping a shaped register changes nothing.
+ */
 export function shapeMpRows(rows) {
-  return (Array.isArray(rows) ? rows : []).map((r) => {
-    if (!r || typeof r !== 'object' || r.status === 'source_status') return r;
-    return { ...r, house: r.house || mpHouseOf(r.source_url), party_raw: r.party_raw ?? r.party, party: canonicalParty(r.party_raw ?? r.party) };
+  const list = Array.isArray(rows) ? rows : [];
+  const isRow = (r) => r && typeof r === 'object' && r.status !== 'source_status';
+  const hasId = (r) => r.id != null && r.id !== '';
+  const houseOf = (r) => r.house || mpHouseOf(r.source_url);
+  const lokSabhaIds = new Set(list.filter((r) => isRow(r) && hasId(r) && houseOf(r) === 'Lok Sabha').map((r) => String(r.id)));
+  return list.map((r) => {
+    if (!isRow(r)) return r;
+    const house = houseOf(r);
+    const shaped = { ...r, house, party_raw: r.party_raw ?? r.party, party: canonicalParty(r.party_raw ?? r.party) };
+    if (house === 'Rajya Sabha' && hasId(r) && lokSabhaIds.has(String(r.id))) {
+      shaped.id_raw = r.id_raw ?? r.id;
+      shaped.id = `rs-${r.id}`;
+    }
+    return shaped;
   });
 }
