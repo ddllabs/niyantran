@@ -302,6 +302,104 @@ Deno.test('a corrigendum whose own citation conflicts with its mapping is held, 
   assertEquals((await prepareRecord(same, { ...OPT, corrigenda: { [same.source_key]: MAP } })).kind, 'request');
 });
 
+// F372: a pack corrigendum has no file link and no bill in its citation; its own links name the bill it corrects.
+const LINK = {
+  tier: 'national',
+  feature: 'Bill Passage Probability Index',
+  role: 'corrigendum',
+  row_key: null,
+  document_key: 'bill:2025:12',
+  bill_number: '12',
+  bill_year: '2025',
+  bill_name: MAP.bill_name,
+  house: 'Lok Sabha',
+};
+async function packErratum(over: Rec = {}, links: Rec[] = [LINK]): Promise<Rec> {
+  const { file_url: _f, document_key: _k, ...rest } = await erratum({ kind: 'bill_corrigendum', source: 'pack' });
+  return { ...rest, doc_type: 'bill_corrigendum', file_url: null, links, ...over };
+}
+
+Deno.test('billIdentityFromLinks: the one bill every link names, else null', async () => {
+  const { billIdentityFromLinks } = await import('./prepare.ts');
+  assertEquals(billIdentityFromLinks(await packErratum()), MAP);
+  assertEquals(billIdentityFromLinks(await packErratum({}, [LINK, { ...LINK, also_feature: 'x' }])), MAP);
+  assertEquals(billIdentityFromLinks(await packErratum({}, [])), null);
+  assertEquals(billIdentityFromLinks(await packErratum({ links: undefined })), null);
+  for (
+    const [field, value] of [['bill_number', '13'], ['bill_year', '2024'], ['house', 'Rajya Sabha'], [
+      'bill_name',
+      'The Other Bill, 2025',
+    ]]
+  ) {
+    assertEquals(billIdentityFromLinks(await packErratum({}, [LINK, { ...LINK, [field]: value }])), null, field);
+  }
+  for (const field of ['bill_number', 'bill_year', 'bill_name', 'house']) {
+    assertEquals(billIdentityFromLinks(await packErratum({}, [{ ...LINK, [field]: undefined }])), null, field);
+    assertEquals(billIdentityFromLinks(await packErratum({}, [{ ...LINK, [field]: 12 }])), null, field);
+  }
+  assertEquals(billIdentityFromLinks(await packErratum({}, ['x' as unknown as Rec])), null);
+  // O6: only the national Bills desk's own corrigendum link names a bill for this route.
+  for (
+    const over of [{ feature: 'Parliamentary Question Database' }, { tier: 'state' }, { role: 'as_introduced' }, {
+      feature: undefined,
+    }, { role: undefined }]
+  ) {
+    assertEquals(billIdentityFromLinks(await packErratum({}, [{ ...LINK, ...over }])), null, JSON.stringify(over));
+    assertEquals(
+      billIdentityFromLinks(await packErratum({}, [LINK, { ...LINK, ...over }])),
+      null,
+      JSON.stringify(over),
+    );
+  }
+});
+
+Deno.test('F372: a corrigendum takes its bill from its own links only when the collection says so', async () => {
+  const c = await packErratum();
+  const off = await prepareRecord(c, OPT);
+  assertEquals(off.kind === 'hold' && off.hold.reason, 'corrigendum_unmapped');
+  const on = await prepareRecord(c, { ...OPT, corrigendaFromLinks: true });
+  assertEquals(on.kind, 'request');
+  if (on.kind !== 'request') return;
+  const p = JSON.parse(on.request.payload);
+  assertEquals([p.document_key, p.document_role, p.doc_type, p.file_url], [
+    'bill:2025:12',
+    'errata',
+    'bill_corrigendum',
+    undefined,
+  ]);
+  assertEquals([p.citation.bill_number, p.citation.bill_year, p.citation.house], ['12', '2025', 'Lok Sabha']);
+  assertEquals(p.citation.bill_name, MAP.bill_name);
+  // An explicit mapping wins over the links.
+  const other = { ...MAP, bill_number: '99', bill_name: 'The Other Bill, 2025' };
+  const mapped = await prepareRecord(c, { ...OPT, corrigendaFromLinks: true, corrigenda: { [c.source_key]: other } });
+  assertEquals(mapped.kind === 'request' && JSON.parse(mapped.request.payload).document_key, 'bill:2025:99');
+  // Links that name two bills, or none, are not a mapping.
+  for (const links of [[], [LINK, { ...LINK, bill_number: '13', document_key: 'bill:2025:13' }]]) {
+    const out = await prepareRecord(await packErratum({}, links), { ...OPT, corrigendaFromLinks: true });
+    assertEquals(out.kind === 'hold' && out.hold.reason, 'corrigendum_unmapped', JSON.stringify(links.length));
+  }
+  // Its own text identity is not asked of an erratum, so the required check is carried.
+  const checked = await prepareRecord(c, { ...OPT, corrigendaFromLinks: true, requireTextIdentity: true });
+  assertEquals(checked.kind === 'request' && JSON.parse(checked.request.payload).review.checks.bill_identity, true);
+});
+
+Deno.test("F372: a corrigendum may carry the listing's key (the year closing the bill's name), and no other", async () => {
+  // The citation year says 2024; the name closes with 2025, so the listing's key is bill:2025:12.
+  const links = [{ ...LINK, bill_year: '2024', document_key: 'bill:2024:12' }];
+  const own = await prepareRecord(await packErratum({}, links), { ...OPT, corrigendaFromLinks: true });
+  assertEquals(own.kind === 'request' && JSON.parse(own.request.payload).document_key, 'bill:2024:12');
+  const listing = await prepareRecord(await packErratum({ document_key: 'bill:2025:12' }, links), {
+    ...OPT,
+    corrigendaFromLinks: true,
+  });
+  assertEquals(listing.kind === 'request' && JSON.parse(listing.request.payload).document_key, 'bill:2025:12');
+  const wrong = await prepareRecord(await packErratum({ document_key: 'bill:2023:12' }, links), {
+    ...OPT,
+    corrigendaFromLinks: true,
+  });
+  assertEquals(wrong.kind === 'hold' && wrong.hold.reason, 'corrigendum_conflict');
+});
+
 Deno.test('a bill that is not a corrigendum needs no mapping', async () => {
   const out = await prepareRecord(await nationalBill(), { ...OPT, corrigenda: {} });
   assertEquals(out.kind, 'request');
