@@ -327,6 +327,7 @@ Deno.test("buildOcrRecord: text that is not this record's own request is refused
   await refuse(row(orig, { page_texts: ['only one'] }), 'page_count_mismatch');
   await refuse(row(orig, { page_texts: ['a', 5 as unknown as string] }), 'page_text_not_string');
   await refuse(row(orig, { page_texts: ['a', 'b [tbl-3.md](tbl-3.md) c'] }), 'table_placeholder');
+  await refuse(row(orig, { page_texts: ['a [tbl-0.html](tbl-0.html) b', 'c'] }), 'table_placeholder');
 });
 
 // ---- the screen allows the OCR text type, and holds the rest ----
@@ -587,6 +588,21 @@ Deno.test('ocr-collect: OCR text that still holds a table placeholder is not bui
   assert(!out.includes('Clean words') && !out.includes('tbl-0'));
   const lines = w.written.get(`${OUT}/ocr-records.jsonl`)!.trim().split('\n').map((l) => JSON.parse(l) as Rec);
   assertEquals(lines.map((l) => l.source_key), [key(2)]);
+});
+
+Deno.test('ocr-collect: OCR text that still holds an html table placeholder is not built, and its text is not printed', async () => {
+  const w = await world(2);
+  w.db.rows = [
+    row(w.recs[0]),
+    row(w.recs[1], { page_texts: ['Clean words', 'Clean words before the table [tbl-2.html](tbl-2.html) after'] }),
+  ];
+  assertEquals(await ocrCommand(collectArgs(), w.deps), 1);
+  const out = w.logs.join('\n');
+  assert(out.includes('done 1, pending 0, failed 0, not queued 0, not built 1'));
+  assert(out.includes(`${key(2)} not built: table_placeholder`));
+  assert(!out.includes('Clean words') && !out.includes('tbl-2'));
+  const lines = w.written.get(`${OUT}/ocr-records.jsonl`)!.trim().split('\n').map((l) => JSON.parse(l) as Rec);
+  assertEquals(lines.map((l) => l.source_key), [key(1)]);
 });
 
 Deno.test('ocr-collect: refuses a records file its receipt does not vouch for, and an output inside a checkout', async () => {

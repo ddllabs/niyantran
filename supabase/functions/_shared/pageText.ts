@@ -133,25 +133,38 @@ export function normaliseBox(
 // ─── R1.1 tables, R1.2 images ────────────────────────────────────────────────
 
 const TABLE_PLACEHOLDER = /\[([^\]\n]+?\.md)\]\(\1\)/g;
+/** With `table_format: 'html'` Mistral names its tables `tbl-N.html`; markdown placeholders still match. */
+const TABLE_PLACEHOLDER_HTML = /\[([^\]\n]+?\.(?:md|html))\]\(\1\)/g;
 const IMAGE_PLACEHOLDER = /!\[([^\]\n]+)\]\(\1\)/g;
 /** Any image or link token; a page holding only these and whitespace has no text (R1.4). */
 const ANY_PLACEHOLDER = /!?\[[^\]\n]*\]\([^)\n]*\)/g;
 
+/** Options of the composition. The ingest worker passes none. */
+export interface ComposeOptions {
+  /**
+   * Also resolve `[tbl-….html](tbl-….html)` placeholders, for an answer requested with `table_format: 'html'`
+   * (budget-ocr). Off, an `.html` link is ordinary text, as it always was.
+   */
+  htmlTables?: boolean;
+}
+
 /**
- * Replace `[tbl-….md](tbl-….md)` placeholders with the table's markdown (TenderBase `inlineTables`).
- * An unknown placeholder is left in place and reported: a dangling link is visible, a deleted one would
- * silently lose a table.
+ * Replace `[tbl-….md](tbl-….md)` placeholders (and, with `htmlTables`, `[tbl-….html](tbl-….html)`) with the
+ * table's content (TenderBase `inlineTables`). An unknown placeholder is left in place and reported: a
+ * dangling link is visible, a deleted one would silently lose a table.
  */
 export function inlineTables(
   markdown: string,
   tables: ReadonlyArray<{ id?: unknown; content?: unknown; format?: unknown }>,
+  options: ComposeOptions = {},
 ): { markdown: string; unresolved: string[] } {
   const byId = new Map<string, string>();
   for (const t of tables) {
     if (typeof t.id === 'string' && typeof t.content === 'string') byId.set(t.id, t.content);
   }
   const unresolved: string[] = [];
-  const out = markdown.replace(TABLE_PLACEHOLDER, (whole, id: string) => {
+  const pattern = options.htmlTables ? TABLE_PLACEHOLDER_HTML : TABLE_PLACEHOLDER;
+  const out = markdown.replace(pattern, (whole, id: string) => {
     const content = byId.get(id);
     if (content === undefined) {
       unresolved.push(id);
@@ -253,7 +266,7 @@ function missingAtEdge(body: string, lines: string[], edge: 'start' | 'end'): st
  * an empty page still takes its position, so page k starts at (sum of earlier text lengths) + 2·k
  * and ocr_text holds four newlines around an empty page. Pages are sorted by Mistral index.
  */
-export function composeDocument(input: readonly MistralPage[]): ComposedDocument {
+export function composeDocument(input: readonly MistralPage[], options: ComposeOptions = {}): ComposedDocument {
   const pages = [...input].sort((a, b) => a.index - b.index);
   const running = runningLines(pages);
   const unique = (value: string | null | undefined) =>
@@ -266,7 +279,7 @@ export function composeDocument(input: readonly MistralPage[]): ComposedDocument
 
   pages.forEach((p, i) => {
     const pageNumber = p.index + 1;
-    const tables = inlineTables(p.markdown ?? '', p.tables ?? []);
+    const tables = inlineTables(p.markdown ?? '', p.tables ?? [], options);
     for (const id of tables.unresolved) unresolvedTables.push({ page_number: pageNumber, id });
     const images = rewriteImagePlaceholders(tables.markdown, pageNumber, (p.images ?? []).map((im) => im.id));
     for (const m of images.placeholders) imagePlaceholders.push({ page_number: pageNumber, ...m });

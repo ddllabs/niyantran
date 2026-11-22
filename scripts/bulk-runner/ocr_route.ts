@@ -195,8 +195,11 @@ export function planOcr(records: Rec[], holds: HoldLine[], o: SelectOptions): Oc
 // Control codes other than tab, line feed and carriage return are not text; a page break inside a page would break the spans.
 // deno-lint-ignore no-control-regex
 const CONTROL = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
-/** A Mistral table placeholder left in the text means the table itself is missing (F408): such text is never built. */
-const TABLE_PLACEHOLDER = /\[tbl-[^\]\n]*\.md\]\(tbl-[^)\n]*\.md\)/;
+/**
+ * A Mistral table placeholder (markdown or html tables) left in the text means the table itself is missing (F408): such text
+ * is never built.
+ */
+const TABLE_PLACEHOLDER = /\[tbl-[^\]\n]*\.(?:md|html)\]\(tbl-[^)\n]*\.(?:md|html)\)/;
 
 export interface QueueRow {
   source_key: string;

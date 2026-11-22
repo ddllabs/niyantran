@@ -70,6 +70,41 @@ Deno.test('composeDocument reports an unresolved table placeholder with its page
   assertEquals(doc.pages[1].text, 'Rows:\n\n[tbl-3.md](tbl-3.md)');
 });
 
+const HTML_TABLE = '<table><tr><td rowspan="2">a</td><td>1</td></tr><tr><td>2</td></tr></table>';
+
+Deno.test('inlineTables: by default an html placeholder is ordinary text, neither replaced nor reported (the worker)', () => {
+  const md = 'See [tbl-0.html](tbl-0.html) and [tbl-1.md](tbl-1.md)';
+  const r = inlineTables(md, [{ id: 'tbl-0.html', content: HTML_TABLE, format: 'html' }]);
+  assertEquals(r.markdown, md);
+  assertEquals(r.unresolved, ['tbl-1.md']);
+});
+
+Deno.test('inlineTables with html tables replaces html and markdown placeholders and reports unknown ones', () => {
+  const r = inlineTables(
+    'Before\n\n[tbl-0.html](tbl-0.html)\n\n[tbl-1.md](tbl-1.md)\n\n[tbl-9.html](tbl-9.html)\n',
+    [
+      { id: 'tbl-0.html', content: HTML_TABLE, format: 'html' },
+      { id: 'tbl-1.md', content: '| c |\n|---|\n| 3 |', format: 'markdown' },
+    ],
+    { htmlTables: true },
+  );
+  assertEquals(r.markdown, `Before\n\n${HTML_TABLE}\n\n| c |\n|---|\n| 3 |\n\n[tbl-9.html](tbl-9.html)\n`);
+  assertEquals(r.unresolved, ['tbl-9.html']);
+});
+
+Deno.test('composeDocument with html tables puts the table in place and reports an unresolved html placeholder', () => {
+  const doc = composeDocument(
+    synthetic(['Rows:\n\n[tbl-0.html](tbl-0.html)', 'More:\n\n[tbl-3.html](tbl-3.html)'], [
+      { tables: [{ id: 'tbl-0.html', content: HTML_TABLE, format: 'html' }] },
+      { tables: [] },
+    ]),
+    { htmlTables: true },
+  );
+  assertEquals(doc.pages[0].text, `Rows:\n\n${HTML_TABLE}`);
+  assertEquals(doc.unresolvedTables, [{ page_number: 2, id: 'tbl-3.html' }]);
+  assertEquals(doc.pages[1].text, 'More:\n\n[tbl-3.html](tbl-3.html)');
+});
+
 // ─── R1.2 images ─────────────────────────────────────────────────────────────
 
 Deno.test('image placeholders become img:<page>-<n>, n per page in order of appearance', () => {

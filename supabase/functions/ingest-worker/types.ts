@@ -144,7 +144,8 @@ export interface OcrRequest {
   document: { type: 'document_url'; document_url: string };
   /** Part-local, 0-based. */
   pages: number[];
-  table_format: OcrFlags['table_format'];
+  /** The worker always sends OCR_FLAGS.table_format; budget-ocr asks for 'html'. */
+  table_format: 'markdown' | 'html';
   extract_header: boolean;
   extract_footer: boolean;
   include_blocks: boolean;
