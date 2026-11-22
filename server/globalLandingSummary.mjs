@@ -1,3 +1,4 @@
+import { withStoreCap } from './landingStoreCap.mjs';
 import { GLOBAL_FEATURES, projectGlobalSummary } from '../src/lib/globalLandingSummary.js';
 
 export async function serveGlobalLanding(searchParams, loadFeed) {
@@ -6,8 +7,8 @@ export async function serveGlobalLanding(searchParams, loadFeed) {
   const raw = await loadFeed(new URLSearchParams({ tier: 'geopolitics', feature }));
   const summary = projectGlobalSummary({ ...raw, feature, tier: 'geopolitics' });
   if (raw?.served === 'store') {
-    return { ...summary, served: raw.served, fetchedAt: raw.fetchedAt,
-      ...(raw.stale ? { stale: true, ageMinutes: raw.ageMinutes } : {}) };
+    return withStoreCap({ ...summary, served: raw.served, fetchedAt: raw.fetchedAt,
+      ...(raw.stale ? { stale: true, ageMinutes: raw.ageMinutes } : {}) }, raw);
   }
   // F154: whether the count came from the live source or, past its time limit, the archive.
   return raw?.served ? { ...summary, served: raw.served } : summary;

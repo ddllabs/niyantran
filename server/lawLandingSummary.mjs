@@ -1,4 +1,5 @@
 import { LAW_FEATURES, projectLawSummary } from '../src/lib/lawLandingSummary.js';
+import { withStoreCap } from './landingStoreCap.mjs';
 import { serveLawListingPage } from './lawListingPage.mjs';
 export async function serveLawLanding(searchParams, loadFeed, options) {
   const feature = searchParams.get('feature');
@@ -8,5 +9,5 @@ export async function serveLawLanding(searchParams, loadFeed, options) {
   const raw = canonical?.body || await loadFeed(new URLSearchParams({ tier: 'judiciary', feature }));
   const summary = projectLawSummary({ ...raw, feature, tier: 'judiciary' });
   // F154: whether the count came from the live source or, past its time limit, the archive.
-  return raw?.served ? { ...summary, served: raw.served } : summary;
+  return withStoreCap(raw?.served ? { ...summary, served: raw.served } : summary, raw);
 }
