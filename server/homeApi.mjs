@@ -580,6 +580,8 @@ function snapshotConflictFile() {
 }
 
 const BILLS_PATH = path.join(PUBLIC_DATA, 'embedded_csv', 'national_bill_tracker.json');
+const CARBON_PRICING_PATH = path.join(PUBLIC_DATA, 'embedded_csv', 'climate_carbon_pricing.json');
+const SC_ORDERS_PATH = path.join(PUBLIC_DATA, 'embedded_csv', 'judiciary_sc_orders.json');
 const QUESTIONS_PATH = path.join(PUBLIC_DATA, 'embedded_csv', 'national_question_database.json');
 let segmentCountsCache = null;
 
@@ -598,6 +600,9 @@ function segmentCounts() {
     ministries: distinct(readJsonFile(QUESTIONS_PATH), (r) => key(r.ministry)),
     fronts: distinct(loadWar(), (r) => key(r.conflict_name)),
     instruments: TICKERS.length,
+    // Jurisdictions in the carbon pricing table, and Supreme Court orders in the order snapshot.
+    jurisdictions: distinct(readJsonFile(CARBON_PRICING_PATH), (r) => key(r.jurisdiction)),
+    scOrders: distinct(readJsonFile(SC_ORDERS_PATH), (r) => String(r.id || '').trim()),
   };
   return segmentCountsCache;
 }
@@ -645,6 +650,8 @@ export async function serveHomeSegments({ figures = readSiteFigures } = {}) {
         summary: 'Official parliamentary floor register tracking bills across Lok Sabha & Rajya Sabha.',
         keyMetrics: [
           metric('Bills on Record', counts.bills),
+          // True constants of the world: Parliament has two Houses; the Lok Sabha has 543 elected seats; India
+          // has 28 States and 8 Union Territories (36).
           metric('Houses Covered', '2'),
           metric('Ministries', counts.ministries),
         ].filter(Boolean),
@@ -726,9 +733,11 @@ export async function serveHomeSegments({ figures = readSiteFigures } = {}) {
         icon: 'carbon',
         summary: 'European and domestic carbon tariff tracking, voluntary offset registries, and emissions targets.',
         keyMetrics: [
+          // A fact of the EU regulation: CBAM covers six goods groups (cement, iron and steel, aluminium,
+          // fertilisers, electricity, hydrogen).
           { label: 'Sectors', value: '6' },
-          { label: 'Jurisdictions', value: '27' },
-        ],
+          metric('Jurisdictions', counts.jurisdictions),
+        ].filter(Boolean),
       },
       {
         id: 'judiciary',
@@ -740,7 +749,7 @@ export async function serveHomeSegments({ figures = readSiteFigures } = {}) {
         lastUpdated: 'Daily Digest',
         icon: 'law',
         summary: 'Supreme Court order digests, High Court precedents, and tribunal dispute settlements.',
-        keyMetrics: [{ label: 'Benches Covered', value: '25' }],
+        keyMetrics: [metric('Supreme Court Orders', counts.scOrders)].filter(Boolean),
       },
     ],
   };

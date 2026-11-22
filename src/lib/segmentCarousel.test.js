@@ -16,10 +16,13 @@ const COMPUTED = {
   ministries: new Set(readRows('national_question_database').map((r) => key(r.ministry)).filter(Boolean)).size,
   fronts: new Set(readRows('geopolitics_war_tracker').map((r) => key(r.conflict_name))).size,
   instruments: 9,
+  // Audit of 2026-11-21: the hand-typed 27 jurisdictions and 25 benches became counts from the desks' files.
+  jurisdictions: new Set(readRows('climate_carbon_pricing').map((r) => key(r.jurisdiction)).filter(Boolean)).size,
+  scOrders: new Set(readRows('judiciary_sc_orders').map((r) => String(r.id || '').trim()).filter(Boolean)).size,
 };
 // True facts: Lok Sabha seats, the two Houses, 28 states + 8 union territories,
-// the six CBAM sectors, the 27 EU member states, the 25 High Courts.
-const CONSTANTS = [543, 2, 36, 6, 27, 25];
+// the six CBAM sectors.
+const CONSTANTS = [543, 2, 36, 6];
 /** Every number a slide shows: the headline count and each metric value. */
 function figures(segments) {
   return segments.flatMap((s) => [
@@ -88,6 +91,8 @@ describe('CR-09 — Front-Page Carousel and Sign-In Gate', () => {
     expect(metric('economy', 'Market Instruments')).toBe('9');
     expect(seg.get('electoral').liveCount).toBe(543);
     expect(metric('electoral', 'States & UTs')).toBe('36');
+    expect(metric('climate', 'Jurisdictions')).toBe(String(COMPUTED.jurisdictions));
+    expect(metric('judiciary', 'Supreme Court Orders')).toBe(String(COMPUTED.scOrders));
   });
 
   it('shows no figure that is neither computed nor an approved constant', async () => {

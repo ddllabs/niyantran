@@ -3,11 +3,16 @@ import { expect, it } from 'vitest';
 import { SITE_FIGURES, figure, registryEndpointCount } from './siteFigures.js';
 import { DESK_CATALOGUE } from '../desks/landing/deskCatalogue.js';
 
-it('uses measured counts: bills and documents from the live query, modules from the catalogue', () => {
+it('starts from the build-time snapshot where it counts the same thing, and from nothing where it does not', () => {
   expect(SITE_FIGURES.bills).toBe(9817);
-  expect(SITE_FIGURES.documents).toBe(3431);
+  expect(SITE_FIGURES.fronts).toBe(88);
+  // No build-time source: shown as a dash until the live count arrives, never as an old number.
+  expect(SITE_FIGURES.documents).toBeNull();
+  expect(SITE_FIGURES.ministries).toBeNull();
   expect(SITE_FIGURES.modules).toBe(DESK_CATALOGUE.length);
   expect(figure(SITE_FIGURES.bills)).toBe('9,817');
+  expect(figure(null)).toBe('\u2014');
+  expect(figure(undefined)).toBe('\u2014');
 });
 
 // F212: the hero's "Intelligence desks" is the desk count pricing and the proof card already use (F30).
@@ -31,12 +36,10 @@ it('leaves no hand-typed bill, endpoint or uptime figures on the homepage and pr
 // homepage bundle; this recount fails the moment the two drift apart.
 it('counts source endpoints from the source registry', () => {
   const registry = JSON.parse(readFileSync(new URL('../data/source-registry.json', import.meta.url), 'utf8'));
-  // The registry counted 115 after F180, 120 after F196 batch 1 (three State news searches, three Manifold
-  // searches for one Google News address) and 121 after batch 2 (the RBI handbook's listing; the RBI press
-  // RSS moved from State Fiscal Deep-Dive to the SDL auctions); the published 246 is the owner's figure
-  // until they decide.
-  expect(registryEndpointCount(registry)).toBe(121);
-  expect(SITE_FIGURES.endpoints).toBe(246);
+  // The published figure is the registry's own count, rebuilt into preview-figures.json
+  // (scripts/build-preview-figures.mjs); it was a hand-kept 246 until the audit of 2026-11-21.
+  expect(SITE_FIGURES.endpoints).toBe(registryEndpointCount(registry));
+  expect(SITE_FIGURES.endpoints).not.toBe(246);
 });
 
 it('counts each endpoint URL once, across newline- or pipe-separated source lists', () => {

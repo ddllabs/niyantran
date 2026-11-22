@@ -3,6 +3,7 @@
     "total": 9817,
     "houses": 2,
     "seriesStart": 1952,
+    "seriesEnd": 2026,
     "stages": {
       "Pending": 689,
       "Passed": 169,
@@ -12,7 +13,29 @@
   },
   "fronts": {
     "fronts": 88,
-    "regions": 17
+    "regions": 17,
+    "stages": [
+      [
+        "Active",
+        36
+      ],
+      [
+        "Under review",
+        22
+      ],
+      [
+        "Low-intensity",
+        14
+      ],
+      [
+        "Ceasefire fragile",
+        8
+      ],
+      [
+        "Frozen",
+        8
+      ]
+    ]
   },
   "mps": {
     "states": 36
@@ -20,5 +43,10 @@
   "macro": {
     "series": 7,
     "publishers": 2
-  }
+  },
+  "regulatory": {
+    "notices": 121,
+    "regulators": 2
+  },
+  "endpoints": 121
 }

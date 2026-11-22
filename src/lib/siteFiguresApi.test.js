@@ -57,7 +57,9 @@ describe('GET /api/site-figures', () => {
     expect(cached.headers['cache-control']).toBe('public, s-maxage=60');
     resetSiteFiguresCache();
     const fallback = await get({ adminClient: () => down, now: () => t });
-    expect(fallback.body).toMatchObject({ bills: MEASURED_FIGURES.bills, documents: MEASURED_FIGURES.documents, ministries: MEASURED_FIGURES.ministries, fronts: MEASURED_FIGURES.fronts, source: 'fallback' });
+    // The fallback holds no number: a stale count would be wrong, so every figure is null (shown as a dash).
+    expect(Object.values(MEASURED_FIGURES).every((v) => v === null)).toBe(true);
+    expect(fallback.body).toMatchObject({ bills: null, documents: null, ministries: null, fronts: null, source: 'fallback' });
     expect(fallback.headers['cache-control']).toBe('public, s-maxage=60');
   });
 

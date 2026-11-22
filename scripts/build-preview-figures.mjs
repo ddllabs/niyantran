@@ -12,6 +12,8 @@ const figures = computePreviewFigures({
   fronts: read('geopolitics_war_tracker.json'),
   mps: read('national_mp_report_card.json'),
   macro: read('finance_macro_indicators.json'),
+  regulatory: read('national_regulatory_watch.json'),
+  registry: JSON.parse(fs.readFileSync(path.join(root, 'src/data/source-registry.json'), 'utf8')),
 });
 fs.writeFileSync(path.join(root, 'src/data/preview-figures.json'), `${JSON.stringify(figures, null, 2)}\n`);
 console.log(JSON.stringify(figures));

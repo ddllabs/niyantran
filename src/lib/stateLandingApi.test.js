@@ -74,6 +74,8 @@ describe('State summary API (F157)', () => {
       serveFeatureFeed: vi.fn(),
       serveFeatureFeedWithinLimit: vi.fn(),
       serveFeatureFeedWithBackup: vi.fn(async params => ({ ok: true, tier: params.get('tier'), feature: params.get('feature'), rows: [], source: { adapter: 'news-search' }, served: 'archive' })),
+      // F404: the landing loader; this test is about the 502 answer, so it is the live loader.
+      landingLoadFeed: () => async params => ({ ok: true, tier: params.get('tier'), feature: params.get('feature'), rows: [], source: { adapter: 'news-search' }, served: 'archive' }),
     }));
     try {
       const { default: mocked } = await import('../../api/router.js');
