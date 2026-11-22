@@ -164,14 +164,17 @@ Deno.test('handler: the right secret answers 202 and the work runs after it', as
 /** The OCR flags of a request or a sent body: the keys of the ingest worker's OCR_FLAGS, nothing else. */
 const flagsOf = (o: Record<string, unknown>) => Object.fromEntries(Object.keys(OCR_FLAGS).map((k) => [k, o[k]]));
 
-Deno.test('ocrRequestFor: the official URL as document_url, exactly the expected pages, the OCR flags of the ingest worker unchanged', () => {
+Deno.test('ocrRequestFor: the official URL as document_url, exactly the expected pages, HTML tables, the other OCR flags of the ingest worker unchanged', () => {
   const r = ocrRequestFor(URL1, 3);
   assertEquals(r.document, { type: 'document_url', document_url: URL1 });
   assertEquals(r.pages, [0, 1, 2]);
-  assertEquals(flagsOf(r as unknown as Record<string, unknown>), { ...OCR_FLAGS });
+  assertEquals(flagsOf(r as unknown as Record<string, unknown>), { ...OCR_FLAGS, table_format: 'html' });
   assertEquals(r.include_blocks, true);
   assertEquals(r.include_image_base64, true);
-  assertEquals(r, buildOcrRequest(OCR_MODEL, URL1, [0, 1, 2]));
+  assertEquals(r, { ...buildOcrRequest(OCR_MODEL, URL1, [0, 1, 2]), table_format: 'html' });
+  // The ingest worker's own flags are not changed by this.
+  assertEquals(OCR_FLAGS.table_format, 'markdown');
+  assertEquals(buildOcrRequest(OCR_MODEL, URL1, [0]).table_format, 'markdown');
 });
 
 Deno.test('runOnce: claims CLAIM_LIMIT, calls OCR with each URL, stores the pages in order with the pages processed', async () => {
@@ -287,6 +290,51 @@ Deno.test('runOnce: a table placeholder with no table is a failed request (bille
   assert(logged);
   assertEquals(logged[1].unresolved, 1);
   assert(!JSON.stringify(logs).includes('fine'));
+});
+
+Deno.test('runOnce: an HTML table Mistral returns apart is put back in its page, in place of its html placeholder', async () => {
+  const table =
+    '<table><tr><th>Head</th><th>2024</th></tr><tr><td rowspan="2">A</td><td>1</td></tr><tr><td>2</td></tr></table>';
+  const { db, calls } = fakeDb([claimed(1, 2)]);
+  const { deps } = work(db, () =>
+    Promise.resolve({
+      ...result([0, 1]),
+      pages: [
+        {
+          index: 0,
+          markdown: 'Demand\n\n[tbl-0.html](tbl-0.html)',
+          tables: [{ id: 'tbl-0.html', content: table, format: 'html' }],
+        },
+        { index: 1, markdown: 'no table here' },
+      ],
+    }));
+  await runOnce(deps);
+  assertEquals(calls.map((c) => c[0]), ['claim', 'finish']);
+  assertEquals(calls[1].slice(0, 5), ['finish', 'id-1', 'tok-1', 2, [`Demand\n\n${table}`, 'no table here']]);
+  assert(!JSON.stringify(calls[1]).includes('tbl-'));
+});
+
+Deno.test('runOnce: an html table placeholder with no table is a failed request (billed, final), never stored as text', async () => {
+  const { db, calls } = fakeDb([claimed(1, 2)]);
+  const { deps, logs } = work(db, () =>
+    Promise.resolve({
+      ...result([0, 1]),
+      pages: [
+        { index: 0, markdown: 'fine', tables: [] },
+        {
+          index: 1,
+          markdown: 'Rows [tbl-4.html](tbl-4.html)',
+          tables: [{ id: 'tbl-0.html', content: '<table></table>' }],
+        },
+      ],
+    }));
+  await runOnce(deps);
+  assertEquals(calls.map((c) => c[0]), ['claim', 'fail']);
+  assertEquals(calls[1], ['fail', 'id-1', 'tok-1', 'ocr_table_unresolved', true, true]);
+  const logged = logs.find(([e]) => e === 'budget_ocr.table_unresolved');
+  assert(logged);
+  assertEquals(logged[1].unresolved, 1);
+  assert(!JSON.stringify(logs).includes('Rows'));
 });
 
 Deno.test('runOnce: a header or footer line that differs between pages is kept, one repeated on every page is dropped (F408)', async () => {
@@ -505,8 +553,9 @@ Deno.test('mistralOcr: a hung Mistral call becomes mistral_unavailable (uncertai
   assertEquals(got.pagesProcessed, 2);
   assertEquals(sentBody.document, { type: 'document_url', document_url: URL1 });
   assertEquals(sentBody.pages, [0, 1]);
-  // The body Mistral receives carries exactly the ingest worker's flags (blocks and image data included), and nothing more.
-  assertEquals(flagsOf(sentBody), { ...OCR_FLAGS });
+  // The body Mistral receives carries the ingest worker's flags (blocks and image data included) with HTML tables, and
+  // nothing more.
+  assertEquals(flagsOf(sentBody), { ...OCR_FLAGS, table_format: 'html' });
   assertEquals(sentBody.include_blocks, true);
   assertEquals(sentBody.include_image_base64, true);
   assertEquals(sentBody, {
@@ -514,6 +563,7 @@ Deno.test('mistralOcr: a hung Mistral call becomes mistral_unavailable (uncertai
     document: { type: 'document_url', document_url: URL1 },
     pages: [0, 1],
     ...OCR_FLAGS,
+    table_format: 'html',
   });
   assertEquals(sentHeaders?.get('authorization'), `Bearer ${API_KEY}`);
 });
