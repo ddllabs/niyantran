@@ -9,6 +9,9 @@
 // Access: POST only, with `x-budget-ocr-secret` equal to BUDGET_OCR_SECRET (at least 32 characters, else 503 before any claim). The comparison is the ingest worker's
 // (digests, constant time). Every refusal is the same 401 with no detail, including when the secret is unset (fail closed).
 //
+// A second mode, the vision-model trial (F409, trial.ts), is selected only by a JSON body with a `trial` field, behind the
+// same secret check: it answers the text synchronously and writes nothing. Every other body is the cron mode.
+//
 // The work runs after the 202 under `waitUntil`. runOnce never rejects. Every Mistral call has a time limit: a call that
 // does not finish is aborted and reported as uncertain (it may have been billed), so its estimate counts as spent.
 
@@ -17,6 +20,7 @@ import { composeDocument } from '../_shared/pageText.ts';
 import { redactMessage, secretMatches } from '../ingest-worker/handler.ts';
 import { buildOcrRequest, callMistralOcr, checkIndexes } from '../ingest-worker/mistral.ts';
 import { IngestError, OCR_MODEL, type OcrCallResult, type OcrRequest } from '../ingest-worker/types.ts';
+import { checkTrialBody, runTrial, trialBodyOf, type TrialDeps } from './trial.ts';
 
 /** Requests claimed by one invocation, and the lease on each (longer than the OCR time limit and the work budget). */
 export const CLAIM_LIMIT = 2;
@@ -55,6 +59,11 @@ export interface HandlerDeps {
   waitUntil(work: Promise<unknown>): void;
   /** Builds the work's dependencies; called only for an authorised request. Throws when the function is not configured. */
   work(): WorkDeps;
+  /**
+   * Builds the vision trial's dependencies (trial.ts: a read-only lookup, fetch, the OpenRouter key); called only for an
+   * authorised trial body. Absent or throwing: the trial answers 503. The cron mode never calls it.
+   */
+  trial?(): TrialDeps;
   log(event: string, fields: Record<string, unknown>): void;
 }
 
@@ -218,6 +227,25 @@ export async function handleBudgetOcr(req: Request, deps: HandlerDeps): Promise<
     // Only an authorised caller sees this, so a wrong header still learns nothing about the configuration.
     safeLog(deps.log, 'budget_ocr.secret_weak');
     return json({ error: 'not configured' }, 503);
+  }
+  // The trial (F409) is selected only by a JSON body with a `trial` field. Any other body, `{}` from the cron job included,
+  // is the cron mode, exactly as before: the body is read only after the secret check.
+  const trial = trialBodyOf(await req.text().catch(() => ''));
+  if (trial) {
+    const checked = checkTrialBody(trial);
+    if (checked instanceof Response) {
+      safeLog(deps.log, 'budget_ocr.trial_refused');
+      return checked;
+    }
+    let trialDeps: TrialDeps;
+    try {
+      if (!deps.trial) throw new Error('trial not wired');
+      trialDeps = deps.trial();
+    } catch (e) {
+      safeLog(deps.log, 'budget_ocr.config_error', { message: redactMessage(messageOf(e), [deps.secret]) });
+      return json({ error: 'not configured' }, 503);
+    }
+    return await runTrial(trialDeps, checked.model, checked.sourceKey);
   }
   let work: WorkDeps;
   try {

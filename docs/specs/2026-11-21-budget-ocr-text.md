@@ -200,6 +200,17 @@ run; changing it is one `update` by the developer.
   unchanged), and the composition also resolves `[tbl-N.html](tbl-N.html)` placeholders, so the stored text would then
   hold the tables as HTML. An unresolved html placeholder still fails as `ocr_table_unresolved`, and `ocr-collect` refuses
   one left in the text.
+- **2026-11-22, HTML tables gave the same loss; vision-model trial approved (F409).** With `table_format: 'html'` Mistral
+  still read 6 of the 7 columns of these tables (Hindi name, English name, head code and four year columns) and dropped the
+  last year's value from every detail row. The developer approved a trial of two vision models through OpenRouter,
+  Gemini 2.5 Flash (`google/gemini-2.5-flash`) and GPT-5 mini (`openai/gpt-5-mini`), on Demand 42 and 55, compared against
+  the tables' own totals. The function has a second POST mode for it (`trial.ts`), selected only by the body
+  `{"trial":"vision","model":"<id>","source_key":"<40 hex>"}` behind the same `x-budget-ocr-secret` check: it reads the row
+  with the read-only `public.budget_ocr_read` (refused when not found or over 5 pages), fetches the official PDF from the
+  row's URL without following a redirect, sends it as a base64 data URL with the native PDF engine (OpenRouter documents a
+  plain URL only for its Responses API), and answers the text and the usage with its cost. The trial route writes nothing:
+  no claim, finish or fail, nothing against the cap, no cron work; the PDF is never stored. Any other body, the cron job's
+  `{}` included, is the queue exactly as before.
 
 ## Rollback
 
