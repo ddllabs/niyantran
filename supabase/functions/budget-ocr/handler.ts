@@ -1,7 +1,8 @@
 // budget-ocr: the entry point, pure (F391, docs/specs/2026-11-21-budget-ocr-text.md). pg_cron calls it through pg_net (the
 // database's private.budget_ocr_tick, which does nothing until the developer switches it on); it claims a few queued
-// requests, gives Mistral OCR each official PDF URL as `document_url` (no download, no storage, no copy of the PDF), and
-// stores the page text and the spend through the database's own functions. The spend cap is enforced there, in
+// requests, gives Mistral OCR each official PDF URL as `document_url` (no download, no storage, no copy of the PDF) with
+// the ingest worker's OCR flags, and stores the page text and the spend through the database's own functions (the blocks
+// and image data Mistral returns are dropped, never stored or logged). The spend cap is enforced there, in
 // public.budget_ocr_claim: this module never decides whether money may be spent, it only reports what was.
 //
 // Access: POST only, with `x-budget-ocr-secret` equal to BUDGET_OCR_SECRET (at least 32 characters, else 503 before any claim). The comparison is the ingest worker's
@@ -66,14 +67,14 @@ function safeLog(log: WorkDeps['log'], event: string, fields: Record<string, unk
 
 const messageOf = (e: unknown): string => e instanceof Error ? e.message : String(e);
 
-/** The request for a whole document: exactly the expected pages (so the cost cannot pass the estimate), no image data. */
+/**
+ * The request for a whole document: exactly the expected pages (so the cost cannot pass the estimate), with the ingest
+ * worker's OCR flags unchanged (OCR_FLAGS: blocks and image data included; the 2026-11-22 trial, see the spec's Live run).
+ * Only the composed page texts are kept: the blocks and the image data in the answer are neither stored nor logged.
+ */
 export function ocrRequestFor(url: string, expectedPages: number): OcrRequest {
   const pages = Array.from({ length: expectedPages }, (_, i) => i);
-  return {
-    ...buildOcrRequest(OCR_MODEL, url, pages),
-    include_image_base64: false,
-    include_blocks: false,
-  } as OcrRequest;
+  return buildOcrRequest(OCR_MODEL, url, pages);
 }
 
 /** A fetch that gives up after `ms`: the call is aborted through its signal, and the caller sees an unavailable error. */

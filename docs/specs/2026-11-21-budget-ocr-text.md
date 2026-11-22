@@ -94,8 +94,9 @@ still counts the money. Finish with **more** pages than expected fails the reque
 
 POST only, with `x-budget-ocr-secret` equal to `BUDGET_OCR_SECRET` (constant time; 401 with no detail when it is wrong or
 unset; 503 when the secret is shorter than 32 characters or `MISTRAL_API_KEY` is unset, before anything is claimed). It answers 202 and, under `waitUntil`, claims
-2 requests, calls Mistral OCR for each with the official URL as `document_url` (no download, no storage, no image data, no
-blocks), and reports each through `budget_ocr_finish` or `budget_ocr_fail`. Every OCR call has a time limit (100 s,
+2 requests, calls Mistral OCR for each with the official URL as `document_url` (no download, no storage) and, since
+2026-11-22, the ingest worker's OCR flags unchanged (`OCR_FLAGS`: blocks and image data are requested, but only the composed
+page text is kept; the blocks and image data are neither stored nor logged), and reports each through `budget_ocr_finish` or `budget_ocr_fail`. Every OCR call has a time limit (100 s,
 `AbortSignal.timeout`, shorter than the 300 s lease); an aborted or unavailable call is reported as uncertain. A `\u0000` in the OCR text is removed before storing; if the `finish` call itself fails, the request is ended for good (`report_failed`, estimate counted) so the paid work is never repeated. It reuses
 `ingest-worker/mistral.ts` (`callMistralOcr`, `buildOcrRequest`, `checkIndexes`, `redactMessage`, `secretMatches`) and adds
 `config.toml` `verify_jwt = false` for it. Tests use injected `fetch` only.
@@ -184,6 +185,14 @@ run; changing it is one `update` by the developer.
   unresolved table placeholder fails as `ocr_table_unresolved` (billed, permanent); `ocr-collect` refuses to build a record whose text still holds a placeholder. After the redeploy the
   20 must be re-queued (their `done` rows updated by the developer, as in step 8) and OCRed again: about US$0.284 more,
   US$0.568 in all, still under the US$2 cap.
+- **2026-11-22, trial with the ingest worker's exact OCR flags.** The first re-run after F408 lost whole year columns in
+  261 of 394 table detail rows, across 13 of the 20 documents. The function had overridden `include_blocks` and
+  `include_image_base64` to false; the ingest worker, which works for the developer, sends `OCR_FLAGS` unchanged. With the
+  developer's approval, `ocrRequestFor` is now exactly the worker's `buildOcrRequest` (same model, all expected pages, same
+  flags, same time limit and cost bound). Whether the columns come back is what the trial shows. The answer is now larger
+  (image data): `callMistralOcr` reads it whole with no size limit, while the worker asks at most 25 pages a call and halves
+  that after a 20 MB answer; this function asks up to 62 pages in one call, two calls at once, inside the function's 256 MB.
+  Not measured; no limit was added.
 
 ## Rollback
 
