@@ -1,33 +1,26 @@
 import { DESK_CATALOGUE_IDENTITY as DESK_CATALOGUE } from '../desks/landing/deskCatalogueIdentity.js';
 
-import { MEASURED_FIGURES } from './measuredFigures.js';
+import PREVIEW from '../data/preview-figures.json';
 
-// Figures shown on the marketing pages. Bills and documents start from the last measured values
-// (measuredFigures.js) and are replaced by the live counts from /api/site-figures (F142) once they
-// arrive. Modules and source endpoints are counted from the code.
+// Figures shown on the marketing pages, before the live counts from /api/site-figures (F142) arrive.
+// Bills and fronts start from the build-time snapshot (src/data/preview-figures.json, rebuilt by
+// scripts/build-preview-figures.mjs from the files the desks read). Documents and ministries have no
+// build-time source, so they are null ("—") until the live counts arrive; they are never a stale number.
+// Modules, desks and source endpoints are counted from the code and the source registry.
 export const SITE_FIGURES = {
-  bills: MEASURED_FIGURES.bills,
-  documents: MEASURED_FIGURES.documents,
-  ministries: MEASURED_FIGURES.ministries,
-  fronts: MEASURED_FIGURES.fronts,
+  bills: PREVIEW.bills.total,
+  documents: null,
+  ministries: null,
+  fronts: PREVIEW.fronts.fronts,
   modules: DESK_CATALOGUE.length,
   // F212: the hero's "Intelligence desks", one per desk tab: the count pricing and the proof card use (F30).
   desks: new Set(DESK_CATALOGUE.map((m) => m.tab)).size,
-  // F140 (owner 2026-10-13): the published "Source endpoints" figure. The owner kept 246 (counted
-  // from src/data/source-registry.json on 2026-10-14, 189 of them per-module search URLs). F180
-  // (2026-10-15) took the 131 GDELT search addresses out of the registry, which now counts 115
-  // (registryEndpointCount); whether the homepage shows 115 is the owner's decision, so the published
-  // figure stays 246 until then.
-  endpoints: 246,
+  // The unique source endpoint URLs in the source registry, counted at build time (registryEndpointCount).
+  // It was a hand-kept 246 (F140) while the registry held fewer; the page shows what the registry holds.
+  endpoints: PREVIEW.endpoints,
 };
 
-/** Unique source endpoint URLs across a registry's `sourceUrls` lists (newline- or pipe-separated). */
-export function registryEndpointCount(registry) {
-  const urls = new Set();
-  for (const entry of registry || []) {
-    for (const url of String(entry?.sourceUrls || '').split(/\s*\|\s*|\s+/)) if (/^https?:\/\//.test(url)) urls.add(url);
-  }
-  return urls.size;
-}
+export { registryEndpointCount } from './previewFigures.js';
 
-export const figure = (n) => n.toLocaleString('en-IN');
+// A count that is not known (null) is shown as an em dash, never as zero or an old number.
+export const figure = (n) => (Number.isFinite(n) ? n.toLocaleString('en-IN') : '—');
