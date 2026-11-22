@@ -11,6 +11,7 @@
 // does not finish is aborted and reported as uncertain (it may have been billed), so its estimate counts as spent.
 
 import { json } from '../_shared/http.ts';
+import { composeDocument } from '../_shared/pageText.ts';
 import { redactMessage, secretMatches } from '../ingest-worker/handler.ts';
 import { buildOcrRequest, callMistralOcr, checkIndexes } from '../ingest-worker/mistral.ts';
 import { IngestError, OCR_MODEL, type OcrCallResult, type OcrRequest } from '../ingest-worker/types.ts';
@@ -123,16 +124,29 @@ async function runOne(deps: WorkDeps, c: Claimed): Promise<void> {
     // The pages come back in any order and must be exactly the ones asked for; otherwise the request fails in the database
     // (an empty text list never matches the expected count) with the money counted.
     let texts: string[] = [];
+    let unresolved = 0;
     try {
       checkIndexes(Array.from({ length: c.expected_pages }, (_, i) => i), result.pages.map((p) => p.index));
-      // A NUL cannot be stored in a text or jsonb value: left in, the database refuses the finish and the paid work is lost.
-      texts = [...result.pages].sort((a, b) => a.index - b.index).map((p) => p.markdown.replaceAll('\u0000', ''));
+      // Each page text is the ingest worker's composition of the same answer (F408): tables put back in place of their
+      // `[tbl-N.md](tbl-N.md)` placeholders, image placeholders rewritten, and header and footer lines restored unless they
+      // repeat across pages. A NUL cannot be stored in a text or jsonb value: left in, the database refuses the finish and
+      // the paid work is lost.
+      const composed = composeDocument(result.pages);
+      unresolved = composed.unresolvedTables.length;
+      texts = composed.pages.map((p) => p.text.replaceAll('\u0000', ''));
     } catch (e) {
       safeLog(deps.log, 'budget_ocr.page_mismatch', {
         ...ids,
         returned: result.pages.length,
         message: redactMessage(messageOf(e), deps.secrets),
       });
+    }
+    if (unresolved) {
+      // A placeholder with no table would store a page with its table missing. The call was paid for, and OCR again would
+      // give the same answer: end it for good, with its estimate counted as spent.
+      safeLog(deps.log, 'budget_ocr.table_unresolved', { ...ids, unresolved });
+      await deps.db.fail(c.id, c.token, 'ocr_table_unresolved', true, true);
+      return;
     }
     let outcome: string;
     try {

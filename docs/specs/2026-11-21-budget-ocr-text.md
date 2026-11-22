@@ -173,6 +173,18 @@ run; changing it is one `update` by the developer.
 9. **Switch off**: `update private.budget_ocr_settings set enabled = false;` when the 116 are done. The tables stay as a
    record (nothing is deleted).
 
+## Live run
+
+- **2026-11-22, first batch of 20 (71 pages, US$0.284): tables dropped, not loaded (F408).** Every table was missing
+  from the stored text: Mistral returns tables apart in `page.tables` and leaves a `[tbl-N.md](tbl-N.md)` placeholder in the
+  page, and the function stored the page markdown alone. The same text also lacked every header and footer line (Mistral
+  moves them out of the markdown) and kept raw image placeholders. Fix: each page text is the ingest worker's
+  `composeDocument` of the same answer (tables in place, image placeholders rewritten, header and footer lines restored
+  unless they repeat across pages; a test holds it equal to the worker's composition), and a request that keeps an
+  unresolved table placeholder fails as `ocr_table_unresolved` (billed, permanent); `ocr-collect` refuses to build a record whose text still holds a placeholder. After the redeploy the
+  20 must be re-queued (their `done` rows updated by the developer, as in step 8) and OCRed again: about US$0.284 more,
+  US$0.568 in all, still under the US$2 cap.
+
 ## Rollback
 
 - Stop spending at once: `update private.budget_ocr_settings set enabled = false;` (claim refuses; running requests finish

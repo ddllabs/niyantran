@@ -14,7 +14,9 @@ import {
   withTimeout,
   type WorkDeps,
 } from './handler.ts';
-import { IngestError, type OcrCallResult } from '../ingest-worker/types.ts';
+import { IngestError, type MistralOcrPage, type OcrCallResult, type StoredOcrPage } from '../ingest-worker/types.ts';
+import { mapOcrPage } from '../ingest-worker/mistral.ts';
+import { planIndex } from '../ingest-worker/index-step.ts';
 
 const SECRET = 'budget-secret-0123456789-abcdefghij';
 const API_KEY = 'mistral-key-0123456789abcdef';
@@ -224,6 +226,140 @@ Deno.test('runOnce: a NUL character in the OCR text is removed before the text i
     }));
   await runOnce(deps);
   assertEquals(calls[1].slice(0, 5), ['finish', 'id-1', 'tok-1', 2, ['aa', 'bb']]);
+});
+
+Deno.test('runOnce: each table Mistral returns apart is put back in its page, in place of its placeholder (F408)', async () => {
+  const { db, calls } = fakeDb([claimed(1, 2)]);
+  const { deps } = work(db, () =>
+    Promise.resolve({
+      ...result([0, 1]),
+      pages: [
+        { index: 1, markdown: 'no table here' },
+        {
+          index: 0,
+          markdown: 'Demand\n\n[tbl-0.md](tbl-0.md)\n\nNotes\n\n[tbl-1.md](tbl-1.md)',
+          tables: [
+            { id: 'tbl-0.md', content: '| a | b |\n|---|---|\n| 1 | 2 |', format: 'markdown' },
+            { id: 'tbl-1.md', content: '| c |\n|---|\n| 3\u0000 |', format: 'markdown' },
+          ],
+        },
+      ],
+    }));
+  await runOnce(deps);
+  assertEquals(calls.map((c) => c[0]), ['claim', 'finish']);
+  assertEquals(calls[1].slice(0, 5), ['finish', 'id-1', 'tok-1', 2, [
+    'Demand\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nNotes\n\n| c |\n|---|\n| 3 |',
+    'no table here',
+  ]]);
+  assert(!JSON.stringify(calls[1]).includes('tbl-'));
+});
+
+Deno.test('runOnce: a table placeholder with no table is a failed request (billed, final), never stored as text (F408)', async () => {
+  const { db, calls } = fakeDb([claimed(1, 2)]);
+  const { deps, logs } = work(db, () =>
+    Promise.resolve({
+      ...result([0, 1]),
+      pages: [
+        { index: 0, markdown: 'fine', tables: [] },
+        {
+          index: 1,
+          markdown: '[tbl-0.md](tbl-0.md) and [tbl-1.md](tbl-1.md)',
+          tables: [{ id: 'tbl-0.md', content: '| x |' }],
+        },
+      ],
+    }));
+  await runOnce(deps);
+  assertEquals(calls.map((c) => c[0]), ['claim', 'fail']);
+  // code, uncertain (the call was billed), permanent (OCR again gives the same answer)
+  assertEquals(calls[1], ['fail', 'id-1', 'tok-1', 'ocr_table_unresolved', true, true]);
+  const logged = logs.find(([e]) => e === 'budget_ocr.table_unresolved');
+  assert(logged);
+  assertEquals(logged[1].unresolved, 1);
+  assert(!JSON.stringify(logs).includes('fine'));
+});
+
+Deno.test('runOnce: a header or footer line that differs between pages is kept, one repeated on every page is dropped (F408)', async () => {
+  const { db, calls } = fakeDb([claimed(1, 3)]);
+  const { deps } = work(db, () =>
+    Promise.resolve({
+      ...result([0, 1, 2]),
+      pages: [
+        { index: 2, markdown: 'third body', header: 'Union Budget 2024-2025', footer: 'Page 3\nSee the annex' },
+        { index: 0, markdown: 'first body', header: 'Union Budget 2024-2025\nDemand for Grants', footer: 'Page 1' },
+        { index: 1, markdown: 'second body', header: 'Union Budget 2024-2025\nReceipt Budget', footer: 'Page 2' },
+      ],
+    }));
+  await runOnce(deps);
+  assertEquals(calls.map((c) => c[0]), ['claim', 'finish']);
+  assertEquals(calls[1].slice(0, 5), ['finish', 'id-1', 'tok-1', 3, [
+    'Demand for Grants\n\nfirst body',
+    'Receipt Budget\n\nsecond body',
+    'third body\n\nSee the annex',
+  ]]);
+});
+
+Deno.test('runOnce: an image placeholder is rewritten as the ingest worker writes it, and an image-only page has no text (F408)', async () => {
+  const { db, calls } = fakeDb([claimed(1, 2)]);
+  const { deps } = work(db, () =>
+    Promise.resolve({
+      ...result([0, 1]),
+      pages: [
+        { index: 0, markdown: 'Chart of receipts\n\n![img-0.jpeg](img-0.jpeg)', images: [{ id: 'img-0.jpeg' }] },
+        { index: 1, markdown: '![img-0.jpeg](img-0.jpeg)', images: [{ id: 'img-0.jpeg' }] },
+      ],
+    }));
+  await runOnce(deps);
+  assertEquals(calls.map((c) => c[0]), ['claim', 'finish']);
+  assertEquals(calls[1].slice(0, 5), ['finish', 'id-1', 'tok-1', 2, ['Chart of receipts\n\n![img:1-0](img:1-0)', '']]);
+  assert(!JSON.stringify(calls[1]).includes('img-0'));
+});
+
+Deno.test('runOnce: the page texts equal the ingest worker composition of the same Mistral answer (F408)', async () => {
+  // The real 12-page bill (headers and footers per page), with a table on page 3 and an image on page 4 added, so all
+  // three differences between page.markdown and the composed text are exercised.
+  const bill = JSON.parse(
+    await Deno.readTextFile(new URL('../_shared/__fixtures__/mistral-bill-12p.json', import.meta.url)),
+  ) as { pages: MistralOcrPage[] };
+  const pages: MistralOcrPage[] = bill.pages.map((p) => ({ ...p }));
+  pages[2] = {
+    ...pages[2],
+    markdown: `${pages[2].markdown}\n\n[tbl-0.md](tbl-0.md)`,
+    tables: [{ id: 'tbl-0.md', content: '| head |\n|---|\n| cell |', format: 'markdown' }],
+  };
+  pages[3] = {
+    ...pages[3],
+    markdown: `${pages[3].markdown}\n\n![img-0.jpeg](img-0.jpeg)`,
+    images: [{ id: 'img-0.jpeg' }],
+  };
+  const n = pages.length;
+
+  // The worker: Mistral page → stored raw page (mapOcrPage) → planIndex, whose page rows hold the composed texts.
+  const stored: StoredOcrPage[] = pages.map((p) => ({
+    page_number: p.index + 1,
+    raw: mapOcrPage(
+      p,
+      0,
+      (p.images ?? []).map((im) => ({ id: im.id, sha256: null, mime: null, byte_size: null, skipped: 'no_data' })),
+    ),
+  }));
+  const plan = await planIndex('doc-1', 'hash-1', n, stored);
+  const worker = plan.pages.map((p) => p.text);
+
+  // Not vacuous: the composition differs from the raw markdown, holds the table and the rewritten image, and restores
+  // or drops header and footer lines.
+  assert(worker.some((t, i) => t !== pages[i].markdown.trim()));
+  assert(worker[2].includes('| cell |') && !worker[2].includes('tbl-0'));
+  assert(worker[3].includes('![img:4-0](img:4-0)'));
+  assert(plan.document.pages.some((p) => p.header_in_text || p.footer_in_text));
+
+  const { db, calls } = fakeDb([claimed(1, n)]);
+  const { deps } = work(
+    db,
+    () => Promise.resolve({ ...result(pages.map((p) => p.index)), pages: [...pages].reverse() }),
+  );
+  await runOnce(deps);
+  assertEquals(calls.map((c) => c[0]), ['claim', 'finish']);
+  assertEquals(calls[1][4], worker);
 });
 
 Deno.test('runOnce: a finish that throws ends the request for good with its estimate counted, so it is never paid for again', async () => {
