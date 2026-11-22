@@ -121,7 +121,12 @@ export function selectionError(o: Pick<SelectOptions, 'limit' | 'offset' | 'budg
   return null;
 }
 
-/** The URL's href when it is plain https on one of the hosts (no credentials, no port, no query), a .pdf path; else null. */
+/**
+ * The link itself when it is plain https on one of the hosts (no credentials, no port, no query), a lower-case .pdf path (as
+ * the database checks), and already in the URL parser's own form; else null. A link the parser would rewrite (a space, a
+ * non-ASCII character, an upper-case host, a dot segment) would be queued rewritten, paid for, and then refused at collect
+ * as a url_mismatch against the pack's link, so it is not queued at all.
+ */
 function officialHref(u: unknown, hosts: string[]): string | null {
   if (typeof u !== 'string') return null;
   let url: URL;
@@ -131,8 +136,8 @@ function officialHref(u: unknown, hosts: string[]): string | null {
     return null;
   }
   if (url.protocol !== 'https:' || url.username || url.password || url.port || url.search || url.hash) return null;
-  if (!hosts.includes(url.hostname) || !/\.pdf$/i.test(url.pathname)) return null;
-  return url.href;
+  if (!hosts.includes(url.hostname) || !/\.pdf$/.test(url.pathname)) return null;
+  return url.href === u ? u : null;
 }
 
 const positive = (n: unknown, max: number): n is number =>

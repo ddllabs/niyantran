@@ -32,8 +32,9 @@
 -- function also asks Mistral for exactly the expected pages, so a request cannot cost more than its estimate. An attempt that
 -- ended without a known answer (timeout, 5xx, a lost lease) counts its full estimate as spent: the cap errs high.
 --
--- ENABLE (developer's yes, as postgres, after the function is deployed and its secrets are set):
---   update private.budget_ocr_settings set function_url = 'https://<project>.supabase.co/functions/v1/budget-ocr',
+-- ENABLE (developer's yes, as postgres, after the function is deployed and its secrets are set; BUDGET_OCR_SECRET must be at
+-- least 32 characters or the function answers 503). The URL must be a project reference (20 characters) on supabase.co:
+--   update private.budget_ocr_settings set function_url = 'https://<project-ref>.supabase.co/functions/v1/budget-ocr',
 --                                          cap_usd = 2, enabled = true;
 -- DISABLE: update private.budget_ocr_settings set enabled = false;   (claim also refuses while it is false)
 --
@@ -48,7 +49,8 @@
 --     public.budget_ocr_fail(uuid, uuid, text, boolean, boolean), private.budget_ocr_tick(), private.budget_ocr_committed();
 --   drop table private.budget_ocr_requests, private.budget_ocr_settings;
 --   commit;
--- (The private schema is left: other migrations use it.)
+-- (The private schema is left: other migrations use it. The vault secret 'budget_ocr_secret' is left too: delete it from
+-- vault.secrets if it is no longer wanted.)
 
 begin;
 set local lock_timeout = '10s';
@@ -64,7 +66,7 @@ create table private.budget_ocr_settings (
   cap_usd             numeric not null default 2 check (cap_usd >= 0 and cap_usd <= 50),
   usd_per_1000_pages  numeric not null default 4 check (usd_per_1000_pages > 0 and usd_per_1000_pages <= 100),
   enabled             boolean not null default false,
-  function_url        text check (function_url is null or function_url ~ '^https://[a-z0-9.-]+/functions/v1/budget-ocr$'),
+  function_url        text check (function_url is null or function_url ~ '^https://[a-z0-9]{20}\.supabase\.co/functions/v1/budget-ocr$'),
   max_attempts        integer not null default 3 check (max_attempts between 1 and 10),
   updated_at          timestamptz not null default now()
 );
@@ -142,7 +144,11 @@ begin
       end if;
       v_host := substring(v_url from '^https://([^/@:?#]+)/');
       if v_key is null or v_key !~ '^[0-9a-f]{40}$' then v_why := 'source_key';
-      elsif v_url is null or v_url !~ '^https://[^/@:?#]+/[^?#]+\.pdf$' or length(v_url) > 2000 then v_why := 'official_url';
+      elsif v_url is null or v_url !~ '^https://[^/@:?#]+/[^?#]+\.pdf$' or length(v_url) > 2000
+            -- The screen's own path check (billUrlSegmentsOk, mirrored by public.bill_admission_key): no control character or
+            -- backslash, no encoded separator (%2f, %5c), no . or .. path segment (plain, encoded or with a path parameter).
+            or v_url ~ '[\x01-\x1f\x7f\\]' or v_url ~* '%2f|%5c'
+            or v_url ~* '(^|/)(\.|%2e){1,2}((;|%3b)[^/]*)?(/|$)' then v_why := 'official_url';
       elsif v_hosts is null or v_host is null or not (v_host = any (v_hosts)) then v_why := 'host_not_official';
       elsif v_pages is null or v_pages < 1 or v_pages > 1000 then v_why := 'expected_pages';
       elsif v_sha is null or v_sha !~ '^[0-9a-f]{64}$' then v_why := 'pack_sha256';
@@ -205,6 +211,7 @@ declare
   v_out      jsonb := '[]'::jsonb;
   r          private.budget_ocr_requests;
   v_token    uuid;
+  v_est      numeric;
 begin
   if p_limit is null or p_limit < 1 or p_limit > 5 then raise exception 'budget_ocr_claim: limit 1 to 5' using errcode = '22023'; end if;
   if p_lease_seconds is null or p_lease_seconds < 30 or p_lease_seconds > 900 then raise exception 'budget_ocr_claim: lease 30 to 900 seconds' using errcode = '22023'; end if;
@@ -223,13 +230,15 @@ begin
   for r in
     select * from private.budget_ocr_requests where status = 'queued' order by created_at, id for update skip locked limit p_limit
   loop
-    if v_commit + r.estimate_usd > s.cap_usd then v_refused := 'cap'; exit; end if;
+    -- The estimate is pages x the CURRENT price, not the one in force when the request was queued.
+    v_est := r.expected_pages * s.usd_per_1000_pages / 1000;
+    if v_commit + v_est > s.cap_usd then v_refused := 'cap'; exit; end if;
     v_token := gen_random_uuid();
     update private.budget_ocr_requests
-       set status = 'running', attempts = attempts + 1, claim_token = v_token, claimed_at = now(),
+       set status = 'running', attempts = attempts + 1, claim_token = v_token, claimed_at = now(), estimate_usd = v_est,
            lease_until = now() + make_interval(secs => p_lease_seconds), error_code = null
      where id = r.id;
-    v_commit := v_commit + r.estimate_usd;
+    v_commit := v_commit + v_est;
     v_out := v_out || jsonb_build_object('id', r.id, 'token', v_token, 'source_key', r.source_key,
                                          'official_url', r.official_url, 'expected_pages', r.expected_pages);
   end loop;
@@ -240,6 +249,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Finish (service_role): the cost is pages processed x the price, computed here. Page texts must be a list of strings, one
 -- per expected page; otherwise the request fails (page_count_mismatch) and keeps no text, but the money is still counted.
+-- More pages processed than expected fails the request (pages_over_expected) and switches the whole run OFF.
 
 create function public.budget_ocr_finish(p_id uuid, p_token uuid, p_pages integer, p_texts jsonb) returns jsonb
 language plpgsql volatile security definer set search_path = pg_catalog, pg_temp as $$
@@ -256,6 +266,16 @@ begin
   if p_pages is null or p_pages < 0 or p_pages > 1000 then raise exception 'budget_ocr_finish: bad page count' using errcode = '22023'; end if;
   select usd_per_1000_pages into v_rate from private.budget_ocr_settings;
   v_cost := p_pages * v_rate / 1000;
+  if p_pages > r.expected_pages then
+    -- More pages were billed than were asked for: the estimate no longer bounds the cost. Record the real cost, keep no text
+    -- and switch the run OFF, so a billing surprise stops here instead of repeating.
+    update private.budget_ocr_requests
+       set status = 'failed', pages = p_pages, cost_usd = v_cost, spent_usd = spent_usd + v_cost, page_texts = null,
+           error_code = 'pages_over_expected', claim_token = null, lease_until = null, finished_at = now()
+     where id = p_id;
+    update private.budget_ocr_settings set enabled = false, updated_at = now();
+    return jsonb_build_object('outcome', 'failed', 'cost_usd', v_cost, 'halted', true);
+  end if;
   v_ok := p_texts is not null and jsonb_typeof(p_texts) = 'array' and jsonb_array_length(p_texts) = r.expected_pages
           and not exists (select 1 from jsonb_array_elements(p_texts) e where jsonb_typeof(e) <> 'string')
           and octet_length(p_texts::text) <= 16000000;
@@ -315,7 +335,7 @@ declare
 begin
   select * into s from private.budget_ocr_settings;
   if not s.enabled or s.function_url is null then return 'disabled'; end if;
-  select min(estimate_usd) into v_next from private.budget_ocr_requests
+  select min(expected_pages) * s.usd_per_1000_pages / 1000 into v_next from private.budget_ocr_requests
    where status = 'queued' or (status = 'running' and lease_until < now());
   if v_next is null then return 'idle'; end if;
   if private.budget_ocr_committed() + v_next > s.cap_usd and not exists (

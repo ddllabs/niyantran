@@ -239,6 +239,28 @@ Deno.test('planOcr: every refusal names its reason and holds the whole plan', as
   assertThrows(() => planOcr([ok], [hold(1)], opts({ budgetUsd: 0 })), Error, 'budget');
 });
 
+Deno.test('planOcr: a link the URL parser would rewrite, or whose extension is not lower-case .pdf, is refused, never queued rewritten', async () => {
+  const ok = await packRecord(1, ['a']);
+  // Queued as the parser's href these would be paid for and then refused at collect as url_mismatch, and never re-queued.
+  for (
+    const file_url of [
+      'https://www.indiabudget.gov.in/doc/a b.pdf',
+      'https://www.indiabudget.gov.in/doc/café.pdf',
+      'https://WWW.indiabudget.gov.in/doc/a.pdf',
+      'https://www.indiabudget.gov.in/doc/a/../b.pdf',
+      'https://www.indiabudget.gov.in/doc/a.PDF',
+      'https://www.indiabudget.gov.in/doc/a.Pdf',
+    ]
+  ) {
+    const p = planOcr([{ ...ok, file_url }], [hold(1)], opts());
+    assertEquals(p.ok, false, file_url);
+    assertEquals(p.items, [], file_url);
+    assertEquals(p.refused, [{ source_key: key(1), reason: 'file_url' }], file_url);
+  }
+  const good = planOcr([ok], [hold(1)], opts());
+  assertEquals(good.items[0].official_url, ok.file_url);
+});
+
 Deno.test("planOcr: the hosts are the Budget screen configuration's own, one list for the screen and the queue", () => {
   assertEquals(parseSearchOnlyConfig(BUDGET).url_hosts, HOSTS);
 });

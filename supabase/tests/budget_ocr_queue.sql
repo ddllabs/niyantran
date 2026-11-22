@@ -108,6 +108,23 @@ select pg_temp.ok(pg_temp.reason(jsonb_build_array(pg_temp.item(15) || '{"offici
   'a link with a query string is refused');
 select pg_temp.ok(pg_temp.reason(jsonb_build_array(pg_temp.item(16) || '{"official_url":"https://www.indiabudget.gov.in/x.html"}')) = 'official_url',
   'a link that is not a PDF is refused');
+-- The database's path check is the screen's (billUrlSegmentsOk, mirrored by public.bill_admission_key): control characters,
+-- backslashes, encoded separators and . or .. path segments are refused.
+select pg_temp.ok(pg_temp.reason(jsonb_build_array(pg_temp.item(60) || jsonb_build_object('official_url', 'https://www.indiabudget.gov.in/doc/' || chr(1) || 'x.pdf'))) = 'official_url'
+  and pg_temp.reason(jsonb_build_array(pg_temp.item(61) || jsonb_build_object('official_url', 'https://www.indiabudget.gov.in/doc/' || chr(9) || 'x.pdf'))) = 'official_url'
+  and pg_temp.reason(jsonb_build_array(pg_temp.item(62) || jsonb_build_object('official_url', 'https://www.indiabudget.gov.in/doc/' || chr(127) || 'x.pdf'))) = 'official_url',
+  'a link with a control character is refused');
+select pg_temp.ok(pg_temp.reason(jsonb_build_array(pg_temp.item(63) || jsonb_build_object('official_url', 'https://www.indiabudget.gov.in/doc/a' || chr(92) || 'b.pdf'))) = 'official_url',
+  'a link with a backslash is refused');
+select pg_temp.ok(pg_temp.reason(jsonb_build_array(pg_temp.item(64) || '{"official_url":"https://www.indiabudget.gov.in/doc/../x.pdf"}')) = 'official_url'
+  and pg_temp.reason(jsonb_build_array(pg_temp.item(65) || '{"official_url":"https://www.indiabudget.gov.in/doc/./x.pdf"}')) = 'official_url'
+  and pg_temp.reason(jsonb_build_array(pg_temp.item(66) || '{"official_url":"https://www.indiabudget.gov.in/doc/%2E%2e/x.pdf"}')) = 'official_url'
+  and pg_temp.reason(jsonb_build_array(pg_temp.item(67) || '{"official_url":"https://www.indiabudget.gov.in/doc/..;x/y.pdf"}')) = 'official_url'
+  and pg_temp.reason(jsonb_build_array(pg_temp.item(68) || '{"official_url":"https://www.indiabudget.gov.in/../x.pdf"}')) = 'official_url',
+  'a link with a . or .. path segment (plain, encoded or with a path parameter) is refused');
+select pg_temp.ok(pg_temp.reason(jsonb_build_array(pg_temp.item(69) || '{"official_url":"https://www.indiabudget.gov.in/doc/a%2Fb.pdf"}')) = 'official_url'
+  and pg_temp.reason(jsonb_build_array(pg_temp.item(70) || '{"official_url":"https://www.indiabudget.gov.in/doc/a%5cb.pdf"}')) = 'official_url',
+  'a link with an encoded path separator is refused');
 select pg_temp.ok(pg_temp.reason(jsonb_build_array(pg_temp.item(17) || '{"source_key":"ABC"}')) = 'source_key', 'a source key that is not 40 hex characters is refused');
 select pg_temp.ok(pg_temp.reason(jsonb_build_array(pg_temp.item(18, 0))) = 'expected_pages' and pg_temp.reason(jsonb_build_array(pg_temp.item(19, 1001))) = 'expected_pages'
   and pg_temp.reason(jsonb_build_array(pg_temp.item(20) || '{"expected_pages":"3"}')) = 'expected_pages', 'a page count outside 1 to 1,000, or not a number, is refused');
@@ -130,7 +147,20 @@ insert into act select 'claim_off', pg_temp.as_role('service_role', 'select publ
 select pg_temp.ok((select j from act where label = 'claim_off') ->> 'refused' = 'disabled'
   and (select count(*) = 3 and bool_and(status = 'queued' and attempts = 0) from private.budget_ocr_requests),
   'while the switch is off, claim refuses and nothing is claimed');
-update private.budget_ocr_settings set enabled = true, function_url = 'https://abc.supabase.co/functions/v1/budget-ocr', cap_usd = 0.26;
+update private.budget_ocr_settings set enabled = true, function_url = 'https://abcdefghijklmnopqrst.supabase.co/functions/v1/budget-ocr', cap_usd = 0.26;
+-- The estimate is the CURRENT price, not the one in force at enqueue: raise the price after enqueue and a claim that fitted
+-- the cap at the old price is refused. (Rolled back to a savepoint so the sections below see the original price.)
+savepoint price_up;
+update private.budget_ocr_settings set usd_per_1000_pages = 4.4;
+create temp table c_price as select pg_temp.as_role('service_role', 'select public.budget_ocr_claim(5, 300)') j;
+select pg_temp.ok((select jsonb_array_length(j -> 'claimed') = 1 and j ->> 'refused' = 'cap' and (j -> 'claimed' -> 0 ->> 'source_key') = pg_temp.key(1) from c_price),
+  'price raised from 4 to 4.4 after enqueue, cap 0.26: only the first claims (0.0132 + 0.2728 = 0.286 passes the cap)');
+select pg_temp.ok((select estimate_usd = 0.0132 from private.budget_ocr_requests where source_key = pg_temp.key(1))
+  and (select estimate_usd = 0.012 from private.budget_ocr_requests where source_key = pg_temp.key(3)),
+  'the claimed request''s estimate is now the current price''s; a request not claimed keeps what it had');
+rollback to savepoint price_up;
+select pg_temp.ok((select usd_per_1000_pages = 4 from private.budget_ocr_settings) and (select count(*) = 3 and bool_and(status = 'queued') from private.budget_ocr_requests),
+  'the price rise and its claim are rolled back');
 -- Queue order is creation order: the 3-page request (0.012), the 62-page one (0.248), another 3-page one (0.012).
 create temp table c1 as select pg_temp.as_role('service_role', 'select public.budget_ocr_claim(5, 300)') j;
 select pg_temp.ok((select (j -> 'claimed' -> 0 ->> 'source_key') = pg_temp.key(1) and jsonb_array_length(j -> 'claimed') = 2 and j ->> 'refused' = 'cap' from c1),
@@ -142,6 +172,12 @@ select pg_temp.ok(private.budget_ocr_committed() = 0.260, 'the running estimates
 insert into act select 'claim_cap', pg_temp.as_role('service_role', 'select public.budget_ocr_claim(5, 300)');
 select pg_temp.ok((select j from act where label = 'claim_cap') ->> 'refused' = 'cap' and (select j from act where label = 'claim_cap') -> 'claimed' = '[]'::jsonb
   and (select count(*) = 1 from private.budget_ocr_requests where status = 'queued'), 'a second claim at the cap claims nothing');
+-- Two claims at once cannot both pass the cap check: claim first locks the single settings row (FOR UPDATE), so a second claim
+-- waits for the first to commit and then sees its running estimates. A true concurrent run needs two sessions, and this
+-- fixture is one transaction in one session, so what is checked here is the lock in the function's source.
+select pg_temp.ok((select regexp_replace(prosrc, '\s+', ' ', 'g') ~ 'select \* into s from private\.budget_ocr_settings for update; if not s\.enabled'
+   from pg_proc where oid = 'public.budget_ocr_claim(integer,integer)'::regprocedure),
+  'claim locks the settings row before it reads the committed total (the cap check is serialised across claims)');
 select pg_temp.refused_as('service_role', 'select public.budget_ocr_claim(6, 300)', 'limit 1 to 5');
 select pg_temp.refused_as('service_role', 'select public.budget_ocr_claim(1, 5)', 'lease 30 to 900');
 
@@ -250,6 +286,43 @@ insert into act select 'fin_late', pg_temp.as_role('service_role', format($q$sel
 select pg_temp.ok((select j from act where label = 'fin_late') ->> 'outcome' = 'stale',
   'the first claimant''s late answer is stale: the claim token belongs to the second claim');
 
+-- A lease that runs out on the LAST attempt ends the request as failed: it is not queued again.
+select pg_temp.enq(jsonb_build_array(pg_temp.item(51, 1)));
+update private.budget_ocr_settings set max_attempts = 1;
+create temp table c10 as select pg_temp.as_role('service_role', 'select public.budget_ocr_claim(1, 300)') j;
+select pg_temp.ok((select (j -> 'claimed' -> 0 ->> 'source_key') = pg_temp.key(51) from c10), 'precondition: the request is claimed (attempt 1 of 1)');
+update private.budget_ocr_requests set lease_until = now() - interval '1 minute' where source_key = pg_temp.key(51);
+insert into act select 'claim_after_last', pg_temp.as_role('service_role', 'select public.budget_ocr_claim(5, 300)');
+select pg_temp.ok((select j from act where label = 'claim_after_last') -> 'claimed' = '[]'::jsonb
+  and (select status = 'failed' and error_code = 'lease_expired' and attempts = 1 and spent_usd = 0.004 and finished_at is not null and claim_token is null
+        from private.budget_ocr_requests where source_key = pg_temp.key(51)),
+  'a lease that expires at max_attempts ends the request as failed (lease_expired) with its estimate counted, and it is not claimed again');
+update private.budget_ocr_settings set max_attempts = 3;
+
+-- A finish that reports more pages than were asked for is a billing surprise: the real cost is recorded, the request fails
+-- with its own code and keeps no text, and the switch goes OFF so the run stops.
+select pg_temp.enq(jsonb_build_array(pg_temp.item(52, 2)));
+create temp table c11 as select pg_temp.as_role('service_role', 'select public.budget_ocr_claim(1, 300)') j;
+select pg_temp.ok((select (j -> 'claimed' -> 0 ->> 'source_key') = pg_temp.key(52) from c11) and (select enabled from private.budget_ocr_settings),
+  'precondition: the 2-page request is claimed and the switch is on');
+insert into act select 'fin_over', pg_temp.as_role('service_role', format($q$select public.budget_ocr_finish(%L, %L, 5, %L::jsonb)$q$,
+    (select j -> 'claimed' -> 0 ->> 'id' from c11), (select j -> 'claimed' -> 0 ->> 'token' from c11), pg_temp.texts(2)::text));
+select pg_temp.ok((select j from act where label = 'fin_over') ->> 'outcome' = 'failed'
+  and (select status = 'failed' and error_code = 'pages_over_expected' and pages = 5 and cost_usd = 0.020 and spent_usd = 0.020 and page_texts is null and claim_token is null
+        from private.budget_ocr_requests where source_key = pg_temp.key(52))
+  and not (select enabled from private.budget_ocr_settings),
+  'pages processed above the expected count: failed as pages_over_expected, the real cost (5 pages = 0.020) recorded, no text kept, the switch turned OFF');
+insert into act select 'claim_halted', pg_temp.as_role('service_role', 'select public.budget_ocr_claim(5, 300)');
+select pg_temp.ok((select j from act where label = 'claim_halted') ->> 'refused' = 'disabled', 'after the halt, claim refuses until the owner switches it back on');
+update private.budget_ocr_settings set enabled = true;
+-- Exactly the expected pages do not halt anything.
+select pg_temp.enq(jsonb_build_array(pg_temp.item(53, 2)));
+create temp table c12 as select pg_temp.as_role('service_role', 'select public.budget_ocr_claim(1, 300)') j;
+insert into act select 'fin_exact', pg_temp.as_role('service_role', format($q$select public.budget_ocr_finish(%L, %L, 2, %L::jsonb)$q$,
+    (select j -> 'claimed' -> 0 ->> 'id' from c12), (select j -> 'claimed' -> 0 ->> 'token' from c12), pg_temp.texts(2)::text));
+select pg_temp.ok((select j from act where label = 'fin_exact') ->> 'outcome' = 'done' and (select enabled from private.budget_ocr_settings),
+  'exactly the expected pages finish normally and leave the switch on');
+
 -- ═══ 6. The cron body: inert until switched on ═══════════════════════════════════
 
 create schema net; create schema vault;
@@ -266,7 +339,7 @@ select pg_temp.ok((select r from tk where label = 'off') = 'disabled' and (selec
 update private.budget_ocr_settings set enabled = true, function_url = null;
 insert into tk select 'nourl', private.budget_ocr_tick();
 select pg_temp.ok((select r from tk where label = 'nourl') = 'disabled' and (select count(*) = 0 from public.http_calls_fixture), 'tick does nothing without a function URL');
-update private.budget_ocr_settings set function_url = 'https://abc.supabase.co/functions/v1/budget-ocr';
+update private.budget_ocr_settings set function_url = 'https://abcdefghijklmnopqrst.supabase.co/functions/v1/budget-ocr';
 insert into tk select 'nosecret', private.budget_ocr_tick();
 select pg_temp.ok((select r from tk where label = 'nosecret') = 'no_secret' and (select count(*) = 0 from public.http_calls_fixture), 'tick does nothing without the secret in the vault');
 insert into vault.decrypted_secrets values ('budget_ocr_secret', 'fixture-secret');
@@ -276,7 +349,7 @@ insert into tk select 'cap', private.budget_ocr_tick();
 select pg_temp.ok((select r from tk where label = 'cap') = 'cap' and (select count(*) = 0 from public.http_calls_fixture), 'tick does not call the function when the cap leaves no room');
 update private.budget_ocr_settings set cap_usd = 2;
 insert into tk select 'called', private.budget_ocr_tick();
-select pg_temp.ok((select r from tk where label = 'called') = 'called' and (select count(*) = 1 and bool_and(url = 'https://abc.supabase.co/functions/v1/budget-ocr' and headers ->> 'x-budget-ocr-secret' = 'fixture-secret')
+select pg_temp.ok((select r from tk where label = 'called') = 'called' and (select count(*) = 1 and bool_and(url = 'https://abcdefghijklmnopqrst.supabase.co/functions/v1/budget-ocr' and headers ->> 'x-budget-ocr-secret' = 'fixture-secret')
    from public.http_calls_fixture), 'tick posts to the function with the secret header when on, queued and under the cap');
 update private.budget_ocr_requests set status = 'failed', finished_at = now() where status = 'queued';
 insert into tk select 'idle', private.budget_ocr_tick();
@@ -286,6 +359,12 @@ select pg_temp.refused_as('service_role', 'select private.budget_ocr_tick()', 'p
 
 -- ═══ 7. Constraints ═══════════════════════════════════════════════════════════
 
+select pg_temp.refused_as('postgres', $q$update private.budget_ocr_settings set function_url = 'https://evil.example/functions/v1/budget-ocr'$q$, 'check constraint');
+select pg_temp.refused_as('postgres', $q$update private.budget_ocr_settings set function_url = 'https://abcdefghijklmnopqrst.supabase.co.evil.example/functions/v1/budget-ocr'$q$, 'check constraint');
+select pg_temp.refused_as('postgres', $q$update private.budget_ocr_settings set function_url = 'https://abc.supabase.co/functions/v1/budget-ocr'$q$, 'check constraint');
+select pg_temp.refused_as('postgres', $q$update private.budget_ocr_settings set function_url = 'https://ABCDEFGHIJKLMNOPQRST.supabase.co/functions/v1/budget-ocr'$q$, 'check constraint');
+select pg_temp.ok((select function_url = 'https://abcdefghijklmnopqrst.supabase.co/functions/v1/budget-ocr' from private.budget_ocr_settings),
+  'the setting still holds the project''s own function URL (a 20-character project reference on supabase.co)');
 select pg_temp.refused_as('postgres', $q$update private.budget_ocr_settings set function_url = 'https://evil.example/functions/v1/other'$q$, 'check constraint');
 select pg_temp.refused_as('postgres', $q$update private.budget_ocr_requests set status = 'done' where source_key = pg_temp.key(2)$q$, 'check constraint');
 

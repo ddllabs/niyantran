@@ -4,7 +4,7 @@
 // stores the page text and the spend through the database's own functions. The spend cap is enforced there, in
 // public.budget_ocr_claim: this module never decides whether money may be spent, it only reports what was.
 //
-// Access: POST only, with `x-budget-ocr-secret` equal to BUDGET_OCR_SECRET. The comparison is the ingest worker's
+// Access: POST only, with `x-budget-ocr-secret` equal to BUDGET_OCR_SECRET (at least 32 characters, else 503 before any claim). The comparison is the ingest worker's
 // (digests, constant time). Every refusal is the same 401 with no detail, including when the secret is unset (fail closed).
 //
 // The work runs after the 202 under `waitUntil`. runOnce never rejects. Every Mistral call has a time limit: a call that
@@ -20,6 +20,8 @@ export const CLAIM_LIMIT = 2;
 export const LEASE_SECONDS = 300;
 /** One OCR call's limit, response included. The longest PDF is 62 pages; Mistral answers in a few seconds a page at most. */
 export const OCR_TIMEOUT_MS = 100_000;
+/** The shortest BUDGET_OCR_SECRET the function will run with; a shorter one answers 503 before any claim. */
+export const MIN_SECRET_LENGTH = 32;
 
 export interface Claimed {
   id: string;
@@ -123,7 +125,8 @@ async function runOne(deps: WorkDeps, c: Claimed): Promise<void> {
     let texts: string[] = [];
     try {
       checkIndexes(Array.from({ length: c.expected_pages }, (_, i) => i), result.pages.map((p) => p.index));
-      texts = [...result.pages].sort((a, b) => a.index - b.index).map((p) => p.markdown);
+      // A NUL cannot be stored in a text or jsonb value: left in, the database refuses the finish and the paid work is lost.
+      texts = [...result.pages].sort((a, b) => a.index - b.index).map((p) => p.markdown.replaceAll('\u0000', ''));
     } catch (e) {
       safeLog(deps.log, 'budget_ocr.page_mismatch', {
         ...ids,
@@ -131,7 +134,16 @@ async function runOne(deps: WorkDeps, c: Claimed): Promise<void> {
         message: redactMessage(messageOf(e), deps.secrets),
       });
     }
-    const outcome = await deps.db.finish(c.id, c.token, result.pagesProcessed, texts);
+    let outcome: string;
+    try {
+      outcome = await deps.db.finish(c.id, c.token, result.pagesProcessed, texts);
+    } catch (e) {
+      // The OCR was paid for but the result could not be stored. Left alone, the lease would run out and the request would
+      // be OCRed (and paid for) again, up to max_attempts. End it for good, with its estimate counted as spent.
+      safeLog(deps.log, 'budget_ocr.report_failed', { ...ids, message: redactMessage(messageOf(e), deps.secrets) });
+      await deps.db.fail(c.id, c.token, 'report_failed', true, true);
+      return;
+    }
     safeLog(deps.log, 'budget_ocr.finished', {
       ...ids,
       outcome,
@@ -139,7 +151,8 @@ async function runOne(deps: WorkDeps, c: Claimed): Promise<void> {
       latency_ms: result.latencyMs,
     });
   } catch (e) {
-    // The database call itself failed: nothing more can be reported. The lease runs out and the claim counts the estimate.
+    // The database is unreachable even for the failure report: nothing more can be reported. The lease runs out and the
+    // claim counts the estimate.
     safeLog(deps.log, 'budget_ocr.report_failed', { ...ids, message: redactMessage(messageOf(e), deps.secrets) });
   }
 }
@@ -176,6 +189,11 @@ export async function handleBudgetOcr(req: Request, deps: HandlerDeps): Promise<
   if (!(await secretMatches(req.headers.get('x-budget-ocr-secret') ?? '', deps.secret))) {
     safeLog(deps.log, 'budget_ocr.unauthorized');
     return UNAUTHORIZED();
+  }
+  if (deps.secret.length < MIN_SECRET_LENGTH) {
+    // Only an authorised caller sees this, so a wrong header still learns nothing about the configuration.
+    safeLog(deps.log, 'budget_ocr.secret_weak');
+    return json({ error: 'not configured' }, 503);
   }
   let work: WorkDeps;
   try {

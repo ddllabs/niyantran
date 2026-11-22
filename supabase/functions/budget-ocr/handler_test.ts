@@ -6,6 +6,7 @@ import {
   classify,
   handleBudgetOcr,
   type HandlerDeps,
+  MIN_SECRET_LENGTH,
   mistralOcr,
   OCR_TIMEOUT_MS,
   ocrRequestFor,
@@ -15,7 +16,7 @@ import {
 } from './handler.ts';
 import { IngestError, type OcrCallResult } from '../ingest-worker/types.ts';
 
-const SECRET = 'budget-secret-0123456789';
+const SECRET = 'budget-secret-0123456789-abcdefghij';
 const API_KEY = 'mistral-key-0123456789abcdef';
 const URL1 = 'https://www.indiabudget.gov.in/doc/bh1.pdf';
 
@@ -119,6 +120,26 @@ Deno.test('handler: a function that is not configured answers 503 without starti
   assertEquals(ran.length, 0);
 });
 
+Deno.test('handler: a secret shorter than 32 characters answers 503 before any claim, even when the header matches it', async () => {
+  const short = 'x'.repeat(MIN_SECRET_LENGTH - 1);
+  let built = 0;
+  const { deps, ran, logs } = handlerDeps({
+    secret: short,
+    work: () => (built++, work(fakeDb([claimed(1)]).db, () => Promise.resolve(result([0, 1]))).deps),
+  });
+  const res = await handleBudgetOcr(post({ 'x-budget-ocr-secret': short }), deps);
+  assertEquals(res.status, 503);
+  assertEquals(built, 0);
+  assertEquals(ran.length, 0);
+  assert(logs.includes('budget_ocr.secret_weak'));
+  // A wrong header is still the bare 401, so the response does not say how the secret is configured.
+  assertEquals((await handleBudgetOcr(post({ 'x-budget-ocr-secret': 'wrong' }), deps)).status, 401);
+  // Exactly the minimum is accepted.
+  const exact = 'y'.repeat(MIN_SECRET_LENGTH);
+  const ok = handlerDeps({ secret: exact });
+  assertEquals((await handleBudgetOcr(post({ 'x-budget-ocr-secret': exact }), ok.deps)).status, 202);
+});
+
 Deno.test('handler: the right secret answers 202 and the work runs after it', async () => {
   const { db, calls } = fakeDb([claimed(1)]);
   const w = work(db, () => Promise.resolve(result([0, 1])));
@@ -192,6 +213,41 @@ Deno.test('runOnce: pages that are not the ones asked for are stored as no text,
   await runOnce(deps);
   assertEquals(calls[1].slice(0, 5), ['finish', 'id-1', 'tok-1', 2, []]);
   assert(logs.some(([e]) => e === 'budget_ocr.page_mismatch'));
+});
+
+Deno.test('runOnce: a NUL character in the OCR text is removed before the text is stored (the database cannot hold it)', async () => {
+  const { db, calls } = fakeDb([claimed(1, 2)]);
+  const { deps } = work(db, () =>
+    Promise.resolve({
+      ...result([0, 1]),
+      pages: [{ index: 1, markdown: 'b\u0000b' }, { index: 0, markdown: 'a\u0000\u0000a' }],
+    }));
+  await runOnce(deps);
+  assertEquals(calls[1].slice(0, 5), ['finish', 'id-1', 'tok-1', 2, ['aa', 'bb']]);
+});
+
+Deno.test('runOnce: a finish that throws ends the request for good with its estimate counted, so it is never paid for again', async () => {
+  const { db, calls } = fakeDb([claimed(1)]);
+  db.finish = (id, token, pages, texts) => {
+    calls.push(['finish', id, token, pages, texts]);
+    return Promise.reject(new Error(`database said no ${API_KEY}`));
+  };
+  const { deps, logs } = work(db, () => Promise.resolve(result([0, 1])));
+  await runOnce(deps);
+  assertEquals(calls.map((c) => c[0]), ['claim', 'finish', 'fail']);
+  // code, uncertain (the money was spent), permanent (no second paid attempt)
+  assertEquals(calls[2], ['fail', 'id-1', 'tok-1', 'report_failed', true, true]);
+  assert(logs.some(([e]) => e === 'budget_ocr.report_failed'));
+  assert(!JSON.stringify(logs).includes(API_KEY));
+});
+
+Deno.test('runOnce: when the failure report itself fails too, nothing rejects and nothing leaks', async () => {
+  const { db } = fakeDb([claimed(1)]);
+  db.finish = () => Promise.reject(new Error('finish down'));
+  db.fail = () => Promise.reject(new Error(`fail down ${API_KEY}`));
+  const { deps, logs } = work(db, () => Promise.resolve(result([0, 1])));
+  await runOnce(deps);
+  assert(!JSON.stringify(logs).includes(API_KEY));
 });
 
 Deno.test('classify: what was possibly billed and what is final', () => {

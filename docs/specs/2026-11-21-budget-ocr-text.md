@@ -65,11 +65,11 @@ Creates, and changes nothing that exists:
 
   | Function | Who | What |
   |---|---|---|
-  | `public.budget_ocr_enqueue(jsonb)` | `corpus_ingest`, `service_role` | queues up to 50 items; refuses a host that is not on the Budget desk's list (`ingest_search_only_desks()`), a link with credentials, a port, a query or a non-PDF path, a key that is not 40 hex, pages outside 1 to 1,000, a hash that is not sha256, and any key or link already queued (`duplicate`). The estimate is computed here from the pages; fields a caller adds are ignored. |
+  | `public.budget_ocr_enqueue(jsonb)` | `corpus_ingest`, `service_role` | queues up to 50 items; refuses a host that is not on the Budget desk's list (`ingest_search_only_desks()`), a link with credentials, a port, a query, a non-PDF path, a control character, a backslash, an encoded separator or a `.`/`..` path segment (the screen's `billUrlSegmentsOk` check), a key that is not 40 hex, pages outside 1 to 1,000, a hash that is not sha256, and any key or link already queued (`duplicate`). The estimate is computed here from the pages; fields a caller adds are ignored. |
   | `public.budget_ocr_read(text[])` | `corpus_ingest`, `service_role` | the requests by key, with the text only when `done` |
   | `public.budget_ocr_status()` | `corpus_ingest`, `service_role` | counts, money committed, the cap, the switch |
   | `public.budget_ocr_claim(limit, lease)` | `service_role` only | the cap (below); refuses while `enabled` is false |
-  | `public.budget_ocr_finish(id, token, pages, texts)` | `service_role` only | stores the text; the cost is `pages × price` computed here |
+  | `public.budget_ocr_finish(id, token, pages, texts)` | `service_role` only | stores the text; the cost is `pages × price` computed here; more pages than expected fails the request and switches the run off |
   | `public.budget_ocr_fail(id, token, code, uncertain, permanent)` | `service_role` only | queues again until `max_attempts`, or ends the request |
   | `private.budget_ocr_tick()` | the cron job (owner) only | the cron job's body |
 
@@ -88,15 +88,15 @@ Money is counted conservatively: an attempt that ended without a known answer (a
 counts its whole estimate as spent, even if it was not billed; a rate limit or a rejection (not billed) counts nothing. The
 Edge function asks Mistral for exactly the expected pages (`pages: [0 … n-1]`), so one request cannot cost more than its
 estimate. Finish with a page count other than the expected one fails the request (`page_count_mismatch`), keeps no text, and
-still counts the money.
+still counts the money. Finish with **more** pages than expected fails the request (`pages_over_expected`), records the real cost, keeps no text and **switches the run off** (`enabled = false`), so a billing surprise stops the run. The estimate used by `claim` and `tick` is pages × the **current** price, recomputed at claim (a price raised after queuing is not under-counted). `function_url` must match `https://<20-character project ref>.supabase.co/functions/v1/budget-ocr`.
 
 ### 3. Edge function `supabase/functions/budget-ocr/`
 
 POST only, with `x-budget-ocr-secret` equal to `BUDGET_OCR_SECRET` (constant time; 401 with no detail when it is wrong or
-unset; 503 when `MISTRAL_API_KEY` is unset, before anything is claimed). It answers 202 and, under `waitUntil`, claims
+unset; 503 when the secret is shorter than 32 characters or `MISTRAL_API_KEY` is unset, before anything is claimed). It answers 202 and, under `waitUntil`, claims
 2 requests, calls Mistral OCR for each with the official URL as `document_url` (no download, no storage, no image data, no
 blocks), and reports each through `budget_ocr_finish` or `budget_ocr_fail`. Every OCR call has a time limit (100 s,
-`AbortSignal.timeout`, shorter than the 300 s lease); an aborted or unavailable call is reported as uncertain. It reuses
+`AbortSignal.timeout`, shorter than the 300 s lease); an aborted or unavailable call is reported as uncertain. A `\u0000` in the OCR text is removed before storing; if the `finish` call itself fails, the request is ended for good (`report_failed`, estimate counted) so the paid work is never repeated. It reuses
 `ingest-worker/mistral.ts` (`callMistralOcr`, `buildOcrRequest`, `checkIndexes`, `redactMessage`, `secretMatches`) and adds
 `config.toml` `verify_jwt = false` for it. Tests use injected `fetch` only.
 
@@ -140,21 +140,24 @@ run; changing it is one `update` by the developer.
 1. Merge the pull request (supervisor; the migration, function and runner change nothing until used).
 2. **Apply the migration** (as for earlier applies, by psql as `postgres`; read-only checks first). It creates objects only;
    `enabled` stays false. Check: `select * from private.budget_ocr_settings` (as `postgres`) shows `enabled f`, `function_url`
-   empty; the cron job `budget-ocr` exists; nothing is queued.
-3. **Function secrets** (developer): `BUDGET_OCR_SECRET` (a new random value) on the Edge function, and the same value in the
+   empty; **`select jobname, schedule from cron.job where jobname = 'budget-ocr'` returns the job** (it is scheduled only where
+   `pg_cron` is installed, so a missing row means no tick will ever run); nothing is queued.
+3. **Function secrets** (developer): `BUDGET_OCR_SECRET` (a new random value of at least 32 characters; the function answers 503 with a shorter one) on the Edge function, and the same value in the
    vault as `budget_ocr_secret` (`select vault.create_secret('<value>', 'budget_ocr_secret')`); `MISTRAL_API_KEY` is already
    a function secret on NTER (the ingest worker uses it). No value is typed on the laptop or into this repository.
 4. **Deploy the function** `budget-ocr` as the others are (`supabase functions deploy budget-ocr --use-api --project-ref
    <the project's ref>`); read the file list the deploy prints (it imports `../ingest-worker/…`) and download the source to
    compare with `main`.
 5. **Enable** (developer, as `postgres`): `update private.budget_ocr_settings set function_url =
-   'https://<project>.supabase.co/functions/v1/budget-ocr', cap_usd = 2, enabled = true;`. From the next minute the job calls
+   'https://<project-ref>.supabase.co/functions/v1/budget-ocr', cap_usd = 2, enabled = true;` (the project ref is 20 characters;
+   the setting refuses any other host). From the next minute the job calls
    the function whenever a request is queued.
 6. **First batch of 20 (71 pages, about US$0.28)**, attended:
    `cli.ts ocr-enqueue … --limit 20` (dry run first), watch `select public.budget_ocr_status()` (as `corpus_ingest`) until 20
    are `done` (two a minute, so about 10 minutes), then `cli.ts ocr-collect … --limit 20 --out <dir outside the repository>`;
    it reports pages and cost, which must be 71 and US$0.284. Stop on any `failed`, any cost above the estimate, or committed
-   money above the plan.
+   money above the plan. Watch the committed total in this first batch: a geo-blocked or otherwise failing 5xx answer counts the
+   request's whole estimate as spent (it may have been billed), so `committed_usd` can rise while nothing is `done`.
 7. **Check that the tables stay legible** before anything is loaded: the developer reads the OCR text of at least three of
    the 20 records that carry tables (`ocr-records.jsonl` is outside the repository), looking for table rows kept as rows
    (markdown tables), numbers and units intact, no merged columns. The screen's own checks follow: `screen` on
@@ -163,6 +166,10 @@ run; changing it is one `update` by the developer.
 8. **Load** the screened 20 with the normal `run` (batch policy, spend stops, acceptance), then the same for the other 96 in
    `--limit 50 --offset 20`, … batches, each collected and screened before the next. Run `analyze` on the chunk, desk-row and
    document tables after the load (AGENTS.md).
+   **A failed request needs an owner update before it can be queued again**: `source_key` and `official_url` are unique, so
+   `ocr-enqueue` reports it as a duplicate. The developer deletes or updates the `failed` row as `postgres` (for example
+   `update private.budget_ocr_requests set status = 'queued', error_code = null, finished_at = null where source_key = '<key>'`
+   after the cause is fixed; its `spent_usd` stays and keeps counting against the cap).
 9. **Switch off**: `update private.budget_ocr_settings set enabled = false;` when the 116 are done. The tables stay as a
    record (nothing is deleted).
 
@@ -172,7 +179,8 @@ run; changing it is one `update` by the developer.
   or their leases lapse). Lower the cap the same way.
 - Remove the schedule: `select cron.unschedule(jobid) from cron.job where jobname = 'budget-ocr';`. Undeploy or leave the
   function: with the switch off and no secret it does nothing.
-- The migration's Down section (in its header) drops the objects it created; nothing else depends on them. Loaded texts are
+- The migration's Down section (in its header) drops the objects it created; nothing else depends on them. It leaves the vault
+  secret `budget_ocr_secret` in place: delete it from `vault.secrets` as `postgres` if it is no longer wanted. Loaded texts are
   ordinary supplied-text documents and leave the desk with the existing `ingest_discard` / `ingest_delete`, by the developer or
   supervisor.
 - No PDF was stored, so there is nothing to remove from the `corpus` bucket.
@@ -183,7 +191,10 @@ run; changing it is one `update` by the developer.
   `supabase/tests/run.sh`): grants, security definer and pinned search path, no policy; host, shape and duplicate refusals;
   the cap (exactly at the cap is claimed, just over is refused, after money spent too); claim refuses while off; stale
   tokens; finish, mismatch and money counted; retries, uncertain and permanent failures; lease expiry; the cron body with
-  stand-ins for `pg_net` and the vault. Eight mutations of the migration each made it fail.
+  stand-ins for `pg_net` and the vault. Eight mutations of the migration each made it fail. After the 2026-11-22 review the fixture also covers the path checks, the
+  current-price estimate (price raised after queuing), more pages than expected (and the halt), a lease expiring at
+  `max_attempts`, the pinned function host, and, as a check of the function's source only, the settings-row lock that serialises
+  concurrent claims (a real concurrent run needs two sessions and the fixture is one).
 - `supabase/functions/budget-ocr/handler_test.ts` (injected `fetch`, no network); nine mutations each made it fail.
 - `scripts/bulk-runner/ocr_route_test.ts` (plan, record building checked by the screen's own `text_binds`, the real Budget
   screen with a fake page check, both commands, psql quoting); fifteen mutations each made it fail.
@@ -197,7 +208,7 @@ run; changing it is one `update` by the developer.
 - The cron statement and `net.http_post` / vault on NTER (the test container has no `pg_cron`, `pg_net` or vault; the body
   was run against stand-ins). Whether the deploy bundles the `../ingest-worker/` imports (the deploy's file list says).
 - Concurrency of two ticks a minute apart while a long call runs: the cap and the lease are taken under a lock and covered by
-  the fixture one call at a time, not by a concurrent run.
+  the fixture one call at a time, not by a concurrent run (the fixture only checks that `claim` locks the settings row).
 
 ## Scope and exclusions
 
