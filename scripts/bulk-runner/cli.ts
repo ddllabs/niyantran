@@ -9,6 +9,7 @@
 //                                                 (--batch <uuid> | --all) [--psql <path>]
 //   deno run -A scripts/bulk-runner/cli.ts split  --records <file.jsonl> --lines <n> --out <dir>
 //   deno run -A scripts/bulk-runner/cli.ts status --batch <uuid> [--psql <path>]
+//   deno run -A scripts/bulk-runner/cli.ts ocr-enqueue|ocr-collect ...   (F391: held Budget records, OCR on Supabase; see ocr_route.ts)
 //
 // `split` verifies the records file against its receipt, then writes part-NNN.jsonl files of at most n records, each
 // with a receipt (`<part>.receipt.json`) that `plan` and `run` accept; --out must be outside every checkout.
@@ -43,6 +44,7 @@ import { acceptBatch, type AcceptDb, type AcceptOptions, PsqlAcceptDb } from './
 import { PsqlDb, psqlExec } from './psql_db.ts';
 import { gitCommonDir, refuseInCheckout } from './pack.ts';
 import { run, type RunInput, type RunResult, safeReason } from './run.ts';
+import { ocrCommand, type OcrDb, PsqlOcrDb } from './ocr_route.ts';
 
 export const REPO_ROOT = resolve(dirname(fromFileUrl(import.meta.url)), '../..');
 
@@ -259,6 +261,8 @@ export interface CliDeps {
   db: (psql: string) => Db;
   /** The read-only acceptance connection, through a libpq service. */
   acceptDb: (psql: string, service: string) => AcceptDb;
+  /** The OCR text queue (F391: ocr-enqueue, ocr-collect, scripts/bulk-runner/ocr_route.ts). */
+  ocrDb?: (psql: string) => OcrDb;
   log: (line: string) => void;
   now: () => number;
   sleep: (ms: number) => Promise<void>;
@@ -843,6 +847,7 @@ async function acceptCommand(c: Extract<Command, { cmd: 'accept' }>, deps: CliDe
 
 /** Runs one command; returns the process exit code. */
 export async function main(argv: string[], deps: CliDeps): Promise<number> {
+  if (argv[0] === 'ocr-enqueue' || argv[0] === 'ocr-collect') return await ocrCommand(argv, deps);
   const c = parseArgs(argv);
   if (c.cmd === 'split') return split(c, deps);
   if (c.cmd === 'accept') return acceptCommand(c, deps);
@@ -959,6 +964,7 @@ if (import.meta.main) {
         git: gitState,
         db: (psql) => new PsqlDb(psqlExec([psql])),
         acceptDb: (psql, service) => new PsqlAcceptDb(psqlExec([psql], '', serviceEnv(service))),
+        ocrDb: (psql) => new PsqlOcrDb(psqlExec([psql])),
         listDir: async (dir) => {
           try {
             return (await Array.fromAsync(Deno.readDir(dir))).map((e) => e.name);

@@ -2320,7 +2320,7 @@ Deno.test('desks: each of the five configurations parses and names its collectio
 Deno.test('desks: the values of the spec table (text types, citation fields, key prefix, hosts)', () => {
   const want: Record<string, Rec> = {
     budget: {
-      extraction_allowed: ['pdf_text'],
+      extraction_allowed: ['pdf_text', 'ocr_mistral'],
       citation_required: ['kind', 'issuer', 'source'],
       suggested_key_prefix: 'budget:',
       url_hosts: ['www.indiabudget.gov.in'],

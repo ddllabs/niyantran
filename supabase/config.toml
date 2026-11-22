@@ -437,6 +437,11 @@ verify_jwt = false
 [functions.ingest-worker]
 verify_jwt = false
 
+# budget-ocr (F391) is called by pg_cron through pg_net with an x-budget-ocr-secret header, not a user JWT; the
+# handler compares it to BUDGET_OCR_SECRET in constant time and refuses when unset.
+[functions.budget-ocr]
+verify_jwt = false
+
 # admin-ingest verifies the caller itself (requireUser + is_platform_admin), so 401/403 carry CORS.
 [functions.admin-ingest]
 verify_jwt = false

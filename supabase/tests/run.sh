@@ -131,6 +131,12 @@ chain() {
     national_search_only_five_desks)
       chain national_search_only
       FILES+=("$(as_non_superuser 20261123090000_national_search_only_five_desks.sql)") ;;
+    # F391: the Budget OCR text queue. national_search_only_five_desks' chain (the Budget host list and the corpus_ingest
+    # role), then the migration, as a non-superuser. The vacuity check drops the last: the queue is missing and the fixture
+    # fails at its first assertion.
+    budget_ocr_queue)
+      chain national_search_only_five_desks
+      FILES+=("$(as_non_superuser 20261125100000_budget_ocr_queue.sql)") ;;
     # F326 and F327: a batch closed with its failed jobs named; the failure rate counts failures ever seen.
     # national_search_only's chain (the last definer of ingest_register_batch), then 20261112090000 (the resume the
     # fixture uses), then the migration, as a non-superuser. The vacuity check drops the last. Its section (e) proves the
