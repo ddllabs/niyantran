@@ -7,14 +7,17 @@
 //
 // `ocr-enqueue` reads the screen's records and holds, picks the records held only for one reason (control codes in the
 // pack's text), checks each against the Budget desk's official hosts and the limits, and queues them in the database
-// (public.budget_ocr_enqueue, as corpus_ingest). The `budget-ocr` Edge function, on Supabase, gives Mistral each official
-// URL and stores the page text; no PDF, OCR key or model key is ever on this machine, and no PDF is stored or served.
-// `ocr-collect` reads the finished text back (public.budget_ocr_read) and writes a records file in the pack's record format
-// (the original record with the OCR text, its spans and hashes, extraction `ocr_mistral`) with a receipt, which the normal `screen`
-// and `run` commands then take, so the screen, the batch policy and the spend stops all apply. Neither command prints a
-// URL or any document text: only counts, reasons and source keys.
+// (public.budget_ocr_enqueue, as corpus_ingest). The `budget-ocr` Edge function, on Supabase, reads each official PDF with
+// the engine its page count selects (supabase/functions/budget-ocr/engine.ts: GPT-5 mini through OpenRouter for 1 to 4
+// pages, Mistral OCR above) and stores the page text; no PDF, OCR key or model key is ever on this machine, and no PDF is
+// stored or served. `ocr-collect` reads the finished text back (public.budget_ocr_read) and writes a records file in the
+// pack's record format (the original record with the new text, its spans and hashes, extraction `ocr_vision` or
+// `ocr_mistral` by the same engine rule) with a receipt, which the normal `screen` and `run` commands then take, so the
+// screen, the batch policy and the spend stops all apply. Neither command prints a URL or any document text: only counts,
+// reasons and source keys.
 import { createHash } from 'node:crypto';
 import { join } from 'jsr:@std/path@1';
+import { engineFor, VISION_MODEL } from '../../supabase/functions/budget-ocr/engine.ts';
 import { ocrCostUsd } from '../../supabase/functions/ingest-worker/mistral.ts';
 import { OCR_MODEL } from '../../supabase/functions/ingest-worker/types.ts';
 import { sha256Hex } from '../../supabase/functions/_shared/textNormalise.ts';
@@ -34,6 +37,20 @@ const HEX64 = /^[0-9a-f]{64}$/;
 /** The text type of text OCRed by Mistral from the official PDF: not the pack's own `ocr` (tesseract), which the desk still holds. */
 export const OCR_EXTRACTION = 'ocr_mistral';
 export const OCR_TEXT_ENGINE = OCR_MODEL;
+/** The text type of text read from the official PDF by the vision model (F409); allowed on the Budget desk as ocr_mistral is. */
+export const VISION_EXTRACTION = 'ocr_vision';
+export const VISION_TEXT_ENGINE = VISION_MODEL;
+
+/**
+ * The text type and engine of a finished request, by the Edge function's own engine rule on its expected pages. The queue
+ * row does not record the engine (no column), so a row finished before the rule was deployed (2026-11-22) must be queued
+ * again before it is collected.
+ */
+export function textTypeFor(expectedPages: number): { extraction: string; text_engine: string } {
+  return engineFor(expectedPages) === 'vision'
+    ? { extraction: VISION_EXTRACTION, text_engine: VISION_TEXT_ENGINE }
+    : { extraction: OCR_EXTRACTION, text_engine: OCR_TEXT_ENGINE };
+}
 const OUT_RECORDS = 'ocr-records.jsonl';
 
 const isRec = (v: unknown): v is Rec => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -260,8 +277,7 @@ export async function buildOcrRecord(orig: Rec, row: QueueRow): Promise<{ record
     page_count: texts.length,
     page_split: 'exact',
     pages_with_text: texts.filter((t) => /\S/u.test(t)).length,
-    extraction: OCR_EXTRACTION,
-    text_engine: OCR_TEXT_ENGINE,
+    ...textTypeFor(row.expected_pages),
     ocr_quality: null,
   };
   return { record, controlCodesRemoved: removed };
@@ -517,6 +533,8 @@ async function collectCommand(c: Extract<OcrCommand, { cmd: 'ocr-collect' }>, de
   const built: Rec[] = [];
   const tally = { done: 0, pending: 0, failed: 0, not_queued: 0, not_built: 0 };
   let controlCodesRemoved = 0, pages = 0, costUsd = 0;
+  /** Records built, by the engine that read them (their text_engine). */
+  const models: Record<string, number> = {};
   const problems: string[] = [];
   for (const item of plan.items) {
     const row = rowOf.get(item.source_key);
@@ -529,6 +547,8 @@ async function collectCommand(c: Extract<OcrCommand, { cmd: 'ocr-collect' }>, de
       try {
         const b = await buildOcrRecord(byKey.get(item.source_key)!, row);
         built.push(b.record);
+        const engine = String(b.record.text_engine);
+        models[engine] = (models[engine] ?? 0) + 1;
         controlCodesRemoved += b.controlCodesRemoved;
         pages += row.pages ?? 0;
         costUsd += row.cost_usd ?? 0;
@@ -563,7 +583,8 @@ async function collectCommand(c: Extract<OcrCommand, { cmd: 'ocr-collect' }>, de
     limit: null,
     derived_from: { output_sha256: receipt.output_sha256, hold_reason: c.reason },
     ocr: {
-      model: OCR_MODEL,
+      // Which engine read how many records (the engine rule on each page count): the vision model and Mistral both.
+      models,
       records: built.length,
       pages,
       cost_usd: Number(costUsd.toFixed(6)),

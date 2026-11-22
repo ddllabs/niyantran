@@ -82,14 +82,15 @@ export function trialBodyOf(text: string): TrialBody | null {
   return parsed as TrialBody;
 }
 
-class TrialError extends Error {
+/** A trial (and vision) failure: a code, the HTTP status the trial answers, and detail safe to log (never text, URL or key). */
+export class TrialError extends Error {
   constructor(readonly code: string, readonly status: number, readonly detail: Record<string, unknown> = {}) {
     super(code);
   }
 }
 
 /** The queue checked the host when the row was made; this re-checks its shape (https, no port or user, a .pdf path). */
-function officialUrlOk(raw: string): boolean {
+export function officialUrlOk(raw: string): boolean {
   if (typeof raw !== 'string' || raw.length > 2000 || !/^https:\/\/[^/@:?#]+\/[^?#]+\.pdf$/.test(raw)) return false;
   try {
     const u = new URL(raw);
@@ -105,7 +106,8 @@ function base64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
-async function fetchPdf(deps: TrialDeps, url: string): Promise<Uint8Array> {
+/** The official PDF into memory: no redirect, a time limit, a size limit and the %PDF- signature. Shared with vision.ts. */
+export async function fetchPdf(deps: Pick<TrialDeps, 'fetch'>, url: string): Promise<Uint8Array> {
   let res: Response;
   try {
     res = await withTimeout(deps.fetch, TRIAL_PDF_TIMEOUT_MS)(url, { method: 'GET', redirect: 'error' });
@@ -162,7 +164,11 @@ export function trialRequestBody(model: string, sourceKey: string, pdf: Uint8Arr
 
 const num = (v: unknown): number | null => typeof v === 'number' && Number.isFinite(v) ? v : null;
 
-async function callOpenRouter(deps: TrialDeps, body: Record<string, unknown>) {
+/** One Chat Completions call: the text, the finish reason and the usage, or a TrialError. Shared with vision.ts. */
+export async function callOpenRouter(
+  deps: Pick<TrialDeps, 'fetch' | 'apiKey' | 'timeoutMs'>,
+  body: Record<string, unknown>,
+) {
   let res: Response;
   try {
     res = await withTimeout(deps.fetch, deps.timeoutMs ?? TRIAL_TIMEOUT_MS)(OPENROUTER_CHAT_URL, {
