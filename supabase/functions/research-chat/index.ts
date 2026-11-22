@@ -13,7 +13,7 @@ import { errorResponse, HttpError } from '../_shared/http.ts';
 import { log } from '../_shared/logging.ts';
 import { personaPrompt } from '../_shared/personas.ts';
 import { type AttemptMetadata, streamChat } from '../_shared/openrouterStream.ts';
-import { afterRpcFailure, hydrateDocumentRoles, search } from '../_shared/retrieval.ts';
+import { afterRpcFailure, HYBRID_FEATURE, hydrateDocumentRoles, search } from '../_shared/retrieval.ts';
 import { hydrateLawContext, LAW_CONTEXT_CHUNKS, type LawContextRow } from '../_shared/lawContext.ts';
 import { serviceClient, userClient } from '../_shared/supabase.ts';
 import { type DeskRow, executeSearchDeskRows } from '../_shared/tools/searchDeskRows.ts';
@@ -24,7 +24,7 @@ import {
   handleResearchChat,
   type RetrievalContext,
 } from './handler.ts';
-import { createHybridFlagCache, HYBRID_FLAG_KEY, HYBRID_FLAG_READ_TIMEOUT_MS } from './hybridFlag.ts';
+import { createHybridFlagCache, HYBRID_FLAG_KEY, HYBRID_FLAG_READ_TIMEOUT_MS, type HybridFlagCache } from './hybridFlag.ts';
 import { rpcTurnStore } from './persistence.ts';
 import { resolvePersona } from './persona.ts';
 
@@ -49,9 +49,28 @@ let documentModulesCache: DocumentModule[] | null = null;
 /** The `hybrid_search` switch (F288), per isolate: 15 s when read, 5 s when unreadable. */
 const hybridFlagCache = createHybridFlagCache({
   now: () => Date.now(),
-  onFailure: (kind) => log('research.hybrid_flag_read_failed', { kind }),
+  onFailure: (kind) => log('research.hybrid_flag_read_failed', { kind, scope: 'nclt' }),
 });
-export const resetHybridFlagCache = (): void => hybridFlagCache.reset();
+/**
+ * The per-desk switches (F393), one cache per desk, same windows. Bounded by the number of desks. A failed read is logged
+ * with the kind of error and the label `desk`: never the desk's name or anything from the question.
+ */
+const hybridDeskFlagCaches = new Map<string, HybridFlagCache>();
+const hybridDeskFlagCache = (desk: string): HybridFlagCache => {
+  let cache = hybridDeskFlagCaches.get(desk);
+  if (!cache) {
+    cache = createHybridFlagCache({
+      now: () => Date.now(),
+      onFailure: (kind) => log('research.hybrid_flag_read_failed', { kind, scope: 'desk' }),
+    });
+    hybridDeskFlagCaches.set(desk, cache);
+  }
+  return cache;
+};
+export const resetHybridFlagCache = (): void => {
+  hybridFlagCache.reset();
+  hybridDeskFlagCaches.clear();
+};
 export interface Runtime {
   userClient: typeof userClient;
   serviceClient: typeof serviceClient;
@@ -595,19 +614,33 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
         hybrid: {
           // Read with the caller's own client (app_flags is readable by authenticated users) under its own short
           // bound, and not under the turn's signal: a Stop must not be cached as "unreadable".
-          config: () => hybridFlagCache.get(async () => {
-            const flag = await bounded(
-              (signal) => caller().from('app_flags').select('value').eq('key', HYBRID_FLAG_KEY).abortSignal(signal).maybeSingle(),
-              HYBRID_FLAG_READ_TIMEOUT_MS,
-            );
-            if (flag.error) throw new Error('app_flags read failed');
-            return (flag.data as { value?: unknown } | null)?.value;
-          }),
+          config: (deskFeature) => deskFeature === HYBRID_FEATURE
+            ? hybridFlagCache.get(async () => {
+              const flag = await bounded(
+                (signal) => caller().from('app_flags').select('value').eq('key', HYBRID_FLAG_KEY).abortSignal(signal).maybeSingle(),
+                HYBRID_FLAG_READ_TIMEOUT_MS,
+              );
+              if (flag.error) throw new Error('app_flags read failed');
+              return (flag.data as { value?: unknown } | null)?.value;
+            })
+            // F393: every other desk has its own row in hybrid_search_desks (absent: off). The row's columns are the
+            // shape of the hybrid_search value, so one parser reads both.
+            : hybridDeskFlagCache(deskFeature).get(async () => {
+              const flag = await bounded(
+                (signal) =>
+                  caller().from('hybrid_search_desks').select('enabled,hybrid_ms,fallback_ms').eq('desk_feature', deskFeature)
+                    .abortSignal(signal).maybeSingle(),
+                HYBRID_FLAG_READ_TIMEOUT_MS,
+              );
+              if (flag.error) throw new Error('hybrid_search_desks read failed');
+              return flag.data ?? undefined;
+            }),
         },
         onPath: (info) => {
           if (info.path === 'hybrid_fallback') {
-            // Counts and a reason only: never the query, the user, or an error message.
+            // Counts, a reason and the kind of switch (never the desk's name): never the query, the user, or an error message.
             log('research.hybrid_fallback', {
+              scope: args.desk_feature === HYBRID_FEATURE ? 'nclt' : 'desk',
               reason: info.fallbackReason,
               hybrid_ms: info.hybridMs,
               fallback_ms: info.fallbackMs,
