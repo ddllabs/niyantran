@@ -4,6 +4,7 @@
 import type { Screen } from '../screen_types.ts';
 import { makePageCheck } from '../page_check.ts';
 import { makeBillsScreen } from './bills.ts';
+import { makeBillCorrigendaScreen } from './bill_corrigenda.ts';
 import { makeSearchOnlyScreen, pdfUrlRule } from './search_only.ts';
 import REGULATORY from './regulatory.json' with { type: 'json' };
 import BUDGET from './budget.json' with { type: 'json' };
@@ -31,6 +32,8 @@ const deskScreen = (config: unknown, file: string) => (): Promise<Screen> =>
 
 export const SCREENS: Record<string, () => Promise<Screen>> = {
   'national-bills': () => Promise.resolve(makeBillsScreen([makePageCheck(pageCheckDeps)])),
+  // F372: the pack's Bill corrigenda (no file link, so no page check); their bill is read from their own links.
+  'national-bill-corrigenda': () => Promise.resolve(makeBillCorrigendaScreen()),
   // Regulatory: its official PDFs (RBI's) are page-checked, the rest rest on the density-only basis the configuration
   // allows.
   'national-regulatory': () =>

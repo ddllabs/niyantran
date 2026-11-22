@@ -593,6 +593,7 @@ Deno.test('checkScreenBlock: decisionId and settings are required, nothing else 
 Deno.test('the registry holds the Bills screen under national-bills, with the page check, built without the network', async () => {
   assertEquals(Object.keys(SCREENS), [
     'national-bills',
+    'national-bill-corrigenda',
     'national-regulatory',
     'national-budget',
     'national-cabinet',

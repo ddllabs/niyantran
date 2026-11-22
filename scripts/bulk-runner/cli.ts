@@ -185,6 +185,10 @@ export function checkCollection(value: unknown): CollectionFile {
   }
   const drop = (c.prepare as { dropInvalidCitationDates?: unknown }).dropInvalidCitationDates;
   if (drop !== undefined && typeof drop !== 'boolean') fail('prepare.dropInvalidCitationDates must be true or false');
+  const fromLinks = (c.prepare as { corrigendaFromLinks?: unknown }).corrigendaFromLinks;
+  if (fromLinks !== undefined && typeof fromLinks !== 'boolean') {
+    fail('prepare.corrigendaFromLinks must be true or false');
+  }
   const l = c.limits;
   if (!l) fail('limits is required');
   for (const k of ['usdPerMTokens', 'budgetUsd', 'chunkCeiling', 'diskUsedBytes', 'diskStopBytes'] as const) {

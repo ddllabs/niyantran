@@ -1,7 +1,12 @@
 // Bulk runner, T1 (F285): one record in, one request or one named hold out. No database, no network.
 // Spec: docs/specs/2026-11-07-bulk-runner.md. The rules are the worker's own (prepareSuppliedText,
 // suppliedCommitRows, billTextIdentity); nothing here re-implements them.
-import { NATIONAL_BILLS, prepareSuppliedText, SUPPLIED_TEXT } from '../../supabase/functions/_shared/suppliedText.ts';
+import {
+  billListingYear,
+  NATIONAL_BILLS,
+  prepareSuppliedText,
+  SUPPLIED_TEXT,
+} from '../../supabase/functions/_shared/suppliedText.ts';
 import { billTextIdentity } from '../../supabase/functions/_shared/billIdentity.ts';
 import { sha256Hex } from '../../supabase/functions/_shared/textNormalise.ts';
 import { suppliedCommitRows } from '../../supabase/functions/ingest-worker/supplied-step.ts';
@@ -48,6 +53,11 @@ export interface PrepareOptions {
   /** source_key of a corrigendum to the bill it belongs to. */
   corrigenda?: Record<string, BillIdentity>;
   /**
+   * F372: a corrigendum with no entry in `corrigenda` takes its bill from its own `links`, when they all name one bill
+   * (billIdentityFromLinks). Off unless the collection file asks.
+   */
+  corrigendaFromLinks?: boolean;
+  /**
    * Drop `citation.date` from a record whose date is given but is not a calendar date (YYYY-MM-DD), before the payload
    * is built, and count it. The text and its hashes are untouched. Off unless the collection file asks (search-only
    * desks: 160 of the Regulatory pack's dates are not dates).
@@ -79,6 +89,37 @@ const CONTROL_CODES_G = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
 const LAYOUT_BREAKS = new Set(['\x0b', '\x0c']);
 
 const isRec = (v: unknown): v is Rec => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * F372: the one bill every link of a pack corrigendum names (number, year, name and house, each a non-empty string and
+ * the same in every link), else null: no links, a link that is not an object, a missing or non-string field, or links
+ * that name two bills, or a link that is not the national Bills desk's own corrigendum link (tier, feature and role
+ * `corrigendum`). The pack's links are its claim, not a verified identity: the screen checks the claim against the
+ * listing, and this only reads it.
+ */
+export function billIdentityFromLinks(record: Rec): BillIdentity | null {
+  const links = record.links;
+  if (!Array.isArray(links) || links.length === 0) return null;
+  let found: BillIdentity | null = null;
+  for (const l of links) {
+    if (!isRec(l)) return null;
+    // A link to another desk, or one that is not a corrigendum's, names no bill of this route.
+    if (l.tier !== 'national' || l.feature !== 'Bill Passage Probability Index' || l.role !== 'corrigendum') {
+      return null;
+    }
+    const { bill_number, bill_year, bill_name, house } = l;
+    if (
+      typeof bill_number !== 'string' || !bill_number || typeof bill_year !== 'string' || !bill_year ||
+      typeof bill_name !== 'string' || !bill_name || typeof house !== 'string' || !house
+    ) return null;
+    const id = { bill_number, bill_year, bill_name, house };
+    if (found && (['bill_number', 'bill_year', 'bill_name', 'house'] as const).some((f) => found![f] !== id[f])) {
+      return null;
+    }
+    found = id;
+  }
+  return found;
+}
 const keyOf = (r: unknown): string | null => isRec(r) && typeof r.source_key === 'string' ? r.source_key : null;
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 
@@ -236,10 +277,16 @@ export async function prepareRecord(value: unknown, options: PrepareOptions, isP
   if (isBill && record.document_role === 'errata') {
     const id = key !== null && options.corrigenda && Object.hasOwn(options.corrigenda, key)
       ? options.corrigenda[key]
+      : options.corrigendaFromLinks
+      ? billIdentityFromLinks(record)
       : null;
     if (!id) return hold('corrigendum_unmapped');
     const own = isRec(record.citation) ? record.citation : {};
-    const documentKey = `bill:${id.bill_year}:${id.bill_number}`;
+    const citationKey = `bill:${id.bill_year}:${id.bill_number}`;
+    // F372: the key the screen matched may be the listing's own (the year closing the bill's name), as the adapter allows.
+    const listingYear = billListingYear({ bill_name: id.bill_name });
+    const listingKey = listingYear === null ? null : `bill:${listingYear}:${id.bill_number}`;
+    const documentKey = record.document_key != null && record.document_key === listingKey ? listingKey : citationKey;
     const conflicts = (['bill_number', 'bill_year', 'bill_name', 'house'] as const)
       .filter((f) => own[f] != null && String(own[f]) !== id[f])
       .map((f) => `citation.${f} is ${String(own[f])}, the mapping says ${id[f]}`);

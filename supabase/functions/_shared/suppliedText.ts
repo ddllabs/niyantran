@@ -163,7 +163,12 @@ export async function prepareSuppliedText(value: unknown, options: { batch?: boo
   } else if (bill) {
     const c = object(r.citation, 'citation');
     const url = String(r.file_url ?? '');
-    if (!BILL_URL.test(url) || !billUrlSegmentsOk(url)) throw new Error('a bill needs its official sansad.in file_url');
+    // F372: the pack's corrigenda have no file link. Only that type, as errata, may go without one; a link that is given
+    // is held to the official rule like any other. Mirrors public.bill_admission_key.
+    const noLink = r.file_url == null && r.document_role === 'errata' && r.doc_type === 'bill_corrigendum';
+    if (!noLink && (!BILL_URL.test(url) || !billUrlSegmentsOk(url))) {
+      throw new Error('a bill needs its official sansad.in file_url');
+    }
     if (!BILL_ROLES.has(String(r.document_role))) throw new Error('a bill needs a known document_role');
     // The citation key, or the listing key (the listing's own year); the database finds the listing rows by it.
     const listingYear = billListingYear(c);
