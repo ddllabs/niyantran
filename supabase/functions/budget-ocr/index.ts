@@ -1,13 +1,14 @@
 // budget-ocr: wiring. The pure entry point is handler.ts; this module binds BudgetOcrDb to supabase-js with the service
 // client and the OCR call to Mistral's key (F391, docs/specs/2026-11-21-budget-ocr-text.md).
 //
-// Environment (read here only, never logged): BUDGET_OCR_SECRET, MISTRAL_API_KEY, SUPABASE_URL (and the secret key
-// through _shared/supabase.ts). Function secrets are set by the developer; none is on the operator's laptop.
+// Environment (read here only, never logged): BUDGET_OCR_SECRET, MISTRAL_API_KEY, OPENROUTER_API_KEY (the vision trial
+// only, trial.ts), SUPABASE_URL (and the secret key through _shared/supabase.ts). Function secrets are set by the developer; none is on the operator's laptop.
 
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { log } from '../_shared/logging.ts';
 import { serviceClient } from '../_shared/supabase.ts';
 import { type BudgetOcrDb, type Claimed, handleBudgetOcr, mistralOcr, type WorkDeps } from './handler.ts';
+import type { TrialDeps, TrialRow } from './trial.ts';
 
 type Env = (name: string) => string | undefined;
 
@@ -60,6 +61,22 @@ export function buildWorkDeps(client: SupabaseClient, env: Env): WorkDeps {
   };
 }
 
+/** The vision trial's dependencies: the read-only public.budget_ocr_read and nothing that writes. */
+export function buildTrialDeps(client: SupabaseClient, env: Env): TrialDeps {
+  const apiKey = env('OPENROUTER_API_KEY') ?? '';
+  if (!apiKey) throw new Error('OPENROUTER_API_KEY is not set');
+  return {
+    async read(keys) {
+      const { data, error } = await client.rpc('budget_ocr_read', { p_keys: keys });
+      if (error) throw new Error(`budget_ocr_read: ${error.message}`);
+      return Array.isArray(data) ? (data as TrialRow[]) : [];
+    },
+    fetch,
+    apiKey,
+    log: (event, fields) => log(event, fields),
+  };
+}
+
 type EdgeRuntimeGlobal = { waitUntil(promise: Promise<unknown>): void };
 
 /** EdgeRuntime.waitUntil in Supabase's runtime; elsewhere the (never-rejecting) work just runs. */
@@ -76,6 +93,7 @@ if (import.meta.main) {
       secret: env('BUDGET_OCR_SECRET') ?? '',
       waitUntil,
       work: () => buildWorkDeps(serviceClient(), env),
+      trial: () => buildTrialDeps(serviceClient(), env),
       log: (event, fields) => log(event, fields),
     })
   );
