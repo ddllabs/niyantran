@@ -16,7 +16,8 @@
   ],
   "extraction_allowed": [
     "pdf_text",
-    "ocr_mistral"
+    "ocr_mistral",
+    "ocr_vision"
   ],
   "source_hosts": [
     "indiabudget.gov.in"

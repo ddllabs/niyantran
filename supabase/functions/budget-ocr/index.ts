@@ -1,8 +1,9 @@
 // budget-ocr: wiring. The pure entry point is handler.ts; this module binds BudgetOcrDb to supabase-js with the service
-// client and the OCR call to Mistral's key (F391, docs/specs/2026-11-21-budget-ocr-text.md).
+// client, the OCR call to Mistral's key and the vision call to OpenRouter's (F391, F409,
+// docs/specs/2026-11-21-budget-ocr-text.md).
 //
-// Environment (read here only, never logged): BUDGET_OCR_SECRET, MISTRAL_API_KEY, OPENROUTER_API_KEY (the vision trial
-// only, trial.ts), SUPABASE_URL (and the secret key through _shared/supabase.ts). Function secrets are set by the developer; none is on the operator's laptop.
+// Environment (read here only, never logged): BUDGET_OCR_SECRET, MISTRAL_API_KEY, OPENROUTER_API_KEY (the cron mode's
+// vision engine and the vision trial, trial.ts), SUPABASE_URL (and the secret key through _shared/supabase.ts). Function secrets are set by the developer; none is on the operator's laptop.
 
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { log } from '../_shared/logging.ts';
@@ -51,13 +52,17 @@ export function supabaseBudgetOcrDb(client: SupabaseClient): BudgetOcrDb {
 
 export function buildWorkDeps(client: SupabaseClient, env: Env): WorkDeps {
   const mistralKey = env('MISTRAL_API_KEY') ?? '';
-  // Without the key no request is claimed: a claim would use up an attempt for a configuration fault.
+  const openRouterKey = env('OPENROUTER_API_KEY') ?? '';
+  // Without either key no request is claimed: a claim would use up an attempt for a configuration fault. Both engines are
+  // in use (engine.ts: the vision model up to 4 pages, Mistral above), and one claim can hold one of each.
   if (!mistralKey) throw new Error('MISTRAL_API_KEY is not set');
+  if (!openRouterKey) throw new Error('OPENROUTER_API_KEY is not set');
   return {
     db: supabaseBudgetOcrDb(client),
     ocr: mistralOcr(fetch, mistralKey),
+    vision: { fetch, apiKey: openRouterKey },
     log: (event, fields) => log(event, fields),
-    secrets: [mistralKey, env('BUDGET_OCR_SECRET') ?? ''].filter(Boolean),
+    secrets: [mistralKey, openRouterKey, env('BUDGET_OCR_SECRET') ?? ''].filter(Boolean),
   };
 }
 

@@ -93,13 +93,37 @@ still counts the money. Finish with **more** pages than expected fails the reque
 ### 3. Edge function `supabase/functions/budget-ocr/`
 
 POST only, with `x-budget-ocr-secret` equal to `BUDGET_OCR_SECRET` (constant time; 401 with no detail when it is wrong or
-unset; 503 when the secret is shorter than 32 characters or `MISTRAL_API_KEY` is unset, before anything is claimed). It answers 202 and, under `waitUntil`, claims
-2 requests, calls Mistral OCR for each with the official URL as `document_url` (no download, no storage) and, since
+unset; 503 when the secret is shorter than 32 characters or `MISTRAL_API_KEY` or `OPENROUTER_API_KEY` is unset, before anything is claimed). It answers 202 and, under `waitUntil`, claims
+2 requests, reads each with the engine its page count selects (below; before 2026-11-22 every request went to Mistral), calls Mistral OCR for a long one with the official URL as `document_url` (no download, no storage) and, since
 2026-11-22, the ingest worker's OCR flags unchanged (`OCR_FLAGS`: blocks and image data are requested, but only the composed
 page text is kept; the blocks and image data are neither stored nor logged), and reports each through `budget_ocr_finish` or `budget_ocr_fail`. Every OCR call has a time limit (100 s,
 `AbortSignal.timeout`, shorter than the 300 s lease); an aborted or unavailable call is reported as uncertain. A `\u0000` in the OCR text is removed before storing; if the `finish` call itself fails, the request is ended for good (`report_failed`, estimate counted) so the paid work is never repeated. It reuses
 `ingest-worker/mistral.ts` (`callMistralOcr`, `buildOcrRequest`, `checkIndexes`, `redactMessage`, `secretMatches`) and adds
 `config.toml` `verify_jwt = false` for it. Tests use injected `fetch` only.
+
+**Engine by page count (developer decision 2026-11-22, F409).** Each claimed request is read by the engine its
+`expected_pages` selects, by one rule in `budget-ocr/engine.ts` (`engineFor`), which `ocr-collect` applies too:
+
+- **1 to 4 pages** (`VISION_MAX_PAGES`; 110 of the 116 held): GPT-5 mini (`openai/gpt-5-mini`) through OpenRouter
+  (`vision.ts`), with the trial's proven request: the official PDF fetched into memory with the trial's checks (no
+  redirect, 20 s, 20 MB, the `%PDF-` signature), a base64 file part, the native PDF engine, temperature 0, usage included,
+  the trial's prompts; only `max_tokens` is raised, to 32,000 (the densest trial document, 3 pages, used about 11k). The
+  answer is split on its `=== PAGE n ===` lines into exactly `expected_pages` texts (marker lines removed, each page
+  trimmed, NUL removed) and finished with that page count. Otherwise it is failed, uncertain (it was billed):
+  `vision_empty` (no text; retried), `vision_truncated` (`finish_reason` `length`; final, as the same document would run
+  out again), `vision_page_split` (not exactly markers 1 to n in order, or text before page 1; retried, as a new sample
+  may split). Failures before or at OpenRouter: `pdf_fetch_failed` and `openrouter_rate_limited` (not billed, retried),
+  `not_pdf`, `pdf_too_large`, `official_url_invalid` and `openrouter_rejected` (a 4xx: not billed, final),
+  `openrouter_unavailable` (a 5xx or a dropped connection), `openrouter_timeout` and `openrouter_unreadable` (possibly
+  billed, retried). Retries stop at `max_attempts`; each uncertain attempt counts its estimate.
+- **5 pages and more** (6, and 11 to 62 pages): Mistral exactly as above, with `BUDGET_TABLE_FORMAT` back to `'markdown'`
+  (the worker's request unchanged; the html composition code stays and is unused).
+
+Time: the two claimed requests run together, so an invocation lasts as long as the slower one: a vision request at most
+20 s + 120 s, a Mistral one 100 s, plus the claim and the report. That is under the 300 s lease, NTER's 400 s Pro wall clock,
+and the 150 s Free-plan limit with 10 s to spare (held by `engine_test.ts`). `OPENROUTER_API_KEY` is now required too: without
+either key the function answers 503 before any claim. Each request logs its id, source key, engine, model, pages, prompt and
+completion tokens, OpenRouter's cost, finish reason, latency and outcome; never the text, the URL or a key.
 
 ### 4. Runner (`scripts/bulk-runner/ocr_route.ts`, wired in `cli.ts`)
 
@@ -111,7 +135,10 @@ page text is kept; the blocks and image data are neither stored nor logged), and
 - `cli.ts ocr-collect --records … --holds … [--limit N] [--offset N] --out <dir outside every checkout>`: checks the records
   file against its receipt, reads the queue ten keys at a time, and for each **done** request builds the pack's own record with
   the OCR text as `text`, one page per queued page joined by form feeds, its spans, `content_sha256`, `n_chars`,
-  `page_split exact`, `extraction ocr_mistral` and `text_engine mistral-ocr-4-1`. It refuses a row that is not this record's
+  `page_split exact`, and, by the engine rule on the row's expected pages (2026-11-22), `extraction ocr_vision` and
+  `text_engine openai/gpt-5-mini` (1 to 4 pages) or `extraction ocr_mistral` and `text_engine mistral-ocr-4-1`; the receipt
+  counts the records of each engine (`ocr.models`). The queue row has no engine column, so a row finished before the rule
+  was deployed must be queued again before it is collected. It refuses a row that is not this record's
   own request (key, link, page count, pack hash). Control codes in the OCR text, page breaks included, are removed and counted.
   It writes `ocr-records.jsonl` and `ocr-records.jsonl.receipt.json` (the pack's receipt with the new hash and count, the
   source hash and the hold reason, and the pages, cost and completeness). Exit 0 only when every selected record was done.
@@ -119,7 +146,8 @@ page text is kept; the blocks and image data are neither stored nor logged), and
 
 ### 5. Budget screen
 
-`budget.json` allows a second text type, `ocr_mistral`, beside `pdf_text`. Every other check is unchanged (record shape,
+`budget.json` allows a second text type, `ocr_mistral`, beside `pdf_text`, and since 2026-11-22 a third, `ocr_vision`,
+exactly as `ocr_mistral` (the screen treats both only through `extraction_allowed`). Every other check is unchanged (record shape,
 source fields, publisher, text binding, length, density, licence, dedupe, the page check against the official PDF, prepare).
 The name differs from the pack's own `ocr` (tesseract) on purpose: that record stays held as before. The page check reads the
 official PDF's text layer to compare page counts and thin pages; OCR text is checked against it the same way.
@@ -211,6 +239,19 @@ run; changing it is one `update` by the developer.
   plain URL only for its Responses API), and answers the text and the usage with its cost. The trial route writes nothing:
   no claim, finish or fail, nothing against the cap, no cron work; the PDF is never stored. Any other body, the cron job's
   `{}` included, is the queue exactly as before.
+- **2026-11-22, trial result and the production rule (F409).** On Demand 42 and 55 (1 and 3 pages) GPT-5 mini returned
+  every detail row and every section total exactly, checked against the tables' own totals; Gemini 2.5 Flash did not. The
+  developer's decision: production Budget OCR is GPT-5 mini for documents of 1 to 4 pages (110 of the 116 held) and Mistral,
+  with the default markdown tables, for the longer ones (6, and 11 to 62 pages); no new migration. Section 3 has the
+  engine rule, the page split and the failure codes; the trial route is unchanged and remains how a model is checked.
+  Cost: about US$0.01 a page for the vision model (OpenRouter's reported cost, logged per request), against US$0.004 for
+  Mistral. The supervisor raised the cap to US$5. The database prices every request at the **current**
+  `usd_per_1000_pages`, at claim and at finish, whichever engine reads it, so the supervisor sets it to 4 while only the
+  Mistral documents are queued and to 15 for the vision run: the cap then errs high (15 against about 10 a thousand pages).
+  A vision request claimed while the price is 4 would be under-counted, so the two runs are not queued together.
+  `ocr-enqueue`'s own `--budget-usd` estimate still uses Mistral's rate for every record; the cap in the database is the
+  bound. Every row already `done` from the earlier Mistral runs must be queued again before `ocr-collect`, which labels a
+  record by its page count (the row does not say which engine read it).
 
 ## Rollback
 
@@ -234,7 +275,11 @@ run; changing it is one `update` by the developer.
   current-price estimate (price raised after queuing), more pages than expected (and the halt), a lease expiring at
   `max_attempts`, the pinned function host, and, as a check of the function's source only, the settings-row lock that serialises
   concurrent claims (a real concurrent run needs two sessions and the fixture is one).
-- `supabase/functions/budget-ocr/handler_test.ts` (injected `fetch`, no network); nine mutations each made it fail.
+- `supabase/functions/budget-ocr/handler_test.ts` (injected `fetch`, no network); nine mutations each made it fail. The
+  2026-11-22 engine change added `engine_test.ts` (the rule, the time limits, the page split) and engine tests in
+  `handler_test.ts` (vision for 1 to 4 pages, Mistral with markdown for 5, both at once, every failure code, the logs);
+  they failed on the unchanged code, and seven mutations (the page boundary, the length check, the truncation's permanence,
+  `max_tokens`, the NUL strip, the collect label, `ocr_vision` in `budget.json`) each made them fail.
 - `scripts/bulk-runner/ocr_route_test.ts` (plan, record building checked by the screen's own `text_binds`, the real Budget
   screen with a fake page check, both commands, psql quoting); fifteen mutations each made it fail.
 
