@@ -567,3 +567,295 @@ Deno.test('mistralOcr: a hung Mistral call becomes mistral_unavailable (uncertai
   });
   assertEquals(sentHeaders?.get('authorization'), `Bearer ${API_KEY}`);
 });
+
+// ─── The vision trial (F409) ─────────────────────────────────────────────────
+
+const OR_KEY = 'sk-or-v1-trialkey0123456789abcdef';
+const TRIAL_KEY = 'ab'.repeat(20);
+const TRIAL_URL = 'https://www.indiabudget.gov.in/doc/eb/sbe42.pdf';
+const PDF_BYTES = new TextEncoder().encode('%PDF-1.7\nfake two-page budget document\n%%EOF');
+const PDF_DATA_URL = `data:application/pdf;base64,${btoa(String.fromCharCode(...PDF_BYTES))}`;
+const DOC_TEXT = '=== PAGE 1 ===\n| a | b |\n|---|---|\n| 1 | 2 |\n=== PAGE 2 ===\nNotes';
+const CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+const trialPost = (body: unknown, headers: Record<string, string> = { 'x-budget-ocr-secret': SECRET }) =>
+  new Request('https://x/budget-ocr', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...headers },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+  });
+
+const trialBody = (over: Record<string, unknown> = {}) => ({
+  trial: 'vision',
+  model: 'google/gemini-2.5-flash',
+  source_key: TRIAL_KEY,
+  ...over,
+});
+
+interface Sent {
+  url: string;
+  init: RequestInit;
+}
+
+/** The trial's dependencies: a read-only lookup and one fetch, routed by URL (the official PDF, then OpenRouter). */
+function trialSetup(opts: {
+  rows?: Array<Record<string, unknown>>;
+  pdf?: (init: RequestInit) => Promise<Response>;
+  chat?: (init: RequestInit) => Promise<Response>;
+  timeoutMs?: number;
+} = {}) {
+  const reads: string[][] = [];
+  const sent: Sent[] = [];
+  const logs: Array<[string, Record<string, unknown>]> = [];
+  const rows = opts.rows ?? [{ source_key: TRIAL_KEY, official_url: TRIAL_URL, expected_pages: 2, status: 'done' }];
+  const fetchImpl = ((input: unknown, init: RequestInit = {}) => {
+    const url = String(input);
+    sent.push({ url, init });
+    if (url === CHAT_URL) {
+      return opts.chat?.(init) ?? Promise.resolve(
+        new Response(
+          JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            choices: [{ message: { role: 'assistant', content: DOC_TEXT }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 1200, completion_tokens: 340, total_tokens: 1540, cost: 0.00123 },
+          }),
+          { status: 200 },
+        ),
+      );
+    }
+    return opts.pdf?.(init) ?? Promise.resolve(new Response(PDF_BYTES, { status: 200 }));
+  }) as typeof fetch;
+  let built = 0;
+  const trial = () => {
+    built++;
+    return {
+      read: (keys: string[]) => (reads.push(keys), Promise.resolve(rows)),
+      fetch: fetchImpl,
+      apiKey: OR_KEY,
+      log: (e: string, f: Record<string, unknown>) => void logs.push([e, f]),
+      ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}),
+    };
+  };
+  // The cron path's database: any call to it in trial mode is a failure.
+  const cron = fakeDb([claimed(1)]);
+  let workBuilt = 0;
+  const h = handlerDeps({
+    trial,
+    work: () => (workBuilt++, work(cron.db, () => Promise.resolve(result([0, 1]))).deps),
+  } as unknown as Partial<HandlerDeps>);
+  return {
+    ...h,
+    reads,
+    sent,
+    trialLogs: logs,
+    cronCalls: cron.calls,
+    built: () => built,
+    workBuilt: () => workBuilt,
+  };
+}
+
+/** Nothing of the document, its URL or a key in a response or a log. */
+function assertNothingLeaks(text: string) {
+  for (const s of [DOC_TEXT, 'Notes', TRIAL_URL, 'indiabudget', OR_KEY, SECRET, PDF_DATA_URL.slice(30, 60)]) {
+    assert(!text.includes(s), `leaked ${s.slice(0, 20)}`);
+  }
+}
+
+Deno.test('trial: a missing or wrong secret is the same bare 401 for a trial body, and nothing is read or called', async () => {
+  for (const headers of [{} as Record<string, string>, { 'x-budget-ocr-secret': 'wrong' }]) {
+    const t = trialSetup();
+    const res = await handleBudgetOcr(trialPost(trialBody(), headers), t.deps);
+    assertEquals(res.status, 401);
+    assertEquals(await res.json(), { error: 'unauthorized' });
+    assertEquals(t.built(), 0);
+    assertEquals(t.reads.length, 0);
+    assertEquals(t.sent.length, 0);
+    assertEquals(t.ran.length, 0);
+  }
+  // An unset secret refuses a trial body too.
+  const t = trialSetup();
+  const res = await handleBudgetOcr(trialPost(trialBody(), { 'x-budget-ocr-secret': '' }), { ...t.deps, secret: '' });
+  assertEquals(res.status, 401);
+  assertEquals(t.built(), 0);
+});
+
+Deno.test('trial: a model outside the allowlist, an unknown trial or a malformed key is 400 before any lookup or call', async () => {
+  const bad: Array<[Record<string, unknown>, string]> = [
+    [{ model: 'google/gemini-2.5-pro' }, 'model_not_allowed'],
+    [{ model: 'openai/gpt-5-mini ' }, 'model_not_allowed'],
+    [{ model: 'GOOGLE/GEMINI-2.5-FLASH' }, 'model_not_allowed'],
+    [{ model: undefined }, 'model_not_allowed'],
+    [{ trial: 'text' }, 'trial_unknown'],
+    [{ source_key: 'AB'.repeat(20) }, 'source_key_invalid'],
+    [{ source_key: 'ab'.repeat(19) }, 'source_key_invalid'],
+    [{ source_key: 42 }, 'source_key_invalid'],
+  ];
+  for (const [over, code] of bad) {
+    const t = trialSetup();
+    const res = await handleBudgetOcr(trialPost(trialBody(over)), t.deps);
+    assertEquals(res.status, 400, code);
+    assertEquals(await res.json(), { error: code });
+    assertEquals(t.reads.length, 0);
+    assertEquals(t.sent.length, 0);
+    assertEquals(t.workBuilt(), 0);
+  }
+});
+
+Deno.test('trial: an unknown source key or a document over 5 pages is 400, with no fetch and no model call', async () => {
+  const cases: Array<[Array<Record<string, unknown>>, string]> = [
+    [[], 'not_found'],
+    [[{ source_key: 'cd'.repeat(20), official_url: TRIAL_URL, expected_pages: 2, status: 'done' }], 'not_found'],
+    [[{ source_key: TRIAL_KEY, official_url: TRIAL_URL, expected_pages: 6, status: 'queued' }], 'too_many_pages'],
+    [[{ source_key: TRIAL_KEY, official_url: TRIAL_URL, expected_pages: 62, status: 'done' }], 'too_many_pages'],
+  ];
+  for (const [rows, code] of cases) {
+    const t = trialSetup({ rows });
+    const res = await handleBudgetOcr(trialPost(trialBody()), t.deps);
+    assertEquals(res.status, 400, code);
+    assertEquals(await res.json(), { error: code });
+    assertEquals(t.reads, [[TRIAL_KEY]]);
+    assertEquals(t.sent.length, 0);
+  }
+  // Exactly 5 pages is within the trial bound.
+  const t = trialSetup({
+    rows: [{ source_key: TRIAL_KEY, official_url: TRIAL_URL, expected_pages: 5, status: 'done' }],
+  });
+  assertEquals((await handleBudgetOcr(trialPost(trialBody()), t.deps)).status, 200);
+});
+
+Deno.test('trial: OpenRouter gets the model, the PDF as a file part, the native PDF engine, temperature 0, max_tokens and usage', async () => {
+  for (const model of ['google/gemini-2.5-flash', 'openai/gpt-5-mini']) {
+    const t = trialSetup();
+    const res = await handleBudgetOcr(trialPost(trialBody({ model })), t.deps);
+    assertEquals(res.status, 200);
+    // The official PDF is fetched once, from the queue row's URL, without following a redirect, under a time limit.
+    assertEquals(t.sent.map((s) => s.url), [TRIAL_URL, CHAT_URL]);
+    assertEquals(t.sent[0].init.method ?? 'GET', 'GET');
+    assertEquals(t.sent[0].init.redirect, 'error');
+    assert(t.sent[0].init.signal instanceof AbortSignal);
+    const chat = t.sent[1];
+    assertEquals(chat.init.method, 'POST');
+    assert(chat.init.signal instanceof AbortSignal);
+    assertEquals(new Headers(chat.init.headers).get('authorization'), `Bearer ${OR_KEY}`);
+    const body = JSON.parse(String(chat.init.body));
+    assertEquals(body.model, model);
+    assertEquals(body.temperature, 0);
+    assertEquals(body.max_tokens, 16000);
+    assertEquals(body.usage, { include: true });
+    assertEquals(body.plugins, [{ id: 'file-parser', pdf: { engine: 'native' } }]);
+    assert(body.stream !== true);
+    assertEquals(body.messages.length, 2);
+    assertEquals(body.messages[0].role, 'system');
+    assertEquals(body.messages[1].role, 'user');
+    const parts = body.messages[1].content as Array<Record<string, unknown>>;
+    const file = parts.find((p) => p.type === 'file');
+    assertEquals(file, { type: 'file', file: { filename: `${TRIAL_KEY}.pdf`, file_data: PDF_DATA_URL } });
+    const prompt = [body.messages[0].content, ...parts.filter((p) => p.type === 'text').map((p) => p.text)].join('\n');
+    for (const needle of ['=== PAGE', 'markdown', 'Hindi', 'column', '...']) assert(prompt.includes(needle), needle);
+  }
+});
+
+Deno.test('trial: the answer carries the model, the key, the text and the usage with its cost; the log carries no text, URL or key', async () => {
+  const t = trialSetup();
+  const res = await handleBudgetOcr(trialPost(trialBody({ model: 'openai/gpt-5-mini' })), t.deps);
+  assertEquals(res.status, 200);
+  const got = await res.json();
+  assertEquals(got.model, 'openai/gpt-5-mini');
+  assertEquals(got.source_key, TRIAL_KEY);
+  assertEquals(got.text, DOC_TEXT);
+  assertEquals(got.usage, { prompt_tokens: 1200, completion_tokens: 340, cost: 0.00123 });
+  const done = t.trialLogs.find(([e]) => e === 'budget_ocr.trial_finished');
+  assert(done);
+  assertEquals(done[1].source_key, TRIAL_KEY);
+  assertEquals(done[1].model, 'openai/gpt-5-mini');
+  assertEquals(done[1].prompt_tokens, 1200);
+  assertEquals(done[1].completion_tokens, 340);
+  assertEquals(done[1].cost, 0.00123);
+  assert(typeof done[1].latency_ms === 'number');
+  assertNothingLeaks(JSON.stringify([t.trialLogs, t.logs]));
+});
+
+Deno.test('trial: nothing touches the queue, the cap or the cron path (no work built, no claim, finish or fail, no waitUntil)', async () => {
+  const t = trialSetup();
+  assertEquals((await handleBudgetOcr(trialPost(trialBody()), t.deps)).status, 200);
+  assertEquals(t.workBuilt(), 0);
+  assertEquals(t.cronCalls, []);
+  assertEquals(t.ran.length, 0);
+  // The only database call is the read-only lookup.
+  assertEquals(t.reads, [[TRIAL_KEY]]);
+});
+
+Deno.test('trial: failures answer a bare JSON error code, never the text, the URL or a key', async () => {
+  const cases: Array<[Parameters<typeof trialSetup>[0], number, string]> = [
+    [{ pdf: () => Promise.resolve(new Response('gone', { status: 404 })) }, 502, 'pdf_fetch_failed'],
+    [{ pdf: () => Promise.reject(new TypeError(`redirect to ${TRIAL_URL}`)) }, 502, 'pdf_fetch_failed'],
+    [{ pdf: () => Promise.resolve(new Response('<html>not a pdf</html>', { status: 200 })) }, 502, 'not_pdf'],
+    [{ chat: () => Promise.resolve(new Response(`bad key ${OR_KEY}`, { status: 401 })) }, 502, 'openrouter_failed'],
+    [{ chat: () => Promise.resolve(new Response('slow', { status: 429 })) }, 502, 'openrouter_rate_limited'],
+    [{ chat: () => Promise.resolve(new Response('not json', { status: 200 })) }, 502, 'openrouter_unreadable'],
+    [
+      { chat: () => Promise.resolve(new Response(JSON.stringify({ choices: [] }), { status: 200 })) },
+      502,
+      'openrouter_empty',
+    ],
+    [
+      {
+        rows: [{ source_key: TRIAL_KEY, official_url: 'https://www.indiabudget.gov.in:8443/x.pdf', expected_pages: 2 }],
+      },
+      400,
+      'official_url_invalid',
+    ],
+  ];
+  for (const [opts, status, code] of cases) {
+    const t = trialSetup(opts);
+    const res = await handleBudgetOcr(trialPost(trialBody()), t.deps);
+    assertEquals(res.status, status, code);
+    const text = await res.text();
+    assertEquals(JSON.parse(text), { error: code });
+    assertNothingLeaks(text + JSON.stringify([t.trialLogs, t.logs]));
+    assertEquals(t.cronCalls, []);
+  }
+});
+
+Deno.test('trial: an OpenRouter call that does not answer is aborted under the time limit and reported as a timeout', async () => {
+  const t = trialSetup({
+    timeoutMs: 30,
+    chat: (init) => new Promise((_res, rej) => init.signal?.addEventListener('abort', () => rej(init.signal!.reason))),
+  });
+  const started = Date.now();
+  const res = await handleBudgetOcr(trialPost(trialBody()), t.deps);
+  assertEquals(res.status, 504);
+  assertEquals(await res.json(), { error: 'openrouter_timeout' });
+  assert(Date.now() - started < 2000);
+});
+
+Deno.test('trial: a trial request on a function with no trial configured (no OpenRouter key) is 503, nothing called', async () => {
+  const t = trialSetup();
+  const res = await handleBudgetOcr(trialPost(trialBody()), {
+    ...t.deps,
+    trial: () => {
+      throw new Error(`OPENROUTER_API_KEY is not set ${SECRET}`);
+    },
+  } as unknown as HandlerDeps);
+  assertEquals(res.status, 503);
+  assertEquals(await res.json(), { error: 'not configured' });
+  assertEquals(t.sent.length, 0);
+  assertEquals(t.workBuilt(), 0);
+});
+
+Deno.test('cron mode: an empty JSON body, no body or a body without `trial` runs the queue exactly as before', async () => {
+  for (const body of ['{}', '', undefined, '{"foo":1}', 'not json']) {
+    const t = trialSetup();
+    const req = body === undefined
+      ? post({ 'x-budget-ocr-secret': SECRET })
+      : trialPost(body, { 'x-budget-ocr-secret': SECRET });
+    const res = await handleBudgetOcr(req, t.deps);
+    assertEquals(res.status, 202, String(body));
+    assertEquals(await res.json(), { accepted: true });
+    await Promise.all(t.ran);
+    assertEquals(t.cronCalls.map((c) => c[0]), ['claim', 'finish']);
+    assertEquals(t.cronCalls[0], ['claim', CLAIM_LIMIT, 300]);
+    assertEquals(t.built(), 0);
+    assertEquals(t.sent.length, 0);
+  }
+});
