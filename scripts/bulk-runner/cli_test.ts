@@ -225,6 +225,14 @@ Deno.test('collection file: every limit the plan needs is required, with no defa
       'dropInvalidCitationDates',
     );
   }
+  checkCollection({ ...COLLECTION, prepare: { maxChunks: 800, corrigendaFromLinks: true } });
+  for (const bad of ['yes', 1, null, {}]) {
+    assertThrows(
+      () => checkCollection({ ...COLLECTION, prepare: { maxChunks: 800, corrigendaFromLinks: bad } }),
+      Error,
+      'corrigendaFromLinks',
+    );
+  }
   for (const k of ['usdPerMTokens', 'budgetUsd', 'chunkCeiling', 'diskUsedBytes', 'diskStopBytes']) {
     const limits: Rec = { ...COLLECTION.limits };
     delete limits[k];

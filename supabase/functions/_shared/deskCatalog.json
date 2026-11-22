@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-15T20:18:11.333Z",
+  "generated_at": "2026-11-21T19:28:22.896Z",
   "entries": [
     {
       "tier": "global",
@@ -174,7 +174,7 @@
       "feature": "MP Profiles & Performance (MPLAD, attendance, debates)",
       "bucket": "Representative & Media Intelligence",
       "pack": "national_mp_report_card.csv",
-      "rows": 780,
+      "rows": 782,
       "note": null
     },
     {

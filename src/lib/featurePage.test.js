@@ -162,7 +162,7 @@ describe('/api/feature-feed with page (F156)', () => {
     const whole = json(await serveFeatureFeedWithBackup(new URLSearchParams({ tier: 'national', feature: BILLS })));
     expect(res.body).toEqual(whole);
     expect(res.body.paged).toBeUndefined();
-    expect(res.body.rows).toHaveLength(9819);
+    expect(res.body.rows).toHaveLength(9817);
   });
 
   it('the Vite middleware answers pages and bad parameters the same way', async () => {

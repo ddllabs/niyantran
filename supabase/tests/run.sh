@@ -121,6 +121,12 @@ chain() {
     ingest_bills_admission_rules)
       chain ingest_bills_adapter
       FILES+=("$(as_non_superuser 20261110120000_bills_admission_rules.sql)") ;;
+    # F372: the pack's Bill corrigenda admitted without a file link. national_search_only_five_desks' chain (it
+    # postdates 20261113090000 and 20261123090000, which replace the admission functions), then the migration, as a
+    # non-superuser. The vacuity check drops the last.
+    bill_corrigenda_route)
+      chain national_search_only_five_desks
+      FILES+=("$(as_non_superuser 20261125090000_bill_corrigenda_route.sql)") ;;
     # F307 (T2): National desks admitted search-only (Regulatory). ingest_bills_admission_rules' chain, then the
     # migration, as a non-superuser. The vacuity check drops the last.
     national_search_only)
@@ -1474,7 +1480,15 @@ fixture_sql() {
       # Every Bills case, without its closing rollback and with its own include expanded.
       while IFS= read -r inner; do
         if [ "$inner" = '\i supabase/tests/ingest_register_batch.sql' ]; then
-          sed '/^rollback;$/d' supabase/tests/ingest_register_batch.sql
+          if [ "$1" = bill_corrigenda_route ]; then
+            # F372: this fixture's chain has the search-only adapter, so Regulatory's spelling is refused as
+            # collection_not_admitted (see the national_search_only branch below).
+            sed -e '/^rollback;$/d' \
+              -e "/\"desk_feature\":\"Regulatory Body Watch (RBI SEBI TRAI CCI)\"/s/'no_adapter');\$/'collection_not_admitted'); -- rewritten by run.sh for bill_corrigenda_route/" \
+              supabase/tests/ingest_register_batch.sql
+          else
+            sed '/^rollback;$/d' supabase/tests/ingest_register_batch.sql
+          fi
         elif [ "$inner" != 'rollback;' ]; then
           printf '%s\n' "$inner"
         fi

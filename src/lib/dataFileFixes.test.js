@@ -35,7 +35,7 @@ describe('Bill register dates are the Sansad calendar date (IST)', () => {
   });
 
   it('keeps every row, and the ids as they were (ids are pin and desk_rows keys, so the date inside them stays)', () => {
-    expect(bills).toHaveLength(9819);
+    expect(bills).toHaveLength(9817);
     expect(bills[0].id).toBe('156-Lok Sabha-2026-08-09-THE NATIONAL CO-OPERATIVE DEVELOPMENT CO');
     expect(bills[0].date_introduced).toBe('2026-08-10');
   });

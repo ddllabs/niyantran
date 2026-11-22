@@ -42,7 +42,7 @@ describe('homepage preview figures', () => {
   });
 
   it('draws stage bars as a share of all bills', () => {
-    expect(stageBar('Assented', stored)).toEqual(['Assented', 3391, '35%', (3391 / 9817) * 100, '']);
+    expect(stageBar('Assented', stored)).toEqual(['Assented', 3392, '35%', (3392 / 9817) * 100, '']);
     expect(stageBar('Passed', stored, 'sand')[2]).toBe('1.7%');
     expect(stageBar('Passed', stored, 'sand')[3]).toBe(2);
   });

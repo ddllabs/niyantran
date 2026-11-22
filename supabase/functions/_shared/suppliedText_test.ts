@@ -122,6 +122,23 @@ Deno.test('a National bill must say what it is', async () => {
   await assertRejects(() => prepareSuppliedText({ ...r, document_role: 'memo' }), Error, 'document_role');
   await assertRejects(() => prepareSuppliedText({ ...r, document_key: 'bill:2024:12' }), Error, 'document_key');
 });
+Deno.test('F372: only a pack corrigendum (doc_type bill_corrigendum, role errata) may have no file_url', async () => {
+  const r = await nationalBill();
+  const erratum = { ...r, doc_type: 'bill_corrigendum', document_role: 'errata', file_url: null };
+  const p = await prepareSuppliedText(erratum, { batch: true });
+  assertEquals([p.input.document_role, p.input.doc_type, p.input.file_url], ['errata', 'bill_corrigendum', undefined]);
+  assertEquals((await prepareSuppliedText({ ...erratum, file_url: undefined }, { batch: true })).input.file_url, undefined);
+  // Any other bill needs its official file.
+  await assertRejects(() => prepareSuppliedText({ ...r, file_url: null }, { batch: true }), Error, 'sansad.in');
+  await assertRejects(() => prepareSuppliedText({ ...erratum, doc_type: 'bill' }, { batch: true }), Error, 'sansad.in');
+  await assertRejects(() => prepareSuppliedText({ ...erratum, doc_type: undefined }, { batch: true }), Error, 'sansad.in');
+  await assertRejects(() => prepareSuppliedText({ ...erratum, document_role: 'synopsis' }, { batch: true }), Error, 'sansad.in');
+  // A link that is given is still held to the official rule; an empty one is a link, not an absent one.
+  await assertRejects(() => prepareSuppliedText({ ...erratum, file_url: 'https://example.com/c.pdf' }, { batch: true }), Error, 'sansad.in');
+  await assertRejects(() => prepareSuppliedText({ ...erratum, file_url: '' }, { batch: true }), Error, 'sansad.in');
+  const linked = { ...erratum, file_url: 'https://sansad.in/getFile/BillsTexts/LSBillTexts/Errata/12_c.pdf' };
+  assertEquals((await prepareSuppliedText(linked, { batch: true })).input.file_url, linked.file_url);
+});
 Deno.test('a National bill may carry the citation key or the listing key, and no other', async () => {
   const r = await nationalBill();
   const cite = (over: Record<string, unknown>) => ({ ...r.citation, ...over });
