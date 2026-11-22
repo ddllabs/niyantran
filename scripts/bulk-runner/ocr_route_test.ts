@@ -268,14 +268,14 @@ Deno.test("planOcr: the hosts are the Budget screen configuration's own, one lis
 // ---- the record built from the OCR text ----
 
 Deno.test("buildOcrRecord: the pack's own record with the OCR text, spans and hashes that bind, and the OCR text type", async () => {
-  const orig = await packRecord(1, garbled(3));
+  const orig = await packRecord(1, garbled(5));
   const { record, controlCodesRemoved } = await buildOcrRecord(orig, row(orig));
   assertEquals(controlCodesRemoved, 0);
   assertEquals(record.extraction, 'ocr_mistral');
   assertEquals(record.text_engine, 'mistral-ocr-4-1');
   assertEquals(record.page_split, 'exact');
-  assertEquals(record.page_count, 3);
-  assertEquals(record.pages_with_text, 3);
+  assertEquals(record.page_count, 5);
+  assertEquals(record.pages_with_text, 5);
   assertEquals(record.content_sha256, await sha256Hex(record.text as string));
   assertEquals(record.n_chars, [...(record.text as string)].length);
   // The pack's text is gone; nothing else of the pack's record changed.
@@ -290,7 +290,24 @@ Deno.test("buildOcrRecord: the pack's own record with the OCR text, spans and ha
   const spans = record.pages as Array<{ char_from: number; char_to: number; text: string }>;
   const cps = [...(record.text as string)];
   for (const s of spans) assertEquals(cps.slice(s.char_from, s.char_to).join(''), s.text);
-  assertEquals((record.text as string).split('\f').length, 3);
+  assertEquals((record.text as string).split('\f').length, 5);
+});
+
+Deno.test('buildOcrRecord: text of a document of 4 pages or fewer says it was read by the vision model, by the engine rule', async () => {
+  for (
+    const [pages, extraction, engine] of [
+      [1, 'ocr_vision', 'openai/gpt-5-mini'],
+      [4, 'ocr_vision', 'openai/gpt-5-mini'],
+      [5, 'ocr_mistral', 'mistral-ocr-4-1'],
+      [6, 'ocr_mistral', 'mistral-ocr-4-1'],
+    ] as const
+  ) {
+    const orig = await packRecord(1, garbled(pages));
+    const { record } = await buildOcrRecord(orig, row(orig));
+    assertEquals([record.extraction, record.text_engine], [extraction, engine], String(pages));
+    assertEquals(record.page_count, pages);
+    assertEquals(await textBinds.one!(record, {} as ScreenContext), []);
+  }
 });
 
 Deno.test('buildOcrRecord: control codes in the OCR text (page breaks too) are removed and counted, never kept inside a page', async () => {
@@ -366,20 +383,23 @@ const screenRun = (records: Rec[]) =>
   });
 
 Deno.test('screen: the pack record with control codes is held for them; the same record with OCR text is eligible', async () => {
-  const orig = await packRecord(1, garbled(1));
-  const before = await screenRun([orig]);
-  assertEquals(before.screened, []);
-  assertEquals(before.holds.map((h) => h.reasons), [['control_codes_excess']]);
-  const { record } = await buildOcrRecord(orig, row(orig));
-  const after = await screenRun([record]);
-  assertEquals(after.holds, []);
-  assertEquals(after.screened.length, 1);
-  assertEquals(after.screened[0].extraction, 'ocr_mistral');
-  assertEquals(after.screened[0].completeness_basis, 'page_check');
+  // 1 page: the vision model's text (ocr_vision); 5 pages: Mistral's (ocr_mistral). Both are allowed the same way.
+  for (const [pages, extraction] of [[1, 'ocr_vision'], [5, 'ocr_mistral']] as const) {
+    const orig = await packRecord(1, garbled(pages));
+    const before = await screenRun([orig]);
+    assertEquals(before.screened, []);
+    assertEquals(before.holds.map((h) => h.reasons), [['control_codes_excess']]);
+    const { record } = await buildOcrRecord(orig, row(orig));
+    const after = await screenRun([record]);
+    assertEquals(after.holds, [], extraction);
+    assertEquals(after.screened.length, 1);
+    assertEquals(after.screened[0].extraction, extraction);
+    assertEquals(after.screened[0].completeness_basis, 'page_check');
+  }
 });
 
 Deno.test('screen: only the allowed text types pass; every other check still holds an OCR record', async () => {
-  assertEquals(parseSearchOnlyConfig(BUDGET).extraction_allowed, ['pdf_text', 'ocr_mistral']);
+  assertEquals(parseSearchOnlyConfig(BUDGET).extraction_allowed, ['pdf_text', 'ocr_mistral', 'ocr_vision']);
   const orig = await packRecord(1, garbled(1));
   const { record } = await buildOcrRecord(orig, row(orig));
   const reasons = async (r: Rec) => (await screenRun([r])).holds.map((h) => h.reasons);
@@ -424,9 +444,9 @@ class FakeOcrDb implements OcrDb {
 
 const OUT = resolve(Deno.env.get('TMPDIR') ?? '/tmp', 'f391-out-test');
 
-async function world(n = 3, extra: Rec = {}) {
+async function world(n = 3, extra: Rec = {}, pagesOf: (i: number) => number = () => 2) {
   const recs: Rec[] = [];
-  for (let i = 1; i <= n; i++) recs.push(await packRecord(i, garbled(2), extra));
+  for (let i = 1; i <= n; i++) recs.push(await packRecord(i, garbled(pagesOf(i)), extra));
   const body = recs.map((r) => JSON.stringify(r)).join('\n') + '\n';
   const files = new Map<string, string>([
     ['/in/records.jsonl', body],
@@ -539,7 +559,9 @@ Deno.test('ocr-collect: writes a records file in the pack format and a receipt t
   const lines = body.trim().split('\n').map((l) => JSON.parse(l) as Rec);
   assertEquals(lines.length, 1);
   assertEquals(lines[0].source_key, key(1));
-  assertEquals(lines[0].extraction, 'ocr_mistral');
+  // Two pages: the vision model's text.
+  assertEquals(lines[0].extraction, 'ocr_vision');
+  assertEquals(lines[0].text_engine, 'openai/gpt-5-mini');
   assertEquals(await textBinds.one!(lines[0], {} as ScreenContext), []);
   const receipt = JSON.parse(w.written.get(`${recordsPath}.receipt.json`)!);
   assertEquals(receipt.output_sha256, createHash('sha256').update(body).digest('hex'));
@@ -550,6 +572,7 @@ Deno.test('ocr-collect: writes a records file in the pack format and a receipt t
   assertEquals(receipt.derived_from.hold_reason, DEFAULT_REASON);
   assertEquals(receipt.ocr.complete, false);
   assertEquals(receipt.ocr.pages, 2);
+  assertEquals(receipt.ocr.models, { 'openai/gpt-5-mini': 1 });
   const out = w.logs.join('\n');
   assert(out.includes('done 1, pending 1, failed 1, not queued 0, not built 0'));
   assert(out.includes(`${key(3)} failed: mistral_rejected`));
@@ -565,6 +588,22 @@ Deno.test('ocr-collect: all done is complete and exits 0; nothing done writes no
   assertEquals(await ocrCommand(collectArgs(), none.deps), 1);
   assertEquals(none.written.size, 0);
   assert(none.logs.join('\n').includes('not queued 2'));
+});
+
+Deno.test('ocr-collect: each record says which engine read it, by the engine rule on its page count, and the receipt counts both', async () => {
+  const w = await world(3, {}, (i) => [4, 5, 1][i - 1]);
+  w.db.rows = w.recs.map((r) => row(r));
+  assertEquals(await ocrCommand(collectArgs(), w.deps), 0);
+  const lines = w.written.get(`${OUT}/ocr-records.jsonl`)!.trim().split('\n').map((l) => JSON.parse(l) as Rec);
+  assertEquals(lines.map((l) => [l.source_key, l.page_count, l.extraction, l.text_engine]), [
+    [key(1), 4, 'ocr_vision', 'openai/gpt-5-mini'],
+    [key(2), 5, 'ocr_mistral', 'mistral-ocr-4-1'],
+    [key(3), 1, 'ocr_vision', 'openai/gpt-5-mini'],
+  ]);
+  const receipt = JSON.parse(w.written.get(`${OUT}/ocr-records.jsonl.receipt.json`)!);
+  assertEquals(receipt.ocr.models, { 'openai/gpt-5-mini': 2, 'mistral-ocr-4-1': 1 });
+  assertEquals(receipt.ocr.model, undefined);
+  assertEquals(receipt.ocr.pages, 10);
 });
 
 Deno.test("ocr-collect: a row that is not the record's own request is not built", async () => {

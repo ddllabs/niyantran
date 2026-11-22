@@ -1,10 +1,13 @@
 // budget-ocr: the entry point, pure (F391, docs/specs/2026-11-21-budget-ocr-text.md). pg_cron calls it through pg_net (the
 // database's private.budget_ocr_tick, which does nothing until the developer switches it on); it claims a few queued
-// requests, gives Mistral OCR each official PDF URL as `document_url` (no download, no storage, no copy of the PDF) with
-// the ingest worker's OCR flags but HTML tables (BUDGET_TABLE_FORMAT), and stores the page text and the spend through the
-// database's own functions (the blocks and image data Mistral returns are dropped, never stored or logged). The spend cap
-// is enforced there, in public.budget_ocr_claim: this module never decides whether money may be spent, it only reports
-// what was.
+// requests and reads each with the engine its page count selects (engine.ts, decision 2026-11-22, F409):
+// - 1 to 4 pages: GPT-5 mini through OpenRouter (vision.ts, the trial's proven request), the answer split on its
+//   `=== PAGE n ===` markers into exactly the expected page texts;
+// - 5 pages and more: Mistral OCR, given the official PDF URL as `document_url` (no download, no storage, no copy of the
+//   PDF) with the ingest worker's OCR flags unchanged (BUDGET_TABLE_FORMAT 'markdown'; the blocks and image data Mistral
+//   returns are dropped, never stored or logged).
+// It stores the page text and the spend through the database's own functions. The spend cap is enforced there, in
+// public.budget_ocr_claim: this module never decides whether money may be spent, it only reports what was.
 //
 // Access: POST only, with `x-budget-ocr-secret` equal to BUDGET_OCR_SECRET (at least 32 characters, else 503 before any claim). The comparison is the ingest worker's
 // (digests, constant time). Every refusal is the same 401 with no detail, including when the secret is unset (fail closed).
@@ -12,17 +15,24 @@
 // A second mode, the vision-model trial (F409, trial.ts), is selected only by a JSON body with a `trial` field, behind the
 // same secret check: it answers the text synchronously and writes nothing. Every other body is the cron mode.
 //
-// The work runs after the 202 under `waitUntil`. runOnce never rejects. Every Mistral call has a time limit: a call that
+// The work runs after the 202 under `waitUntil`. runOnce never rejects. Every model call has a time limit: a call that
 // does not finish is aborted and reported as uncertain (it may have been billed), so its estimate counts as spent.
+//
+// Time: the claimed requests run together (Promise.all), so an invocation lasts as long as its slowest request, not their
+// sum. The slowest is a vision request: the PDF fetch (20 s at most) and the OpenRouter call (120 s at most), 140 s plus
+// the claim and the report; a Mistral request is at most 100 s. That is under the 300 s lease, under the 400 s wall clock of
+// NTER's Supabase Pro plan, and leaves 10 s for the database calls under the 150 s Free-plan limit (engine_test.ts holds it).
 
 import { json } from '../_shared/http.ts';
 import { composeDocument } from '../_shared/pageText.ts';
 import { redactMessage, secretMatches } from '../ingest-worker/handler.ts';
 import { buildOcrRequest, callMistralOcr, checkIndexes } from '../ingest-worker/mistral.ts';
 import { IngestError, OCR_MODEL, type OcrCallResult, type OcrRequest } from '../ingest-worker/types.ts';
+import { engineFor, VISION_MODEL } from './engine.ts';
 import { checkTrialBody, runTrial, trialBodyOf, type TrialDeps } from './trial.ts';
+import { callVision, splitVisionPages, type VisionAnswer, type VisionDeps, VisionFailure } from './vision.ts';
 
-/** Requests claimed by one invocation, and the lease on each (longer than the OCR time limit and the work budget). */
+/** Requests claimed by one invocation, and the lease on each (longer than every model call's time limit). */
 export const CLAIM_LIMIT = 2;
 export const LEASE_SECONDS = 300;
 /** One OCR call's limit, response included. The longest PDF is 62 pages; Mistral answers in a few seconds a page at most. */
@@ -47,9 +57,12 @@ export interface BudgetOcrDb {
 
 export interface WorkDeps {
   db: BudgetOcrDb;
+  /** Mistral OCR, for requests of more than VISION_MAX_PAGES pages. */
   ocr: (request: OcrRequest) => Promise<OcrCallResult>;
+  /** The vision model through OpenRouter (vision.ts), for requests of 1 to VISION_MAX_PAGES pages. */
+  vision: VisionDeps;
   log: (event: string, fields: Record<string, unknown>) => void;
-  /** Exact values removed from every reported message (the API key, the function's secret). */
+  /** Exact values removed from every reported message (the API keys, the function's secret). */
   secrets: string[];
 }
 
@@ -78,11 +91,11 @@ function safeLog(log: WorkDeps['log'], event: string, fields: Record<string, unk
 const messageOf = (e: unknown): string => e instanceof Error ? e.message : String(e);
 
 /**
- * Mistral's table format for Budget documents. 'html' can express merged cells (rowspan, colspan), which Mistral's markdown
- * tables flatten, losing year values (the 2026-11-22 HTML trial, see the spec's Live run). 'markdown' restores the ingest
- * worker's exact request. The ingest worker's own OCR_FLAGS are not changed.
+ * Mistral's table format for Budget documents: 'markdown', the ingest worker's exact request (2026-11-22). The HTML trial
+ * gave the same loss of year values as markdown (F409), so the documents it mattered for go to the vision model instead.
+ * 'html' still works (the composition resolves html placeholders when it is set); the worker's own OCR_FLAGS are unchanged.
  */
-export const BUDGET_TABLE_FORMAT: OcrRequest['table_format'] = 'html';
+export const BUDGET_TABLE_FORMAT: OcrRequest['table_format'] = 'markdown';
 
 /**
  * The request for a whole document: exactly the expected pages (so the cost cannot pass the estimate), with the ingest
@@ -121,9 +134,97 @@ export function classify(e: unknown): { code: string; uncertain: boolean; perman
   return { code: 'internal', uncertain: true, permanent: false };
 }
 
-async function runOne(deps: WorkDeps, c: Claimed): Promise<void> {
-  const ids = { request_id: c.id, source_key: c.source_key, expected_pages: c.expected_pages };
+/**
+ * Which rejected vision answers are final. Truncated at max_tokens: the same document runs out again (raising the limit is a
+ * code change). A wrong page split or an empty answer may be one bad sample: tried again, up to max_attempts, each attempt
+ * counting its estimate. All three were billed (uncertain).
+ */
+export const VISION_REJECTED_PERMANENT: Readonly<Record<string, boolean>> = Object.freeze({
+  vision_empty: false,
+  vision_truncated: true,
+  vision_page_split: false,
+});
+
+/** Stores the page texts (pages = the expected count) or ends the request for good when the store fails. */
+async function finishOrEnd(
+  deps: WorkDeps,
+  c: Claimed,
+  pages: number,
+  texts: string[],
+  ids: Record<string, unknown>,
+): Promise<string | null> {
   try {
+    return await deps.db.finish(c.id, c.token, pages, texts);
+  } catch (e) {
+    // The call was paid for but the result could not be stored. Left alone, the lease would run out and the request would
+    // be read (and paid for) again, up to max_attempts. End it for good, with its estimate counted as spent.
+    safeLog(deps.log, 'budget_ocr.report_failed', { ...ids, message: redactMessage(messageOf(e), deps.secrets) });
+    await deps.db.fail(c.id, c.token, 'report_failed', true, true);
+    return null;
+  }
+}
+
+/** A request of 1 to VISION_MAX_PAGES pages: the vision model, its answer split into exactly the expected pages. */
+async function runVision(deps: WorkDeps, c: Claimed, ids: Record<string, unknown>): Promise<void> {
+  const started = Date.now();
+  let got: VisionAnswer;
+  try {
+    got = await callVision(deps.vision, c);
+  } catch (e) {
+    const k = e instanceof VisionFailure ? e : new VisionFailure('internal', true, false);
+    safeLog(deps.log, 'budget_ocr.call_failed', {
+      ...ids,
+      ...k.detail,
+      code: k.code,
+      uncertain: k.uncertain,
+      permanent: k.permanent,
+      latency_ms: Date.now() - started,
+    });
+    await deps.db.fail(c.id, c.token, k.code, k.uncertain, k.permanent);
+    return;
+  }
+  // Every field of the call that may be logged: never the text.
+  const call = {
+    ...ids,
+    prompt_tokens: got.usage.prompt_tokens,
+    completion_tokens: got.usage.completion_tokens,
+    cost: got.usage.cost,
+    finish_reason: got.finish_reason,
+    latency_ms: Date.now() - started,
+  };
+  // Empty first, then truncated (a cut-off answer also splits wrong), then the split itself.
+  const texts = got.text.trim() && got.finish_reason !== 'length' ? splitVisionPages(got.text, c.expected_pages) : null;
+  if (texts === null) {
+    const code = !got.text.trim()
+      ? 'vision_empty'
+      : got.finish_reason === 'length'
+      ? 'vision_truncated'
+      : 'vision_page_split';
+    safeLog(deps.log, 'budget_ocr.vision_rejected', { ...call, outcome: code });
+    await deps.db.fail(c.id, c.token, code, true, VISION_REJECTED_PERMANENT[code]);
+    return;
+  }
+  // The pages processed are the expected pages: the cost the database records is pages x the current price.
+  const outcome = await finishOrEnd(deps, c, c.expected_pages, texts.map((t) => t.replaceAll('\u0000', '')), ids);
+  if (outcome !== null) {
+    safeLog(deps.log, 'budget_ocr.finished', { ...call, outcome, pages_processed: c.expected_pages });
+  }
+}
+
+async function runOne(deps: WorkDeps, c: Claimed): Promise<void> {
+  const engine = engineFor(c.expected_pages);
+  const ids = {
+    request_id: c.id,
+    source_key: c.source_key,
+    expected_pages: c.expected_pages,
+    engine,
+    model: engine === 'vision' ? VISION_MODEL : OCR_MODEL,
+  };
+  try {
+    if (engine === 'vision') {
+      await runVision(deps, c, ids);
+      return;
+    }
     let result: OcrCallResult;
     try {
       result = await deps.ocr(ocrRequestFor(c.official_url, c.expected_pages));
@@ -167,16 +268,8 @@ async function runOne(deps: WorkDeps, c: Claimed): Promise<void> {
       await deps.db.fail(c.id, c.token, 'ocr_table_unresolved', true, true);
       return;
     }
-    let outcome: string;
-    try {
-      outcome = await deps.db.finish(c.id, c.token, result.pagesProcessed, texts);
-    } catch (e) {
-      // The OCR was paid for but the result could not be stored. Left alone, the lease would run out and the request would
-      // be OCRed (and paid for) again, up to max_attempts. End it for good, with its estimate counted as spent.
-      safeLog(deps.log, 'budget_ocr.report_failed', { ...ids, message: redactMessage(messageOf(e), deps.secrets) });
-      await deps.db.fail(c.id, c.token, 'report_failed', true, true);
-      return;
-    }
+    const outcome = await finishOrEnd(deps, c, result.pagesProcessed, texts, ids);
+    if (outcome === null) return;
     safeLog(deps.log, 'budget_ocr.finished', {
       ...ids,
       outcome,
