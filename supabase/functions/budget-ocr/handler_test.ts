@@ -14,8 +14,15 @@ import {
   withTimeout,
   type WorkDeps,
 } from './handler.ts';
-import { IngestError, type MistralOcrPage, type OcrCallResult, type StoredOcrPage } from '../ingest-worker/types.ts';
-import { mapOcrPage } from '../ingest-worker/mistral.ts';
+import {
+  IngestError,
+  type MistralOcrPage,
+  OCR_FLAGS,
+  OCR_MODEL,
+  type OcrCallResult,
+  type StoredOcrPage,
+} from '../ingest-worker/types.ts';
+import { buildOcrRequest, mapOcrPage } from '../ingest-worker/mistral.ts';
 import { planIndex } from '../ingest-worker/index-step.ts';
 
 const SECRET = 'budget-secret-0123456789-abcdefghij';
@@ -154,13 +161,17 @@ Deno.test('handler: the right secret answers 202 and the work runs after it', as
 
 // ─── One run ─────────────────────────────────────────────────────────────────
 
-Deno.test('ocrRequestFor: the official URL as document_url, exactly the expected pages, no image data, no PDF stored', () => {
+/** The OCR flags of a request or a sent body: the keys of the ingest worker's OCR_FLAGS, nothing else. */
+const flagsOf = (o: Record<string, unknown>) => Object.fromEntries(Object.keys(OCR_FLAGS).map((k) => [k, o[k]]));
+
+Deno.test('ocrRequestFor: the official URL as document_url, exactly the expected pages, the OCR flags of the ingest worker unchanged', () => {
   const r = ocrRequestFor(URL1, 3);
   assertEquals(r.document, { type: 'document_url', document_url: URL1 });
   assertEquals(r.pages, [0, 1, 2]);
-  assertEquals(r.include_image_base64, false);
-  assertEquals(r.include_blocks, false);
-  assertEquals(r.table_format, 'markdown');
+  assertEquals(flagsOf(r as unknown as Record<string, unknown>), { ...OCR_FLAGS });
+  assertEquals(r.include_blocks, true);
+  assertEquals(r.include_image_base64, true);
+  assertEquals(r, buildOcrRequest(OCR_MODEL, URL1, [0, 1, 2]));
 });
 
 Deno.test('runOnce: claims CLAIM_LIMIT, calls OCR with each URL, stores the pages in order with the pages processed', async () => {
@@ -494,6 +505,15 @@ Deno.test('mistralOcr: a hung Mistral call becomes mistral_unavailable (uncertai
   assertEquals(got.pagesProcessed, 2);
   assertEquals(sentBody.document, { type: 'document_url', document_url: URL1 });
   assertEquals(sentBody.pages, [0, 1]);
-  assertEquals(sentBody.include_image_base64, false);
+  // The body Mistral receives carries exactly the ingest worker's flags (blocks and image data included), and nothing more.
+  assertEquals(flagsOf(sentBody), { ...OCR_FLAGS });
+  assertEquals(sentBody.include_blocks, true);
+  assertEquals(sentBody.include_image_base64, true);
+  assertEquals(sentBody, {
+    model: OCR_MODEL,
+    document: { type: 'document_url', document_url: URL1 },
+    pages: [0, 1],
+    ...OCR_FLAGS,
+  });
   assertEquals(sentHeaders?.get('authorization'), `Bearer ${API_KEY}`);
 });
