@@ -1,11 +1,12 @@
 // budget-ocr: the entry point, pure (F391, docs/specs/2026-11-21-budget-ocr-text.md). pg_cron calls it through pg_net (the
 // database's private.budget_ocr_tick, which does nothing until the developer switches it on); it claims a few queued
-// requests and reads each with the engine its page count selects (engine.ts, decision 2026-11-22, F409):
-// - 1 to 4 pages: GPT-5 mini through OpenRouter (vision.ts, the trial's proven request), the answer split on its
-//   `=== PAGE n ===` markers into exactly the expected page texts;
-// - 5 pages and more: Mistral OCR, given the official PDF URL as `document_url` (no download, no storage, no copy of the
-//   PDF) with the ingest worker's OCR flags unchanged (BUDGET_TABLE_FORMAT 'markdown'; the blocks and image data Mistral
-//   returns are dropped, never stored or logged).
+// requests and reads each with the engine its page count selects (engine.ts, F409). Since the decision of 2026-11-23 that
+// is Mistral for every page count (VISION_MAX_PAGES 0):
+// - Mistral OCR, given the official PDF URL as `document_url` (no download, no storage, no copy of the PDF) with the
+//   ingest worker's OCR flags unchanged (BUDGET_TABLE_FORMAT 'markdown'; the blocks and image data Mistral returns are
+//   dropped, never stored or logged);
+// - the vision branch (1 to VISION_MAX_PAGES pages: GPT-5 mini through OpenRouter, vision.ts, the answer split on its
+//   `=== PAGE n ===` markers into exactly the expected page texts) is kept but not reached while VISION_MAX_PAGES is 0.
 // It stores the page text and the spend through the database's own functions. The spend cap is enforced there, in
 // public.budget_ocr_claim: this module never decides whether money may be spent, it only reports what was.
 //
@@ -19,8 +20,8 @@
 // does not finish is aborted and reported as uncertain (it may have been billed), so its estimate counts as spent.
 //
 // Time: the claimed requests run together (Promise.all), so an invocation lasts as long as its slowest request, not their
-// sum. The slowest is a vision request: the PDF fetch (20 s at most) and the OpenRouter call (120 s at most), 140 s plus
-// the claim and the report; a Mistral request is at most 100 s. That is under the 300 s lease, under the 400 s wall clock of
+// sum. A Mistral request is at most 100 s. A vision request (none while VISION_MAX_PAGES is 0) would be the slowest: the
+// PDF fetch (20 s at most) and the OpenRouter call (120 s at most), 140 s plus the claim and the report. That is under the 300 s lease, under the 400 s wall clock of
 // NTER's Supabase Pro plan, and leaves 10 s for the database calls under the 150 s Free-plan limit (engine_test.ts holds it).
 
 import { json } from '../_shared/http.ts';
@@ -57,9 +58,9 @@ export interface BudgetOcrDb {
 
 export interface WorkDeps {
   db: BudgetOcrDb;
-  /** Mistral OCR, for requests of more than VISION_MAX_PAGES pages. */
+  /** Mistral OCR, for requests of more than VISION_MAX_PAGES pages (every request while it is 0). */
   ocr: (request: OcrRequest) => Promise<OcrCallResult>;
-  /** The vision model through OpenRouter (vision.ts), for requests of 1 to VISION_MAX_PAGES pages. */
+  /** The vision model through OpenRouter (vision.ts), for requests of 1 to VISION_MAX_PAGES pages (none while it is 0). */
   vision: VisionDeps;
   log: (event: string, fields: Record<string, unknown>) => void;
   /** Exact values removed from every reported message (the API keys, the function's secret). */

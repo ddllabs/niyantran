@@ -4,12 +4,11 @@ import { LEASE_SECONDS, OCR_TIMEOUT_MS } from './handler.ts';
 import { TRIAL_MODELS, TRIAL_PDF_TIMEOUT_MS, TRIAL_TIMEOUT_MS } from './trial.ts';
 import { splitVisionPages, VISION_MAX_TOKENS, VISION_PDF_TIMEOUT_MS, VISION_TIMEOUT_MS } from './vision.ts';
 
-// ─── The engine rule (developer decision 2026-11-22) ─────────────────────────
+// ─── The engine rule (developer decision 2026-11-23) ─────────────────────────
 
-Deno.test('engineFor: 1 to 4 pages is the vision model, 5 pages and more is Mistral', () => {
-  assertEquals(VISION_MAX_PAGES, 4);
-  for (const n of [1, 2, 3, 4]) assertEquals(engineFor(n), 'vision', String(n));
-  for (const n of [5, 6, 11, 62, 1000]) assertEquals(engineFor(n), 'mistral', String(n));
+Deno.test('engineFor: every Budget document is Mistral, whatever its page count (1, 4 and 5 pages included)', () => {
+  assertEquals(VISION_MAX_PAGES, 0);
+  for (const n of [1, 2, 3, 4, 5, 6, 11, 62, 1000]) assertEquals(engineFor(n), 'mistral', String(n));
 });
 
 Deno.test('engineFor: a page count that is not a whole number of at least 1 is never the vision model', () => {

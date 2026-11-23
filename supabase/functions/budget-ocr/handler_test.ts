@@ -846,263 +846,61 @@ Deno.test('cron mode: an empty JSON body, no body or a body without `trial` runs
   }
 });
 
-// ─── The engine by page count (developer decision 2026-11-22, F409) ──────────
+// ─── The engine by page count (developer decision 2026-11-23, F409) ──────────
+// Every Budget document is read by Mistral (engine.ts, VISION_MAX_PAGES 0). The cron path's vision branch (runVision) is
+// kept but no longer reached; vision.ts is still exercised by the trial tests above and by engine_test.ts.
 
-const PROD_OR_KEY = 'sk-or-v1-prodkey0123456789abcdefgh';
-const VISION_TEXT = (n: number, body = (i: number) => `| row ${i} | 1 | 2 |`) =>
-  Array.from({ length: n }, (_, i) => `=== PAGE ${i + 1} ===\n${body(i + 1)}\n`).join('');
-
-/** The production vision path's fetch: the official PDF, then OpenRouter, routed by URL; every call recorded. */
-function visionSetup(opts: {
-  content?: unknown;
-  finish?: string;
-  chat?: (init: RequestInit) => Promise<Response>;
-  pdf?: () => Promise<Response>;
-  timeoutMs?: number;
-} = {}) {
-  const sent: Sent[] = [];
-  const fetchImpl = ((input: unknown, init: RequestInit = {}) => {
-    const url = String(input);
-    sent.push({ url, init });
-    if (url === CHAT_URL) {
-      return opts.chat?.(init) ?? Promise.resolve(
-        new Response(
-          JSON.stringify({
-            model: 'openai/gpt-5-mini',
-            choices: [{
-              message: { role: 'assistant', content: 'content' in opts ? opts.content : VISION_TEXT(4) },
-              finish_reason: opts.finish ?? 'stop',
-            }],
-            usage: { prompt_tokens: 5100, completion_tokens: 9800, total_tokens: 14900, cost: 0.0213 },
-          }),
-          { status: 200 },
-        ),
-      );
-    }
-    return opts.pdf?.() ?? Promise.resolve(new Response(PDF_BYTES, { status: 200 }));
-  }) as typeof fetch;
-  const vision = {
-    fetch: fetchImpl,
-    apiKey: PROD_OR_KEY,
-    ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}),
-  } as WorkDeps['vision'];
-  return { vision, sent };
+/** An OCR dependency that records each request and answers exactly the pages asked for. */
+function recordingOcr() {
+  const seen: Array<Parameters<WorkDeps['ocr']>[0]> = [];
+  const ocr: WorkDeps['ocr'] = (req) => (seen.push(req), Promise.resolve(result([...req.pages])));
+  return { ocr, seen };
 }
 
-/** Nothing of the page text, the official URL or a key in the logs. */
-function assertLogsClean(logs: unknown) {
-  const text = JSON.stringify(logs);
-  for (const s of ['row 1', 'indiabudget', PROD_OR_KEY, API_KEY, SECRET, PDF_DATA_URL.slice(30, 60)]) {
-    assert(!text.includes(s), `leaked ${s.slice(0, 20)}`);
-  }
-}
-
-Deno.test('engine: a claim of 4 pages goes to GPT-5 mini through OpenRouter with the proven request, never to Mistral', async () => {
-  const { db, calls } = fakeDb([claimed(1, 4)]);
-  const v = visionSetup();
-  let ocrCalls = 0;
-  const { deps } = work(db, () => (ocrCalls++, Promise.resolve(result(P5))), v.vision);
-  await runOnce(deps);
-  assertEquals(ocrCalls, 0);
-  // The official PDF from the claim, fetched once with no redirect and a time limit, then OpenRouter.
-  assertEquals(v.sent.map((s) => s.url), ['https://www.indiabudget.gov.in/doc/bh1.pdf', CHAT_URL]);
-  assertEquals(v.sent[0].init.redirect, 'error');
-  assert(v.sent[0].init.signal instanceof AbortSignal);
-  const chat = v.sent[1];
-  assertEquals(chat.init.method, 'POST');
-  assert(chat.init.signal instanceof AbortSignal);
-  assertEquals(new Headers(chat.init.headers).get('authorization'), `Bearer ${PROD_OR_KEY}`);
-  const body = JSON.parse(String(chat.init.body));
-  assertEquals(body.model, 'openai/gpt-5-mini');
-  assertEquals(body.temperature, 0);
-  assertEquals(body.max_tokens, 32000);
-  assertEquals(body.usage, { include: true });
-  assertEquals(body.plugins, [{ id: 'file-parser', pdf: { engine: 'native' } }]);
-  assert(body.stream !== true);
-  const parts = body.messages[1].content as Array<Record<string, unknown>>;
-  assertEquals(parts.find((p) => p.type === 'file'), {
-    type: 'file',
-    file: { filename: `${claimed(1).source_key}.pdf`, file_data: PDF_DATA_URL },
-  });
-  const prompt = [body.messages[0].content, ...parts.filter((p) => p.type === 'text').map((p) => p.text)].join('\n');
-  assert(prompt.includes('=== PAGE n ==='));
-  // Split into exactly the expected pages, the marker lines removed, and finished with the expected page count.
-  assertEquals(calls.map((c) => c[0]), ['claim', 'finish']);
-  assertEquals(calls[1].slice(0, 5), ['finish', 'id-1', 'tok-1', 4, [
-    '| row 1 | 1 | 2 |',
-    '| row 2 | 1 | 2 |',
-    '| row 3 | 1 | 2 |',
-    '| row 4 | 1 | 2 |',
-  ]]);
+Deno.test('engine: claims of 1, 4 and 5 pages all go to Mistral with markdown tables, never to OpenRouter', async () => {
+  const { db, calls } = fakeDb([claimed(1, 1), claimed(2, 4), claimed(3, 5)]);
+  const vision: string[] = [];
+  const m = recordingOcr();
+  await runOnce(work(db, m.ocr, noVision(vision)).deps);
+  assertEquals(vision, []);
+  assertEquals(m.seen.map((r) => [r.document.document_url, r.pages, r.table_format]), [
+    ['https://www.indiabudget.gov.in/doc/bh1.pdf', [0], 'markdown'],
+    ['https://www.indiabudget.gov.in/doc/bh2.pdf', [0, 1, 2, 3], 'markdown'],
+    ['https://www.indiabudget.gov.in/doc/bh3.pdf', P5, 'markdown'],
+  ]);
+  const fin = calls.filter((c) => c[0] === 'finish').map((c) => [c[1], c[3], c[4]]);
+  assertEquals(fin, [
+    ['id-1', 1, ['text 0']],
+    ['id-2', 4, ['text 0', 'text 1', 'text 2', 'text 3']],
+    ['id-3', 5, ['text 0', 'text 1', 'text 2', 'text 3', 'text 4']],
+  ]);
 });
 
-Deno.test('engine: a claim of 1 page is vision too; a claim of 5 pages is Mistral with markdown tables, never OpenRouter', async () => {
-  const one = fakeDb([claimed(1, 1)]);
-  const v1 = visionSetup({ content: VISION_TEXT(1) });
-  await runOnce(work(one.db, () => Promise.reject(new Error('no Mistral call expected')), v1.vision).deps);
-  assertEquals(one.calls[1].slice(0, 5), ['finish', 'id-1', 'tok-1', 1, ['| row 1 | 1 | 2 |']]);
-
-  const five = fakeDb([claimed(2, 5)]);
-  const seenVision: string[] = [];
-  const seen: Array<Record<string, unknown>> = [];
-  const ocr: WorkDeps['ocr'] = (
-    req,
-  ) => (seen.push(req as unknown as Record<string, unknown>), Promise.resolve(result(P5)));
-  await runOnce(work(five.db, ocr, noVision(seenVision)).deps);
-  assertEquals(seenVision, []);
-  assertEquals(seen.length, 1);
-  assertEquals(seen[0].table_format, 'markdown');
-  assertEquals(seen[0].pages, P5);
-  assertEquals(five.calls[1].slice(0, 4), ['finish', 'id-2', 'tok-2', 5]);
-});
-
-Deno.test('engine: one claim of each kind in the same run goes to its own engine, and both run at the same time', async () => {
-  const { db, calls } = fakeDb([claimed(1, 3), claimed(2, 6)]);
-  // The OpenRouter answer waits until Mistral has been called: run one after the other, this would time out.
-  let mistralCalled!: () => void;
-  const mistralStarted = new Promise<void>((r) => (mistralCalled = r));
-  const v = visionSetup({
-    timeoutMs: 2000,
-    chat: async () => {
-      await mistralStarted;
-      return new Response(
-        JSON.stringify({ choices: [{ message: { content: VISION_TEXT(3) }, finish_reason: 'stop' }], usage: {} }),
-        { status: 200 },
-      );
-    },
-  });
-  const { deps } = work(db, () => (mistralCalled(), Promise.resolve(result([0, 1, 2, 3, 4, 5]))), v.vision);
-  await runOnce(deps);
-  const fin = calls.filter((c) => c[0] === 'finish');
-  assertEquals(fin.map((c) => [c[1], c[3], (c[4] as string[]).length]).sort(), [['id-1', 3, 3], ['id-2', 6, 6]]);
-});
-
-Deno.test('engine: a vision answer that cannot be split into the expected pages, truncated or empty is failed (billed), never finished', async () => {
-  const cases: Array<[Parameters<typeof visionSetup>[0], string, boolean]> = [
-    // the code, then permanent; uncertain is always true (the call was billed)
-    [{ content: VISION_TEXT(3) }, 'vision_page_split', false],
-    [{ content: VISION_TEXT(5) }, 'vision_page_split', false],
-    [
-      { content: '=== PAGE 1 ===\na\n=== PAGE 3 ===\nb\n=== PAGE 2 ===\nc\n=== PAGE 4 ===\nd' },
-      'vision_page_split',
-      false,
-    ],
-    [{ content: `Here is the transcription.\n${VISION_TEXT(4)}` }, 'vision_page_split', false],
-    [{ content: VISION_TEXT(4), finish: 'length' }, 'vision_truncated', true],
-    [{ content: VISION_TEXT(2), finish: 'length' }, 'vision_truncated', true],
-    [{ content: '  \n\n ' }, 'vision_empty', false],
-    [{ content: '' }, 'vision_empty', false],
-    [{ content: null }, 'vision_empty', false],
-  ];
-  for (const [opts, code, permanent] of cases) {
-    const { db, calls } = fakeDb([claimed(1, 4)]);
-    const v = visionSetup(opts);
-    const { deps, logs } = work(db, () => Promise.reject(new Error('no Mistral call expected')), v.vision);
-    await runOnce(deps);
-    assertEquals(calls.map((c) => c[0]), ['claim', 'fail'], code);
-    assertEquals(calls[1], ['fail', 'id-1', 'tok-1', code, true, permanent], code);
-    assertLogsClean(logs);
-  }
-});
-
-Deno.test('engine: a vision failure before or at OpenRouter is failed with what may have been billed, never finished', async () => {
-  const hang = (init: RequestInit) =>
-    new Promise<Response>((_res, rej) => init.signal?.addEventListener('abort', () => rej(init.signal!.reason)));
-  const cases: Array<[Parameters<typeof visionSetup>[0], unknown[]]> = [
-    // the code, uncertain (possibly billed), permanent
-    [{ pdf: () => Promise.resolve(new Response('gone', { status: 404 })) }, ['pdf_fetch_failed', false, false]],
-    [{ pdf: () => Promise.reject(new TypeError('network down')) }, ['pdf_fetch_failed', false, false]],
-    [{ pdf: () => Promise.resolve(new Response('<html></html>', { status: 200 })) }, ['not_pdf', false, true]],
-    [{ chat: () => Promise.resolve(new Response('slow', { status: 429 })) }, ['openrouter_rate_limited', false, false]],
-    [
-      { chat: () => Promise.resolve(new Response(`no ${PROD_OR_KEY}`, { status: 402 })) },
-      ['openrouter_rejected', false, true],
-    ],
-    [{ chat: () => Promise.resolve(new Response('bad', { status: 400 })) }, ['openrouter_rejected', false, true]],
-    [{ chat: () => Promise.resolve(new Response('down', { status: 502 })) }, ['openrouter_unavailable', true, false]],
-    [{ chat: () => Promise.reject(new TypeError('reset')) }, ['openrouter_unavailable', true, false]],
-    [{ chat: () => Promise.resolve(new Response('not json', { status: 200 })) }, [
-      'openrouter_unreadable',
-      true,
-      false,
-    ]],
-    [{ timeoutMs: 30, chat: hang }, ['openrouter_timeout', true, false]],
-  ];
-  for (const [opts, want] of cases) {
-    const { db, calls } = fakeDb([claimed(1, 2)]);
-    const v = visionSetup(opts);
-    const { deps, logs } = work(db, () => Promise.reject(new Error('no Mistral call expected')), v.vision);
-    await runOnce(deps);
-    assertEquals(calls.map((c) => c[0]), ['claim', 'fail'], String(want[0]));
-    assertEquals(calls[1], ['fail', 'id-1', 'tok-1', ...want], String(want[0]));
-    assertLogsClean(logs);
-  }
-});
-
-Deno.test('engine: a NUL in the vision text is removed before the text is stored', async () => {
-  const { db, calls } = fakeDb([claimed(1, 2)]);
-  const v = visionSetup({ content: '=== PAGE 1 ===\na\u0000a\n=== PAGE 2 ===\nb\u0000' });
-  await runOnce(work(db, () => Promise.reject(new Error('no')), v.vision).deps);
-  assertEquals(calls[1].slice(0, 5), ['finish', 'id-1', 'tok-1', 2, ['aa', 'b']]);
-});
-
-Deno.test('engine: a vision finish that throws ends the request for good with its estimate counted', async () => {
-  const { db, calls } = fakeDb([claimed(1, 4)]);
-  db.finish = (id, token, pages, texts) => {
-    calls.push(['finish', id, token, pages, texts]);
-    return Promise.reject(new Error(`database said no ${PROD_OR_KEY}`));
-  };
-  const v = visionSetup();
-  const { deps, logs } = work(db, () => Promise.reject(new Error('no')), v.vision);
-  await runOnce(deps);
-  assertEquals(calls.map((c) => c[0]), ['claim', 'finish', 'fail']);
-  assertEquals(calls[2], ['fail', 'id-1', 'tok-1', 'report_failed', true, true]);
-  assertLogsClean(logs);
-});
-
-Deno.test('engine: each request logs its ids, engine, model, pages, tokens, cost, finish reason, latency and outcome, and no text, URL or key', async () => {
-  const { db } = fakeDb([claimed(1, 4), claimed(2, 5)]);
-  const v = visionSetup();
-  const { deps, logs } = work(db, () => Promise.resolve(result(P5)), v.vision);
+Deno.test('engine: a 1-page request logs the Mistral engine and model, and no text, URL or key', async () => {
+  const { db } = fakeDb([claimed(1, 1)]);
+  const m = recordingOcr();
+  const { deps, logs } = work(db, m.ocr);
   await runOnce(deps);
   const done = logs.filter(([e]) => e === 'budget_ocr.finished').map(([, f]) => f);
-  const vision = done.find((f) => f.request_id === 'id-1');
-  assert(vision);
-  assertEquals(vision.source_key, claimed(1).source_key);
-  assertEquals(vision.engine, 'vision');
-  assertEquals(vision.model, 'openai/gpt-5-mini');
-  assertEquals(vision.expected_pages, 4);
-  assertEquals(vision.prompt_tokens, 5100);
-  assertEquals(vision.completion_tokens, 9800);
-  assertEquals(vision.cost, 0.0213);
-  assertEquals(vision.finish_reason, 'stop');
-  assert(typeof vision.latency_ms === 'number');
-  assertEquals(vision.outcome, 'done');
-  const mistral = done.find((f) => f.request_id === 'id-2');
-  assert(mistral);
-  assertEquals(mistral.engine, 'mistral');
-  assertEquals(mistral.model, OCR_MODEL);
-  assertEquals(mistral.outcome, 'done');
-  // A rejected vision answer logs the same fields, with its code as the outcome.
-  const bad = fakeDb([claimed(3, 4)]);
-  const short = visionSetup({ content: VISION_TEXT(3) });
-  const w = work(bad.db, () => Promise.reject(new Error('no')), short.vision);
-  await runOnce(w.deps);
-  const rejected = w.logs.find(([, f]) => f.outcome === 'vision_page_split');
-  assert(rejected);
-  assertEquals(rejected[1].engine, 'vision');
-  assertEquals(rejected[1].completion_tokens, 9800);
-  assertEquals(rejected[1].cost, 0.0213);
-  assertLogsClean([logs, w.logs]);
+  assertEquals(done.length, 1);
+  assertEquals(done[0].request_id, 'id-1');
+  assertEquals(done[0].engine, 'mistral');
+  assertEquals(done[0].model, OCR_MODEL);
+  assertEquals(done[0].expected_pages, 1);
+  assertEquals(done[0].outcome, 'done');
+  const text = JSON.stringify(logs);
+  for (const s of ['text 0', 'indiabudget', API_KEY, SECRET]) assert(!text.includes(s), `leaked ${s.slice(0, 20)}`);
 });
 
-Deno.test('cron mode through the handler: a 3-page claim is read by the vision model and finished', async () => {
-  const { db, calls } = fakeDb([claimed(1, 3)]);
-  const v = visionSetup({ content: VISION_TEXT(3) });
-  const { deps, ran } = handlerDeps({ work: () => work(db, () => Promise.reject(new Error('no')), v.vision).deps });
+Deno.test('cron mode through the handler: a 1-page claim is read by Mistral and finished, with no OpenRouter call', async () => {
+  const { db, calls } = fakeDb([claimed(1, 1)]);
+  const vision: string[] = [];
+  const m = recordingOcr();
+  const { deps, ran } = handlerDeps({ work: () => work(db, m.ocr, noVision(vision)).deps });
   const res = await handleBudgetOcr(post({ 'x-budget-ocr-secret': SECRET }), deps);
   assertEquals(res.status, 202);
   await Promise.all(ran);
   assertEquals(calls.map((c) => c[0]), ['claim', 'finish']);
-  assertEquals(v.sent.map((s) => s.url), ['https://www.indiabudget.gov.in/doc/bh1.pdf', CHAT_URL]);
+  assertEquals(m.seen.length, 1);
+  assertEquals(vision, []);
 });

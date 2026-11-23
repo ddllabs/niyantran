@@ -8,8 +8,8 @@
 // `ocr-enqueue` reads the screen's records and holds, picks the records held only for one reason (control codes in the
 // pack's text), checks each against the Budget desk's official hosts and the limits, and queues them in the database
 // (public.budget_ocr_enqueue, as corpus_ingest). The `budget-ocr` Edge function, on Supabase, reads each official PDF with
-// the engine its page count selects (supabase/functions/budget-ocr/engine.ts: GPT-5 mini through OpenRouter for 1 to 4
-// pages, Mistral OCR above) and stores the page text; no PDF, OCR key or model key is ever on this machine, and no PDF is
+// the engine its page count selects (supabase/functions/budget-ocr/engine.ts: Mistral OCR for every page count since the
+// decision of 2026-11-23; GPT-5 mini through OpenRouter only for 1 to VISION_MAX_PAGES pages, now 0) and stores the page text; no PDF, OCR key or model key is ever on this machine, and no PDF is
 // stored or served. `ocr-collect` reads the finished text back (public.budget_ocr_read) and writes a records file in the
 // pack's record format (the original record with the new text, its spans and hashes, extraction `ocr_vision` or
 // `ocr_mistral` by the same engine rule) with a receipt, which the normal `screen` and `run` commands then take, so the
@@ -43,8 +43,9 @@ export const VISION_TEXT_ENGINE = VISION_MODEL;
 
 /**
  * The text type and engine of a finished request, by the Edge function's own engine rule on its expected pages. The queue
- * row does not record the engine (no column), so a row finished before the rule was deployed (2026-11-22) must be queued
- * again before it is collected.
+ * row does not record the engine (no column), so a row finished under an earlier rule must be queued again before it is
+ * collected: one finished before 2026-11-22, and one of 1 to 4 pages finished by the vision model while the 2026-11-22
+ * rule was deployed (it would now be labelled ocr_mistral).
  */
 export function textTypeFor(expectedPages: number): { extraction: string; text_engine: string } {
   return engineFor(expectedPages) === 'vision'
