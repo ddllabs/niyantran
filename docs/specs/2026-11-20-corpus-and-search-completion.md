@@ -167,6 +167,12 @@ Each on its own short spec: a corrigenda route (F372); re-extraction of 116 Budg
 decision for 29 Transfers (F390); replacing a live document's text with the old text recoverable (F357); row links
 for search-only documents (F368); row files and page boxes (F373).
 
+2026-11-23, F390: the runner has a `relink` command (`scripts/bulk-runner/cli.ts relink`, rules in
+`scripts/bulk-runner/relink.ts`), because nothing could change a record's `file_url` without breaking the reader's
+receipt. It replaces the dead links of the 29 Transfers records from a map of checked new links on the same official
+host, refuses the whole run on any map line that fails a rule, and writes `relinked.jsonl` with a receipt that chains
+the reader's, so `screen` page-checks the new links and `split`, `plan` and `run` take the output as usual.
+
 ### `next-packs`
 Outcome: an inventory by entry of v1.4 to v1.6, then loads by the same procedure. Not started before
 `one-bit-index` and `default-partition` are in place.

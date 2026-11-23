@@ -417,6 +417,18 @@ Deno.test('a clean record with an RBI PDF whose page check passes earns the page
   assertEquals(page.seen, [[key(2)]]);
 });
 
+Deno.test('a record that carries the relink provenance (F390, cli.ts relink) passes as it would without it, field kept', async () => {
+  const prov = { from: PDF(9), map_sha256: 'd'.repeat(64), map_line_sha256: 'e'.repeat(64) };
+  const out = await run([await goodPdf(3, { file_url_relinked: prov })], screenWith(REGULATORY, fakePage()));
+  assertEquals(out.holds, []);
+  assertEquals(out.screened[0].completeness_basis, 'page_check');
+  assertEquals(out.screened[0].file_url_relinked, prov);
+  // The payload the runner sends is built field by field: the provenance is not stored with the document.
+  const p = await prepareRecord(out.screened[0], PREPARE);
+  assert(p.kind === 'request', p.kind);
+  assert(!p.request.payload.includes('file_url_relinked'));
+});
+
 // ---- 1 record_shape: bad_shape ----
 
 Deno.test('record_shape: each wrong identity field holds bad_shape and names the field, never its value', async () => {
