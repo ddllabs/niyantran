@@ -9,10 +9,19 @@
 //                                                 (--batch <uuid> | --all) [--psql <path>]
 //   deno run -A scripts/bulk-runner/cli.ts split  --records <file.jsonl> --lines <n> --out <dir>
 //   deno run -A scripts/bulk-runner/cli.ts status --batch <uuid> [--psql <path>]
+//   deno run -A scripts/bulk-runner/cli.ts relink --records <file.jsonl> --map <map.jsonl> --out <dir>
 //   deno run -A scripts/bulk-runner/cli.ts ocr-enqueue|ocr-collect ...   (F391: held Budget records, OCR on Supabase; see ocr_route.ts)
 //
 // `split` verifies the records file against its receipt, then writes part-NNN.jsonl files of at most n records, each
 // with a receipt (`<part>.receipt.json`) that `plan` and `run` accept; --out must be outside every checkout.
+// `relink` (F390) replaces the dead file links of some records with checked new ones, before the screen: it verifies the
+// pack reader's records against their receipt as `split` does, takes a map line only when its source_key is 40 hex and in
+// the records, its new_url is https with no query, fragment, user or port and ends .pdf, its http_status is 200, its
+// content_type application/pdf and its bytes the record's file_bytes (any other line, or a key twice, refuses the whole
+// run), and writes relinked.jsonl (every record in order; a mapped one changes only file_url and gains file_url_relinked
+// {from, map_sha256, map_line_sha256}; the rest byte for byte) with a receipt chaining the reader's, which screen, split,
+// plan and run take as a reader's output. It prints counts only and touches no database; --out must be outside every
+// checkout. The screen still page-checks every new link. See scripts/bulk-runner/relink.ts.
 // `plan` touches no database (it judges the 100,000-chunk line by the collection file's partition list); `run` reads
 // the real list from the catalog first and judges by that. `run` and `status` connect through psql as corpus_ingest, from libpq's environment
 // (PGHOST, PGPORT, PGDATABASE, PGUSER, PGSSLMODE, and PGPASSWORD or a password file); nothing about the connection is
@@ -45,6 +54,7 @@ import { PsqlDb, psqlExec } from './psql_db.ts';
 import { gitCommonDir, refuseInCheckout } from './pack.ts';
 import { run, type RunInput, type RunResult, safeReason } from './run.ts';
 import { ocrCommand, type OcrDb, PsqlOcrDb } from './ocr_route.ts';
+import { relink } from './relink.ts';
 
 export const REPO_ROOT = resolve(dirname(fromFileUrl(import.meta.url)), '../..');
 
@@ -82,9 +92,10 @@ export type Command =
     all: boolean;
   }
   | { cmd: 'split'; records: string; lines: number; out: string }
+  | { cmd: 'relink'; records: string; map: string; out: string }
   | { cmd: 'status'; batch: string; psql: string };
 
-const USAGE = 'usage: cli.ts plan|run|accept|split|status (see the header of scripts/bulk-runner/cli.ts)';
+const USAGE = 'usage: cli.ts plan|run|accept|split|status|relink (see the header of scripts/bulk-runner/cli.ts)';
 
 /** Options that take no value. */
 const SWITCHES = ['--register-only', '--all'];
@@ -166,6 +177,9 @@ export function parseArgs(argv: string[]): Command {
       if (!/^[1-9]\d{0,8}$/.test(n)) throw new Error('--lines must be a positive integer');
       return { cmd, records: need('--records'), lines: Number(n), out: need('--out') };
     }
+    case 'relink':
+      allowed(['--records', '--map', '--out']);
+      return { cmd, records: need('--records'), map: need('--map'), out: need('--out') };
     case 'status':
       allowed(['--batch', '--psql']);
       return { cmd, batch: need('--batch'), psql };
@@ -712,6 +726,86 @@ async function split(c: Extract<Command, { cmd: 'split' }>, deps: CliDeps): Prom
   return 0;
 }
 
+/** The only name `relink` gives its output; its receipt is `relinked.jsonl.receipt.json` beside it. */
+const RELINKED = 'relinked.jsonl';
+
+/**
+ * `relink` (F390): the pack reader's records with some file links replaced from a checked map (relink.ts holds the
+ * rules), written with a receipt that chains the reader's: the reader's fields are kept (pack, manifest and reader commit
+ * name where the text came from), `entry` gains `+relink-f390` as ocr-collect's gains `+ocr-f391`, and `relink` records
+ * the map, the counts, the runner's commit and the input receipt itself. The output is written before its receipt, so a
+ * stop leaves a file no command takes. Prints counts only: a link may hold a person's name.
+ */
+async function relinkCommand(c: Extract<Command, { cmd: 'relink' }>, deps: CliDeps): Promise<number> {
+  const name = basename(c.records);
+  // The screen and the chained receipt both need a reader's receipt: a screened file or a part is relinked too late.
+  if (name === SCREENED || PART_NAME.test(name)) {
+    throw new Error(
+      `relink takes the pack reader's output with its receipt, before the screen; ${name} is not: relink the reader's records`,
+    );
+  }
+  const startedAt = new Date(deps.now()).toISOString();
+  const out = await refuseInCheckout(c.out, '--out', {
+    repoRoot: REPO_ROOT,
+    commonDir: deps.commonDir ?? gitCommonDir,
+  });
+  const held = (await deps.listDir(out)).filter((n) => n === RELINKED || n === `${RELINKED}.receipt.json`);
+  if (held.length > 0) throw new Error(`${out} already holds ${held[0]}; choose a new --out`);
+  const size = await deps.fileSize(c.records);
+  if (size > MAX_RECORDS_BYTES) {
+    throw new Error(`${c.records} is ${size} bytes, over the ${MAX_RECORDS_BYTES}-byte limit relink reads whole`);
+  }
+  const { text } = await readRecordsText(c.records, deps);
+  // The receipt again, to chain it: still the one that vouches for the text just checked, and a reader's.
+  const receiptPath = `${c.records}.receipt.json`;
+  const receiptText = await deps.readText(receiptPath);
+  const input = JSON.parse(receiptText) as Record<string, unknown>;
+  if (
+    !isRec(input) || input.output_sha256 !== await sha256Hex(text) || !isText(input.pack) || !isText(input.entry) ||
+    !HEX64.test(String(input.manifest_sha256))
+  ) {
+    throw new ReceiptError('receipt_mismatch', `${receiptPath} changed while relink read it; run relink again`);
+  }
+  const mapBytes = await deps.readBytes(c.map);
+  let mapText: string;
+  try {
+    mapText = new TextDecoder('utf-8', { fatal: true }).decode(mapBytes);
+  } catch {
+    throw new Error(`${c.map} is not valid UTF-8`);
+  }
+  const mapSha256 = await sha256Bytes(mapBytes);
+  const result = await relink(text, mapText, mapSha256);
+  const { commit, dirty } = await deps.git();
+  const bytes = new TextEncoder().encode(result.body);
+  const receipt = {
+    ...input,
+    entry: `${input.entry}+relink-f390`,
+    lines_read: result.counts.read,
+    lines_written: result.counts.read,
+    output_bytes: bytes.length,
+    output_sha256: await sha256Bytes(bytes),
+    derived_from: { output_sha256: input.output_sha256, receipt_sha256: await sha256Hex(receiptText) },
+    relink: {
+      map_sha256: mapSha256,
+      map_bytes: mapBytes.length,
+      map_lines: result.mapLines,
+      counts: result.counts,
+      runner_commit: commit,
+      runner_dirty: dirty,
+      input_receipt: input,
+    },
+    started_at: startedAt,
+    finished_at: new Date(deps.now()).toISOString(),
+  };
+  await deps.makeDir(out);
+  const path = join(out, RELINKED);
+  await deps.writeText(path, result.body);
+  await deps.writeText(`${path}.receipt.json`, JSON.stringify(receipt, null, 2) + '\n');
+  const n = result.counts;
+  deps.log(`${n.read} records read, ${n.relinked} relinked, ${n.unchanged} unchanged; written under ${out}`);
+  return 0;
+}
+
 /** The file name a report or error is stored under: the receipt's own key, else the batch id's. */
 const fileKey = (manifest: string | null, batchId: string) =>
   (manifest ?? batchId).replace(/[^A-Za-z0-9]/g, '').slice(0, 16);
@@ -854,6 +948,7 @@ export async function main(argv: string[], deps: CliDeps): Promise<number> {
   if (argv[0] === 'ocr-enqueue' || argv[0] === 'ocr-collect') return await ocrCommand(argv, deps);
   const c = parseArgs(argv);
   if (c.cmd === 'split') return split(c, deps);
+  if (c.cmd === 'relink') return relinkCommand(c, deps);
   if (c.cmd === 'accept') return acceptCommand(c, deps);
   if (c.cmd === 'status') {
     const db = deps.db(c.psql);
