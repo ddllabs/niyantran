@@ -386,3 +386,9 @@ invalid dates; a 2027 date is a valid date and is noted for F346).
 - That Firecrawl's markdown keeps RBI's tables as rows and drops the menu (the trial's reading shows it).
 - How many of the 8,261 are already live, and the hold counts on the current screen (T0).
 - The chunk and cost figures are estimates; the per-credit price depends on the plan bought.
+
+## Decisions recorded (developer, 2026-11-23)
+
+The developer accepted every recommended answer in "Decisions needed from the developer" ("Accept both, build", 2026-11-23). Where a decision had no recommendation, it is noted below.
+- D5 (Firecrawl plan and billing) and the account key are the developer's own step; the live trial (T7) waits for `FIRECRAWL_API_KEY` to be set as a function secret.
+- D7 (scraping RBI pages through a third party): taken as yes by the developer's "accept both, build".

@@ -411,3 +411,7 @@ deletion of archived texts. No load of v1.4 or v1.6 under this spec. The 82 Lok 
 ## Result
 
 Not started.
+
+## Decisions recorded (developer, 2026-11-23)
+
+The developer accepted every recommended answer in "Decisions needed from the developer" ("Accept both, build", 2026-11-23). Where a decision had no recommendation, it is noted below.
