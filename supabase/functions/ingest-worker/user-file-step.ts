@@ -135,11 +135,41 @@ export async function executeUserFileJob(
   };
 
   const fileName = (job.file_name || '').toLowerCase();
+  const isPdf = fileName.endsWith('.pdf') || (job as unknown as Record<string, unknown>).mime_type === 'application/pdf';
   const isXlsx = fileName.endsWith('.xlsx') || fileName.endsWith('.xlsm') || fileName.endsWith('.xls');
   const isCsv = fileName.endsWith('.csv');
   const isDocx = fileName.endsWith('.docx');
   const isTxt = fileName.endsWith('.txt') || fileName.endsWith('.md');
   const isNonPdf = isXlsx || isCsv || isDocx || isTxt;
+
+  if (!isNonPdf && !isPdf) {
+    const errMsg = `Unsupported file format for indexing: ${job.file_name}`;
+    const patch: UserFileAdvancePatch = {
+      step: 'commit',
+      status: 'failed',
+      error_message: errMsg,
+      error_code: 'unsupported_file_format',
+    };
+    await deps.db.advance(job.id, claimToken, patch);
+    await deps.db.updateFileIndexStatus?.(job.file_id, 'indexing_failed', errMsg);
+    if (deps.db.settleCredits) {
+      await deps.db.settleCredits({
+        p_job_id: job.id,
+        p_final_status: 'failed',
+        p_ocr_pages: 0,
+        p_embed_tokens: 0,
+        p_actual_cost_usd: 0,
+        p_actual_cost_paise: 0,
+      });
+    }
+    return {
+      status: 'failed',
+      patch,
+      pagesProcessed: 0,
+      costUsd: 0,
+      error: errMsg,
+    };
+  }
 
   if (isNonPdf) {
     let signedUrl = '';
@@ -204,52 +234,81 @@ export async function executeUserFileJob(
       metadata: Record<string, unknown>;
     }> = [];
 
-    if (isXlsx || isCsv) {
-      const res = extractSpreadsheet(fileBytes, { fileName: job.file_name, isCsv });
-      rawChunks = res.chunks.map((c) => ({
-        content: c.content,
-        charFrom: 0,
-        charTo: c.content.length,
-        metadata: {
-          source: 'user_file',
-          file_name: job.file_name,
-          sheet_name: c.metadata.sheet_name,
-          sheet_index: c.metadata.sheet_index,
-          row_start: c.metadata.row_start,
-          row_end: c.metadata.row_end,
-          column_headers: c.metadata.column_headers,
-          file_type: c.metadata.file_type,
-        },
-      }));
-    } else if (isDocx) {
-      const chunks = await chunkDocx(fileBytes);
-      rawChunks = chunks.map((c) => ({
-        content: c.content,
-        charFrom: c.charFrom,
-        charTo: c.charTo,
-        metadata: {
-          source: 'user_file',
-          file_name: job.file_name,
-          heading_hierarchy: c.metadata.headingHierarchy,
-          current_heading: c.metadata.currentHeading,
-          heading_level: c.metadata.headingLevel,
-          content_type: c.metadata.contentType,
-        },
-      }));
-    } else if (isTxt) {
-      const chunks = await chunkTxt(fileBytes);
-      rawChunks = chunks.map((c) => ({
-        content: c.content,
-        charFrom: c.charFrom,
-        charTo: c.charTo,
-        metadata: {
-          source: 'user_file',
-          file_name: job.file_name,
-          section: c.metadata.section,
-          paragraph_count: c.metadata.paragraphCount,
-          content_type: c.metadata.contentType,
-        },
-      }));
+    try {
+      if (isXlsx || isCsv) {
+        const res = extractSpreadsheet(fileBytes, { fileName: job.file_name, isCsv });
+        rawChunks = res.chunks.map((c) => ({
+          content: c.content,
+          charFrom: 0,
+          charTo: c.content.length,
+          metadata: {
+            source: 'user_file',
+            file_name: job.file_name,
+            sheet_name: c.metadata.sheet_name,
+            sheet_index: c.metadata.sheet_index,
+            row_start: c.metadata.row_start,
+            row_end: c.metadata.row_end,
+            column_headers: c.metadata.column_headers,
+            file_type: c.metadata.file_type,
+          },
+        }));
+      } else if (isDocx) {
+        const chunks = await chunkDocx(fileBytes);
+        rawChunks = chunks.map((c) => ({
+          content: c.content,
+          charFrom: c.charFrom,
+          charTo: c.charTo,
+          metadata: {
+            source: 'user_file',
+            file_name: job.file_name,
+            heading_hierarchy: c.metadata.headingHierarchy,
+            current_heading: c.metadata.currentHeading,
+            heading_level: c.metadata.headingLevel,
+            content_type: c.metadata.contentType,
+          },
+        }));
+      } else if (isTxt) {
+        const chunks = await chunkTxt(fileBytes);
+        rawChunks = chunks.map((c) => ({
+          content: c.content,
+          charFrom: c.charFrom,
+          charTo: c.charTo,
+          metadata: {
+            source: 'user_file',
+            file_name: job.file_name,
+            section: c.metadata.section,
+            paragraph_count: c.metadata.paragraphCount,
+            content_type: c.metadata.contentType,
+          },
+        }));
+      }
+    } catch (extractErr) {
+      const errMsg = extractErr instanceof Error ? extractErr.message : String(extractErr);
+      const patch: UserFileAdvancePatch = {
+        step: 'commit',
+        status: 'failed',
+        error_message: errMsg,
+        error_code: 'extraction_failed',
+      };
+      await deps.db.advance(job.id, claimToken, patch);
+      await deps.db.updateFileIndexStatus?.(job.file_id, 'indexing_failed', errMsg);
+      if (deps.db.settleCredits) {
+        await deps.db.settleCredits({
+          p_job_id: job.id,
+          p_final_status: 'failed',
+          p_ocr_pages: 0,
+          p_embed_tokens: 0,
+          p_actual_cost_usd: 0,
+          p_actual_cost_paise: 0,
+        });
+      }
+      return {
+        status: 'failed',
+        patch,
+        pagesProcessed: 0,
+        costUsd: 0,
+        error: errMsg,
+      };
     }
 
     const textsToEmbed = rawChunks.map((c) => c.content);
@@ -341,12 +400,14 @@ export async function executeUserFileJob(
         await deps.db.advance(job.id, claimToken, patch);
         await deps.db.updateFileIndexStatus?.(job.file_id, 'indexing_failed', errMsg);
         if (deps.db.settleCredits) {
+          const inrPerUsd = (deps as unknown as Record<string, unknown>).inrPerUsd as number ?? 90;
           await deps.db.settleCredits({
             p_job_id: job.id,
             p_final_status: 'failed',
             p_ocr_pages: 0,
             p_embed_tokens: embedTokens,
             p_actual_cost_usd: embedCost,
+            p_actual_cost_paise: Math.ceil(embedCost * inrPerUsd * 100),
           });
         }
         return {
@@ -384,12 +445,14 @@ export async function executeUserFileJob(
       }
     }
 
+    const inrPerUsd = (deps as unknown as Record<string, unknown>).inrPerUsd as number ?? 90;
     const settleRes = await deps.db.settleCredits({
       p_job_id: job.id,
       p_final_status: 'completed',
       p_ocr_pages: 0,
       p_embed_tokens: embedTokens,
       p_actual_cost_usd: embedCost,
+      p_actual_cost_paise: Math.ceil(embedCost * inrPerUsd * 100),
     });
     const settledAmount = settleRes?.credits_settled ?? 0;
 

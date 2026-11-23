@@ -14,12 +14,15 @@ const nonblank = value => typeof value === 'string' && Boolean(value.trim());
 /** The shared type guards identify the union; reader fields need validation too. */
 export function isReadableCitation(source) {
   if (!source || !Number.isSafeInteger(source.id) || source.id < 1 || !nonblank(source.title)) return false;
-  if (isTextCitation(source)) return ['file_name', 'file_url', 'desk_feature', 'desk_tier'].every(k => source[k] == null || typeof source[k] === 'string')
-    && nonblank(source.chunk_id) && nonblank(source.document_id)
-    && Number.isSafeInteger(source.char_from) && source.char_from >= 0
-    && Number.isSafeInteger(source.char_to) && source.char_to > source.char_from && nonblank(source.text_hash)
-    && ['document', 'pdf_page'].includes(source.source_kind)
-    && (source.source_kind !== 'pdf_page' || (Number.isSafeInteger(source.page_number) && source.page_number > 0));
+  if (isTextCitation(source)) {
+    const isPrivate = source.source_origin === 'private' || Boolean(source.file_id);
+    return ['file_name', 'file_url', 'desk_feature', 'desk_tier'].every(k => source[k] == null || typeof source[k] === 'string')
+      && nonblank(source.chunk_id) && nonblank(source.document_id)
+      && Number.isSafeInteger(source.char_from) && source.char_from >= 0
+      && Number.isSafeInteger(source.char_to) && (isPrivate ? source.char_to >= source.char_from : source.char_to > source.char_from) && nonblank(source.text_hash)
+      && ['document', 'pdf_page'].includes(source.source_kind)
+      && (source.source_kind !== 'pdf_page' || (Number.isSafeInteger(source.page_number) && source.page_number > 0));
+  }
   if (isRowCitation(source)) return nonblank(source.row_key) && nonblank(source.tier) && nonblank(source.feature)
     && source.row_snapshot && typeof source.row_snapshot === 'object' && !Array.isArray(source.row_snapshot)
     && Object.keys(source.row_snapshot).length > 0 && Object.values(source.row_snapshot).every(v => typeof v === 'string')

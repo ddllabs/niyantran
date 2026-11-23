@@ -598,8 +598,10 @@
 @media (max-width: 768px) {
   .ltv-modal {
     width: 100vw;
-    height: 100vh;
-    max-height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
+    padding-top: var(--sat, 0px);
+    padding-bottom: var(--sab, 0px);
     border-radius: 0;
   }
   .ltv-header {

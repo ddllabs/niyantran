@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">nter.pro</string>
+    <string name="title_activity_main">nter.pro</string>
+    <string name="package_name">pro.nter.app</string>
+    <string name="custom_url_scheme">pro.nter.app</string>
+</resources>

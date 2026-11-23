@@ -1,0 +1,56 @@
+[
+  {
+    "name": "single marker",
+    "text": "The Act amends section 2 [1].",
+    "expanded": "The Act amends section 2 [1].",
+    "markers": ["The Act amends section 2 ", { "citation": 1 }, "."]
+  },
+  {
+    "name": "comma group",
+    "text": "Both corrigenda agree [2, 3].",
+    "expanded": "Both corrigenda agree [2][3].",
+    "markers": ["Both corrigenda agree ", { "citation": 2 }, { "citation": 3 }, "."]
+  },
+  {
+    "name": "hyphen range",
+    "text": "See the gazette pages [2-4] for the text.",
+    "expanded": "See the gazette pages [2][3][4] for the text.",
+    "markers": ["See the gazette pages ", { "citation": 2 }, { "citation": 3 }, { "citation": 4 }, " for the text."]
+  },
+  {
+    "name": "en-dash range and adjacent markers",
+    "text": "Flag rules [5–6][9].",
+    "expanded": "Flag rules [5][6][9].",
+    "markers": ["Flag rules ", { "citation": 5 }, { "citation": 6 }, { "citation": 9 }, "."]
+  },
+  {
+    "name": "range wider than five stays text",
+    "text": "Everything [1-40] applies.",
+    "expanded": "Everything [1-40] applies.",
+    "markers": ["Everything [1-40] applies."]
+  },
+  {
+    "name": "id above ninety-nine stays text",
+    "text": "Year [2005] is not a citation.",
+    "expanded": "Year [2005] is not a citation.",
+    "markers": ["Year [2005] is not a citation."]
+  },
+  {
+    "name": "markdown link with a numeric label is not a marker",
+    "text": "Read [1](https://example.org) now [1].",
+    "expanded": "Read [1](https://example.org) now [1].",
+    "markers": ["Read [1](https://example.org) now ", { "citation": 1 }, "."]
+  },
+  {
+    "name": "word brackets untouched",
+    "text": "The [Note] says [sic] nothing.",
+    "expanded": "The [Note] says [sic] nothing.",
+    "markers": ["The [Note] says [sic] nothing."]
+  },
+  {
+    "name": "zero is not a citation",
+    "text": "Nothing [0] here.",
+    "expanded": "Nothing [0] here.",
+    "markers": ["Nothing [0] here."]
+  }
+]

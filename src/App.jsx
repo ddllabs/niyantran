@@ -32,6 +32,8 @@ function isLegalPath() {
 }
 
 function isMarketingOverlayPath() {
+  const path = location.pathname.replace(/\/+$/, '') || '/';
+  if (path === '/forgot-password' || path === '/reset-password') return true;
   const raw = String(location.hash || '')
     .replace(/^#/, '')
     .replace(/^\/+/, '')

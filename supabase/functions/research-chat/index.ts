@@ -626,7 +626,7 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
                 .abortSignal(signal), context.signal) ?? []).catch(afterRpcFailure);
           return { data, error: null };
         },
-      }, { query: args.query, deskTier: args.desk_tier, deskFeature: args.desk_feature, documentIds: ids, topK: context.topK, privateFileIds: context.privateFileIds });
+      }, { query: args.query, deskTier: args.desk_tier, deskFeature: args.desk_feature, documentIds: ids, topK: context.topK, privateFileIds: context.privateFileIds, scope: context.scope });
       return await hydrateLawContext(chunks, async id =>
         await query<LawContextRow[] | null>((signal) => caller().from('document_chunks')
           .select('id,document_id,chunk_index,char_from,char_to,content,source_kind,page_number,block_ids,image_ids').eq('document_id', id)

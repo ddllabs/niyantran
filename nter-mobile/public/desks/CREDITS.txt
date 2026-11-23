@@ -1,0 +1,215 @@
+# Revised image credits
+
+Images are stored locally. CSS changes their display crop and saturation; source image files are retained. Adapted photographic presentations retain the original image's applicable share-alike licence. Illustrative sector imagery does not assert that the photographed institution is part of the dataset.
+
+| Asset | Credit and source | Licence / provenance |
+| --- | --- | --- |
+| parliament-new.jpg | [Ministry of Parliamentary Affairs — New Parliament Building, New Delhi](https://commons.wikimedia.org/wiki/File:New_Parliament_Building,_New_Delhi.jpg) | [GODL-India](https://data.gov.in/sites/default/files/Gazette_Notification_OGDL.pdf) |
+| parliament-new-wide.jpg | [Ministry of Parliamentary Affairs / PIB — Glimpses of the new Parliament Building](https://commons.wikimedia.org/wiki/File:Glimpses_of_the_new_Parliament_Building,_in_New_Delhi_(2).jpg), [official photograph](https://static.pib.gov.in/WriteReadData/Gallery/PhotoGallery/2023/May/H20230527132674.JPG) | [GODL-India](https://data.gov.in/sites/default/files/Gazette_Notification_OGDL.pdf); full-width source, display exposure and colour adjusted with CSS |
+| supreme-front-web.jpg | [Subhashish Panigrahi — Supreme Court of India](https://commons.wikimedia.org/wiki/File:Supreme_Court_of_India.jpg) | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); Wikimedia web thumbnail |
+| emblem.svg | [Emblem of India, Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Emblem_of_India.svg) | Public-domain image; used to identify the government operations category |
+| voters.jpg | [Ankur Banerjee — Delhi election, 2013](https://commons.wikimedia.org/wiki/File:A_voter_finger_inked_in_Indian_elections_2013.jpg) | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/) |
+| steel-web.jpg | [Aloke Kumar Chatterjee — IISCO Steel Plant, Burnpur](https://commons.wikimedia.org/wiki/File:IISCO,_Steel_Plant,_Burnpur.jpg) | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); Wikimedia web thumbnail |
+| nuclear.jpg | [Eric Evenson / USGS — Sequoyah Nuclear Power Plant cooling towers](https://commons.wikimedia.org/wiki/File:Sequoyah_Nuclear_Power_Plant_cooling_towers.jpg) | Public-domain USGS photograph |
+| thermal-web.jpg | [Skmishraindia — NTPC thermal power plant](https://commons.wikimedia.org/wiki/File:NTPC_thermal_power_plant.jpg) | Public domain, released by photographer; Wikimedia web thumbnail |
+| indian-courtroom.jpg | [District Court Aravalli, Gujarat — courtroom gallery](https://aravalli.dcourts.gov.in/gallery/district-court/) | Official district court photograph, credited; used as illustrative Indian courtroom context |
+| press-cameras.jpg | [US Department of Justice — press conference media](https://www.justice.gov/usao-mdfl/gallery/oviedo-soldiers-press-conference-orlando) | Official US federal gallery; illustrative media imagery, not an Indian news event |
+| global-earth.jpg | [NASA Earth Observatory / Robert Simmon — Blue Marble, Eastern Hemisphere](https://science.nasa.gov/resource/blue-marble-eastern-hemisphere/), using Suomi NPP VIIRS imagery from NOAA | NASA imagery; enlarged partial globe, display colour and edge masking adjusted with CSS |
+| logo.svg | NTER logo supplied in the user's workspace | Existing brand asset |
+
+Additional illustrative photography from Unsplash, under the [Unsplash licence](https://unsplash.com/license):
+
+- `earth.jpg`: https://images.unsplash.com/photo-1451187580459-43490279c0fa
+- `elections.jpg` (international assembly imagery): https://images.unsplash.com/photo-1529107386315-e1a2ed48a620
+- `trade.jpg`: https://images.unsplash.com/photo-1494412519320-aa613dfb7738
+- `law.jpg` (books): https://images.unsplash.com/photo-1505664194779-8beaceb93744
+- `legal-files.jpg` (Lady Justice): https://images.unsplash.com/photo-1589829545856-d10d557cf95f
+- `economy.jpg` (accounting and financial papers): https://images.unsplash.com/photo-1554224155-6726b3ff858f
+
+Decorative rupee/budget bars and the trade growth graphic are interface illustrations, not plotted financial data.
+
+## National hero update
+
+`india-hero.png`: AI-generated geographic artwork created with the built-in image-generation tool for this page. Decorative satellite-inspired illustration, not an official satellite photograph or map. Full prompt is in `INDIA-HERO-PROMPT.md`.
+
+## Additional desk imagery
+
+`sports-hero.png`, `entertainment-hero.png`, `state-hero.png`, `local-hero.png`, `football-hero.png` and `music-hero.png` were generated with the built-in image-generation tool for this mockup. They are illustrative, not documentary images of named locations or events. The complete prompts are in `IMAGE-GENERATION.md`.
+
+`government.jpg` (office towers) and `resources.jpg` (forested mountain landscape) were reused from the existing `outputs/nter-desk-redesign/assets` project assets. Their original photographer/source attribution was not recorded in the supplied project credits; this update makes no new attribution or licensing claim for those two retained files.
+
+## Sector image replacements
+
+- `india-evm.jpg`: [Jayeshj — Indian electronic voting machine with ballot and control units](https://commons.wikimedia.org/wiki/File:Electronicvotingmachinewithbucu.jpg). Released into the public domain by the photographer. Original retained; displayed with CSS crop and exposure adjustment.
+- `nse-mumbai.jpg`: [Hemalsid — National Stock Exchange, Mumbai](https://commons.wikimedia.org/wiki/File:National_Stock_Exchange,_Mumbai.jpg). Public domain, released by the photographer. Original retained; displayed with CSS crop and exposure adjustment.
+- `bse-mumbai.jpg`: [BSEINDIA — BSE building at Dalal Street](https://commons.wikimedia.org/wiki/File:BSE_building_at_Dalal_Street.JPG). [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). Wikimedia 960px thumbnail, with CSS display crop and exposure adjustment. This photographic presentation remains under the same licence. Photographed ticker values are historical scenery, not displayed live market data.
+- `civic-highways.png`, `public-welfare.png`, `local-media.png`, `macro-indicators.png`, `industry-machinery.png`, `sports-industry.png`: generated using the built-in image-generation tool. Complete final prompts and saved asset names are in `IMAGE-GENERATION.md`. These are illustrative scenes. No generated person represents a named official or creator. Macroeconomic diagrams are conceptual, without numerical values. The sports showroom is an illustrative multi-brand scene, not a claim of a real shared factory, sponsorship or partnership.
+
+## Hero background update
+
+- `state-administration-photo.jpg`: [Bikash Raman Das / Bikashrd — Vidhana Soudha, Bengaluru](https://commons.wikimedia.org/wiki/File:Vidhana_Souda_,_Bangalore.jpg), [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Original 2048×1276 photograph retained. CSS crop, brightness/saturation and edge gradients are applied in the interface; the adapted photographic presentation retains the same licence.
+- `local-development-hero.png`: AI-generated illustrative Indian neighbourhood development and municipal administration scene. It is not a photograph of a named location, official or development project. Full prompt is recorded in `IMAGE-GENERATION.md`.
+- `economics-markets-hero.png`: AI-assisted editorial composite created with the built-in image-generation tool, using `nse-mumbai.jpg` and `bse-mumbai.jpg` as architectural reference images. NSE source: Hemalsid, public domain; BSE source: BSEINDIA, CC BY-SA 3.0, linked above. This composite is provided under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). It combines and reinterprets the buildings with illustrative global market graphics, gold and a non-valid bond prop. It is not a real combined location, a financial instrument, or a live market feed. Full prompt and reference paths are in `IMAGE-GENERATION.md`.
+- `india-hero.png` is unchanged. The interface now feathers the side/bottom edges and applies a minimal top fade while retaining the full image with `object-fit: contain`.
+
+## National people portrait
+
+`national-people-tricolour.png`: created with the built-in image-generation tool for the National hero and its directory thumbnail. The image depicts a generated, illustrative group of people from different Indian communities with the Indian tricolour behind them. No subject is an identified real person. It is a symbolic portrait, not an exhaustive representation of India's communities or a photograph of an actual gathering. The source file is retained unedited; the interface applies a responsive crop and soft edge gradients. The full prompt and final asset path are in `NATIONAL-PEOPLE-PROMPT.md`.
+
+
+# Image generation notes
+
+Created with the built-in `image_gen.imagegen` tool for the all-sections mockup. These are illustrative scenes, not verified photographs of named venues, institutions or events. No generated image has been edited after generation; the interface applies display crops only.
+
+## sports
+
+Asset: `assets/sports-hero.png`
+
+Prompt:
+
+Use case: photorealistic-natural. Asset type: 16:9 landscape hero and sector-card photograph for the sports section of NTER, a premium intelligence dashboard with a light white-and-blue Apple-inspired interface. A beautiful professional cricket stadium in India, wide aerial oblique view, immaculate emerald oval and central tan pitch, curved grandstands and slender floodlights, a pale blue early-evening sky with warm light at the horizon. Small distant spectators give scale. Crisp credible photographic architecture; stadium dominates the middle and right, airy sky and open space at left. Premium sports editorial image. Compose as one coherent photograph with crisp high-resolution detail. No text, no watermark, no added charts, no UI, no borders. Bright polished natural lighting, restrained colours, enough negative space to layer interface typography without baking text into the image.
+
+## entertainment
+
+Asset: `assets/entertainment-hero.png`
+
+Prompt:
+
+Use case: photorealistic-natural. Asset type: 16:9 landscape hero and sector-card photograph for the entertainment section of NTER, a premium intelligence dashboard with a light white-and-blue Apple-inspired interface. An elegant working film studio with a cinema camera in the foreground on the right, a large professional lens, softly glowing warm amber studio spotlights and a blurred theatrical set in the background. Subtle plum-violet shadows, rich tactile details. No people identifiable, no logos. Premium cinematic editorial photograph; warm but bright and refined, not dark or nightclub-like. Compose as one coherent photograph with crisp high-resolution detail. No text, no watermark, no added charts, no UI, no borders. Bright polished natural lighting, restrained colours, enough negative space to layer interface typography without baking text into the image.
+
+## state
+
+Asset: `assets/state-hero.png`
+
+Prompt:
+
+Use case: photorealistic-natural. Asset type: 16:9 landscape hero and sector-card photograph for the state section of NTER, a premium intelligence dashboard with a light white-and-blue Apple-inspired interface. An elegant Indian state secretariat and legislative campus, a broad cream sandstone civic building with colonnades and a small central dome, neat green gardens and a city skyline softly in the distance, clear blue sky, warm morning light. A generic illustrative government campus, NOT an exact depiction of any named parliament or particular state legislature. Architecture across middle and right, airy sky and landscaping to left. Premium architectural editorial photograph. Compose as one coherent photograph with crisp high-resolution detail. No text, no watermark, no added charts, no UI, no borders. Bright polished natural lighting, restrained colours, enough negative space to layer interface typography without baking text into the image.
+
+## local
+
+Asset: `assets/local-hero.png`
+
+Prompt:
+
+Use case: photorealistic-natural. Asset type: 16:9 landscape hero and sector-card photograph for the local section of NTER, a premium intelligence dashboard with a light white-and-blue Apple-inspired interface. A beautifully composed aerial view of a lived-in Indian town, low-rise terracotta and cream homes, leafy streets, a compact public square, a municipal water tower far in the background, green cultivated fields on the edge of the town, warm morning daylight and pale blue atmosphere. Human scale, real textures, tidy but authentic, no landmarks or identifying signs. Illustrative neighbourhood scene. Premium urban-planning editorial photograph. Compose as one coherent photograph with crisp high-resolution detail. No text, no watermark, no added charts, no UI, no borders. Bright polished natural lighting, restrained colours, enough negative space to layer interface typography without baking text into the image.
+
+## football
+
+Asset: `assets/football-hero.png`
+
+Prompt:
+
+Use case: photorealistic-natural. Create a 16:9 landscape sector-card photograph for the football section of a refined white intelligence dashboard. A white and navy football on a pristine green football pitch in the foreground, netted goal and softly blurred stadium seating behind, bright natural afternoon light, professional sports editorial photography, elegant simple composition. No words, logos, watermarks, UI, graphs or borders.
+
+## music
+
+Asset: `assets/music-hero.png`
+
+Prompt:
+
+Use case: photorealistic-natural. Create a 16:9 landscape sector-card photograph for the music section of a refined white intelligence dashboard. An elegant recording studio, large condenser microphone and pop filter in the right foreground, professional mixing desk and acoustic wood panels behind, warm amber light with subtle blue-violet accents, beautiful detailed audio equipment, premium music editorial photography, no people. No words, logos, watermarks, UI, graphs or borders.
+
+
+
+## Sector image refresh
+
+Generated with the built-in `image_gen.imagegen` tool. Files are saved in this project's `assets/` directory. Civic representatives, welfare services, local media creators, machinery and sports brands are illustrative scenes. The macroeconomic panels are conceptual graphics with no real numerical claims. The sports showroom does not imply a partnership among the depicted brands.
+
+### civic-highways
+
+Saved asset: `assets/civic-highways.png`
+
+Final prompt:
+
+Use case: photorealistic-natural. Asset type: 16:9 landscape card photograph for a refined Indian public intelligence dashboard. Show Indian highways and local civic leaders together in one credible illustrative scene: a broad modern divided highway curving across the background, and a small group of Indian local representatives (a woman in a sari, a man in a simple white kurta, and a civil engineer holding a rolled plan) standing on a safe viewing platform beside it, discussing infrastructure. Generic people, no identifiable politician, party emblems or slogans. Bright natural daylight, crisp realistic detail, calm white-and-blue visual theme. Frame people from waist up on the right and highway on the left, all essential subjects within the central horizontal band so a wide shallow card crop remains legible. No words, watermark, borders or UI.
+
+### public-welfare
+
+Saved asset: `assets/public-welfare.png`
+
+Final prompt:
+
+Use case: photorealistic-natural. Asset type: 16:9 landscape card photograph for an Indian state and local governance dashboard. A welcoming Indian local administrative welfare service counter in a district or panchayat office: an Indian woman official at a desk with a laptop and files helping an older woman in a sari and a working-age man receive civic services. A second staffed desk and simple government-office architecture in the softly blurred background. Dignified everyday public service, generic people and generic institution, no poverty spectacle, no political party branding, no readable forms, no visible private information. Bright window daylight, natural warm human skin tones, refined blue and cream colours, clear detailed editorial photo. Place faces and service interaction across the central horizontal band for a shallow card crop. No added text, watermark, borders or UI.
+
+### local-media
+
+Saved asset: `assets/local-media.png`
+
+Final prompt:
+
+Use case: photorealistic-natural. Asset type: 16:9 landscape card photograph for Indian local news and micro-influencer coverage. Two young adult Indian local media creators reporting from an ordinary Indian neighbourhood market: a woman reporter with a compact handheld microphone talking naturally to a local shopkeeper, and a man creator filming with a smartphone on a handheld stabilizer. Realistic small-scale street reporting, shopfronts and scooters softly blurred in the background. Generic adults, no celebrities, no news-channel logos, no party symbols. Bright natural light, crisp engaging documentary-style illustration, understated blue and cream palette. Chest-up medium-wide composition; faces, microphone and smartphone clearly visible in the central horizontal band so they survive a shallow card crop. No captions, watermark, borders or UI.
+
+### macro-indicators
+
+Saved asset: `assets/macro-indicators.png`
+
+Final prompt:
+
+Use case: stylized-concept. Asset type: 16:9 landscape editorial illustration for the Macro & Models sector of a premium white intelligence dashboard. An elegant tangible macroeconomics still life of three frosted-glass and white ceramic index panels on a pale blue studio surface. Three short crisp labels, exactly 'GDP', 'PER CAPITA INCOME', and 'GROWTH'. Each panel has its own small abstract blue bar or line motif without numbers, dates, ticks or claimed real values. A restrained blue rupee symbol and tiny model city blocks at the base connect the indexes to the real economy. Very refined Apple-like materials and realistic soft studio lighting, generous breathing room, a single coherent composition, highly legible large labels. Place the three panels across the central horizontal band so the labels remain inside a wide shallow card crop. No other words, logo, watermark, border or application UI.
+
+### industry-machinery
+
+Saved asset: `assets/industry-machinery.png`
+
+Final prompt:
+
+Use case: photorealistic-natural. Asset type: 16:9 landscape industrial photograph for an economics dashboard card. The interior of a modern Indian manufacturing facility: large precision metalworking machinery, orange industrial robot arms and an organized assembly line, polished steel components and overhead factory structures, a couple of small distant workers wearing appropriate PPE. Machinery is the unmistakable main subject. Bright clean skylight and restrained blue-grey and warm industrial colours, high detail, premium industrial editorial photography. Broad composition with strongest machines in the central horizontal band for a shallow card crop. No logos, captions, numbers, watermark, borders or UI.
+
+### sports-industry
+
+Saved asset: `assets/sports-industry.png`
+
+Final prompt:
+
+Use case: photorealistic-natural. Asset type: 16:9 landscape sports-business editorial image for a white intelligence dashboard. Show the sports industry and sports brands through a premium product-development showroom: a detailed running shoe, a football, a cricket bat and branded athletic clothing in the foreground, with a sports-equipment workshop and racks of training apparel softly visible behind. Tasteful recognizable Nike, adidas and PUMA branding on the retail display wall; this is a generic illustrative multi-brand showroom, no claim of a real shared factory or partnership. Crisp physical product detail, energetic but polished daylight, navy and white with small warm accents. Products and the three brand marks should remain visible in the central horizontal band for a shallow wide crop. No other words, no celebrity, no watermark, border or UI.
+
+
+
+## Hero background refresh
+
+Local and Economics panorama assets were created with the built-in `image_gen.imagegen` tool. India uses its existing artwork with CSS edge shading only; State uses a sourced photograph.
+
+### local-development-hero
+
+Saved asset: `assets/local-development-hero.png`
+
+Final prompt:
+
+Use case: photorealistic-natural. Asset type: very wide panoramic 3:1 background hero photograph for the Local section of a premium Indian civic intelligence website with a pale white-and-blue theme. Show Indian local development and administrative work in a lived-in small-town neighbourhood: in the central-right area, an Indian woman municipal officer in a simple blue sari, a civil engineer wearing a white hard hat, and a local resident discuss a road and drainage improvement while reviewing a rolled planning drawing. Behind them are a modest generic ward or panchayat office with an Indian tricolour flag, a paved local street, a newly laid pavement, and a few municipal workers in safety vests completing practical maintenance. Realistic dignified everyday civic activity, generic people, no named politician, no party symbols or campaign imagery. Bright morning light, green trees, cream buildings and blue-grey details, professional editorial-photo quality. Composition: left third is airy softly lit street and trees for headline overlay; main people and civic office within the middle horizontal band and between 40% and 72% of the width, leaving the far right quieter for a data panel. Faces, drawings and the street development must remain recognisable when the image is cropped to a shallow hero banner. No captions, no legible paperwork or private information, no watermark, no UI, no borders.
+
+### economics-markets-hero
+
+Saved asset: `assets/economics-markets-hero.png`
+
+Final prompt:
+
+Use case: compositing. Asset type: very wide panoramic 3:1 editorial hero image for the Economics section of a premium white-and-blue intelligence dashboard. Use the two supplied images as architectural reference/insert sources: image 1 is the actual National Stock Exchange Mumbai facade, image 2 the actual BSE Mumbai tower and share-market ticker. Create a polished seamless editorial montage bringing together Indian and global capital markets, gold and bonds. Preserve recognisable NSE facade and BSE curved tower identities; place those exchange buildings together across the central-left to middle, with a softly blended deep-blue global market display showing a world map and abstract stock-chart traces behind. Place a small set of realistic polished gold bullion bars and a cream bond certificate in the middle foreground. The bond certificate may have only the exact large words 'GOVERNMENT BOND'; no signatures, serial numbers, denominations or invented returns. Charts are illustrative shapes without readable prices, percentages or dates. No suggestion of a live market feed. The scene should feel like one premium editorial composition with soft photographic transitions, not separate panels or boxes. Restrained white, slate blue and warm gold; bright natural architectural detail, elegant contrast. Leftmost third has pale airy negative space for headline; all key subjects visible across the central band between 30% and 78% width, avoiding far-right area where a numeric card overlays. Ensure both exchanges, gold, the bond certificate and the world stock-market motif remain legible in a shallow wide hero crop. No UI, no watermark, no extra logos, no borders.
+
+Reference photographs: `assets/nse-mumbai.jpg`, `assets/bse-mumbai.jpg`.
+
+
+# India hero artwork
+
+## Northern visibility revision
+
+Edited using the built-in image-generation tool. Final asset: `assets/india-hero.png`.
+
+Edit this existing National-desk hero artwork. Make one targeted correction: the top/northern part of India is too close to the image edge and obscured by white atmospheric haze. Reduce the white haze substantially across the upper third, especially the northwest/northern India and Himalayan area. Keep the real snow on the mountain ridges, but remove the washed-out white veil over terrain. Gently zoom the composition out about 12 percent and extend the geographic view northward so ALL of northern India, including the Kashmir/Ladakh area and Himalayan arc, is comfortably within the image with visible surrounding terrain above it; no northern terrain should be cut off by the top edge. Keep the entire peninsula, northeast, Sri Lanka and nearby island groups visible too. Preserve the same natural jade and sand terrain, cobalt-blue oceans, aerial top-down relief style, landscape 16:9 composition, and overall visual identity. Keep the country centrally positioned. Do not add a fade or white mask over land at the top. Retain only a very light airy blend at the outer sea corners. No text, no labels, no political borders, no icons or graphics. This is a geographic illustration. Keep everything else as close to the original as possible.
+
+## Original generation
+
+Generated using the built-in image-generation tool.
+
+Use case: stylized-concept. Asset type: wide hero background for the National desk of NTER, a premium Indian policy, legislation, elections and economy intelligence dashboard. Create one beautiful high-resolution 16:9 landscape image: an elegant satellite-inspired, physically textured aerial view of the Indian subcontinent, geographic north at the top, the complete recognizable Indian peninsula and Himalayan arc clearly visible, with Sri Lanka below and surrounding land fading into soft atmospheric mist. It must read immediately as India rather than a generic globe. Natural jade and muted olive land, warm sand terrain, finely sculpted snow-white Himalayas, rich cobalt-blue Arabian Sea and Bay of Bengal with turquoise coastal detail. Soft clear daylight, airy luminous exposure, minimal cloud cover over India, premium editorial atlas / refined 3D relief art, credible geography with no exaggerated structures. Framing: the full subcontinent is centered around 55% horizontally, occupies roughly 75% of image height, and fits entirely inside the image with ocean breathing room; camera close to top-down so the whole country is legible. Outer ocean edges gently become pale cool blue, ready to blend into a white interface. No political borders, no labels, no typography, no logos, no watermark, no rings, no dots, no fake chart or data, no floating disconnected land-shaped cutout. This is decorative geographic artwork, not a measured map.
+
+
+# National hero — people and tricolour
+
+Created with the built-in `image_gen.imagegen` tool. The people are generated illustrative subjects, not identified individuals. The portrait conveys India's varied communities without claiming to depict every community.
+
+Saved asset: `/Users/tamaneshkauri/Desktop/N terminal/outputs/nter-all-sections/assets/national-people-tricolour.png`
+
+Final prompt:
+
+Use case: photorealistic-natural. Asset type: 3:1 panoramic background hero image for the National section of a refined white-and-blue Indian intelligence dashboard. Primary request: a warm, dignified group portrait of people from different communities across India, with the Indian tricolour in the background. Show eight ordinary Indian adults, women and men, ranging from young adults to elders, with a natural range of skin tones and appearances, drawn from different regions including northern, southern, western, eastern and northeastern India. Include a Sikh man wearing a turban, a woman wearing a simple hijab, a woman in a sari, and others in a balanced mix of everyday contemporary clothing and understated regional dress. Respectful and natural, no exaggerated costumes or token props, no politicians or celebrities. They stand together loosely, shoulder-to-shoulder in a relaxed candid portrait, with warm subtle expressions. A large gently flowing Indian flag behind them: saffron above white above green, with the navy-blue Ashoka Chakra in the white band. The flag is background fabric, not clothing. Premium photographic realism, beautiful soft daylight, airy cream surroundings, crisp faces and realistic fabric textures. Composition is essential: leftmost 35% is pale quiet negative space for a large headline; all eight faces grouped between 40% and 78% of the width and within the middle horizontal band; upper bodies visible, no faces at the image edges. Far right has softly receding flag fabric for an overlaid data panel. Keep the people large enough to read when displayed as a shallow hero banner; no map, buildings, charts, words, slogans, text, watermark, borders or UI. The outer background should blend softly into a very pale cool white (#f7f9fc).
+

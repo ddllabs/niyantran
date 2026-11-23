@@ -6,6 +6,7 @@ import {
   MESSAGES,
   type PartRow,
   SIGN_SECONDS,
+  SIGN_SECONDS_PRIVATE,
   type UserFileCitationRow,
 } from './handler.ts';
 
@@ -172,6 +173,7 @@ Deno.test('a live document page answers 200 with the part and a signed_path rela
     expires_in: 300,
   });
   assertEquals(SIGN_SECONDS, 300);
+  assertEquals(SIGN_SECONDS_PRIVATE, 60);
   assertEquals(w.signed, [{ path: `files/${SHA1}.pdf`, seconds: 300 }]);
   assertEquals(r.res.headers.get('access-control-allow-origin'), ORIGIN);
   assertEquals(r.res.headers.get('cache-control'), 'no-store');
@@ -556,6 +558,8 @@ Deno.test('private file: accepts source_origin: private and optional page', asyn
     assertEquals(r.status, 200);
     assertEquals(r.json.ok, true);
     assertEquals(r.json.signed_path, `object/sign/user-files/${USER}/${FILE_ID}/document.pdf?token=${SIG}`);
+    assertEquals(r.json.expires_in, 60);
+    assertEquals(w.signedPrivate[0].seconds, 60);
   }
 });
 

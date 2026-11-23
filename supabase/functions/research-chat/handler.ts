@@ -218,6 +218,7 @@ export interface RetrievalContext {
   /** Passages to ask for; set on a widened search only (agent WIDENED_TOP_K), else retrieval's default. */
   topK?: number;
   privateFileIds?: string[];
+  scope?: 'private' | 'shared' | 'combined';
   onTiming?: (phase: 'embeddingMs' | 'retrievalMs', ms: number) => void;
   /** F288: how a search that consulted the hybrid switch was served. Not called for a plain vector search. */
   onPath?: (info: RetrievalPathInfo) => void;
@@ -1285,6 +1286,7 @@ async function runTurnBody(
     window,
     userTurn,
     scopedDocumentIds,
+    ...(privateFileIds.length ? { privateFileIds } : {}),
     scopedRows: [...(verifiedSelection ? [verifiedSelection] : []), ...attachmentRows.filter((row): row is DeskRow => !!row)],
     ...(request.desk_context ? { rowFeatureScope: request.desk_context } : {}),
     documentSearchUnavailable,
@@ -1339,6 +1341,7 @@ async function runTurnBody(
               onPath,
               ...(topK === undefined ? {} : { topK }),
               ...(privateFileIds.length ? { privateFileIds } : {}),
+              ...(privateFileIds.length && !scopedDocumentIds.length && request.focus === 'attached' ? { scope: 'private' as const } : {}),
               beginEmbeddingAttempt: (model) => attempts.beginEmbeddingAttempt(model, signal),
             }),
           searchDeskRows: (args) => deps.searchDeskRows(args, { signal }),

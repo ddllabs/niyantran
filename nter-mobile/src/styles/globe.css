@@ -1,0 +1,31 @@
+/* ===== nter.pro home page globe — the site's own rules (assets/index-*.css), unchanged except the --mkt-* variables ===== */
+.lp2{--mkt-border:#e4e0e8;--mkt-black:#252425;--mkt-blue:#293fa5}
+nter-data-globe, nter-data-globe * { box-sizing: border-box; }
+nter-data-globe.data-orbit { display: block; position: relative; width: 100%; aspect-ratio: 1 / 1; isolation: isolate; container-type: inline-size; overflow: visible; }
+.data-orbit-halo { position: absolute; inset: 12%; border-radius: 50%; background: radial-gradient(circle at 35% 35%, rgba(229, 211, 187, 0.4) 0%, rgba(229, 211, 187, 0.125) 35%, rgba(87, 44, 145, 0.125) 63%, rgba(41, 63, 165, 0.07) 78%, transparent 100%); filter: blur(26px); pointer-events: none; z-index: -1; }
+.data-orbit-rings { position: absolute; inset: 0px; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.data-orbit-rings path { fill: none; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.data-orbit-rings-back { z-index: 0; opacity: 0.35; }
+.data-orbit-rings-back path { stroke-width: 1.2; }
+.data-orbit-rings-front { z-index: 4; opacity: 0.66; }
+.data-orbit-rings-front path { stroke-width: 1.5; }
+.data-orbit-earth { position: absolute; inset: 0px; width: 100%; height: 100%; z-index: 3; pointer-events: none; opacity: 0; transition: opacity 0.5s; }
+.data-orbit-fallback { position: absolute; left: 16%; top: 16%; width: 68%; height: 68%; z-index: 3; pointer-events: none; transition: opacity 0.2s 0.5s; }
+.globe-ready .data-orbit-earth { opacity: 1; }
+.globe-ready .data-orbit-fallback { opacity: 0; }
+.globe-instant .data-orbit-earth, .globe-instant .data-orbit-fallback { transition: none; }
+.data-orbit-labels { display: contents; pointer-events: none; }
+.data-orbit-label { position: absolute; top: 0px; left: 0px; display: flex; align-items: center; gap: 8px; max-width: 168px; width: max-content; min-height: 46px; padding: 9px 12px 9px 9px; text-align: left; border: 1px solid rgb(228, 224, 232); border-radius: 13px; background: rgba(255, 255, 255, 0.97); color: rgb(37, 36, 37); font: 600 12px / 1.3 Inter, Arial, sans-serif; letter-spacing: -0.015em; box-shadow: rgba(37, 36, 37, 0.043) 0px 5px 18px, rgba(37, 36, 37, 0.03) 0px 1px 3px; pointer-events: auto; cursor: pointer; will-change: transform; transform-origin: center center; transition: border-color 0.18s, box-shadow 0.18s, background 0.18s; }
+.data-orbit-label:hover, .data-orbit-label:focus-visible { border-color: var(--orbit-label-color); background: rgb(255, 255, 255); box-shadow: rgba(87, 44, 145, 0.125) 0px 7px 24px; outline: 3px solid color-mix(in srgb,var(--orbit-label-color) 16%,transparent); outline-offset: 3px; }
+.data-orbit-label-icon { display: flex; align-items: center; justify-content: center; flex: 0 0 28px; height: 28px; border-radius: 8px; background: color-mix(in srgb,var(--orbit-label-color) 9%,white); color: var(--orbit-label-color); }
+.data-orbit-label-icon svg { width: 17px; height: 17px; fill: none; stroke: currentcolor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.data-orbit-label-arrow { font-size: 15px; color: var(--orbit-label-color); margin-left: 1px; }
+@media (prefers-reduced-motion: reduce){.data-orbit-earth, .data-orbit-fallback, .data-orbit-label { transition: none; }}
+.nter-globe-scene { position: relative; isolation: isolate; width: 100%; max-width: 756px; margin-inline: auto; }
+.nter-globe-scene::before { content: ""; position: absolute; inset: 0px -12%; z-index: -1; pointer-events: none; background: radial-gradient(at 65% 29%, rgba(229, 211, 187, 0.85) 0%, rgba(229, 211, 187, 0.4) 23%, transparent 58%), radial-gradient(at 73% 65%, rgba(87, 44, 145, 0.48) 0%, rgba(87, 44, 145, 0.22) 25%, transparent 61%), radial-gradient(at 34% 72%, rgba(41, 63, 165, 0.4) 0%, rgba(41, 63, 165, 0.17) 23%, transparent 59%), radial-gradient(at 33% 31%, rgba(194, 53, 61, 0.32) 0%, rgba(194, 53, 61, 0.12) 23%, transparent 57%); mask-image: radial-gradient(closest-side, rgb(0, 0, 0) 24%, rgba(0, 0, 0, 0.85) 45%, rgba(0, 0, 0, 0.44) 63%, rgba(0, 0, 0, 0.1) 81%, transparent 100%); -webkit-mask-image: radial-gradient(closest-side, rgb(0, 0, 0) 24%, rgba(0, 0, 0, 0.85) 45%, rgba(0, 0, 0, 0.44) 63%, rgba(0, 0, 0, 0.1) 81%, transparent 100%); }
+nter-data-globe .data-orbit-label { font-family: Inter, Arial, sans-serif; }
+.nd-globe-column { position: relative; isolation: isolate; place-self: center; width: 105%; min-width: 0px; max-width: 546px; margin-left: -2.5%; }
+.nd-globe-column::before { content: ""; position: absolute; inset: 0px -12%; z-index: -1; pointer-events: none; background: radial-gradient(at 65% 29%, rgba(229, 211, 187, 0.85) 0%, rgba(229, 211, 187, 0.4) 23%, transparent 58%), radial-gradient(at 73% 65%, rgba(87, 44, 145, 0.48) 0%, rgba(87, 44, 145, 0.22) 25%, transparent 61%), radial-gradient(at 34% 72%, rgba(41, 63, 165, 0.4) 0%, rgba(41, 63, 165, 0.17) 23%, transparent 59%), radial-gradient(at 33% 31%, rgba(194, 53, 61, 0.32) 0%, rgba(194, 53, 61, 0.12) 23%, transparent 57%); mask-image: radial-gradient(closest-side, rgb(0, 0, 0) 24%, rgba(0, 0, 0, 0.85) 45%, rgba(0, 0, 0, 0.44) 63%, rgba(0, 0, 0, 0.1) 81%, transparent 100%); -webkit-mask-image: radial-gradient(closest-side, rgb(0, 0, 0) 24%, rgba(0, 0, 0, 0.85) 45%, rgba(0, 0, 0, 0.44) 63%, rgba(0, 0, 0, 0.1) 81%, transparent 100%); }
+.nd-globe-column .nter-globe-scene { max-width: none; }
+.data-globe-pause { position: absolute; right: 4%; bottom: 4%; z-index: 40; display: grid; place-items: center; width: 32px; height: 32px; padding: 0px; border: 1px solid var(--mkt-border); border-radius: 50%; background: rgba(255, 255, 255, 0.88); color: var(--mkt-black); cursor: pointer; }
+.data-globe-pause:focus-visible { outline: 2px solid var(--mkt-blue); outline-offset: 3px; }

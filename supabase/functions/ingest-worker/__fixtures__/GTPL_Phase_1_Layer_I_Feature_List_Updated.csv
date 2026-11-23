@@ -1,0 +1,47 @@
+﻿Layer I: Phase 1 Foundation and Initial Intelligence,"Establish the central data foundation and deliver the first unified data access, AI query and NOC capabilities within 8 weeks.",,
+,,,
+Module 1: Source Discovery & System Integration,"Assess and connect GTPL KCBPL's existing applications, databases, monitoring platforms and reporting sources.",Priority,Phase
+System discovery and integration assessment,"Inventories H8, 1IMS, Sathi Portal, NAS, NMS, PRTG, Zabbix, Cacti, WhatsApp, Nokia-related sources, DOT reports, NOC bandwidth sources and other discovered systems; confirms data owners, access methods, data availability and integration feasibility.",Must Have,Phase 1
+Connector and ingestion framework,"Establishes secure, reusable API, database and file-based connectors, with scheduled or on-demand ingestion where supported.",Must Have,Phase 1
+Priority source integration,"Integrates the sources agreed during discovery, prioritising customer, network and operational datasets required for the Lakehouse, initial AI query agent and NOC capabilities.",Must Have,Phase 1
+Nokia data access assessment,"Validates the available Nokia data access arrangement, including the S3 and SSH-key approach mentioned in discussions; does not assume an API is available.",Must Have,Phase 1
+WhatsApp and other source feasibility,"Assesses WhatsApp and other discovered sources for approved access, permissions and technical feasibility before committing to integration.",Should Have,Phase 1
+Ingestion monitoring and error handling,"Tracks ingestion runs, records failures, supports retries where appropriate and exposes source-level integration status.",Must Have,Phase 1
+,,,
+Module 2: Central Data Lakehouse,"Creates a governed central foundation for customer, network and operational data.",Priority,Phase
+Raw data storage,"Stores ingested source data in its received form with source identifiers, timestamps and batch or ingestion metadata for traceability.",Must Have,Phase 1
+Data transformation and standardisation,"Transforms and standardises agreed datasets into consistent structures suitable for authorised access, reporting and AI querying.",Must Have,Phase 1
+Data validation and quality controls,"Applies agreed validation, cleansing and deduplication rules; records exceptions and data-quality issues for review.",Must Have,Phase 1
+Common data models,"Defines initial common data structures for the selected customer, network and operational datasets included in Phase 1.",Must Have,Phase 1
+Curated data layer,"Publishes validated and structured datasets for the unified interface, initial AI query agent and agreed NOC reporting.",Must Have,Phase 1
+Data refresh and synchronisation,Supports agreed scheduled or event-based refresh patterns according to each source's available access method and update frequency.,Must Have,Phase 1
+Data lineage and source traceability,Maintains source and ingestion metadata so users and administrators can trace curated data back to its originating source where available.,Must Have,Phase 1
+,,,
+Module 3: Unified Data Access Platform,Provides one controlled interface for authorised users to access available datasets and the initial AI query capability.,Priority,Phase
+Central user interface,Provides an authenticated central interface to access the datasets and capabilities made available in Phase 1.,Must Have,Phase 1
+Dataset catalogue and basic data views,Lists available datasets and provides basic table or record views for authorised users.,Must Have,Phase 1
+Search and filtering,Allows authorised users to search and filter supported datasets using available fields and permissions.,Must Have,Phase 1
+Basic data visualisation,Displays basic charts or visual summaries for selected datasets where the data structure supports them.,Should Have,Phase 1
+Role-based platform access,Restricts platform and dataset access according to approved user roles and permissions.,Must Have,Phase 1
+,,,
+Module 4: Initial AI Data-Query Agent,"Delivers one natural-language agent for querying selected, approved datasets through governed, read-only access.",Priority,Phase
+Natural-language question handling,Allows authorised users to ask supported questions in natural language about the selected Phase 1 datasets.,Must Have,Phase 1
+Authorised dataset retrieval,Retrieves information only from the approved datasets and within the requesting user's access permissions.,Must Have,Phase 1
+Grounded answers and summaries,"Generates answers and concise summaries based on retrieved data, with source or dataset context where available.",Must Have,Phase 1
+Tables and basic charts in responses,Presents query results as tables or basic visual summaries when appropriate and supported by the data.,Should Have,Phase 1
+Read-only query execution,Limits the initial agent to reading and analysing authorised data; it does not make production changes or execute write actions.,Must Have,Phase 1
+Unsupported-query and ambiguity handling,"Identifies unsupported or ambiguous questions, requests clarification where needed and avoids presenting ungrounded answers.",Must Have,Phase 1
+,,,
+Module 5: Initial NOC Monitoring & Reporting,"Provides a consolidated monitoring view, basic alerts and selected bandwidth reporting for the agreed NOC sources.",Priority,Phase
+Consolidated NOC monitoring dashboard,"Combines agreed monitoring information from PRTG, Zabbix and Cacti, subject to integration feasibility, into a single NOC view.",Must Have,Phase 1
+Network status and performance visibility,"Displays selected availability, event and performance indicators made available by the integrated monitoring sources.",Must Have,Phase 1
+Basic monitoring alerts,Raises basic alerts against agreed monitoring conditions or thresholds; advanced AI event correlation and autonomous remediation are excluded.,Must Have,Phase 1
+Bandwidth reporting,Produces selected bandwidth utilisation reports using agreed NOC monitoring data and reporting requirements.,Must Have,Phase 1
+,,,
+"Module 6: Security, Governance & Phase 1 Acceptance","Ensures controlled access, validation, operational readiness and a documented handover.",Priority,Phase
+Role-based access control,"Enforces approved user roles and permissions across the platform, datasets and initial AI query capability.",Must Have,Phase 1
+Data security and protection,"Applies agreed security controls for data access, transfer and storage, based on the deployment model and GTPL KCBPL policies.",Must Have,Phase 1
+Audit logs and traceability,"Records relevant user access, data operations and AI query activity for audit and troubleshooting, subject to the agreed design.",Must Have,Phase 1
+Retention and deployment requirements,"Confirms the required data-retention scope, including the one-year requirement raised in discussions, and validates on-premises, cloud or hybrid deployment constraints.",Must Have,Phase 1
+Testing and stakeholder validation,"Validates ingestion, data quality, access permissions, AI query responses, NOC dashboard outputs, basic alerts and bandwidth reporting with GTPL stakeholders.",Must Have,Phase 1
+Documentation and handover,"Provides agreed technical and user documentation, known limitations, operational handover and Phase 1 acceptance records.",Must Have,Phase 1

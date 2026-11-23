@@ -1,0 +1,13 @@
+{
+  "appId": "pro.nter.app",
+  "appName": "nter.pro",
+  "webDir": "dist",
+  "android": { "allowMixedContent": false },
+  "server": { "androidScheme": "https", "hostname": "app.nter.pro", "iosScheme": "capacitor" },
+  "plugins": {
+    "CapacitorHttp": { "enabled": true },
+    "SplashScreen": { "launchShowDuration": 600, "backgroundColor": "#ffffff", "showSpinner": false },
+    "StatusBar": { "style": "LIGHT", "backgroundColor": "#ffffff", "overlaysWebView": false },
+    "Keyboard": { "resize": "body" }
+  }
+}

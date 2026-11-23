@@ -711,14 +711,14 @@ export default function TerminalShell({ onLogout }) {
         activeTab={tab}
         aiOpen={Boolean(panel?.aiOpen)}
         filesOpen={Boolean(filesOpen)}
-        accountOpen={Boolean(account)}
+        accountOpen={Boolean(profileOpen || account)}
         onDesk={onDesk}
         onOpenDesks={() => setRailOpen((o) => !o)}
         onOpenAi={() => {
           if (!panel?.aiOpen) {
-            panel?.open('ai');
+            panel.act({ type: 'ai-open' });
           } else {
-            panel?.toggleExpand();
+            panel.act({ type: 'dismiss-ai' });
           }
         }}
         onOpenFiles={() => {

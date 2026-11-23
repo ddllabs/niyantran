@@ -15,6 +15,7 @@ import {
   MAX_FILE_SIZE_BYTES,
   STORAGE_TIER_QUOTA_BYTES,
   isPdfMimeType,
+  isIndexableFile,
 } from '../types/fileManager.ts';
 
 /**

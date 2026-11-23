@@ -241,7 +241,7 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
   useEffect(() => {
     if (!state.open || state.active !== 'ai') return undefined;
     return attachOutsideClose(document, {
-      zones: () => [asideRef.current],
+      zones: () => [asideRef.current, document.querySelector('.mobile-bottom-nav')].filter(Boolean),
       onOutside: () => act({ type: 'dismiss-ai' }),
     });
   }, [state.open, state.active, act]);

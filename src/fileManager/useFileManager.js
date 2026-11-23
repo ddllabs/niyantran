@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { supabase } from '../lib/supabaseClient.js';
 import {
   listFilesAndFolders,
   getStorageQuota,
@@ -150,6 +151,28 @@ export function useFileManager(initialFolderId = null) {
   // Dedicated Upload Queue state (Phase 3)
   const [uploadQueue, setUploadQueue] = useState([]);
   const uploadControllersRef = useRef({});
+
+  // Listen for global private file preview events from chat/citations
+  useEffect(() => {
+    const handleFilePreview = async (e) => {
+      const fileId = e.detail?.fileId;
+      if (!fileId) return;
+      try {
+        const { data: file, error: fetchErr } = await supabase
+          .from('user_files')
+          .select('*')
+          .eq('id', fileId)
+          .maybeSingle();
+        if (!fetchErr && file) {
+          setPreviewFile(file);
+        }
+      } catch {
+        // file preview failed
+      }
+    };
+    window.addEventListener('niy-file-preview', handleFilePreview);
+    return () => window.removeEventListener('niy-file-preview', handleFilePreview);
+  }, []);
 
   // ─── Fetch Current Folder & Files ──────────────────────────────────────────
   const refresh = useCallback(async (isSilent = false) => {

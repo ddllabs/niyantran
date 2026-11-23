@@ -1,0 +1,89 @@
+# Lint, unit tests, every build, both end-to-end smoke tests, a press of every button (with its log
+# as an artifact), and an installable Android debug APK on every push. Free on GitHub.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: Build and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm run build:web
+      - run: npm run build:sample
+      - name: Browser for the smoke tests
+        run: npx playwright install --with-deps chromium
+      - name: Smoke test, sample data (no network)
+        run: npm run test:smoke
+      - name: Smoke test, live build against a stand-in backend
+        run: npm run test:smoke:live
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-app
+          path: dist-web
+
+  buttons:
+    name: Every button
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Press every button on every screen (sample data, no network)
+        run: npm run test:buttons
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: button-sweep-log
+          path: test-results/buttons
+
+  android:
+    name: Android APK
+    needs: app
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nter-pro-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk

@@ -1,7 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  extractDocx,
-  chunkDocx,
   extractCsv,
   chunkCsv,
   extractTxt,

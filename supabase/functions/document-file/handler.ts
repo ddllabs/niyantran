@@ -33,6 +33,8 @@ import { log as sharedLog } from '../_shared/logging.ts';
 
 /** The signature's lifetime, and expires_in. */
 export const SIGN_SECONDS = 300;
+/** ADR 0006: Personal user file download signatures strictly expire in 60 seconds. */
+export const SIGN_SECONDS_PRIVATE = 60;
 /** The body is short fields; anything longer is refused while it streams in. */
 export const BODY_MAX_BYTES = 1024;
 
@@ -318,7 +320,7 @@ export async function handleDocumentFile(req: Request, deps: DocumentFileDeps): 
       throw new Refusal('not_found');
     }
 
-    const signedUrl = await deps.signPrivate(storagePath, SIGN_SECONDS);
+    const signedUrl = await deps.signPrivate(storagePath, SIGN_SECONDS_PRIVATE);
     const signedPath = relativeSignedPath(signedUrl, 'user-files');
     if (!signedPath) throw new Error('unexpected signed URL shape');
 
@@ -329,7 +331,7 @@ export async function handleDocumentFile(req: Request, deps: DocumentFileDeps): 
         signed_path: signedPath,
         page_count: typeof file.page_count === 'number' && file.page_count >= 1 ? file.page_count : 1,
         byte_size: file.size_bytes,
-        expires_in: SIGN_SECONDS,
+        expires_in: SIGN_SECONDS_PRIVATE,
       },
       200,
       cors,

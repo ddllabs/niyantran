@@ -202,31 +202,31 @@
 .desk-v6 footer>div>span{display:none}
 .desk-v6 .photo-label{right:23px;font-size:6px}}
 @media(max-width:560px){.desk-v6 .desks{gap:0}
-.desk-v6 .icon-button{width:27px;height:27px}
+.desk-v6 .icon-button{width:36px;height:36px}
 .desk-v6 .v6-main{padding:0 16px}
-.desk-v6 .crumb{height:44px;gap:8px;font-size:9px}
-.desk-v6 .crumb>span:first-child{font-size:7px;letter-spacing:.8px}
-.desk-v6 .snapshot{font-size:8px;gap:5px}
+.desk-v6 .crumb{height:44px;gap:8px;font-size:11px}
+.desk-v6 .crumb>span:first-child{font-size:11px;letter-spacing:.8px}
+.desk-v6 .snapshot{font-size:11px;gap:5px}
 .desk-v6 .snapshot>span{display:none}
 .desk-v6 .hero{height:298px;margin:0 -16px;border-radius:0}
 .desk-v6 .hero-copy{padding:12px 16px;max-width:100%}
 .desk-v6 h1{font-size:40px;letter-spacing:-2px;margin:15px 0 12px}
-.desk-v6 .hero-copy>p{font-size:11px;max-width:270px;line-height:1.6}
+.desk-v6 .hero-copy>p{font-size:12px;max-width:270px;line-height:1.6}
 .desk-v6 .hero-photo{inset:0 -70px 0 0}
 .desk-v6 .hero-photo img{object-position:64% 65%}
 .desk-v6 .hero-photo:after{background:linear-gradient(90deg,#f8f5f0 5%,#f8f5f0e8 27%,#f8f5f075 65%,#f8f5f033),linear-gradient(0deg,#f8f5f0,transparent 40%)}
 .desk-v6 .hero-insight{display:none}
 .desk-v6 .hero-bottom{margin-top:21px}
-.desk-v6 .photo-label{bottom:18px;font-size:6px}
+.desk-v6 .photo-label{bottom:18px;font-size:10px}
 .desk-v6 .stats{grid-template-columns:repeat(3,1fr);padding:0;row-gap:0}
 .desk-v6 .stat{padding:14px 12px;min-height:89px}
 .desk-v6 .stat:nth-child(3){border:0}
 .desk-v6 .stat:nth-child(4),.desk-v6 .stat:nth-child(5){border-top:1px solid var(--border)}
 .desk-v6 .stat:nth-child(4){grid-column:1/2}
 .desk-v6 .stat:nth-child(5){grid-column:2/4}
-.desk-v6 .stat-label{font-size:9px}
+.desk-v6 .stat-label{font-size:11px}
 .desk-v6 .stat-value{font-size:23px}
-.desk-v6 .stat-note{font-size:8px}
+.desk-v6 .stat-note{font-size:11px}
 .desk-v6 .section-heading{align-items:flex-start;flex-direction:column;gap:12px;margin-top:22px}
 .desk-v6 .section-heading h2{font-size:19px}
 .desk-v6 .sector-controls{width:100%;justify-content:space-between}
@@ -234,9 +234,9 @@
 .desk-v6 .sector-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
 .desk-v6 .sector-card{height:210px}
 .desk-v6 .card-picture{height:92px}
-.desk-v6 .card-title-row h3{font-size:11px}
-.desk-v6 .card-desc{font-size:8px}
-.desk-v6 .card-count{font-size:7px}
+.desk-v6 .card-title-row h3{font-size:12px}
+.desk-v6 .card-desc{font-size:11px}
+.desk-v6 .card-count{font-size:10px}
 .desk-v6 .card-bottom{flex-wrap:wrap}
 .desk-v6 .card-total{font-size:10px}
 .desk-v6 .card-body{padding:11px}

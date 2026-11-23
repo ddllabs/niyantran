@@ -1,0 +1,40 @@
+/* The desk card on the phone. recordPanel.css (copied from the website) styles the card itself; this
+   adds the website's "Niyantran analysis" box (.rd-ai, from nter.pro's src/index.css), the tokens
+   recordPanel.css expects, and the phone layout: the card opens from the right like the website's
+   side panel, and the NTER animation fills the card while the AI brief loads. */
+.dc { --font-ui: var(--sans); padding: 14px 16px 24px; animation: dc-in .32s cubic-bezier(.2,.8,.2,1); }
+@keyframes dc-in { from { transform: translateX(24px); opacity: .4; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .dc { animation: none; } }
+.dc .rp { padding-bottom: 8px; }
+.dc .rp-title { font-size: 20px; }
+.dc .rp-links a { min-height: 28px; display: inline-flex; align-items: center; }
+.dc .rp-ask { height: 42px; padding: 0 18px; font-size: 14px; }
+.dc .rp-qbtn, .dc .rp-xlink-open { min-height: 40px; }
+.dc .rp-close { width: 34px; height: 34px; }
+
+/* The analysis box (nter.pro src/index.css, owner 2026-10-15). */
+.dc .rd-sec-label { font-size: 10px; letter-spacing: .12em; color: var(--muted); margin-bottom: 9px; font-weight: 700; }
+.dc .rd-ai { border: 1px solid rgba(49, 105, 189, .25); background: rgba(49, 105, 189, .055); border-radius: 4px; padding: 12px 14px; }
+.dc .rd-ai .rd-sec-label { color: #3169bd; }
+.dc .rd-ai-brief { font-size: 14px; line-height: 1.55; color: var(--fg); margin: 2px 0 8px; }
+.dc .rd-ai-bullets { margin: 2px 0 8px; padding: 0; list-style: none; font-size: 13.5px; line-height: 1.55; color: var(--fg); }
+.dc .rd-ai-bullets li { position: relative; padding-left: 14px; margin-bottom: 7px; }
+.dc .rd-ai-bullets li::before { content: ''; position: absolute; left: 0; top: .55em; width: 5px; height: 5px; border-radius: 50%; background: var(--accent, #3b6ae0); }
+.dc .rd-ai-sub { font-size: 12.5px; line-height: 1.5; color: #4b5563; margin-top: 6px; }
+.dc .rd-ai-sub span { display: inline; color: #77818c; text-transform: uppercase; letter-spacing: .04em; font-size: 10px; font-weight: 700; margin-right: 6px; }
+.dc .rd-ai-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.dc .rd-ai-tag { font-size: 11px; color: #3169bd; background: rgba(49, 105, 189, .1); border: 1px solid rgba(49, 105, 189, .28); border-radius: 999px; padding: 2px 9px; }
+.dc.theme-dark .rd-ai .rd-sec-label, .dc.theme-dark .rd-ai-tag { color: #8fb3ef; }
+.dc.theme-dark .rd-ai-sub { color: var(--text); }
+.dc.theme-dark .rd-ai-sub span { color: var(--muted); }
+.dc-signin { display: inline-flex; margin-left: 8px; height: 30px; padding: 0 12px; align-items: center; border-radius: 8px; border: 0; background: var(--accent); color: var(--ink-on-accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+/* The animation fills the card until the brief settles (the website's record pane, phone-sized). */
+.dc .dc-loading { min-height: calc(100dvh - 190px); border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: #fff; }
+.dc .dc-loading nter-record-loader { min-height: 470px; }
+.dc .dc-loading .rp-record-loading-close { top: 10px; right: 10px; }
+.dc.theme-dark .dc-loading { border-color: var(--line); }
+
+/* The card sits on the panel colour, as the website's side panel does. */
+.deskcard-view > .body { background: var(--panel); }
+.dc .rp-close { display: inline-grid; place-items: center; padding: 0; line-height: 1; text-align: center; }

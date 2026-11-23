@@ -257,6 +257,18 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
     }
   }, [currentEmbedUrl, isMuted]);
 
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose?.();
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
   // After every hook: React needs the same hooks on every render.
   if (!open) return null;
 
@@ -265,6 +277,7 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
       <div
         className="ltv-modal"
         role="dialog"
+        aria-modal="true"
         aria-label="Niyantran Live TV Workbench"
         onClick={(e) => e.stopPropagation()}
       >
