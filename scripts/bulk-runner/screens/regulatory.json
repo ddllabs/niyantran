@@ -9,18 +9,19 @@
   "citation_required": [
     "kind",
     "regulator",
-    "regulator_name",
-    "title",
     "source"
   ],
   "extraction_allowed": [
-    "pdf_text"
+    "pdf_text",
+    "web_firecrawl"
   ],
   "source_hosts": [
     "trai.gov.in",
     "cci.gov.in",
     "rbi.org.in",
-    "sebi.gov.in"
+    "sebi.gov.in",
+    "www.rbi.org.in",
+    "www.sebi.gov.in"
   ],
   "url_hosts": [
     "rbidocs.rbi.org.in",
@@ -37,5 +38,7 @@
   "replacement_flags": [
     "v16_replaces"
   ],
-  "allow_density_only": true
+  "allow_density_only": true,
+  "ignore_pack_links": true,
+  "unpaged_text": true
 }

@@ -624,6 +624,11 @@ Deno.test('source_fields: not_official_url for a file_url that is not https on a
 // ---- 4 links_shape ----
 
 Deno.test('links_shape: link_shape unless there are no links or one link that names this document under the listing spelling', async () => {
+  // Regulatory no longer reads its pack links (F369: the v1.3 archive's links name no listing row); the check itself is
+  // the generic one, proved here on the Regulatory configuration with links read.
+  const reading = screenWith({ ...REGULATORY, ignore_pack_links: false });
+  const oneReasons = async (name: string, r: Rec) =>
+    (await checkNamed(name, reading).one!(r, ctxOf())).map((f) => f.reason);
   const link = { tier: 'national', feature: LISTING, role: 'primary_document', row_key: '7', document_key: 'reg:1' };
   for (const links of [undefined, null, [], [link], [{ ...link, row_key: 'rbi_00012' }]]) {
     assertEquals(await oneReasons('links_shape', await good(1, { links })), [], JSON.stringify(links));
@@ -1243,7 +1248,12 @@ Deno.test('whole screen: one hold code per defect, each shown against a clean re
     ['already_live', good(30)],
   ];
   const cleanRec = await good(1);
-  const out = await run([cleanRec, ...await Promise.all(bad.map((b) => b[1]))], screenWith(), live);
+  // Links read, so link_shape shows (Regulatory itself no longer reads them; see the links_shape test).
+  const out = await run(
+    [cleanRec, ...await Promise.all(bad.map((b) => b[1]))],
+    screenWith({ ...REGULATORY, ignore_pack_links: false }),
+    live,
+  );
   assertEquals(out.screened.map((r) => r.source_key), [key(1)]);
   for (const [code, p] of bad) {
     const h = holdOf(out, (await p).source_key as string);
@@ -1261,11 +1271,17 @@ function looksValid(r: Rec): boolean {
     r.desk_feature === FEATURE &&
     r.desk_rows_feature === LISTING && r.doc_type === 'regulatory' && s(r.title) && (r.title as string).length <= 300 &&
     s(r.document_key_suggested) && String(r.document_key_suggested).startsWith('reg:') && typeof r.text === 'string' &&
-    (r.text as string).length >= 300 && (r.text as string).length <= 600_000 && r.extraction === 'pdf_text' &&
-    r.page_split === 'exact' && Array.isArray(r.pages) && r.pages.length > 0 && Number.isSafeInteger(r.page_count) &&
+    (r.text as string).length >= 300 && (r.text as string).length <= 600_000 &&
+    // A text layer with its page spans, or (F369) Firecrawl's text of a web page with none.
+    ((r.extraction === 'pdf_text' && r.page_split === 'exact' && Array.isArray(r.pages) && r.pages.length > 0 &&
+      Number.isSafeInteger(r.page_count)) ||
+      (r.extraction === 'web_firecrawl' && r.page_split === 'none' && Array.isArray(r.pages) &&
+        r.pages.length === 0 && r.page_count == null)) &&
     !!c && typeof c === 'object' && !Array.isArray(c) &&
-    ['kind', 'regulator', 'regulator_name', 'title', 'source'].every((f) => s(c[f])) &&
-    ['trai.gov.in', 'cci.gov.in', 'rbi.org.in', 'sebi.gov.in'].includes(String(r.source_host)) &&
+    ['kind', 'regulator', 'source'].every((f) => s(c[f])) &&
+    ['trai.gov.in', 'cci.gov.in', 'rbi.org.in', 'sebi.gov.in', 'www.rbi.org.in', 'www.sebi.gov.in'].includes(
+      String(r.source_host),
+    ) &&
     r.licence_class === LICENCE &&
     r.completeness_basis !== undefined;
 }
@@ -2480,8 +2496,8 @@ Deno.test('desks: pack links are not read for a desk that carries none (a search
   // Proof that the field is what lets them through: without it, the same records are held as link_shape.
   assertEquals(reasonsOf(await deskRun(cab, [r1], { ignore_pack_links: false }), key(1)), ['link_shape']);
   assertEquals(reasonsOf(await deskRun(mp, [r2], { ignore_pack_links: false }), key(2)), ['link_shape']);
-  // Regulatory keeps reading its links.
-  assertEquals(parseSearchOnlyConfig(REGULATORY).ignore_pack_links, false);
+  // Regulatory no longer reads its links either (F369): the v1.3 archive's links have role document and no row_key.
+  assertEquals(parseSearchOnlyConfig(REGULATORY).ignore_pack_links, true);
 });
 
 Deno.test('desks: text from a page or dataset has no pages, and passes when the policy does not require a page count', async () => {
@@ -2806,4 +2822,150 @@ Deno.test('publisher: through the real resolver each desk holds a record none of
     // and the same record with a host of the desk is named, so the hold is the resolver's
     assertEquals((await deskRun(d, [await deskRec(d, 2)])).holds, [], d.name);
   }
+});
+
+// ---- Regulatory: the v1.3 archive shape and the web text of F369 ----
+
+const SEBI_PDF = (n: number) => `https://www.sebi.gov.in/sebi_data/attachdocs/oct-2026/17908${n}.pdf`;
+const RBI_PAGE = (n: number) => `https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=${n}`;
+/** The citation as the v1.3 pack writes it: no regulator_name and no title, a series, an id and the page link. */
+const v13Citation = (regulator: string, n: number, pageUrl: string): Rec => ({
+  kind: 'regulatory',
+  regulator,
+  series: 'press_release',
+  id: String(n),
+  date: '2026-10-07',
+  page_url: pageUrl,
+  source: regulator === 'RBI' ? 'rbi.org.in' : 'sebi.gov.in',
+});
+/** The v1.3 pack's one link: role document, no listing row, the record's suggested key. */
+const v13Links = (n: number): Rec[] => [{
+  tier: 'national',
+  feature: LISTING,
+  row_key: null,
+  document_key: `reg:${n}`,
+  role: 'document',
+}];
+/** A SEBI PDF of the v1.3 archive, text layer with exact page spans (5 pages of 700 characters). */
+const v13SebiPdf = (n: number, over: Rec = {}) =>
+  textRec(n, 5, 700, {
+    file_url: SEBI_PDF(n),
+    source_host: 'www.sebi.gov.in',
+    citation: v13Citation('SEBI', n, `https://www.sebi.gov.in/media-and-notifications/press-releases/p_${n}.html`),
+    links: v13Links(n),
+    delta: 'v1.3',
+    ...over,
+  });
+/** An RBI web page of the v1.3 archive whose text was taken again by Firecrawl (web_route.ts): no pages, split none. */
+async function v13RbiWeb(n: number, over: Rec = {}): Promise<Rec> {
+  const base = await unpagedRec(n, 1_500);
+  return {
+    ...base,
+    desk_feature: FEATURE,
+    desk_rows_feature: LISTING,
+    doc_type: 'regulatory',
+    file_url: RBI_PAGE(n),
+    source_host: 'www.rbi.org.in',
+    extraction: 'web_firecrawl',
+    text_engine: 'firecrawl v2/scrape markdown onlyMainContent proxy=basic',
+    citation: v13Citation('RBI', n, RBI_PAGE(n)),
+    links: v13Links(n),
+    document_key_suggested: `reg:${n}`,
+    pdf_blocked: true,
+    ...over,
+  };
+}
+const NO_PAGE_COUNT: Rec = { ...SETTINGS, requirePageCount: false };
+const runRegulatory = (records: Rec[], settings: Rec, page = fakePage()) =>
+  runScreen(screenWith(REGULATORY, page), records, ctxOf(new FakeLive(), settings), opts());
+
+Deno.test('regulatory v1.3: the configuration allows web_firecrawl beside pdf_text, unpaged text, and the v1.3 hosts and citation', () => {
+  const cfg = parseSearchOnlyConfig(REGULATORY);
+  assertEquals(cfg.extraction_allowed, ['pdf_text', 'web_firecrawl']);
+  assertEquals(cfg.unpaged_text, true);
+  assertEquals(cfg.ignore_pack_links, true);
+  assertEquals(cfg.citation_required, ['kind', 'regulator', 'source']);
+  assertEquals(cfg.source_hosts, [
+    'trai.gov.in',
+    'cci.gov.in',
+    'rbi.org.in',
+    'sebi.gov.in',
+    'www.rbi.org.in',
+    'www.sebi.gov.in',
+  ]);
+  // The file hosts and the page-checked PDFs are as they were: RBI's PDFs only.
+  assertEquals(cfg.url_hosts, ['rbidocs.rbi.org.in', 'www.rbi.org.in', 'www.sebi.gov.in']);
+  assertEquals(cfg.pdf_url_rule, '^https://rbidocs\\.rbi\\.org\\.in/[^?#]+\\.pdf$');
+});
+
+Deno.test('regulatory v1.3: a SEBI PDF of the archive (www host, document link, v1.3 citation) screens on the density-only basis', async () => {
+  const page = fakePage();
+  const out = await run([await v13SebiPdf(1)], screenWith(REGULATORY, page));
+  assertEquals(out.holds, []);
+  assertEquals(out.screened.map((r) => r.completeness_basis), ['density_only']);
+  // A SEBI PDF is not one the page check fetches (the rule names rbidocs only).
+  assertEquals(page.seen, []);
+  // The stored citation is the pack's own: nothing is added to it or taken from it.
+  assertEquals(out.screened[0].citation, (await v13SebiPdf(1)).citation);
+});
+
+Deno.test('regulatory v1.3: the citation still needs its kind, regulator and source; a regulator outside the four is held', async () => {
+  for (const f of ['kind', 'regulator', 'source']) {
+    const r = await v13SebiPdf(1);
+    const reasons = (await run([{ ...r, citation: { ...(r.citation as Rec), [f]: '' } }])).holds[0]?.reasons;
+    assert(reasons?.includes('citation_incomplete'), `${f}: ${JSON.stringify(reasons)}`);
+  }
+  // The publisher name comes from the regulator code by the fixed table (publisher.ts), so a code outside it holds.
+  const r = await v13SebiPdf(2);
+  const odd = await run([{ ...r, citation: { ...(r.citation as Rec), regulator: 'IRDAI' } }]);
+  assertEquals(odd.holds[0]?.reasons, ['publisher_unresolved']);
+});
+
+Deno.test('regulatory v1.3: a host outside the list is still unknown_host; the www spellings are the only additions', async () => {
+  for (const h of ['www.trai.gov.in', 'rbidocs.rbi.org.in', 'www.sebi.gov.in.example.org', 'WWW.SEBI.GOV.IN']) {
+    const reasons = (await run([await v13SebiPdf(1, { source_host: h })])).holds[0]?.reasons ?? [];
+    assert(reasons.includes('unknown_host'), `${h}: ${JSON.stringify(reasons)}`);
+  }
+});
+
+Deno.test('regulatory v1.3: the Firecrawl text of an RBI page screens density-only when the policy does not require a page count', async () => {
+  const page = fakePage();
+  const out = await runRegulatory([await v13RbiWeb(1)], NO_PAGE_COUNT, page);
+  assertEquals(out.holds, []);
+  assertEquals(out.screened.map((r) => [r.extraction, r.completeness_basis]), [['web_firecrawl', 'density_only']]);
+  assertEquals(page.seen, []);
+  // Under the collection settings of 2026-11-23 (requirePageCount true) it is held, as admission would hold it.
+  const strict = await runRegulatory([await v13RbiWeb(2)], SETTINGS);
+  assertEquals(strict.holds.map((h) => h.reasons), [['no_page_spans']]);
+});
+
+Deno.test("regulatory v1.3: the pack's own html, mixed and ocr texts stay held; only web_firecrawl is new", async () => {
+  for (const extraction of ['html', 'mixed', 'ocr', 'web_text', 'firecrawl', undefined]) {
+    const out = await runRegulatory([await v13RbiWeb(1, { extraction })], NO_PAGE_COUNT);
+    assertEquals(out.holds.map((h) => h.reasons), [['extraction_not_allowed']], String(extraction));
+  }
+  const pdf = await v13SebiPdf(2);
+  for (const extraction of ['html', 'mixed', 'ocr']) {
+    const out = await run([{ ...pdf, extraction }]);
+    assertEquals(out.holds.map((h) => h.reasons), [['extraction_not_allowed']], extraction);
+  }
+});
+
+Deno.test('regulatory v1.3: a page-less text whose link is an RBI PDF is never offered to the page check (D2) and is held', async () => {
+  const page = fakePage();
+  const r = await v13RbiWeb(1, { file_url: PDF(1) });
+  const out = await runRegulatory([r, await goodPdf(2)], NO_PAGE_COUNT, page);
+  // The paged RBI PDF is still page-checked; the page-less one is not fetched and has no basis.
+  assertEquals(page.seen, [[key(2)]]);
+  assertEquals(holdOf(out, key(1))?.reasons, ['no_completeness_basis']);
+  assertEquals(out.screened.map((x) => x.source_key), [key(2)]);
+});
+
+Deno.test('regulatory v1.3: a pdf_text record keeps its verdict whatever unpaged_text says', async () => {
+  const records = [await goodPdf(1), await good(2), await good(3, { pages: [], page_split: 'none' })];
+  const outcome = async (cfg: Rec) => {
+    const out = await run(records, screenWith(cfg));
+    return { screened: out.screened.map((r) => [r.source_key, r.completeness_basis]), holds: out.holds };
+  };
+  assertEquals(await outcome(REGULATORY), await outcome({ ...REGULATORY, unpaged_text: false }));
 });
