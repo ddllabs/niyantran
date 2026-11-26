@@ -160,7 +160,8 @@ Acceptance evidence:
   URL that turns out to serve a PDF costs 1 credit and fails `not_html` instead of paying per page), `maxAge 0`,
   `storeInCache false`, `blockAds true`, `removeBase64Images true`, `timeout 60000`, `proxy` per D3 (recommended
   `basic`), default `location`; no `actions`, no JSON format, no prompt-injection scan (each adds credits; the text is
-  treated as untrusted data in any case). `x-request-id` is the request row's id.
+  treated as untrusted data in any case). `x-request-id` is the request row's id and the attempt (`<id>-<attempt>`),
+  so a retry is a new request.
 - **When Firecrawl fails** (any final failure below): the record is not scraped again by this route and stays held
   (`extraction_not_allowed`), counted by failure code in the collect receipt. The pack's own `html` text is **not** a
   fallback (D4).
@@ -210,10 +211,13 @@ and money rules are re-implemented in the new migration from the Budget OCR bodi
   document (any site status) counts 1 credit; a timeout, a 5xx, a dropped connection or a lost lease counts its whole
   estimate (it may have been billed); 400, 401, 402, 429 count nothing (not billed, per the billing page, inferred for
   401).
-- **Halt rule (in the database):** `fail` with code `source_status_*` or `not_html` increments a run counter; when
-  `halt_source_errors` such failures arrive with no `done` between them, the run switches off (`enabled = false`). This
-  bounds the case where the RBI host refuses Firecrawl's fetcher and every refusal is still billed. A 401 or 402 from
-  Firecrawl also switches the run off (wrong key, no credits).
+- **Halt rule (in the database):** every `fail` that counted money (billed, or uncertain and charged its estimate:
+  `source_status_*`, `not_html`, `redirected`, `empty_text`, `firecrawl_too_large`, a timeout, a 5xx, an unreadable
+  answer, a duplicate id, `report_failed`, an unknown code) and every lapsed lease (counted in `claim`) increments a run
+  counter; when `halt_source_errors` such failures arrive with no `done` between them, the run switches off
+  (`enabled = false`). This bounds the case where the RBI host, or Firecrawl, fails every request and each failure may
+  still be billed. A 400, 401 or 402 from Firecrawl switches the run off at once (a request body it refuses, a wrong key,
+  no credits). A 429 gives its attempt back.
 - **Cron** `web-text`, every minute (or `30 seconds` if the developer wants the run in about half the time), scheduled
   only where `pg_cron` exists, inert as above. Applying the migration spends nothing.
 
@@ -229,10 +233,11 @@ and money rules are re-implemented in the new migration from the Budget OCR bodi
 
   | Firecrawl answer | Code | Money | Retry |
   |---|---|---|---|
-  | 200, `success`, site status 200, `contentType` HTML, final host equal to the requested host, markdown non-empty | done | 1 credit | |
+  | 200, `success`, site status 200, `contentType` HTML, final URL (`metadata.url`) equal to the requested URL after URL normalisation, markdown non-empty | done | 1 credit | |
   | 200 with site status other than 200 | `source_status_<nnn>` | 1 credit | retried once |
   | 200 with a non-HTML content type | `not_html` | 1 credit | no |
-  | 200 with the final URL on another host | `redirected_off_host` | 1 credit | no |
+  | 200 with no final URL, or one that is not the requested URL (another host or another page) | `redirected` | 1 credit | no |
+  | 200 with a body over 10 MB | `firecrawl_too_large` | 1 credit | no |
   | 200 with empty markdown | `empty_text` | 1 credit | no |
   | 400 | `firecrawl_rejected` | 0 | no |
   | 401, 403 | `firecrawl_forbidden` | 0 | no; switches off |
@@ -244,6 +249,11 @@ and money rules are re-implemented in the new migration from the Budget OCR bodi
   | a body that does not parse | `firecrawl_unreadable` | estimate | retried |
   | `finish` itself fails | `report_failed` | 1 credit | no (never pay twice) |
 
+- A block or error page that the site serves with status 200 at the exact requested URL passes every check above. Only
+  the runner's identity check catches it downstream, and the cap bounds what it can cost.
+- Before any request, the function checks the claimed URL against its own copy of the database's URL rule
+  (`officialUrlOk`). A URL that fails is reported `official_url_invalid` (free, final) and is never sent. The API call
+  uses `redirect: 'error'`.
 - NUL removed before storing. Logs: row id, source key, outcome, code, site status, credits counted, latency; never the
   text, the URL or a key.
 
