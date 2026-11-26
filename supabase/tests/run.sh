@@ -189,6 +189,13 @@ chain() {
       CONTAINER=$VECTOR
       echo 'create extension if not exists pg_prewarm with schema extensions;' > "$WORK/pg_prewarm_extension.sql"
       FILES=("$TESTS/bootstrap_auth.sql" "$WORK/pg_prewarm_extension.sql" "$(as_non_superuser 20261111090000_search_keep_warm.sql)") ;;
+    # F410: storage usage and quota readable only by their own user. The two functions are on NTER but in no migration on
+    # main, so the chain is the bare roles-and-auth bootstrap, then a stand-in holding the functions exactly as they are
+    # live (anon and PUBLIC may execute both; quota_bytes checks no owner), then the migration, as a non-superuser. The
+    # vacuity check drops the last: anon can still execute and the first assertion fails.
+    user_storage_own_user)
+      CONTAINER=$PLAIN
+      FILES=("$TESTS/bootstrap_auth.sql" "$TESTS/bootstrap_user_storage_live.sql" "$(as_non_superuser 20261126090000_user_storage_own_user.sql)") ;;
     # The law publication policy on documents evaluated once per query (same rows), the second of
     # the pair: document_chunks_partitions' chain (which ends with the partitions), then the
     # migration, as a non-superuser. The vacuity check drops the last.
