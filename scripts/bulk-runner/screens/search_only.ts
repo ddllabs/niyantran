@@ -749,6 +749,15 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check, options:
     const u = get(r, 'file_url');
     return typeof u === 'string' && pdfRule !== null && pdfRule.test(u) && billUrlSegmentsOk(u);
   };
+  /**
+   * A text with no page spans cannot be compared with a PDF page by page, so it is never offered to the page check,
+   * which would fetch the file (F369 D2: a web page's text is never checked against, or fetched as, the blocked PDF).
+   * Such a record whose link is a checkable PDF has no basis. Only an unpaged desk can bring one this far.
+   */
+  const unpagedPdf = (r: Rec): boolean => {
+    const pages = get(r, 'pages');
+    return isPdf(r) && (!Array.isArray(pages) || pages.length === 0);
+  };
 
   /** Why a record without a checkable PDF has no basis, or null when the density-only basis is earned. */
   const densityOnlyHold = (r: Rec): string | null => {
@@ -779,7 +788,7 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check, options:
     async all(records, ctx) {
       resetStats();
       const out = new Map<string, Finding[]>();
-      const pdfs = records.filter(isPdf);
+      const pdfs = records.filter((r) => isPdf(r) && !unpagedPdf(r));
       const inner = (pageCheck as { stats?: unknown }).stats;
       const scansBefore = isRec(inner) && Array.isArray(inner.scans) ? inner.scans.length : 0;
       // A whole-set failure of the page check holds the records that needed it, and only those.
@@ -806,6 +815,17 @@ export function makeSearchOnlyScreen(config: unknown, pageCheck: Check, options:
       for (const r of records) {
         const k = keyOf(r);
         if (k === null) continue;
+        if (unpagedPdf(r)) {
+          out.set(k, [
+            finding(
+              'completeness_basis',
+              ['completeness'],
+              'no_completeness_basis',
+              'a text with no page spans is not checked against a PDF',
+            ),
+          ]);
+          continue;
+        }
         if (isPdf(r)) {
           const found = verdicts.get(k) ?? [];
           if (pageFailed) out.set(k, [finding('completeness_basis', ['completeness'], 'page_check_error')]);
