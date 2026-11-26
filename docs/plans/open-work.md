@@ -229,8 +229,8 @@ Function list, and aggregate SQL on NTER. **Not re-checked:** the live site, pay
 and the milestone checkpoints below. The 2026-11-11 milestone check and its addenda are in
 [the Done archive](open-work-done.md), under the same heading.
 
-- **Git:** `main` at `5269d0af` (PR #237), CI green. #234 to #240 are merged; the one open pull request is #241 (F369,
-  RBI site chrome).
+- **Git:** `main` at `3639c28a` (PR #241, F369 RBI site chrome). #234 to #241 are merged; `main`'s CI was green on
+  `5269d0af` (PR #237), the last merge before #241.
 - **Migrations on NTER:** 115 history rows, the highest version `20261126150000_file_manager_schema` (F411, recorded the
   same day; F410's `20261126090000_user_storage_own_user` before it). `20261126100000_web_text_queue` (PR #239) is applied
   too, by its own workstream after F411's row.
