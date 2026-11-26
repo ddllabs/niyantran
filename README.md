@@ -118,7 +118,8 @@ under other version stamps, and one history row,
 `docs/plans/open-work.md`). NTER also holds the private file-manager schema
 (tables `user_folders`, `user_files`, `user_file_chunks` and `user_file_jobs`,
 the `user-files` bucket and its functions), which was applied outside the
-migration history and is in no migration on `main`. Thirteen Edge Functions
+migration history; `main` describes it in `20261126150000_file_manager_schema`
+(F411), whose history row on NTER is not yet written. Thirteen Edge Functions
 are deployed, one for each directory in `supabase/functions/`: `admin-ingest`,
 `admin-models`, `admin-personas`, `budget-ocr`, `desk-brief`, `document-file`,
 `factcheck`, `health`, `ingest-documents`, `ingest-worker`,
