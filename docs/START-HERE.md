@@ -5,8 +5,9 @@ or session, cloud or local. Update it when a listed document changes status
 or when the setup below changes.
 
 **Looking for what to do next? Open `plans/open-work.md`.** It is the one list
-of open work: agent tasks, local-session tasks, owner actions, parked items,
-accepted risks and a Done log with commit hashes.
+of open work: agent tasks, local-session tasks, owner actions, parked items
+and accepted risks. Closed items, with their commit hashes, are in
+`plans/open-work-done.md`.
 
 ## Read in this order
 
@@ -14,7 +15,7 @@ accepted risks and a Done log with commit hashes.
 |---|---|---|
 | 1 | `../AGENTS.md` | The binding rules: authority, git, verification, safety |
 | 2 | `agents/coordination.md` | Roles, the work lifecycle, "Branches and deployments", and the production record by day up to 2026-10-18 (later production changes: see "Where things stand") |
-| 3 | `plans/open-work.md` | What is open, what is blocked and on whom, the current baseline, and what landed |
+| 3 | `plans/open-work.md` | What is open, what is blocked and on whom, and the current baseline; what landed is in `plans/open-work-done.md` |
 | 4 | `agents/rollback-runbook.md` | How Edge Functions and migrations are deployed, verified and rolled back |
 | 5 | `plans/2026-09-29-corpus-ingestion.md` | Historical: the old L1/L2 measurements; current R4–R8 work is in open-work |
 | 6 | `agents/onboarding.md` | The onboarding text and dispatch template for subagents, and the orientation prompt for a new session with no context |
