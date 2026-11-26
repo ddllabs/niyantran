@@ -59,9 +59,11 @@ docs/security/
 # Claude Code session config — local only
 .claude/
 
-# Load-proof output: raw evidence, kept in ~/niyantran-eval-cache, not in the repository. Files from F287
-# stay tracked because the merged note cites them; this stops new ones being added.
+# Raw evaluation output (load proofs, retrieval runs, replica rehearsals): kept in ~/niyantran-eval-cache, not in the
+# repository. The files once tracked here are listed, with sizes and sha256, in eval/results-manifest.tsv, which says
+# how to restore any of them from git history.
 eval/ingestion/results/
+eval/retrieval/results/
 # RAG v2 eval: query-embedding and build caches (eval spec)
 eval/retrieval/.cache/
 

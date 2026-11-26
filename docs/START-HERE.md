@@ -68,8 +68,10 @@ These are the facts new sessions most often get wrong.
   restart every database in the container. Never leave background processes
   inside an exec.
 - **Raw measurement output stays out of the repository.**
-  `eval/ingestion/results/` is ignored by git; keep raw files in a local cache
-  outside the checkout and put summaries in the spec or research note.
+  `eval/ingestion/results/` and `eval/retrieval/results/` are ignored by git;
+  keep raw files in a local cache outside the checkout and put summaries in
+  the spec or research note. The 240 files once tracked there are listed in
+  `eval/results-manifest.tsv`, which says how to restore one from history.
 - **Worktrees.** A shell's working directory can reset between commands, so
   `cd` into the worktree in the same command as every edit or commit. Never
   remove another tool's worktrees without asking: its sessions may depend on
