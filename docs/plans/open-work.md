@@ -109,7 +109,6 @@
 
 - [ ] **F283 — Migration history on NTER differs from the repository.** *Waits on the developer. 2026-11-10 (F299)* Read 2026-11-03: since 2026-10-18 migrations were applied through the Supabase MCP, which records its own timestamp as the version, so 18 repository files (`20261018160700_billing_purchases` to `20261031130000_retire_grant_paid_plan`) appear under other versions on NTER, and NTER has one row with no file in the repository (`20261027110836_supplied_text_national_questions`). `supabase db push` would therefore re-run those 18 files, billing among them; it must not be used until this is resolved (the Phase B runbook applies its files with psql). Decide: rename the repository files to the live versions, or rewrite the history rows to the repository's (`supabase migration repair`, a production change needing the developer's authorization; billing scope, history rows only). Then find and commit the missing `supplied_text_national_questions` file, or record why it has none. **Developer decision, 2026-11-15:** the rule stays "apply by psql, never `supabase db push`"; the history rows are not rewritten and the files are not renamed.
 
-- [ ] **F411 — The file-manager schema is on NTER but not in main.** *Built on `task/f411-file-manager-schema` (its pull request); the history row on NTER waits on the developer. 2026-11-26* Found in the 2026-11-25 review: the private file-manager schema (four `user_*` tables, the `user-files` bucket and its policies, 15 functions, three `ingest_settings` columns) was applied to NTER from the file-manager branch's dashboard SQL and changed there, with no migration on `main` and no history row; no file on the branch reproduces NTER (five functions exist only on NTER). Built: migration `20261126150000_file_manager_schema`, NTER's catalog as read on 2026-11-26 after F410, and fixture `file_manager_schema`, which compares a 178-line catalog fingerprint with NTER's and checks owner isolation, anon refusal and the bucket's folder rule (vacuity and five mutations shown failing). Spec: [2026-11-26-file-manager-schema-adoption](../specs/2026-11-26-file-manager-schema-adoption.md). Remaining: a read-only check that NTER still matches, then the history row by hand under `20261126150000`; and the contributor's branch must drop its own migration files when it is brought up to date with `main` (the developer tells the contributor). The branch's tracker number F341 is taken on `main`; this is F411.
 - [ ] **F412 — File-manager grants are wider than they need to be.** *Ready to build. 2026-11-26* From F411: anon holds every table privilege on `user_folders`, `user_files`, `user_file_chunks` and `user_file_jobs` and the job sequence's privileges, and eight SECURITY INVOKER file-manager functions are executable by PUBLIC and anon. Row-level security has no anon policy, so anon reads and writes no rows today. Revoke what anon does not need, with a fixture that fails first.
 - [ ] **F413 — Review the file-manager credit functions.** *Ready to review. 2026-11-26* From F411: `user_file_enqueue_indexing`, `user_file_job_cancel`, `user_file_job_retry` and `user_file_settle_credits` hold or settle credits (billing scope) and are adopted as they run on NTER, gated by the `file_indexing_billing` flag (off unless an `app_flags` row says otherwise). Review the hold and settlement logic against the credit ledger's rules before the flag is turned on.
 
@@ -230,13 +229,15 @@ Function list, and aggregate SQL on NTER. **Not re-checked:** the live site, pay
 and the milestone checkpoints below. The 2026-11-11 milestone check and its addenda are in
 [the Done archive](open-work-done.md), under the same heading.
 
-- **Git:** `main` at `c8031288` (PR #232). Open pull requests: #234 (F369 T3 and T4), #235 (F410), #236 (README
-  deployment status), #237 (raw eval results out of git), and the one that split this file.
-- **Migrations on NTER:** 113 history rows, the latest `20261126090000_user_storage_own_user` (F410, applied later the same day).
+- **Git:** `main` at `5269d0af` (PR #237), CI green. #234 to #240 are merged; the one open pull request is #241 (F369,
+  RBI site chrome).
+- **Migrations on NTER:** 115 history rows, the highest version `20261126150000_file_manager_schema` (F411, recorded the
+  same day; F410's `20261126090000_user_storage_own_user` before it). `20261126100000_web_text_queue` (PR #239) is applied
+  too, by its own workstream after F411's row.
   `20261114090000_create_document_chunks_partition` is deliberately not applied (F285). The history differs from the
   repository for 18 files and one row (F283), so migrations go by `psql`, never `supabase db push`. NTER also holds the
   private file-manager schema, applied outside the migration history; its two storage functions were fixed by F410, and
-  `main` describes the whole schema in `20261126150000_file_manager_schema` (F411; NTER's history row not yet written).
+  `main` describes the whole schema in `20261126150000_file_manager_schema` (F411; its history row is written).
 - **Edge Functions (13):** `admin-ingest` v18, `admin-models` v19, `admin-personas` v5, `budget-ocr` v7, `desk-brief`
   v22, `document-file` v7, `factcheck` v8, `health` v18, `ingest-documents` v26, `ingest-worker` v17,
   `refresh-model-pricing` v19, `research-chat` v115, `transcribe-audio` v8.
