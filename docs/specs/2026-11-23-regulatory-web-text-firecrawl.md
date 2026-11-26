@@ -156,7 +156,7 @@ Acceptance evidence:
   `extraction_not_allowed` and for no reason that the new text cannot change (the exact reason set is fixed from the
   real hold file in T0; a record held for a duplicate `source_key`, `already_live` or `publisher_unresolved` is not
   scraped).
-- **Request (fixed in code, hashed into the receipt):** `formats ["markdown"]`, `onlyMainContent true`, `parsers []` (a
+- **Request (fixed in code, hashed into the receipt):** `formats ["markdown"]`, `onlyMainContent true`, `excludeTags` (the RBI chrome selectors `.grid_subtree`, `#treeYearMonth_PR`, `.accordionContent`, `.menu`, `.centermenu`, `.footer`, `footer`, `nav`, `.top_setting`, `.logo`, `#UsrFontCntr_tblThemes`, in that order; see the 2026-11-26 note below), `parsers []` (a
   URL that turns out to serve a PDF costs 1 credit and fails `not_html` instead of paying per page), `maxAge 0`,
   `storeInCache false`, `blockAds true`, `removeBase64Images true`, `timeout 60000`, `proxy` per D3 (recommended
   `basic`), default `location`; no `actions`, no JSON format, no prompt-injection scan (each adds credits; the text is
@@ -270,7 +270,7 @@ NTER; the same `WEB_TEXT_SECRET` in the vault as `web_text_secret`. Nothing type
   (key, URL, pack hash), and builds the pack's record with:
   - `text`: the markdown, **normalised** by one tested function: image links removed, `[label](url)` replaced by its
     label, bare URLs kept as text, runs of blank lines collapsed, control codes removed and counted;
-  - `extraction "web_firecrawl"`, `text_engine "firecrawl v2/scrape markdown onlyMainContent proxy=<mode>"`,
+  - `extraction "web_firecrawl"`, `text_engine "firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v1 proxy=<mode>"`,
     `page_split "none"`, `pages []`, `page_count` absent, `content_sha256` and `n_chars` of the new text; every other
     field as the pack has it (citation, title, links, licence);
   - an **identity check** against the pack's own text of the same page: the share of the new text's normalised word
@@ -402,3 +402,7 @@ invalid dates; a 2027 date is a valid date and is noted for F346).
 The developer accepted every recommended answer in "Decisions needed from the developer" ("Accept both, build", 2026-11-23). Where a decision had no recommendation, it is noted below.
 - D5 (Firecrawl plan and billing) and the account key are the developer's own step; the live trial (T7) waits for `FIRECRAWL_API_KEY` to be set as a function secret.
 - D7 (scraping RBI pages through a third party): taken as yes by the developer's "accept both, build".
+
+## Trial T7 note (2026-11-26): site chrome and `excludeTags`
+
+The first trial of 20 pages returned each document complete, but every RBI page's markdown also carried about 600 to 800 words of site chrome at its top and bottom (the year/month archive tree, the site menu and the footer). The owner chose to exclude the chrome tags in the Firecrawl request (`excludeTags`, CSS selectors removed before conversion), not to include only the document container (no `includeTags`). The selectors were measured on 6 real RBI pages (counts only): the document lives in `#doublescroll`, where 98 to 99% of its 5-grams are in the pack's own text of the page; the chrome containers (`.grid_subtree` with `#treeYearMonth_PR` and `.accordionContent`, `.menu`, `.centermenu`, `.footer`, `footer`, `nav`, `.top_setting`, `.logo`, `#UsrFontCntr_tblThemes`) have 0% overlap with the document. The selectors match nothing on SEBI pages. The request options are hashed into the receipt, so the receipt hash and `text_engine` (`... excludeTags=rbi-chrome-v1 ...`) change with this.
