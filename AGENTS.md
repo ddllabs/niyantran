@@ -51,8 +51,9 @@ Use the installed Addy Osmani agent-skills suite through
 ## Where open work is tracked
 
 `docs/plans/open-work.md` is the only list of open work. Start there, and
-record every new open item there, never only in a plan, spec or ADR. Move
-an item to its Done section, with the commit hash, when it lands.
+record every new open item there, never only in a plan, spec or ADR. When
+an item lands, move it, ticked and with the commit hash, to the Done archive
+`docs/plans/open-work-done.md`.
 
 ## How work proceeds
 
