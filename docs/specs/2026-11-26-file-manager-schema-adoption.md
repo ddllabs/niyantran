@@ -60,8 +60,8 @@ schema: the vector extension, `storage.foldername`, `ingest_settings`, the credi
   `20261121000001_user_file_chunks_metadata.sql`, `supabase_dashboard_storage_setup.sql`) must be dropped in favour of
   this one, or they will undo F410 and re-create objects that differ from NTER. Telling the contributor is the
   developer's step.
-- **F412, grants:** anon holds every table privilege on the four tables and the job sequence's privileges, and eight
-  SECURITY INVOKER functions are executable by PUBLIC and anon. Row-level security keeps anon out today; tightening is a
+- **F412, grants:** anon holds every table privilege on the four tables and the job sequence's privileges, and seven
+  SECURITY INVOKER functions are executable by PUBLIC and anon (first written as eight; corrected under F412). Row-level security keeps anon out today; tightening is a
   separate change with its own fixture.
 - **F413, credit functions:** `user_file_enqueue_indexing`, `user_file_job_cancel`, `user_file_job_retry` and
   `user_file_settle_credits` hold or settle credits (billing scope). They are adopted as they run on NTER, gated by the
