@@ -20,10 +20,32 @@ export const FIRECRAWL_TIMEOUT_MS = 60_000;
  * 2,000,000 characters, so a good page's JSON is well under this). */
 export const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
+// The RBI site chrome the scrape removes before conversion (Firecrawl v2 `excludeTags`: CSS selectors). The 20-page trial
+// showed that every RBI page's markdown carried about 600-800 words of chrome above and below the document: the year/month
+// archive tree (.grid_subtree with #treeYearMonth_PR and .accordionContent), the site menus (.menu, .centermenu), the footer
+// (.footer, footer), navigation (nav) and the page tools (.top_setting, .logo, #UsrFontCntr_tblThemes). Measured on RBI
+// pages on 2026-11-26: these containers have 0% 5-gram overlap with the document, which lives in #doublescroll (98-99% of
+// its 5-grams are in the pack's own text). They match nothing on SEBI pages. The scripts/bulk-runner/web_route.ts copy
+// must list the same selectors in the same order.
+export const RBI_CHROME_SELECTORS: readonly string[] = Object.freeze([
+  '.grid_subtree',
+  '#treeYearMonth_PR',
+  '.accordionContent',
+  '.menu',
+  '.centermenu',
+  '.footer',
+  'footer',
+  'nav',
+  '.top_setting',
+  '.logo',
+  '#UsrFontCntr_tblThemes',
+]);
+
 /** Every option of the request but the URL. Frozen: a change is a code change, and changes the runner's receipt hash. */
 export const REQUEST_OPTIONS = Object.freeze({
   formats: Object.freeze(['markdown']),
   onlyMainContent: true,
+  excludeTags: RBI_CHROME_SELECTORS,
   parsers: Object.freeze([]),
   maxAge: 0,
   storeInCache: false,
@@ -34,7 +56,7 @@ export const REQUEST_OPTIONS = Object.freeze({
 });
 
 /** The engine label the runner stores as text_engine. */
-export const TEXT_ENGINE = `firecrawl v2/scrape markdown onlyMainContent proxy=${PROXY_MODE}`;
+export const TEXT_ENGINE = `firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v1 proxy=${PROXY_MODE}`;
 
 /** The request body for one page. */
 export function scrapeBody(url: string): Record<string, unknown> {

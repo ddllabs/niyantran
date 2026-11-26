@@ -8,6 +8,10 @@ import { resolve } from 'jsr:@std/path@1';
 import { sha256Hex } from '../../supabase/functions/_shared/textNormalise.ts';
 import { canonical } from '../../supabase/functions/_shared/suppliedText.ts';
 import {
+  REQUEST_OPTIONS as FUNCTION_REQUEST_OPTIONS,
+  TEXT_ENGINE as FUNCTION_TEXT_ENGINE,
+} from '../../supabase/functions/web-text/firecrawl.ts';
+import {
   buildWebRecord,
   DEFAULT_MIN_IDENTITY,
   type EnqueueItem,
@@ -22,12 +26,14 @@ import {
   PsqlWebDb,
   REQUEST_OPTIONS,
   type SelectOptions,
+  WEB_TEXT_ENGINE,
   type WebCliDeps,
   webCommand,
   type WebDb,
   WebRecordError,
   type WebRow,
 } from './web_route.ts';
+
 import type { HoldLine } from './ocr_route.ts';
 import { type CliDeps, main } from './cli.ts';
 import REGULATORY from './screens/regulatory.json' with { type: 'json' };
@@ -465,7 +471,10 @@ Deno.test("buildWebRecord: the pack's own record with the normalised text, web_f
   assertEquals(record.content_sha256, await sha256Hex(text));
   assertEquals(record.n_chars, [...text].length);
   assertEquals(record.extraction, 'web_firecrawl');
-  assertEquals(record.text_engine, 'firecrawl v2/scrape markdown onlyMainContent proxy=basic');
+  assertEquals(
+    record.text_engine,
+    'firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v1 proxy=basic',
+  );
   assertEquals([record.page_split, record.pages, Object.hasOwn(record, 'page_count')], ['none', [], false]);
   assertEquals(controlCodesRemoved, 0);
   assert(identity >= 0.8 && identity <= 1);
@@ -901,4 +910,9 @@ Deno.test('cli main: web-enqueue and web-collect are dispatched to this route', 
   w.db.rows = [await row(w.recs[0]), await row(w.recs[1])];
   assertEquals(await main(collectArgs(), deps), 0);
   assert(w.written.has(`${OUT}/web-records.jsonl`));
+});
+
+Deno.test("the runner copy of the scrape request and engine label equals the web-text function's", () => {
+  assertEquals(JSON.parse(JSON.stringify(REQUEST_OPTIONS)), JSON.parse(JSON.stringify(FUNCTION_REQUEST_OPTIONS)));
+  assertEquals(WEB_TEXT_ENGINE, FUNCTION_TEXT_ENGINE);
 });

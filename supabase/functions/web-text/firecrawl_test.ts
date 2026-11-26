@@ -7,6 +7,7 @@ import {
   outcomeOfAnswer,
   outcomeOfStatus,
   PROXY_MODE,
+  RBI_CHROME_SELECTORS,
   REQUEST_OPTIONS,
   scrape,
   scrapeBody,
@@ -58,6 +59,7 @@ Deno.test('scrapeBody: exactly the options of the spec, the page URL, and nothin
     url: PR,
     formats: ['markdown'],
     onlyMainContent: true,
+    excludeTags: [...EXCLUDE],
     parsers: [],
     maxAge: 0,
     storeInCache: false,
@@ -68,15 +70,37 @@ Deno.test('scrapeBody: exactly the options of the spec, the page URL, and nothin
   });
   assertEquals(PROXY_MODE, 'basic');
   assertEquals(FIRECRAWL_TIMEOUT_MS, 60_000);
-  assertEquals(TEXT_ENGINE, 'firecrawl v2/scrape markdown onlyMainContent proxy=basic');
+  assertEquals(TEXT_ENGINE, 'firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v1 proxy=basic');
   // No location (Firecrawl's default), no actions, no JSON format, no change tracking.
   for (const k of ['location', 'actions', 'jsonOptions', 'changeTrackingOptions', 'headers', 'mobile']) {
     assert(!(k in scrapeBody(PR)), k);
   }
   assert(
     Object.isFrozen(REQUEST_OPTIONS) && Object.isFrozen(REQUEST_OPTIONS.formats) &&
-      Object.isFrozen(REQUEST_OPTIONS.parsers),
+      Object.isFrozen(REQUEST_OPTIONS.parsers) && Object.isFrozen(REQUEST_OPTIONS.excludeTags),
   );
+});
+
+const EXCLUDE = [
+  '.grid_subtree',
+  '#treeYearMonth_PR',
+  '.accordionContent',
+  '.menu',
+  '.centermenu',
+  '.footer',
+  'footer',
+  'nav',
+  '.top_setting',
+  '.logo',
+  '#UsrFontCntr_tblThemes',
+];
+
+Deno.test('scrape: the request body the fetch receives carries the RBI chrome selectors in excludeTags, in order', async () => {
+  const { sent } = await run(() => jsonResponse(answer()));
+  const body = JSON.parse(String(sent[0].init.body));
+  assertEquals(body.excludeTags, EXCLUDE);
+  assertEquals([...RBI_CHROME_SELECTORS], EXCLUDE);
+  assert(!('includeTags' in body));
 });
 
 Deno.test('scrape: POST to v2/scrape with the bearer key, JSON, the row id as x-request-id and the exact body', async () => {
