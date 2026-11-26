@@ -108,18 +108,29 @@ are separate acceptance checks.
 
 ## Deployment status and verification
 
-**Updated 2026-11-15.** The live Supabase project has 96 rows in its migration
-history; the latest is `20261112090000_batch_resume_requeue`. One repository
-migration, `20261113090000_national_search_only`, is not applied. The history and
-the repository's `supabase/migrations/` files are not the same set (F283; see
-`docs/plans/open-work.md`). Eleven Edge Functions are deployed: `health`,
-`refresh-model-pricing`, `admin-models`, `ingest-documents`, `research-chat`,
-`desk-brief`, `ingest-worker`, `admin-ingest`, `document-file`, `transcribe-audio`
-and `admin-personas`. `main` is the
+**Updated 2026-11-26** (read on the live Supabase project, NTER). Its migration
+history has 112 rows; the latest is `20261125100000_budget_ocr_queue`. One
+repository migration, `20261114090000_create_document_chunks_partition`, is
+deliberately not applied (F285). The history and the repository's
+`supabase/migrations/` files are not the same set: 18 files appear on NTER
+under other version stamps, and one history row,
+`supplied_text_national_questions`, has no file on `main` (F283; see
+`docs/plans/open-work.md`). NTER also holds the private file-manager schema
+(tables `user_folders`, `user_files`, `user_file_chunks` and `user_file_jobs`,
+the `user-files` bucket and its functions), which was applied outside the
+migration history; `main` describes it in `20261126150000_file_manager_schema`
+(F411), whose history row on NTER is not yet written. Thirteen Edge Functions
+are deployed, one for each directory in `supabase/functions/`: `admin-ingest`,
+`admin-models`, `admin-personas`, `budget-ocr`, `desk-brief`, `document-file`,
+`factcheck`, `health`, `ingest-documents`, `ingest-worker`,
+`refresh-model-pricing`, `research-chat` and `transcribe-audio`. `main` is the
 only long-lived branch (see `git log` for its tip), and production on Vercel
-(`niyantran-six.vercel.app`) follows it. Versions and production changes are
-recorded in `docs/agents/coordination.md`, "Operations" entries. All open work,
-including owner actions, is tracked in one list, `docs/plans/open-work.md`.
+(`www.nter.pro`, with `niyantran-six.vercel.app` as an alias) follows it.
+Production changes up to 2026-10-18 are recorded in
+`docs/agents/coordination.md`, "Operations" entries; later ones in the
+`docs/plans/open-work.md` item that made them, with NTER's migration list and
+function versions as the authority. All open work, including owner actions, is
+tracked in one list, `docs/plans/open-work.md`.
 Local tests are not production verification.
 
 Do not push, deploy, apply migrations, retry ingestion or publish data without
