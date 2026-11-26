@@ -196,6 +196,14 @@ chain() {
     user_storage_own_user)
       CONTAINER=$PLAIN
       FILES=("$TESTS/bootstrap_auth.sql" "$TESTS/bootstrap_user_storage_live.sql" "$(as_non_superuser 20261126090000_user_storage_own_user.sql)") ;;
+    # F411: the file-manager schema adopted from NTER. The bare roles-and-auth bootstrap, the Storage stub, stand-ins for
+    # what the schema needs to be created (vector, storage.foldername, ingest_settings, the credit tables' types), then
+    # F410's migration (a no-op here, as on a database built from main) and the adoption, both as a non-superuser. The
+    # vacuity check drops the last: the tables are missing and the catalog comparison fails.
+    file_manager_schema)
+      CONTAINER=$VECTOR
+      FILES=("$TESTS/bootstrap_auth.sql" "$TESTS/bootstrap_storage.sql" "$TESTS/bootstrap_file_manager_deps.sql"
+             "$(as_non_superuser 20261126090000_user_storage_own_user.sql)" "$(as_non_superuser 20261126150000_file_manager_schema.sql)") ;;
     # The law publication policy on documents evaluated once per query (same rows), the second of
     # the pair: document_chunks_partitions' chain (which ends with the partitions), then the
     # migration, as a non-superuser. The vacuity check drops the last.
