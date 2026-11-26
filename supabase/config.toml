@@ -442,6 +442,11 @@ verify_jwt = false
 [functions.budget-ocr]
 verify_jwt = false
 
+# web-text (F369) is called by pg_cron through pg_net with an x-web-text-secret header, not a user JWT; the
+# handler compares it to WEB_TEXT_SECRET in constant time and refuses when unset.
+[functions.web-text]
+verify_jwt = false
+
 # admin-ingest verifies the caller itself (requireUser + is_platform_admin), so 401/403 carry CORS.
 [functions.admin-ingest]
 verify_jwt = false
