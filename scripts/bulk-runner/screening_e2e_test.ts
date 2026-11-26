@@ -448,6 +448,9 @@ Deno.test('Regulatory: a mixed input of every hold code and clean records of bot
         date: '2020-13-45',
       },
     }),
+    // F369: Regulatory no longer reads the pack's links (the v1.3 archive's name no listing row; admission writes
+    // none), so a malformed link is no hold.
+    await reg(19, { links: [{}] }),
   ];
   const first = clean[0];
   const pdfBad = await pdfRec(21);
@@ -462,7 +465,6 @@ Deno.test('Regulatory: a mixed input of every hold code and clean records of bot
     ['unknown_host', await reg(16, { source_host: 'example.org' })],
     ['not_official_url', await reg(17, { file_url: 'http://www.sebi.gov.in/x.html' })],
     ['suggested_key_invalid', await reg(18, { document_key_suggested: '  ' })],
-    ['link_shape', await reg(19, { links: [{}] })],
     ['text_hash_mismatch', await reg(20, { content_sha256: 'a'.repeat(64) })],
     ['too_short', await reg(23, {}, { pages: 1, chars: 100 })],
     ['below_density', await reg(24, {}, { pages: 6, chars: 100 })],
@@ -502,6 +504,7 @@ Deno.test('Regulatory: a mixed input of every hold code and clean records of bot
     'density_only',
     'density_only',
     'page_check',
+    'density_only',
     'density_only',
   ]);
   assertEquals(holds.length, held.length);

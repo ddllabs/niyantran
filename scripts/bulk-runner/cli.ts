@@ -11,6 +11,7 @@
 //   deno run -A scripts/bulk-runner/cli.ts status --batch <uuid> [--psql <path>]
 //   deno run -A scripts/bulk-runner/cli.ts relink --records <file.jsonl> --map <map.jsonl> --out <dir>
 //   deno run -A scripts/bulk-runner/cli.ts ocr-enqueue|ocr-collect ...   (F391: held Budget records, OCR on Supabase; see ocr_route.ts)
+//   deno run -A scripts/bulk-runner/cli.ts web-enqueue|web-collect ...   (F369: held Regulatory web pages, Firecrawl on Supabase; see web_route.ts)
 //
 // `split` verifies the records file against its receipt, then writes part-NNN.jsonl files of at most n records, each
 // with a receipt (`<part>.receipt.json`) that `plan` and `run` accept; --out must be outside every checkout.
@@ -54,6 +55,7 @@ import { PsqlDb, psqlExec } from './psql_db.ts';
 import { gitCommonDir, refuseInCheckout } from './pack.ts';
 import { run, type RunInput, type RunResult, safeReason } from './run.ts';
 import { ocrCommand, type OcrDb, PsqlOcrDb } from './ocr_route.ts';
+import { PsqlWebDb, webCommand, type WebDb } from './web_route.ts';
 import { relink } from './relink.ts';
 
 export const REPO_ROOT = resolve(dirname(fromFileUrl(import.meta.url)), '../..');
@@ -281,6 +283,8 @@ export interface CliDeps {
   acceptDb: (psql: string, service: string) => AcceptDb;
   /** The OCR text queue (F391: ocr-enqueue, ocr-collect, scripts/bulk-runner/ocr_route.ts). */
   ocrDb?: (psql: string) => OcrDb;
+  /** The web text queue (F369: web-enqueue, web-collect, scripts/bulk-runner/web_route.ts). */
+  webDb?: (psql: string) => WebDb;
   log: (line: string) => void;
   now: () => number;
   sleep: (ms: number) => Promise<void>;
@@ -946,6 +950,7 @@ async function acceptCommand(c: Extract<Command, { cmd: 'accept' }>, deps: CliDe
 /** Runs one command; returns the process exit code. */
 export async function main(argv: string[], deps: CliDeps): Promise<number> {
   if (argv[0] === 'ocr-enqueue' || argv[0] === 'ocr-collect') return await ocrCommand(argv, deps);
+  if (argv[0] === 'web-enqueue' || argv[0] === 'web-collect') return await webCommand(argv, deps);
   const c = parseArgs(argv);
   if (c.cmd === 'split') return split(c, deps);
   if (c.cmd === 'relink') return relinkCommand(c, deps);
@@ -1064,6 +1069,7 @@ if (import.meta.main) {
         db: (psql) => new PsqlDb(psqlExec([psql])),
         acceptDb: (psql, service) => new PsqlAcceptDb(psqlExec([psql], '', serviceEnv(service))),
         ocrDb: (psql) => new PsqlOcrDb(psqlExec([psql])),
+        webDb: (psql) => new PsqlWebDb(psqlExec([psql])),
         listDir: async (dir) => {
           try {
             return (await Array.fromAsync(Deno.readDir(dir))).map((e) => e.name);
