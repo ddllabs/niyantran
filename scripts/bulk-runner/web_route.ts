@@ -51,11 +51,24 @@ export const TEXT_REASONS: readonly string[] = [REQUIRED_REASON, 'too_short', 't
 
 /**
  * The scrape request the `web-text` function sends, as the spec fixes it (D3: basic proxy, default location). Hashed into
- * the collect receipt; the function owns the request itself, so a change there must be mirrored here.
+ * the collect receipt; the function owns the request itself, so a change there must be mirrored here (web_route_test.ts proves they match).
  */
 export const REQUEST_OPTIONS = Object.freeze({
   formats: ['markdown'],
   onlyMainContent: true,
+  excludeTags: [
+    '.grid_subtree',
+    '#treeYearMonth_PR',
+    '.accordionContent',
+    '.menu',
+    '.centermenu',
+    '.footer',
+    'footer',
+    'nav',
+    '.top_setting',
+    '.logo',
+    '#UsrFontCntr_tblThemes',
+  ],
   parsers: [],
   maxAge: 0,
   storeInCache: false,
@@ -64,7 +77,8 @@ export const REQUEST_OPTIONS = Object.freeze({
   timeout: 60_000,
   proxy: 'basic',
 });
-export const WEB_TEXT_ENGINE = `firecrawl v2/scrape markdown onlyMainContent proxy=${REQUEST_OPTIONS.proxy}`;
+export const WEB_TEXT_ENGINE =
+  `firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v1 proxy=${REQUEST_OPTIONS.proxy}`;
 const OUT_RECORDS = 'web-records.jsonl';
 const HEX40 = /^[0-9a-f]{40}$/;
 const HEX64 = /^[0-9a-f]{64}$/;
