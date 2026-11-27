@@ -35,8 +35,18 @@ export const DEFAULT_BUDGET_USD = 1;
  * The database computes its own estimate from its setting; this one only lets the runner refuse a plan before sending it.
  */
 export const USD_PER_CREDIT = 0.005;
-/** The identity check's draft threshold (D9): the share of the new text's word 5-grams found in the pack's own text. */
+/**
+ * The identity check's threshold (D9, set from trial T7 on 2026-11-26): the share of the pack's own text's word 5-grams
+ * that the new text has. Measured the other way (the new text's 5-grams in the pack's) it failed genuine pages: Firecrawl
+ * and the pack's html-to-text pass break tables and headings differently, so about a tenth of the 5-grams differ either
+ * way, and the new text is the side with extra words. All 20 genuine trial pages scored at least 0.82 this way.
+ */
 export const DEFAULT_MIN_IDENTITY = 0.8;
+/**
+ * The length guard that goes with it (D9): the new text may have at most this many times the pack text's words. A text
+ * that contains the pack's text but is much longer (site chrome leaking back, or another page appended) is held.
+ */
+export const MAX_WORD_RATIO = 1.5;
 export const WEB_EXTRACTION = 'web_firecrawl';
 /** The pack's own text type of these records: the web page's text by a simple html-to-text pass. */
 export const PACK_EXTRACTION = 'html';
@@ -246,17 +256,24 @@ function grams(t: string): Set<string> {
 }
 
 /**
- * The identity check: the share of the new text's distinct word 5-grams (letters and digits, lower case) that the pack's
- * own text of the same page also has. 0 when the new text has fewer than five words. It guards against a block or an
- * error page answered with site status 200 in place of the document.
+ * The share of `of`'s distinct word 5-grams (letters and digits, lower case) that `in_` also has; 0 when `of` has fewer
+ * than five words. The identity check calls it as identityShare(packText, newText): how much of the pack's own text of
+ * the page the new text contains. It guards against a block or an error page answered with site status 200 in place of
+ * the document; the length guard (MAX_WORD_RATIO) guards the other side.
  */
-export function identityShare(newText: string, packText: string): number {
-  const mine = grams(newText);
+export function identityShare(of: string, in_: string): number {
+  const mine = grams(of);
   if (mine.size === 0) return 0;
-  const theirs = grams(packText);
+  const theirs = grams(in_);
   let hit = 0;
   for (const g of mine) if (theirs.has(g)) hit++;
   return hit / mine.size;
+}
+
+/** The new text's words over the pack text's words; Infinity when the pack text has none. */
+export function wordRatio(newText: string, packText: string): number {
+  const p = words(packText).length;
+  return p === 0 ? Infinity : words(newText).length / p;
 }
 
 /** The receipt's identity distribution: fixed edges, so two receipts compare. */
@@ -326,8 +343,9 @@ export async function buildWebRecord(
   const { text, controlCodesRemoved } = normaliseMarkdown(raw);
   if (!text) throw new WebRecordError('empty_text');
   if (!text.isWellFormed()) throw new WebRecordError('text_malformed');
-  const identity = identityShare(text, orig.text);
+  const identity = identityShare(orig.text, text);
   if (identity < minIdentity) throw new WebRecordError('web_text_unbound');
+  if (wordRatio(text, orig.text) > MAX_WORD_RATIO) throw new WebRecordError('web_text_too_long');
   const record: Rec = {
     ...orig,
     text,
@@ -608,10 +626,10 @@ async function collectCommand(c: Extract<WebCommand, { cmd: 'web-collect' }>, de
         tally.not_built++;
         const code = e instanceof WebRecordError ? e.code : 'error';
         add(notBuilt, notBuiltKeys, code, item.source_key);
-        // An unbound text still has an identity share; it is counted in the distribution too.
-        if (code === 'web_text_unbound') {
+        // An unbound or too long text still has an identity share; it is counted in the distribution too.
+        if (code === 'web_text_unbound' || code === 'web_text_too_long') {
           const orig = byKey.get(item.source_key)!;
-          identity[identityBucket(identityShare(normaliseMarkdown(String(row.text)).text, String(orig.text)))]++;
+          identity[identityBucket(identityShare(String(orig.text), normaliseMarkdown(String(row.text)).text))]++;
         }
       }
     }
@@ -622,7 +640,10 @@ async function collectCommand(c: Extract<WebCommand, { cmd: 'web-collect' }>, de
   );
   if (Object.keys(failed).length) deps.log(`failed by code: ${tallyLine(failed)}`);
   if (Object.keys(notBuilt).length) deps.log(`not built by code: ${tallyLine(notBuilt)}`);
-  deps.log(`identity (share of 5-grams in the pack text, threshold ${c.minIdentity}): ${tallyLine(identity)}`);
+  deps.log(
+    `identity (share of the pack text's 5-grams in the new text, threshold ${c.minIdentity}; ` +
+      `at most ${MAX_WORD_RATIO}x its words): ${tallyLine(identity)}`,
+  );
   if (!built.length) {
     deps.log('nothing to write');
     return 1;

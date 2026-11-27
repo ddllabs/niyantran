@@ -19,6 +19,7 @@ import {
   identityBucket,
   identityShare,
   MAX_SELECTION,
+  MAX_WORD_RATIO,
   normaliseMarkdown,
   officialPage,
   parseWebArgs,
@@ -32,6 +33,7 @@ import {
   type WebDb,
   WebRecordError,
   type WebRow,
+  wordRatio,
 } from './web_route.ts';
 
 import type { HoldLine } from './ocr_route.ts';
@@ -407,18 +409,18 @@ Deno.test('normaliseMarkdown: images removed, links to their labels, bare URLs k
 
 // ---- the identity check ----
 
-Deno.test('identityShare: the share of the new text 5-grams the pack text has; case and punctuation do not count', () => {
-  assertEquals(identityShare('one two three four five', 'One, two; three - four. Five!'), 1);
+Deno.test('identityShare: the share of the first text 5-grams the second has; case and punctuation do not count', () => {
+  assertEquals(identityShare('One, two; three - four. Five!', 'one two three four five'), 1);
   assertEquals(identityShare('one two three four five six', 'one two three four five'), 0.5);
   assertEquals(identityShare('a b c d e f g h', 'z y x w v u'), 0);
   // Fewer than five words prove nothing.
   assertEquals(identityShare('one two three four', 'one two three four'), 0);
   assertEquals(identityShare('', 'anything at all here now'), 0);
-  // Extra words in the pack (its menu) do not lower the share.
-  assertEquals(identityShare(notice(3), packText(3)), 1);
-  // The markdown of the page against the pack text of the same page, and of another page.
-  assert(identityShare(normaliseMarkdown(markdown(3)).text, packText(3)) >= 0.8);
-  assert(identityShare('Access denied. Please enable cookies and try again later today.', packText(3)) < 0.1);
+  // As the check calls it (pack text first): extra words in the new text do not lower the share.
+  assertEquals(identityShare(notice(3), `${notice(3)}\nSearch Back`), 1);
+  // The pack text of the page against its markdown, and against a block page.
+  assert(identityShare(packText(3), normaliseMarkdown(markdown(3)).text) >= 0.8);
+  assert(identityShare(packText(3), 'Access denied. Please enable cookies and try again later today.') < 0.1);
   assertEquals(
     ['0-0.5', '0.5-0.8', '0.8-0.9', '0.9-0.95', '0.95-1', '1'],
     [0.1, 0.6, 0.8, 0.94, 0.99, 1].map(identityBucket),
@@ -494,18 +496,32 @@ Deno.test('buildWebRecord: the identity check holds a text below the threshold a
   const orig = await packRecord(6);
   const blocked = 'Access denied\n\nYour request was blocked by the security policy of this site. Reference number 18.';
   await assertRejects(() => buildWebRecord(orig, rowSync(orig, blocked), 0.8), WebRecordError, 'web_text_unbound');
-  // A text half of whose 5-grams the pack has: below 0.8, at or above 0.5.
-  const half = `${notice(6)}\n${filler(140)}`;
-  const share = identityShare(normaliseMarkdown(half).text, packText(6));
+  // A text with about half the pack text's 5-grams (a page cut short): below 0.8.
+  const part = notice(6).split('\n').slice(0, 4).join('\n');
+  const share = identityShare(packText(6), normaliseMarkdown(part).text);
   assert(share > 0.2 && share < 0.8, String(share));
-  await assertRejects(() => buildWebRecord(orig, rowSync(orig, half), 0.8), WebRecordError, 'web_text_unbound');
-  assertEquals((await buildWebRecord(orig, rowSync(orig, half), share)).identity, share);
+  await assertRejects(() => buildWebRecord(orig, rowSync(orig, part), 0.8), WebRecordError, 'web_text_unbound');
+  assertEquals((await buildWebRecord(orig, rowSync(orig, part), share)).identity, share);
   await assertRejects(
-    () => buildWebRecord(orig, rowSync(orig, half), share + 1e-9),
+    () => buildWebRecord(orig, rowSync(orig, part), share + 1e-9),
     WebRecordError,
     'web_text_unbound',
   );
 });
+
+Deno.test('buildWebRecord: the length guard holds a text with more than 1.5 times the pack text words', async () => {
+  const orig = await packRecord(6);
+  const packWords = packText(6).match(/[\p{L}\p{N}]+/gu)!.length;
+  // Every pack 5-gram is there, so only the length can hold it.
+  const long = `${packText(6)}\n${filler(Math.ceil(packWords * 0.5) + 1)}`;
+  assert(wordRatio(normaliseMarkdown(long).text, packText(6)) > MAX_WORD_RATIO);
+  await assertRejects(() => buildWebRecord(orig, rowSync(orig, long), 0.8), WebRecordError, 'web_text_too_long');
+  const atLimit = `${packText(6)}\n${filler(Math.floor(packWords * 0.5))}`;
+  assert(wordRatio(normaliseMarkdown(atLimit).text, packText(6)) <= MAX_WORD_RATIO);
+  assertEquals((await buildWebRecord(orig, rowSync(orig, atLimit), 0.8)).identity, 1);
+  assertEquals(wordRatio('one two', ''), Infinity);
+});
+
 /** A done row for a given text, its hash filled in when built. */
 function rowSync(orig: Rec, text: string): WebRow {
   return {
@@ -567,7 +583,8 @@ Deno.test('screen: the pack record is held for its text type; the same record wi
     ],
   ]);
   // A stub page whose text is short stays held as too short.
-  const stub = await buildWebRecord(orig, rowSync(orig, notice(9).split('\n').slice(0, 3).join('\n')), 0.8);
+  // (threshold 0: this checks the screen, not the identity check)
+  const stub = await buildWebRecord(orig, rowSync(orig, notice(9).split('\n').slice(0, 3).join('\n')), 0);
   assertEquals((await screenRun([stub.record])).holds.map((h) => h.reasons), [['too_short']]);
 });
 
@@ -803,13 +820,13 @@ Deno.test('web-collect: all done is complete and exits 0; nothing done writes no
 
 Deno.test('web-collect: --min-identity is the threshold the build uses and the receipt records', async () => {
   const w = await world(2);
-  const half = `${notice(2)}\n${filler(140)}`;
-  w.db.rows = [await row(w.recs[0]), rowSync(w.recs[1], half)];
+  const part = notice(2).split('\n').slice(0, 4).join('\n');
+  w.db.rows = [await row(w.recs[0]), rowSync(w.recs[1], part)];
   assertEquals(await webCommand(collectArgs(['--min-identity', '0.1']), w.deps), 0);
   const receipt = JSON.parse(w.written.get(`${OUT}/web-records.jsonl.receipt.json`)!);
   assertEquals([receipt.web.identity.threshold, receipt.lines_written], [0.1, 2]);
   const strict = await world(2);
-  strict.db.rows = [await row(strict.recs[0]), rowSync(strict.recs[1], half)];
+  strict.db.rows = [await row(strict.recs[0]), rowSync(strict.recs[1], part)];
   assertEquals(await webCommand(collectArgs(), strict.deps), 0);
   assertEquals(JSON.parse(strict.written.get(`${OUT}/web-records.jsonl.receipt.json`)!).lines_written, 1);
 });
