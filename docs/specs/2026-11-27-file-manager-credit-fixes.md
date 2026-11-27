@@ -1,7 +1,8 @@
 # File-manager credit functions: no double charge, cancel only before the worker starts (F413)
 
-> **Status: Living (2026-11-27).** Built on `task/f413-credit-fixes`. Nothing here is applied to NTER; applying waits
-> for the developer's named yes, and the `file_indexing_billing` flag stays off until then.
+> **Status: Living (2026-11-27).** Merged in PR #248 (`e0966466`) and applied to NTER on 2026-11-27 with the
+> developer's go-ahead; the record is F413 in `docs/plans/open-work-done.md`. The `file_indexing_billing` flag is still
+> off. Finding 6 and the Cancel button are F415.
 
 ## Current state
 

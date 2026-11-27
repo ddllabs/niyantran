@@ -109,7 +109,7 @@ are separate acceptance checks.
 ## Deployment status and verification
 
 **Updated 2026-11-27** (read on the live Supabase project, NTER). Its migration
-history has 116 rows; the highest version is `20261126180000_file_manager_grants`. One
+history has 117 rows; the highest version is `20261127100000_file_manager_credit_fixes`. One
 repository migration, `20261114090000_create_document_chunks_partition`, is
 deliberately not applied (F285). The history and the repository's
 `supabase/migrations/` files are not the same set: 18 files appear on NTER
