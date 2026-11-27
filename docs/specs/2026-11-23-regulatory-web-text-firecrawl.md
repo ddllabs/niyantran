@@ -273,9 +273,11 @@ NTER; the same `WEB_TEXT_SECRET` in the vault as `web_text_secret`. Nothing type
   - `extraction "web_firecrawl"`, `text_engine "firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v1 proxy=<mode>"`,
     `page_split "none"`, `pages []`, `page_count` absent, `content_sha256` and `n_chars` of the new text; every other
     field as the pack has it (citation, title, links, licence);
-  - an **identity check** against the pack's own text of the same page: the share of the new text's normalised word
-    5-grams found in the pack text must be at least a threshold set from the trial (D9; a draft of 0.8); below it the
-    record is not written and is counted `web_text_unbound` (guards a block or error page answered with status 200).
+  - an **identity check** against the pack's own text of the same page: the share of the pack text's normalised word
+    5-grams found in the new text must be at least 0.8 (D9, set from trial T7; see the second note below); below it the
+    record is not written and is counted `web_text_unbound` (guards a block or error page answered with status 200). A
+    **length guard** goes with it: a new text with more than 1.5 times the pack text's words is not written and is counted
+    `web_text_too_long` (guards chrome leaking back in, or another page appended).
   - The receipt: the pack receipt with the new hash and count, the request options' sha256, counts by outcome and code,
     credits and cost, and the identity-check distribution. Provenance per document is the stored `extraction` and
     `text_engine`; the queue row (scrape time, site status, final host, text hash) stays in `private` as the durable
@@ -406,3 +408,17 @@ The developer accepted every recommended answer in "Decisions needed from the de
 ## Trial T7 note (2026-11-26): site chrome and `excludeTags`
 
 The first trial of 20 pages returned each document complete, but every RBI page's markdown also carried about 600 to 800 words of site chrome at its top and bottom (the year/month archive tree, the site menu and the footer). The owner chose to exclude the chrome tags in the Firecrawl request (`excludeTags`, CSS selectors removed before conversion), not to include only the document container (no `includeTags`). The selectors were measured on 6 real RBI pages (counts only): the document lives in `#doublescroll`, where 98 to 99% of its 5-grams are in the pack's own text of the page; the chrome containers (`.grid_subtree` with `#treeYearMonth_PR` and `.accordionContent`, `.menu`, `.centermenu`, `.footer`, `footer`, `nav`, `.top_setting`, `.logo`, `#UsrFontCntr_tblThemes`) have 0% overlap with the document. The selectors match nothing on SEBI pages. The request options are hashed into the receipt, so the receipt hash and `text_engine` (`... excludeTags=rbi-chrome-v1 ...`) change with this.
+
+## Trial T7 second note (2026-11-26): the identity check's direction
+
+The second trial of 20 pages (with `excludeTags`) ran at 5 pages a minute with no errors or rate limits. Site chrome fell
+from about 600 to 800 words a page to about 20 to 40, but only 10 of 20 pages passed the identity check as drafted (the
+share of the new text's 5-grams found in the pack's text); none scored below 0.5. Counts only, no text read: about 15
+words a page are three small leftovers (the search box label `.search_label`, a back link in `#backDiv`, and one short
+line directly in the page form), and the rest is formatting. Firecrawl's markdown and the pack's html-to-text pass break
+tables and headings differently, so about a tenth of the 5-grams differ either way, and short pages (60 to 200 words) are
+hit hardest; with all chrome removed, 13 of 20 would pass as drafted. Measured the other way (the share of the pack
+text's 5-grams found in the new text), all 20 pass, the lowest at 0.82, and a block or error page still scores near 0.
+The developer accepted the switch (2026-11-27): the check is that share at 0.8, with a length guard of at most 1.5 times
+the pack text's words. The two leftover selectors are added to the request before the full scrape (T9), which changes
+`text_engine` to `rbi-chrome-v2`; the trial's pages keep `rbi-chrome-v1`, the request that scraped them.
