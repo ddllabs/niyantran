@@ -108,8 +108,8 @@ are separate acceptance checks.
 
 ## Deployment status and verification
 
-**Updated 2026-11-26** (read on the live Supabase project, NTER). Its migration
-history has 112 rows; the latest is `20261125100000_budget_ocr_queue`. One
+**Updated 2026-11-27** (read on the live Supabase project, NTER). Its migration
+history has 116 rows; the highest version is `20261126180000_file_manager_grants`. One
 repository migration, `20261114090000_create_document_chunks_partition`, is
 deliberately not applied (F285). The history and the repository's
 `supabase/migrations/` files are not the same set: 18 files appear on NTER
@@ -119,7 +119,8 @@ under other version stamps, and one history row,
 (tables `user_folders`, `user_files`, `user_file_chunks` and `user_file_jobs`,
 the `user-files` bucket and its functions), which was applied outside the
 migration history; `main` describes it in `20261126150000_file_manager_schema`
-(F411), and its history row on NTER is written. Thirteen Edge Functions
+(F411), and its history row on NTER is written; F412 narrowed its grants so that
+anon holds nothing on it. Thirteen Edge Functions
 are deployed, one for each directory in `supabase/functions/`: `admin-ingest`,
 `admin-models`, `admin-personas`, `budget-ocr`, `desk-brief`, `document-file`,
 `factcheck`, `health`, `ingest-documents`, `ingest-worker`,

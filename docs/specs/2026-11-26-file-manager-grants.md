@@ -1,7 +1,7 @@
 # File-manager grants narrowed to the roles that use them (F412)
 
-> **Status: Living (2026-11-26).** Built on `task/f412-file-manager-grants`. Nothing here is applied to NTER; applying
-> waits for the developer's named yes.
+> **Status: Living (2026-11-27).** Merged in PR #243 (`1682de1c`) and applied to NTER on 2026-11-27 with the
+> developer's go-ahead; the record is F412 in `docs/plans/open-work-done.md`.
 
 ## Current state (read on NTER, 2026-11-26, read-only)
 
