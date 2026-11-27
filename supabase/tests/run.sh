@@ -210,6 +210,11 @@ chain() {
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" "$TESTS/bootstrap_storage.sql" "$TESTS/bootstrap_file_manager_deps.sql"
              "$(as_non_superuser 20261126090000_user_storage_own_user.sql)" "$(as_non_superuser 20261126150000_file_manager_schema.sql)") ;;
+    # F412: file_manager_schema's chain, then the grants migration, as a non-superuser. The vacuity check drops the
+    # last: anon still holds its grants and the grants comparison fails.
+    file_manager_grants)
+      chain file_manager_schema
+      FILES+=("$(as_non_superuser 20261126180000_file_manager_grants.sql)") ;;
     # The law publication policy on documents evaluated once per query (same rows), the second of
     # the pair: document_chunks_partitions' chain (which ends with the partitions), then the
     # migration, as a non-superuser. The vacuity check drops the last.
