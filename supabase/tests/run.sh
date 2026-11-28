@@ -80,22 +80,20 @@ m() { echo "$MIG/$1"; }
 # fixture name -> container, then the ordered bootstrap files.
 chain() {
   case "$1" in
-    # F341: Quota fixture verifies active and lapsed post-INR plans (free, plus, pro, max).
-    user_files_quota_complete)
-      CONTAINER=$VECTOR
-      FILES=("$TESTS/bootstrap_auth.sql" "$TESTS/bootstrap_storage.sql" backend/sql/auth_schema.sql
-             "$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)"
-             "$(as_non_superuser 20261012120000_inr_plans.sql)"
-             "$(m 20260921000001_vector_and_email.sql)"
-             "$(as_non_superuser 20261115000001_private_file_manager.sql)") ;;
-    # F341: Private File Manager & Knowledge Integration. Bootstrap includes auth, storage,
-    # user_profiles, vector extension, then the migration, as a non-superuser. The vacuity check
-    # drops the last.
-    user_files_isolation|user_files_lifecycle|user_files_retrieval|user_files_storage_lifecycle|user_files_reliability|user_files_priority3_storage_api|user_files_ingestion_rag)
-      CONTAINER=$VECTOR
-      FILES=("$TESTS/bootstrap_auth.sql" "$TESTS/bootstrap_storage.sql" backend/sql/auth_schema.sql
-             "$(m 20260921000001_vector_and_email.sql)"
-             "$(as_non_superuser 20261115000001_private_file_manager.sql)") ;;
+    # F341/F416: the contributor's private-file-manager fixtures, re-pointed at main's file-manager chain
+    # F411's chain (file_manager_schema) is what each fixture proves, so the vacuity check drops 20261126150000 and the
+    # tables go missing. The same fixture must also pass on main's final state (grants F412 and credit fixes F413
+    # applied, as on NTER): user_files_full_chain_check rebuilds that chain (USER_FILES_FULL=1) and runs it again.
+    user_files_isolation|user_files_lifecycle|user_files_retrieval|user_files_storage_lifecycle|user_files_reliability|user_files_priority3_storage_api|user_files_ingestion_rag|user_files_quota_complete)
+      if [ -n "${USER_FILES_FULL:-}" ]; then chain file_manager_credit_fixes; else chain file_manager_schema; fi
+      # These fixtures need public.user_profiles (and the admin helpers), which main's file-manager chain does not
+      # create: insert backend/sql/auth_schema.sql right after bootstrap_auth.sql. user_files_quota_complete also
+      # needs the plan chain (signup persona, plan entitlements, INR plans) that gives entitlement_from() its
+      # plan_status columns, so those go in the same place.
+      EXTRA=(backend/sql/auth_schema.sql)
+      [ "$1" = user_files_quota_complete ] && EXTRA+=("$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)"
+                                                      "$(as_non_superuser 20261012120000_inr_plans.sql)")
+      FILES=("${FILES[0]}" "${EXTRA[@]}" "${FILES[@]:1}") ;;
     admin_corpus_readiness)
       chain record_document_associations
       FILES+=("$(as_non_superuser 20261027231901_admin_corpus_readiness.sql)") ;;
@@ -495,6 +493,25 @@ chain() {
       return 0 ;;
     *) echo "unknown fixture: $1" >&2; return 1 ;;
   esac
+}
+
+# The user_files_* fixtures run against main's final file-manager state as well as against the schema chain their vacuity
+# check needs (see chain()). A database built through F413, then the fixture; it must pass.
+user_files_full_chain_check() {
+  local name="$1" db="niyantran_${1}_full_test" rc=0
+  USER_FILES_FULL=1 chain "$name"
+  docker exec "$CONTAINER" psql -U postgres -q -c "drop database if exists $db" >/dev/null
+  docker exec "$CONTAINER" psql -U postgres -q -c "create database $db" >/dev/null
+  for f in "${FILES[@]}"; do
+    psql_in "$db" < "$f" >/dev/null 2>&1 || { echo "  FULL CHAIN: bootstrap broke at $(basename "$f")"; return 1; }
+  done
+  if fixture_sql "$name" | psql_in "$db" >/dev/null 2>"$WORK/full_err.txt"; then
+    echo "  full chain (through 20261127100000) ok"
+  else
+    echo "  FULL CHAIN FAIL"; head -4 "$WORK/full_err.txt" | sed 's/^/    /'; rc=1
+  fi
+  docker exec "$CONTAINER" psql -U postgres -q -c "drop database if exists $db" >/dev/null
+  return $rc
 }
 
 psql_in() { docker exec -i "$CONTAINER" psql -U postgres -d "$1" -v ON_ERROR_STOP=1 -q; }
@@ -1612,6 +1629,7 @@ run_fixture() {
     [ "$name" = factcheck ] && { bash "$TESTS/factcheck_concurrency.sh" || rc=1; }
     [ "$name" = credit_paise_contract ] && { credit_paise_atomic_check "$db" || rc=1; }
     [ "${VACUITY:-1}" = 1 ] && { vacuity_check "$name" || rc=1; }
+    case "$name" in user_files_*) user_files_full_chain_check "$name" || rc=1 ;; esac
     [ "$name" = chunk_hybrid_search ] && { hybrid_exposure_check || rc=1; hybrid_private_check || rc=1; hybrid_drift_rollback_check || rc=1; hybrid_mutation_checks || rc=1; }
     [ "$name" = hybrid_sitewide ] && { hybrid_sitewide_drift_rollback_check || rc=1; hybrid_sitewide_mutation_checks || rc=1; }
     [ "$name" = corpus_records ] && { corpus_records_checks || rc=1; }

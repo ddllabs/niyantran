@@ -75,7 +75,17 @@ BEGIN
     'Private indexing job created with status queued'
   );
 
-  -- 3. Ingestion worker claims job
+  -- 3. Ingestion worker claims job. The worker functions (user_file_claim, user_file_advance) are service_role-only on
+  -- main (F411 revokes them from public, anon and authenticated; the contributor's migration let authenticated call
+  -- them), so a signed-in user cannot claim jobs, and the worker runs as service_role.
+  BEGIN
+    PERFORM public.user_file_claim('worker-node-1', 1);
+    RAISE EXCEPTION 'FAIL: authenticated executed user_file_claim';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'PASS: authenticated cannot execute user_file_claim (42501)';
+  END;
+  RESET ROLE;
+  SET LOCAL ROLE service_role;
   SELECT * INTO v_claimed FROM public.user_file_claim('worker-node-1', 1);
   PERFORM pg_temp.assert_true(v_claimed.id = v_job_id, 'Worker claims private indexing job');
   PERFORM pg_temp.assert_true(
@@ -97,7 +107,7 @@ BEGIN
     'File index_status transitioned to indexing_chunking during chunk & embed'
   );
 
-  -- 6. Generate embedding vector and commit private chunks to public.user_file_chunks
+  -- 6. Generate embedding vector (the chunk insert is the worker's: service_role keeps the table privilege) and commit private chunks to public.user_file_chunks
   SELECT array_agg(0.02::real)::extensions.vector INTO v_query_vec FROM generate_series(1, 1536);
 
   INSERT INTO public.user_file_chunks (id, user_id, file_id, chunk_index, chunk_hash, page_start, page_end, content, text_hash, embedding)
@@ -111,6 +121,10 @@ BEGIN
     EXISTS (SELECT 1 FROM public.user_files WHERE id = v_file_id AND index_status = 'indexed'),
     'File index_status successfully updated to indexed upon job completion'
   );
+
+  -- Back to the signed-in user for the isolation and retrieval checks.
+  RESET ROLE;
+  SET LOCAL ROLE authenticated;
 
   -- 8. Verify isolation: Shared corpus tables received ZERO private content
   IF to_regclass('public.document_chunks') IS NOT NULL THEN

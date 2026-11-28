@@ -4,10 +4,10 @@
 -- Status: Normative.
 --
 -- References:
---   - ADR 0006: Private File Manager & Storage Architecture
+--   - ADR 0016: Private File Manager & Storage Architecture
 --   - docs/specs/private-file-manager-functionality.md
 --   - docs/plans/2026-11-14-private-file-manager.md
---   - supabase/migrations/20261115000001_private_file_manager.sql
+--   - supabase/migrations/20261126150000_file_manager_schema.sql (F411; the contributor's 20261115000001 is not on main)
 --
 -- Disposable PostgreSQL assertions; run only against a disposable test DB.
 -- Never run against a hosted project.
@@ -55,23 +55,10 @@ BEGIN
 END;
 $$;
 
--- Storage helper function stub if not present in test database
-CREATE OR REPLACE FUNCTION storage.foldername(name text)
-RETURNS text[] LANGUAGE sql IMMUTABLE AS $$
-  SELECT string_to_array(name, '/');
-$$;
-
--- Ensure ingest_settings singleton exists for fair-share/concurrency RPCs
-DO $$
-BEGIN
-  IF to_regclass('public.ingest_settings') IS NOT NULL THEN
-    INSERT INTO public.ingest_settings (singleton, corpus_max_running, user_file_max_running, max_running_per_user)
-    VALUES (true, 2, 2, 1)
-    ON CONFLICT (singleton) DO UPDATE SET
-      user_file_max_running = 2,
-      max_running_per_user = 1;
-  END IF;
-END $$;
+-- Make sure the ingest_settings row the fair-share/concurrency RPCs read holds the limits this fixture assumes. Main's
+-- ingest_settings has no "singleton" column: it is a one-row table keyed by id (20261001140000_ingestion_v2), and the
+-- file-manager schema (F411) adds the three limit columns.
+UPDATE public.ingest_settings SET corpus_max_running = 2, user_file_max_running = 2, max_running_per_user = 1;
 
 -- ---------------------------------------------------------------------------
 -- 1. Disposable Test Users Setup
