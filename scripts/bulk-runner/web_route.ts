@@ -78,6 +78,8 @@ export const REQUEST_OPTIONS = Object.freeze({
     '.top_setting',
     '.logo',
     '#UsrFontCntr_tblThemes',
+    '.search_label',
+    '#backDiv',
   ],
   parsers: [],
   maxAge: 0,
@@ -88,7 +90,7 @@ export const REQUEST_OPTIONS = Object.freeze({
   proxy: 'basic',
 });
 export const WEB_TEXT_ENGINE =
-  `firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v1 proxy=${REQUEST_OPTIONS.proxy}`;
+  `firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v2 proxy=${REQUEST_OPTIONS.proxy}`;
 const OUT_RECORDS = 'web-records.jsonl';
 const HEX40 = /^[0-9a-f]{40}$/;
 const HEX64 = /^[0-9a-f]{64}$/;

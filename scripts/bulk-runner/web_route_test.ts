@@ -475,7 +475,7 @@ Deno.test("buildWebRecord: the pack's own record with the normalised text, web_f
   assertEquals(record.extraction, 'web_firecrawl');
   assertEquals(
     record.text_engine,
-    'firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v1 proxy=basic',
+    'firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v2 proxy=basic',
   );
   assertEquals([record.page_split, record.pages, Object.hasOwn(record, 'page_count')], ['none', [], false]);
   assertEquals(controlCodesRemoved, 0);

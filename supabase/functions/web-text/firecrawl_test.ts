@@ -70,7 +70,7 @@ Deno.test('scrapeBody: exactly the options of the spec, the page URL, and nothin
   });
   assertEquals(PROXY_MODE, 'basic');
   assertEquals(FIRECRAWL_TIMEOUT_MS, 60_000);
-  assertEquals(TEXT_ENGINE, 'firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v1 proxy=basic');
+  assertEquals(TEXT_ENGINE, 'firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v2 proxy=basic');
   // No location (Firecrawl's default), no actions, no JSON format, no change tracking.
   for (const k of ['location', 'actions', 'jsonOptions', 'changeTrackingOptions', 'headers', 'mobile']) {
     assert(!(k in scrapeBody(PR)), k);
@@ -93,6 +93,8 @@ const EXCLUDE = [
   '.top_setting',
   '.logo',
   '#UsrFontCntr_tblThemes',
+  '.search_label',
+  '#backDiv',
 ];
 
 Deno.test('scrape: the request body the fetch receives carries the RBI chrome selectors in excludeTags, in order', async () => {

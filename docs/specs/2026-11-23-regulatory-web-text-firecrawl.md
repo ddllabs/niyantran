@@ -270,7 +270,8 @@ NTER; the same `WEB_TEXT_SECRET` in the vault as `web_text_secret`. Nothing type
   (key, URL, pack hash), and builds the pack's record with:
   - `text`: the markdown, **normalised** by one tested function: image links removed, `[label](url)` replaced by its
     label, bare URLs kept as text, runs of blank lines collapsed, control codes removed and counted;
-  - `extraction "web_firecrawl"`, `text_engine "firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v1 proxy=<mode>"`,
+  - `extraction "web_firecrawl"`, `text_engine "firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v2 proxy=<mode>"`
+    (`rbi-chrome-v1` for the trial pages, scraped before `.search_label` and `#backDiv` were added),
     `page_split "none"`, `pages []`, `page_count` absent, `content_sha256` and `n_chars` of the new text; every other
     field as the pack has it (citation, title, links, licence);
   - an **identity check** against the pack's own text of the same page: the share of the pack text's normalised word
@@ -422,3 +423,12 @@ text's 5-grams found in the new text), all 20 pass, the lowest at 0.82, and a bl
 The developer accepted the switch (2026-11-27): the check is that share at 0.8, with a length guard of at most 1.5 times
 the pack text's words. The two leftover selectors are added to the request before the full scrape (T9), which changes
 `text_engine` to `rbi-chrome-v2`; the trial's pages keep `rbi-chrome-v1`, the request that scraped them.
+
+## Selectors for the full scrape (2026-11-27): `rbi-chrome-v2`
+
+`.search_label` and `#backDiv` are appended to the end of `excludeTags` in both copies (the `web-text` function's
+`RBI_CHROME_SELECTORS` and the runner's `REQUEST_OPTIONS`), and `text_engine` becomes `... excludeTags=rbi-chrome-v2 ...`.
+The one short line placed directly in the page form has no selector of its own and stays. The function does not record
+its engine on a queue row; the runner labels each record with its own engine when it collects. So the `web-text`
+function is redeployed from this change before any page is enqueued for the full scrape, and every row scraped under
+`rbi-chrome-v1` is collected (or left out) before then. The 20 trial pages loaded on 2026-11-27 keep `rbi-chrome-v1`.
