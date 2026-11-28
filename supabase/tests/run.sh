@@ -215,6 +215,11 @@ chain() {
     file_manager_grants)
       chain file_manager_schema
       FILES+=("$(as_non_superuser 20261126180000_file_manager_grants.sql)") ;;
+    # F413: file_manager_grants' chain, the private credit stand-ins, then the credit fixes, as a non-superuser. The
+    # vacuity check drops the last: the double charges and the cancel of a running job come back.
+    file_manager_credit_fixes)
+      chain file_manager_grants
+      FILES+=("$TESTS/bootstrap_file_manager_credit_stubs.sql" "$(as_non_superuser 20261127100000_file_manager_credit_fixes.sql)") ;;
     # The law publication policy on documents evaluated once per query (same rows), the second of
     # the pair: document_chunks_partitions' chain (which ends with the partitions), then the
     # migration, as a non-superuser. The vacuity check drops the last.
