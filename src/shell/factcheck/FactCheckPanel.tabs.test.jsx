@@ -1,5 +1,6 @@
 // F366 slice B: the panel header, the block line, the Claims and Transcript tabs, the verdict tiles and the
 // restyled cards, from fake views (static markup; the clicks are in FactCheckPanel.tabs.interaction.test.jsx).
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -34,9 +35,9 @@ describe('header, status line and Stop', () => {
   it('has the title, a status line with a dot, and exactly one Stop while running', () => {
     const html = render(running());
     expect(html).toMatch(/<h3[^>]*id="fc-title"[^>]*>Fact-check<\/h3>/);
-    expect(html).toMatch(/class="fc-status fc-status--on"/);
+    expect(html).toMatch(/class="fc-livedot fc-status--on"/);
     expect(html).toMatch(/class="fc-dot"/);
-    expect(text(html)).toContain('Checking · 1:40 elapsed');
+    expect(text(html)).not.toContain('elapsed'); // F417: no elapsed time while running
     expect(html.match(/data-fc="stop"/g)).toHaveLength(1);
     expect(html).not.toMatch(/Pause/);
   });
@@ -56,16 +57,17 @@ describe('header, status line and Stop', () => {
 });
 
 describe('block line', () => {
-  it('has a thin bar and the time used of the minutes bought, without repeating the credits held', () => {
+  it('has a thin bar and the time used of the minutes bought (as its value text), without repeating the credits held', () => {
     const html = render(running());
-    expect(html).toMatch(/role="progressbar"[^>]*aria-valuenow="33"/);
-    expect(text(html)).toContain('1:40 of 5 minutes used');
+    expect(html).toMatch(/role="progressbar"[^>]*aria-valuenow="33"[^>]*aria-valuetext="1:40 of 5 minutes used"/);
+    expect(text(html)).not.toContain('of 5 minutes used'); // F417: not shown as text while running
     expect(html.match(/2,500 credits held/g)).toHaveLength(1); // only the rate line
   });
   it('says one minute left when a minute or less remains', () => {
-    const t = text(render(running({ secondsLeft: 45 })));
-    expect(t).toContain('1 minute left in this block');
-    expect(t).not.toContain('of 5 minutes used');
+    const html = render(running({ secondsLeft: 45 }));
+    expect(html).toMatch(/aria-valuetext="1 minute left in this block"/);
+    expect(text(html)).not.toContain('left in this block'); // F417: the words are the bar's value text only
+    expect(html).not.toMatch(/aria-valuetext="[^"]*of 5 minutes used/);
   });
   it('is absent where there is no block', () => {
     expect(render(view())).not.toMatch(/progressbar/);
@@ -189,7 +191,7 @@ describe('claim card', () => {
 describe('one scroll area', () => {
   it('keeps the header block first, scrolls everything between in one body, and keeps the notice last', () => {
     const html = render(running());
-    const head = html.indexOf('class="fc-head"');
+    const head = html.indexOf('class="fc-head');
     const block = html.indexOf('class="fc-block');
     const body = html.indexOf('class="fc-body"');
     const tabs = html.indexOf('role="tablist"');
@@ -260,21 +262,166 @@ describe('where the other things stay', () => {
   });
 });
 
-describe('F389 live transcript strip', () => {
+describe('F417 the running top row', () => {
   const lines = [{ seq: 0, text: 'Good evening', startMs: 0 }, { seq: 1, text: 'and welcome', startMs: 2000 }];
-  it('is pinned before .fc-body, outside it, while running on the Claims tab, with the newest words', () => {
+  const row = (html) => html.slice(html.indexOf('class="fc-toprow"'), html.indexOf('class="fc-block'));
+  it('is one row: the tabs, then the time left and Stop, then the link button, with the progress line right under it', () => {
     const html = render(running({ transcript: lines }));
-    const strip = html.indexOf('aria-label="Latest transcript"');
-    expect(strip).toBeGreaterThan(-1);
-    expect(strip).toBeGreaterThan(html.indexOf('class="fc-block'));
-    expect(strip).toBeLessThan(html.indexOf('class="fc-body"'));
-    expect(html.slice(strip, html.indexOf('class="fc-body"'))).toContain('Good evening and welcome');
+    const r = row(html);
+    const at = (needle) => r.indexOf(needle);
+    expect(at('role="tablist"')).toBeGreaterThan(-1);
+    expect(at('role="tablist"')).toBeLessThan(at('class="fc-clock"'));
+    expect(at('class="fc-clock"')).toBeLessThan(at('data-fc="stop"'));
+    expect(at('data-fc="stop"')).toBeLessThan(at('data-fc="link"'));
+    expect(text(r)).toContain('Claims · 4');
+    expect(text(r)).toContain('3:20 left');
+    expect(r).toMatch(/<button[^>]*data-fc="link"[^>]*aria-label="Paste a video link"/);
+    expect(html.indexOf('class="fc-block')).toBeGreaterThan(html.indexOf('data-fc="link"'));
+    expect(html.indexOf('class="fc-block')).toBeLessThan(html.indexOf('class="fc-body"'));
   });
-  it('is there while ending, and says Listening… with no lines', () => {
-    expect(render(running({ status: 'ending' }))).toMatch(/aria-label="Latest transcript"/);
-    expect(text(render(running({ transcript: [] })).split('class="fc-body"')[0])).toContain('Listening…');
+  it('has no elapsed time, no block text, no transcript strip and no separate visible title line', () => {
+    const html = render(running({ transcript: lines }));
+    const chrome = html.slice(0, html.indexOf('class="fc-body"'));
+    expect(text(chrome)).not.toMatch(/elapsed|left in this block|of 5 minutes used|Full transcript/);
+    expect(html).not.toMatch(/Latest transcript|fc-tstrip|fc-headtext/);
+    expect(html).toMatch(/<h3[^>]*id="fc-title"[^>]*class="fc-title fc-sr"|<h3 id="fc-title" class="fc-title fc-sr" tabindex="-1">Fact-check<\/h3>/);
   });
-  it.each(['ended', 'idle', 'choosing', 'starting', 'error'])('is absent when %s', (status) => {
-    expect(render(view({ status, transcript: lines }))).not.toMatch(/Latest transcript/);
+  it('shows only the dot for the normal checking state; its words are visually hidden', () => {
+    const html = render(running());
+    const chrome = html.slice(0, html.indexOf('class="fc-body"'));
+    expect(chrome).not.toMatch(/fc-status-line/);
+    expect(chrome).toMatch(/<p class="fc-sr">Checking<\/p>/);
+  });
+  it('shows "Finishing…" once while ending (the clock); the status line keeps it for screen readers only', () => {
+    const html = render(running({ status: 'ending' }));
+    const chrome = html.slice(0, html.indexOf('class="fc-body"'));
+    expect(chrome.match(/Finishing…/g)).toHaveLength(2); // the clock and the hidden status
+    expect(chrome).toMatch(/<span class="fc-clock">Finishing…<\/span>/);
+    expect(chrome).toMatch(/<p class="fc-sr">Finishing…<\/p>/);
+    expect(chrome).not.toMatch(/fc-status-line|class="fc-status /);
+    expect(chrome).not.toMatch(/fc-livedot/);
+  });
+  it('is the same header and top row in every state: the idle panel has none, the ended panel keeps the title, the status line, the block text and the tabs (no running controls)', () => {
+    const idle = render(view());
+    expect(idle).not.toMatch(/fc-toprow|data-fc="link"/);
+    expect(idle).toMatch(/class="fc-title"/);
+    const ended = render(view({ status: 'ended', endReason: 'time', minutesBought: 5, final: { minutes_used: 2, credits_charged: 1000, balance: 4000 }, claims: [claim('1', 'supported')] }));
+    expect(ended).toMatch(/<header class="fc-head fc-head--stack"><h3 id="fc-title" class="fc-title" tabindex="-1">Fact-check<\/h3><div class="fc-toprow"><div class="fc-tabs" role="tablist"/);
+    expect(ended).not.toMatch(/data-fc="link"|data-fc="stop"|fc-clock|fc-livedot/);
+    expect(ended).toMatch(/class="fc-status fc-status--off"/);
+    expect(text(ended)).toContain('2 of 5 minutes used');
+  });
+  it('wraps its pieces in the same order running or ended: heading, row, block, status', () => {
+    const at = (html, needle) => html.indexOf(needle);
+    for (const html of [render(running()), render(view({ status: 'ended', minutesBought: 5, final: { minutes_used: 2 }, claims: [claim('1', 'supported')] }))]) {
+      const head = html.slice(0, html.indexOf('class="fc-body"'));
+      expect(at(head, 'id="fc-title"')).toBeLessThan(at(head, 'class="fc-toprow"'));
+      expect(at(head, 'class="fc-toprow"')).toBeLessThan(at(head, 'class="fc-block'));
+      expect(at(head, 'class="fc-block')).toBeLessThan(at(head, '</header>'));
+    }
+  });
+});
+
+describe('F417 the paste-a-link slot while running', () => {
+  const form = <form className="ltv-paste"><input aria-label="Video link" /></form>;
+  const chromeOf = (html) => html.slice(0, html.indexOf('class="fc-body"'));
+  it('renders nothing for the form while linkOpen is false, and the button says so', () => {
+    const html = render(running(), { linkForm: form, linkOpen: false, onToggleLink: () => {} });
+    expect(html).not.toMatch(/ltv-paste|class="fc-linkslot"/);
+    expect(html).toMatch(/data-fc="link"[^>]*aria-expanded="false"[^>]*aria-controls="fc-linkslot"/);
+  });
+  it('renders the form under the top row and the progress line while linkOpen is true', () => {
+    const html = render(running(), { linkForm: form, linkOpen: true, onToggleLink: () => {} });
+    expect(html).toMatch(/data-fc="link"[^>]*aria-expanded="true"/);
+    expect(html.match(/<form class="ltv-paste/g)).toHaveLength(1);
+    expect(html.indexOf('id="fc-linkslot"')).toBeGreaterThan(html.indexOf('class="fc-block'));
+    expect(html.indexOf('id="fc-linkslot"')).toBeLessThan(html.indexOf('class="fc-body"'));
+    expect(chromeOf(html)).toContain('<form class="ltv-paste');
+  });
+  it('ignores linkOpen outside a session: the form stays at the top as before', () => {
+    for (const linkOpen of [false, true]) {
+      const html = render(view(), { linkForm: form, linkOpen, onToggleLink: () => {} });
+      expect(html.match(/<form class="ltv-paste/g)).toHaveLength(1);
+      expect(html.indexOf('class="fc-linkslot"')).toBeLessThan(html.indexOf('class="fc-head"'));
+      expect(html).not.toMatch(/data-fc="link"/);
+    }
+  });
+  it('is the same slot element (same class base, after the head) once the session has ended, without the running id', () => {
+    const ended = render(view({ status: 'ended', minutesBought: 5, final: { minutes_used: 2 }, claims: [claim('1', 'supported')] }), { linkForm: form, linkOpen: true, onToggleLink: () => {} });
+    expect(ended).toMatch(/<\/header><div class="fc-linkslot"><form class="ltv-paste/);
+    expect(ended).not.toMatch(/id="fc-linkslot"/);
+    const live = render(running(), { linkForm: form, linkOpen: true, onToggleLink: () => {} });
+    expect(live).toMatch(/<\/header><div class="fc-linkslot fc-linkslot--live" id="fc-linkslot"><form class="ltv-paste/);
+  });
+});
+
+describe('F417 the claim card', () => {
+  const priced = (extra = {}) => running({}, { flag: { available: true, creditsPerMinute: 500, recheckCredits: 40, userId: 'u1' }, ...extra });
+  const card = (html, id = '1') => {
+    const from = html.indexOf(`id="fc-claim-${id}"`);
+    const next = html.indexOf('<li class="fc-card', from);
+    return html.slice(from, next === -1 ? undefined : next);
+  };
+  it('puts Copy, Check again and the time checked in one row', () => {
+    const c = card(render(priced()));
+    const start = c.indexOf('class="fc-card-actions"');
+    const at = (needle) => c.indexOf(needle, start);
+    expect(c.match(/class="fc-card-actions"/g)).toHaveLength(1);
+    expect(start).toBeGreaterThan(-1);
+    expect(c.indexOf('class="fc-time"')).toBeGreaterThan(start); // the time is no longer a line of its own above the row
+    expect(at('data-fc="copy-claim"')).toBeGreaterThan(-1);
+    expect(at('data-fc="copy-claim"')).toBeLessThan(at('data-fc="recheck"'));
+    expect(at('data-fc="recheck"')).toBeLessThan(at('class="fc-time"'));
+    expect(c.match(/data-fc="recheck"/g)).toHaveLength(1);
+  });
+  it('has the sources behind a "N sources" button, closed until pressed, that controls the pills', () => {
+    const c = card(render(running()));
+    expect(c).toMatch(/<button[^>]*class="fc-sources-toggle"[^>]*aria-expanded="false"[^>]*aria-controls="([^"]+)"[^>]*>1 source</);
+    const id = c.match(/class="fc-sources-toggle"[^>]*aria-controls="([^"]+)"/)[1];
+    expect(c).toMatch(new RegExp(`<ul[^>]*class="fc-sources fc-sources--pills"[^>]*id="${id.replace(/[:]/g, '\\$&')}"[^>]*hidden`));
+  });
+  it('says "2 sources" for two, and shows no button on a card with none', () => {
+    const two = running({ claims: [claim('1', 'supported', { sources: [{ url: 'https://example.org/a', title: 'A' }, { url: 'https://example.org/b', title: 'B' }] })] });
+    expect(text(card(render(two)))).toContain('2 sources');
+    const none = running({ claims: [claim('1', 'supported', { sources: [] })] });
+    expect(card(render(none))).not.toMatch(/fc-sources/);
+  });
+});
+
+describe('F417 the stylesheet', () => {
+  const css = readFileSync(new URL('./factCheck.css', import.meta.url), 'utf8');
+  const phone = css.slice(css.indexOf('@media (max-width: 600px) {'));
+  it('has no transcript-strip rules left', () => {
+    expect(css).not.toMatch(/fc-tstrip/);
+  });
+  it('wraps the running row on phones only: the tabs take the first line (one row hid the Summary tab at 375px)', () => {
+    expect(phone).toMatch(/\.fc-head--live \.fc-toprow \{ flex-wrap: wrap;/);
+    expect(phone).toMatch(/\.fc-head--live \.fc-toprow > \[role="tablist"\] \{ flex: 1 0 100%; \}/);
+  });
+  it('puts the first item after the tabs at the right on phones, with or without the dot (no dot while ending)', () => {
+    expect(phone).toMatch(/\.fc-head--live \.fc-toprow > \[role="tablist"\] \+ \* \{ margin-left: auto;/);
+    expect(css).not.toMatch(/\.fc-livedot \{[^}]*margin-left/);
+    expect(phone).not.toMatch(/\.fc-livedot \{ margin-left/);
+  });
+  it('does not wrap the running row above 600px, and gives its buttons 36px only above 1080px on a fine pointer (the page rule owns 40px)', () => {
+    expect(css).toMatch(/\.fc-head--live \.fc-toprow \{[^}]*flex-wrap:\s*nowrap/);
+    const floor = css.match(/@media \(min-width: 1081px\) and \(pointer: fine\) \{[^}]*\.fc-head--live \.fc-toprow \.fc-btn \{ min-height: 36px; \}/);
+    expect(floor).not.toBeNull();
+    expect(css).not.toMatch(/not \(pointer: coarse\)/);
+    expect(css.replace(floor[0], '')).not.toMatch(/\.fc-toprow \.fc-btn[^{]*\{[^}]*min-height/);
+  });
+  it('shows one toggle for the form on phones while a session runs: the form\'s own toggle is hidden in the slot, its body shown, with a selector that beats pasteLink.css', () => {
+    const pasteCss = readFileSync(new URL('../liveTv/pasteLink.css', import.meta.url), 'utf8');
+    // pasteLink.css: two classes (0,2,0) for the toggle and for the hidden body on phones (0,3,0 with .is-open to show it).
+    expect(pasteCss).toMatch(/\.ltv-paste \.ltv-paste-toggle \{ display: inline-flex/);
+    expect(pasteCss).toMatch(/\.ltv-paste-body \{ display: none;/);
+    // Ours: an id plus two classes (1,2,0), inside the 600px block (the same block pasteLink.css uses).
+    expect(phone).toMatch(/#fc-linkslot \.ltv-paste \.ltv-paste-toggle \{ display: none; \}/);
+    expect(phone).toMatch(/#fc-linkslot \.ltv-paste \.ltv-paste-body \{ display: flex; \}/);
+    // The slot (and so the id) exists only while a session runs: after it ends the form's own toggle is the way again.
+    expect(css).not.toMatch(/[^#-]\bfc-linkslot[^-]*\.ltv-paste-toggle/);
+  });
+  it('shows the form outside a session on top of the panel with CSS order, so the DOM can keep the head first', () => {
+    expect(css).toMatch(/\.fc-panel > \.fc-linkslot:not\(\.fc-linkslot--live\) \{ order: -1; \}/);
   });
 });

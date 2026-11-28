@@ -1,4 +1,4 @@
-// F416: a deployed Edge Function only has the files under supabase/functions. A relative import that leaves that
+// F418: a deployed Edge Function only has the files under supabase/functions. A relative import that leaves that
 // folder (for example into the website's node_modules) works in a full checkout and in tests, but not once deployed,
 // and a function whose import fails does not start. Every relative import in function code must stay inside.
 import { assertEquals } from 'jsr:@std/assert@1';
@@ -14,7 +14,7 @@ async function* sourceFiles(dir: string): AsyncGenerator<string> {
   }
 }
 
-Deno.test('F416: no function imports a file outside supabase/functions', async () => {
+Deno.test('F418: no function imports a file outside supabase/functions', async () => {
   const escapes: string[] = [];
   const spec = /(?:import|export)\s[^'"]*?from\s*['"](\.{1,2}\/[^'"]+)['"]|import\(\s*['"](\.{1,2}\/[^'"]+)['"]\s*\)/g;
   for await (const file of sourceFiles(FUNCTIONS)) {

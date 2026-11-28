@@ -56,13 +56,19 @@ describe('the paste-a-link form (F387)', () => {
     expect(html).toContain('for="ltv-paste-input"');
     expect(form(html)).toContain('>Load video<');
   });
-  it('stays at the top of the panel in the other states too, outside the scrolling body', () => {
+  it('stays at the top of the panel in the other states too (folded away while running), outside the scrolling body', () => {
     for (const status of ['choosing', 'running', 'ended', 'error']) {
       seen.view = viewWith({ status });
       const html = render();
+      if (status === 'running') { // F417: while a session runs the form is folded away until the link button opens it
+        expect(html.match(/<form class="ltv-paste/g), status).toBeNull();
+        continue;
+      }
       expect(html.match(/<form class="ltv-paste/g), status).toHaveLength(1);
       const panel = html.slice(html.indexOf('class="ltv-panelcol"'), html.indexOf('class="ltv-deck-tabs"'));
-      expect(panel.indexOf('<form class="ltv-paste'), status).toBeLessThan(panel.indexOf('class="fc-head"'));
+      // The DOM holds the form after the head, so the head and its tabs keep their place when a session ends
+      // (focus); factCheck.css puts it first on screen (order: -1, asserted in the panel's stylesheet test).
+      expect(panel.indexOf('<form class="ltv-paste'), status).toBeGreaterThan(panel.indexOf('class="fc-head '));
       expect(panel.indexOf('<form class="ltv-paste'), status).toBeLessThan(panel.indexOf('class="fc-body"') === -1 ? Infinity : panel.indexOf('class="fc-body"'));
     }
   });

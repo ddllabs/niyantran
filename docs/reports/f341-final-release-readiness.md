@@ -1,4 +1,4 @@
-# Feature F341 (main: F417) — Final Release Readiness & Verification Report
+# Feature F341 (main: F419) — Final Release Readiness & Verification Report
 
 > **Status: Historical (2026-11-16).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
 

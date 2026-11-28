@@ -14,7 +14,7 @@ Implements [the approved spec](../specs/2026-11-14-private-file-manager.md),
 informed by the [integration audit](../research/2026-11-13-file-manager-integration-audit.md),
 [compatibility audit](../research/2026-11-15-ingestion-rag-compatibility-audit.md), and
 [functionality reference](../specs/private-file-manager-functionality.md).
-The task is tracked as F341 (main: F417) in [open work](open-work.md).
+The task is tracked as F341 (main: F419) in [open work](open-work.md).
 
 ## Architectural Baseline & Ingestion Refinements
 

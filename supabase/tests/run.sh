@@ -80,7 +80,7 @@ m() { echo "$MIG/$1"; }
 # fixture name -> container, then the ordered bootstrap files.
 chain() {
   case "$1" in
-    # F341/F416: the contributor's private-file-manager fixtures, re-pointed at main's file-manager chain
+    # F341/F418: the contributor's private-file-manager fixtures, re-pointed at main's file-manager chain
     # F411's chain (file_manager_schema) is what each fixture proves, so the vacuity check drops 20261126150000 and the
     # tables go missing. The same fixture must also pass on main's final state (grants F412 and credit fixes F413
     # applied, as on NTER): user_files_full_chain_check rebuilds that chain (USER_FILES_FULL=1) and runs it again.

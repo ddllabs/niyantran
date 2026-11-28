@@ -1,4 +1,4 @@
-# F341 (main: F417) — CI & Production Readiness Report
+# F341 (main: F419) — CI & Production Readiness Report
 
 > **Status: Historical (2026-11-23).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
 

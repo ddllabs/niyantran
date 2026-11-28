@@ -1,4 +1,4 @@
-# Spec: bringing the `file-manager` branch into `main` — V1 (F416)
+# Spec: bringing the `file-manager` branch into `main` — V1 (F418)
 
 > **Status: Living (2026-11-28), approved.** Approved by the developer on 2026-11-28, with the recommended answer to each
 > open question (recorded under Decisions). Plan: `docs/plans/2026-11-28-file-manager-integration.md`.
@@ -131,7 +131,7 @@ private-file search (`match_user_files` when private file ids are given) is adde
 - **Always:**
   - Keep the contributor's commits and authorship by merging, not squashing their history.
   - Pin the integration to `a4a09d84`.
-  - Give the branch's tracker items free numbers (F416 onward).
+  - Give the branch's tracker items free numbers (F418 onward).
   - List every test expectation changed, and why.
 - **Ask first:**
   - The `App.jsx` sign-in change.
@@ -157,7 +157,7 @@ private-file search (`match_user_files` when private file ids are given) is adde
    `file_manager_grants` and `file_manager_credit_fixes` fixtures still pass.
 5. **The preview passes the runtime check above,** and no file-manager data is reachable signed out.
 6. **The tracker is updated:**
-   - F416 (this work);
+   - F418 (this work);
    - the branch's items, renumbered;
    - a deferred item for `mobile-client`;
    - F415's Cancel-button half closed, if it is done in this work.

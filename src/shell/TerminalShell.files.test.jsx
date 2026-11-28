@@ -1,4 +1,4 @@
-// F416: TerminalShell with REAL effects and state (hookHarness.js) over a fake browser: "Ask AI" from the file manager
+// F418: TerminalShell with REAL effects and state (hookHarness.js) over a fake browser: "Ask AI" from the file manager
 // (the niy-ai-open event) closes the file manager, so the AI panel it opened underneath is seen, and puts the desk's
 // address back without a hashchange (a hashchange would clear the selection the panel was opened with).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

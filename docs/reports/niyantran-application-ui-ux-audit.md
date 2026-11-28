@@ -12,7 +12,7 @@
 
 ## 1. Executive Summary
 
-This audit evaluates the user experience, responsiveness, accessibility, typography, and visual polish across the entire Niyantran AI workbench, with focus on the File Manager (F341 (main: F417)), AI Chat Panel, Attachment Tray, and modal interfaces.
+This audit evaluates the user experience, responsiveness, accessibility, typography, and visual polish across the entire Niyantran AI workbench, with focus on the File Manager (F341 (main: F419)), AI Chat Panel, Attachment Tray, and modal interfaces.
 
 ---
 

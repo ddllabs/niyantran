@@ -1,9 +1,9 @@
-# Implementation plan: bringing the `file-manager` branch into `main` (F416)
+# Implementation plan: bringing the `file-manager` branch into `main` (F418)
 
 > **Status: Living (2026-11-28), approved and in progress.** Source spec:
 > `docs/specs/2026-11-28-file-manager-branch-integration.md` (approved 2026-11-28). The developer approved this plan on
 > 2026-11-28, with the recommended release order (deploy the functions, then merge). Phases 1 to 3 and the browser check
-> are done (see Progress); the deploys and the merge each still need the developer's yes. Open item: F416 in
+> are done (see Progress); the deploys and the merge each still need the developer's yes. Open item: F418 in
 > `docs/plans/open-work.md`.
 
 ## Overview
@@ -89,11 +89,11 @@ production steps after it (Edge Function deploys, then indexing) each have their
 - [x] **Task 3: Resolve the tracker conflict and renumber the branch's items.**
   - Merge `docs/plans/open-work.md`, keeping `main`'s list.
   - Renumber the branch's items:
-    - F341 (the file manager) becomes F417;
-    - F342 and its phases (the website's phone layout) become F418;
-    - F343 to F346 (the `nter-mobile/` app) are folded into one deferred item, F419, which points at the contributor's
+    - F341 (the file manager) becomes F419;
+    - F342 and its phases (the website's phone layout) become F420;
+    - F343 to F346 (the `nter-mobile/` app) are folded into one deferred item, F421, which points at the contributor's
       branch.
-  - Close F416's sub-steps as they land. Move the next free number to F420.
+  - Close F418's sub-steps as they land. Move the next free number to F422.
   - Acceptance: no duplicate F numbers.
   - Verify: a script that counts each `**F<n> —` heading in `open-work.md` and `open-work-done.md`.
   - **Size:** S (1 file).
@@ -192,12 +192,12 @@ production steps after it (Edge Function deploys, then indexing) each have their
   - `research-chat`, `document-file`, `ingest-worker`.
   - After each deploy: the function's version goes up, and one existing request works.
 - [ ] **Task 13: Merge the PR** (the developer's yes). Then check `main`'s CI on the merge commit, and record the release
-  in F416.
+  in F418.
 
 ### Checkpoint 4 (V1 done)
 
 - [ ] The spec's success criteria 1 to 7 are met.
-- [ ] F416 is closed in `open-work-done.md` with the commits.
+- [ ] F418 is closed in `open-work-done.md` with the commits.
 - [ ] The contributor has been told about the new workflow (the developer's step).
 
 ### After V1 (not in this plan; each is its own item)
@@ -205,7 +205,7 @@ production steps after it (Edge Function deploys, then indexing) each have their
 - Turning indexing on: the `app_flags` row, plus `IS_INDEXING_BILLING_DEPLOYED`.
 - F414: the declared file size.
 - F415, part 1: the hold lapsing on a long job.
-- F419: the `nter-mobile/` app's place.
+- F421: the `nter-mobile/` app's place.
 
 ## Progress (2026-11-28)
 
@@ -237,6 +237,17 @@ production steps after it (Edge Function deploys, then indexing) each have their
   - The test file was removed afterwards, and the account's own file is untouched.
   - Not checked: a question about a private file and its citation, which need the new `research-chat` and
     `document-file` deployed (Task 12).
+- **2026-11-28, renumbered.** `main` took F416 (a web-text queue item, #251) and F417 (the Live TV compact panel, #252)
+  the same day, so this work's items became F418 (the integration), F419 (the file manager), F420 (the phone layout)
+  and F421 (`nter-mobile/`). Commits before the renumbering use the old numbers.
+- **2026-11-28, release.**
+  - `ingest-worker` imported SheetJS from `node_modules/`, which a deployed function does not have. It now loads
+    SheetJS's own build of the same version, and `_shared/imports_test.ts` fails on any import that leaves
+    `supabase/functions/`.
+  - `document-file` v11 was deployed through the Supabase MCP tool. The deployed source was read back and matches the
+    repository. Two calls without a valid sign-in both got its 401 reply.
+  - The developer chose to merge first. `research-chat` (v118) and `ingest-worker` (v20) are deployed later with the
+    CLI. Until then, attaching a private file to a question and citing it do not work; the drive itself does.
 
 ## Risks and mitigations
 
@@ -247,7 +258,7 @@ production steps after it (Edge Function deploys, then indexing) each have their
 | The quota fixture's plan chain makes the SQL job slower (F302) | Low | Report the time. Use stand-ins, as `bootstrap_file_manager_deps.sql` does, if it adds more than about a minute. |
 | The contributor pushes to `file-manager` during the work | Low | The integration is pinned to `a4a09d84`. New commits are listed, and come in later as a pull request. |
 | The preview check writes test files to NTER | Low | A dedicated test account, with the files removed afterwards through the UI's empty trash. This needs the developer's yes. |
-| Dropping mobile-app-only docs loses context | Low | They stay on `origin/file-manager`, which the plan never changes. F419 points at them. |
+| Dropping mobile-app-only docs loses context | Low | They stay on `origin/file-manager`, which the plan never changes. F421 points at them. |
 
 ## Open questions
 

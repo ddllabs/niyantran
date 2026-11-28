@@ -1,4 +1,4 @@
-# NTER Mobile — F346 (main: F419) Visual Refinement Acceptance Screenshot Manifest
+# NTER Mobile — F346 (main: F421) Visual Refinement Acceptance Screenshot Manifest
 
 > **Status: Historical (2026-11-23).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
 

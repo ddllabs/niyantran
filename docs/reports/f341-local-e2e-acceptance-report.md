@@ -1,4 +1,4 @@
-# Feature F341 (main: F417): Personal Private File Manager & Knowledge Integration
+# Feature F341 (main: F419): Personal Private File Manager & Knowledge Integration
 # Corrective Local End-to-End Execution & Final Acceptance Report
 
 > **Status: Historical (2026-11-15).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.

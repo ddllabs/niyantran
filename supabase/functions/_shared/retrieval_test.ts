@@ -848,10 +848,10 @@ Deno.test('F341: with no private file ids only the corpus RPCs run, and a corpus
   }
 });
 
-// F416: with no private files, search keeps the database's order (the hybrid RPC returns rows in fused order, and its
+// F418: with no private files, search keeps the database's order (the hybrid RPC returns rows in fused order, and its
 // similarity is the cosine, not the fused score), as main did; the merged sort by similarity applies only to a search
 // that also has private rows.
-Deno.test('F416: a search with no private files keeps the RPC order (fused order is not re-sorted by similarity)', async () => {
+Deno.test('F418: a search with no private files keeps the RPC order (fused order is not re-sorted by similarity)', async () => {
   const r = (id: string, s: number) => ({ id, document_id: 'd', content: id, similarity: s, chunk_index: 0, source_kind: 'document', char_from: 0, char_to: 1, title: 'T' });
   const chunks = await search({
     embed: () => Promise.resolve({ vector: vec(), model: 'openai/text-embedding-3-small' }),

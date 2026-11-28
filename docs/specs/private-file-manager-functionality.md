@@ -10,7 +10,7 @@
 > - Technical Specification: [2026-11-14-private-file-manager.md](2026-11-14-private-file-manager.md)
 > - Implementation Plan: [2026-11-14-private-file-manager.md](../plans/2026-11-14-private-file-manager.md)
 > - Compatibility Audit: [2026-11-15-ingestion-rag-compatibility-audit.md](../research/2026-11-15-ingestion-rag-compatibility-audit.md)
-> - Tracking Item: [open-work.md (F341 (main: F417))](../plans/open-work.md)
+> - Tracking Item: [open-work.md (F341 (main: F419))](../plans/open-work.md)
 
 ---
 
