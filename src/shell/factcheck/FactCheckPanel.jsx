@@ -12,14 +12,12 @@ import { CoveredBanner, Parts, ReportControls } from './FactCheckParts.jsx';
 import { formatPosition, partModel } from './factCheckShare.js';
 import { filterClaims, shownResult, verdictCounts } from './claimFilter.js';
 import { RovingTabs, VerdictTiles } from './FactCheckTabs.jsx';
-import { blockLine, statusLine } from './panelStatus.js';
+import { SILENT_NOTICE_MS, blockLine, statusLine } from './panelStatus.js';
 import { SummaryTab } from './SummaryTab.jsx';
 import { CopyClaimButton, ExportButton, PdfButton, videoWatchLink } from './ClaimExport.jsx';
 import { AnnounceProvider, AnnouncerRegion, createAnnouncer, useAnnounce } from './announce.jsx';
 import { claimCopyText, exportFileName, sessionExportText, sessionStartOf } from './claimExport.js';
 import { HighlightedText, TRANSCRIPT_TEXT, TranscriptBar, useTranscriptTools } from './TranscriptTools.jsx';
-// One silence threshold for the panel's notice and the page's captions (LiveCaptions.jsx).
-import { SILENT_NOTICE_MS } from './LiveCaptions.jsx';
 
 const LINK_SLOT_ID = 'fc-linkslot';
 // The panel stacks below the player at this width and under (factCheck.css, same number).
@@ -529,32 +527,39 @@ function LinkIcon() {
   );
 }
 
-// F416: the one top row of a running session: the tabs, the time left and Stop, then the link button; the
-// heading is there for screen readers only. The dot alone shows the normal checking state (its words are
-// visually hidden); any other state keeps its words visible on a line under the row.
-export function RunningHead({ session, heading, children, onStop, linkOpen, onToggleLink, linkButton }) {
+// F416: the controls that follow the tabs in the top row while a session runs: the dot (the normal checking state
+// shows as the dot alone), the time left (or "Finishing…"), Stop, then the link button. The row itself, the
+// heading and the status line are in PanelBody, the same in every state, so focus survives the session's end.
+export function RunningControls({ session, onStop, linkOpen, onToggleLink, linkButton }) {
   const st = statusLine(session);
-  const normal = st.tone === 'on';
-  const words = normal ? st.text.split(' · ')[0] : st.text; // no elapsed time while running
   return (
-    <header className="fc-head fc-head--live">
-      <h3 id="fc-title" className="fc-title fc-sr" tabIndex={heading ? -1 : undefined} ref={heading}>Fact-check</h3>
-      <div className="fc-toprow">
-        {children}
-        {normal ? <span className={`fc-livedot fc-status--${st.tone}`} aria-hidden="true"><span className="fc-dot" /></span> : null}
-        <span className="fc-clock">{session.status === 'ending' ? 'Finishing…' : `${formatClock(session.secondsLeft)} left`}</span>
-        <button type="button" className="ltv-action-btn fc-btn" data-fc="stop" disabled={session.status === 'ending'} onClick={onStop}>Stop</button>
-        <button
-          type="button" className="ltv-action-btn fc-btn fc-iconbtn" data-fc="link" ref={linkButton}
-          aria-label="Paste a video link" aria-expanded={Boolean(linkOpen)} aria-controls={LINK_SLOT_ID} onClick={onToggleLink}
-        >
-          <LinkIcon />
-        </button>
-      </div>
-      <BlockLine session={session} line />
-      {normal ? <p className="fc-sr">{words}</p> : <p className={`fc-status fc-status--${st.tone} fc-status-line`}><span className="fc-dot" aria-hidden="true" />{words}</p>}
-    </header>
+    <>
+      {st.tone === 'on' ? <span className={`fc-livedot fc-status--${st.tone}`} aria-hidden="true"><span className="fc-dot" /></span> : null}
+      <span className="fc-clock">{session.status === 'ending' ? 'Finishing…' : `${formatClock(session.secondsLeft)} left`}</span>
+      <button type="button" className="ltv-action-btn fc-btn" data-fc="stop" disabled={session.status === 'ending'} onClick={onStop}>Stop</button>
+      <button
+        type="button" className="ltv-action-btn fc-btn fc-iconbtn" data-fc="link" ref={linkButton}
+        aria-label="Paste a video link" title="Paste a video link" aria-expanded={Boolean(linkOpen)} aria-controls={LINK_SLOT_ID} onClick={onToggleLink}
+        onKeyDown={(e) => {
+          // Escape on the button closes the open form here and goes no further (the page's own listeners).
+          if (e.key !== 'Escape' || !linkOpen) return;
+          e.stopPropagation();
+          onToggleLink();
+        }}
+      >
+        <LinkIcon />
+      </button>
+    </>
   );
+}
+
+// The status line under the header. Outside a session it is the dot and words, as before. While a session runs
+// its words are for screen readers only: the normal checking state is the dot in the top row, and "Finishing…"
+// is already the clock's text (shown once).
+function StatusLine({ session, live }) {
+  const st = statusLine(session);
+  if (!live) return <p className={`fc-status fc-status--${st.tone}`}><span className="fc-dot" aria-hidden="true" />{st.text}</p>;
+  return <p className="fc-sr">{st.tone === 'on' ? st.text.split(' · ')[0] : st.text}</p>;
 }
 
 // The paste-a-link form (built by the page, which owns what it does) sits at the very top of the panel in every
@@ -680,6 +685,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
   };
   const live = s.status === 'running' || s.status === 'ending';
   const hasContent = s.transcript.length > 0 || s.claims.length > 0;
+  const slotShown = live ? Boolean(linkOpen && linkForm) : Boolean(linkForm);
   const showWork = live || s.status === 'ended' || (s.status === 'error' && hasContent);
   const gaps = s.skippedPieces > 0 || s.droppedTurns > 0;
   // A new session needs a known price (the flag can be off after a failed load or an `off` ending).
@@ -719,38 +725,36 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
   return (
     <AnnounceProvider value={say}>
     <section className="fc-panel" aria-label="Fact-check" data-status={s.status} ref={panel}>
-      {live ? null : <LinkSlot>{linkForm}</LinkSlot>}
       <div className="fc-sr" aria-live="polite" aria-atomic="true">{view.announcement}</div>
-      {live ? (
-        <>
-          <RunningHead
-            session={s} heading={heading} onStop={onStop} linkOpen={linkOpen} onToggleLink={onToggleLink} linkButton={linkButton}
-          >
+      {/* The tree is the same in every state (a session ending must not remount the tabs, the heading or the
+          paste field and drop focus): one header, one top row with the tabs, one slot. Only classes and the
+          running controls change; the row shows wherever the tabs do. */}
+      <header className={`fc-head ${live ? 'fc-head--live' : 'fc-head--stack'}`}>
+        <h3 id="fc-title" className={`fc-title${live ? ' fc-sr' : ''}`} tabIndex={heading ? -1 : undefined} ref={heading}>Fact-check</h3>
+        {showWork ? (
+          <div className="fc-toprow">
             {tabsEl}
-          </RunningHead>
-          {/* F416: the paste form folds away while a session runs; it opens under the top row. */}
-          {linkOpen && linkForm ? (
-            <div
-              className="fc-linkslot" id={LINK_SLOT_ID}
-              onKeyDown={(e) => {
-                if (e.key !== 'Escape') return;
-                e.stopPropagation();
-                onToggleLink();
-                linkButton.current?.focus();
-              }}
-            >
-              {linkForm}
-            </div>
-          ) : null}
-        </>
-      ) : (
-        <>
-          <header className="fc-head"><HeadTitle session={s} heading={heading} /></header>
-          <BlockLine session={s} />
-          {/* The tablist is pinned outside the scroll area, so the way to the Transcript never scrolls away with the claims. */}
-          {showWork ? tabsEl : null}
-        </>
-      )}
+            {live ? <RunningControls session={s} onStop={onStop} linkOpen={linkOpen} onToggleLink={onToggleLink} linkButton={linkButton} /> : null}
+          </div>
+        ) : null}
+        <BlockLine session={s} line={live} />
+        <StatusLine session={s} live={live} />
+      </header>
+      {/* F416: outside a session the form is at the top as before (CSS order); while one runs it folds away and
+          opens under the top row. */}
+      {slotShown ? (
+        <div
+          className={`fc-linkslot${live ? ' fc-linkslot--live' : ''}`} id={live ? LINK_SLOT_ID : undefined}
+          onKeyDown={live ? (e) => {
+            if (e.key !== 'Escape') return;
+            e.stopPropagation();
+            onToggleLink();
+            linkButton.current?.focus();
+          } : undefined}
+        >
+          {linkForm}
+        </div>
+      ) : null}
 
       {/* One scroll area (factCheck.css): the head above and the foot below stay put; this body scrolls. */}
       <div className="fc-body">

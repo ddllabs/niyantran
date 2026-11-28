@@ -8,7 +8,8 @@ import {
 import { FactCheckPanel } from './factcheck/FactCheckPanel.jsx';
 import { PastSessions } from './factcheck/PastSessions.jsx';
 import { LatestClaimStrip } from './factcheck/LatestClaimStrip.jsx';
-import { LiveCaptions, SILENT_NOTICE_MS } from './factcheck/LiveCaptions.jsx';
+import { LiveCaptions } from './factcheck/LiveCaptions.jsx';
+import { SILENT_NOTICE_MS } from './factcheck/panelStatus.js';
 import { latestVerdictClaim } from './factcheck/claimFilter.js';
 import { leaveFullscreenThen } from './factcheck/leaveFullscreen.js';
 import { ChannelCard } from './liveTv/ChannelCard.jsx';
@@ -810,7 +811,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               </div>
             )}
             {showCaptions ? (
-              <LiveCaptions lines={factCheck.view.session.transcript || []} listening={captionsListening} />
+              <LiveCaptions lines={factCheck.view.session.transcript || []} listening={captionsListening} raised={Boolean(latestClaim)} />
             ) : null}
             {sessionRunning ? (
               <>

@@ -66,7 +66,9 @@ describe('the paste-a-link form (F387)', () => {
       }
       expect(html.match(/<form class="ltv-paste/g), status).toHaveLength(1);
       const panel = html.slice(html.indexOf('class="ltv-panelcol"'), html.indexOf('class="ltv-deck-tabs"'));
-      expect(panel.indexOf('<form class="ltv-paste'), status).toBeLessThan(panel.indexOf('class="fc-head"'));
+      // The DOM holds the form after the head, so the head and its tabs keep their place when a session ends
+      // (focus); factCheck.css puts it first on screen (order: -1, asserted in the panel's stylesheet test).
+      expect(panel.indexOf('<form class="ltv-paste'), status).toBeGreaterThan(panel.indexOf('class="fc-head '));
       expect(panel.indexOf('<form class="ltv-paste'), status).toBeLessThan(panel.indexOf('class="fc-body"') === -1 ? Infinity : panel.indexOf('class="fc-body"'));
     }
   });

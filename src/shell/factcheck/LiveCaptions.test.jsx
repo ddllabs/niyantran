@@ -20,6 +20,11 @@ describe('LiveCaptions', () => {
     expect(html).toContain('Listening…');
     expect(html).toContain('is-listening');
   });
+  it('carries is-raised only when the page says the latest-claim strip shows', () => {
+    expect(renderToStaticMarkup(<LiveCaptions lines={lines} listening />)).not.toContain('is-raised');
+    expect(renderToStaticMarkup(<LiveCaptions lines={lines} listening raised={false} />)).not.toContain('is-raised');
+    expect(renderToStaticMarkup(<LiveCaptions lines={lines} listening raised />)).toMatch(/class="ltv-captions is-raised"/);
+  });
   it('shows nothing with no words and not listening', () => {
     expect(renderToStaticMarkup(<LiveCaptions lines={[]} listening={false} />)).toBe('');
   });

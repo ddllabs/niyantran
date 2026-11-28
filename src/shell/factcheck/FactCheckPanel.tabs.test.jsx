@@ -292,20 +292,33 @@ describe('F416 the running top row', () => {
     expect(chrome).not.toMatch(/fc-status-line/);
     expect(chrome).toMatch(/<p class="fc-sr">Checking<\/p>/);
   });
-  it('keeps the words of any other state visible (dot and words under the row)', () => {
+  it('shows "Finishing…" once while ending (the clock); the status line keeps it for screen readers only', () => {
     const html = render(running({ status: 'ending' }));
     const chrome = html.slice(0, html.indexOf('class="fc-body"'));
-    expect(chrome).toMatch(/<p class="fc-status fc-status--wait fc-status-line"><span class="fc-dot" aria-hidden="true"><\/span>Finishing…<\/p>/);
-    expect(chrome).not.toMatch(/<p class="fc-sr">Finishing/);
+    expect(chrome.match(/Finishing…/g)).toHaveLength(2); // the clock and the hidden status
+    expect(chrome).toMatch(/<span class="fc-clock">Finishing…<\/span>/);
+    expect(chrome).toMatch(/<p class="fc-sr">Finishing…<\/p>/);
+    expect(chrome).not.toMatch(/fc-status-line|class="fc-status /);
+    expect(chrome).not.toMatch(/fc-livedot/);
   });
-  it('is what the other states do not get: the idle and ended panels keep the title, the status line and the block text', () => {
+  it('is the same header and top row in every state: the idle panel has none, the ended panel keeps the title, the status line, the block text and the tabs (no running controls)', () => {
     const idle = render(view());
     expect(idle).not.toMatch(/fc-toprow|data-fc="link"/);
     expect(idle).toMatch(/class="fc-title"/);
-    const ended = render(view({ status: 'ended', endReason: 'time', minutesBought: 5, final: { minutes_used: 2, credits_charged: 1000, balance: 4000 } }));
-    expect(ended).not.toMatch(/fc-toprow|data-fc="link"/);
+    const ended = render(view({ status: 'ended', endReason: 'time', minutesBought: 5, final: { minutes_used: 2, credits_charged: 1000, balance: 4000 }, claims: [claim('1', 'supported')] }));
+    expect(ended).toMatch(/<header class="fc-head fc-head--stack"><h3 id="fc-title" class="fc-title" tabindex="-1">Fact-check<\/h3><div class="fc-toprow"><div class="fc-tabs" role="tablist"/);
+    expect(ended).not.toMatch(/data-fc="link"|data-fc="stop"|fc-clock|fc-livedot/);
     expect(ended).toMatch(/class="fc-status fc-status--off"/);
     expect(text(ended)).toContain('2 of 5 minutes used');
+  });
+  it('wraps its pieces in the same order running or ended: heading, row, block, status', () => {
+    const at = (html, needle) => html.indexOf(needle);
+    for (const html of [render(running()), render(view({ status: 'ended', minutesBought: 5, final: { minutes_used: 2 }, claims: [claim('1', 'supported')] }))]) {
+      const head = html.slice(0, html.indexOf('class="fc-body"'));
+      expect(at(head, 'id="fc-title"')).toBeLessThan(at(head, 'class="fc-toprow"'));
+      expect(at(head, 'class="fc-toprow"')).toBeLessThan(at(head, 'class="fc-block'));
+      expect(at(head, 'class="fc-block')).toBeLessThan(at(head, '</header>'));
+    }
   });
 });
 
@@ -332,6 +345,13 @@ describe('F416 the paste-a-link slot while running', () => {
       expect(html.indexOf('class="fc-linkslot"')).toBeLessThan(html.indexOf('class="fc-head"'));
       expect(html).not.toMatch(/data-fc="link"/);
     }
+  });
+  it('is the same slot element (same class base, after the head) once the session has ended, without the running id', () => {
+    const ended = render(view({ status: 'ended', minutesBought: 5, final: { minutes_used: 2 }, claims: [claim('1', 'supported')] }), { linkForm: form, linkOpen: true, onToggleLink: () => {} });
+    expect(ended).toMatch(/<\/header><div class="fc-linkslot"><form class="ltv-paste/);
+    expect(ended).not.toMatch(/id="fc-linkslot"/);
+    const live = render(running(), { linkForm: form, linkOpen: true, onToggleLink: () => {} });
+    expect(live).toMatch(/<\/header><div class="fc-linkslot fc-linkslot--live" id="fc-linkslot"><form class="ltv-paste/);
   });
 });
 
@@ -370,18 +390,38 @@ describe('F416 the claim card', () => {
 
 describe('F416 the stylesheet', () => {
   const css = readFileSync(new URL('./factCheck.css', import.meta.url), 'utf8');
+  const phone = css.slice(css.indexOf('@media (max-width: 600px) {'));
   it('has no transcript-strip rules left', () => {
     expect(css).not.toMatch(/fc-tstrip/);
   });
   it('wraps the running row on phones only: the tabs take the first line (one row hid the Summary tab at 375px)', () => {
-    const phone = css.slice(css.indexOf('@media (max-width: 600px) {'));
-    expect(phone).toMatch(/\.fc-toprow \{ flex-wrap: wrap;/);
-    expect(phone).toMatch(/\.fc-toprow > \[role="tablist"\] \{ flex: 1 0 100%; \}/);
+    expect(phone).toMatch(/\.fc-head--live \.fc-toprow \{ flex-wrap: wrap;/);
+    expect(phone).toMatch(/\.fc-head--live \.fc-toprow > \[role="tablist"\] \{ flex: 1 0 100%; \}/);
+  });
+  it('puts the first item after the tabs at the right on phones, with or without the dot (no dot while ending)', () => {
+    expect(phone).toMatch(/\.fc-head--live \.fc-toprow > \[role="tablist"\] \+ \* \{ margin-left: auto;/);
+    expect(css).not.toMatch(/\.fc-livedot \{[^}]*margin-left/);
+    expect(phone).not.toMatch(/\.fc-livedot \{ margin-left/);
   });
   it('does not wrap the running row above 600px, and gives its buttons 36px only above 1080px on a fine pointer (the page rule owns 40px)', () => {
-    expect(css).toMatch(/\.fc-toprow \{[^}]*flex-wrap:\s*nowrap/);
-    const floor = css.match(/@media \(min-width: 1081px\) and \(not \(pointer: coarse\)\) \{[^}]*\.fc-toprow \.fc-btn \{ min-height: 36px; \}/);
+    expect(css).toMatch(/\.fc-head--live \.fc-toprow \{[^}]*flex-wrap:\s*nowrap/);
+    const floor = css.match(/@media \(min-width: 1081px\) and \(pointer: fine\) \{[^}]*\.fc-head--live \.fc-toprow \.fc-btn \{ min-height: 36px; \}/);
     expect(floor).not.toBeNull();
+    expect(css).not.toMatch(/not \(pointer: coarse\)/);
     expect(css.replace(floor[0], '')).not.toMatch(/\.fc-toprow \.fc-btn[^{]*\{[^}]*min-height/);
+  });
+  it('shows one toggle for the form on phones while a session runs: the form\'s own toggle is hidden in the slot, its body shown, with a selector that beats pasteLink.css', () => {
+    const pasteCss = readFileSync(new URL('../liveTv/pasteLink.css', import.meta.url), 'utf8');
+    // pasteLink.css: two classes (0,2,0) for the toggle and for the hidden body on phones (0,3,0 with .is-open to show it).
+    expect(pasteCss).toMatch(/\.ltv-paste \.ltv-paste-toggle \{ display: inline-flex/);
+    expect(pasteCss).toMatch(/\.ltv-paste-body \{ display: none;/);
+    // Ours: an id plus two classes (1,2,0), inside the 600px block (the same block pasteLink.css uses).
+    expect(phone).toMatch(/#fc-linkslot \.ltv-paste \.ltv-paste-toggle \{ display: none; \}/);
+    expect(phone).toMatch(/#fc-linkslot \.ltv-paste \.ltv-paste-body \{ display: flex; \}/);
+    // The slot (and so the id) exists only while a session runs: after it ends the form's own toggle is the way again.
+    expect(css).not.toMatch(/[^#-]\bfc-linkslot[^-]*\.ltv-paste-toggle/);
+  });
+  it('shows the form outside a session on top of the panel with CSS order, so the DOM can keep the head first', () => {
+    expect(css).toMatch(/\.fc-panel > \.fc-linkslot:not\(\.fc-linkslot--live\) \{ order: -1; \}/);
   });
 });

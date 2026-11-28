@@ -45,6 +45,18 @@
 
 .fc-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .fc-head-run { display: flex; align-items: center; gap: 8px; }
+/* The head is one element in every state (a session ending must not remount the tabs and drop focus), and the
+   top row holds the tabs wherever they show. Outside a session it reads as it always did: title, status line,
+   the block's bar, then the tabs (CSS order; the DOM order is the running one). */
+.fc-head--stack { flex-direction: column; align-items: stretch; flex-wrap: nowrap; justify-content: flex-start; gap: 10px; }
+.fc-head--stack > .fc-title { order: 0; }
+.fc-panel .fc-head--stack > p.fc-status { order: 1; margin-top: -8px; } /* 2px under the title, as before */
+.fc-head--stack > .fc-block { order: 2; }
+.fc-head--stack > .fc-toprow { order: 3; }
+.fc-toprow { display: flex; min-width: 0; }
+.fc-toprow > [role="tablist"] { flex: 1 1 auto; min-width: 0; }
+/* The paste form is the top row of the panel outside a session (DOM: after the head, so the running order holds). */
+.fc-panel > .fc-linkslot:not(.fc-linkslot--live) { order: -1; }
 
 /* F416: while a session runs the head is ONE row (tabs, time left, Stop, the link button) and a 3px progress line
    under it. The row does not wrap above 600px: the tabs take what is left and scroll sideways before anything
@@ -52,22 +64,21 @@
    The 36px floor applies on fine pointers above 1080px; at 1080px and below or on touch the page's rule
    (liveTv.css, 40px) is the only one, so nothing here may beat it there. */
 .fc-head--live { flex-direction: column; align-items: stretch; flex-wrap: nowrap; justify-content: flex-start; gap: 2px; }
-.fc-toprow { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0; }
-.fc-toprow > [role="tablist"] { flex: 1 1 0; min-width: 0; gap: 0; border-bottom: 0; }
-.fc-toprow .fc-tab { flex: 0 0 auto; padding: 8px 7px; white-space: nowrap; }
-.fc-toprow .fc-clock { flex: none; font-size: 12px; white-space: nowrap; }
-.fc-toprow .fc-btn { flex: none; padding: 6px 10px; }
-.fc-toprow .fc-iconbtn { width: 36px; min-width: 36px; padding: 0; justify-content: center; }
+.fc-head--live .fc-toprow { flex-wrap: nowrap; align-items: center; gap: 6px; }
+.fc-head--live .fc-toprow > [role="tablist"] { flex: 1 1 0; gap: 0; border-bottom: 0; }
+.fc-head--live .fc-toprow .fc-tab { flex: 0 0 auto; padding: 8px 7px; white-space: nowrap; }
+.fc-head--live .fc-toprow .fc-clock { flex: none; font-size: 12px; white-space: nowrap; }
+.fc-head--live .fc-toprow .fc-btn { flex: none; padding: 6px 10px; }
+.fc-head--live .fc-toprow .fc-iconbtn { width: 36px; min-width: 36px; padding: 0; justify-content: center; }
 .fc-livedot { flex: none; display: inline-flex; align-items: center; }
 .fc-status--on.fc-livedot { color: var(--live); }
-.fc-panel p.fc-status-line { margin-top: 0; }
 .fc-block--line .fc-bar { height: 3px; border-radius: 2px; }
 .fc-block--line .fc-bar-fill { border-radius: 2px; }
-@media (min-width: 1081px) and (not (pointer: coarse)) {
-  .fc-toprow .fc-btn { min-height: 36px; }
+@media (min-width: 1081px) and (pointer: fine) {
+  .fc-head--live .fc-toprow .fc-btn { min-height: 36px; }
 }
 @media (max-width: 1080px), (pointer: coarse) {
-  .fc-toprow .fc-iconbtn { width: 40px; min-width: 40px; }
+  .fc-head--live .fc-toprow .fc-iconbtn { width: 40px; min-width: 40px; }
 }
 .fc-title { margin: 0; font-size: 16px; font-weight: 800; }
 .fc-headtext { min-width: 0; }
@@ -576,9 +587,13 @@
   .fc-panel { padding: 12px; border-radius: 12px; }
   /* F416: on phones the top row wraps: the tabs take the first line (measured at 375px: in one row the Summary
      tab was 67px off to the side), the dot, clock, Stop and link button the second, at its right. */
-  .fc-toprow { flex-wrap: wrap; row-gap: 4px; }
-  .fc-toprow > [role="tablist"] { flex: 1 0 100%; }
-  .fc-toprow .fc-livedot { margin-left: auto; }
+  .fc-head--live .fc-toprow { flex-wrap: wrap; row-gap: 4px; }
+  .fc-head--live .fc-toprow > [role="tablist"] { flex: 1 0 100%; }
+  .fc-head--live .fc-toprow > [role="tablist"] + * { margin-left: auto; } /* the dot, or the clock while ending (no dot) */
+  /* The link button is the one toggle for the form while a session runs; the form's own "Paste a link" toggle
+     (pasteLink.css, two classes) is hidden in this slot, and its body shows whenever the slot is open. */
+  #fc-linkslot .ltv-paste .ltv-paste-toggle { display: none; }
+  #fc-linkslot .ltv-paste .ltv-paste-body { display: flex; }
   .fc-claim, .fc-reason, .fc-line, .fc-by { overflow-wrap: anywhere; }
   .fc-head-run { margin-left: auto; }
 }
