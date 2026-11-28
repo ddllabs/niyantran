@@ -4,6 +4,7 @@ import { vi } from 'vitest';
 import {
   DELAY_SECONDS, NO_SOURCES_TEXT, blockOptions, defaultBlock, minutesText, claimBadge, confirmStart, embedVideoId, endReasonText, errorMessage, formatClock, kindTag,
   playingTarget, priceChangedText, safeSourceUrl, MINUTE_CHOICES, reanalyzeLength, seekLateText, seekPendingText, earlierAnalysisText, REANALYZE_LABEL,
+  silenceNoticeText,
 } from './factCheckText.js';
 
 describe('formatClock', () => {
@@ -245,5 +246,13 @@ describe('re-analysis words', () => {
     expect(seekPendingText('02:10')).toBe('Moving the video to 02:10…');
     expect(earlierAnalysisText('16 Nov 2026')).toBe('Earlier analysis, checked on 16 Nov 2026');
     expect(earlierAnalysisText('')).toBe('Earlier analysis');
+  });
+});
+
+describe('silenceNoticeText (F424)', () => {
+  it('names both times in seconds and says the time is still charged', () => {
+    expect(silenceNoticeText(30000, 90000)).toBe('No speech heard for 30 seconds. The session ends by itself if this goes on for 90 seconds, and the time is still charged. Is the video muted or paused?');
+    expect(silenceNoticeText(45000, 120000)).toContain('for 45 seconds');
+    expect(silenceNoticeText(45000, 120000)).toContain('for 120 seconds');
   });
 });

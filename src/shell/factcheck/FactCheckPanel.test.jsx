@@ -190,12 +190,15 @@ describe('running', () => {
     expect(transcript).toMatch(/tabindex="0"/);
   });
   it('says nothing was heard yet rather than inventing a transcript', () => {
-    const t = text(render(running({ transcript: [], claims: [] })));
+    const html = render(running({ transcript: [], claims: [] }));
+    const t = text(html);
     expect(t).toMatch(/Listening/);
     expect(t).toContain('about 14 seconds');
     expect(t).not.toContain('13 seconds');
     expect(t).not.toContain('10 seconds');
-    expect(t).toMatch(/No claims yet/);
+    expect(t).toContain('Listening to the video'); // F424: the live empty state replaces "No claims yet."
+    // (the Summary tab keeps its own "No claims yet.")
+    expect(text(html.slice(html.indexOf('id="fc-panel-claims"'), html.indexOf('id="fc-panel-transcript"')))).not.toMatch(/No claims yet/);
   });
   describe('the listening line', () => {
     const lineCount = (html) => (html.match(/class="fc-listening"/g) || []).length;
@@ -235,7 +238,7 @@ describe('running', () => {
     });
   });
   it('shows the silence notice after 30 seconds, not before', () => {
-    expect(text(render(running({ silentFor: 31000 })))).toContain('No speech heard. Is the video muted or paused?');
+    expect(text(render(running({ silentFor: 31000 })))).toContain('No speech heard for 30 seconds. The session ends by itself if this goes on for 90 seconds, and the time is still charged. Is the video muted or paused?');
     expect(text(render(running({ silentFor: 30000 })))).not.toContain('No speech heard');
     expect(text(render(running({ silentFor: 5000 })))).not.toContain('No speech heard');
   });

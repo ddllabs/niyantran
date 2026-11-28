@@ -65,7 +65,7 @@ describe('block line', () => {
   });
   it('says one minute left when a minute or less remains', () => {
     const html = render(running({ secondsLeft: 45 }));
-    expect(html).toMatch(/aria-valuetext="1 minute left in this block"/);
+    expect(html).toMatch(/aria-valuetext="Less than a minute left in this block"/);
     expect(text(html)).not.toContain('left in this block'); // F417: the words are the bar's value text only
     expect(html).not.toMatch(/aria-valuetext="[^"]*of 5 minutes used/);
   });
@@ -119,7 +119,8 @@ describe('tabs', () => {
   it('the transcript panel carries the transcript and the claims panel does not', () => {
     const html = render(running());
     const claims = html.slice(html.indexOf('id="fc-panel-claims"'), html.indexOf('id="fc-panel-transcript"'));
-    expect(claims).not.toContain('Good evening');
+    // F424: the Claims panel shows only the newest line, in the "Now hearing" line, never the transcript itself.
+    expect(claims.replace(/<div class="fc-now"[\s\S]*?<\/div>/, '')).not.toContain('Good evening');
     expect(claims).not.toMatch(/fc-transcript/);
   });
 });

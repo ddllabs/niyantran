@@ -153,6 +153,14 @@ export function endReasonText(reason, detail = null) {
   return Object.hasOwn(END_REASONS, reason) ? END_REASONS[reason] : 'The session ended.';
 }
 
+/**
+ * The silence notice: how long without speech raises it, and how long ends the session (both come from the
+ * caller: SILENT_NOTICE_MS in panelStatus.js and LIMITS.silentMs in lib/factcheck/session.js).
+ */
+export function silenceNoticeText(noticeMs, endMs) {
+  return `No speech heard for ${Math.round(noticeMs / 1000)} seconds. The session ends by itself if this goes on for ${Math.round(endMs / 1000)} seconds, and the time is still charged. Is the video muted or paused?`;
+}
+
 export function priceChangedText(creditsPerMinute) {
   return typeof creditsPerMinute === 'number'
     ? `The price changed to ${creditsText(creditsPerMinute)} a minute. Review and start again.`

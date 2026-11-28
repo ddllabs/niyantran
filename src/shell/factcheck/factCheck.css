@@ -114,6 +114,25 @@
 .fc-tab:hover { color: var(--fg); }
 .fc-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .fc-work[hidden] { display: none; }
+/* F424: a dot on the Transcript tab while live; it pulses once for each new line. It sits in the tab's own right
+   padding (7px in the live row; the dot is 5px at right: 1px), so the row is no wider than without it. */
+.fc-tab { position: relative; }
+.fc-tab-dot { position: absolute; top: 9px; right: 1px; width: 5px; height: 5px; border-radius: 50%; background: var(--live); pointer-events: none; }
+.fc-tab-dot--pulse { animation: fcTabDot 1.2s ease-out 1; }
+@keyframes fcTabDot { 0% { transform: scale(1); box-shadow: 0 0 0 0 var(--live); } 40% { transform: scale(1.4); } 100% { transform: scale(1); box-shadow: 0 0 0 4px transparent; } }
+/* F424: the live Claims states: the empty one (listening, the newest lines) and the "Now hearing" line. */
+.fc-live-empty { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.fc-panel p.fc-live-head { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.fc-live-dot { flex: none; display: inline-flex; color: var(--live); }
+.fc-live-dot--quiet { color: var(--fc-amber); }
+.fc-live-dot--steady { color: var(--live); }
+.fc-panel p.fc-live-note { color: var(--muted); font-size: 12px; }
+.fc-live-lines { display: flex; flex-direction: column; gap: 4px; min-width: 0; align-self: stretch; }
+.fc-panel p.fc-live-text { overflow-wrap: anywhere; }
+.fc-now { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.fc-panel p.fc-now-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.fc-now-label { font-weight: 700; color: var(--muted); }
+.fc-live-full { flex: none; }
 
 .fc-tiles { flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 6px; }
 .fc-tile {
@@ -167,6 +186,7 @@
   cursor: pointer;
 }
 .fc-clock { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--muted); }
+.fc-clock--low { color: var(--fc-amber); font-weight: 800; } /* F424: the block's last minute */
 
 .fc-panel p { margin: 0; line-height: 1.45; }
 .fc-section { margin: 4px 0 0; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
@@ -402,7 +422,7 @@
 @keyframes fcPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .fc-card--pending .fc-glyph, .fc-listening, .fc-status--on .fc-dot { animation: none; }
+  .fc-card--pending .fc-glyph, .fc-listening, .fc-status--on .fc-dot, .fc-tab-dot--pulse { animation: none; }
   .fc-bar-fill { transition: none; }
 }
 
