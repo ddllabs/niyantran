@@ -590,7 +590,7 @@ export async function retryIndexJob(jobId, _fileId) {
 }
 
 /**
- * Capability 10: Cancels a queued or in-flight indexing job safely.
+ * Capability 10: Cancels a queued indexing job (the server refuses once it is running).
  * @param {string} jobId
  * @param {string} fileId
  */
@@ -607,6 +607,9 @@ export async function cancelIndexJob(jobId, _fileId) {
     return { success: true };
   }
 
+  if (/job_running/.test(rpcError?.message || '')) {
+    throw new Error('This job has already started and will run to the end; only queued jobs can be cancelled.');
+  }
   throw new Error(rpcError?.message || 'Cancel failed');
 }
 

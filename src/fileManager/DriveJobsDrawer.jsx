@@ -35,6 +35,43 @@ const STEP_LABELS = {
 };
 
 /**
+ * Per-job action buttons. Retry is offered for failed jobs; Cancel only for
+ * queued jobs, because the database refuses to cancel a job that has started
+ * (a started job runs to the end and is billed).
+ */
+export function JobActions({ job, isBusy, onRetry, onCancel }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 4 }}>
+      {job.status === 'failed' && (
+        <button
+          type="button"
+          className="fm-btn fm-btn-primary"
+          style={{ padding: '3px 8px', fontSize: 11 }}
+          onClick={() => onRetry(job.id, job.file_id)}
+          disabled={isBusy}
+        >
+          {isBusy ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
+          <span>Retry</span>
+        </button>
+      )}
+
+      {job.status === 'queued' && (
+        <button
+          type="button"
+          className="fm-btn"
+          style={{ padding: '3px 8px', fontSize: 11 }}
+          onClick={() => onCancel(job.id, job.file_id)}
+          disabled={isBusy}
+        >
+          {isBusy ? <Loader2 size={11} className="animate-spin" /> : <Ban size={11} />}
+          <span>Cancel</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
  * @param {{
  *   isOpen: boolean,
  *   onClose: () => void,
@@ -276,34 +313,12 @@ export default function DriveJobsDrawer({ isOpen, onClose, onJobUpdated }) {
                     </div>
                   )}
 
-                  {/* Actions */}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 4 }}>
-                    {job.status === 'failed' && (
-                      <button
-                        type="button"
-                        className="fm-btn fm-btn-primary"
-                        style={{ padding: '3px 8px', fontSize: 11 }}
-                        onClick={() => handleRetry(job.id, job.file_id)}
-                        disabled={isBusy}
-                      >
-                        {isBusy ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
-                        <span>Retry</span>
-                      </button>
-                    )}
-
-                    {(job.status === 'queued' || job.status === 'running') && (
-                      <button
-                        type="button"
-                        className="fm-btn"
-                        style={{ padding: '3px 8px', fontSize: 11 }}
-                        onClick={() => handleCancel(job.id, job.file_id)}
-                        disabled={isBusy}
-                      >
-                        {isBusy ? <Loader2 size={11} className="animate-spin" /> : <Ban size={11} />}
-                        <span>Cancel</span>
-                      </button>
-                    )}
-                  </div>
+                  <JobActions
+                    job={job}
+                    isBusy={isBusy}
+                    onRetry={handleRetry}
+                    onCancel={handleCancel}
+                  />
                 </div>
               );
             })

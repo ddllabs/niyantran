@@ -4,8 +4,8 @@ import path from 'node:path';
 import { extractSpreadsheet } from './spreadsheetExtractor.js';
 
 describe('Spreadsheet Extractor', () => {
-  const prdPath = path.resolve('supabase/functions/ingest-worker/__fixtures__/GTPL_KCBPL_Unified_Intelligence_Platform_PRD_v2.xlsx');
-  const csvPath = path.resolve('supabase/functions/ingest-worker/__fixtures__/GTPL_Phase_1_Layer_I_Feature_List_Updated.csv');
+  const prdPath = path.resolve('supabase/functions/ingest-worker/__fixtures__/sample_platform_prd.xlsx');
+  const csvPath = path.resolve('supabase/functions/ingest-worker/__fixtures__/sample_feature_list.csv');
 
   it('enumerates all 11 non-empty worksheets in PRD fixture', () => {
     const bytes = fs.readFileSync(prdPath);
