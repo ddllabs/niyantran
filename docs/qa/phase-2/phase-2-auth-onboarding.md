@@ -1,7 +1,9 @@
 # NTER Phase 2 — Authentication & Persona Onboarding Verification Report
 
+> **Status: Historical (2026-11-20).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
 **Module:** Auth, Onboarding & User Store (`Agent 1`)  
-**Status:** ACCEPTED  
+**Branch status:** ACCEPTED  
 **Date:** 2026-11-20  
 **Authority:** `terminal-lawyer-mobile-journey.pdf` & `AGENTS.md`  
 

@@ -1,6 +1,8 @@
-# Feature F341 — Final File Manager Improvements & AI Research Integration Acceptance Report
+# Feature F341 (main: F417) — Final File Manager Improvements & AI Research Integration Acceptance Report
 
-**Status:** Normative
+> **Status: Historical (2026-11-17).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+**Branch status:** Normative
 **Date:** 2026-11-17
 **Feature Scope:** F341 Final File Manager Hardening, Preview System, Action Polishing, and AI Research Integration
 **Target Branch:** `file-manager`

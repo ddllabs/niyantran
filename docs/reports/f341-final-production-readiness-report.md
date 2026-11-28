@@ -1,6 +1,8 @@
-# F341 Final Production Readiness Report
+# F341 (main: F417) Final Production Readiness Report
 
-> **Status: PRODUCTION DEPLOYMENT READY — AWAITING EXPLICIT OWNER APPROVAL**  
+> **Status: Historical (2026-11-18).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: PRODUCTION DEPLOYMENT READY — AWAITING EXPLICIT OWNER APPROVAL**  
 > **Feature:** F341 — Private File Manager, PDF Indexing, Billing, AI Retrieval & Chat Attachments  
 > **Target Production Project:** `vfgcppstyzjarlzyqdac` (NTER / main PRODUCTION)  
 > **Branch:** `file-manager`  
@@ -76,4 +78,4 @@ In accordance with strict operating instructions:
 
 ## 5. Deployment Recommendation
 
-When authorized by the project owner, execute the release according to the certified [docs/reports/f341-production-deployment-runbook.md](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/docs/reports/f341-production-deployment-runbook.md) and review the detailed evidence in [docs/reports/f341-final-evidence-verification.md](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/docs/reports/f341-final-evidence-verification.md).
+When authorized by the project owner, execute the release according to the certified [docs/reports/f341-production-deployment-runbook.md](f341-production-deployment-runbook.md) and review the detailed evidence in [docs/reports/f341-final-evidence-verification.md](f341-final-evidence-verification.md).

@@ -1,6 +1,8 @@
 # Document Ingestion & Extraction Pipeline Validation Report
 
-> **Status:** Normative Audit Report  
+> **Status: Historical (2026-11-23).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status:** Normative Audit Report  
 > **Date:** 2026-11-23  
 > **Auditor:** Agent 3 — Document Ingestion & Extraction Engineer  
 > **Scope:** Multi-format document extraction pipelines across `nter-mobile/src/lib/extractors/`, `src/lib/`, `supabase/functions/ingest-worker/`, and `supabase/functions/_shared/`.

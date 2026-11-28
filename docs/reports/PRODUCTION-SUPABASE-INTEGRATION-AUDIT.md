@@ -1,6 +1,8 @@
 # Production Supabase Integration Audit Report
 
-> **Status: Normative.** Architectural audit of Supabase client configuration, authentication flows, database RPCs, Edge Functions, storage, RLS policies, vector ingestion, and live/sample data mode separation for Niyantran Terminal & NTER Mobile.
+> **Status: Historical (2026-11-23).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative.** Architectural audit of Supabase client configuration, authentication flows, database RPCs, Edge Functions, storage, RLS policies, vector ingestion, and live/sample data mode separation for Niyantran Terminal & NTER Mobile.
 > **Date:** 2026-11-23
 > **Auditor:** Agent 1 (Production Architecture & Supabase Auditor)
 
@@ -23,8 +25,8 @@ This audit assesses the backend and database integration between the Niyantran f
 ## 2. Supabase Client Configuration
 
 ### 2.1 Mobile Client Configuration (`nter-mobile`)
-- **Config Entry:** [`nter-mobile/src/lib/config.js`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/nter-mobile/src/lib/config.js#L1-L18)
-- **Client Factory:** [`nter-mobile/src/lib/supabaseClient.js`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/nter-mobile/src/lib/supabaseClient.js#L1-L26)
+- **Config Entry:** `nter-mobile/src/lib/config.js` (left out of main; on the `file-manager` branch at a4a09d84)
+- **Client Factory:** `nter-mobile/src/lib/supabaseClient.js` (left out of main; on the `file-manager` branch at a4a09d84)
 - **Configuration Details:**
   ```javascript
   export const SUPABASE_URL = env.VITE_SUPABASE_URL || 'https://vfgcppstyzjarlzyqdac.supabase.co';
@@ -51,7 +53,7 @@ This audit assesses the backend and database integration between the Niyantran f
 - **Security Assessment:** PASS. The mobile client utilizes PKCE auth flow suitable for mobile native applications, handles token refreshing automatically, and never bundles server secrets.
 
 ### 2.2 Web Desktop Client Configuration (`src/lib/supabaseClient.js`)
-- **Source File:** [`src/lib/supabaseClient.js`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/src/lib/supabaseClient.js#L1-L35)
+- **Source File:** [`src/lib/supabaseClient.js`](../../src/lib/supabaseClient.js#L1-L35)
 - **Configuration Details:**
   ```javascript
   const SUPABASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || 'https://vfgcppstyzjarlzyqdac.supabase.co';
@@ -70,7 +72,7 @@ This audit assesses the backend and database integration between the Niyantran f
 ## 3. Authentication Architecture & Flow Audit
 
 ### 3.1 Authentication Flows in `nter-mobile/src/services/live.js`
-- **Source File:** [`nter-mobile/src/services/live.js`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/nter-mobile/src/services/live.js#L18-L85)
+- **Source File:** `nter-mobile/src/services/live.js` (left out of main; on the `file-manager` branch at a4a09d84)
 
 | Flow | Method | Implementation | Status | Evidence / Notes |
 |---|---|---|---|---|
@@ -92,19 +94,19 @@ Every RPC called by frontend clients and edge services was checked against datab
 
 | RPC Function | Called By | Migration Source | Purpose & Behavior | Status |
 |---|---|---|---|---|
-| `get_my_profile` | `live.getProfile` | [`20260921000012_profile_authority.sql`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20260921000012_profile_authority.sql) | Fetches user profile for authenticated session. | **PASS** |
-| `my_entitlement_manual` | `live.getEntitlement`, `live.getStorageUsage` | [`20260929100000_plan_entitlements.sql`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20260929100000_plan_entitlements.sql) | Authoritative plan and status evaluation. | **PASS** |
-| `my_credits_cycle_v3` | `live.getCredits` | [`20261017194626_credit_paise_contract.sql`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261017194626_credit_paise_contract.sql) | Retrieves active credit balances, limits, and cycle window. | **PASS** |
-| `model_credit_estimates` | `live.getModels` | [`20260921000008_admin_models_rpc.sql`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20260921000008_admin_models_rpc.sql) | Returns AI model cost calculations per 1k tokens. | **PASS** |
-| `search_desk_rows` | `live.searchRecords` | [`20260921000011_desk_rows_search.sql`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20260921000011_desk_rows_search.sql), [`20260922073933`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20260922073933_desk_rows_search_uses_trigram.sql) | Trigram search across desk rows with optional predicates. | **PASS** |
-| `user_storage_quota_bytes` | `fileManagerService.js`, Supabase SQL | [`20261115000001_private_file_manager.sql`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261115000001_private_file_manager.sql#L234-L282) | Calculates plan quota: Free (500MB), Plus (2GB), Pro (5GB), Max (50GB). | **PASS** |
-| `user_storage_used_bytes` | `fileManagerService.js`, Supabase SQL | [`20261115000001_private_file_manager.sql`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261115000001_private_file_manager.sql#L285-L312) | Sums non-failed active storage usage for user. | **PASS** |
-| `user_file_prepare_upload` | `fileManagerService.js` (Web) | [`20261115000001_private_file_manager.sql`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261115000001_private_file_manager.sql#L315-L390) | Atomic quota reservation under `pg_advisory_xact_lock`. Mobile `live.js` bypasses this RPC and does client size check + direct insert. | **PARTIAL** |
-| `user_file_complete_upload` | `fileManagerService.js` (Web) | [`20261115000001_private_file_manager.sql`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261115000001_private_file_manager.sql#L392-L425) | Sets status to `'uploaded'` and attaches SHA-256 hash. | **PASS** |
-| `user_files_empty_trash` | `fileManagerService.js` | [`20261115000001_private_file_manager.sql`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261115000001_private_file_manager.sql#L428-L475) | Purges trashed files/folders and returns storage paths to delete. | **PASS** |
-| `match_user_files` | `_shared/retrieval.ts` (`research-chat`) | [`20261115000001_private_file_manager.sql`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261115000001_private_file_manager.sql#L736), [`20261121000001`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261121000001_user_file_chunks_metadata.sql#L19) | Vector similarity search over `user_file_chunks` (1536 dims). | **PASS** |
-| `user_file_enqueue_indexing` | `fileManagerService.js` | [`20261118000001_file_indexing_billing.sql`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261118000001_file_indexing_billing.sql#L13-L120) | Places pre-flight credit hold and queues indexing job in `user_file_jobs`. Client-gated by `IS_INDEXING_BILLING_DEPLOYED = false`. Mobile `live.js` sets status directly. | **PARTIAL** |
-| `match_documents` / `match_documents_hybrid` | `_shared/retrieval.ts` (`research-chat`) | [`20260921000009_rag_rpcs.sql`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20260921000009_rag_rpcs.sql), [`20261102120000`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261102120000_chunk_hybrid_search.sql) | Primary public corpus RAG search functions. | **PASS** |
+| `get_my_profile` | `live.getProfile` | [`20260921000012_profile_authority.sql`](../../supabase/migrations/20260921000012_profile_authority.sql) | Fetches user profile for authenticated session. | **PASS** |
+| `my_entitlement_manual` | `live.getEntitlement`, `live.getStorageUsage` | [`20260929100000_plan_entitlements.sql`](../../supabase/migrations/20260929100000_plan_entitlements.sql) | Authoritative plan and status evaluation. | **PASS** |
+| `my_credits_cycle_v3` | `live.getCredits` | [`20261017194626_credit_paise_contract.sql`](../../supabase/migrations/20261017194626_credit_paise_contract.sql) | Retrieves active credit balances, limits, and cycle window. | **PASS** |
+| `model_credit_estimates` | `live.getModels` | [`20260921000008_admin_models_rpc.sql`](../../supabase/migrations/20260921000008_admin_models_rpc.sql) | Returns AI model cost calculations per 1k tokens. | **PASS** |
+| `search_desk_rows` | `live.searchRecords` | [`20260921000011_desk_rows_search.sql`](../../supabase/migrations/20260921000011_desk_rows_search.sql), [`20260922073933`](../../supabase/migrations/20260922073933_desk_rows_search_uses_trigram.sql) | Trigram search across desk rows with optional predicates. | **PASS** |
+| `user_storage_quota_bytes` | `fileManagerService.js`, Supabase SQL | `20261115000001_private_file_manager.sql` (left out of main; on the `file-manager` branch at a4a09d84) | Calculates plan quota: Free (500MB), Plus (2GB), Pro (5GB), Max (50GB). | **PASS** |
+| `user_storage_used_bytes` | `fileManagerService.js`, Supabase SQL | `20261115000001_private_file_manager.sql` (left out of main; on the `file-manager` branch at a4a09d84) | Sums non-failed active storage usage for user. | **PASS** |
+| `user_file_prepare_upload` | `fileManagerService.js` (Web) | `20261115000001_private_file_manager.sql` (left out of main; on the `file-manager` branch at a4a09d84) | Atomic quota reservation under `pg_advisory_xact_lock`. Mobile `live.js` bypasses this RPC and does client size check + direct insert. | **PARTIAL** |
+| `user_file_complete_upload` | `fileManagerService.js` (Web) | `20261115000001_private_file_manager.sql` (left out of main; on the `file-manager` branch at a4a09d84) | Sets status to `'uploaded'` and attaches SHA-256 hash. | **PASS** |
+| `user_files_empty_trash` | `fileManagerService.js` | `20261115000001_private_file_manager.sql` (left out of main; on the `file-manager` branch at a4a09d84) | Purges trashed files/folders and returns storage paths to delete. | **PASS** |
+| `match_user_files` | `_shared/retrieval.ts` (`research-chat`) | `20261115000001_private_file_manager.sql` (left out of main; on the `file-manager` branch at a4a09d84), `20261121000001` (left out of main; on the `file-manager` branch at a4a09d84) | Vector similarity search over `user_file_chunks` (1536 dims). | **PASS** |
+| `user_file_enqueue_indexing` | `fileManagerService.js` | `20261118000001_file_indexing_billing.sql` (left out of main; on the `file-manager` branch at a4a09d84) | Places pre-flight credit hold and queues indexing job in `user_file_jobs`. Client-gated by `IS_INDEXING_BILLING_DEPLOYED = false`. Mobile `live.js` sets status directly. | **PARTIAL** |
+| `match_documents` / `match_documents_hybrid` | `_shared/retrieval.ts` (`research-chat`) | [`20260921000009_rag_rpcs.sql`](../../supabase/migrations/20260921000009_rag_rpcs.sql), [`20261102120000`](../../supabase/migrations/20261102120000_chunk_hybrid_search.sql) | Primary public corpus RAG search functions. | **PASS** |
 
 ---
 
@@ -113,8 +115,8 @@ Every RPC called by frontend clients and edge services was checked against datab
 ### 5.1 Invocation Profiles
 
 #### 1. `research-chat` (Interactive Streaming RAG)
-- **Path:** [`supabase/functions/research-chat/`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/functions/research-chat/index.ts)
-- **Invocation:** Called directly by frontend `live.sendTurn()` ([`nter-mobile/src/services/live.js#L226-L241`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/nter-mobile/src/services/live.js#L226-L241)).
+- **Path:** [`supabase/functions/research-chat/`](../../supabase/functions/research-chat/index.ts)
+- **Invocation:** Called directly by frontend `live.sendTurn()` (`nter-mobile/src/services/live.js#L226-L241` (left out of main; on the `file-manager` branch at a4a09d84)).
 - **Transport:** HTTP POST with `Accept: text/event-stream`.
 - **Authentication:** `Authorization: Bearer <user_jwt>`, validated server-side by `requireUser(req)`.
 - **CORS:** Controlled by `_shared/cors.ts`. Must match entries in `ALLOWED_ORIGINS` secret.
@@ -122,15 +124,15 @@ Every RPC called by frontend clients and edge services was checked against datab
 - **Status:** **PASS**.
 
 #### 2. `desk-brief` (Record Intelligence Briefs)
-- **Path:** [`supabase/functions/desk-brief/`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/functions/desk-brief/)
-- **Invocation:** Called by `live.recordBrief()` ([`nter-mobile/src/services/live.js#L214-L220`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/nter-mobile/src/services/live.js#L214-L220)).
+- **Path:** [`supabase/functions/desk-brief/`](../../supabase/functions/desk-brief)
+- **Invocation:** Called by `live.recordBrief()` (`nter-mobile/src/services/live.js#L214-L220` (left out of main; on the `file-manager` branch at a4a09d84)).
 - **Transport:** HTTP POST with JSON body.
 - **Authentication:** Authenticated user or public fallback.
 - **Status:** **PASS**.
 
 #### 3. `ingest-worker` (Asynchronous OCR & Vector Pipeline)
-- **Path:** [`supabase/functions/ingest-worker/`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/functions/ingest-worker/index.ts)
-- **Invocation:** Triggered periodically via `pg_cron` / `pg_net` or admin trigger with `x-ingest-secret: INGEST_WORKER_SECRET` header ([`supabase/config.toml#L435-L437`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/config.toml#L435-L437)).
+- **Path:** [`supabase/functions/ingest-worker/`](../../supabase/functions/ingest-worker/index.ts)
+- **Invocation:** Triggered periodically via `pg_cron` / `pg_net` or admin trigger with `x-ingest-secret: INGEST_WORKER_SECRET` header ([`supabase/config.toml#L435-L437`](../../supabase/config.toml#L435-L437)).
 - **Authentication:** Verifies `INGEST_WORKER_SECRET`. Uses `serviceClient()` for database operations.
 - **Partitioned Concurrency:** Configured in `ingest_settings` (`corpus_max_running = 2`, `user_file_max_running = 2`, `max_running_per_user = 1`) preventing queue starvation.
 - **Status:** **PASS**.
@@ -144,7 +146,7 @@ Every RPC called by frontend clients and edge services was checked against datab
 - **Public:** `false` (Private storage bucket)
 - **File Size Cap:** `52,428,800` bytes (50 MB individual file limit)
 - **Path Scheme:** `<user_id>/<file_id>/<encoded_file_name>`
-- **Source Definition:** [`supabase/migrations/20261115000001_private_file_manager.sql#L23-L27`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261115000001_private_file_manager.sql#L23-L27) and [`supabase/migrations/supabase_dashboard_storage_setup.sql#L12-L16`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/supabase_dashboard_storage_setup.sql#L12-L16).
+- **Source Definition:** `supabase/migrations/20261115000001_private_file_manager.sql#L23-L27` (left out of main; on the `file-manager` branch at a4a09d84) and `supabase/migrations/supabase_dashboard_storage_setup.sql#L12-L16` (left out of main; on the `file-manager` branch at a4a09d84).
 
 ### 6.2 Storage RLS Policies on `storage.objects`
 ```sql
@@ -209,7 +211,7 @@ CREATE POLICY user_files_storage_delete ON storage.objects
 ## 9. Production (`live`) vs Sample (`sample`) Data Mode Separation
 
 The architecture provides complete isolation between live cloud operations and local offline execution:
-- **Mode Dispatcher:** [`nter-mobile/src/services/index.js`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/nter-mobile/src/services/index.js#L1-L8)
+- **Mode Dispatcher:** `nter-mobile/src/services/index.js` (left out of main; on the `file-manager` branch at a4a09d84)
   ```javascript
   import { DATA_MODE } from '../lib/config.js';
   import * as live from './live.js';
@@ -218,11 +220,11 @@ The architecture provides complete isolation between live cloud operations and l
   export const api = DATA_MODE === 'sample' ? sample : live;
   export const isSample = DATA_MODE === 'sample';
   ```
-- **Sample Service Contract:** [`nter-mobile/src/services/sample.js`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/nter-mobile/src/services/sample.js#L1-L100)
+- **Sample Service Contract:** `nter-mobile/src/services/sample.js` (left out of main; on the `file-manager` branch at a4a09d84)
   - Simulates authentication locally via `nter.sample.session` and `nter.sample.profile` in device KV storage.
   - Loads canned desk data, models, and briefs from bundled static JSON files (`home-latest.json`, `home-markets.json`, `ai-models.json`, `modules-*.json`).
   - Zero HTTP or WebSocket connections to Supabase or NTER servers.
-- **Live Service Fallbacks:** In [`nter-mobile/src/services/live.js`](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/nter-mobile/src/services/live.js#L305-L343), when a user is unauthenticated or when public feeds fail, requests gracefully fall back to local sample mocks rather than crashing with unhandled network exceptions.
+- **Live Service Fallbacks:** In `nter-mobile/src/services/live.js` (left out of main; on the `file-manager` branch at a4a09d84), when a user is unauthenticated or when public feeds fail, requests gracefully fall back to local sample mocks rather than crashing with unhandled network exceptions.
 - **Status:** **PASS**.
 
 ---

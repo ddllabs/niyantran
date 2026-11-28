@@ -1,7 +1,9 @@
 # NTER Phase 9 — Master Cross-Module Integration & Release Acceptance Report
 
+> **Status: Historical (2026-11-20).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
 **Supervisor:** Lead Engineering Orchestrator (`Agent 0`)  
-**Status:** COMPLETED & VERIFIED  
+**Branch status:** COMPLETED & VERIFIED  
 **Date:** 2026-11-20  
 **Authority:** `terminal-lawyer-mobile-journey.pdf` & `AGENTS.md`  
 

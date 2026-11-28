@@ -1,6 +1,8 @@
-# Feature F341: Final Local Acceptance & Security Verification Report
+# Feature F341 (main: F417): Final Local Acceptance & Security Verification Report
 
-**Status: Normative / Release Acceptance Evidence**  
+> **Status: Historical (2026-11-15).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+**Branch status: Normative / Release Acceptance Evidence**  
 **Date:** 2026-11-15  
 **Feature:** F341 — Personal Private File Manager & Knowledge Integration  
 **Repository Working Tree:** `c:\Users\Afreen\Downloads\niyantran-main (2)\niyantran-main`  
@@ -112,7 +114,7 @@ Vite dev server running at `http://127.0.0.1:5173/`.
   - Initial State: `This folder is empty` with `Upload Files` trigger
 - **Screenshot Evidence:**
   `step1_user_a_file_manager.png`
-  ![User A File Manager Mount](step1_user_a_file_manager.png)
+  User A File Manager Mount (left out of main; on the `file-manager` branch at a4a09d84)
 
 ### Step 2: User A Folder Creation & Breadcrumb Navigation
 
@@ -128,7 +130,7 @@ Vite dev server running at `http://127.0.0.1:5173/`.
   - Storage gauge: `0 B used` / `500 MB` (`FREE`).
 - **Screenshot Evidence:**
   `step2_user_a_folder_created.png`
-  ![User A Corporate Folder Created](step2_user_a_folder_created.png)
+  User A Corporate Folder Created (left out of main; on the `file-manager` branch at a4a09d84)
 
 ### Step 3: User B Absolute Multi-Tenant Isolation
 
@@ -145,7 +147,7 @@ Vite dev server running at `http://127.0.0.1:5173/`.
   - User B's storage gauge confirms isolated accounting: `0 B used` / `500 MB` (`FREE`).
 - **Screenshot Evidence:**
   `step3_user_b_tenant_isolation.png`
-  ![User B Tenant Isolation](step3_user_b_tenant_isolation.png)
+  User B Tenant Isolation (left out of main; on the `file-manager` branch at a4a09d84)
 
 ### Video Recording Evidence
 

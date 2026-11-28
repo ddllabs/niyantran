@@ -1,6 +1,8 @@
 # Private File Manager discovery and integration proposal
 
-> **Status: Living** — discovery baseline on 2026-11-14; update after owner decisions and implementation evidence.
+> **Status: Historical (2026-11-14).** From the contributor's file-manager branch (a4a09d84); records the branch's design as it stood then. Main's schema is F410–F413 (see `docs/specs/2026-11-26-file-manager-schema-adoption.md`), not the migrations this document describes.
+
+> **Branch status: Living** — discovery baseline on 2026-11-14; update after owner decisions and implementation evidence.
 
 ## Purpose
 

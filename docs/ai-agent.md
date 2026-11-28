@@ -58,7 +58,7 @@ Every coding agent working on this codebase must adhere to these eight non-negot
    2026-09-26; `origin` is the only remote. Corrected 2026-10-13, F105.)
 
 9. **Private File Manager & Dual-Source RAG Invariant:**
-   Per ADR 0006 (Amended) and the central functionality reference (`docs/specs/private-file-manager-functionality.md`),
+   Per ADR 0016 (Amended) and the central functionality reference (`docs/specs/private-file-manager-functionality.md`),
    private user files and AI artifacts must never be inserted into the shared corpus tables (`public.documents`,
    `public.document_chunks_partitioned`). All private metadata, files, chunks, and jobs must persist exclusively in
    the owner-isolated schema (`user_folders`, `user_files`, `user_file_chunks`, `user_file_jobs`) and the private `user-files`

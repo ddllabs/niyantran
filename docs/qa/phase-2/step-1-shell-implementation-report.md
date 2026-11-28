@@ -1,7 +1,9 @@
 # NTER PHASE 2 / STEP 1: SHARED MOBILE SHELL, HEADER & CHAT–WORK NAVIGATION
 ## Implementation, Integration & Visual Verification Report
 
-> **Status: Normative Record**  
+> **Status: Historical (2026-11-20).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative Record**  
 > **Phase:** Phase 2 — Implementation & Platform Integration  
 > **Step:** Step 1 — Shared Mobile Shell, Header, and Chat–Work Navigation Architecture  
 > **Lead:** Agent 6 — Integration Supervisor  

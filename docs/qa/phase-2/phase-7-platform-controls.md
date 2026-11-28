@@ -1,7 +1,9 @@
 # NTER Phase 7 — Platform Controls, Payments & Admin Verification Report
 
+> **Status: Historical (2026-11-20).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
 **Module:** Payments, Billing & Admin Controls (`Agent 6`)  
-**Status:** ACCEPTED  
+**Branch status:** ACCEPTED  
 **Date:** 2026-11-20  
 **Authority:** `docs/specs/2026-10-14-ai-credits.md` & `AGENTS.md`  
 

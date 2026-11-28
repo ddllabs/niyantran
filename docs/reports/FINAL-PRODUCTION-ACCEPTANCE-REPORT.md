@@ -1,6 +1,8 @@
 # NTER Mobile — Final Production Acceptance, End-to-End Dry Run & Verification Report
 
-> **Status:** Normative Master Acceptance Report  
+> **Status: Historical (2026-11-23).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status:** Normative Master Acceptance Report  
 > **Author:** Antigravity Principal Architect & Multi-Agent Orchestration Lead  
 > **Date:** 2026-11-23  
 > **Target System:** NTER Mobile Application (`nter-mobile`) & Niyantran Research Terminal  
@@ -136,4 +138,4 @@ The platform is **fully accepted and verified** for core mobile usage, onboardin
 2. **P0-02:** Add `.tsv` and `text/tab-separated-values` to `user-file-step.ts` extension whitelist.
 3. **P1-01:** Register Capacitor native app scheme (`nter://auth/callback`) for OAuth providers.
 
-All remediations are detailed in [RECOMMENDED-PRODUCTION-REMEDIATIONS.md](./RECOMMENDED-PRODUCTION-REMEDIATIONS.md).
+All remediations are detailed in RECOMMENDED-PRODUCTION-REMEDIATIONS.md (left out of main; on the `file-manager` branch at a4a09d84).

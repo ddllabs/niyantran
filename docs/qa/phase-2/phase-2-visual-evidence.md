@@ -1,7 +1,9 @@
 # NTER Phase 2.1 — Visual Evidence & Responsive Audit
 
+> **Status: Historical (2026-11-20).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
 **Module:** UI/UX & Responsive QA (`Agent 6`)  
-**Status:** VERIFIED  
+**Branch status:** VERIFIED  
 **Date:** 2026-11-20  
 
 ---

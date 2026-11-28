@@ -1,6 +1,8 @@
-# F341 Ingestion Pipeline & RAG Retrieval Verification Report
+# F341 (main: F417) Ingestion Pipeline & RAG Retrieval Verification Report
 
-> **Status: Normative Record**  
+> **Status: Historical (2026-11-18).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative Record**  
 > **Feature:** F341 — Private File Manager & RAG Chat Retrieval  
 > **Component:** Ingest Worker Pipeline, Mistral OCR, Vector Search & Research Chat  
 > **Author:** Principal Engineer / AI Ingestion & Retrieval Specialist  
@@ -17,7 +19,7 @@ This report validates the end-to-end ingestion and retrieval pipeline for user-o
 
 ## 2. Ingestion Pipeline Verification (`ingest-worker`)
 
-The ingestion step handler in [supabase/functions/ingest-worker/user-file-step.ts](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/functions/ingest-worker/user-file-step.ts) executes three sequential phases:
+The ingestion step handler in [supabase/functions/ingest-worker/user-file-step.ts](../../supabase/functions/ingest-worker/user-file-step.ts) executes three sequential phases:
 
 ```
 [Uploaded PDF] 

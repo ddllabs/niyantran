@@ -1,6 +1,8 @@
 # OpenRouter Integration & Private-File RAG Acceptance Report
 
-> **Status: Normative Acceptance & Audit Record**  
+> **Status: Historical (2026-11-23).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative Acceptance & Audit Record**  
 > **Repository:** Niyantran Terminal (`niyantran-main`)  
 > **Audited Subsystems:** `nter-mobile/src/services/live.js`, `nter-mobile/src/services/sample.js`, `nter-mobile/src/lib/extractors/`, `src/lib/creditsStore.js`, `src/ai/ModelPicker.jsx`, `supabase/functions/research-chat/`, `supabase/functions/_shared/`, `supabase/migrations/`  
 > **Author:** Agent 4: AI RAG & OpenRouter Integration Engineer  

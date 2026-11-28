@@ -1,14 +1,16 @@
 # Niyantran AI Private File Manager — Central Product Functionality Reference
 
-> **Status: Approved for Implementation — Pending Explicit Implementation Authorization.**
+> **Status: Historical (2026-11-15).** From the contributor's file-manager branch (a4a09d84); records the branch's design as it stood then. Main's schema is F410–F413 (see `docs/specs/2026-11-26-file-manager-schema-adoption.md`), not the migrations this document describes.
+
+> **Branch status: Approved for Implementation — Pending Explicit Implementation Authorization.**
 > **Authority: Normative Product & Technical Functionality Specification.**
 > Date: 2026-11-15 (Reconciled & Refined).
 > Cross-References:
-> - Architecture Decision: [ADR 0006](../decisions/0006-private-file-manager-ingestion-rag-integration.md)
+> - Architecture Decision: [ADR 0016](../decisions/0016-private-file-manager-ingestion-rag-integration.md)
 > - Technical Specification: [2026-11-14-private-file-manager.md](2026-11-14-private-file-manager.md)
 > - Implementation Plan: [2026-11-14-private-file-manager.md](../plans/2026-11-14-private-file-manager.md)
 > - Compatibility Audit: [2026-11-15-ingestion-rag-compatibility-audit.md](../research/2026-11-15-ingestion-rag-compatibility-audit.md)
-> - Tracking Item: [open-work.md (F341)](../plans/open-work.md)
+> - Tracking Item: [open-work.md (F341 (main: F417))](../plans/open-work.md)
 
 ---
 
@@ -55,7 +57,7 @@ To maintain strict truthfulness regarding the codebase baseline, every capabilit
 | **Credit Ledger & Billing Engine** | **Existing and Implemented in Niyantran** | Append-only ledger `credit_ledger`, wallet draws, and holds (`supabase/migrations/20261014200000_ai_credits.sql`, `20261017194626_credit_paise_contract.sql`, `server/paymentService.mjs`). |
 | **Research AI / Ask AI Backend** | **Existing and Implemented in Niyantran** | Edge Function `research-chat` (`handler.ts`, `agent.ts`, `prompt.ts`, `sources.ts`, `validate.ts`). Both "✦ Ask AI" and "Research AI" route to this single backend. |
 | **Desk "✦ Ask AI" Triggers** | **Existing and Implemented in Niyantran** | Desk record buttons dispatching `niy-ai-open` to `AiPanel.jsx` (`NationalRecord.jsx:217`, `ElectoralRecords.jsx:90`, `ChokepointsDesk.jsx:109`). |
-| **Private Schema & Bucket** | **Approved and Documented; Pending Implementation** | Proposed tables `user_folders`, `user_files`, `user_file_chunks`, `user_file_jobs`, and bucket `user-files` defined in ADR 0006. |
+| **Private Schema & Bucket** | **Approved and Documented; Pending Implementation** | Proposed tables `user_folders`, `user_files`, `user_file_chunks`, `user_file_jobs`, and bucket `user-files` defined in ADR 0016. |
 | **Private Ingestion Adapter** | **Approved and Documented; Pending Implementation** | Proposed `user-file-step.ts` and partitioned concurrency in `ingest_settings` (`corpus_max_running = 2`, `user_file_max_running = 2`). |
 | **Dual-Source RAG Retrieval** | **Approved and Documented; Pending Implementation** | Proposed `match_user_files` RPC and parallel dispatch in `_shared/retrieval.ts`. |
 | **File Manager Frontend UI** | **Approved and Documented; Pending Implementation** | Proposed `src/fileManager/` module adapting approved UI patterns from `sources/src/components/agent-hub/drive/DriveBrowser.tsx`. |
@@ -505,7 +507,7 @@ To prevent scope creep and ensure zero security regressions, roadmap proposals a
 
 - **Master Specification**: [`docs/specs/2026-11-14-private-file-manager.md`](2026-11-14-private-file-manager.md)
 - **Implementation Plan**: [`docs/plans/2026-11-14-private-file-manager.md`](../plans/2026-11-14-private-file-manager.md)
-- **Architecture Decision Record**: [`docs/decisions/0006-private-file-manager-ingestion-rag-integration.md`](../decisions/0006-private-file-manager-ingestion-rag-integration.md)
+- **Architecture Decision Record**: [`docs/decisions/0016-private-file-manager-ingestion-rag-integration.md`](../decisions/0016-private-file-manager-ingestion-rag-integration.md)
 - **Compatibility Audit**: [`docs/research/2026-11-15-ingestion-rag-compatibility-audit.md`](../research/2026-11-15-ingestion-rag-compatibility-audit.md)
 - **Open Work Tracking**: [`docs/plans/open-work.md`](../plans/open-work.md) (Item F341)
 - **Decisions Index**: [`docs/decisions.md`](../decisions.md)

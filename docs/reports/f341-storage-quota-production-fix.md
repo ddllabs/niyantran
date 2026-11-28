@@ -1,6 +1,8 @@
-# F341 Production Storage Quota Defect: Root Cause Analysis, Repair & Verification Report
+# F341 (main: F417) Production Storage Quota Defect: Root Cause Analysis, Repair & Verification Report
 
-**Status:** Completed & Verified  
+> **Status: Historical (2026-11-16).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+**Branch status:** Completed & Verified  
 **Date:** 2026-11-16  
 **Target Branch:** `file-manager`  
 **Environments:** 

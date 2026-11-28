@@ -1,7 +1,9 @@
 # NTER Phase 3 — Home, Navigation & Persona-Aware Experience Report
 
+> **Status: Historical (2026-11-20).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
 **Module:** Terminal Shell & Navigation (`Agent 2`)  
-**Status:** ACCEPTED  
+**Branch status:** ACCEPTED  
 **Date:** 2026-11-20  
 **Authority:** `terminal-lawyer-mobile-journey.pdf` (Page 4/9) & `AGENTS.md`  
 

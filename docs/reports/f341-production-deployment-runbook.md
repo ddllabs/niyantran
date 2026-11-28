@@ -1,6 +1,8 @@
-# F341 Production Deployment Runbook
+# F341 (main: F417) Production Deployment Runbook
 
-> **Status: Normative Runbook — CONDITIONALLY READY (AWAITING OWNER ACTION)**
+> **Status: Historical (2026-11-18).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative Runbook — CONDITIONALLY READY (AWAITING OWNER ACTION)**
 > **Feature:** F341 — Private File Manager, PDF Indexing, Billing, AI Retrieval & Chat Attachments
 > **Target Supabase Project:** `vfgcppstyzjarlzyqdac` (NTER Production)
 > **Branch:** `file-manager`

@@ -1,7 +1,9 @@
 # NTER Phase 6 — Private Files & Storage Verification Report
 
+> **Status: Historical (2026-11-20).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
 **Module:** Private Files & Artifact Storage (`Agent 5`)  
-**Status:** ACCEPTED  
+**Branch status:** ACCEPTED  
 **Date:** 2026-11-20  
 **Authority:** `docs/specs/2026-11-14-private-file-manager.md` & `AGENTS.md`  
 

@@ -1,5 +1,7 @@
 # NTER Phase 2.1 — Master Release Decision
 
+> **Status: Historical (2026-11-20).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
 **Supervisor:** Lead Engineering Orchestrator (`Agent 0`)  
 **Decision:** **APPROVED FOR PHASE 2 CLOSURE**  
 **Date:** 2026-11-20  

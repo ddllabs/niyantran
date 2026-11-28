@@ -1,7 +1,9 @@
 # NTER Phase 2.1 — Final Integration Audit Report
 
+> **Status: Historical (2026-11-20).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
 **Supervisor:** Lead Engineering Orchestrator (`Agent 0`)  
-**Status:** AUDITED & VALIDATED  
+**Branch status:** AUDITED & VALIDATED  
 **Date:** 2026-11-20  
 **Authority:** `terminal-lawyer-mobile-journey.pdf` & `AGENTS.md`  
 

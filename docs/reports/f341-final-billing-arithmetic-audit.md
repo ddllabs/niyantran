@@ -1,6 +1,8 @@
-# F341 Final Billing Arithmetic & Financial Reconciliation Audit
+# F341 (main: F417) Final Billing Arithmetic & Financial Reconciliation Audit
 
-> **Status: Normative Record**  
+> **Status: Historical (2026-11-18).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative Record**  
 > **Feature:** F341 — Private File Manager, PDF Indexing, AI Retrieval & Chat Attachments  
 > **Component:** Billing & Financial Arithmetic Engine  
 > **Author:** Principal Engineer / Multi-Agent Billing Specialist  
@@ -27,9 +29,9 @@ This audit establishes the authoritative reconciliation of the billing engine fo
 ## 2. Authoritative Billing Contract
 
 The platform billing contract is governed by:
-- [supabase/migrations/20261014200000_ai_credits.sql](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261014200000_ai_credits.sql)
-- [supabase/migrations/20261017194626_credit_paise_contract.sql](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261017194626_credit_paise_contract.sql)
-- [supabase/migrations/20261017194628_credit_paise_convert.sql](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261017194628_credit_paise_convert.sql)
+- [supabase/migrations/20261014200000_ai_credits.sql](../../supabase/migrations/20261014200000_ai_credits.sql)
+- [supabase/migrations/20261017194626_credit_paise_contract.sql](../../supabase/migrations/20261017194626_credit_paise_contract.sql)
+- [supabase/migrations/20261017194628_credit_paise_convert.sql](../../supabase/migrations/20261017194628_credit_paise_convert.sql)
 
 ### 2.1 Currency & Credit Equivalence Table
 
@@ -123,12 +125,12 @@ The following test vectors confirm dynamic conversion at $9,500\text{ credits/US
 
 ## 6. Code Remediation Summary
 
-1. **Edge Function [supabase/functions/ingest-worker/user-file-step.ts](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/functions/ingest-worker/user-file-step.ts):**
+1. **Edge Function [supabase/functions/ingest-worker/user-file-step.ts](../../supabase/functions/ingest-worker/user-file-step.ts):**
    - Replaced all client-side `Math.round(usd * 9500)` conversions with pure USD tracking.
    - Passed `p_actual_cost_usd` directly to `deps.db.settleCredits()`.
    - Added provider call log insertion into `model_call_logs`.
-2. **Database Migration [supabase/migrations/20261118000001_file_indexing_billing.sql](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261118000001_file_indexing_billing.sql):**
+2. **Database Migration supabase/migrations/20261118000001_file_indexing_billing.sql (left out of main; on the `file-manager` branch at a4a09d84):**
    - Implemented dynamic currency conversion in `user_file_settle_credits` via `private.credit_config()`.
    - Added server-side fail-closed feature gate checking `app_flags.file_indexing_billing`.
-3. **Frontend UI Disclosure [src/fileManager/IndexConfirmationModal.jsx](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/src/fileManager/IndexConfirmationModal.jsx):**
+3. **Frontend UI Disclosure [src/fileManager/IndexConfirmationModal.jsx](../../src/fileManager/IndexConfirmationModal.jsx):**
    - Updated modal text to clearly distinguish the 40-credit upfront reservation hold from actual usage-based settlement and automatic refund of unused credits.

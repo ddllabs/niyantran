@@ -1,6 +1,8 @@
 # Phase 2 — Expanded Document Ingestion and Multi-Format RAG Implementation Report
 
-> **Status: Normative Record**  
+> **Status: Historical (2026-11-23).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative Record**  
 > **Repository:** NTER Mobile (`nter-mobile/`) & NTER Platform  
 > **Date:** 2026-11-23  
 > **Target Viewports:** iPhone 14 Pro (390×844), Compact Android (360×800), Max Viewport (430×932)  

@@ -1,7 +1,9 @@
 # NTER PHASE 2: MASTER ORCHESTRATION — PHASE 1 SHELL ACCEPTANCE
 ## Shared Mobile Shell, Header, Navigation Drawer & Responsive Foundation
 
-> **Status: Normative Record**  
+> **Status: Historical (2026-11-20).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative Record**  
 > **Phase:** Phase 2 — Orchestrated Platform Implementation  
 > **Stage:** Phase 1 — Shared Shell & Mobile Foundation  
 > **Lead:** Agent 2 — Home, Terminal Shell & Navigation  

@@ -1,6 +1,8 @@
 # Private File Manager: approval and implementation plan
 
-> **Status: Living** — approval pending. This plan records discovery and the proposed sequence; it does not authorize implementation or production changes.
+> **Status: Historical (2026-11-14).** From the contributor's file-manager branch (a4a09d84); records the branch's design as it stood then. Main's schema is F410–F413 (see `docs/specs/2026-11-26-file-manager-schema-adoption.md`), not the migrations this document describes.
+
+> **Branch status: Living** — approval pending. This plan records discovery and the proposed sequence; it does not authorize implementation or production changes.
 
 **Spec:** [Private File Manager discovery and integration proposal](../specs/2026-11-14-private-file-manager-discovery.md)
 **Final source audit:** [NTER × Tejas OS File Manager final audit](../research/2026-11-15-file-manager-final-audit.md)

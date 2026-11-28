@@ -1,6 +1,8 @@
-# F341 Database Security & Access Control Final Audit
+# F341 (main: F417) Database Security & Access Control Final Audit
 
-> **Status: Normative Record**  
+> **Status: Historical (2026-11-18).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative Record**  
 > **Feature:** F341 — Private File Manager & Storage Architecture  
 > **Component:** PostgreSQL Schemas, RLS Policies, Function Security & Privilege Boundaries  
 > **Author:** Principal Engineer / Database Security Specialist  

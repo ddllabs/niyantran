@@ -1,6 +1,8 @@
-# F341 — CI & Production Readiness Report
+# F341 (main: F417) — CI & Production Readiness Report
 
-> **Status: Normative.** Comprehensive audit of GitHub Actions CI SQL fixture repairs, disposable PostgreSQL test execution, unit/integration verification, and production environment compatibility for Feature F341 (Private File Manager & Knowledge Integration).
+> **Status: Historical (2026-11-23).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative.** Comprehensive audit of GitHub Actions CI SQL fixture repairs, disposable PostgreSQL test execution, unit/integration verification, and production environment compatibility for Feature F341 (Private File Manager & Knowledge Integration).
 
 ---
 

@@ -1,6 +1,8 @@
-# F341 Acceptance Report: Personal File Manager Upload Fix & UI/UX Upgrade
+# F341 (main: F417) Acceptance Report: Personal File Manager Upload Fix & UI/UX Upgrade
 
-> **Status: Normative Acceptance Report**  
+> **Status: Historical (2026-11-15).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative Acceptance Report**  
 > **Date:** 2026-11-15  
 > **Feature:** F341 — Personal Private File Manager & Knowledge Integration  
 > **Author:** Antigravity Engineering (Multi-Agent Swarm)  

@@ -1,6 +1,8 @@
 # Niyantran Application UI/UX Comprehensive Audit
 
-> **Status: Normative Record**  
+> **Status: Historical (2026-11-18).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative Record**  
 > **Component:** Application-Wide UI/UX Audit & Quality Assessment  
 > **Author:** Principal Engineer / UI/UX Design & Frontend Specialist  
 > **Scope:** File Manager, AI Research Panel, Terminal Shell, Desks & Modals  
@@ -10,7 +12,7 @@
 
 ## 1. Executive Summary
 
-This audit evaluates the user experience, responsiveness, accessibility, typography, and visual polish across the entire Niyantran AI workbench, with focus on the File Manager (F341), AI Chat Panel, Attachment Tray, and modal interfaces.
+This audit evaluates the user experience, responsiveness, accessibility, typography, and visual polish across the entire Niyantran AI workbench, with focus on the File Manager (F341 (main: F417)), AI Chat Panel, Attachment Tray, and modal interfaces.
 
 ---
 

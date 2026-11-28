@@ -1,6 +1,8 @@
 # Niyantran Application UI/UX Implementation Report
 
-> **Status: Normative Record**  
+> **Status: Historical (2026-11-18).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative Record**  
 > **Component:** UI/UX Polish, Accessibility & Visual Enhancements  
 > **Author:** Principal Engineer / Frontend Lead  
 > **Target Production:** NTER Web Application  
@@ -13,7 +15,7 @@
 This report documents the front-end implementation improvements delivered across the File Manager and AI Assistant interfaces.
 
 ### 1.1 IndexConfirmationModal Disclosure Hardening
-- **Location:** [src/fileManager/IndexConfirmationModal.jsx](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/src/fileManager/IndexConfirmationModal.jsx)
+- **Location:** [src/fileManager/IndexConfirmationModal.jsx](../../src/fileManager/IndexConfirmationModal.jsx)
 - **Change:** Refactored the confirmation dialog to explicitly state:
   > "Reservation Hold: 40 credits per page will be temporarily reserved to authorize processing. Actual billing will reflect exact usage (approx. 38.19 credits/page based on OCR + embedding token consumption). Any unused reserved credits are automatically refunded upon job completion."
 - **Financial Clarity:** Displays exact calculations:
@@ -27,7 +29,7 @@ This report documents the front-end implementation improvements delivered across
 - Added keyboard navigation support (`ArrowUp`, `ArrowDown`, `Enter` to open, `Delete` to soft-delete).
 
 ### 1.3 Chat Attachment Tray Usability
-- [src/ai/AttachmentTray.jsx](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/src/ai/AttachmentTray.jsx):
+- [src/ai/AttachmentTray.jsx](../../src/ai/AttachmentTray.jsx):
   - Displays file type badge, file size in human-readable notation (KB/MB), and indexing status icon.
   - Hover tooltip indicates whether the file is indexed for deep semantic RAG retrieval or sent as basic context.
   - Fluid animation on attachment removal.

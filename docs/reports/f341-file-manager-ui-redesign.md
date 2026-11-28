@@ -1,6 +1,8 @@
-# F341 File Manager UI/UX Redesign Evidence Report
+# F341 (main: F417) File Manager UI/UX Redesign Evidence Report
 
-**Status:** Implementation & Verification in Progress  
+> **Status: Historical (2026-11-16).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+**Branch status:** Implementation & Verification in Progress  
 **Date:** 2026-11-16  
 **Reference Design:** Information Architecture & Presentation per Reference Specification  
 **Target Branch:** `file-manager`  

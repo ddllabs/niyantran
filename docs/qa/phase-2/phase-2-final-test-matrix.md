@@ -1,7 +1,9 @@
 # NTER Phase 2.1 — Final Test Matrix
 
+> **Status: Historical (2026-11-20).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
 **Supervisor:** Lead Engineering Orchestrator (`Agent 0`)  
-**Status:** ALL TESTS GREEN  
+**Branch status:** ALL TESTS GREEN  
 **Date:** 2026-11-20  
 
 ---

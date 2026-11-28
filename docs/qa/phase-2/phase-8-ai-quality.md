@@ -1,7 +1,9 @@
 # NTER Phase 8 — AI Quality, Guardrails & Evaluation Report
 
+> **Status: Historical (2026-11-20).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
 **Module:** AI Quality & Evaluation (`Agent 7`)  
-**Status:** ACCEPTED  
+**Branch status:** ACCEPTED  
 **Date:** 2026-11-20  
 **Authority:** `docs/specs/retrieval-eval.md` & `AGENTS.md`  
 

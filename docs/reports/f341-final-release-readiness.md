@@ -1,6 +1,8 @@
-# Feature F341 — Final Release Readiness & Verification Report
+# Feature F341 (main: F417) — Final Release Readiness & Verification Report
 
-**Status:** COMPLETE (Ready for GitHub Review & Vercel Preview)  
+> **Status: Historical (2026-11-16).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+**Branch status:** COMPLETE (Ready for GitHub Review & Vercel Preview)  
 **Date:** 2026-11-16  
 **Dedicated Branch:** `file-manager`  
 **Commit Hash:** `1119e3a1b4aed0fe23338f71b6c0af226e63dec`  

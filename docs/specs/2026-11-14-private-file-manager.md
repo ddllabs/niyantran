@@ -1,9 +1,11 @@
 # Spec: private per-user File Manager with AI indexing
 
-> **Status: Approved for implementation — pending explicit implementation authorization.**
+> **Status: Historical (2026-11-14).** From the contributor's file-manager branch (a4a09d84); records the branch's design as it stood then. Main's schema is F410–F413 (see `docs/specs/2026-11-26-file-manager-schema-adoption.md`), not the migrations this document describes.
+
+> **Branch status: Approved for implementation — pending explicit implementation authorization.**
 > Prepared 2026-11-14, reconciled 2026-11-15 following the formal product sign-off, the
 > [Ingestion & RAG Compatibility Audit](../research/2026-11-15-ingestion-rag-compatibility-audit.md),
-> [ADR 0006](../decisions/0006-private-file-manager-ingestion-rag-integration.md), and the
+> [ADR 0016](../decisions/0016-private-file-manager-ingestion-rag-integration.md), and the
 > [Central Product Functionality Reference](private-file-manager-functionality.md).
 > No application or database changes are authorized by this document.
 

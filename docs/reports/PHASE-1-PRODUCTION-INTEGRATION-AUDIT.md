@@ -1,5 +1,8 @@
 # PHASE 1 — PRODUCTION INTEGRATION AUDIT REPORT
-**Document Status:** Normative & Evidence-Backed  
+
+> **Status: Historical (2026-11-23).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+**Document Branch status:** Normative & Evidence-Backed  
 **Target Architecture:** NTER Mobile (`nter-mobile`, React 19 + Vite + Capacitor) & Supabase Backend  
 **Audit Date:** 2026-11-23  
 **Auditors:** OpenRouter & RAG Auditor (Agents 1 & 3), Storage & Security Auditor (Agents 2 & 6), Principal Lead Engineer  

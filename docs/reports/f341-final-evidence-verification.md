@@ -1,6 +1,8 @@
-# F341 Final Evidence Verification & Production Release Gate Audit
+# F341 (main: F417) Final Evidence Verification & Production Release Gate Audit
 
-> **Status: Normative Audit Record**  
+> **Status: Historical (2026-11-18).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative Audit Record**  
 > **Feature:** F341 — Private File Manager, PDF Indexing, Billing, AI Retrieval & Chat Attachments  
 > **Role:** Principal Engineer & Release Manager  
 > **Target Production:** Supabase Project `vfgcppstyzjarlzyqdac` (NTER / main PRODUCTION)  
@@ -13,7 +15,7 @@
 ## 1. Billing Settlement Verification
 
 ### 1.1 Source Code Verification
-A line-by-line inspection of the diffs in [supabase/functions/ingest-worker/user-file-step.ts](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/functions/ingest-worker/user-file-step.ts) and [supabase/migrations/20261118000001_file_indexing_billing.sql](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/migrations/20261118000001_file_indexing_billing.sql) confirms:
+A line-by-line inspection of the diffs in [supabase/functions/ingest-worker/user-file-step.ts](../../supabase/functions/ingest-worker/user-file-step.ts) and supabase/migrations/20261118000001_file_indexing_billing.sql (left out of main; on the `file-manager` branch at a4a09d84) confirms:
 
 1. **No Hardcoded Rates in Worker:**
    - Lines 248, 339, 408, and 423–431 in `user-file-step.ts` previously had `Math.round(costUsd * 9500)`. All occurrences have been completely deleted.
@@ -31,8 +33,8 @@ A line-by-line inspection of the diffs in [supabase/functions/ingest-worker/user
      ```
    - Rates `usd_to_inr` and `inr_per_credit` are dynamically loaded from `private.credit_config()`.
 3. **Provider Cost Derivation:**
-   - **Mistral OCR:** [supabase/functions/ingest-worker/mistral.ts](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/functions/ingest-worker/mistral.ts#L28-L35) sets `OCR_USD_PER_1000_PAGES = 4`. `ocrCostUsd(pagesProcessed)` calculates `(pagesProcessed * 4) / 1000 = $0.0040` per page.
-   - **OpenRouter Embedding:** [supabase/functions/_shared/embed.ts](file:///c:/Users/Afreen/Downloads/niyantran-main%20(2)/niyantran-main/supabase/functions/_shared/embed.ts#L10-L161) sets `EMBED_PRICE_USD_PER_TOKEN = 0.00000002` ($0.02 / 1M tokens). Line 161 computes:
+   - **Mistral OCR:** [supabase/functions/ingest-worker/mistral.ts](../../supabase/functions/ingest-worker/mistral.ts#L28-L35) sets `OCR_USD_PER_1000_PAGES = 4`. `ocrCostUsd(pagesProcessed)` calculates `(pagesProcessed * 4) / 1000 = $0.0040` per page.
+   - **OpenRouter Embedding:** [supabase/functions/_shared/embed.ts](../../supabase/functions/_shared/embed.ts#L10-L161) sets `EMBED_PRICE_USD_PER_TOKEN = 0.00000002` ($0.02 / 1M tokens). Line 161 computes:
      `spent.costUsd += r.promptTokens * EMBED_PRICE_USD_PER_TOKEN;`
    - **Combined Settlement:** In `user-file-step.ts` line 427:
      ```typescript

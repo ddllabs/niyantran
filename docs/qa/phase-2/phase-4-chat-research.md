@@ -1,7 +1,9 @@
 # NTER Phase 4 — Chat, AI Research & Model Picker Verification Report
 
+> **Status: Historical (2026-11-20).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
 **Module:** Chat & AI Research (`Agent 3`)  
-**Status:** ACCEPTED  
+**Branch status:** ACCEPTED  
 **Date:** 2026-11-20  
 **Authority:** `terminal-lawyer-mobile-journey.pdf` (Reference Images 1, 2, 3) & `AGENTS.md`  
 

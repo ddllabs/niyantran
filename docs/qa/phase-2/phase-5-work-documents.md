@@ -1,7 +1,9 @@
 # NTER Phase 5 — Work Mode, Document Drafting & Export Verification Report
 
+> **Status: Historical (2026-11-20).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
 **Module:** Work Mode & Document Drafting (`Agent 4`)  
-**Status:** ACCEPTED  
+**Branch status:** ACCEPTED  
 **Date:** 2026-11-20  
 **Authority:** `terminal-lawyer-mobile-journey.pdf` (Reference Image 4) & `AGENTS.md`  
 

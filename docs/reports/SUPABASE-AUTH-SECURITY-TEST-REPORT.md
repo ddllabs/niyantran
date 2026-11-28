@@ -1,6 +1,8 @@
 # Supabase Authentication & Multi-Tenant Security QA Test Report
 
-> **Status: Normative QA & Security Verification Record**  
+> **Status: Historical (2026-11-23).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative QA & Security Verification Record**  
 > **Repository:** Niyantran Terminal (`niyantran-main`)  
 > **Audited Targets:** `nter-mobile/src/screens/Auth.jsx`, `nter-mobile/src/services/live.js`, `nter-mobile/src/state/app.jsx`, `src/marketing/LoginPage.jsx`, `src/marketing/SignupPage.jsx`, `src/lib/userStore.js`, `supabase/migrations/`, `supabase/functions/`  
 > **Author:** Authentication & Security QA Engineer (Agent 2)  

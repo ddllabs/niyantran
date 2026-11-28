@@ -1,6 +1,8 @@
-# Niyantran AI — Feature F341: Production Compatibility Audit, Migration Debugging & Architectural Report
+# Niyantran AI — Feature F341 (main: F417): Production Compatibility Audit, Migration Debugging & Architectural Report
 
-**Document Status:** Normative Audit  
+> **Status: Historical (2026-11-16).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+**Document Branch status:** Normative Audit  
 **Date:** 2026-11-16  
 **Target Environment:** Existing Production Supabase Project (`https://vfgcppstyzjarlzyqdac.supabase.co`)  
 **Mandatory Constraint:** **DO NOT CHANGE THE EXISTING PRODUCTION DATABASE SCHEMA.**  

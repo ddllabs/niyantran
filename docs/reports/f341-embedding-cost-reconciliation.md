@@ -1,6 +1,8 @@
-# F341 Embedding Cost & Model Telemetry Reconciliation
+# F341 (main: F417) Embedding Cost & Model Telemetry Reconciliation
 
-> **Status: Normative Record**  
+> **Status: Historical (2026-11-18).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
+> **Branch status: Normative Record**  
 > **Feature:** F341 — Private File Manager & AI Retrieval  
 > **Component:** Ingestion Pipeline, Embedding Telemetry & Cost Accounting  
 > **Author:** Principal Engineer / Ingestion & Ingest Pipeline Specialist  

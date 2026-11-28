@@ -1,8 +1,9 @@
-# ADR 0006 (Amended): Private File Manager Ingestion & Dual-Source RAG Integration
+# ADR 0016 (Amended): Private File Manager Ingestion & Dual-Source RAG Integration
 
 > **Status: Normative.** Architectural Decision Record governing the integration of the
 > Private File Manager with Niyantran’s existing ingestion orchestration and RAG retrieval infrastructure.
 > Date: 2026-11-15.
+> Renumbered 0016 on integration into main (it was 0006 on the contributor's `file-manager` branch, a4a09d84, where 0006 was free). The tables it names (`user_folders`, `user_files`, `user_file_chunks`, `user_file_jobs`) are the branch's schema; main's schema is F410–F413 (see `docs/specs/2026-11-26-file-manager-schema-adoption.md`).
 > Cross-Reference: [Ingestion & RAG Compatibility Audit](../research/2026-11-15-ingestion-rag-compatibility-audit.md),
 > [Private File Manager Spec](../specs/2026-11-14-private-file-manager.md).
 

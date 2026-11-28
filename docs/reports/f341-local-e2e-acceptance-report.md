@@ -1,12 +1,14 @@
-# Feature F341: Personal Private File Manager & Knowledge Integration
+# Feature F341 (main: F417): Personal Private File Manager & Knowledge Integration
 # Corrective Local End-to-End Execution & Final Acceptance Report
+
+> **Status: Historical (2026-11-15).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
 
 **Project:** Niyantran AI Terminal  
 **Feature:** F341 — Personal Private File Manager & Knowledge Integration  
 **Date:** 2026-11-15  
 **Execution Environment:** Windows x86_64 Host / Docker Desktop 4.45.0 (Engine 28.3.3, context `desktop-linux`)  
 **Database:** PostgreSQL 17.11 with `pgvector` on local port 54322 (`niyantran-test-db`)  
-**Status:** **LOCAL ACCEPTANCE PASSED — PRODUCTION DEPLOYMENT NOT AUTHORIZED**  
+**Branch status:** **LOCAL ACCEPTANCE PASSED — PRODUCTION DEPLOYMENT NOT AUTHORIZED**  
 
 ---
 

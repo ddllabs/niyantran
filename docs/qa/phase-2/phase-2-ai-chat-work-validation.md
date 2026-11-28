@@ -1,7 +1,9 @@
 # NTER Phase 2.1 — AI Chat & Work Mode Validation Report
 
+> **Status: Historical (2026-11-20).** From the contributor's file-manager branch (a4a09d84); records work as it stood then.
+
 **Modules:** AI Chat (`Agent 1`), Work Mode (`Agent 2`), Model Registry (`Agent 3`)  
-**Status:** VALIDATED  
+**Branch status:** VALIDATED  
 **Date:** 2026-11-20  
 
 ---
