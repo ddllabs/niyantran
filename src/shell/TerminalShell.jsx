@@ -386,6 +386,18 @@ export default function TerminalShell({ onLogout }) {
     return () => window.removeEventListener(OPEN_CONVERSATION_EVENT, onOpenConversation);
   }, [openAi, tab, featureName]);
 
+  // F416: "Ask AI" from the file manager (niy-ai-open) opens the AI panel underneath the file manager's full-page overlay;
+  // close the overlay so the panel is seen, and put the desk's address back with replaceState. Writing '#/' instead would
+  // fire a hashchange, which clears the selection the panel was opened with.
+  useEffect(() => {
+    const onAiOpen = () => {
+      if (typeof location !== 'undefined' && location.hash === '#/files') writeDeskHash(tab, featureName, { replace: true });
+      setFilesOpen(false);
+    };
+    window.addEventListener('niy-ai-open', onAiOpen);
+    return () => window.removeEventListener('niy-ai-open', onAiOpen);
+  }, [tab, featureName]);
+
   useEffect(() => {
     const onAiMode = (e) => {
       const mode = e.detail?.mode;
