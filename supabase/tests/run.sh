@@ -163,6 +163,12 @@ chain() {
     web_text_queue)
       chain national_search_only_five_desks
       FILES+=("$(as_non_superuser 20261126100000_web_text_queue.sql)") ;;
+    # F423: the web-text settings updates carry a WHERE clause (pg_safeupdate, which PostgREST loads). web_text_queue's
+    # chain, then the migration, as a non-superuser. The vacuity check drops the last: four updates have no WHERE and the
+    # rule's assertion fails.
+    web_text_safeupdate)
+      chain web_text_queue
+      FILES+=("$(as_non_superuser 20261128100000_web_text_settings_where.sql)") ;;
     # F326 and F327: a batch closed with its failed jobs named; the failure rate counts failures ever seen.
     # national_search_only's chain (the last definer of ingest_register_batch), then 20261112090000 (the resume the
     # fixture uses), then the migration, as a non-superuser. The vacuity check drops the last. Its section (e) proves the
