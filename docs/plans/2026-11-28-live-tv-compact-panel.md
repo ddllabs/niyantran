@@ -1,4 +1,4 @@
-# Plan: Live TV fact-check panel while a session runs (F416)
+# Plan: Live TV fact-check panel while a session runs (F417)
 
 > **Status: Living.** Spec: [2026-11-28-live-tv-compact-panel.md](../specs/2026-11-28-live-tv-compact-panel.md).
 

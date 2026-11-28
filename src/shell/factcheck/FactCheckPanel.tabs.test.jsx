@@ -37,7 +37,7 @@ describe('header, status line and Stop', () => {
     expect(html).toMatch(/<h3[^>]*id="fc-title"[^>]*>Fact-check<\/h3>/);
     expect(html).toMatch(/class="fc-livedot fc-status--on"/);
     expect(html).toMatch(/class="fc-dot"/);
-    expect(text(html)).not.toContain('elapsed'); // F416: no elapsed time while running
+    expect(text(html)).not.toContain('elapsed'); // F417: no elapsed time while running
     expect(html.match(/data-fc="stop"/g)).toHaveLength(1);
     expect(html).not.toMatch(/Pause/);
   });
@@ -60,13 +60,13 @@ describe('block line', () => {
   it('has a thin bar and the time used of the minutes bought (as its value text), without repeating the credits held', () => {
     const html = render(running());
     expect(html).toMatch(/role="progressbar"[^>]*aria-valuenow="33"[^>]*aria-valuetext="1:40 of 5 minutes used"/);
-    expect(text(html)).not.toContain('of 5 minutes used'); // F416: not shown as text while running
+    expect(text(html)).not.toContain('of 5 minutes used'); // F417: not shown as text while running
     expect(html.match(/2,500 credits held/g)).toHaveLength(1); // only the rate line
   });
   it('says one minute left when a minute or less remains', () => {
     const html = render(running({ secondsLeft: 45 }));
     expect(html).toMatch(/aria-valuetext="1 minute left in this block"/);
-    expect(text(html)).not.toContain('left in this block'); // F416: the words are the bar's value text only
+    expect(text(html)).not.toContain('left in this block'); // F417: the words are the bar's value text only
     expect(html).not.toMatch(/aria-valuetext="[^"]*of 5 minutes used/);
   });
   it('is absent where there is no block', () => {
@@ -262,7 +262,7 @@ describe('where the other things stay', () => {
   });
 });
 
-describe('F416 the running top row', () => {
+describe('F417 the running top row', () => {
   const lines = [{ seq: 0, text: 'Good evening', startMs: 0 }, { seq: 1, text: 'and welcome', startMs: 2000 }];
   const row = (html) => html.slice(html.indexOf('class="fc-toprow"'), html.indexOf('class="fc-block'));
   it('is one row: the tabs, then the time left and Stop, then the link button, with the progress line right under it', () => {
@@ -322,7 +322,7 @@ describe('F416 the running top row', () => {
   });
 });
 
-describe('F416 the paste-a-link slot while running', () => {
+describe('F417 the paste-a-link slot while running', () => {
   const form = <form className="ltv-paste"><input aria-label="Video link" /></form>;
   const chromeOf = (html) => html.slice(0, html.indexOf('class="fc-body"'));
   it('renders nothing for the form while linkOpen is false, and the button says so', () => {
@@ -355,7 +355,7 @@ describe('F416 the paste-a-link slot while running', () => {
   });
 });
 
-describe('F416 the claim card', () => {
+describe('F417 the claim card', () => {
   const priced = (extra = {}) => running({}, { flag: { available: true, creditsPerMinute: 500, recheckCredits: 40, userId: 'u1' }, ...extra });
   const card = (html, id = '1') => {
     const from = html.indexOf(`id="fc-claim-${id}"`);
@@ -388,7 +388,7 @@ describe('F416 the claim card', () => {
   });
 });
 
-describe('F416 the stylesheet', () => {
+describe('F417 the stylesheet', () => {
   const css = readFileSync(new URL('./factCheck.css', import.meta.url), 'utf8');
   const phone = css.slice(css.indexOf('@media (max-width: 600px) {'));
   it('has no transcript-strip rules left', () => {

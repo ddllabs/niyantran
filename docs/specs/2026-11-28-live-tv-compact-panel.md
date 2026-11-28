@@ -1,6 +1,6 @@
-# Spec: Live TV fact-check panel while a session runs (F416)
+# Spec: Live TV fact-check panel while a session runs (F417)
 
-> **Status: Living.** Corrected in place while F416 is built; becomes Historical (dated) when it is released.
+> **Status: Living.** Corrected in place while F417 is built; becomes Historical (dated) when it is released.
 
 ## Current state (from the owner's screenshot of 2026-11-26, approximate)
 

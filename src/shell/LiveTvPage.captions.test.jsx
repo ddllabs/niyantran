@@ -1,4 +1,4 @@
-// F416: the live captions sit on the player inside .ltv-video-container while a session runs or ends, and the
+// F417: the live captions sit on the player inside .ltv-video-container while a session runs or ends, and the
 // page tells the panel whether the paste form is open (linkOpen / onToggleLink).
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

@@ -269,7 +269,7 @@ function SourceList({ result }) {
   return items.length ? <ul className="fc-sources fc-sources--pills" aria-label="Sources">{items}</ul> : null;
 }
 
-// F416: on a claim card the sources fold behind a "N sources" button (closed until pressed); a card with none
+// F417: on a claim card the sources fold behind a "N sources" button (closed until pressed); a card with none
 // shows no button. The older results under "Earlier result" keep their pills (they are already folded).
 function SourcesDisclosure({ result }) {
   const id = useId();
@@ -402,7 +402,7 @@ function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, shar
       {shown.ended_unchecked === true ? <p className="fc-reason" dir="auto">{PAST_TEXT.endedUnchecked}</p> : null}
       {shown.reason ? <p className="fc-reason" dir="auto">{shown.reason}</p> : null}
       <SourcesDisclosure result={shown} />
-      {/* F416: Copy, Check again and the time checked share one row; it wraps only where there is no room. */}
+      {/* F417: Copy, Check again and the time checked share one row; it wraps only where there is no room. */}
       {showCopy || showRecheck || checkedTime(shown.checked_at, false) ? (
         <div className="fc-card-actions">
           {showCopy ? (
@@ -499,7 +499,7 @@ function HeadTitle({ session, heading = null }) {
 }
 
 // F366: the thin bar and the block's line under the header, from figures the session view carries.
-// F416: while a session runs (`line`) only the 3px line is drawn; the words are the bar's aria-valuetext.
+// F417: while a session runs (`line`) only the 3px line is drawn; the words are the bar's aria-valuetext.
 function BlockLine({ session, line = false }) {
   const block = blockLine(session);
   if (!block) return null;
@@ -517,7 +517,7 @@ function BlockLine({ session, line = false }) {
   );
 }
 
-// F416: the "Paste a video link" icon button of the running row (an inline link icon).
+// F417: the "Paste a video link" icon button of the running row (an inline link icon).
 function LinkIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
@@ -527,7 +527,7 @@ function LinkIcon() {
   );
 }
 
-// F416: the controls that follow the tabs in the top row while a session runs: the dot (the normal checking state
+// F417: the controls that follow the tabs in the top row while a session runs: the dot (the normal checking state
 // shows as the dot alone), the time left (or "Finishing…"), Stop, then the link button. The row itself, the
 // heading and the status line are in PanelBody, the same in every state, so focus survives the session's end.
 export function RunningControls({ session, onStop, linkOpen, onToggleLink, linkButton }) {
@@ -740,7 +740,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
         <BlockLine session={s} line={live} />
         <StatusLine session={s} live={live} />
       </header>
-      {/* F416: outside a session the form is at the top as before (CSS order); while one runs it folds away and
+      {/* F417: outside a session the form is at the top as before (CSS order); while one runs it folds away and
           opens under the top row. */}
       {slotShown ? (
         <div

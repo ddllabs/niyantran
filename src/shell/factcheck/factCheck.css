@@ -58,7 +58,7 @@
 /* The paste form is the top row of the panel outside a session (DOM: after the head, so the running order holds). */
 .fc-panel > .fc-linkslot:not(.fc-linkslot--live) { order: -1; }
 
-/* F416: while a session runs the head is ONE row (tabs, time left, Stop, the link button) and a 3px progress line
+/* F417: while a session runs the head is ONE row (tabs, time left, Stop, the link button) and a 3px progress line
    under it. The row does not wrap above 600px: the tabs take what is left and scroll sideways before anything
    else moves. On phones it wraps (the phone block at the end).
    The 36px floor applies on fine pointers above 1080px; at 1080px and below or on touch the page's rule
@@ -254,12 +254,12 @@
 .fc-transcript-wrap { position: relative; }
 /* B1: Copy on a claim card and Export; the buttons wrap on a phone and keep 40px targets (liveTv.css). */
 .fc-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
-/* F416: Check again sits in the same row as Copy and the time checked. Its own parts become items of the row; a
+/* F417: Check again sits in the same row as Copy and the time checked. Its own parts become items of the row; a
    note or the inline confirmation takes a row of its own. The time goes to the right end of the last line. */
 .fc-card-actions .fc-recheck { display: contents; }
 .fc-card-actions .fc-recheck-note, .fc-card-actions .fc-confirm, .fc-card-actions .fc-rechecking { flex: 1 0 100%; }
 .fc-card-actions .fc-time { margin-left: auto; white-space: nowrap; }
-/* F416: the sources fold behind a "N sources" button: 36px on a fine pointer, 40px where the page's rule says so. */
+/* F417: the sources fold behind a "N sources" button: 36px on a fine pointer, 40px where the page's rule says so. */
 .fc-sources-fold { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .fc-sources-toggle {
   display: inline-flex; align-items: center; gap: 4px;
@@ -585,7 +585,7 @@
    (.fc-tabs). Long Hindi/Devanagari text wraps. */
 @media (max-width: 600px) {
   .fc-panel { padding: 12px; border-radius: 12px; }
-  /* F416: on phones the top row wraps: the tabs take the first line (measured at 375px: in one row the Summary
+  /* F417: on phones the top row wraps: the tabs take the first line (measured at 375px: in one row the Summary
      tab was 67px off to the side), the dot, clock, Stop and link button the second, at its right. */
   .fc-head--live .fc-toprow { flex-wrap: wrap; row-gap: 4px; }
   .fc-head--live .fc-toprow > [role="tablist"] { flex: 1 0 100%; }

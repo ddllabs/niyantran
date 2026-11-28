@@ -117,7 +117,7 @@ describe('Summary tab (B3)', () => {
 });
 
 
-describe('F416 the paste-a-link button and slot (running)', () => {
+describe('F417 the paste-a-link button and slot (running)', () => {
   const form = { type: 'form', props: { className: 'ltv-paste' } };
   const slot = (out) => [...elements(out)].find((e) => e.props?.id === 'fc-linkslot');
   const head = (out) => find(out, RunningControls);
@@ -184,10 +184,10 @@ describe('F416 the paste-a-link button and slot (running)', () => {
   });
 });
 
-// F416 review: React keeps an element (and the focus inside it) only while its place in the tree is the same:
+// F417 review: React keeps an element (and the focus inside it) only while its place in the tree is the same:
 // the same chain of (index, type, key) from the root. The tabs, the heading and the paste slot must keep that
 // place when a session goes from running or ending to ended or error, or focus drops to the page body.
-describe('F416 the tree keeps its shape when the session ends', () => {
+describe('F417 the tree keeps its shape when the session ends', () => {
   const pathTo = (root, pred) => {
     const walk = (node, path) => {
       if (Array.isArray(node)) {

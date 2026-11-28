@@ -593,7 +593,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const factCheckOffered = factCheck.view?.flag?.available === true;
   // Over the video only while a session runs: the "Fact-check on" pill and the newest claim with a verdict.
   const sessionRunning = factCheckOffered && factCheck.view?.session?.status === 'running';
-  // F416: the captions show while the session runs or is ending (the last words still arrive while it ends).
+  // F417: the captions show while the session runs or is ending (the last words still arrive while it ends).
   const captionsStatus = factCheckOffered ? factCheck.view?.session?.status : null;
   const showCaptions = captionsStatus === 'running' || captionsStatus === 'ending';
   const captionsListening = captionsStatus === 'running' && !isMuted && !(factCheck.view.session.silentFor > SILENT_NOTICE_MS);

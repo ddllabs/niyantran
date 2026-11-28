@@ -1,4 +1,4 @@
-// F416: the newest transcribed words as captions on the player, two lines at most, subtitle style (liveTv.css).
+// F417: the newest transcribed words as captions on the player, two lines at most, subtitle style (liveTv.css).
 // The text is bottom-aligned in a clipped box, so older words fall off the top and the last words stay visible.
 // Hidden from screen readers and click-through: the Transcript tab is the accessible text, and the player
 // controls under the captions stay usable.

@@ -914,7 +914,7 @@
   pointer-events: none;
 }
 .ltv-fcpill-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; animation: ltvPulse 1.8s infinite; }
-/* F416: the live captions, subtitle style: white on a translucent dark band, centred, two lines at most with the
+/* F417: the live captions, subtitle style: white on a translucent dark band, centred, two lines at most with the
    newest words visible (the box is bottom-aligned and clipped at the top). They sit at the claim strip's place
    (64px up, clear of YouTube's control bar) and move up above the strip when it shows a claim (the page sets
    .is-raised then). The strip is about 40px tall on a fine pointer above 1080px and about 52px where the page's

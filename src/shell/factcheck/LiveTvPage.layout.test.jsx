@@ -60,7 +60,7 @@ describe('the paste-a-link form (F387)', () => {
     for (const status of ['choosing', 'running', 'ended', 'error']) {
       seen.view = viewWith({ status });
       const html = render();
-      if (status === 'running') { // F416: while a session runs the form is folded away until the link button opens it
+      if (status === 'running') { // F417: while a session runs the form is folded away until the link button opens it
         expect(html.match(/<form class="ltv-paste/g), status).toBeNull();
         continue;
       }
