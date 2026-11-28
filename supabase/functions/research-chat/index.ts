@@ -184,7 +184,7 @@ function metadata(payload: Record<string, unknown>, generation: string | null): 
  * writes nothing, so unlike the RPCs in bounded() a retry cannot double a write. */
 export async function embedQuery(query: string, context: RetrievalContext, r: Runtime, apiKey: string) {
   let noResponseRetried = false;
-  const callProvider = async (url: Parameters<typeof fetch>[0], init: RequestInit): Promise<Response> => {
+  const callProvider = async (url: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> => {
     context.signal.throwIfAborted();
     let attempt: ReturnType<RetrievalContext['beginEmbeddingAttempt']> | undefined;
     let responded = false;
@@ -193,7 +193,7 @@ export async function embedQuery(query: string, context: RetrievalContext, r: Ru
         async (signal) => {
           context.signal.throwIfAborted();
           attempt = context.beginEmbeddingAttempt(EMBED_MODEL);
-          const response = await r.fetch(url, { ...init, signal });
+          const response = await r.fetch(url, { ...(init ?? {}), signal });
           responded = true;
           context.signal.throwIfAborted();
           attempt.observe(metadata({}, response.headers.get('x-generation-id')));
@@ -265,7 +265,7 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
   };
   const observedCancellations = new Map<string, string>();
   async function query<T>(
-    run: (signal: AbortSignal) => PromiseLike<{ data: T; error: unknown }>,
+    run: (signal: AbortSignal) => PromiseLike<{ data: T | null; error: unknown }>,
     signal?: AbortSignal,
     ms = r.timeoutMs,
   ): Promise<T> {
@@ -282,7 +282,7 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
       });
       throw new HttpError(503, 'Research service unavailable');
     }
-    return result.data;
+    return result.data as T;
   }
   async function resolveLawKeys(keys: string[]) {
     const rows: { document_key: string; document_id: string }[] = [];
@@ -363,7 +363,7 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
       return { ...row, admin };
     },
     pricing: async (model) => {
-      const row = await query((signal) =>
+      const row = await query<{ prompt_usd: unknown; completion_usd: unknown } | null>((signal) =>
         service().from('model_pricing').select('prompt_usd,completion_usd').eq('model_id', model).abortSignal(signal)
           .maybeSingle()
       );
@@ -377,7 +377,7 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
       if (userId !== owner) throw new HttpError(403, 'Turn owner mismatch');
       return await resolvePersona(probe, {
         profilePersona: async () => {
-          const row = await query((signal) =>
+          const row = await query<{ persona: string | null } | null>((signal) =>
             caller().from('user_profiles').select('persona').eq('user_id', userId).abortSignal(signal).maybeSingle()
           );
           return row?.persona;
@@ -444,7 +444,7 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
         }));
       },
       cancelRequestedSince: async (id, since) => {
-        const row = await query((signal) =>
+        const row = await query<{ cancel_requested_at: string | null } | null>((signal) =>
           caller().from('chat_cancellations').select('cancel_requested_at').eq('conversation_id', id).eq(
             'user_id',
             owner!,
@@ -544,7 +544,7 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
           );
           return requested;
         }
-        const row = await query((signal) =>
+        const row = await query<{ web_search: boolean | null } | null>((signal) =>
           caller().from('conversations').select('web_search').eq('id', conversationId).eq('user_id', owner!)
             .abortSignal(signal).maybeSingle()
         );
@@ -563,7 +563,7 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
     telemetry: {
       logModelCall: async (row) => {
         if (row.user_id !== owner) throw new HttpError(403, 'Turn owner mismatch');
-        const data = await query((signal) =>
+        const data = await query<{ id: string } | null>((signal) =>
           service().from('model_call_logs').insert(row).select('id').abortSignal(signal).single()
         );
         return data?.id ?? null;
@@ -659,7 +659,7 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
                 .abortSignal(signal), context.signal) ?? []).catch(afterRpcFailure);
           return { data, error: null };
         },
-      }, { query: args.query, deskTier: args.desk_tier, deskFeature: args.desk_feature, documentIds: ids, topK: context.topK });
+      }, { query: args.query, deskTier: args.desk_tier, deskFeature: args.desk_feature, documentIds: ids, topK: context.topK, privateFileIds: context.privateFileIds, scope: context.scope });
       return await hydrateLawContext(chunks, async id =>
         await query<LawContextRow[] | null>((signal) => caller().from('document_chunks')
           .select('id,document_id,chunk_index,char_from,char_to,content,source_kind,page_number,block_ids,image_ids').eq('document_id', id)

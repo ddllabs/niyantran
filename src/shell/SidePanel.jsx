@@ -225,7 +225,7 @@ export function panelDragProps({ onAi, act, handOff = handOffAiDrop }) {
   };
 }
 
-export default function SidePanel({ panel, hasRail, feed, selected, onSelect, lang, loading, vizFilter, tab, featureName }) {
+export default function SidePanel({ panel, hasRail, feed, selected, onSelect, lang, loading, vizFilter, tab, featureName, aiMode = 'chat', onAiModeChange }) {
   const { state, act, seed, consumeSeed, width, setWidth, expanded, userExpanded, setUserExpanded, setCitation, citation, citationExpanded } = panel;
   const [viewerSlot, setViewerSlot] = useState(null);
   const [actionsSlot, setActionsSlot] = useState(null);
@@ -241,7 +241,7 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
   useEffect(() => {
     if (!state.open || state.active !== 'ai') return undefined;
     return attachOutsideClose(document, {
-      zones: () => [asideRef.current],
+      zones: () => [asideRef.current, document.querySelector('.mobile-bottom-nav')].filter(Boolean),
       onOutside: () => act({ type: 'dismiss-ai' }),
     });
   }, [state.open, state.active, act]);
@@ -429,6 +429,8 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
               onCitation={onCitation}
               viewerSlot={viewerSlot}
               actionsSlot={actionsSlot}
+              aiMode={aiMode}
+              onAiModeChange={onAiModeChange}
             /></LazyView>
           </div>
         ) : null}

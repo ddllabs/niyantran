@@ -76,3 +76,14 @@
   .desk-rail, .desk-rail::after, .desk-rail-glyph, .desk-rail-glyph line, .desk-rail-icon { transition: none; }
   .desk-rail.open { animation: none; }
 }
+
+@media (pointer: coarse) {
+  .desk-rail button {
+    min-height: 44px;
+    height: auto;
+  }
+  .desk-rail-icon {
+    width: 44px;
+    height: 44px;
+  }
+}

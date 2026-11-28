@@ -10,12 +10,21 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { log } from '../_shared/logging.ts';
 import { serviceClient, userClient } from '../_shared/supabase.ts';
-import { type DocumentFileDeps, type DocumentRow, handleDocumentFile, type PartRow } from './handler.ts';
+import {
+  CORPUS_BUCKET,
+  type DocumentFileDeps,
+  type DocumentRow,
+  handleDocumentFile,
+  type PartRow,
+  USER_FILES_BUCKET,
+  type UserFileCitationRow,
+} from './handler.ts';
 
-export const CORPUS_BUCKET = 'corpus';
+export { CORPUS_BUCKET, USER_FILES_BUCKET };
 
 const DOCUMENT_COLUMNS = 'id, storage_path, indexed_at, extract_hash, page_count';
 const PART_COLUMNS = 'part_index, page_offset, page_count, byte_size, storage_path';
+const USER_FILE_COLUMNS = 'id, user_id, storage_path, upload_status, deleted_at, size_bytes, page_count';
 
 export interface Runtime {
   userClient: (token: string) => SupabaseClient;
@@ -30,7 +39,7 @@ const num = (v: unknown) => (typeof v === 'number' ? v : typeof v === 'string' &
 
 export function supabaseDocumentFileDeps(
   r: Pick<Runtime, 'userClient' | 'serviceClient'>,
-): Pick<DocumentFileDeps, 'document' | 'parts' | 'sign'> {
+): Pick<DocumentFileDeps, 'document' | 'parts' | 'sign' | 'userFile' | 'signPrivate'> {
   return {
     async document(token, documentId): Promise<DocumentRow | null> {
       const { data, error } = await r.userClient(token)
@@ -72,6 +81,32 @@ export function supabaseDocumentFileDeps(
 
     async sign(path, seconds): Promise<string> {
       const { data, error } = await r.serviceClient().storage.from(CORPUS_BUCKET).createSignedUrl(path, seconds);
+      if (error || !data?.signedUrl) throw new Error('storage sign failed');
+      return data.signedUrl;
+    },
+
+    async userFile(token, fileId): Promise<UserFileCitationRow | null> {
+      const { data, error } = await r.userClient(token)
+        .from('user_files')
+        .select(USER_FILE_COLUMNS)
+        .eq('id', fileId)
+        .maybeSingle();
+      if (error) throw new Error('user_files read failed');
+      if (!data) return null;
+      const d = data as Record<string, unknown>;
+      return {
+        id: String(d.id),
+        user_id: String(d.user_id),
+        storage_path: String(d.storage_path ?? ''),
+        upload_status: String(d.upload_status ?? ''),
+        deleted_at: strOrNull(d.deleted_at),
+        size_bytes: num(d.size_bytes),
+        page_count: d.page_count === null || d.page_count === undefined ? null : num(d.page_count),
+      };
+    },
+
+    async signPrivate(path, seconds): Promise<string> {
+      const { data, error } = await r.serviceClient().storage.from(USER_FILES_BUCKET).createSignedUrl(path, seconds);
       if (error || !data?.signedUrl) throw new Error('storage sign failed');
       return data.signedUrl;
     },

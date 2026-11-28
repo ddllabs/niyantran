@@ -630,3 +630,190 @@ Deno.test('F295: hybrid timeout then fallback: one retrievalMs covering both cal
     assertTimings(c.timings, 30, 3_200);
   }
 });
+
+// F341: Dual-source RAG retrieval (shared research corpus + private user files)
+function privRow(id: string, fileId: string, similarity: number, content = `private content ${id}`, fileName = 'user_upload.pdf') {
+  return {
+    id,
+    file_id: fileId,
+    content,
+    similarity,
+    chunk_index: 0,
+    page_start: 1,
+    page_end: 1,
+    file_name: fileName,
+  };
+}
+
+Deno.test('F341: dual-source retrieval dispatches match_user_files alongside match_documents, tags origins and ranks by similarity', async () => {
+  const calls: { fn: string; args: Record<string, unknown> }[] = [];
+  const sharedRow = row('shared-1', 0.82, 'Shared corpus text');
+  const privateRow1 = privRow('priv-1', 'file-uuid-1', 0.94, 'High relevance private text', 'report.pdf');
+  const privateRow2 = privRow('priv-2', 'file-uuid-2', 0.75, 'Lower relevance private text', 'notes.pdf');
+
+  const d: RetrievalDeps = {
+    embed: () => Promise.resolve({ vector: vec(), model: 'openai/text-embedding-3-small' }),
+    rpc: (fn, args) => {
+      calls.push({ fn, args });
+      if (fn === 'match_documents') {
+        return Promise.resolve({ data: [sharedRow], error: null });
+      }
+      if (fn === 'match_user_files') {
+        return Promise.resolve({ data: [privateRow1, privateRow2], error: null });
+      }
+      return Promise.resolve({ data: [], error: null });
+    },
+  };
+
+  const chunks = await search(d, {
+    query: 'financial report analysis',
+    deskTier: 'national',
+    private_file_ids: ['file-uuid-1', 'file-uuid-2'],
+  });
+
+  // Verify both RPCs dispatched
+  assertEquals(calls.map((c) => c.fn), ['match_documents', 'match_user_files']);
+  const userFilesCall = calls.find((c) => c.fn === 'match_user_files')!;
+  assertEquals(userFilesCall.args.filter_file_ids, ['file-uuid-1', 'file-uuid-2']);
+  assertEquals(userFilesCall.args.match_count, DEFAULT_TOP_K);
+  assertEquals((userFilesCall.args.query_embedding as number[]).length, EMBED_DIMS);
+
+  // Verify ranking by similarity descending: priv-1 (0.94) > shared-1 (0.82) > priv-2 (0.75)
+  assertEquals(chunks.map((c) => c.id), ['priv-1', 'shared-1', 'priv-2']);
+  assertEquals(chunks.map((c) => c.similarity), [0.94, 0.82, 0.75]);
+
+  // Verify tagging
+  assertEquals(chunks[0].source_origin, 'private');
+  assertEquals(chunks[0].file_id, 'file-uuid-1');
+  assertEquals(chunks[0].file_name, 'report.pdf');
+  assertEquals(chunks[0].text_hash, await sha256Hex('High relevance private text'));
+
+  assertEquals(chunks[1].source_origin, 'shared');
+  assertEquals(chunks[1].document_id, 'doc-1');
+  assertEquals(chunks[1].file_id, undefined);
+
+  assertEquals(chunks[2].source_origin, 'private');
+  assertEquals(chunks[2].file_id, 'file-uuid-2');
+  assertEquals(chunks[2].file_name, 'notes.pdf');
+});
+
+Deno.test('F341: dual-source retrieval deduplicates identical chunk IDs and retains the higher similarity', async () => {
+  const d: RetrievalDeps = {
+    embed: () => Promise.resolve({ vector: vec(), model: 'openai/text-embedding-3-small' }),
+    rpc: (fn) => {
+      if (fn === 'match_documents') {
+        return Promise.resolve({ data: [row('overlap-chunk', 0.60)], error: null });
+      }
+      if (fn === 'match_user_files') {
+        return Promise.resolve({ data: [privRow('overlap-chunk', 'file-uuid-1', 0.88)], error: null });
+      }
+      return Promise.resolve({ data: [], error: null });
+    },
+  };
+
+  const chunks = await search(d, {
+    query: 'query',
+    private_file_ids: ['file-uuid-1'],
+  });
+
+  assertEquals(chunks.length, 1);
+  assertEquals(chunks[0].id, 'overlap-chunk');
+  assertEquals(chunks[0].similarity, 0.88);
+  assertEquals(chunks[0].source_origin, 'private');
+});
+
+Deno.test('F341: match_user_files is NOT dispatched when private_file_ids is absent or empty', async () => {
+  const calls: string[] = [];
+  const d: RetrievalDeps = {
+    embed: () => Promise.resolve({ vector: vec(), model: 'openai/text-embedding-3-small' }),
+    rpc: (fn) => {
+      calls.push(fn);
+      return Promise.resolve({ data: [], error: null });
+    },
+  };
+
+  await search(d, { query: 'test without private files' });
+  assertEquals(calls, ['match_documents']);
+
+  calls.length = 0;
+  await search(d, { query: 'test with empty private files', private_file_ids: [] });
+  assertEquals(calls, ['match_documents']);
+});
+
+Deno.test('F341: private-only isolation suppresses match_documents when searching only private files', async () => {
+  const calls: string[] = [];
+  const privateRow = privRow('priv-1', 'file-uuid-1', 0.94, 'Private document content', 'report.pdf');
+  const d: RetrievalDeps = {
+    embed: () => Promise.resolve({ vector: vec(), model: 'openai/text-embedding-3-small' }),
+    rpc: (fn) => {
+      calls.push(fn);
+      if (fn === 'match_user_files') {
+        return Promise.resolve({ data: [privateRow], error: null });
+      }
+      return Promise.resolve({ data: [], error: null });
+    },
+  };
+
+  // Case A: explicit scope: 'private'
+  const chunksA = await search(d, {
+    query: 'specific private query',
+    private_file_ids: ['file-uuid-1'],
+    scope: 'private',
+  });
+  assertEquals(calls, ['match_user_files']);
+  assertEquals(chunksA.length, 1);
+  assertEquals(chunksA[0].id, 'priv-1');
+
+  // Case B: private files attached without public documentIds or deskTier defaults to private-only
+  calls.length = 0;
+  const chunksB = await search(d, {
+    query: 'specific private query',
+    private_file_ids: ['file-uuid-1'],
+  });
+  assertEquals(calls, ['match_user_files']);
+  assertEquals(chunksB.length, 1);
+});
+
+Deno.test('F341: match_user_files RPC error surfaces with its message', async () => {
+  const d: RetrievalDeps = {
+    embed: () => Promise.resolve({ vector: vec(), model: 'openai/text-embedding-3-small' }),
+    rpc: (fn) => {
+      if (fn === 'match_user_files') {
+        return Promise.resolve({ data: null, error: { message: 'permission denied for table user_file_chunks' } });
+      }
+      return Promise.resolve({ data: [], error: null });
+    },
+  };
+
+  await assertRejects(
+    () => search(d, { query: 'query', private_file_ids: ['f1'] }),
+    Error,
+    'match_user_files: permission denied for table user_file_chunks',
+  );
+});
+
+Deno.test('F341: private chunks are untouched by legal corpus hydrators and keep no legal metadata', async () => {
+  const { hydrateDocumentRoles } = await import('./retrieval.ts');
+  const privateItem = {
+    ...privRow('p1', 'file-1', 0.9),
+    document_role: 'as_introduced',
+    document_facts: 'forged facts',
+    publisher: 'Reserve Bank of India',
+  };
+  let readCalled = false;
+  const out = await hydrateDocumentRoles([privateItem], () => {
+    readCalled = true;
+    return Promise.resolve([]);
+  });
+  assertEquals(readCalled, false, 'hydrateDocumentRoles must never query documents table for private files');
+  assertEquals(out.length, 1);
+  assertEquals(out[0].id, 'p1');
+
+  const chunk = await rowToChunk(privateItem);
+  assertEquals(chunk.source_origin, 'private');
+  assertEquals(chunk.file_id, 'file-1');
+  assertEquals(chunk.document_role, undefined, 'private chunks cannot hold a document_role');
+  assertEquals(chunk.document_facts, undefined, 'private chunks cannot hold document_facts');
+  assertEquals(chunk.publisher, undefined, 'private chunks cannot hold a publisher');
+  assertEquals(chunk.text_hash, await sha256Hex('private content p1'));
+});

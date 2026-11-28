@@ -81,6 +81,7 @@ import {
   documentIdsOf,
   documentKeysOf,
   type Focus,
+  privateFileIdsOf,
   type ResearchRequest,
   validateRequest,
 } from './validate.ts';
@@ -216,6 +217,8 @@ export interface RetrievalContext {
   signal: AbortSignal;
   /** Passages to ask for; set on a widened search only (agent WIDENED_TOP_K), else retrieval's default. */
   topK?: number;
+  privateFileIds?: string[];
+  scope?: 'private' | 'shared' | 'combined';
   onTiming?: (phase: 'embeddingMs' | 'retrievalMs', ms: number) => void;
   /** F288: how a search that consulted the hybrid switch was served. Not called for a plain vector search. */
   onPath?: (info: RetrievalPathInfo) => void;
@@ -795,8 +798,8 @@ export function featureScopeOf(
  * the turn's document scope is what keeps the searches inside it.
  */
 function promptAttachment(a: Attachment): RenderedAttachment {
-  if (a.kind !== 'document') return { kind: a.kind, title: a.title, text: a.text };
-  return { kind: a.kind, title: a.title };
+  if (a.kind === 'document' || a.kind === 'private_file') return { kind: a.kind, title: a.title };
+  return { kind: a.kind, title: a.title, text: a.text };
 }
 
 interface TurnInput {
@@ -996,6 +999,7 @@ async function runTurnBody(
   //    to the reader. Every lookup here is best-effort; none can fail the turn.
   const documentKeys = documentKeysOf(mappedRequest);
   const documentIds = documentIdsOf(request);
+  const privateFileIds = privateFileIdsOf(request);
   const [resolution, webOverride] = await Promise.all([
     deps.db.resolveDocumentScope({ keys: documentKeys, ids: documentIds, signal }),
     // A failed read falls back to off, not automatic: "off" may be the reader's privacy choice.
@@ -1057,7 +1061,7 @@ async function runTurnBody(
         verifiedHandles.add(handle);
         attachments.push({ kind: attachment.kind as 'row' | 'record', title: attachment.title, text: stored.record_text, handle });
       } else attachments.push(promptAttachment(attachment));
-      if (!observationSelection && attachment.tier === 'economics' && attachment.feature === 'Economic Simulator' && attachment.kind !== 'document') {
+      if (!observationSelection && attachment.kind !== 'document' && attachment.kind !== 'private_file' && attachment.tier === 'economics' && attachment.feature === 'Economic Simulator') {
         observationSelection = stored
           ? { text: observationFields(stored.row), handle: handles.assign(rowSourceKey(stored)) }
           : { text: `${attachment.title}: ${attachment.text}`.slice(0, 300) };
@@ -1127,12 +1131,12 @@ async function runTurnBody(
 
   const observationTurn = !conversational && documentSearchUnavailable && web.offered &&
     request.focus !== 'broad' && [request.selection, ...request.attachments, request.desk_context].some(context =>
-      context?.tier === 'economics' && context.feature === 'Economic Simulator');
+      context && 'tier' in context && context.tier === 'economics' && 'feature' in context && context.feature === 'Economic Simulator');
   const provisionTurn = !conversational && !documentSearchUnavailable &&
     request.focus !== 'broad' && /\b(?:sections?|clauses?|provisions?|amend(?:s|ed|ment|ments)?)\b/i.test(request.message) &&
     [request.desk_context, request.selection, ...request.attachments].some(context =>
-      context?.tier === 'national' && context.feature === 'Bill Passage Probability Index');
-  let lawTurn = !conversational && (request.desk_context?.tier === 'law' || request.selection?.tier === 'law' || request.attachments.some(a => a.tier === 'law'));
+      context && 'tier' in context && context.tier === 'national' && 'feature' in context && context.feature === 'Bill Passage Probability Index');
+  let lawTurn = !conversational && (request.desk_context?.tier === 'law' || request.selection?.tier === 'law' || request.attachments.some(a => 'tier' in a && a.tier === 'law'));
   const onEvent = (e: AgentEvent) => {
     if (signal.aborted) return;
     if ('lawEvidence' in e) { lawTurn = true; return; }
@@ -1282,6 +1286,7 @@ async function runTurnBody(
     window,
     userTurn,
     scopedDocumentIds,
+    ...(privateFileIds.length ? { privateFileIds } : {}),
     scopedRows: [...(verifiedSelection ? [verifiedSelection] : []), ...attachmentRows.filter((row): row is DeskRow => !!row)],
     ...(request.desk_context ? { rowFeatureScope: request.desk_context } : {}),
     documentSearchUnavailable,
@@ -1335,6 +1340,8 @@ async function runTurnBody(
               onTiming,
               onPath,
               ...(topK === undefined ? {} : { topK }),
+              ...(privateFileIds.length ? { privateFileIds } : {}),
+              ...(privateFileIds.length && !scopedDocumentIds.length && request.focus === 'attached' ? { scope: 'private' as const } : {}),
               beginEmbeddingAttempt: (model) => attempts.beginEmbeddingAttempt(model, signal),
             }),
           searchDeskRows: (args) => deps.searchDeskRows(args, { signal }),

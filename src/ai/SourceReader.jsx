@@ -17,6 +17,52 @@ export function safeSourceUrl(value) {
 export async function loadSource(citation, client, current = () => true) {
   const unavailable = { loading: false, error: 'This document is no longer available. Try opening the source again.', doc: null, span: null };
   try {
+    const isPrivate = citation.source_origin === 'private' || Boolean(citation.file_id);
+    if (isPrivate) {
+      const fileId = citation.file_id || citation.document_id;
+      const { data: file, error: fileError } = await client
+        .from('user_files')
+        .select('id, name, mime_type, storage_path, user_id')
+        .eq('id', fileId)
+        .maybeSingle();
+      if (!current()) return null;
+      if (fileError) return unavailable;
+      if (!file) return { ...unavailable, documentState: 'gone' };
+
+      let chunkContent = '';
+      if (citation.chunk_id) {
+        const { data: chunk } = await client
+          .from('user_file_chunks')
+          .select('content, char_from, char_to')
+          .eq('id', citation.chunk_id)
+          .maybeSingle();
+        if (chunk?.content) chunkContent = chunk.content;
+      }
+
+      const doc = {
+        id: file.id,
+        title: file.name,
+        file_name: file.name,
+        desk_feature: 'Private Document',
+        ocr_text: chunkContent,
+        file_id: file.id,
+        is_private: true,
+      };
+
+      const span = {
+        matched: Boolean(chunkContent),
+        exact: true,
+        span_from: citation.char_from ?? 0,
+        span_to: citation.char_to ?? chunkContent.length,
+        lead: '',
+        passage: chunkContent,
+        trail: '',
+        missing_phrase: '',
+      };
+
+      return { loading: false, error: '', doc, span, documentState: 'ok' };
+    }
+
     const { data: doc, error } = await client.from('documents')
       .select('id, title, file_name, file_url, desk_feature, ocr_text').eq('id', citation.document_id).maybeSingle();
     if (!current()) return null;
@@ -99,6 +145,18 @@ export default function SourceReader({ citation, onClose, client = supabase, onD
           <strong>{tidyDocTitle(doc?.title ?? citation.title)}</strong>
           <span className="ai-reader-file">
             {doc?.file_name ?? citation.file_name ?? ''}
+            {doc?.is_private ? (
+              <button
+                type="button"
+                className="ai-reader-open-private"
+                style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', padding: '0 6px', fontSize: '12px', textDecoration: 'underline' }}
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('niy-file-preview', { detail: { fileId: doc.id, fileName: doc.file_name } }));
+                }}
+              >
+                Preview workbook ↗
+              </button>
+            ) : null}
             {fileUrl ? (
               <>
                 {' '}

@@ -12,7 +12,7 @@ import DeskDirectory, { DeskLandingTabs } from './DeskDirectory.jsx';
 import SidePanel, { useSidePanel } from './SidePanel.jsx';
 import { deskHasRail, rowPicker } from './sidePanelModel.js';
 import { Icon } from './Icons.jsx';
-import { Moon, Sun } from 'lucide-react';
+import { Folder, Moon, Sun } from 'lucide-react';
 import { isConflictsFeature } from '../lib/conflictsMonitor.js';
 import { isTransitFeature } from '../lib/transit.js';
 import { isChokepointsFeature } from '../lib/strategicAssets.js';
@@ -36,6 +36,7 @@ import { openInDesk, pendingDeskRow, takePendingDeskRow } from '../ai/openRowSou
 import OnboardingTour from './OnboardingTour.jsx';
 import PersonaChooser from './PersonaChooser.jsx';
 const CreditsPage = lazy(() => import('./credits/CreditsPage.jsx'));
+const FileManagerShell = lazy(() => import('../fileManager/FileManagerShell.jsx'));
 const PlanChangeDialog = lazy(() => import('./PlanChangeDialog.jsx'));
 import LazyView from './LazyView.jsx';
 import ProfileCredits from './credits/BalancePill.jsx';
@@ -51,6 +52,9 @@ import './deskCatalogueSearch.css';
 const DeskCatalogueSearch = lazy(() => import('./DeskCatalogueSearch.jsx'));
 import RestrictedDeskRoute from './RestrictedDeskRoute.jsx';
 import { backFromRestrictedDesk, rememberDeskNavigation } from './deskRouteHistory.js';
+import MobileBottomNav from './MobileBottomNav.jsx';
+import MobileHeader from './MobileHeader.jsx';
+import './mobileNav.css';
 
 export default function TerminalShell({ onLogout }) {
   const start = parseDeskHash();
@@ -76,10 +80,12 @@ export default function TerminalShell({ onLogout }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [planPickerOpen, setPlanPickerOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(() => typeof location !== 'undefined' && location.hash === '#/files');
   // The credits page (F184): its section while open (#/account/<section>), else null.
   const [account, setAccount] = useState(() => parseAccountHash());
   // F195: the desk rail on module pages, open (names, over the page; a drawer on phones) or not.
   const [railOpen, setRailOpen] = useState(false);
+  const [aiMode, setAiMode] = useState('chat');
   const [userTick, setUserTick] = useState(0);
   const typeId = userTypeOf(user?.type).id;
   const typeMeta = userTypeOf(typeId);
@@ -104,7 +110,12 @@ export default function TerminalShell({ onLogout }) {
 
   // The credits page follows the address (F184): back, forward and bookmarks work as for desks.
   useEffect(() => {
-    const sync = () => setAccount(parseAccountHash());
+    const sync = () => {
+      setAccount(parseAccountHash());
+      if (typeof location !== 'undefined') {
+        setFilesOpen(location.hash === '#/files');
+      }
+    };
     window.addEventListener('hashchange', sync);
     window.addEventListener('popstate', sync);
     return () => {
@@ -374,6 +385,20 @@ export default function TerminalShell({ onLogout }) {
     window.addEventListener(OPEN_CONVERSATION_EVENT, onOpenConversation);
     return () => window.removeEventListener(OPEN_CONVERSATION_EVENT, onOpenConversation);
   }, [openAi, tab, featureName]);
+
+  useEffect(() => {
+    const onAiMode = (e) => {
+      const mode = e.detail?.mode;
+      if (mode === 'chat' || mode === 'work') {
+        setAiMode(mode);
+        if (!panel.aiOpen) {
+          openAi({ type: 'ai-open' });
+        }
+      }
+    };
+    window.addEventListener('niy-ai-mode', onAiMode);
+    return () => window.removeEventListener('niy-ai-mode', onAiMode);
+  }, [openAi, panel.aiOpen]);
   useEffect(() => {
     if (restricted) { setFeed(null); setSelected(null); setLoading(false); }
   }, [restricted]);
@@ -394,8 +419,19 @@ export default function TerminalShell({ onLogout }) {
   }
 
   return (
-    <div className={`terminal with-v6-directory${moduleNavigation && !account ? ' with-module-navigation with-desk-rail' : ''}${account ? ' with-credits-page' : ''}${liveTvOpen ? ' with-livetv-page' : ''} theme-${theme}`}>
+    <div className={`terminal with-v6-directory${moduleNavigation && !account ? ' with-module-navigation with-desk-rail' : ''}${account ? ' with-credits-page' : ''}${liveTvOpen ? ' with-livetv-page' : ''}${panel.aiOpen ? ' ai-open' : ''} theme-${theme}`}>
       <div className={`load-bar${loading ? ' on' : ''}`} />
+      <MobileHeader
+        activeMode={aiMode}
+        onModeChange={(mode) => {
+          setAiMode(mode);
+          if (!panel.aiOpen) {
+            openAi({ type: 'ai-open' });
+          }
+        }}
+        onOpenNav={() => setRailOpen(true)}
+        lang={lang}
+      />
       <header className="topbar">
         <div className="brand" title="Niyantran Terminal">
           <img src="/brand/logo-128.webp" alt="" />
@@ -459,6 +495,23 @@ export default function TerminalShell({ onLogout }) {
           >
             {theme === 'light' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
           </button>
+          <button
+            type="button"
+            className={`icon-btn${filesOpen ? ' on' : ''}`}
+            onClick={() => {
+              setFilesOpen((f) => {
+                const next = !f;
+                if (typeof location !== 'undefined') {
+                  location.hash = next ? '#/files' : '#/';
+                }
+                return next;
+              });
+            }}
+            title={hi ? 'निजी फ़ाइलें और ज्ञान' : 'Private Files & Knowledge'}
+            aria-label="Private Files"
+          >
+            <Folder size={16} aria-hidden="true" />
+          </button>
           <ProfileCredits user={user} open={profileOpen} setOpen={setProfileOpen} activePlan={ent.status === 'active' && !ent.lapsed ? ent.plan : null}>
             {(glance) => <>
                 <div className="profile-pop-head">
@@ -511,6 +564,17 @@ export default function TerminalShell({ onLogout }) {
                   </button>
                   <button
                     type="button"
+                    className="profile-pop-upgrade"
+                    onClick={() => {
+                      setProfileOpen(false);
+                      setFilesOpen(true);
+                      if (typeof location !== 'undefined') location.hash = '#/files';
+                    }}
+                  >
+                    Files
+                  </button>
+                  <button
+                    type="button"
                     className="profile-pop-persona"
                     onClick={() => {
                       setProfileOpen(false);
@@ -545,7 +609,19 @@ export default function TerminalShell({ onLogout }) {
         onClose={onLiveTvBack}
         onNavigateDesk={(deskTab, feature) => onOpen({ tab: deskTab, feature: feature || '' })}
       /></LazyView> : null}
-      {moduleNavigation && !account && <DeskRail tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}
+      {filesOpen ? (
+        <LazyView>
+          <div className="files-workbench-overlay" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'var(--bg-primary, #0c0d0e)' }}>
+            <FileManagerShell onClose={() => {
+              setFilesOpen(false);
+              if (typeof location !== 'undefined' && location.hash === '#/files') {
+                location.hash = '#/';
+              }
+            }} />
+          </div>
+        </LazyView>
+      ) : null}
+      {(railOpen || (moduleNavigation && !account)) && <DeskRail tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}
         open={railOpen} onOpenChange={setRailOpen} />}
       {moduleNavigation && !account && <DeskNav
         tab={tab}
@@ -603,6 +679,8 @@ export default function TerminalShell({ onLogout }) {
           vizFilter={vizFilter}
           tab={tab}
           featureName={featureName}
+          aiMode={aiMode}
+          onAiModeChange={setAiMode}
         />}
       </div>
       {!restricted && !account && !liveTvOpen && (tab === 'home' ? <OnboardingTour kind="home" /> : <OnboardingTour kind="desk" deskId={tab} />)}
@@ -616,6 +694,29 @@ export default function TerminalShell({ onLogout }) {
         />
       ) : null}
 
+      <MobileBottomNav
+        activeTab={tab}
+        aiOpen={Boolean(panel?.aiOpen)}
+        filesOpen={Boolean(filesOpen)}
+        accountOpen={Boolean(profileOpen || account)}
+        onDesk={onDesk}
+        onOpenDesks={() => setRailOpen((o) => !o)}
+        onOpenAi={() => {
+          if (!panel?.aiOpen) {
+            panel.act({ type: 'ai-open' });
+          } else {
+            panel.act({ type: 'dismiss-ai' });
+          }
+        }}
+        onOpenFiles={() => {
+          setFilesOpen(true);
+          if (typeof location !== 'undefined') location.hash = '#/files';
+        }}
+        onOpenAccount={() => {
+          setProfileOpen((o) => !o);
+        }}
+        lang={lang}
+      />
     </div>
   );
 }

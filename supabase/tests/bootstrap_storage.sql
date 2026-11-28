@@ -45,6 +45,12 @@ CREATE TABLE storage.objects (
   UNIQUE (bucket_id, name)
 );
 
+-- Ensure storage.foldername helper exists in disposable storage stub
+CREATE OR REPLACE FUNCTION storage.foldername(name text)
+RETURNS text[] LANGUAGE sql IMMUTABLE AS $$
+  SELECT string_to_array(name, '/');
+$$;
+
 -- Supabase ships both tables with RLS on and broad table grants to the API
 -- roles, so policies alone decide client access. Reproduce that exposure so a
 -- missing or over-broad policy is not hidden by a missing grant.
@@ -52,3 +58,4 @@ ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role;
 GRANT ALL ON TABLE storage.buckets, storage.objects TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION storage.foldername(text) TO anon, authenticated, service_role;

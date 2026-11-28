@@ -32,6 +32,8 @@ function isLegalPath() {
 }
 
 function isMarketingOverlayPath() {
+  const path = location.pathname.replace(/\/+$/, '') || '/';
+  if (path === '/forgot-password' || path === '/reset-password') return true;
   const raw = String(location.hash || '')
     .replace(/^#/, '')
     .replace(/^\/+/, '')
@@ -101,7 +103,13 @@ export default function App() {
           }, 0);
         }
       } else {
-        setAuthed(false);
+        // In local development, allow authenticated test sessions to persist across hydration;
+        // In production, strictly enforce authoritative Supabase Auth sign-out.
+        if (typeof import.meta !== 'undefined' && import.meta.env?.DEV && isSignedIn()) {
+          setAuthed(true);
+        } else {
+          setAuthed(false);
+        }
       }
     });
     return () => {

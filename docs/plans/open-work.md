@@ -113,6 +113,12 @@
 
 - [ ] **F416 — The `file-manager` branch is not on `main`.** *Spec approved 2026-11-28; plan proposed, waits on the developer's review: [2026-11-28-file-manager-integration](2026-11-28-file-manager-integration.md).* The contributor's branch (`a4a09d84`, 23 commits, forked 2026-11-13, 434 behind `main`) holds the file manager UI, private files in the AI panel, the four Edge Functions behind them, the website's phone layout (F342), a separate app in `nter-mobile/`, and reports and screenshots. Its last CI failed (two Deno tests), a trial merge stops on 8 conflicts, its four migrations would undo F410 to F413, and its tracker numbers F341 to F346 are taken on `main`. Spec: [2026-11-28-file-manager-branch-integration](../specs/2026-11-28-file-manager-branch-integration.md).
 
+- [ ] **F417 — The private file manager (the contributor's F341).** *Lands with F416's integration PR; numbered F341 on the `file-manager` branch, a number `main` uses for another item.* The drive, uploads, jobs drawer and artifacts (`src/fileManager/`), private files in the AI panel with citations (`src/ai/`), and the Edge Function code behind them (`document-file`, `ingest-worker`, `research-chat`, `_shared/retrieval.ts`). Its schema is `main`'s F410 to F413, not the branch's migrations. The branch's reports are under `docs/reports/f341-*`; its ADR is `docs/decisions/0016-private-file-manager-ingestion-rag-integration.md`.
+
+- [ ] **F418 — The website's phone layout (the contributor's F342).** *Lands with F416's integration PR; numbered F342 on the `file-manager` branch.* Mobile header, bottom navigation and phone-width styles for nter.pro itself (`src/shell/MobileHeader.jsx`, `MobileBottomNav.jsx`, `mobileNav.css`, and phone rules in `src/index.css`, `src/marketing/` and `src/desks/`). QA notes: `docs/qa/phase-2/`.
+
+- [ ] **F419 — The `nter-mobile/` app is not on `main` (the contributor's F343 to F346).** *Deferred by the developer, 2026-11-28.* A separate React + Vite app (Capacitor, app id `pro.nter.app`) with its own CI, `AGENTS.md` and lockfile. It stays on `origin/file-manager` (`a4a09d84`), with its reports, until it is current work. Then decide whether it lives in this repository, and if so how its CI runs from the root workflow. The client and planning PDFs at its top level need a decision before they are committed anywhere.
+
 - [ ] **F414 — The file manager trusts the file size the client declares.** *Found 2026-11-27 in the F413 review.* `user_file_prepare_upload` takes `p_size_bytes` from the client and `user_file_complete_upload` never compares it with the stored object in the `user-files` bucket. The storage quota (`user_storage_used_bytes`, F410) and the indexing hold (F413) both count the declared size, so a client can under-declare to pass the quota. The bucket's 50 MB object limit still applies. Compare the declared size with `storage.objects` metadata at completion, or count from it.
 
 - [ ] **F282 — `supplied_text.sql` fixture fails on chains that include the Law migration.** *Remaining: fix the fixture or retire it; the failure is reproduced and explained. 2026-11-10 (F299)* Seen 2026-11-02 while running SQL fixtures for Phase B and C (F278): the fixture passes on its own chain but fails when its file is applied in a chain that includes the Law publication migration. It predates this work and does not affect CI's chains. Reproduce, then fix the fixture or its chain; until then do not reuse it in a longer chain as evidence.
@@ -210,7 +216,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves, ticked and with
   its commit hash, to the Done archive, [open-work-done.md](open-work-done.md).
-- A new finding gets the next free `F` number (F417 is next) and goes in the
+- A new finding gets the next free `F` number (F420 is next) and goes in the
   right section.
 
 ## Frontend follow-up

@@ -1,6 +1,8 @@
 import DictationButton from '../components/DictationButton.jsx';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
+import { HardDrive, Upload } from 'lucide-react';
+import FileManagerPickerModal from './FileManagerPickerModal.jsx';
 import { setChatAttachments } from '../lib/aiThreads.js';
 import { filesFromDrop, handOffAiDrop, materializeAiDrop, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
@@ -9,6 +11,7 @@ import { COVERAGE_TTL_MS, observeCoverage, publicCorpusCapability, readyDocument
 import useResearchThread from './useResearchThread.js';
 import './research.css';
 import './chat-presentation.css';
+import './mobileChatJourney.css';
 import AttachmentTray from './AttachmentTray.jsx';
 import ChatSubmit from './ChatSubmit.jsx';
 import { publishCreditNotice } from './chatCreditNotice.js';
@@ -23,6 +26,8 @@ import WebSearchToggle, { isWebGated, useWebPrediction } from './WebSearchToggle
 import MessageRow from './MessageRow.jsx';
 import SuggestionPills from './SuggestionPills.jsx';
 import WorkSurface from './WorkSurface.jsx';
+import DocumentDraftingSurface from './DocumentDraftingSurface.jsx';
+import { readPersonaId } from '../lib/personas.js';
 import { isReadableCitation } from './CitationBubble.jsx';
 import { createStickToBottom } from './stickToBottom.js';
 import usePanelPopovers from './usePanelPopovers.js';
@@ -176,19 +181,31 @@ export function researchSelection(row) {
  */
 export function requestAttachments(pins) {
   return (pins || [])
-    .map((a) => a.kind === 'document' ? {
-      kind: 'document',
-      title: String(a.title || 'Document'),
-      document_id: String(a.document_id || ''),
-    } : ({
-      kind: a.kind === 'row' || a.kind === 'record' ? a.kind : 'file',
-      title: String(a.title || a.feature || 'Attachment'),
-      text: String(a.text || a.preview?.record_text || ''),
-      ...(a.feature ? {feature:a.feature} : {}),
-      ...(a.tab || a.tier ? {tier:a.tab || a.tier} : {}),
-      ...(recordAttachmentIdentity(a) || {}),
-    }))
-    .filter((a) => (a.kind === 'document' ? a.document_id : a.text));
+    .map((a) => {
+      if (a.kind === 'document') {
+        return {
+          kind: 'document',
+          title: String(a.title || 'Document'),
+          document_id: String(a.document_id || ''),
+        };
+      }
+      if (a.kind === 'private_file') {
+        return {
+          kind: 'private_file',
+          title: String(a.title || 'File'),
+          file_id: String(a.file_id || ''),
+        };
+      }
+      return {
+        kind: a.kind === 'row' || a.kind === 'record' ? a.kind : 'file',
+        title: String(a.title || a.feature || 'Attachment'),
+        text: String(a.text || a.preview?.record_text || ''),
+        ...(a.feature ? { feature: a.feature } : {}),
+        ...(a.tab || a.tier ? { tier: a.tab || a.tier } : {}),
+        ...(recordAttachmentIdentity(a) || {}),
+      };
+    })
+    .filter((a) => (a.kind === 'document' ? a.document_id : a.kind === 'private_file' ? a.file_id : a.text));
 }
 
 /**
@@ -397,7 +414,7 @@ function useEffectivePlan(ownerId) {
   return effectivePlan(entitlement, Date.now(), { admin: sessionUser()?.role === 'admin' });
 }
 
-export default function AiPanel({ feed, selected, tab, featureName, lang, seed, onSeedConsumed, compact, onClose, open = true, embedded = false, onCitation, viewerSlot, actionsSlot }) {
+export default function AiPanel({ feed, selected, tab, featureName, lang, seed, onSeedConsumed, compact, onClose, open = true, embedded = false, onCitation, viewerSlot, actionsSlot, aiMode = 'chat', onAiModeChange }) {
   const hi = lang === 'hi';
   const research = useResearchThread(true);
   const state = research.store;
@@ -449,7 +466,30 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const viewer = research.viewer;
   // The Work mode control is the viewer (streaming spec §G): its selected
   // state is whether the evidence surface is open.
-  const workOn = Boolean(viewer);
+  const [draftingOpen, setDraftingOpen] = useState(() => aiMode === 'work');
+  const currentPersona = readPersonaId() || 'lawyer';
+  const workOn = Boolean(viewer) || draftingOpen;
+
+  useEffect(() => {
+    if (aiMode === 'work') {
+      setDraftingOpen(true);
+    } else if (aiMode === 'chat') {
+      setDraftingOpen(false);
+    }
+  }, [aiMode]);
+
+  useEffect(() => {
+    const onAiMode = (e) => {
+      const mode = e.detail?.mode;
+      if (mode === 'work') {
+        setDraftingOpen(true);
+      } else if (mode === 'chat') {
+        setDraftingOpen(false);
+      }
+    };
+    window.addEventListener('niy-ai-mode', onAiMode);
+    return () => window.removeEventListener('niy-ai-mode', onAiMode);
+  }, []);
   const registry = research.registry;
   // Label for an answer whose served model is not known yet: the registry's
   // default, as the model picker shows it.
@@ -466,6 +506,36 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const modelRef = useRef(null);
   const focusRef = useRef(null);
   const historyRef = useRef(null);
+  const attachMenuRef = useRef(null);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [isFmPickerOpen, setIsFmPickerOpen] = useState(false);
+
+  useEffect(() => {
+    if (!attachMenuOpen) return;
+    const handleOutside = (e) => {
+      if (attachMenuRef.current && !attachMenuRef.current.contains(e.target)) {
+        setAttachMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleOutside);
+    return () => document.removeEventListener('pointerdown', handleOutside);
+  }, [attachMenuOpen]);
+
+  const handleAttachFromFM = useCallback((chosenFiles) => {
+    research.actions.attach(async () => {
+      return (chosenFiles || []).map((file) => ({
+        kind: 'private_file',
+        file_id: file.id,
+        title: file.name,
+        mime_type: file.mime_type,
+        size_bytes: file.size_bytes,
+      }));
+    }).then(() => {
+      setFocus('attached');
+      setScopeNotice('Attached private files — AI research will query context from your documents.');
+    });
+  }, [research.actions]);
+
   usePanelPopovers({ focusOpen, focusRef, focus, setFocusOpen, historyOpen, historyRef, pendingDelete, setHistoryOpen,
     modelOpen, modelRef, setModelOpen });
 
@@ -604,8 +674,18 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     seedOwner.current = { seed, version: research.identityVersion };
     const version = research.identityVersion;
     if (seed.prompt) research.actions.setDraft(seed.prompt);
+    if (seed.promptSeed) research.actions.setDraft(seed.promptSeed);
     void research.actions.attach(async () => {
       const bits = [...(seed.droppedFiles || [])];
+      if (seed.file) {
+        bits.push({
+          kind: 'private_file',
+          file_id: seed.file.id,
+          title: seed.file.name,
+          mime_type: seed.file.mime_type,
+          size_bytes: seed.file.size_bytes,
+        });
+      }
       const payload = seed.drop || (seed.row ? { kind: 'row', row: seed.row, feature: featureName, tab }
         : seed.attachFeed && feed ? { kind: 'feed', feature: feed.feature, tab }
         : selected ? { kind: 'row', row: selected, feature: featureName, tab } : null);
@@ -613,7 +693,10 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       return bits;
     }).then(applied => {
       if (!applied || research.actions.getSnapshot().identityVersion !== version) return;
-      if (seed.row || seed.drop?.kind === 'row' || (!seed.attachFeed && selected)) { setFocus('attached'); setScopeNotice(''); }
+      if (seed.file || seed.row || seed.drop?.kind === 'row' || (!seed.attachFeed && selected)) {
+        setFocus('attached');
+        setScopeNotice(seed.file ? 'Attached file — AI research will query context from your private file.' : '');
+      }
       onSeedConsumed?.();
     });
     return undefined;
@@ -964,6 +1047,17 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           the tab, and the chat has no header row of its own (side-panel amendment 2). */}
       {embedded && actionsSlot !== undefined ? (actionsSlot ? createPortal(headActions, actionsSlot) : null) : (
       <header className={`ai-v2-head${embedded ? ' embedded' : ''}`}>
+        {/* On mobile: explicit back button to desk */}
+        {onClose ? (
+          <button
+            type="button"
+            className="ai-v2-mob-back"
+            onClick={onClose}
+            aria-label={hi ? 'डेस्क पर वापस' : 'Back to Desk'}
+          >
+            ← {hi ? 'डेस्क' : 'Desk'}
+          </button>
+        ) : null}
         {/* In the side panel its tab names it and the panel closes it (side-panel spec, point 4). */}
         {embedded ? null : (
           <div className="ai-v2-title">
@@ -1051,13 +1145,21 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                   ? 'Work mode — उत्तर पर लौटें'
                   : 'Work mode — back to the answer'
                 : hi
-                  ? 'Work mode — उत्तर के स्रोत खोलें'
-                  : 'Work mode — open the evidence behind the answer'
+                  ? 'Work mode — दस्तावेज़ ड्राफ्टिंग और स्रोत खोलें'
+                  : 'Work mode — open document drafting & evidence'
             }
             onClick={() => {
-              // The button is the viewer: answers are evidence-first either way.
-              if (viewer) closeViewer();
-              else openSource(null);
+              if (viewer) {
+                closeViewer();
+                setDraftingOpen(false);
+                onAiModeChange?.('chat');
+              } else if (draftingOpen) {
+                setDraftingOpen(false);
+                onAiModeChange?.('chat');
+              } else {
+                setDraftingOpen(true);
+                onAiModeChange?.('work');
+              }
             }}
           >
             Work mode
@@ -1085,7 +1187,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           {/* The turn in flight: the ticker, the pages searched (F131), then the answer as it is written. */}
           {/* F66: after a dropped connection the partly written answer stays while its saved result is read. */}
           {showFlight && ((!stream?.error && !research.error) || stream?.errorCode === 'connection_lost') ? (
-            <div className="ai-msg ai-msg-assistant">
+            <div className="ai-msg ai-msg-assistant" aria-live="polite" aria-atomic="false">
               {/* One indicator from Send (thinking-display spec §1): the ticker opens at once on
                   "Starting…" and runs until the turn ends; the NyAI card it replaced covered only
                   the client's identity re-check before a differently sized ticker took over. */}
@@ -1117,11 +1219,48 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           ) : null}
 
           {emptyThread && !busy && research.ready ? (
-            <p className="ai-v2-empty muted">
-              {hi
-                ? 'चैट खाली है। पंक्ति या फ़ाइल जोड़ें, फिर Send दबाएँ।'
-                : 'Chat is empty. Attach a row or file, then press Send.'}
-            </p>
+            <div className="nter-empty-chat-hero">
+              <div className="nter-empty-top-row">
+                <span className="nter-personalised-pill">PERSONALISED</span>
+              </div>
+              <div className="nter-empty-mark-wrap">
+                <div className="nter-artistic-pi">π</div>
+              </div>
+              <h2 className="nter-empty-title">{hi ? 'लाइव रिकॉर्ड से पूछें।' : 'Ask the live record.'}</h2>
+              <p className="nter-empty-subtitle">
+                {hi
+                  ? 'आपकी चैट आपकी भूमिका जानती है और पहले कानून → आदेश अभिलेखागार खोजती है।'
+                  : 'Your chat already knows your role and searches Law → Order archives first.'}
+              </p>
+              <div className="nter-quick-prompts-grid">
+                <button
+                  type="button"
+                  className="nter-quick-prompt-card"
+                  onClick={() => {
+                    setDraft('Find orders supporting a legal proposition');
+                    box.current?.focus();
+                  }}
+                >
+                  <span className="nter-quick-prompt-tag">{hi ? 'प्राधिकरण खोजें' : 'FIND AUTHORITY'}</span>
+                  <span className="nter-quick-prompt-desc">
+                    {hi ? 'कानूनी प्रस्ताव का समर्थन करने वाले आदेश खोजें' : 'Find orders supporting a legal proposition'}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="nter-quick-prompt-card"
+                  onClick={() => {
+                    setDraft('Follow changes in a case or notification');
+                    box.current?.focus();
+                  }}
+                >
+                  <span className="nter-quick-prompt-tag">{hi ? 'मामला ट्रैक करें' : 'TRACK MATTER'}</span>
+                  <span className="nter-quick-prompt-desc">
+                    {hi ? 'किसी मामले या अधिसूचना में परिवर्तनों का पालन करें' : 'Follow changes in a case or notification'}
+                  </span>
+                </button>
+              </div>
+            </div>
           ) : null}
         </div>
 
@@ -1176,6 +1315,38 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         <div className="ai-composer-stack">
         <AttachmentTray attachments={attachments} indexedKeys={indexedKeys} locked={busy} onRemove={removePin} lang={lang} />
         {research.attachNotice ? <p className="ai-foot ai-attach-note" role="status">{research.attachNotice}</p> : null}
+        
+        {/* Mobile Focus Bar (Reference Image 1 & 3) */}
+        <div className="nter-focus-chat-bar">
+          <span className="nter-focus-label">{hi ? 'इस चैट पर ध्यान दें' : 'FOCUS THIS CHAT'}</span>
+          <div className="nter-focus-pills-row">
+            <button
+              type="button"
+              className="nter-focus-pill"
+              onClick={() => {
+                setFocus('desk');
+                setScopeNotice(hi ? 'कानून फ़ीड पर केंद्रित' : 'Focused on Law feed');
+              }}
+            >
+              <span className="nter-focus-dot" />
+              <span>LAW</span>
+              <span className="nter-focus-chevron">˅</span>
+            </button>
+            <button
+              type="button"
+              className="nter-focus-pill"
+              onClick={() => {
+                setFocus('desk');
+                setScopeNotice(hi ? 'आदेश अभिलेखागार पर केंद्रित' : 'Focused on Order archives');
+              }}
+            >
+              <span className="nter-focus-dot" />
+              <span>ORDER ARCHIVES</span>
+              <span className="nter-focus-chevron">˅</span>
+            </button>
+          </div>
+        </div>
+
         <form className="ai-v2-composer" onSubmit={send}>
           <textarea
             ref={box}
@@ -1193,23 +1364,103 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                 send();
               }
             }}
-            placeholder={hi ? 'अपनी फ़ाइलों के बारे में पूछें…' : 'Ask a question about your files...'}
+            placeholder={
+              emptyThread
+                ? (hi ? 'अपने फ़ीड और अभिलेखागार में पूछें…' : 'Ask across your focused feed and archives...')
+                : (hi ? 'फॉलो-अप पूछें या ड्राफ्ट करने के लिए Work पर जाएँ…' : 'Ask a follow-up or switch to Work to draft...')
+            }
           />
           {/* Under the text and inside the box: choosing a model is part of
               composing the message, not chrome standing beside it. What and how
               on the left, do-it on the right. */}
           <div className="ai-v2-comp-bar">
             <div className="ai-v2-comp-tools">
-              <button
-                type="button"
-                className="ai-v2-comp-clip"
-                disabled={busy}
-                onClick={() => fileRef.current?.click()}
-                aria-label={hi ? 'फ़ाइल जोड़ें' : 'Attach a file'}
-                title={hi ? 'फ़ाइल जोड़ें' : 'Attach a file'}
-              >
-                <Ico name="clip" size={16} />
-              </button>
+              <div style={{ position: 'relative' }} ref={attachMenuRef}>
+                <button
+                  type="button"
+                  className="ai-v2-comp-clip"
+                  disabled={busy}
+                  onClick={() => setAttachMenuOpen((v) => !v)}
+                  aria-label={hi ? 'फ़ाइल जोड़ें' : 'Attach a file'}
+                  title={hi ? 'फ़ाइल जोड़ें' : 'Attach a file'}
+                >
+                  <Ico name="clip" size={16} />
+                </button>
+
+                {attachMenuOpen && (
+                  <div
+                    className="ai-v2-attach-menu"
+                    style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      left: 0,
+                      marginBottom: 6,
+                      background: 'var(--panel, #ffffff)',
+                      border: '1px solid var(--line, #e4ddd4)',
+                      borderRadius: 8,
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                      padding: 4,
+                      zIndex: 100,
+                      minWidth: 190,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 2,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="ai-v2-menu-item"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 10px',
+                        border: 0,
+                        background: 'transparent',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        color: 'var(--text, #3d3a36)',
+                      }}
+                      onClick={() => {
+                        setAttachMenuOpen(false);
+                        setIsFmPickerOpen(true);
+                      }}
+                    >
+                      <HardDrive size={14} style={{ color: 'var(--accent, #012ea1)' }} />
+                      <span>{hi ? 'फ़ाइल मैनेजर से चुनें' : 'File Manager'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="ai-v2-menu-item"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 10px',
+                        border: 0,
+                        background: 'transparent',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        color: 'var(--text, #3d3a36)',
+                      }}
+                      onClick={() => {
+                        setAttachMenuOpen(false);
+                        fileRef.current?.click();
+                      }}
+                    >
+                      <Upload size={14} style={{ color: 'var(--muted, #6d675f)' }} />
+                      <span>{hi ? 'कंप्यूटर से अपलोड करें' : 'Upload from Computer'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
               <WebSearchToggle
                 override={research.webSearch}
                 predicted={webPrediction}
@@ -1251,11 +1502,36 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             </div>
           </div>
         </form>
+        <div className="nter-sample-foot">CONCEPT · SAMPLE WORKSPACE</div>
         </div>
       </div>
+      {draftingOpen ? (
+        <div className="ai-v2-drafting-wrap open">
+          <DocumentDraftingSurface
+            topic={chat?.title || messages.find((m) => m.role === 'user')?.content || contextLabel({ attachments: chat?.attachments, selected, featureName })}
+            persona={currentPersona}
+            sources={research.sources}
+            modelLabel={picked?.label}
+            focusLabel={focusMeta?.en}
+            onClose={() => {
+              setDraftingOpen(false);
+              onAiModeChange?.('chat');
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('niy-ai-mode', { detail: { mode: 'chat' } }));
+              }
+            }}
+            lang={lang}
+          />
+        </div>
+      ) : null}
       </div>
     </div>
     {evidence && viewerSlot === undefined ? evidence : null}
+    <FileManagerPickerModal
+      isOpen={isFmPickerOpen}
+      onClose={() => setIsFmPickerOpen(false)}
+      onSelectFiles={handleAttachFromFM}
+    />
     </>
   );
 }

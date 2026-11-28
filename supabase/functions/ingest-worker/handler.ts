@@ -26,9 +26,25 @@ import {
   type StepOutcome,
   type WorkerDeps,
 } from './types.ts';
+import {
+  type UserFileClaimedJob,
+  type UserFileIngestDb,
+  type UserFileStepDeps,
+  type UserFileStepOutcome,
+} from '../_shared/userFiles.types.ts';
 
 /** Longest error message reported to ingest_advance or a log line (after redaction). */
 export const MAX_REPORTED_MESSAGE = 500;
+
+export interface UserFilesWorkerDeps {
+  db: UserFileIngestDb;
+  storage: {
+    signedUrl(path: string, expiresInSeconds: number): Promise<string>;
+  };
+  step: (job: UserFileClaimedJob, deps: UserFileStepDeps) => Promise<UserFileStepOutcome>;
+  mistralApiKey?: string;
+  openRouterApiKey?: string;
+}
 
 export interface RunDeps extends WorkerDeps {
   /**
@@ -36,6 +52,9 @@ export interface RunDeps extends WorkerDeps {
    * several supplied-text index jobs of one batch claimed together (design 4.2).
    */
   steps: { ocr: Step; index: Step; suppliedBatch?: BatchStep };
+  /** Private user file ingestion step and database operations. */
+  userFiles?: UserFilesWorkerDeps;
+  workerId?: string;
   /** Exact values removed from every reported message (API keys, the worker secret). */
   secrets?: string[];
 }
@@ -193,6 +212,48 @@ async function report(deps: RunDeps, job: IngestJob, outcome: StepOutcome): Prom
  * How many jobs to claim: ingest_settings.claim_batch (the claim caps it again). Without a settings
  * reader, or when the read fails, one, as before.
  */
+async function runClaimedUserFile(
+  deps: RunDeps,
+  job: UserFileClaimedJob,
+  deadline: number,
+  workerId: string,
+): Promise<void> {
+  const secrets = deps.secrets ?? [];
+  try {
+    const outcome = await deps.userFiles!.step(job, {
+      db: deps.userFiles!.db,
+      storage: deps.userFiles!.storage,
+      workerId,
+      now: deps.now,
+      budgetMs: Math.max(1000, deadline - deps.now()),
+      log: (event: string, fields?: Record<string, unknown>) => deps.log(event, fields ?? {}),
+      mistralApiKey: deps.userFiles!.mistralApiKey,
+      openRouterApiKey: deps.userFiles!.openRouterApiKey,
+      ocr: deps.ocr,
+      embed: deps.embed,
+    });
+    safeLog(deps.log, 'worker.user_file_completed', {
+      job_id: job.id,
+      status: outcome.status,
+      pages: outcome.pagesProcessed,
+      chunks: outcome.chunksCommitted,
+    });
+  } catch (e) {
+    safeLog(deps.log, 'worker.user_file_failed', {
+      job_id: job.id,
+      message: redactMessage(messageOf(e), secrets),
+    });
+    try {
+      await deps.userFiles!.db.advance(job.id, workerId, {
+        status: 'failed',
+        error_message: redactMessage(messageOf(e), secrets),
+      });
+    } catch {
+      // Advance failure logged or ignored
+    }
+  }
+}
+
 async function claimSize(deps: RunDeps): Promise<number> {
   if (!deps.db.settings) return 1;
   try {
@@ -227,6 +288,26 @@ export async function runOnce(deps: RunDeps): Promise<void> {
       return;
     }
     if (!jobs.length) {
+      if (deps.userFiles?.step && deps.userFiles?.db) {
+        let userJobs: UserFileClaimedJob[] = [];
+        const workerId = deps.workerId || `worker-${crypto.randomUUID().slice(0, 8)}`;
+        try {
+          userJobs = await deps.userFiles.db.claim(workerId, 1, INGEST.leaseSeconds);
+        } catch (e) {
+          safeLog(deps.log, 'worker.user_file_claim_failed', { message: redactMessage(messageOf(e), secrets) });
+        }
+        if (userJobs.length > 0) {
+          for (const uJob of userJobs) {
+            safeLog(deps.log, 'worker.user_file_claimed', {
+              job_id: uJob.id,
+              file_id: uJob.file_id,
+              attempt: uJob.attempt_count,
+            });
+            await runClaimedUserFile(deps, uJob, deadline, workerId);
+          }
+          return;
+        }
+      }
       safeLog(deps.log, 'worker.idle');
       return;
     }
@@ -251,6 +332,24 @@ export async function runOnce(deps: RunDeps): Promise<void> {
     }
     if (jobs.length > 1) safeLog(deps.log, 'worker.claim_extra', { claimed: jobs.length });
     for (const job of jobs) await runClaimed(deps, job, deadline);
+
+    // If time budget permits, also check user file queue
+    if (deps.userFiles?.step && deps.userFiles?.db && deps.now() < deadline - 10000) {
+      try {
+        const workerId = deps.workerId || `worker-${crypto.randomUUID().slice(0, 8)}`;
+        const userJobs = await deps.userFiles.db.claim(workerId, 1, INGEST.leaseSeconds);
+        for (const uJob of userJobs) {
+          safeLog(deps.log, 'worker.user_file_claimed', {
+            job_id: uJob.id,
+            file_id: uJob.file_id,
+            attempt: uJob.attempt_count,
+          });
+          await runClaimedUserFile(deps, uJob, deadline, workerId);
+        }
+      } catch (e) {
+        safeLog(deps.log, 'worker.user_file_claim_failed', { message: redactMessage(messageOf(e), secrets) });
+      }
+    }
   } catch (e) {
     safeLog(deps.log, 'worker.unexpected', { message: redactMessage(messageOf(e), secrets) });
   }
