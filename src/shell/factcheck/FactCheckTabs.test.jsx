@@ -27,6 +27,13 @@ describe('RovingTabs', () => {
     expect(html.match(/tabindex="0"/g)).toHaveLength(1);
     expect(html).toMatch(/aria-selected="true"[^>]*tabindex="0"|tabindex="0"[^>]*aria-selected="true"/);
   });
+  it('F422: a tab with a dot carries a decorative dot after its label, pulsing only when asked, name unchanged', () => {
+    const withDot = (dot) => renderToStaticMarkup(<RovingTabs idBase="fc" label="x" tabs={[{ id: 'claims', label: 'Claims · 3' }, { id: 'transcript', label: 'Transcript', dot }]} active="claims" onChange={() => {}} />);
+    expect(withDot({ pulse: false, tick: 0 })).toContain('>Transcript<span class="fc-tab-dot" aria-hidden="true"></span></button>');
+    expect(withDot({ pulse: true, tick: 2 })).toContain('<span class="fc-tab-dot fc-tab-dot--pulse" aria-hidden="true"></span>');
+    expect(withDot(null)).not.toContain('fc-tab-dot');
+    expect(renderToStaticMarkup(<RovingTabs idBase="fc" label="x" tabs={tabs} active="claims" onChange={() => {}} />)).not.toContain('fc-tab-dot');
+  });
   it('a key press changes the tab and focuses it', () => {
     const onChange = vi.fn();
     const focus = vi.fn();

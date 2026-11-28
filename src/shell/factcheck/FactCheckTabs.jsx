@@ -13,7 +13,12 @@ export function nextTab(ids, current, key) {
   return ids[(target + ids.length) % ids.length];
 }
 
-/** Tab buttons only; the panels are drawn by the caller with ids `${idBase}-panel-${id}`. */
+/**
+ * Tab buttons only; the panels are drawn by the caller with ids `${idBase}-panel-${id}`.
+ * A tab may carry `dot: { pulse, tick }`: a small decorative dot after the label (aria-hidden, so the tab's
+ * name is its label alone). `pulse` adds the brief pulse; `tick` changes with each new event so a second
+ * event inside the pulse restarts the animation.
+ */
 export function RovingTabs({ idBase, label, tabs, active, onChange }) {
   const ids = tabs.map((t) => t.id);
   return (
@@ -38,6 +43,7 @@ export function RovingTabs({ idBase, label, tabs, active, onChange }) {
           }}
         >
           {t.label}
+          {t.dot ? <span key={t.dot.tick ?? 0} className={`fc-tab-dot${t.dot.pulse ? ' fc-tab-dot--pulse' : ''}`} aria-hidden="true" /> : null}
         </button>
       ))}
     </div>

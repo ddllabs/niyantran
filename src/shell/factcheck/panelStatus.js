@@ -34,8 +34,9 @@ export function blockLine(session) {
   if (session.status === 'running' || session.status === 'ending') {
     const left = Math.max(0, session.secondsLeft);
     const elapsed = Math.min(total, Math.max(0, total - session.secondsLeft));
-    const low = left <= 60;
-    const head = low ? '1 minute left in this block' : `${formatClock(elapsed)} of ${minutesText(bought)} used`;
+    // A one-minute block is low only for its last 30 seconds (it would be low from its first second otherwise).
+    const low = left <= (bought === 1 ? 30 : 60);
+    const head = low ? (bought === 1 ? '30 seconds left in this block' : '1 minute left in this block') : `${formatClock(elapsed)} of ${minutesText(bought)} used`;
     return { text: head, fraction: Math.min(1, elapsed / total), low };
   }
   if (session.status === 'ended' && typeof session.final?.minutes_used === 'number') {

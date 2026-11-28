@@ -36,6 +36,12 @@ describe('blockLine', () => {
     expect(blockLine(s({ secondsLeft: 12 })).low).toBe(true);
     expect(blockLine(s({ secondsLeft: 61 })).low).toBe(false);
   });
+  it('F422: a one-minute block is low only for its last 30 seconds, and says so in seconds', () => {
+    expect(blockLine(s({ minutesBought: 1, secondsLeft: 60 })).low).toBe(false);
+    expect(blockLine(s({ minutesBought: 1, secondsLeft: 31 })).low).toBe(false);
+    expect(blockLine(s({ minutesBought: 1, secondsLeft: 30 }))).toMatchObject({ text: '30 seconds left in this block', low: true });
+    expect(blockLine(s({ minutesBought: 2, secondsLeft: 60 }))).toMatchObject({ text: '1 minute left in this block', low: true });
+  });
   it('uses the single minute word for a one-minute block', () => {
     expect(blockLine(s({ minutesBought: 1, secondsLeft: 100 })).text).toContain('of 1 minute used');
   });
