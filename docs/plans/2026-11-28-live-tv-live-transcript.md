@@ -1,4 +1,4 @@
-# Plan: Live TV — show that the session is hearing the video (F422)
+# Plan: Live TV — show that the session is hearing the video (F423)
 
 > **Status: Living.** Spec: [2026-11-28-live-tv-live-transcript.md](../specs/2026-11-28-live-tv-live-transcript.md).
 

@@ -36,7 +36,7 @@ describe('over the video', () => {
     seen.view = viewWith({ status: 'running', claims: [claim('1', 'supported'), claim('2', 'contradicted'), claim('3', null, 'pending')] });
     const video = videoPart(render());
     expect(video).toMatch(/class="ltv-fcpill/);
-    expect(text(video)).toContain('Muted · not hearing'); // F422: a static render is muted, so the pill is the quiet one
+    expect(text(video)).toContain('Muted · not hearing'); // F423: a static render is muted, so the pill is the quiet one
     expect(video).toMatch(/class="ltv-claimstrip"/);
     expect(text(video)).toContain('Claim 2');
     expect(text(video)).not.toContain('Claim 3');

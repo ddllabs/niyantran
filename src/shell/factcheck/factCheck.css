@@ -114,13 +114,13 @@
 .fc-tab:hover { color: var(--fg); }
 .fc-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .fc-work[hidden] { display: none; }
-/* F422: a dot on the Transcript tab while live; it pulses once for each new line. It sits in the tab's own right
+/* F423: a dot on the Transcript tab while live; it pulses once for each new line. It sits in the tab's own right
    padding (7px in the live row; the dot is 5px at right: 1px), so the row is no wider than without it. */
 .fc-tab { position: relative; }
 .fc-tab-dot { position: absolute; top: 9px; right: 1px; width: 5px; height: 5px; border-radius: 50%; background: var(--live); pointer-events: none; }
 .fc-tab-dot--pulse { animation: fcTabDot 1.2s ease-out 1; }
 @keyframes fcTabDot { 0% { transform: scale(1); box-shadow: 0 0 0 0 var(--live); } 40% { transform: scale(1.4); } 100% { transform: scale(1); box-shadow: 0 0 0 4px transparent; } }
-/* F422: the live Claims states: the empty one (listening, the newest lines) and the "Now hearing" line. */
+/* F423: the live Claims states: the empty one (listening, the newest lines) and the "Now hearing" line. */
 .fc-live-empty { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .fc-panel p.fc-live-head { display: flex; align-items: center; gap: 8px; font-weight: 700; }
 .fc-live-dot { flex: none; display: inline-flex; color: var(--live); }
@@ -186,7 +186,7 @@
   cursor: pointer;
 }
 .fc-clock { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--muted); }
-.fc-clock--low { color: var(--fc-amber); font-weight: 800; } /* F422: the block's last minute */
+.fc-clock--low { color: var(--fc-amber); font-weight: 800; } /* F423: the block's last minute */
 
 .fc-panel p { margin: 0; line-height: 1.45; }
 .fc-section { margin: 4px 0 0; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }

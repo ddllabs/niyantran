@@ -249,7 +249,7 @@ describe('re-analysis words', () => {
   });
 });
 
-describe('silenceNoticeText (F422)', () => {
+describe('silenceNoticeText (F423)', () => {
   it('names both times in seconds and says the time is still charged', () => {
     expect(silenceNoticeText(30000, 90000)).toBe('No speech heard for 30 seconds. The session ends by itself if this goes on for 90 seconds, and the time is still charged. Is the video muted or paused?');
     expect(silenceNoticeText(45000, 120000)).toContain('for 45 seconds');

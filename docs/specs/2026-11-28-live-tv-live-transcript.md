@@ -1,6 +1,6 @@
-# Spec: Live TV — show that the session is hearing the video (F422)
+# Spec: Live TV — show that the session is hearing the video (F423)
 
-> **Status: Living.** Corrected in place while F422 is built; becomes Historical (dated) when it is released.
+> **Status: Living.** Corrected in place while F423 is built; becomes Historical (dated) when it is released.
 
 ## Current state (2026-11-28; rendered from main at `f5255529`, and an independent UI audit by reading)
 

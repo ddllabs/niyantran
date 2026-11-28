@@ -1,4 +1,4 @@
-// F422: what the panel shows while a session is live: the empty state, the "Now hearing" line, the dot on the
+// F423: what the panel shows while a session is live: the empty state, the "Now hearing" line, the dot on the
 // Transcript tab, the last-minute clock and the silence notice wording. Static markup, no network.
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';

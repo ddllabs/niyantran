@@ -1,4 +1,4 @@
-// F422: no captions on the video in any state; the "Fact-check on" pill turns amber and reads "Not hearing anything"
+// F423: no captions on the video in any state; the "Fact-check on" pill turns amber and reads "Not hearing anything"
 // when the video is muted or silent past the threshold. Also: the page tells the panel whether the paste form is open.
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
