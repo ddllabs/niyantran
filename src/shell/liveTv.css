@@ -634,6 +634,10 @@
   .ltv-archive-grid { grid-template-columns: 1fr; }
   .ltv-row { flex-wrap: wrap; gap: 8px; }
   .ltv-row-label { flex: 1 0 100%; }
+  /* F420, the phone layout: rules for the page's player and tabs (from the file-manager branch). */
+  .ltv-player-stage { padding: 12px 14px; }
+  .ltv-player-controls { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+  .ltv-deck-tabs { padding: 0 14px; overflow-x: auto; }
 }
 
 /* Small mobile (480px and below) */

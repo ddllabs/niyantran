@@ -670,7 +670,8 @@ it('does not announce the switch to Attached only under the suggestions; the Foc
  const source=readFileSync(new URL('./AiPanel.jsx',import.meta.url),'utf8');
  expect(source).not.toContain('searches stay within these records');
  // The switch itself stays, at its three places, and the slot still carries the "Ask about this document" notice.
- expect(source.match(/setFocus\('attached'\)/g)).toHaveLength(2);
+ // F419: a private-file attach from the file manager is the third place (with a seed and a record drop).
+ expect(source.match(/setFocus\('attached'\)/g)).toHaveLength(3);
  expect(source).toContain('setFocus(sendFocus)');
  expect(source).toContain('setScopeNotice(result.notice)');
  expect(source).toContain('{scopeNotice ? <p className="ai-foot" role="status">{scopeNotice}</p> : null}');

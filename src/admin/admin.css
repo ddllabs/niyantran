@@ -1215,6 +1215,116 @@ a.adm-btn {
   .adm-refresh-cfg .adm-inline { flex-wrap: wrap; }
 }
 
+/* ── Mobile Usability & Viewport Refinements (< 768px) ── */
+@media (max-width: 768px) {
+  /* Prevent iOS Safari form auto-zoom */
+  .adm input,
+  .adm select,
+  .adm textarea,
+  .adm-search,
+  .adm-users-search,
+  .adm-field input,
+  .adm-field select,
+  .adm-field textarea,
+  .adm-inline-select,
+  .adm-refresh-cfg input[type='number'] {
+    font-size: 16px !important;
+  }
+
+  .adm-table thead th {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    padding: 10px 12px;
+  }
+
+  .adm-pill {
+    height: 26px;
+    font-size: 11px;
+    padding: 0 10px;
+  }
+
+  .adm-btn.tiny {
+    height: 36px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+
+  .adm-nav button {
+    padding: 12px 14px;
+    font-size: 14px;
+    min-height: 44px;
+  }
+
+  .adm-chip {
+    height: 36px;
+    padding: 0 14px;
+    font-size: 12px;
+  }
+
+  /* Table horizontal scroll wrapper and sticky first column */
+  .adm-table-wrap {
+    position: relative;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-height: min(72vh, 600px);
+    border-radius: 8px;
+  }
+
+  .adm-table {
+    min-width: 720px;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .adm-table thead th:first-child,
+  .adm-table tbody td:first-child,
+  .adm-table tbody th:first-child[scope='row'] {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #ffffff;
+    box-shadow: 2px 0 6px -2px rgba(0, 0, 0, 0.1);
+  }
+
+  .adm-table thead th:first-child {
+    z-index: 4;
+    background: #ffffff;
+  }
+
+  .adm-table-apis { min-width: 860px; }
+  .adm-table-users { min-width: 980px; }
+  .adm-table-jobs { min-width: 1100px; }
+  .adm-table-models { min-width: 900px; }
+
+  /* Filter chips scroll row instead of 6-line wrapping */
+  .adm-filters {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 6px;
+    margin-bottom: 12px;
+    gap: 6px;
+  }
+  .adm-filters::-webkit-scrollbar { display: none; }
+  .adm-filters .adm-chip { flex: 0 0 auto; }
+  .adm-filters .adm-search { flex: 0 0 100%; min-width: 100%; margin-bottom: 6px; }
+  .adm-filters:has(.adm-search) { flex-wrap: wrap; }
+  .adm-filters:has(.adm-search) .adm-chip { flex: 0 0 auto; }
+
+  .adm-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 440px) {
+  .adm-kpis {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .adm-scan, .adm-kpi, .adm-card, .adm-nav button.on i, .adm-kicker .live, .adm-pill i, .adm-bar i,
   .adm-bg .blob, .adm-login-art .sh, .adm-login-art .ring, .adm-login-art .scan {

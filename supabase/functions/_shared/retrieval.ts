@@ -36,7 +36,8 @@ export async function hydrateDocumentRoles(
   resolvePublisher: typeof documentPublisher = documentPublisher,
 ): Promise<Record<string, unknown>[]> {
   const records = rows.map(row => row as Record<string, unknown>);
-  const ids = [...new Set(records.map(row => String(row.document_id ?? '')))];
+  const shared = records.filter(r => r.source_origin !== 'private' && !r.file_id);
+  const ids = [...new Set(shared.map(row => String(row.document_id ?? '')))];
   if (ids.some(id => !id)) throw new Error('retrieved document identity missing');
   const roles = new Map<string, DocumentRole | undefined>();
   const metadatas = new Map<string, Record<string, unknown>>();
@@ -52,6 +53,7 @@ export async function hydrateDocumentRoles(
     if (page.some(id => !roles.has(id))) throw new Error('retrieved document metadata unavailable');
   }
   return records.map(row => {
+    if (row.source_origin === 'private' || row.file_id) return row;
     const { document_role: _unverifiedRole, document_facts: _unverifiedFacts, publisher: _unverifiedPublisher, ...rest } = row;
     const id = String(row.document_id);
     const role = roles.get(id);
@@ -98,6 +100,10 @@ export interface Chunk {
   publisher?: string;
   /** sha256(normalise(content)) — what a citation carries and the reader recomputes. */
   text_hash: string;
+  /** Origin of the chunk: shared corpus or private user file. */
+  source_origin?: 'shared' | 'private';
+  /** Opaque private file UUID if source_origin is 'private'. */
+  file_id?: string;
   // Page chunks only (chunk-contract spec). Absent - never null or empty - on
   // an old row, so an old row maps to exactly the chunk it always did.
   /** document_page_blocks ids whose span overlaps this chunk's. */
@@ -173,7 +179,7 @@ export function afterRpcFailure(e: unknown): never {
 export interface RetrievalDeps {
   embed(query: string): Promise<{ vector: number[]; model: string }>;
   rpc(
-    fn: 'match_documents' | 'match_documents_hybrid',
+    fn: 'match_documents' | 'match_documents_hybrid' | 'match_user_files',
     args: Record<string, unknown>,
     budgetMs?: number,
   ): Promise<{ data: unknown[] | null; error: { message: string; code?: string } | null }>;
@@ -184,6 +190,9 @@ export interface RetrievalDeps {
   hybrid?: { config(deskFeature: string): Promise<HybridConfig> };
   /** The turn's signal: an aborted turn starts no fallback. */
   signal?: AbortSignal;
+  /** Optional private file IDs scoping retrieval to personal uploaded files. */
+  private_file_ids?: string[];
+  privateFileIds?: string[];
   onPath?(info: RetrievalPathInfo): void;
   onTrace?(trace: RetrievalTrace): void;
   onTiming?(phase: RetrievalPhase, ms: number): void;
@@ -214,36 +223,51 @@ function section(v: unknown): CitationSection | undefined {
 export async function rowToChunk(raw: unknown): Promise<Chunk> {
   const r = (raw ?? {}) as Record<string, unknown>;
   const content = String(r.content ?? '');
+  const isPrivate = r.source_origin === 'private' || Boolean(r.file_id);
+  const fileId = optional(r.file_id);
+  const fileName = optional(r.file_name);
   const chunk: Chunk = {
     id: String(r.id),
-    document_id: String(r.document_id),
+    document_id: String(r.document_id ?? r.file_id ?? ''),
     content,
     similarity: Number(r.similarity ?? 0),
     chunk_index: Number(r.chunk_index ?? 0),
     source_kind: r.source_kind === 'pdf_page' ? 'pdf_page' : 'document',
-    page_number: typeof r.page_number === 'number' ? r.page_number : undefined,
+    page_number: typeof r.page_number === 'number' ? r.page_number : (typeof r.page_start === 'number' ? r.page_start : undefined),
     char_from: Number(r.char_from ?? 0),
     char_to: Number(r.char_to ?? 0),
-    title: String(r.title ?? ''),
-    file_name: optional(r.file_name),
+    title: String(r.title ?? r.file_name ?? ''),
+    file_name: fileName,
     file_url: optional(r.file_url),
     desk_tier: optional(r.desk_tier),
     desk_feature: optional(r.desk_feature),
     text_hash: await sha256Hex(normalise(content)),
+    source_origin: isPrivate ? 'private' : 'shared',
   };
+  if (fileId) chunk.file_id = fileId;
   const blockIds = ids(r.block_ids);
   const imageIds = ids(r.image_ids);
-  const sect = section(r.section);
+  let sect = section(r.section);
+  if (!sect && isPrivate && r.metadata && typeof r.metadata === 'object' && !Array.isArray(r.metadata)) {
+    const meta = r.metadata as Record<string, unknown>;
+    const sheetName = meta.sheet_name ? String(meta.sheet_name) : (meta.current_heading ? String(meta.current_heading) : undefined);
+    const rowNote = (meta.row_start && meta.row_end) ? `Rows ${meta.row_start}–${meta.row_end}` : undefined;
+    if (sheetName || rowNote) {
+      sect = { ...(sheetName ? { heading: sheetName } : {}), ...(rowNote ? { note: rowNote } : {}) };
+    }
+  }
   if (blockIds) chunk.block_ids = blockIds;
   if (imageIds) chunk.image_ids = imageIds;
   if (sect) chunk.section = sect;
-  const role = documentRole(r.document_role);
-  if (role) chunk.document_role = role;
-  const facts = r.document_facts;
-  if (typeof facts === 'string' && facts && facts.length <= FACTS_MAX_CHARS && !/[\r\n\u2028\u2029]/.test(facts)) chunk.document_facts = facts;
-  const publisher = r.publisher;
-  // Only a table name the row's own desk can have (a regulator on Regulatory, a ministry on its own desk).
-  if (isPublisherFor(chunk.desk_tier, chunk.desk_feature, publisher)) chunk.publisher = publisher as string;
+  if (!isPrivate) {
+    const role = documentRole(r.document_role);
+    if (role) chunk.document_role = role;
+    const facts = r.document_facts;
+    if (typeof facts === 'string' && facts && facts.length <= FACTS_MAX_CHARS && !/[\r\n\u2028\u2029]/.test(facts)) chunk.document_facts = facts;
+    const publisher = r.publisher;
+    // Only a table name the row's own desk can have (a regulator on Regulatory, a ministry on its own desk).
+    if (isPublisherFor(chunk.desk_tier, chunk.desk_feature, publisher)) chunk.publisher = publisher as string;
+  }
   return chunk;
 }
 
@@ -254,6 +278,11 @@ export interface SearchInput {
   /** A desk module's exact `documents.desk_feature`, sent with its tier. */
   deskFeature?: string;
   documentIds?: string[];
+  /** Optional private file IDs scoping retrieval to personal uploaded files. */
+  private_file_ids?: string[];
+  privateFileIds?: string[];
+  /** Scope of retrieval: 'private' searches only user files; 'shared' searches only corpus; 'combined' searches both. */
+  scope?: 'private' | 'shared' | 'combined';
 }
 
 export async function search(deps: RetrievalDeps, input: SearchInput): Promise<Chunk[]> {
@@ -326,9 +355,67 @@ export async function search(deps: RetrievalDeps, input: SearchInput): Promise<C
       });
     }
   };
-  const data = await measure('retrievalMs', () => hybrid?.enabled ? hybridRows(hybrid) : vectorRows());
-  const chunks: Chunk[] = [];
-  for (const row of data) chunks.push(await rowToChunk(row));
+
+  const rawPrivateIds = input.private_file_ids ?? input.privateFileIds ?? deps.private_file_ids ?? deps.privateFileIds;
+  const privateFileIds = rawPrivateIds?.filter((x): x is string => typeof x === 'string' && x.length > 0);
+  const hasPrivateFiles = Boolean(privateFileIds && privateFileIds.length > 0);
+
+  const userFileRows = async (budgetMs?: number): Promise<unknown[]> => {
+    const userFilesArgs: Record<string, unknown> = {
+      query_embedding: vector,
+      match_count: input.topK ?? DEFAULT_TOP_K,
+      filter_file_ids: privateFileIds,
+    };
+    const { data, error } = budgetMs === undefined
+      ? await deps.rpc('match_user_files', userFilesArgs)
+      : await deps.rpc('match_user_files', userFilesArgs, budgetMs);
+    if (error) throw new Error(`match_user_files: ${error.message}`);
+    return data ?? [];
+  };
+
+  const [sharedData, privateData] = await measure('retrievalMs', async () => {
+    if (hasPrivateFiles) {
+      // Determine if shared retrieval is requested alongside private files
+      // If input.scope === 'private' or if no documentIds/deskTier were provided (private-only attached mode)
+      const isPrivateOnly = input.scope === 'private' || (!input.documentIds?.length && !input.deskTier && input.scope !== 'combined');
+      if (isPrivateOnly) {
+        const privateRows = await userFileRows();
+        return [[], privateRows];
+      }
+      return await Promise.all([
+        hybrid?.enabled ? hybridRows(hybrid) : vectorRows(),
+        userFileRows(),
+      ]);
+    }
+    const shared = await (hybrid?.enabled ? hybridRows(hybrid) : vectorRows());
+    return [shared, []];
+  });
+
+  const sharedChunks: Chunk[] = [];
+  for (const row of sharedData) {
+    const chunk = await rowToChunk(row);
+    chunk.source_origin = 'shared';
+    sharedChunks.push(chunk);
+  }
+
+  const privateChunks: Chunk[] = [];
+  for (const row of privateData) {
+    const r = (row ?? {}) as Record<string, unknown>;
+    const chunk = await rowToChunk({ ...r, source_origin: 'private' });
+    privateChunks.push(chunk);
+  }
+
+  const byId = new Map<string, Chunk>();
+  for (const c of [...sharedChunks, ...privateChunks]) {
+    const seen = byId.get(c.id);
+    if (!seen || c.similarity > seen.similarity) {
+      byId.set(c.id, c);
+    }
+  }
+  // F418: with no private rows, keep the RPC's order exactly as main did (the hybrid RPC's rows are in fused order and
+  // their similarity is the cosine); only a search that also has private rows is merged and sorted by similarity.
+  const chunks = privateChunks.length === 0 ? sharedChunks : [...byId.values()].sort((a, b) => b.similarity - a.similarity);
+
   deps.onTrace?.({
     subQuery: query,
     chunkIds: chunks.map((c) => c.id),

@@ -81,6 +81,15 @@ export default function TableFilterPop({
     if (!wrap || !pop) return undefined;
 
     function place() {
+      if (window.innerWidth < 600) {
+        pop.style.left = '';
+        pop.style.right = '';
+        pop.style.top = '';
+        pop.style.bottom = '';
+        pop.style.width = '';
+        pop.style.maxHeight = '';
+        return;
+      }
       const btn = wrap.getBoundingClientRect();
       const pad = 8;
       const vw = window.innerWidth;

@@ -1,4 +1,4 @@
--- F418: the web-text queue's settings updates carry a WHERE clause, so they run through PostgREST.
+-- F422: the web-text queue's settings updates carry a WHERE clause, so they run through PostgREST.
 --
 -- PostgREST's role (authenticator) loads pg_safeupdate, which refuses an UPDATE or DELETE with no WHERE clause
 -- ("UPDATE requires a WHERE clause", SQLSTATE 21000). Four statements in 20261126100000_web_text_queue.sql update the

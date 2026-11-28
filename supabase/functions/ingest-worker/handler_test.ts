@@ -384,3 +384,40 @@ Deno.test('redactMessage keeps ordinary text', () => {
   assertEquals(redactMessage('pages 1,2,3 were not all stored'), 'pages 1,2,3 were not all stored');
   assertEquals(redactMessage('api_key=abc123&x=1 token: zzz'), 'api_key=[redacted]&x=1 token: [redacted]');
 });
+
+// F341 compatibility: production wires the private-file queue into every worker, so corpus work must
+// come out identical when that queue is empty or when its claim fails (e.g. its migration is not yet
+// applied), and the private-file step must never run without a claimed user-file job.
+Deno.test('with the user-file queue wired but empty or failing, corpus jobs and the idle path behave as before', async () => {
+  const patch: AdvancePatch = { progressed: true, ocr_pages: 25, ocr_cost_usd: 0.1, stage: 'index' };
+  const withQueue = (run: ReturnType<typeof fakeRun>, claim: () => Promise<never[]>) => {
+    const userClaims: unknown[][] = [];
+    let steps = 0;
+    run.deps.userFiles = {
+      // deno-lint-ignore no-explicit-any
+      db: { claim: (...a: unknown[]) => (userClaims.push(a), claim()) } as any,
+      storage: { signedUrl: unused('signedUrl') },
+      step: () => (steps++, Promise.reject(new Error('user-file step must not run'))),
+    };
+    return { userClaims, steps: () => steps };
+  };
+  for (const claim of [() => Promise.resolve([]), () => Promise.reject(new Error('function user_file_claim does not exist'))]) {
+    const base = fakeRun({ jobs: [job({ stage: 'ocr' })], ocr: () => Promise.resolve({ patch }) });
+    await runOnce(base.deps);
+    const wired = fakeRun({ jobs: [job({ stage: 'ocr' })], ocr: () => Promise.resolve({ patch }) });
+    const q = withQueue(wired, claim);
+    await runOnce(wired.deps);
+    assertEquals(wired.rec.claims, base.rec.claims);
+    assertEquals(wired.rec.stepCalls.map((s) => s.stage), base.rec.stepCalls.map((s) => s.stage));
+    assertEquals(wired.rec.advances, base.rec.advances);
+    assertEquals(q.steps(), 0);
+
+    const idle = fakeRun({ jobs: [] });
+    withQueue(idle, claim);
+    await runOnce(idle.deps);
+    assertEquals(idle.rec.stepCalls.length, 0);
+    assertEquals(idle.rec.advances.length, 0);
+    assert(idle.rec.logs.some((l) => l.event === 'worker.idle'));
+    assertFalse(idle.rec.logs.some((l) => l.event === 'worker.unexpected'));
+  }
+});
