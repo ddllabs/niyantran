@@ -45,6 +45,29 @@
 
 .fc-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .fc-head-run { display: flex; align-items: center; gap: 8px; }
+
+/* F416: while a session runs the head is ONE row (tabs, time left, Stop, the link button) and a 3px progress line
+   under it. The row never wraps: the tabs take what is left and scroll sideways before anything else moves.
+   The 36px floor applies on fine pointers above 1080px; at 1080px and below or on touch the page's rule
+   (liveTv.css, 40px) is the only one, so nothing here may beat it there. */
+.fc-head--live { flex-direction: column; align-items: stretch; flex-wrap: nowrap; justify-content: flex-start; gap: 2px; }
+.fc-toprow { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0; }
+.fc-toprow > [role="tablist"] { flex: 1 1 0; min-width: 0; gap: 0; border-bottom: 0; }
+.fc-toprow .fc-tab { flex: 0 0 auto; padding: 8px 7px; white-space: nowrap; }
+.fc-toprow .fc-clock { flex: none; font-size: 12px; white-space: nowrap; }
+.fc-toprow .fc-btn { flex: none; padding: 6px 10px; }
+.fc-toprow .fc-iconbtn { width: 36px; min-width: 36px; padding: 0; justify-content: center; }
+.fc-livedot { flex: none; display: inline-flex; align-items: center; }
+.fc-status--on.fc-livedot { color: var(--live); }
+.fc-panel p.fc-status-line { margin-top: 0; }
+.fc-block--line .fc-bar { height: 3px; border-radius: 2px; }
+.fc-block--line .fc-bar-fill { border-radius: 2px; }
+@media (min-width: 1081px) and (not (pointer: coarse)) {
+  .fc-toprow .fc-btn { min-height: 36px; }
+}
+@media (max-width: 1080px), (pointer: coarse) {
+  .fc-toprow .fc-iconbtn { width: 40px; min-width: 40px; }
+}
 .fc-title { margin: 0; font-size: 16px; font-weight: 800; }
 .fc-headtext { min-width: 0; }
 
@@ -219,6 +242,24 @@
 .fc-transcript-wrap { position: relative; }
 /* B1: Copy on a claim card and Export; the buttons wrap on a phone and keep 40px targets (liveTv.css). */
 .fc-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+/* F416: Check again sits in the same row as Copy and the time checked. Its own parts become items of the row; a
+   note or the inline confirmation takes a row of its own. The time goes to the right end of the last line. */
+.fc-card-actions .fc-recheck { display: contents; }
+.fc-card-actions .fc-recheck-note, .fc-card-actions .fc-confirm, .fc-card-actions .fc-rechecking { flex: 1 0 100%; }
+.fc-card-actions .fc-time { margin-left: auto; white-space: nowrap; }
+/* F416: the sources fold behind a "N sources" button: 36px on a fine pointer, 40px where the page's rule says so. */
+.fc-sources-fold { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.fc-sources-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  min-height: 36px; padding: 0;
+  color: var(--accent); background: none; border: 0;
+  font: inherit; font-size: 12px; font-weight: 600;
+  cursor: pointer;
+}
+.fc-sources-toggle:hover { text-decoration: underline; }
+@media (max-width: 1080px), (pointer: coarse) { .fc-sources-toggle { min-height: 40px; } }
+.fc-caret { font-size: 10px; line-height: 1; }
+.fc-sources[hidden] { display: none; }
 .fc-copy { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 
 /* B3: the Summary tab. The bar is a picture of the counts; the list under it carries them as text. */
@@ -347,43 +388,6 @@
 .fc-card--pending .fc-glyph { animation: fcPulse 1.4s ease-in-out infinite; }
 
 @keyframes fcPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-
-/* F389: the live transcript strip. Pinned between the block line and .fc-body (never scrolls with the claims).
-   Two text lines high, bottom-aligned inside an overflow:hidden box, so older text is clipped at the top and
-   the newest words stay visible. Constant height, empty or full: no layout shift. */
-.fc-tstrip {
-  --fc-tstrip-lh: 18px;
-  flex: none;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  padding: 6px 10px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-.fc-tstrip-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: calc(var(--fc-tstrip-lh) * 2);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-}
-.fc-panel .fc-tstrip-line { flex: none; margin: 0; line-height: var(--fc-tstrip-lh); overflow-wrap: anywhere; }
-.fc-tstrip-idle { color: var(--muted); }
-.fc-tstrip-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-.fc-tstrip-label { font-size: 11px; line-height: 14px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-.fc-tstrip-btn {
-  padding: 0; min-height: 20px;
-  color: var(--accent); background: none; border: 0;
-  font: inherit; font-size: 12px; font-weight: 700; line-height: 18px;
-  cursor: pointer;
-}
-.fc-tstrip-btn:hover { text-decoration: underline; }
 
 @media (prefers-reduced-motion: reduce) {
   .fc-card--pending .fc-glyph, .fc-listening, .fc-status--on .fc-dot { animation: none; }

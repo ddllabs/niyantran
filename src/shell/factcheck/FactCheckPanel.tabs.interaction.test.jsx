@@ -5,9 +5,8 @@ import { harness, elements } from '../hookHarness.js';
 
 vi.mock('react', async (importOriginal) => ({ ...(await importOriginal()), ...harness.patch() }));
 vi.mock('../../lib/supabaseClient.js', () => ({ supabase: {}, accessToken: async () => null, functionsUrl: () => '' }));
-const { PanelBody, Claims } = await import('./FactCheckPanel.jsx');
+const { PanelBody, Claims, RunningHead } = await import('./FactCheckPanel.jsx');
 const { RovingTabs } = await import('./FactCheckTabs.jsx');
-const { LiveTranscriptStrip } = await import('./LiveTranscriptStrip.jsx');
 
 const noop = () => {};
 const claim = (id, verdict) => ({ id, quote: 'q', claim_en: `Claim ${id}`, kind: 'claim', status: 'checked', verdict, reason: 'r', sources: [], checked_at: null });
@@ -118,23 +117,42 @@ describe('Summary tab (B3)', () => {
 });
 
 
-describe('F389 live transcript strip', () => {
-  const strip = (out) => [...elements(out)].find((e) => e.type === LiveTranscriptStrip);
-  it('shows on Claims and Summary, is gone on Transcript, and Full transcript selects the Transcript tab and focuses it', () => {
-    const tabButton = { focus: vi.fn() };
-    globalThis.document = { getElementById: (id) => (id === 'fc-tab-transcript' ? tabButton : null), activeElement: null };
-    let out = harness.render(PanelBody, props());
-    expect(strip(out)).toBeTruthy();
-    strip(out).props.onOpen();
-    out = harness.render(PanelBody, props());
-    expect(find(out, RovingTabs).props.active).toBe('transcript');
-    expect(strip(out)).toBeUndefined();
-    expect(tabButton.focus).toHaveBeenCalled();
+describe('F416 the paste-a-link button and slot (running)', () => {
+  const form = { type: 'form', props: { className: 'ltv-paste' } };
+  const slot = (out) => [...elements(out)].find((e) => e.props?.id === 'fc-linkslot');
+  const head = (out) => find(out, RunningHead);
+  const linkButton = (out) => [...elements(harness.render(RunningHead, head(out).props))].find((e) => e.props?.['data-fc'] === 'link');
+  const focused = [];
+  beforeEach(() => {
+    focused.length = 0;
+    harness.refFactory = () => ({ focus: () => focused.push('ref') });
   });
-  it('is absent on the Transcript tab chosen from the tab list', () => {
-    let out = harness.render(PanelBody, props());
-    find(out, RovingTabs).props.onChange('transcript');
-    out = harness.render(PanelBody, props());
-    expect(strip(out)).toBeUndefined();
+  afterEach(() => { harness.refFactory = null; });
+
+  it('passes the open state to the button and renders no slot while it is closed', () => {
+    const toggle = vi.fn();
+    const out = harness.render(PanelBody, props({ linkForm: form, linkOpen: false, onToggleLink: toggle }));
+    expect(slot(out)).toBeUndefined();
+    const b = linkButton(out);
+    expect(b.props['aria-expanded']).toBe(false);
+    expect(b.props['aria-label']).toBe('Paste a video link');
+    expect(b.props['aria-controls']).toBe('fc-linkslot');
+    b.props.onClick();
+    expect(toggle).toHaveBeenCalledTimes(1);
+  });
+  it('renders the slot with the form when open, and the button says expanded', () => {
+    const out = harness.render(PanelBody, props({ linkForm: form, linkOpen: true, onToggleLink: noop }));
+    expect(slot(out)).toBeTruthy();
+    expect(linkButton(out).props['aria-expanded']).toBe(true);
+  });
+  it('Escape inside the open slot closes it through onToggleLink and returns focus to the button', () => {
+    const toggle = vi.fn();
+    const out = harness.render(PanelBody, props({ linkForm: form, linkOpen: true, onToggleLink: toggle }));
+    slot(out).props.onKeyDown({ key: 'a', stopPropagation: noop });
+    expect(toggle).not.toHaveBeenCalled();
+    slot(out).props.onKeyDown({ key: 'Escape', stopPropagation: noop });
+    expect(toggle).toHaveBeenCalledTimes(1);
+    expect(focused.length).toBeGreaterThan(0);
+    expect(head(out).props.linkButton.current.focus).toBeTypeOf('function');
   });
 });
