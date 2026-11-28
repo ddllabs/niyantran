@@ -8,6 +8,7 @@ import {
 import { FactCheckPanel } from './factcheck/FactCheckPanel.jsx';
 import { PastSessions } from './factcheck/PastSessions.jsx';
 import { LatestClaimStrip } from './factcheck/LatestClaimStrip.jsx';
+import { LiveCaptions, SILENT_NOTICE_MS } from './factcheck/LiveCaptions.jsx';
 import { latestVerdictClaim } from './factcheck/claimFilter.js';
 import { leaveFullscreenThen } from './factcheck/leaveFullscreen.js';
 import { ChannelCard } from './liveTv/ChannelCard.jsx';
@@ -590,6 +591,10 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const factCheckOffered = factCheck.view?.flag?.available === true;
   // Over the video only while a session runs: the "Fact-check on" pill and the newest claim with a verdict.
   const sessionRunning = factCheckOffered && factCheck.view?.session?.status === 'running';
+  // F416: the captions show while the session runs or is ending (the last words still arrive while it ends).
+  const captionsStatus = factCheckOffered ? factCheck.view?.session?.status : null;
+  const showCaptions = captionsStatus === 'running' || captionsStatus === 'ending';
+  const captionsListening = captionsStatus === 'running' && !isMuted && !(factCheck.view.session.silentFor > SILENT_NOTICE_MS);
   const latestClaim = sessionRunning
     ? latestVerdictClaim(factCheck.view.session.claims, { rechecks: factCheck.view.rechecks || {}, price: factCheck.view.flag.recheckCredits ?? null })
     : null;
@@ -803,6 +808,9 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                 </button>
               </div>
             )}
+            {showCaptions ? (
+              <LiveCaptions lines={factCheck.view.session.transcript || []} listening={captionsListening} />
+            ) : null}
             {sessionRunning ? (
               <>
                 <span className="ltv-fcpill"><span className="ltv-fcpill-dot" aria-hidden="true" />Fact-check on</span>
@@ -1005,6 +1013,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
               videoTitle={videoTitle}
               remainingSeconds={remainingSeconds}
               linkForm={linkForm}
+              linkOpen={pasteOpen}
+              onToggleLink={() => setPasteOpen((v) => !v)}
             />
           </div>
         ) : null}
