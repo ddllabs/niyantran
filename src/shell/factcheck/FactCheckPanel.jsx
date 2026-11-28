@@ -427,7 +427,7 @@ function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, shar
 /** The claim card, for read-only reuse (no price, no share: no Check again, share or report controls). */
 export { Card as ClaimCard };
 
-// F423: while a session is live and has no claims yet, the Claims tab says it is listening and shows the newest
+// F424: while a session is live and has no claims yet, the Claims tab says it is listening and shows the newest
 // transcript lines, so the panel is never blank. Not a live region: the Transcript tab is the accessible text.
 // `hearing` is 'hearing' | 'muted' | 'silent' | 'ending' (hearingState below): the heading and the dot follow it.
 const LIVE_HEADS = {
@@ -453,7 +453,7 @@ function LiveEmpty({ lines, onOpenTranscript, hearing = 'hearing' }) {
   );
 }
 
-// F423: with at least one claim, one line at the top of the list (it scrolls with the list) shows the newest
+// F424: with at least one claim, one line at the top of the list (it scrolls with the list) shows the newest
 // transcript line, clipped to two lines. Not a live region.
 function NowHearing({ line, onOpenTranscript, hearing = 'hearing' }) {
   return (
@@ -741,7 +741,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
   const problem = s.status === 'error' ? errorMessage(s.error, { captureFailures: view.captureFailures || 0 }) : null;
   // "Re-analyze this block" starts a new session, so it is offered only where a new session is: the choose
   // step, an ended session with a known price, and an error that offers Try again.
-  // F423: the dot on the Transcript tab while live; it pulses briefly for each new transcript line (not at all
+  // F424: the dot on the Transcript tab while live; it pulses briefly for each new transcript line (not at all
   // under prefers-reduced-motion: factCheck.css).
   const lineCount = s.transcript.length;
   // Is the session hearing the video? Running, not muted and not silent beyond the notice threshold.
@@ -759,7 +759,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
     const t = setTimeout(() => setPulse((p) => ({ ...p, on: false })), PULSE_MS);
     return () => clearTimeout(t);
   }, [lineCount, live]);
-  // F423: screen-reader milestones, each once, spoken only on a change (false to true), never for a condition
+  // F424: screen-reader milestones, each once, spoken only on a change (false to true), never for a condition
   // already true when the panel mounted: started, first words, last minute, ended (with its reason). Milestones
   // reached in one update are joined into one message (the announcer's say() replaces a pending one).
   const prevStatus = useRef(s.status);

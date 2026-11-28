@@ -1,4 +1,4 @@
-// F423: the panel's live behaviour that needs real effects (hookHarness.js): the Full transcript buttons, the pulse of
+// F424: the panel's live behaviour that needs real effects (hookHarness.js): the Full transcript buttons, the pulse of
 // the Transcript tab's dot, and the screen-reader announcements, each once. The children are not rendered.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { harness, elements } from '../hookHarness.js';

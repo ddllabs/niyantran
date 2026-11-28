@@ -119,7 +119,7 @@ describe('tabs', () => {
   it('the transcript panel carries the transcript and the claims panel does not', () => {
     const html = render(running());
     const claims = html.slice(html.indexOf('id="fc-panel-claims"'), html.indexOf('id="fc-panel-transcript"'));
-    // F423: the Claims panel shows only the newest line, in the "Now hearing" line, never the transcript itself.
+    // F424: the Claims panel shows only the newest line, in the "Now hearing" line, never the transcript itself.
     expect(claims.replace(/<div class="fc-now"[\s\S]*?<\/div>/, '')).not.toContain('Good evening');
     expect(claims).not.toMatch(/fc-transcript/);
   });

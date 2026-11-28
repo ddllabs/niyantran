@@ -196,7 +196,7 @@ describe('running', () => {
     expect(t).toContain('about 14 seconds');
     expect(t).not.toContain('13 seconds');
     expect(t).not.toContain('10 seconds');
-    expect(t).toContain('Listening to the video'); // F423: the live empty state replaces "No claims yet."
+    expect(t).toContain('Listening to the video'); // F424: the live empty state replaces "No claims yet."
     // (the Summary tab keeps its own "No claims yet.")
     expect(text(html.slice(html.indexOf('id="fc-panel-claims"'), html.indexOf('id="fc-panel-transcript"')))).not.toMatch(/No claims yet/);
   });
