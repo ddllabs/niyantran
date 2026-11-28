@@ -8,7 +8,7 @@
  * - Central Product Reference: docs/specs/private-file-manager-functionality.md
  * - Technical Spec: docs/specs/2026-11-14-private-file-manager.md
  * - Implementation Plan: docs/plans/2026-11-14-private-file-manager.md
- * - Architecture Decision: docs/decisions/0006-private-file-manager-ingestion-rag-integration.md
+ * - Architecture Decision: docs/decisions/0016-private-file-manager-ingestion-rag-integration.md
  * - Frontend Twin: src/types/fileManager.ts
  */
 

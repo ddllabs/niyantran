@@ -33,7 +33,7 @@ import { log as sharedLog } from '../_shared/logging.ts';
 
 /** The signature's lifetime, and expires_in. */
 export const SIGN_SECONDS = 300;
-/** ADR 0006: Personal user file download signatures strictly expire in 60 seconds. */
+/** ADR 0016: Personal user file download signatures strictly expire in 60 seconds. */
 export const SIGN_SECONDS_PRIVATE = 60;
 /** The body is short fields; anything longer is refused while it streams in. */
 export const BODY_MAX_BYTES = 1024;

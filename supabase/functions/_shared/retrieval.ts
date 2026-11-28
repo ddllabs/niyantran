@@ -412,7 +412,9 @@ export async function search(deps: RetrievalDeps, input: SearchInput): Promise<C
       byId.set(c.id, c);
     }
   }
-  const chunks = [...byId.values()].sort((a, b) => b.similarity - a.similarity);
+  // F416: with no private rows, keep the RPC's order exactly as main did (the hybrid RPC's rows are in fused order and
+  // their similarity is the cosine); only a search that also has private rows is merged and sorted by similarity.
+  const chunks = privateChunks.length === 0 ? sharedChunks : [...byId.values()].sort((a, b) => b.similarity - a.similarity);
 
   deps.onTrace?.({
     subQuery: query,
