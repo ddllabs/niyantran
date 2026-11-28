@@ -405,7 +405,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
     () => buildEmbedSrc({
       url: currentEmbedUrl,
       muted: nextEmbedMuted.current,
-      origin: typeof window !== 'undefined' ? window.location.origin : '',
+      // `?.`: a window without a location (a test stub another test file left behind) must not break the page.
+      origin: typeof window !== 'undefined' ? window.location?.origin ?? '' : '',
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [currentEmbedUrl, reloadKey, isPlaying, open],
