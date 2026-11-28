@@ -1,7 +1,7 @@
 # Spec: bringing the `file-manager` branch into `main` — V1 (F416)
 
-> **Status: Living (2026-11-28), proposed.** Waits on the developer's approval and the open questions at the end. No code
-> is written for it yet. The plan (`docs/plans/`) follows only after approval, as the spec workflow requires.
+> **Status: Living (2026-11-28), approved.** Approved by the developer on 2026-11-28, with the recommended answer to each
+> open question (recorded under Decisions). Plan: `docs/plans/2026-11-28-file-manager-integration.md`.
 
 ## Assumptions
 
@@ -172,7 +172,19 @@ private-file search (`match_user_files` when private file ids are given) is adde
 - **The branch's screenshots** (`docs/screenshots/`, `docs/qa/screenshots/`, `nter-mobile/docs/screenshots/`), unless
   approved.
 
-## Open questions
+## Decisions (developer, 2026-11-28)
+
+1. **Mobile UI.** Both forms are the contributor's parallel UI work, and neither is a released phone app. The website's
+   phone layout (`web-mobile-ui`) comes in with V1. The separate `nter-mobile/` app (`mobile-client`) stays on the
+   contributor's branch and is deferred.
+2. **`web-mobile-ui` is in V1.**
+3. **The `App.jsx` dev-only sign-in bypass is dropped.** The rest of `App.jsx`'s changes stay if they belong to modules
+   that come in.
+4. **Reports:** only those for modules that come in.
+5. **After V1, the contributor works in `task/<slug>` branches from `main`, through pull requests.** They don't keep
+   pushing to `file-manager`. Telling them is the developer's step.
+
+## Open questions (answered above)
 
 1. **Which mobile UI is in progress?** Is the contributor's ongoing work `web-mobile-ui` (the website's phone layout), or
    `mobile-client` (`nter-mobile/`), or both? This decides whether `web-mobile-ui` is in V1, and how their next PRs
