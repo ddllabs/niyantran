@@ -817,3 +817,33 @@ Deno.test('F341: private chunks are untouched by legal corpus hydrators and keep
   assertEquals(chunk.publisher, undefined, 'private chunks cannot hold a publisher');
   assertEquals(chunk.text_hash, await sha256Hex('private content p1'));
 });
+
+// F341 compatibility: a request that names no private file (every request the deployed browser
+// sends) must reach the same RPCs with the same arguments and map to the same chunk fields as before.
+Deno.test('F341: with no private file ids only the corpus RPCs run, and a corpus row keeps its chunk fields', async () => {
+  const fns: string[] = [];
+  const argKeys: string[][] = [];
+  const mk = (): RetrievalDeps => ({
+    embed: () => Promise.resolve({ vector: vec(), model: 'openai/text-embedding-3-small' }),
+    rpc: (fn, args) => {
+      fns.push(fn);
+      argKeys.push(Object.keys(args).sort());
+      return Promise.resolve({ data: [row('c1', 0.9)], error: null });
+    },
+    hybrid: { config: () => Promise.resolve({ enabled: true, ...HYBRID_DEFAULTS }) },
+  });
+  const plain = await search(mk(), { query: 'q', deskTier: 'national', documentIds: ['doc-1'] });
+  const hybrid = await search(mk(), { query: 'q', deskTier: 'national', deskFeature: HYBRID_FEATURE });
+  assertEquals(fns, ['match_documents', 'match_documents_hybrid']);
+  assertEquals(argKeys[0], ['match_count', 'p_desk_tier', 'p_document_ids', 'query_embedding']);
+  assertEquals(argKeys[1], ['match_count', 'p_desk_feature', 'p_desk_tier', 'p_document_ids', 'query_embedding', 'query_text']);
+  for (const [c] of [plain, hybrid]) {
+    // source_origin: 'shared' is the one field F341 adds to a corpus chunk; nothing private appears.
+    assertEquals(Object.keys(c).sort(), [
+      'char_from', 'char_to', 'chunk_index', 'content', 'desk_feature', 'desk_tier', 'document_id', 'file_name',
+      'file_url', 'id', 'page_number', 'similarity', 'source_kind', 'source_origin', 'text_hash', 'title',
+    ]);
+    assertEquals(c.source_origin, 'shared');
+    assertEquals('file_id' in c, false);
+  }
+});

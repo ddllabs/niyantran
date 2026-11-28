@@ -4533,3 +4533,26 @@ Deno.test('F332: no tool frame, activity entry, trace or repair prompt carries a
     assert(!JSON.stringify(value).includes('publisher:'), name);
   }
 });
+
+// F341 compatibility: the deployed browser knows nothing of private files. A turn that names none
+// must search exactly as before - no private ids and no scope override on the retrieval context.
+Deno.test('a turn with no private file chip passes no private ids and no scope to retrieval', async () => {
+  const seen: { ids?: string[]; context?: RetrievalContext }[] = [];
+  const { deps, rec } = fakeDeps(documentTurn(1), {
+    searchDocuments: (_args, ids, context) => {
+      seen.push({ ids, context });
+      return Promise.resolve([chunk('c1')]);
+    },
+  }, { resolveDocumentIds: () => Promise.resolve([DOC_A]) });
+  await frames(await handleResearchChat(
+    post({ ...BODY, focus: 'attached', turn_key: 'old-shape-no-private', attachments: [docChip()] }),
+    deps,
+  ));
+  assert(seen.length > 0, 'the turn searched');
+  for (const { ids, context } of seen) {
+    assertEquals(ids, [DOC_A]);
+    assertEquals(context !== undefined && 'privateFileIds' in context, false);
+    assertEquals(context !== undefined && 'scope' in context, false);
+  }
+  assertEquals(String(rec.messages[0].content).includes('private user file'), false);
+});

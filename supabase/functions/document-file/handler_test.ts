@@ -534,9 +534,9 @@ Deno.test('private file: successful citation viewing returns 200 with signed_pat
     signed_path: `object/sign/user-files/${USER}/${FILE_ID}/document.pdf?token=${SIG}`,
     page_count: 5,
     byte_size: 4096,
-    expires_in: 300,
+    expires_in: SIGN_SECONDS_PRIVATE,
   });
-  assertEquals(w.signedPrivate, [{ path: `${USER}/${FILE_ID}/document.pdf`, seconds: 300 }]);
+  assertEquals(w.signedPrivate, [{ path: `${USER}/${FILE_ID}/document.pdf`, seconds: SIGN_SECONDS_PRIVATE }]);
   assertEquals(w.userFileReads, [{ token: TOKEN, fileId: FILE_ID }]);
   assertEquals(w.docReads, []);
   assertEquals(r.res.headers.get('access-control-allow-origin'), ORIGIN);
