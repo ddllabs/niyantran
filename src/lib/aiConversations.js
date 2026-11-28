@@ -162,7 +162,21 @@ export function storablePins(pins) {
   const out = {};
   for (const [id, list] of Object.entries(pins || {})) {
     out[id] = Array.isArray(list)
-      ? list.map((a) => (a?.kind === 'file' && a.text ? { ...a, text: undefined, note: undefined, error: 'Attach this file again to send it; file text is not kept after a reload.' } : a))
+      ? list.map((a) => {
+          if (a?.kind === 'file' && a.text) {
+            return { ...a, text: undefined, note: undefined, error: 'Attach this file again to send it; file text is not kept after a reload.' };
+          }
+          if (a?.kind === 'private_file') {
+            return {
+              kind: 'private_file',
+              file_id: a.file_id,
+              title: a.title,
+              mime_type: a.mime_type,
+              size_bytes: a.size_bytes,
+            };
+          }
+          return a;
+        })
       : list;
   }
   return out;

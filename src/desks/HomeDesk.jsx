@@ -337,10 +337,11 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
     onSelect(null);
   }, [latest, meta.latest, meta.pulse, onFeed, onSelect]);
 
+  const [mobileTab, setMobileTab] = useState('news');
   const quotes = prepareHomeMarketQuotes(markets.length ? markets : TICKER_PLACEHOLDERS);
 
   return (
-    <div className="nh">
+    <div className="nh" data-mob-tab={mobileTab}>
       {topics.length ? (
         <div className="nh-topics" aria-label="Hot topics">
           <div className="nh-topics-label">
@@ -387,6 +388,36 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
             )),
           )}
         </div>
+      </div>
+
+      <div className="home-mobile-tabs" role="tablist" aria-label="Home mobile views">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileTab === 'news'}
+          className={`home-tab-btn ${mobileTab === 'news' ? 'active' : ''}`}
+          onClick={() => setMobileTab('news')}
+        >
+          Top Stories
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileTab === 'markets'}
+          className={`home-tab-btn ${mobileTab === 'markets' ? 'active' : ''}`}
+          onClick={() => setMobileTab('markets')}
+        >
+          Markets & Pulse
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileTab === 'watchlist'}
+          className={`home-tab-btn ${mobileTab === 'watchlist' ? 'active' : ''}`}
+          onClick={() => setMobileTab('watchlist')}
+        >
+          Watchlist & Health
+        </button>
       </div>
 
       <div className="nh-grid">
@@ -536,7 +567,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
             </ul>
           </section>
 
-          <section className="nh-box">
+          <section className="nh-box nh-rail-watchlist-box">
             <h2 className="bh">MY WATCHLIST</h2>
             <ul className="nh-watchlist">
               {watchlist.length === 0 && <li className="muted" style={{ fontSize: 12 }}>No saved desks yet.</li>}
@@ -550,7 +581,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
             </ul>
           </section>
 
-          <section className="nh-box">
+          <section className="nh-box nh-rail-health-box">
             <h2 className="bh">FEED HEALTH</h2>
             <div className="nh-health">
               <div>
@@ -573,7 +604,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
               </div>
             </div>
           </section>
-          <section className="nh-box">
+          <section className="nh-box nh-rail-markets-box">
             <div className="bh">
               <span>
                 MARKETS (DELAYED SNAPSHOT)
@@ -624,7 +655,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
             </table>
           </section>
 
-          <section className="nh-box">
+          <section className="nh-box nh-rail-pulse-box">
             <div className="bh">
               CONFLICT PULSE{' '}
               <small>{meta.pulse?.rows?.length ? 'OPEN FRONTS' : ''}</small>

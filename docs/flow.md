@@ -447,4 +447,58 @@ api/router.js (Single Consolidated Serverless Gateway), in the order it matches:
 7. **Supabase Clock Skew Warning (Section 16):** Confirmed non-breaking informational warning in `@supabase/gotrue-js` (`GoTrueClient.ts:3951`) caused by client machine clock lagging behind Supabase server UTC time.
 8. **External Extension Warnings:** Confirmed third-party web3/MetaMask wallet content scripts (`ObjectMultiplex`), not originating from NTER.
 
+---
+
+## 12. Private File Manager: Ingestion & Dual-Source RAG Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Authenticated User
+    participant FM as File Manager (Frontend UI)
+    participant Storage as Supabase Storage ('user-files')
+    participant DB as Postgres (user_files / user_file_jobs)
+    participant Worker as ingest-worker (Edge Function)
+    participant RAG as research-chat (Edge Function)
+
+    %% 1. Upload & Storage
+    User->>FM: Uploads file (drag-and-drop / file picker)
+    FM->>Storage: Upload bytes to user-files/<user_id>/<file_id>/<name>
+    Note over Storage: Storage RLS enforces foldername = auth.uid()
+    FM->>DB: INSERT into public.user_files (index_status: 'not_indexed')
+    Note over DB: Table RLS enforces user_id = auth.uid()
+
+    %% 2. Selective Indexing Request
+    User->>FM: Clicks "Index for AI"
+    FM->>DB: RPC user_file_enqueue_indexing(file_id)
+    DB-->>FM: { ok: true, status: "queued" }
+
+    %% 3. Central Worker Processing
+    Worker->>DB: RPC ingest_claim_user_job()
+    Note over Worker: Reuses existing OCR (Mistral) & Embeddings (OpenRouter 1536d)
+    Worker->>DB: Inserts chunks into public.user_file_chunks
+    Worker->>DB: Updates user_files (index_status: 'indexed', indexed_at: now())
+
+    %% 4. Dual-Source Research Turn
+    User->>FM: Attaches private file chip & asks question
+    FM->>RAG: POST /research-chat (focus: 'attached', attachments: [private_file_id])
+    par Dual Retrieval
+        RAG->>DB: match_user_files(query_vector, [private_file_id])
+        Note over DB: Enforces user_id = auth.uid(). Returns private chunks.
+    and Shared Retrieval
+        RAG->>DB: match_documents(query_vector) [if scope includes corpus]
+    end
+    RAG->>RAG: Unify chunks, mint handles, verify text_hash
+    RAG-->>FM: Streams response with [1], [2] citation badges (tagged private/shared)
+```
+
+**Key Execution Stages:**
+1. **Private Storage Isolation:** Files reside in `user-files` with path `<user_id>/<file_id>/<name>`, strictly guarded by Storage RLS `(storage.foldername(name))[1] = (SELECT auth.uid()::text)`. Quota is enforced server-side (`free` 500 MB, `pro` 5 GB approved; `plus` 2 GB, `max` 50 GB proposed pending product confirmation; 50 MB per-file cap).
+2. **Central Ingestion Worker Reuse:** Reuses `ingest-worker` (Mistral OCR + OpenRouter `openai/text-embedding-3-small`) without code duplication; partitioned concurrency (`corpus_max_running = 2`, `user_file_max_running = 2`, `max_running_per_user = 1`) protects shared corpus jobs from starvation. Writes resulting vectors to `public.user_file_chunks`. Indexing is triggered strictly by explicit user action ("Index for AI").
+3. **Dual-Source Retrieval:** `research-chat` queries `match_user_files` in parallel with `match_documents`. Results unify into the standard `Chunk` interface with full cryptographic citation verification (`text_hash`).
+4. **30-Day Trash & Deletion Lifecycle:** Soft-delete (`deleted_at = now()`) immediately invalidates RAG vector search, preventing stale reads. Files remain in Trash for 30 days before permanent deletion cascades all chunks/jobs and cleans up storage binaries. Explicit "Empty Trash" allows immediate cascading purge upon user confirmation.
+5. **Private Citation Security:** Every citation click is revalidated at opening time via `document-file` for active ownership (`deleted_at IS NULL`). Signed download URLs expire strictly in 60 seconds. RAG invalidation is instantaneous; existing signed URLs expire within their 60s TTL window.
+6. **Central Functionality Reference:** See `docs/specs/private-file-manager-functionality.md` for complete product and lifecycle specifications.
+
+
 

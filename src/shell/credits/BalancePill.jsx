@@ -19,7 +19,7 @@ import { goAccount } from './accountRoute.js';
  * focus in the chat box, and Escape typed there keeps it there (F193 review). Returns the cleanup.
  */
 export function watchPopover({ doc, root, onClose, focusPill }) {
-  const inside = (node) => Boolean(node && root && root.contains(node));
+  const inside = (node) => Boolean(node && ((root && root.contains(node)) || node.closest?.('.mobile-bottom-nav, .cp-profile-wrap, .profile-pop')));
   const onDown = (e) => { if (!inside(e.target)) onClose(); };
   const onKey = (e) => {
     if (e.key !== 'Escape') return;

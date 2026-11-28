@@ -206,6 +206,7 @@ export function attachmentIdentity(a) {
   // A dropped file is its name, size and content (`fingerprint`, from filesFromDrop): its text sits
   // inside `files`, so two different files that shared a name were one chip.
   if (a.kind === 'file' && a.fingerprint) return ['file', a.title || '', a.fingerprint].join('\u0000');
+  if (a.kind === 'private_file' && a.file_id) return ['private_file', a.file_id].join('\u0000');
   const text = typeof a.text === 'string' ? a.text.length : 0;
   const tab = a.kind === 'row' ? '' : a.tab || '';
   return [a.kind || '', a.title || '', tab, a.feature || '', a.url || '', text, a.document_id || ''].join('\u0000');

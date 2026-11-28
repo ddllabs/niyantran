@@ -63,6 +63,15 @@ export default function MarketingSite({ onAuthed }) {
   }, []);
 
   useEffect(() => {
+    if (!menu) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setMenu(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menu]);
+
+  useEffect(() => {
     if (page === 'privacy') setPageTitle('Privacy Policy');
     else if (page === 'terms') setPageTitle('Terms & Conditions');
     else if (page === 'pricing') setPageTitle('Pricing');
@@ -78,6 +87,7 @@ export default function MarketingSite({ onAuthed }) {
   }, [page, site.siteName, site.metaTitle]);
 
   function go(next) {
+    setMenu(false);
     const path = location.pathname.replace(/\/+$/, '') || '/';
     const legalHref = LEGAL[next];
     if (legalHref) {
@@ -86,7 +96,6 @@ export default function MarketingSite({ onAuthed }) {
         window.dispatchEvent(new Event('popstate'));
       } else {
         setPage(next);
-        setMenu(false);
         window.scrollTo(0, 0);
       }
       return;
@@ -100,7 +109,6 @@ export default function MarketingSite({ onAuthed }) {
     if (location.hash !== hash) location.hash = hash;
     else {
       setPage(next);
-      setMenu(false);
       window.scrollTo(0, 0);
     }
   }
@@ -132,13 +140,13 @@ export default function MarketingSite({ onAuthed }) {
     <div className={`mkt${auth ? ' mkt-auth' : ''}`}>
       <header className="mkt-header">
         <div className="mkt-header-inner">
-          <button type="button" className="mkt-brand" onClick={() => go('home')}>
+          <button type="button" className="mkt-brand" aria-label="Niyantran Terminal Home" onClick={() => go('home')}>
             <img src={brandLogo(site.faviconUrl)} alt="" />
             <span>{short}<small>BY NTER.PRO</small></span>
           </button>
           {/* F140 (client design, owner 2026-10-13): Home · Data coverage · Pricing, then Sign in beside
               Get started. The header stays sticky and 72px. */}
-          <nav className={`mkt-nav-links${menu ? ' open' : ''}`} aria-label="Main navigation">
+          <nav className={`mkt-nav-links${menu ? ' open' : ''}`} id="mkt-nav-links" aria-label="Main navigation">
             <button type="button" className={`mkt-nav-link${page === 'home' ? ' on' : ''}`} aria-current={page === 'home' ? 'page' : undefined} onClick={() => go('home')}>
               Home
             </button>
@@ -157,13 +165,27 @@ export default function MarketingSite({ onAuthed }) {
               </button>
             </span>
           </nav>
-          <button type="button" className="mkt-menu-btn" aria-label="Menu" onClick={() => setMenu((v) => !v)}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M4 7h16M4 12h16M4 17h16" />
-            </svg>
+          <button
+            type="button"
+            className="mkt-menu-btn"
+            aria-label="Menu"
+            aria-expanded={menu}
+            aria-controls="mkt-nav-links"
+            onClick={() => setMenu((v) => !v)}
+          >
+            {menu ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            )}
           </button>
         </div>
       </header>
+      {menu && <div className="mkt-nav-scrim" onClick={() => setMenu(false)} aria-hidden="true" />}
 
       {page === 'home' && (
         <HomePage onLogin={() => go('login')} onCoverage={onCoverage} onPricing={() => go('pricing')} />

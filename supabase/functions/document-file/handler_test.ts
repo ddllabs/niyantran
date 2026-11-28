@@ -6,6 +6,8 @@ import {
   MESSAGES,
   type PartRow,
   SIGN_SECONDS,
+  SIGN_SECONDS_PRIVATE,
+  type UserFileCitationRow,
 } from './handler.ts';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -13,8 +15,10 @@ import {
 const ORIGIN = 'http://localhost:5173';
 const FOREIGN = 'https://evil.example';
 const USER = '11111111-1111-4111-8111-111111111111';
+const OTHER_USER = '22222222-2222-4222-8222-222222222222';
 const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.caller-secret-payload.signature';
 const DOC = '33333333-3333-4333-8333-333333333333';
+const FILE_ID = '44444444-4444-4444-8444-444444444444';
 const SHA0 = 'a'.repeat(64);
 const SHA1 = 'b'.repeat(64);
 const SHA2 = 'c'.repeat(64);
@@ -35,6 +39,16 @@ const PARTS: PartRow[] = [
   { part_index: 2, page_offset: 20, page_count: 5, byte_size: 3000, storage_path: `files/${SHA2}.pdf` },
 ];
 
+const PRIVATE_FILE: UserFileCitationRow = {
+  id: FILE_ID,
+  user_id: USER,
+  storage_path: `${USER}/${FILE_ID}/document.pdf`,
+  upload_status: 'uploaded',
+  deleted_at: null,
+  size_bytes: 4096,
+  page_count: 5,
+};
+
 interface World {
   doc: DocumentRow | null;
   parts: PartRow[];
@@ -43,12 +57,19 @@ interface World {
   docReads: Array<{ token: string; id: string }>;
   partReads: Array<{ token: string; id: string; page: number }>;
   signed: Array<{ path: string; seconds: number }>;
+  userFiles: Map<string, UserFileCitationRow>;
+  userFileReads: Array<{ token: string; fileId: string }>;
+  signedPrivate: Array<{ path: string; seconds: number }>;
   logs: string[];
   failSign?: boolean;
   failDoc?: boolean;
+  failUserFile?: boolean;
+  failSignPrivate?: boolean;
 }
 
 function world(over: Partial<World> = {}): World {
+  const defaultFiles = new Map<string, UserFileCitationRow>();
+  defaultFiles.set(FILE_ID, { ...PRIVATE_FILE });
   return {
     doc: { ...LIVE },
     parts: PARTS.map((p) => ({ ...p })),
@@ -57,6 +78,9 @@ function world(over: Partial<World> = {}): World {
     docReads: [],
     partReads: [],
     signed: [],
+    userFiles: defaultFiles,
+    userFileReads: [],
+    signedPrivate: [],
     logs: [],
     ...over,
   };
@@ -82,6 +106,17 @@ function deps(w: World): DocumentFileDeps {
       if (w.failSign) return Promise.reject(new Error(`storage sign ${path}: token=${SIG}`));
       // The shape supabase-js's createSignedUrl returns: SUPABASE_URL + /storage/v1 + signedURL, encodeURI'd.
       return Promise.resolve(encodeURI(`${w.base}/storage/v1/object/sign/corpus/${path}?token=${SIG}`));
+    },
+    userFile: (token, fileId) => {
+      w.userFileReads.push({ token, fileId });
+      if (w.failUserFile) return Promise.reject(new Error(`user_files read: boom ${fileId}`));
+      const f = w.userFiles.get(fileId);
+      return Promise.resolve(f ? { ...f } : null);
+    },
+    signPrivate: (path, seconds) => {
+      w.signedPrivate.push({ path, seconds });
+      if (w.failSignPrivate) return Promise.reject(new Error(`storage sign private ${path}: token=${SIG}`));
+      return Promise.resolve(encodeURI(`${w.base}/storage/v1/object/sign/user-files/${path}?token=${SIG}`));
     },
     log: (event, fields) => w.logs.push(JSON.stringify({ event, ...fields })),
     origins: [ORIGIN],
@@ -118,6 +153,8 @@ const touchedNothing = (w: World) => {
   assertEquals(w.docReads, []);
   assertEquals(w.partReads, []);
   assertEquals(w.signed, []);
+  assertEquals(w.userFileReads, []);
+  assertEquals(w.signedPrivate, []);
 };
 
 // ─── Success ─────────────────────────────────────────────────────────────────
@@ -136,6 +173,7 @@ Deno.test('a live document page answers 200 with the part and a signed_path rela
     expires_in: 300,
   });
   assertEquals(SIGN_SECONDS, 300);
+  assertEquals(SIGN_SECONDS_PRIVATE, 60);
   assertEquals(w.signed, [{ path: `files/${SHA1}.pdf`, seconds: 300 }]);
   assertEquals(r.res.headers.get('access-control-allow-origin'), ORIGIN);
   assertEquals(r.res.headers.get('cache-control'), 'no-store');
@@ -403,7 +441,7 @@ function assertCleanLogs(logs: string[]) {
     for (const re of SECRET_TEXT) assertFalse(re.test(line), `log line leaks ${re}: ${line}`);
     const fields = Object.keys(JSON.parse(line)).filter((k) => k !== 'event');
     for (const f of fields) {
-      assert(['user_id', 'document_id', 'part_index', 'page', 'outcome', 'code'].includes(f), `unexpected field ${f}`);
+      assert(['user_id', 'document_id', 'file_id', 'part_index', 'page', 'outcome', 'code'].includes(f), `unexpected field ${f}`);
     }
   }
 }
@@ -483,4 +521,173 @@ Deno.test('every reply carries x-content-type-options: nosniff', async () => {
   const refused = await handleDocumentFile(post({ document_id: DOC, page: 1 }, { auth: null }), deps(world()));
   assertEquals(ok.headers.get('x-content-type-options'), 'nosniff');
   assertEquals(refused.headers.get('x-content-type-options'), 'nosniff');
+});
+
+// ─── Private User Files (Feature F341) ───────────────────────────────────────
+
+Deno.test('private file: successful citation viewing returns 200 with signed_path relative to /storage/v1', async () => {
+  const w = world();
+  const r = await call(w, { file_id: FILE_ID });
+  assertEquals(r.status, 200);
+  assertEquals(r.json, {
+    ok: true,
+    signed_path: `object/sign/user-files/${USER}/${FILE_ID}/document.pdf?token=${SIG}`,
+    page_count: 5,
+    byte_size: 4096,
+    expires_in: SIGN_SECONDS_PRIVATE,
+  });
+  assertEquals(w.signedPrivate, [{ path: `${USER}/${FILE_ID}/document.pdf`, seconds: SIGN_SECONDS_PRIVATE }]);
+  assertEquals(w.userFileReads, [{ token: TOKEN, fileId: FILE_ID }]);
+  assertEquals(w.docReads, []);
+  assertEquals(r.res.headers.get('access-control-allow-origin'), ORIGIN);
+  assertEquals(r.res.headers.get('cache-control'), 'no-store');
+  assertCleanLogs(w.logs);
+});
+
+Deno.test('private file: accepts source_origin: private and optional page', async () => {
+  const cases: unknown[] = [
+    { file_id: FILE_ID, source_origin: 'private' },
+    { file_id: FILE_ID, source_origin: 'private', page: 2 },
+    { file_id: FILE_ID, page: 3 },
+    { document_id: DOC, file_id: FILE_ID, source_origin: 'private', page: 1 },
+    { document_id: FILE_ID, source_origin: 'private' },
+  ];
+  for (const body of cases) {
+    const w = world();
+    const r = await call(w, body);
+    assertEquals(r.status, 200);
+    assertEquals(r.json.ok, true);
+    assertEquals(r.json.signed_path, `object/sign/user-files/${USER}/${FILE_ID}/document.pdf?token=${SIG}`);
+    assertEquals(r.json.expires_in, 60);
+    assertEquals(w.signedPrivate[0].seconds, 60);
+  }
+});
+
+Deno.test('private file: fallback page_count is 1 when file row page_count is null or undefined', async () => {
+  const w = world();
+  w.userFiles.set(FILE_ID, { ...PRIVATE_FILE, page_count: null });
+  const r = await call(w, { file_id: FILE_ID });
+  assertEquals(r.status, 200);
+  assertEquals(r.json.page_count, 1);
+});
+
+Deno.test('private file: 404 when file is in Trash (deleted_at !== null), nothing signed', async () => {
+  const w = world();
+  w.userFiles.set(FILE_ID, { ...PRIVATE_FILE, deleted_at: '2026-11-14T10:00:00Z' });
+  const r = await call(w, { file_id: FILE_ID });
+  assertRefusal(r, 404, 'not_found');
+  assertEquals(w.signedPrivate, []);
+});
+
+Deno.test('private file: 404 when file is owned by another user, nothing signed', async () => {
+  const w = world();
+  w.userFiles.set(FILE_ID, { ...PRIVATE_FILE, user_id: OTHER_USER });
+  const r = await call(w, { file_id: FILE_ID });
+  assertRefusal(r, 404, 'not_found');
+  assertEquals(w.signedPrivate, []);
+});
+
+Deno.test('private file: 404 when file does not exist, nothing signed', async () => {
+  const w = world();
+  const missingId = '55555555-5555-4555-8555-555555555555';
+  const r = await call(w, { file_id: missingId });
+  assertRefusal(r, 404, 'not_found');
+  assertEquals(w.signedPrivate, []);
+});
+
+Deno.test('private file: 404 when upload_status is not uploaded, nothing signed', async () => {
+  for (const status of ['pending_upload', 'uploading', 'upload_failed']) {
+    const w = world();
+    w.userFiles.set(FILE_ID, { ...PRIVATE_FILE, upload_status: status });
+    const r = await call(w, { file_id: FILE_ID });
+    assertRefusal(r, 404, 'not_found');
+    assertEquals(w.signedPrivate, []);
+  }
+});
+
+Deno.test('private file: 404 when storage_path does not start with caller UUID or contains traversal', async () => {
+  const badPaths = [
+    `${OTHER_USER}/${FILE_ID}/document.pdf`,
+    `files/${SHA0}.pdf`,
+    `${USER}/../secret.pdf`,
+    `${USER}\\evil.pdf`,
+    'not-a-path',
+    '',
+  ];
+  for (const path of badPaths) {
+    const w = world();
+    w.userFiles.set(FILE_ID, { ...PRIVATE_FILE, storage_path: path });
+    const r = await call(w, { file_id: FILE_ID });
+    assertRefusal(r, 404, 'not_found');
+    assertEquals(w.signedPrivate, []);
+  }
+});
+
+Deno.test('private file: 401 without bearer or with invalid token, never reads user_files', async () => {
+  for (const auth of [null, 'Basic abc', 'Bearer not-a-jwt', 'Bearer a.b.c']) {
+    const w = world();
+    const r = await call(w, { file_id: FILE_ID }, { auth });
+    assertRefusal(r, 401, 'unauthorized');
+    touchedNothing(w);
+  }
+});
+
+Deno.test('private file: 400 for malformed body, invalid UUID, or invalid fields; nothing read', async () => {
+  const badBodies: unknown[] = [
+    { file_id: 'not-a-uuid' },
+    { file_id: `${FILE_ID}x` },
+    { file_id: 123 },
+    { file_id: null },
+    { file_id: FILE_ID, page: '1' },
+    { file_id: FILE_ID, page: 1.5 },
+    { file_id: FILE_ID, page: null },
+    { file_id: FILE_ID, source_origin: 'invalid' },
+    { file_id: FILE_ID, source_origin: 'shared' },
+    { source_origin: 'private' },
+    { source_origin: 'shared' },
+  ];
+  for (const body of badBodies) {
+    const w = world();
+    const r = await call(w, body);
+    assertRefusal(r, 400, 'bad_request');
+    touchedNothing(w);
+  }
+});
+
+Deno.test('private file: 503 when read or signing fails, or signed URL shape is invalid', async () => {
+  // DB read failure
+  const w1 = world({ failUserFile: true });
+  const r1 = await call(w1, { file_id: FILE_ID });
+  assertRefusal(r1, 503, 'unavailable');
+
+  // Sign failure
+  const w2 = world({ failSignPrivate: true });
+  const r2 = await call(w2, { file_id: FILE_ID });
+  assertRefusal(r2, 503, 'unavailable');
+
+  // Unexpected signed URL shape (e.g. wrong bucket or not /storage/v1/)
+  const wrongUrls = [
+    `https://abcdefgh.supabase.co/storage/v1/object/sign/corpus/${USER}/${FILE_ID}/document.pdf?token=${SIG}`,
+    `https://abcdefgh.supabase.co/storage/v1/object/public/user-files/${USER}/${FILE_ID}/document.pdf`,
+    `https://elsewhere.example/x/object/sign/user-files/${USER}/${FILE_ID}/document.pdf?token=${SIG}`,
+    'not a url',
+  ];
+  for (const url of wrongUrls) {
+    const w = world();
+    const d = deps(w);
+    d.signPrivate = () => Promise.resolve(url);
+    const res = await handleDocumentFile(post({ file_id: FILE_ID }), d);
+    assertEquals(res.status, 503, `failed for url: ${url}, got status ${res.status}`);
+    assertEquals(await res.json(), { ok: false, code: 'unavailable', error: MESSAGES.unavailable });
+  }
+});
+
+Deno.test('private file: logs carry user, file_id and outcome; never the path, URL or token', async () => {
+  const w = world();
+  await call(w, { file_id: FILE_ID });
+  assertCleanLogs(w.logs);
+  const line = JSON.parse(w.logs[w.logs.length - 1]);
+  assertEquals(line.user_id, USER);
+  assertEquals(line.file_id, FILE_ID);
+  assertEquals(line.outcome, 'ok');
 });
