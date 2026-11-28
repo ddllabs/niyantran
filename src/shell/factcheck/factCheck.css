@@ -124,6 +124,8 @@
 .fc-live-empty { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .fc-panel p.fc-live-head { display: flex; align-items: center; gap: 8px; font-weight: 700; }
 .fc-live-dot { flex: none; display: inline-flex; color: var(--live); }
+.fc-live-dot--quiet { color: var(--fc-amber); }
+.fc-live-dot--steady { color: var(--live); }
 .fc-panel p.fc-live-note { color: var(--muted); font-size: 12px; }
 .fc-live-lines { display: flex; flex-direction: column; gap: 4px; min-width: 0; align-self: stretch; }
 .fc-panel p.fc-live-text { overflow-wrap: anywhere; }

@@ -65,7 +65,7 @@ describe('block line', () => {
   });
   it('says one minute left when a minute or less remains', () => {
     const html = render(running({ secondsLeft: 45 }));
-    expect(html).toMatch(/aria-valuetext="1 minute left in this block"/);
+    expect(html).toMatch(/aria-valuetext="Less than a minute left in this block"/);
     expect(text(html)).not.toContain('left in this block'); // F417: the words are the bar's value text only
     expect(html).not.toMatch(/aria-valuetext="[^"]*of 5 minutes used/);
   });

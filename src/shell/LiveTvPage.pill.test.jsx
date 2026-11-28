@@ -57,10 +57,13 @@ describe('the Fact-check on pill', () => {
   const verdictClaim = { id: 'c1', quote: 'q', claim_en: 'A claim', kind: 'claim', status: 'checked', verdict: 'supported', reason: 'r', sources: [], checked_at: null };
   const strip = (out) => find(out, (e) => e.props && 'latest' in e.props && 'onSee' in e.props);
   const quiet = (out) => /ltv-fcpill--quiet/.test(pill(out).props.className);
-  it('reads "Not hearing anything" with the quiet class while muted (the page starts muted)', async () => {
-    const out = await open();
+  it('reads "Muted · not hearing" with the quiet class while muted (the page starts muted), even when also silent', async () => {
+    let out = await open();
     expect(quiet(out)).toBe(true);
-    expect(textOf(pill(out))).toContain('Not hearing anything');
+    expect(textOf(pill(out))).toContain('Muted · not hearing');
+    h.fcView = session({ silentFor: 60000 });
+    out = render();
+    expect(textOf(pill(out))).toContain('Muted · not hearing');
   });
   it('reads "Fact-check on" without the class once unmuted and heard', async () => {
     let out = await open();

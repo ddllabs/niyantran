@@ -52,8 +52,34 @@ describe('the live empty state (running, no claims)', () => {
     expect(panel).toMatch(/<button[^>]*data-fc="full-transcript"[^>]*>Full transcript<\/button>/);
     expect(panel).not.toMatch(/aria-live|role="status"|role="alert"|role="log"/);
   });
-  it('is drawn while ending too', () => {
-    expect(text(claimsPanel(render(view({ status: 'ending', transcript: lines(1) }))))).toContain('Listening to the video');
+  it('is drawn while ending too, as "Finishing…" with a steady dot', () => {
+    const panel = claimsPanel(render(view({ status: 'ending', transcript: lines(1) })));
+    expect(text(panel)).toContain('Finishing…');
+    expect(text(panel)).not.toContain('Listening to the video');
+    expect(panel).toMatch(/<span class="fc-live-dot--steady fc-live-dot" aria-hidden="true">/);
+    expect(panel).toContain('Spoken line 1');
+  });
+  it('says "Muted · not hearing" with a steady amber dot when the video is muted, and keeps the line and the lines', () => {
+    const html = render(view({ transcript: lines(2) }), { isMuted: true });
+    const panel = claimsPanel(html);
+    expect(text(panel)).toContain('Muted · not hearing');
+    expect(text(panel)).not.toContain('Listening to the video');
+    expect(panel).toMatch(/<span class="fc-live-dot--quiet fc-live-dot" aria-hidden="true">/);
+    expect(panel).not.toMatch(/fc-status--on/);
+    expect(text(panel)).toContain('Claims appear here as they are checked.');
+    expect(panel).toContain('Spoken line 2');
+    expect(html).toContain('Unmute'); // the muted alert above stays
+  });
+  it('says "Not hearing anything" with a steady amber dot beyond the silence threshold, not at it', () => {
+    const quiet = claimsPanel(render(view({ silentFor: SILENT_NOTICE_MS + 1, transcript: lines(1) })));
+    expect(text(quiet)).toContain('Not hearing anything');
+    expect(quiet).toMatch(/<span class="fc-live-dot--quiet fc-live-dot"/);
+    const edge = claimsPanel(render(view({ silentFor: SILENT_NOTICE_MS, transcript: lines(1) })));
+    expect(text(edge)).toContain('Listening to the video');
+    expect(edge).toMatch(/<span class="fc-status--on fc-live-dot"/);
+  });
+  it('muted wins over silent', () => {
+    expect(text(claimsPanel(render(view({ silentFor: SILENT_NOTICE_MS + 1 }), { isMuted: true })))).toContain('Muted · not hearing');
   });
   it('does not replace the ended and error views: tiles stay, "No claims were found." stays', () => {
     const ended = claimsPanel(render(view({ status: 'ended', endReason: 'time', final: { minutes_used: 1 }, transcript: lines(2) })));
@@ -66,7 +92,9 @@ describe('the live empty state (running, no claims)', () => {
 describe('the "Now hearing" line (running, at least one claim)', () => {
   it('is the first thing in the Claims panel body after the tiles, ahead of the first card, with the newest line only', () => {
     const panel = claimsPanel(render(view({ transcript: lines(3), claims: [claim('1'), claim('2')] })));
-    expect(panel).toMatch(/<p class="fc-now-text" dir="auto"><span class="fc-now-label">Now hearing:<\/span> Spoken line 3<\/p>/);
+    // dir="auto" sits on an element holding only the transcript text, not on the paragraph that starts with the English label.
+    expect(panel).toMatch(/<p class="fc-now-text"><span class="fc-now-label">Now hearing:<\/span> <bdi dir="auto" class="fc-now-line">Spoken line 3<\/bdi><\/p>/);
+    expect(panel).not.toMatch(/<p class="fc-now-text"[^>]*dir=/);
     expect(panel).not.toContain('Spoken line 2');
     expect(panel.indexOf('fc-tiles')).toBeLessThan(panel.indexOf('fc-now'));
     expect(panel.indexOf('fc-now')).toBeLessThan(panel.indexOf('<ol'));
@@ -74,6 +102,15 @@ describe('the "Now hearing" line (running, at least one claim)', () => {
     expect(panel).toMatch(/<button[^>]*data-fc="full-transcript"[^>]*>Full transcript<\/button>/);
     expect(panel).not.toMatch(/aria-live|role="status"/);
     expect(panel).not.toContain('Listening to the video');
+  });
+  it('reads "Last heard:" when muted, silent beyond the threshold or ending, and "Now hearing:" otherwise', () => {
+    const s = { transcript: lines(2), claims: [claim('1')] };
+    const label = (html) => text(claimsPanel(html).match(/<span class="fc-now-label">[^<]*<\/span>/)[0]).trim();
+    expect(label(render(view(s)))).toBe('Now hearing:');
+    expect(label(render(view(s), { isMuted: true }))).toBe('Last heard:');
+    expect(label(render(view({ ...s, silentFor: SILENT_NOTICE_MS + 1 })))).toBe('Last heard:');
+    expect(label(render(view({ ...s, silentFor: SILENT_NOTICE_MS })))).toBe('Now hearing:');
+    expect(label(render(view({ ...s, status: 'ending' })))).toBe('Last heard:');
   });
   it('is not drawn without a transcript line, nor on an ended session', () => {
     expect(claimsPanel(render(view({ claims: [claim('1')] })))).not.toContain('fc-now');
@@ -126,6 +163,13 @@ describe('the last minute', () => {
   });
   it('leaves "Finishing…" alone while ending', () => {
     expect(clock(render(view({ status: 'ending', secondsLeft: 10 })))[1]).toBe('fc-clock');
+  });
+});
+
+describe('the low-time wording', () => {
+  it('is "Less than a minute left in this block" in the progress bar, and "Less than 30 seconds" for a one-minute block', () => {
+    expect(render(view({ secondsLeft: 45 }))).toMatch(/aria-valuetext="Less than a minute left in this block"/);
+    expect(render(view({ minutesBought: 1, secondsLeft: 20 }))).toMatch(/aria-valuetext="Less than 30 seconds left in this block"/);
   });
 });
 

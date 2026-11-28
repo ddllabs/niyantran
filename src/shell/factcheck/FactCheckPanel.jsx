@@ -429,11 +429,19 @@ export { Card as ClaimCard };
 
 // F422: while a session is live and has no claims yet, the Claims tab says it is listening and shows the newest
 // transcript lines, so the panel is never blank. Not a live region: the Transcript tab is the accessible text.
-function LiveEmpty({ lines, onOpenTranscript }) {
+// `hearing` is 'hearing' | 'muted' | 'silent' | 'ending' (hearingState below): the heading and the dot follow it.
+const LIVE_HEADS = {
+  hearing: { text: 'Listening to the video', dot: 'fc-status--on' },
+  muted: { text: 'Muted · not hearing', dot: 'fc-live-dot--quiet' },
+  silent: { text: 'Not hearing anything', dot: 'fc-live-dot--quiet' },
+  ending: { text: 'Finishing…', dot: 'fc-live-dot--steady' },
+};
+function LiveEmpty({ lines, onOpenTranscript, hearing = 'hearing' }) {
   const recent = lines.slice(-4);
+  const head = LIVE_HEADS[hearing] || LIVE_HEADS.hearing;
   return (
     <div className="fc-live-empty" data-fc="live-empty">
-      <p className="fc-live-head"><span className="fc-status--on fc-live-dot" aria-hidden="true"><span className="fc-dot" /></span>Listening to the video</p>
+      <p className="fc-live-head"><span className={`${head.dot} fc-live-dot`} aria-hidden="true"><span className="fc-dot" /></span>{head.text}</p>
       <p className="fc-live-note">{`Claims appear here as they are checked. Speech shows about ${DELAY_SECONDS} seconds after it is said.`}</p>
       {recent.length ? (
         <div className="fc-live-lines">
@@ -447,10 +455,10 @@ function LiveEmpty({ lines, onOpenTranscript }) {
 
 // F422: with at least one claim, one line at the top of the list (it scrolls with the list) shows the newest
 // transcript line, clipped to two lines. Not a live region.
-function NowHearing({ line, onOpenTranscript }) {
+function NowHearing({ line, onOpenTranscript, hearing = 'hearing' }) {
   return (
     <div className="fc-now" data-fc="now-hearing">
-      <p className="fc-now-text" dir="auto"><span className="fc-now-label">Now hearing:</span>{' '}{line.text}</p>
+      <p className="fc-now-text"><span className="fc-now-label">{hearing === 'hearing' ? 'Now hearing:' : 'Last heard:'}</span>{' '}<bdi dir="auto" className="fc-now-line">{line.text}</bdi></p>
       <button type="button" className="ltv-action-btn fc-btn fc-live-full" data-fc="full-transcript" onClick={onOpenTranscript}>Full transcript</button>
     </div>
   );
@@ -461,15 +469,15 @@ function NowHearing({ line, onOpenTranscript }) {
  * `live` (a running or ending session) with no claims shows the listening state instead of the tiles and the
  * empty text; with claims it adds the "Now hearing" line above the list. Not live: as before (tiles always).
  */
-export function Claims({ claims, emptyText, recheck, filters, onToggle, onClear, source = '', live = false, lines = [], onOpenTranscript = () => {} }) {
+export function Claims({ claims, emptyText, recheck, filters, onToggle, onClear, source = '', live = false, lines = [], onOpenTranscript = () => {}, hearing = 'hearing' }) {
   const ctx = { rechecks: recheck.states, price: recheck.price };
   const shown = filterClaims(claims, filters, ctx);
-  if (live && claims.length === 0) return <LiveEmpty lines={lines} onOpenTranscript={onOpenTranscript} />;
+  if (live && claims.length === 0) return <LiveEmpty lines={lines} onOpenTranscript={onOpenTranscript} hearing={hearing} />;
   const newest = live ? lines[lines.length - 1] : null;
   return (
     <>
       <VerdictTiles counts={verdictCounts(claims, ctx)} active={filters} onToggle={onToggle} onClear={onClear} />
-      {newest ? <NowHearing line={newest} onOpenTranscript={onOpenTranscript} /> : null}
+      {newest ? <NowHearing line={newest} onOpenTranscript={onOpenTranscript} hearing={hearing} /> : null}
       {claims.length === 0 ? <p className="fc-empty">{emptyText}</p> : shown.length === 0 ? (
         <p className="fc-empty">No claims match these filters yet.</p>
       ) : (
@@ -736,39 +744,44 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
   // F422: the dot on the Transcript tab while live; it pulses briefly for each new transcript line (not at all
   // under prefers-reduced-motion: factCheck.css).
   const lineCount = s.transcript.length;
+  // Is the session hearing the video? Running, not muted and not silent beyond the notice threshold.
+  const hearing = s.status === 'running' && !isMuted && !(s.silentFor > SILENT_NOTICE_MS);
+  const hearingState = s.status === 'ending' ? 'ending' : hearing ? 'hearing' : isMuted ? 'muted' : 'silent';
   const lastCount = useRef(lineCount);
   const [pulse, setPulse] = useState({ on: false, tick: 0 });
   useEffect(() => {
     const grew = live && lineCount > lastCount.current;
     lastCount.current = lineCount;
+    // Not live: no pulse may survive into the next session.
+    if (!live) { setPulse((p) => (p.on || p.tick ? { on: false, tick: 0 } : p)); return undefined; }
     if (!grew) return undefined;
     setPulse((p) => ({ on: true, tick: p.tick + 1 }));
     const t = setTimeout(() => setPulse((p) => ({ ...p, on: false })), PULSE_MS);
     return () => clearTimeout(t);
   }, [lineCount, live]);
-  // F422: screen-reader milestones, each once: started, first words, last minute, ended (with its reason).
+  // F422: screen-reader milestones, each once, spoken only on a change (false to true), never for a condition
+  // already true when the panel mounted: started, first words, last minute, ended (with its reason). Milestones
+  // reached in one update are joined into one message (the announcer's say() replaces a pending one).
   const prevStatus = useRef(s.status);
-  const said = useRef({ heard: false });
+  const heardWords = useRef(lineCount > 0);
+  const wasLastMinute = useRef(live && blockLine(s)?.low === true);
   const lastMinute = live && blockLine(s)?.low === true;
   const lastMinuteText = blockLine(s)?.text;
   useEffect(() => {
     const prev = prevStatus.current;
     prevStatus.current = s.status;
     const wasLive = prev === 'running' || prev === 'ending';
-    if (s.status === 'running' && !wasLive) say('Fact-check started');
-    if (s.status === 'ended' && wasLive) say(`Fact-check ended. ${endReasonText(s.endReason, s.endDetail)}`);
-    if (!live && s.status !== 'ended' && s.status !== 'error') said.current = { heard: false };
+    const msgs = [];
+    if (s.status === 'running' && !wasLive) msgs.push('Fact-check started');
+    if (!live && s.status !== 'ended' && s.status !== 'error') heardWords.current = false;
+    if (live && lineCount > 0 && !heardWords.current) { heardWords.current = true; msgs.push('Listening: words are coming in'); }
+    if (lastMinute && !wasLastMinute.current) msgs.push(lastMinuteText);
+    wasLastMinute.current = lastMinute;
+    if (s.status === 'ended' && wasLive) msgs.push(`Fact-check ended. ${endReasonText(s.endReason, s.endDetail)}`);
+    if (msgs.length) say(msgs.reduce((a, m) => (a ? `${a}${a.endsWith('.') ? ' ' : '. '}${m}` : m), ''));
     // The end reason is read at the moment of the change only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.status]);
-  useEffect(() => {
-    if (live && lineCount > 0 && !said.current.heard) { said.current.heard = true; say('Listening: words are coming in'); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, lineCount]);
-  useEffect(() => {
-    if (lastMinute) say(lastMinuteText); // once: the effect runs only when lastMinute turns true
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastMinute]);
+  }, [s.status, live, lineCount, lastMinute]);
   const openTranscript = () => {
     setTab('transcript');
     document.getElementById('fc-tab-transcript')?.focus({ preventScroll: true });
@@ -898,7 +911,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
           {/* Both panels stay in the page; the one not chosen is hidden, so the transcript keeps its place. */}
           <div className="fc-work" id="fc-panel-claims" role="tabpanel" aria-labelledby="fc-tab-claims" hidden={tab !== 'claims'}>
             <Claims
-              claims={s.claims} live={live} lines={s.transcript} onOpenTranscript={openTranscript}
+              claims={s.claims} live={live} lines={s.transcript} onOpenTranscript={openTranscript} hearing={hearingState}
               emptyText={live ? 'No claims yet.' : 'No claims were found.'}
               filters={filters} onToggle={toggleFilter} onClear={() => setFilters([])} source={videoTitle || channelName}
               recheck={{
@@ -914,7 +927,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
               lines={s.transcript}
               visible={tab === 'transcript'}
               emptyText={live ? `Listening… Text appears about ${DELAY_SECONDS} seconds behind the speaker.` : 'No speech was transcribed.'}
-              listening={s.status === 'running' && !isMuted && !(s.silentFor > SILENT_NOTICE_MS)}
+              listening={hearing}
               title={videoTitle || channelName} date={sessionDay}
             />
           </div>

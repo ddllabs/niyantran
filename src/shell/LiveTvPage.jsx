@@ -593,7 +593,11 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   // Over the video only while a session runs: the "Fact-check on" pill and the newest claim with a verdict.
   const sessionRunning = factCheckOffered && factCheck.view?.session?.status === 'running';
   // F422: the pill says when nothing is heard: the video is muted, or no speech for longer than the silence notice.
-  const notHearing = sessionRunning && (isMuted || factCheck.view.session.silentFor > SILENT_NOTICE_MS);
+  // Same words as the panel's Claims tab: muted, or silent for longer than the notice (muted wins).
+  const pillText = !sessionRunning ? null
+    : isMuted ? 'Muted · not hearing'
+      : factCheck.view.session.silentFor > SILENT_NOTICE_MS ? 'Not hearing anything' : 'Fact-check on';
+  const notHearing = pillText !== null && pillText !== 'Fact-check on';
   const latestClaim = sessionRunning
     ? latestVerdictClaim(factCheck.view.session.claims, { rechecks: factCheck.view.rechecks || {}, price: factCheck.view.flag.recheckCredits ?? null })
     : null;
@@ -809,7 +813,7 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
             )}
             {sessionRunning ? (
               <>
-                <span className={notHearing ? 'ltv-fcpill ltv-fcpill--quiet' : 'ltv-fcpill'}><span className="ltv-fcpill-dot" aria-hidden="true" />{notHearing ? 'Not hearing anything' : 'Fact-check on'}</span>
+                <span className={notHearing ? 'ltv-fcpill ltv-fcpill--quiet' : 'ltv-fcpill'}><span className="ltv-fcpill-dot" aria-hidden="true" />{pillText}</span>
                 <LatestClaimStrip latest={latestClaim} onSee={(claimId) => leaveFullscreenThen(document, () => setSeeWhy((r) => ({ claimId, token: (r?.token || 0) + 1 })))} />
               </>
             ) : null}

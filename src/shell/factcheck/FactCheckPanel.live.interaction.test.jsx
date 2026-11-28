@@ -64,6 +64,15 @@ describe('the Transcript tab dot', () => {
     const out = harness.render(PanelBody, props({ status: 'ended', endReason: 'time', final: { minutes_used: 1 }, transcript: lines(2), claims: [claim('1')] }));
     expect(transcriptDot(out)).toBeNull();
   });
+  it('a pulse does not survive the session ending: the next session\'s first render has none', () => {
+    harness.render(PanelBody, props({ transcript: lines(1) }));
+    let out = harness.render(PanelBody, props({ transcript: lines(2) }));
+    expect(transcriptDot(out).pulse).toBe(true);
+    harness.render(PanelBody, props({ status: 'ended', endReason: 'time', final: { minutes_used: 1 }, transcript: lines(2) }));
+    harness.render(PanelBody, props({ status: 'choosing' }));
+    out = harness.render(PanelBody, props({ status: 'running' }));
+    expect(transcriptDot(out)).toEqual({ pulse: false, tick: 0 });
+  });
 });
 
 describe('announcements', () => {
@@ -87,14 +96,14 @@ describe('announcements', () => {
     harness.render(PanelBody, props({ secondsLeft: 61 }));
     say.mockClear();
     for (const left of [60, 59, 30, 5]) harness.render(PanelBody, props({ secondsLeft: left }));
-    expect(said()).toEqual(['1 minute left in this block']);
+    expect(said()).toEqual(['Less than a minute left in this block']);
   });
   it('a one-minute block is announced at 30 seconds, once, in seconds', () => {
     harness.render(PanelBody, props({ minutesBought: 1, secondsLeft: 60 }));
     harness.render(PanelBody, props({ minutesBought: 1, secondsLeft: 31 }));
     say.mockClear();
     for (const left of [30, 29, 3]) harness.render(PanelBody, props({ minutesBought: 1, secondsLeft: left }));
-    expect(said()).toEqual(['30 seconds left in this block']);
+    expect(said()).toEqual(['Less than 30 seconds left in this block']);
   });
   it('"Fact-check ended" with the reason once when the session ends, never on mounting an ended view', () => {
     harness.render(PanelBody, props({ status: 'ended', endReason: 'user', final: { minutes_used: 1 } }));
@@ -106,6 +115,25 @@ describe('announcements', () => {
     harness.render(PanelBody, props({ status: 'ended', endReason: 'time', final: { minutes_used: 5 } }));
     harness.render(PanelBody, props({ status: 'ended', endReason: 'time', final: { minutes_used: 5 } }));
     expect(said()).toEqual([`Fact-check ended. ${endReasonText('time')}`]);
+  });
+  it('announces nothing for conditions already true when the panel mounts (lines present, last minute running)', () => {
+    harness.render(PanelBody, props({ transcript: lines(3), secondsLeft: 20 }));
+    harness.render(PanelBody, props({ transcript: lines(3), secondsLeft: 19 }));
+    expect(said()).toEqual([]);
+  });
+  it('milestones reached in one update are joined into one message, none lost', () => {
+    harness.render(PanelBody, props({ status: 'starting' }));
+    harness.render(PanelBody, props({ status: 'running', transcript: lines(1) }));
+    expect(said()).toEqual(['Fact-check started. Listening: words are coming in']);
+    say.mockClear();
+    harness.render(PanelBody, props({ status: 'running', transcript: lines(1), secondsLeft: 200 }));
+    harness.render(PanelBody, props({ status: 'running', transcript: lines(2), secondsLeft: 55 }));
+    expect(said()).toEqual(['Less than a minute left in this block']);
+    // the first line and the last minute in the same update
+    harness.reset(); say.mockClear();
+    harness.render(PanelBody, props({ status: 'running', secondsLeft: 70 }));
+    harness.render(PanelBody, props({ status: 'running', transcript: lines(1), secondsLeft: 55 }));
+    expect(said()).toEqual(['Listening: words are coming in. Less than a minute left in this block']);
   });
   it('a new session in the same panel announces again', () => {
     harness.render(PanelBody, props({ status: 'running', transcript: lines(1) }));

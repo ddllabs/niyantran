@@ -4,7 +4,7 @@
 import { formatClock, minutesText } from './factCheckText.js';
 
 // Seconds of silence after which the panel says it is not hearing anything; the panel's notice (FactCheckPanel.jsx)
-// and the page's captions (LiveTvPage.jsx) both read it.
+// and the page's "Not hearing anything" pill (LiveTvPage.jsx) both read it.
 export const SILENT_NOTICE_MS = 30000;
 
 /** { text, tone } where tone is off | wait | on | bad (the dot's colour is never the only signal: the text says it). */
@@ -36,7 +36,7 @@ export function blockLine(session) {
     const elapsed = Math.min(total, Math.max(0, total - session.secondsLeft));
     // A one-minute block is low only for its last 30 seconds (it would be low from its first second otherwise).
     const low = left <= (bought === 1 ? 30 : 60);
-    const head = low ? (bought === 1 ? '30 seconds left in this block' : '1 minute left in this block') : `${formatClock(elapsed)} of ${minutesText(bought)} used`;
+    const head = low ? (bought === 1 ? 'Less than 30 seconds left in this block' : 'Less than a minute left in this block') : `${formatClock(elapsed)} of ${minutesText(bought)} used`;
     return { text: head, fraction: Math.min(1, elapsed / total), low };
   }
   if (session.status === 'ended' && typeof session.final?.minutes_used === 'number') {
