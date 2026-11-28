@@ -18,8 +18,9 @@ import { CopyClaimButton, ExportButton, PdfButton, videoWatchLink } from './Clai
 import { AnnounceProvider, AnnouncerRegion, createAnnouncer, useAnnounce } from './announce.jsx';
 import { claimCopyText, exportFileName, sessionExportText, sessionStartOf } from './claimExport.js';
 import { HighlightedText, TRANSCRIPT_TEXT, TranscriptBar, useTranscriptTools } from './TranscriptTools.jsx';
+// One silence threshold for the panel's notice and the page's captions (LiveCaptions.jsx).
+import { SILENT_NOTICE_MS } from './LiveCaptions.jsx';
 
-const SILENT_NOTICE_MS = 30000;
 const LINK_SLOT_ID = 'fc-linkslot';
 // The panel stacks below the player at this width and under (factCheck.css, same number).
 const STACKED_QUERY = '(max-width: 1080px)';
