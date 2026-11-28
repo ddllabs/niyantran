@@ -25,8 +25,10 @@ export const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 // archive tree (.grid_subtree with #treeYearMonth_PR and .accordionContent), the site menus (.menu, .centermenu), the footer
 // (.footer, footer), navigation (nav) and the page tools (.top_setting, .logo, #UsrFontCntr_tblThemes). Measured on RBI
 // pages on 2026-11-26: these containers have 0% 5-gram overlap with the document, which lives in #doublescroll (98-99% of
-// its 5-grams are in the pack's own text). They match nothing on SEBI pages. The scripts/bulk-runner/web_route.ts copy
-// must list the same selectors in the same order.
+// its 5-grams are in the pack's own text). They match nothing on SEBI pages. The second trial (2026-11-26) left about 15
+// words a page: the search box label (.search_label) and a back link (#backDiv), added for the full scrape as
+// rbi-chrome-v2 (the trial pages keep rbi-chrome-v1, the request that scraped them). The scripts/bulk-runner/web_route.ts
+// copy must list the same selectors in the same order.
 export const RBI_CHROME_SELECTORS: readonly string[] = Object.freeze([
   '.grid_subtree',
   '#treeYearMonth_PR',
@@ -39,6 +41,8 @@ export const RBI_CHROME_SELECTORS: readonly string[] = Object.freeze([
   '.top_setting',
   '.logo',
   '#UsrFontCntr_tblThemes',
+  '.search_label',
+  '#backDiv',
 ]);
 
 /** Every option of the request but the URL. Frozen: a change is a code change, and changes the runner's receipt hash. */
@@ -56,7 +60,7 @@ export const REQUEST_OPTIONS = Object.freeze({
 });
 
 /** The engine label the runner stores as text_engine. */
-export const TEXT_ENGINE = `firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v1 proxy=${PROXY_MODE}`;
+export const TEXT_ENGINE = `firecrawl v2/scrape markdown onlyMainContent excludeTags=rbi-chrome-v2 proxy=${PROXY_MODE}`;
 
 /** The request body for one page. */
 export function scrapeBody(url: string): Record<string, unknown> {
