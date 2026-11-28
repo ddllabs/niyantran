@@ -3,6 +3,10 @@
 // charged or computed here beyond a time shown.
 import { formatClock, minutesText } from './factCheckText.js';
 
+// Seconds of silence after which the panel says it is not hearing anything; the panel's notice (FactCheckPanel.jsx)
+// and the page's captions (LiveTvPage.jsx) both read it.
+export const SILENT_NOTICE_MS = 30000;
+
 /** { text, tone } where tone is off | wait | on | bad (the dot's colour is never the only signal: the text says it). */
 export function statusLine(session) {
   switch (session.status) {

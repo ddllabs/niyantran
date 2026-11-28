@@ -3,7 +3,7 @@
 // only text a provider returned and verdicts a check returned; where there is nothing it says so.
 // Styles: factCheck.css is pulled in by liveTv.css (@import), because a lazy chunk may not carry a
 // stylesheet of its own (scripts/check-bundle.mjs) and terminalStyles.js is generated.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { creditsText, formatCredits } from '../../lib/creditsStore.js';
 import {
   COVERS_REST_TEXT, DELAY_SECONDS, NO_SOURCES_TEXT, PAST_TEXT, VERDICTS, blockOptions, claimBadge, confirmStart, coverLength, defaultBlock, endReasonText, errorMessage, formatClock, kindTag, minutesText, reanalyzeIntroText, safeSourceUrl, seekLateText, seekPendingText, sourceLabel,
@@ -11,16 +11,15 @@ import {
 import { CoveredBanner, Parts, ReportControls } from './FactCheckParts.jsx';
 import { formatPosition, partModel } from './factCheckShare.js';
 import { filterClaims, shownResult, verdictCounts } from './claimFilter.js';
-import { LiveTranscriptStrip } from './LiveTranscriptStrip.jsx';
 import { RovingTabs, VerdictTiles } from './FactCheckTabs.jsx';
-import { blockLine, statusLine } from './panelStatus.js';
+import { SILENT_NOTICE_MS, blockLine, statusLine } from './panelStatus.js';
 import { SummaryTab } from './SummaryTab.jsx';
 import { CopyClaimButton, ExportButton, PdfButton, videoWatchLink } from './ClaimExport.jsx';
 import { AnnounceProvider, AnnouncerRegion, createAnnouncer, useAnnounce } from './announce.jsx';
 import { claimCopyText, exportFileName, sessionExportText, sessionStartOf } from './claimExport.js';
 import { HighlightedText, TRANSCRIPT_TEXT, TranscriptBar, useTranscriptTools } from './TranscriptTools.jsx';
 
-const SILENT_NOTICE_MS = 30000;
+const LINK_SLOT_ID = 'fc-linkslot';
 // The panel stacks below the player at this width and under (factCheck.css, same number).
 const STACKED_QUERY = '(max-width: 1080px)';
 
@@ -254,8 +253,8 @@ function checkedTime(iso, withDate = false) {
     : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-function SourceList({ result }) {
-  const items = (Array.isArray(result.sources) ? result.sources : []).flatMap((s, i) => {
+function sourceItems(result) {
+  return (Array.isArray(result.sources) ? result.sources : []).flatMap((s, i) => {
     const href = safeSourceUrl(s?.url);
     const title = typeof s?.title === 'string' ? s.title.trim() : '';
     if (href) {
@@ -263,7 +262,29 @@ function SourceList({ result }) {
     }
     return title ? [<li key={i}><span>{title}</span></li>] : [];
   });
+}
+
+function SourceList({ result }) {
+  const items = sourceItems(result);
   return items.length ? <ul className="fc-sources fc-sources--pills" aria-label="Sources">{items}</ul> : null;
+}
+
+// F417: on a claim card the sources fold behind a "N sources" button (closed until pressed); a card with none
+// shows no button. The older results under "Earlier result" keep their pills (they are already folded).
+function SourcesDisclosure({ result }) {
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  const items = sourceItems(result);
+  if (!items.length) return null;
+  return (
+    <div className="fc-sources-fold">
+      <button type="button" className="fc-sources-toggle" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}>
+        {items.length === 1 ? '1 source' : `${items.length} sources`}
+        <span className="fc-caret" aria-hidden="true">{open ? '▴' : '▾'}</span>
+      </button>
+      <ul className="fc-sources fc-sources--pills" id={id} aria-label="Sources" hidden={!open}>{items}</ul>
+    </div>
+  );
 }
 
 // A re-checked card and its earlier results show the date too: they were checked at different times.
@@ -361,6 +382,8 @@ function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, shar
   const badge = claimBadge(shown);
   const noSources = badge.key === 'no_sources';
   const tag = kindTag(claim, badge);
+  const showCopy = Object.hasOwn(VERDICTS, badge.key);
+  const showRecheck = priced && !noSources && (shown.status === 'checked' || shown.status === 'error');
   const by = [claim.claimant && `Claim by ${claim.claimant}`, claim.reported_by && `reported by ${claim.reported_by}`]
     .filter(Boolean).join(', ');
   return (
@@ -378,18 +401,21 @@ function Card({ claim, price, balance, recheck, onAsk, onConfirm, onCancel, shar
       {noSources ? <p className="fc-reason fc-nosources" dir="auto">{NO_SOURCES_TEXT}</p> : null}
       {shown.ended_unchecked === true ? <p className="fc-reason" dir="auto">{PAST_TEXT.endedUnchecked}</p> : null}
       {shown.reason ? <p className="fc-reason" dir="auto">{shown.reason}</p> : null}
-      <SourceList result={shown} />
-      <CheckedAt result={shown} withDate={chain.length > 1 || Boolean(share)} />
-      {Object.hasOwn(VERDICTS, badge.key) ? (
+      <SourcesDisclosure result={shown} />
+      {/* F417: Copy, Check again and the time checked share one row; it wraps only where there is no room. */}
+      {showCopy || showRecheck || checkedTime(shown.checked_at, false) ? (
         <div className="fc-card-actions">
-          <CopyClaimButton dataKey={copyKey} say={say} label={`Copy this claim: ${String(claim.claim_en ?? '').slice(0, 60)}`} text={() => claimCopyText({ claim, shown, source })} />
+          {showCopy ? (
+            <CopyClaimButton dataKey={copyKey} say={say} label={`Copy this claim: ${String(claim.claim_en ?? '').slice(0, 60)}`} text={() => claimCopyText({ claim, shown, source })} />
+          ) : null}
+          {showRecheck ? (
+            <RecheckControls id={claim.id} price={price} balance={balance} recheck={recheck} onAsk={onAsk} onConfirm={onConfirm} onCancel={onCancel} />
+          ) : null}
+          <CheckedAt result={shown} withDate={chain.length > 1 || Boolean(share)} />
         </div>
       ) : null}
       {claim.reported === true ? <p className="fc-reported">Reported</p> : null}
       {share?.report && claim.reported !== true ? <ReportControls id={claim.id} {...share.report} /> : null}
-      {priced && !noSources && (shown.status === 'checked' || shown.status === 'error') ? (
-        <RecheckControls id={claim.id} price={price} balance={balance} recheck={recheck} onAsk={onAsk} onConfirm={onConfirm} onCancel={onCancel} />
-      ) : null}
       {chain.length > 1 ? <Earlier id={claim.id} items={chain.slice(1)} /> : null}
     </li>
   );
@@ -473,18 +499,67 @@ function HeadTitle({ session, heading = null }) {
 }
 
 // F366: the thin bar and the block's line under the header, from figures the session view carries.
-function BlockLine({ session }) {
+// F417: while a session runs (`line`) only the 3px line is drawn; the words are the bar's aria-valuetext.
+function BlockLine({ session, line = false }) {
   const block = blockLine(session);
   if (!block) return null;
   const pct = Math.round(block.fraction * 100);
   return (
-    <div className={`fc-block${block.low ? ' fc-block--low' : ''}`}>
-      <div className="fc-bar" role="progressbar" aria-label="Block time used" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+    <div className={`fc-block${block.low ? ' fc-block--low' : ''}${line ? ' fc-block--line' : ''}`}>
+      <div
+        className="fc-bar" role="progressbar" aria-label="Block time used" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}
+        aria-valuetext={line ? block.text : undefined}
+      >
         <span className="fc-bar-fill" style={{ width: `${pct}%` }} />
       </div>
-      <p className="fc-block-text">{block.text}</p>
+      {line ? null : <p className="fc-block-text">{block.text}</p>}
     </div>
   );
+}
+
+// F417: the "Paste a video link" icon button of the running row (an inline link icon).
+function LinkIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5" />
+      <path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5" />
+    </svg>
+  );
+}
+
+// F417: the controls that follow the tabs in the top row while a session runs: the dot (the normal checking state
+// shows as the dot alone), the time left (or "Finishing…"), Stop, then the link button. The row itself, the
+// heading and the status line are in PanelBody, the same in every state, so focus survives the session's end.
+export function RunningControls({ session, onStop, linkOpen, onToggleLink, linkButton }) {
+  const st = statusLine(session);
+  return (
+    <>
+      {st.tone === 'on' ? <span className={`fc-livedot fc-status--${st.tone}`} aria-hidden="true"><span className="fc-dot" /></span> : null}
+      <span className="fc-clock">{session.status === 'ending' ? 'Finishing…' : `${formatClock(session.secondsLeft)} left`}</span>
+      <button type="button" className="ltv-action-btn fc-btn" data-fc="stop" disabled={session.status === 'ending'} onClick={onStop}>Stop</button>
+      <button
+        type="button" className="ltv-action-btn fc-btn fc-iconbtn" data-fc="link" ref={linkButton}
+        aria-label="Paste a video link" title="Paste a video link" aria-expanded={Boolean(linkOpen)} aria-controls={LINK_SLOT_ID} onClick={onToggleLink}
+        onKeyDown={(e) => {
+          // Escape on the button closes the open form here and goes no further (the page's own listeners).
+          if (e.key !== 'Escape' || !linkOpen) return;
+          e.stopPropagation();
+          onToggleLink();
+        }}
+      >
+        <LinkIcon />
+      </button>
+    </>
+  );
+}
+
+// The status line under the header. Outside a session it is the dot and words, as before. While a session runs
+// its words are for screen readers only: the normal checking state is the dot in the top row, and "Finishing…"
+// is already the clock's text (shown once).
+function StatusLine({ session, live }) {
+  const st = statusLine(session);
+  if (!live) return <p className={`fc-status fc-status--${st.tone}`}><span className="fc-dot" aria-hidden="true" />{st.text}</p>;
+  return <p className="fc-sr">{st.tone === 'on' ? st.text.split(' · ')[0] : st.text}</p>;
 }
 
 // The paste-a-link form (built by the page, which owns what it does) sits at the very top of the panel in every
@@ -529,9 +604,10 @@ export function FactCheckPanel(props) {
 
 // Mounted while a session is on screen: focus moves to the heading when it opens, and back to the
 // entry button when it is dismissed (unless the user has already moved focus elsewhere).
-export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', playable = true, pasted = false, loadingChannels = false, onChoose, focusRequest = null, videoTitle = '', remainingSeconds = null, linkForm = null }) {
+export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop, onRetry, onDismiss, onEndOrphan, onRecheckAsk, onRecheckConfirm, onRecheckCancel, persistent = false, channelName = '', playable = true, pasted = false, loadingChannels = false, onChoose, focusRequest = null, videoTitle = '', remainingSeconds = null, linkForm = null, linkOpen = false, onToggleLink = () => {} }) {
   const heading = useRef(null);
   const panel = useRef(null);
+  const linkButton = useRef(null);
   // One shared status node for every copy, export and download confirmation of this panel (announce.jsx).
   const announcer = useRef(null);
   if (!announcer.current) announcer.current = createAnnouncer();
@@ -571,14 +647,6 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
   // F366 "See why" (the latest-claim strip, outside the panel): show the Claims tab, clear a filter that hides
   // the claim, then, once that is on screen, scroll to the card and focus it. Once for each request.
   const requestToken = focusRequest?.token;
-  // F389: "Full transcript" in the strip. The strip leaves with the switch, so focus moves to the Transcript tab.
-  const [focusTranscriptTab, setFocusTranscriptTab] = useState(false);
-  const openTranscript = () => { setTab('transcript'); setFocusTranscriptTab(true); };
-  useEffect(() => {
-    if (!focusTranscriptTab) return;
-    document.getElementById('fc-tab-transcript')?.focus();
-    setFocusTranscriptTab(false);
-  }, [focusTranscriptTab]);
   // Show the Claims tab, clear a filter that hides the claim, then focus its card once it is on screen.
   const openClaim = (claimId) => {
     setTab('claims');
@@ -617,6 +685,7 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
   };
   const live = s.status === 'running' || s.status === 'ending';
   const hasContent = s.transcript.length > 0 || s.claims.length > 0;
+  const slotShown = live ? Boolean(linkOpen && linkForm) : Boolean(linkForm);
   const showWork = live || s.status === 'ended' || (s.status === 'error' && hasContent);
   const gaps = s.skippedPieces > 0 || s.droppedTurns > 0;
   // A new session needs a known price (the flag can be off after a failed load or an `off` ending).
@@ -624,6 +693,12 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
   const problem = s.status === 'error' ? errorMessage(s.error, { captureFailures: view.captureFailures || 0 }) : null;
   // "Re-analyze this block" starts a new session, so it is offered only where a new session is: the choose
   // step, an ended session with a known price, and an error that offers Try again.
+  const tabsEl = (
+    <RovingTabs
+      idBase="fc" label="Fact-check results" active={tab} onChange={setTab}
+      tabs={[{ id: 'claims', label: `Claims · ${s.claims.length}` }, { id: 'transcript', label: 'Transcript' }, { id: 'summary', label: 'Summary' }]}
+    />
+  );
   const partActions = s.status === 'choosing' || canRestart || problem?.retry ? shareActions : { ...shareActions, reanalyze: undefined };
   // The shared parts (other users' transcript stretches with their verdicts, Unlock and Re-analyze this block):
   // text of what was said, so they sit in the Transcript tab when the tabs show, else where they always were.
@@ -650,34 +725,35 @@ export function PanelBody({ view, isMuted, onUnmute, onConfirm, onCancel, onStop
   return (
     <AnnounceProvider value={say}>
     <section className="fc-panel" aria-label="Fact-check" data-status={s.status} ref={panel}>
-      <LinkSlot>{linkForm}</LinkSlot>
       <div className="fc-sr" aria-live="polite" aria-atomic="true">{view.announcement}</div>
-      <header className="fc-head">
-        <HeadTitle session={s} heading={heading} />
-        {live ? (
-          <div className="fc-head-run">
-            <span className="fc-clock">{s.status === 'ending' ? 'Finishing…' : `${formatClock(s.secondsLeft)} left`}</span>
-            <button type="button" className="ltv-action-btn fc-btn" data-fc="stop" disabled={s.status === 'ending'} onClick={onStop}>Stop</button>
+      {/* The tree is the same in every state (a session ending must not remount the tabs, the heading or the
+          paste field and drop focus): one header, one top row with the tabs, one slot. Only classes and the
+          running controls change; the row shows wherever the tabs do. */}
+      <header className={`fc-head ${live ? 'fc-head--live' : 'fc-head--stack'}`}>
+        <h3 id="fc-title" className={`fc-title${live ? ' fc-sr' : ''}`} tabIndex={heading ? -1 : undefined} ref={heading}>Fact-check</h3>
+        {showWork ? (
+          <div className="fc-toprow">
+            {tabsEl}
+            {live ? <RunningControls session={s} onStop={onStop} linkOpen={linkOpen} onToggleLink={onToggleLink} linkButton={linkButton} /> : null}
           </div>
         ) : null}
+        <BlockLine session={s} line={live} />
+        <StatusLine session={s} live={live} />
       </header>
-
-      <BlockLine session={s} />
-
-      {/* F389: the newest words, pinned outside the scroll area; the Transcript tab shows them in full. */}
-      {live && tab !== 'transcript' ? (
-        <LiveTranscriptStrip
-          lines={s.transcript} onOpen={openTranscript}
-          listening={s.status === 'running' && !isMuted && !(s.silentFor > SILENT_NOTICE_MS)}
-        />
-      ) : null}
-
-      {/* The tablist is pinned outside the scroll area, so the way to the Transcript never scrolls away with the claims. */}
-      {showWork ? (
-        <RovingTabs
-          idBase="fc" label="Fact-check results" active={tab} onChange={setTab}
-          tabs={[{ id: 'claims', label: `Claims · ${s.claims.length}` }, { id: 'transcript', label: 'Transcript' }, { id: 'summary', label: 'Summary' }]}
-        />
+      {/* F417: outside a session the form is at the top as before (CSS order); while one runs it folds away and
+          opens under the top row. */}
+      {slotShown ? (
+        <div
+          className={`fc-linkslot${live ? ' fc-linkslot--live' : ''}`} id={live ? LINK_SLOT_ID : undefined}
+          onKeyDown={live ? (e) => {
+            if (e.key !== 'Escape') return;
+            e.stopPropagation();
+            onToggleLink();
+            linkButton.current?.focus();
+          } : undefined}
+        >
+          {linkForm}
+        </div>
       ) : null}
 
       {/* One scroll area (factCheck.css): the head above and the foot below stay put; this body scrolls. */}
