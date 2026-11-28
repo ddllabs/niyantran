@@ -1,6 +1,6 @@
 # Plan: Live TV fact-check panel while a session runs (F417)
 
-> **Status: Living.** Spec: [2026-11-28-live-tv-compact-panel.md](../specs/2026-11-28-live-tv-compact-panel.md).
+> **Status: Historical (dated 2026-11-28).** Done; released in `d98b8f78` (pull request 252). Spec: [2026-11-28-live-tv-compact-panel.md](../specs/2026-11-28-live-tv-compact-panel.md).
 
 Integration branch `task/livetv-panel-compact` from `main` at `16f6832d`. Two tasks run at the same time
 in supervisor-created worktrees; write scopes are disjoint; the interface below is fixed first.
