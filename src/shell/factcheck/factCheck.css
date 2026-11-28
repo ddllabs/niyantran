@@ -47,7 +47,8 @@
 .fc-head-run { display: flex; align-items: center; gap: 8px; }
 
 /* F416: while a session runs the head is ONE row (tabs, time left, Stop, the link button) and a 3px progress line
-   under it. The row never wraps: the tabs take what is left and scroll sideways before anything else moves.
+   under it. The row does not wrap above 600px: the tabs take what is left and scroll sideways before anything
+   else moves. On phones it wraps (the phone block at the end).
    The 36px floor applies on fine pointers above 1080px; at 1080px and below or on touch the page's rule
    (liveTv.css, 40px) is the only one, so nothing here may beat it there. */
 .fc-head--live { flex-direction: column; align-items: stretch; flex-wrap: nowrap; justify-content: flex-start; gap: 2px; }
@@ -573,6 +574,11 @@
    (.fc-tabs). Long Hindi/Devanagari text wraps. */
 @media (max-width: 600px) {
   .fc-panel { padding: 12px; border-radius: 12px; }
+  /* F416: on phones the top row wraps: the tabs take the first line (measured at 375px: in one row the Summary
+     tab was 67px off to the side), the dot, clock, Stop and link button the second, at its right. */
+  .fc-toprow { flex-wrap: wrap; row-gap: 4px; }
+  .fc-toprow > [role="tablist"] { flex: 1 0 100%; }
+  .fc-toprow .fc-livedot { margin-left: auto; }
   .fc-claim, .fc-reason, .fc-line, .fc-by { overflow-wrap: anywhere; }
   .fc-head-run { margin-left: auto; }
 }

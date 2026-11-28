@@ -373,7 +373,12 @@ describe('F416 the stylesheet', () => {
   it('has no transcript-strip rules left', () => {
     expect(css).not.toMatch(/fc-tstrip/);
   });
-  it('never wraps the running row, and gives its buttons 36px only above 1080px on a fine pointer (the page rule owns 40px)', () => {
+  it('wraps the running row on phones only: the tabs take the first line (one row hid the Summary tab at 375px)', () => {
+    const phone = css.slice(css.indexOf('@media (max-width: 600px) {'));
+    expect(phone).toMatch(/\.fc-toprow \{ flex-wrap: wrap;/);
+    expect(phone).toMatch(/\.fc-toprow > \[role="tablist"\] \{ flex: 1 0 100%; \}/);
+  });
+  it('does not wrap the running row above 600px, and gives its buttons 36px only above 1080px on a fine pointer (the page rule owns 40px)', () => {
     expect(css).toMatch(/\.fc-toprow \{[^}]*flex-wrap:\s*nowrap/);
     const floor = css.match(/@media \(min-width: 1081px\) and \(not \(pointer: coarse\)\) \{[^}]*\.fc-toprow \.fc-btn \{ min-height: 36px; \}/);
     expect(floor).not.toBeNull();
