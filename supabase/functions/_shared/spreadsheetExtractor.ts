@@ -2,7 +2,8 @@
 // Robust spreadsheet extraction and spreadsheet-aware chunking module.
 // Supports XLSX, XLSM, XLS, and CSV bytes using SheetJS (xlsx).
 
-import * as XLSX from '../../../node_modules/xlsx/xlsx.mjs';
+// SheetJS's own build for Deno, the version the website pins (package.json). A deployed function has no node_modules.
+import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs';
 
 export interface SpreadsheetChunkMetadata {
   source_type: 'private_file';
