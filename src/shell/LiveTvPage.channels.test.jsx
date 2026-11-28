@@ -1,6 +1,6 @@
 // B6: the page with the client's lists: a channel added without a curated video (connecting, live, not live,
 // failed lookup), the follow toggle, and the channel bar in place of the old card.
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { harness, elements } from './hookHarness.js';
 
 const h = vi.hoisted(() => ({ channels: [], lists: [], lookup: null, videoCalls: [], fcArgs: null, fcView: null, player: null }));
@@ -59,6 +59,9 @@ beforeEach(() => {
   Object.assign(h, { channels: [], lists: [], lookup: null, videoCalls: [], fcArgs: null, fcView: null, player: null });
   delete globalThis.window;
 });
+// Test files share one process: the window stubs set below must not reach the next file (a shuffled run, seed 61,
+// failed openRowSource and the desk paging tests on the stub this file left behind).
+afterEach(() => { delete globalThis.window; });
 
 describe('the channel bar', () => {
   it('replaces the old card when the server sends the lists, and keeps it when it does not', async () => {
