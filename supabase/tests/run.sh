@@ -149,7 +149,7 @@ chain() {
     web_text_queue)
       chain national_search_only_five_desks
       FILES+=("$(as_non_superuser 20261126100000_web_text_queue.sql)") ;;
-    # F417: the web-text settings updates carry a WHERE clause (pg_safeupdate, which PostgREST loads). web_text_queue's
+    # F418: the web-text settings updates carry a WHERE clause (pg_safeupdate, which PostgREST loads). web_text_queue's
     # chain, then the migration, as a non-superuser. The vacuity check drops the last: four updates have no WHERE and the
     # rule's assertion fails.
     web_text_safeupdate)

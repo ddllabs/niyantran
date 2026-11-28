@@ -1,4 +1,4 @@
--- F417: every UPDATE and DELETE in the web-text queue's functions carries a WHERE clause. Disposable fixture.
+-- F418: every UPDATE and DELETE in the web-text queue's functions carries a WHERE clause. Disposable fixture.
 -- PostgREST's role loads pg_safeupdate, which refuses an UPDATE or DELETE with no WHERE clause; the web-text Edge
 -- Function calls web_text_claim, web_text_finish and web_text_fail through PostgREST, so such a statement fails there
 -- although it passes in psql (and in web_text_queue.sql, which runs as psql). The local containers have no pg_safeupdate,
