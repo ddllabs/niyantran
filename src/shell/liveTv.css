@@ -918,28 +918,11 @@
   pointer-events: none;
 }
 .ltv-fcpill-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; animation: ltvPulse 1.8s infinite; }
-/* F417: the live captions, subtitle style: white on a translucent dark band, centred, two lines at most with the
-   newest words visible (the box is bottom-aligned and clipped at the top). They sit at the claim strip's place
-   (64px up, clear of YouTube's control bar) and move up above the strip when it shows a claim (the page sets
-   .is-raised then). The strip is about 40px tall on a fine pointer above 1080px and about 52px where the page's
-   40px rule makes its button taller; each case below leaves a 4px gap. They never take
-   a click, so the player stays usable under them. Dark in both themes, as the video is. */
-.ltv-captions {
-  position: absolute; left: 10px; right: 10px; bottom: 64px; z-index: 2;
-  display: flex; justify-content: center; pointer-events: none;
-}
-.ltv-captions.is-raised { bottom: 108px; } /* strip 40px tall at 64px: its top is 104px */
-.ltv-captions-text {
-  box-sizing: border-box; margin: 0; padding: 0 12px; max-width: 100%;
-  display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden;
-  max-height: 3em; /* two lines at 1.5 */
-  color: #fff; background: rgba(0, 0, 0, 0.75); border-radius: 6px;
-  font-size: 15px; line-height: 1.5; font-weight: 600; text-align: center;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
-  overflow-wrap: anywhere;
-}
-.ltv-captions-text.is-listening { font-weight: 500; font-style: italic; }
-:fullscreen .ltv-captions-text { font-size: 22px; padding: 0 16px; }
+/* F422: the pill turns amber when nothing is heard (muted, or silent past the threshold). The pill is dark in both
+   themes, as the video is; #fde68a on its dark band is about 13:1 and the amber dot #fbbf24 about 10:1. The dot
+   stops pulsing: a steady dot reads as "not live". */
+.ltv-fcpill--quiet { color: #fde68a; box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.6); }
+.ltv-fcpill--quiet .ltv-fcpill-dot { background: #fbbf24; animation: none; }
 .ltv-claimstrip-live { position: absolute; left: 10px; right: 10px; bottom: 64px; z-index: 2; display: flex; pointer-events: none; }
 .ltv-claimstrip {
   pointer-events: auto;
@@ -991,7 +974,6 @@
   .ltv-claimstrip-btn, .fc-sources--pills a { min-height: 40px; }
   .fc-sources--pills a { display: inline-flex; align-items: center; }
   .fc-tiles-clear, .fc-earlier-toggle, .fc-part-toggle { display: inline-flex; align-items: center; }
-  .ltv-captions.is-raised { bottom: 120px; } /* strip 52px tall at 64px: its top is 116px */
 }
 
 @media (max-width: 1080px) {
@@ -1010,9 +992,6 @@
   .ltv-player-stage { position: sticky; top: 0; z-index: 5; padding: 4px 0 6px; background: var(--bg); }
   .ltv-video-container { border-radius: 10px; }
   .ltv-claimstrip-live { left: 6px; right: 6px; bottom: 52px; }
-  .ltv-captions { left: 6px; right: 6px; bottom: 52px; }
-  .ltv-captions.is-raised { bottom: 108px; } /* strip 52px tall at 52px: its top is 104px */
-  .ltv-captions-text { font-size: 13px; padding: 0 8px; }
   .ltv-fcpill { top: 6px; right: 6px; font-size: 11px; }
 
   .ltv-nowplaying { gap: 8px 10px; }

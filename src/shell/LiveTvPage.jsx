@@ -8,7 +8,6 @@ import {
 import { FactCheckPanel } from './factcheck/FactCheckPanel.jsx';
 import { PastSessions } from './factcheck/PastSessions.jsx';
 import { LatestClaimStrip } from './factcheck/LatestClaimStrip.jsx';
-import { LiveCaptions } from './factcheck/LiveCaptions.jsx';
 import { SILENT_NOTICE_MS } from './factcheck/panelStatus.js';
 import { latestVerdictClaim } from './factcheck/claimFilter.js';
 import { leaveFullscreenThen } from './factcheck/leaveFullscreen.js';
@@ -593,10 +592,8 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
   const factCheckOffered = factCheck.view?.flag?.available === true;
   // Over the video only while a session runs: the "Fact-check on" pill and the newest claim with a verdict.
   const sessionRunning = factCheckOffered && factCheck.view?.session?.status === 'running';
-  // F417: the captions show while the session runs or is ending (the last words still arrive while it ends).
-  const captionsStatus = factCheckOffered ? factCheck.view?.session?.status : null;
-  const showCaptions = captionsStatus === 'running' || captionsStatus === 'ending';
-  const captionsListening = captionsStatus === 'running' && !isMuted && !(factCheck.view.session.silentFor > SILENT_NOTICE_MS);
+  // F422: the pill says when nothing is heard: the video is muted, or no speech for longer than the silence notice.
+  const notHearing = sessionRunning && (isMuted || factCheck.view.session.silentFor > SILENT_NOTICE_MS);
   const latestClaim = sessionRunning
     ? latestVerdictClaim(factCheck.view.session.claims, { rechecks: factCheck.view.rechecks || {}, price: factCheck.view.flag.recheckCredits ?? null })
     : null;
@@ -810,12 +807,9 @@ export default function LiveTvPage({ open, onClose, onNavigateDesk }) {
                 </button>
               </div>
             )}
-            {showCaptions ? (
-              <LiveCaptions lines={factCheck.view.session.transcript || []} listening={captionsListening} raised={Boolean(latestClaim)} />
-            ) : null}
             {sessionRunning ? (
               <>
-                <span className="ltv-fcpill"><span className="ltv-fcpill-dot" aria-hidden="true" />Fact-check on</span>
+                <span className={notHearing ? 'ltv-fcpill ltv-fcpill--quiet' : 'ltv-fcpill'}><span className="ltv-fcpill-dot" aria-hidden="true" />{notHearing ? 'Not hearing anything' : 'Fact-check on'}</span>
                 <LatestClaimStrip latest={latestClaim} onSee={(claimId) => leaveFullscreenThen(document, () => setSeeWhy((r) => ({ claimId, token: (r?.token || 0) + 1 })))} />
               </>
             ) : null}
