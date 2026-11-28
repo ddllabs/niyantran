@@ -1,7 +1,9 @@
 # Spec: bringing the `file-manager` branch into `main` — V1 (F418)
 
-> **Status: Living (2026-11-28), approved.** Approved by the developer on 2026-11-28, with the recommended answer to each
-> open question (recorded under Decisions). Plan: `docs/plans/2026-11-28-file-manager-integration.md`.
+> **Status: Historical (2026-11-28).** Approved by the developer on 2026-11-28, with the recommended answer to each
+> open question (recorded under Decisions), and delivered in PR #250 (`f5255529`). Plan:
+> `docs/plans/2026-11-28-file-manager-integration.md`. What is still open is in `docs/plans/open-work.md` (F419, F421,
+> F422).
 
 ## Assumptions
 
