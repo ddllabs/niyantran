@@ -1,7 +1,9 @@
 # Implementation plan: bringing the `file-manager` branch into `main` (F416)
 
-> **Status: Living (2026-11-28), proposed.** Source spec: `docs/specs/2026-11-28-file-manager-branch-integration.md`
-> (approved 2026-11-28). This plan waits on the developer's review. Tasks are tracked here; the open item is F416 in
+> **Status: Living (2026-11-28), approved and in progress.** Source spec:
+> `docs/specs/2026-11-28-file-manager-branch-integration.md` (approved 2026-11-28). The developer approved this plan on
+> 2026-11-28, with the recommended release order (deploy the functions, then merge). Phases 1 to 3 and the browser check
+> are done (see Progress); the deploys and the merge each still need the developer's yes. Open item: F416 in
 > `docs/plans/open-work.md`.
 
 ## Overview
@@ -52,7 +54,7 @@ production steps after it (Edge Function deploys, then indexing) each have their
 
 ### Phase 1: The integration branch (the merge commit)
 
-- [ ] **Task 1: Merge with the exclusions.**
+- [x] **Task 1: Merge with the exclusions.**
   - Create `task/file-manager-integration` from `main`.
   - Run `git merge --no-commit --no-ff a4a09d84`.
   - Remove from the result:
@@ -68,7 +70,7 @@ production steps after it (Edge Function deploys, then indexing) each have their
     - no added file is over 1 MB.
   - Verify: `git diff --stat main`, and a `find` for large files.
   - Files: the merge index only. **Size:** M, mechanical.
-- [ ] **Task 2: Resolve the code conflicts.**
+- [x] **Task 2: Resolve the code conflicts.**
   - Resolve:
     - `supabase/functions/_shared/retrieval.ts` and `retrieval_test.ts`: keep `main`'s F369 web-text path and add the
       branch's private-file path beside it;
@@ -84,7 +86,7 @@ production steps after it (Edge Function deploys, then indexing) each have their
     - `npm run lint`;
     - `deno test -A --config supabase/functions/deno.json supabase/functions/_shared`.
   - **Size:** M (6 files).
-- [ ] **Task 3: Resolve the tracker conflict and renumber the branch's items.**
+- [x] **Task 3: Resolve the tracker conflict and renumber the branch's items.**
   - Merge `docs/plans/open-work.md`, keeping `main`'s list.
   - Renumber the branch's items:
     - F341 (the file manager) becomes F417;
@@ -100,17 +102,17 @@ production steps after it (Edge Function deploys, then indexing) each have their
 
 ### Checkpoint 1
 
-- [ ] `npm run build` and `npm run lint` pass. Test failures at this point are expected and listed for Phase 2.
+- [x] `npm run build` and `npm run lint` pass. Test failures at this point are expected and listed for Phase 2.
 
 ### Phase 2: Tests green
 
-- [ ] **Task 4: Fix the two failing Deno tests.**
+- [x] **Task 4: Fix the two failing Deno tests.**
   - `prompt_test.ts`: expect the widened attachment-safety wording.
   - `document-file/handler_test.ts`: expect 60 seconds for private links, matching `SIGN_SECONDS_PRIVATE`.
   - Acceptance: the code is unchanged, and each test asserts the deliberate behaviour.
   - Verify: Deno for `supabase/functions` gives 0 failures.
   - **Size:** S (2 files).
-- [ ] **Task 5: Re-point the storage and lifecycle fixtures.**
+- [x] **Task 5: Re-point the storage and lifecycle fixtures.**
   - The fixtures: `user_files_isolation`, `user_files_lifecycle`, `user_files_storage_lifecycle`,
     `user_files_priority3_storage_api`.
   - Chain them to `file_manager_credit_fixes`' chain, which ends at F413, instead of the branch migration.
@@ -120,14 +122,14 @@ production steps after it (Edge Function deploys, then indexing) each have their
     - expectations `main` changed (F410 owner-only storage figures, F412 anon refused) are updated and listed.
   - Verify: `./supabase/tests/run.sh` with those four fixtures and `file_manager_schema`.
   - **Size:** M (`run.sh` and four fixtures).
-- [ ] **Task 6: Re-point the retrieval and ingestion fixtures.**
+- [x] **Task 6: Re-point the retrieval and ingestion fixtures.**
   - The fixtures: `user_files_retrieval`, `user_files_ingestion_rag`, `user_files_reliability`.
   - Same rules as Task 5.
   - Expectations `main` changed: one active job per file, settling once per attempt, and a running job not cancellable
     (F413).
   - Verify: `run.sh` with those three fixtures and `file_manager_credit_fixes`.
   - **Size:** M.
-- [ ] **Task 7: Re-point the quota fixture.**
+- [x] **Task 7: Re-point the quota fixture.**
   - The fixture: `user_files_quota_complete`, with `bootstrap_entitlements.sql`.
   - Chain `main`'s plan migrations (signup persona, plan entitlements, INR plans), then F410 to F413.
   - Acceptance: it passes with its vacuity check, and the chain's runtime is reported (F302 watches the SQL job's
@@ -137,14 +139,14 @@ production steps after it (Edge Function deploys, then indexing) each have their
 
 ### Checkpoint 2
 
-- [ ] Every suite passes locally:
+- [x] Every suite passes locally:
   - `npm ci`, `npm run build`, `npm run lint` (0 warnings), `npm test`, `npm run test:scripts`;
   - the router import and Deno;
   - `./supabase/tests/run.sh`, all fixtures with their vacuity checks.
 
 ### Phase 3: Scope fixes
 
-- [ ] **Task 8: Drop the dev-only sign-in bypass, and hide Cancel for running jobs.**
+- [x] **Task 8: Drop the dev-only sign-in bypass, and hide Cancel for running jobs.**
   - In `src/App.jsx`, restore `main`'s `setAuthed(false)` path (spec decision 3). Keep the branch's
     forgot-password and reset-password route change.
   - In `src/fileManager/DriveJobsDrawer.jsx`, show Cancel only for queued jobs (F415, part 2). Add a test that a running
@@ -152,7 +154,7 @@ production steps after it (Edge Function deploys, then indexing) each have their
   - Acceptance: the new test fails before the change and passes after.
   - Verify: `npm test`, `npm run lint`.
   - **Size:** S to M (3 files).
-- [ ] **Task 9: Check the Edge Functions against the current client.** Read-only, with a test where one is missing.
+- [x] **Task 9: Check the Edge Functions against the current client.** Read-only, with a test where one is missing.
   - Diff the four touched functions against `main`. Confirm that each existing request shape still gives the same
     response:
     - `research-chat` without private file ids;
@@ -163,7 +165,7 @@ production steps after it (Edge Function deploys, then indexing) each have their
     first, and the plan is updated.
   - Verify: Deno.
   - **Size:** M.
-- [ ] **Task 10: Docs.**
+- [x] **Task 10: Docs.**
   - Rename the branch's ADR to `docs/decisions/0016-private-file-manager-ingestion-rag-integration.md` and fix links to
     it.
   - Give each included branch document a status line (Historical, dated), as AGENTS.md requires.
@@ -174,13 +176,13 @@ production steps after it (Edge Function deploys, then indexing) each have their
 
 ### Checkpoint 3
 
-- [ ] Checkpoint 2's commands pass again.
+- [x] Checkpoint 2's commands pass again.
 - [ ] Push `task/file-manager-integration`. Push and PR are covered by this plan's approval.
 - [ ] Both required CI jobs pass on the head.
 
 ### Phase 4: Review and release (each step needs the developer's yes)
 
-- [ ] **Task 11: Check the Vercel preview at runtime** (`niyantran-git-task-file-manager-integration-ddl-labs.vercel.app`).
+- [x] **Task 11: Check the Vercel preview at runtime** (`niyantran-git-task-file-manager-integration-ddl-labs.vercel.app`).
   - Signed out, at desktop and phone width (390 px): `#/files` and the picker are unreachable. I can do this.
   - Signed in: upload, browse, trash, restore, empty trash, attach a file to a question, and open its citation.
   - This writes to NTER's `user-files` bucket, because previews use the production project. It needs a test account
@@ -204,6 +206,37 @@ production steps after it (Edge Function deploys, then indexing) each have their
 - F414: the declared file size.
 - F415, part 1: the hold lapsing on a long job.
 - F419: the `nter-mobile/` app's place.
+
+## Progress (2026-11-28)
+
+- **Phase 1:** the merge commit `7842dd37` (parents: `main`'s line and the contributor's `a4a09d84`) carries the
+  exclusions and the 8 conflict resolutions. Also left out: two ingest-worker fixtures that look like a real company's
+  documents (a GTPL PRD workbook and feature list), replaced by synthetic ones.
+- **Phases 2 and 3** were done by four parallel task agents in separate worktrees (Deno, SQL fixtures, `src/`, docs);
+  the supervisor reviewed and committed each. Findings beyond the plan:
+  - **Retrieval order (fixed).** With no private files, the branch re-sorted results by similarity, which changed
+    hybrid desks' fused order for every user. Main's order is now kept, with a test.
+  - **AI panel notice (fixed).** Main's rule is that the switch to Attached announces nothing; the branch's file
+    attach did, and now doesn't.
+  - **Ask AI from the file manager (fixed).** It attached the file under the file manager's full-page overlay, so the
+    user never saw the panel. The shell now closes the overlay without a hashchange, with a test.
+- **Checks on the final tree:**
+  - `npm ci`, build, lint (0 warnings), Vitest (560 files, 9,486 tests), script tests (141), router import and
+    Deno (2,040) pass.
+  - SQL: 68 of 107 fixtures pass locally, against `main`'s 60 of 99 on the same machine. The same 39 fail on both, from
+    this machine's PostgreSQL 16 and pgvector (`MAINTAIN`, `halfvec`); CI runs 17. No vacuity failure, and all 8
+    `user_files_*` fixtures also pass on `main`'s final state through F413.
+- **Browser check (Task 11).** Run locally (`vite`, port 5179) against NTER with the developer's test account, since the
+  Vercel preview needs team sign-in. Desktop and 390 px:
+  - Signed out, `#/files` shows no file manager.
+  - Signed in: upload, list, trash, restore and empty trash all worked.
+  - Index for AI shows "Indexing Temporarily Unavailable", with no server call.
+  - Ask AI attaches the file to the panel.
+  - On a phone, the file manager opens from the bottom bar's Files button and fits the width. Cosmetic: the "Upload
+    Here" button reaches the right edge.
+  - The test file was removed afterwards, and the account's own file is untouched.
+  - Not checked: a question about a private file and its citation, which need the new `research-chat` and
+    `document-file` deployed (Task 12).
 
 ## Risks and mitigations
 
