@@ -111,6 +111,8 @@
 
 - [ ] **F415 — File-manager jobs: a hold lapses on a long job, and Cancel is offered for running jobs.** *From F413, 2026-11-27.* (1) The indexing hold lasts a fixed 30 minutes while a job can run longer (the worker renews a 300-second lease, and `user_file_claim` takes back a lapsed one), so the user's credits stop being reserved and they can overspend into debt; `user_file_settle_credits` still charges in full. The fix ties the hold to the lease, which reaches into the worker (`supabase/functions/ingest-worker/user-file-step.ts` on the `file-manager` branch). (2) The file manager's Cancel button (`src/fileManager/DriveJobsDrawer.jsx` on that branch) is shown for running jobs; since F413 a running job refuses with `job_running`, so the button should be hidden for them. Both are the contributor's code; telling the contributor is the developer's step. Review: [2026-11-27-f413-file-manager-credit-review](../research/2026-11-27-f413-file-manager-credit-review.md).
 
+- [ ] **F416 — The `file-manager` branch is not on `main`.** *Spec proposed 2026-11-28; waits on the developer's approval and open questions.* The contributor's branch (`a4a09d84`, 23 commits, forked 2026-11-13, 434 behind `main`) holds the file manager UI, private files in the AI panel, the four Edge Functions behind them, the website's phone layout (F342), a separate app in `nter-mobile/`, and reports and screenshots. Its last CI failed (two Deno tests), a trial merge stops on 8 conflicts, its four migrations would undo F410 to F413, and its tracker numbers F341 to F346 are taken on `main`. Spec: [2026-11-28-file-manager-branch-integration](../specs/2026-11-28-file-manager-branch-integration.md).
+
 - [ ] **F414 — The file manager trusts the file size the client declares.** *Found 2026-11-27 in the F413 review.* `user_file_prepare_upload` takes `p_size_bytes` from the client and `user_file_complete_upload` never compares it with the stored object in the `user-files` bucket. The storage quota (`user_storage_used_bytes`, F410) and the indexing hold (F413) both count the declared size, so a client can under-declare to pass the quota. The bucket's 50 MB object limit still applies. Compare the declared size with `storage.objects` metadata at completion, or count from it.
 
 - [ ] **F282 — `supplied_text.sql` fixture fails on chains that include the Law migration.** *Remaining: fix the fixture or retire it; the failure is reproduced and explained. 2026-11-10 (F299)* Seen 2026-11-02 while running SQL fixtures for Phase B and C (F278): the fixture passes on its own chain but fails when its file is applied in a chain that includes the Law publication migration. It predates this work and does not affect CI's chains. Reproduce, then fix the fixture or its chain; until then do not reuse it in a longer chain as evidence.
@@ -208,7 +210,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves, ticked and with
   its commit hash, to the Done archive, [open-work-done.md](open-work-done.md).
-- A new finding gets the next free `F` number (F416 is next) and goes in the
+- A new finding gets the next free `F` number (F417 is next) and goes in the
   right section.
 
 ## Frontend follow-up
