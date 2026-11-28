@@ -1,9 +1,9 @@
 # Implementation plan: bringing the `file-manager` branch into `main` (F418)
 
-> **Status: Living (2026-11-28), approved and in progress.** Source spec:
+> **Status: Historical (2026-11-28).** Source spec:
 > `docs/specs/2026-11-28-file-manager-branch-integration.md` (approved 2026-11-28). The developer approved this plan on
-> 2026-11-28, with the recommended release order (deploy the functions, then merge). Phases 1 to 3 and the browser check
-> are done (see Progress); the deploys and the merge each still need the developer's yes. Open item: F418 in
+> 2026-11-28. Merged in PR #250 (`f5255529`); at release the developer chose to merge before deploying `research-chat`
+> and `ingest-worker` (see Progress). F418 is in `docs/plans/open-work-done.md`; the remaining deploys are F419 in
 > `docs/plans/open-work.md`.
 
 ## Overview
