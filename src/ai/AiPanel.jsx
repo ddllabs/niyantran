@@ -532,7 +532,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       }));
     }).then(() => {
       setFocus('attached');
-      setScopeNotice('Attached private files — AI research will query context from your documents.');
+      setScopeNotice('');
     });
   }, [research.actions]);
 
@@ -695,7 +695,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       if (!applied || research.actions.getSnapshot().identityVersion !== version) return;
       if (seed.file || seed.row || seed.drop?.kind === 'row' || (!seed.attachFeed && selected)) {
         setFocus('attached');
-        setScopeNotice(seed.file ? 'Attached file — AI research will query context from your private file.' : '');
+        setScopeNotice('');
       }
       onSeedConsumed?.();
     });
