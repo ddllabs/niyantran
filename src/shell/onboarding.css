@@ -112,15 +112,77 @@
   padding: 10px 12px;
   font: inherit;
 }
-.persona-continue {
-  justify-self: start;
-  border: none;
+.persona-step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.step-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.step-badge.active {
+  background: var(--accent-soft, #e8eef8);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.step-arrow {
+  color: var(--muted);
+  font-size: 11px;
+}
+.persona-selection-list {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 20px;
+}
+.persona-radio-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 14px;
+}
+.persona-radio-option:hover {
+  background: var(--bg);
+}
+.persona-radio-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft, #e8eef8);
+  color: var(--accent);
+  font-weight: 600;
+}
+.persona-wizard-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.persona-cancel {
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px 16px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 700;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
   cursor: pointer;
+}
+.persona-continue:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .niy-tour {

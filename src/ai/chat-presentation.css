@@ -106,7 +106,7 @@
 .ai-shell.ai-shell-research .ai-v2-suggest { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; overscroll-behavior-x: contain; padding: 2px; scrollbar-width: thin; }
 .ai-shell.ai-shell-research .ai-v2-suggest button { flex: none; width: auto; max-width: none; white-space: nowrap; padding: 6px 12px; min-height: 32px; font-size: 12px; border-radius: 999px; border-color: color-mix(in srgb, var(--ai-blue) 18%, var(--ai-line)); background: color-mix(in srgb, var(--ai-blue-soft) 55%, var(--ai-surface)); color: var(--ai-text); }
 .ai-shell.ai-shell-research .ai-v2-composer { border-radius: 14px; padding: 6px 10px; gap: 4px; box-shadow: var(--shadow); }
-.ai-shell.ai-shell-research .ai-v2-composer textarea { box-sizing: border-box; color: var(--ai-text); font-size: 15px; font-weight: 400; line-height: 1.5; }
+.ai-shell.ai-shell-research .ai-v2-composer textarea { box-sizing: border-box; color: var(--ai-text); font-size: 16px; font-weight: 400; line-height: 1.5; }
 .ai-shell.ai-shell-research .ai-v2-composer textarea::placeholder { color: var(--ai-muted); }
 .ai-shell.ai-shell-research .ai-v2-comp-tools > div { min-width: 0; }
 .ai-shell.ai-shell-research .ai-v2-model-btn { position: relative; isolation: isolate; gap: 6px; border: 1px solid transparent; padding: 0 10px; height: 32px; border-radius: 999px; background: linear-gradient(var(--ai-surface), var(--ai-surface)) padding-box, linear-gradient(115deg, var(--ai-line), color-mix(in srgb, var(--ai-blue) 50%, var(--ai-line)), var(--ai-line), color-mix(in srgb, var(--ai-blue) 30%, var(--ai-line))) border-box; color: var(--ai-text); font-size: 12px; font-weight: 500; }

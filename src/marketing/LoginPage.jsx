@@ -164,7 +164,7 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
               autoComplete="username"
               spellCheck="false"
               required
-              autoFocus
+              autoFocus={typeof window !== 'undefined' ? window.innerWidth >= 768 : false}
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
             />

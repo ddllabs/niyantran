@@ -101,6 +101,7 @@ function identityChanged(id, event = null) {
 
 function watchIdentity() {
   if (authWatched) return;
+  if (!supabase?.auth?.onAuthStateChange) return;
   supabase.auth.onAuthStateChange((event, session) => {
     // Keep callbacks synchronous; never call another Auth method here.
     identityChanged(session?.user?.id || null, event);
